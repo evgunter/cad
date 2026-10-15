@@ -677,25 +677,15 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
-            Self::OnPairArcRim { iso, limb, bound } => {
-                write!(
-                    f,
-                    "an arc rim's incidence on its spline wall did not certify: its exact \
-                     boundary-row image refused "
-                )?;
-                match iso {
-                    Some(check) => write!(f, "at its {check:?} check")?,
-                    None => write!(f, "as no full rim on a boundary row of the chart")?,
+            Self::OnPairArcRim { limb, bound, .. } => write!(
+                f,
+                "an arc rim's incidence on its spline wall did not certify: its exact \
+                 boundary-row image did not certify, and its fitted image refused — {}",
+                crate::edge_nurbs::PlaneNurbsRefusal::Limb {
+                    limb: *limb,
+                    margin: *bound
                 }
-                write!(
-                    f,
-                    ", and its fitted image refused — {}",
-                    crate::edge_nurbs::PlaneNurbsRefusal::Limb {
-                        limb: *limb,
-                        margin: *bound
-                    }
-                )
-            }
+            ),
             Self::AnalyticRung3(refusal) => write!(
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
