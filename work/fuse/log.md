@@ -978,3 +978,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - B: drop the list from C5 (recommended);
     - C: re-read at the nearer end.
     - No designer pair was run: C decides a false "off the carrier", so this is a ratified-text amendment, not a fork.
+- 2026-10-15: the stage (c) lane hit the weekly usage limit at about 20:00Z on 10-14 and was resumed at 00:47Z.
+  - **c1 (5154):** its fix pass is pushed (b683491) and green. It is still `[ev]` on C5.
+  - **c2 (5162):** census confirm, landings and the edge-face cut onto `meet`. It is green at d9086e3.
+- 2026-10-15: PR 5162 (c2) reviews: Opus and Fable both approve with fixes, with no MAJOR.
+  - **D4 breach, MINOR:** the new run gate drops an in-band `curve_pair_pose_run` escalation, so `meet` decides "no meeting" for a line through an arc's end at φ 0.01–0.024. That is new code pruning in band; it is not a regression, since the old census walk also said no.
+  - **Also found:**
+    - the run half-width doc says /2 while the code uses /4;
+    - duplicate End and run meetings;
+    - a possible new `carrier_cross` split at end touches;
+    - an unpinned spline arm;
+    - doc rot;
+    - the coplanar-ellipse census refusal wants a named follow-on unit.
+  - **Next:** the fixes are queued to the lane ahead of c3.
