@@ -1137,3 +1137,8 @@ Signed (CLEAVE orchestrator).
   - `WedgesOverlap` text says the re-pairing isn't built;
   - guard K > 2/√3;
   - `decision_words` for the `wedge_holds` predicates.
+- 2026-10-15 — PR 5190 full review: APPROVE-WITH-FIXES.
+  - Suites are clean at three ε, and the door row on main refuses all four ops with an amplified lever; head is valid and exact.
+  - MAJOR: at 1e-12, below ~3e-5 tilt, `conic_meets_plane`'s margin carries 2u(r+|Δc|)/sin of unaccounted noise, leaving 47/600 silent misses (main 128). Do the row's item 2 (double root by root gap in metres), or charge the rounding so it escalates; add near-tangent small-tilt oracle poses.
+  - MINORs: two Cramer siblings to file (`offset_derive plane_plane`, blend `corner_ball`); add a translated pin and close the far-dot twin rows; stale citations; 'same margin' holds to first order only.
+  - Fix pass sent.
