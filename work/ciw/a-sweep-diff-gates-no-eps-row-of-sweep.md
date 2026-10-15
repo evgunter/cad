@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P2
 cost: M
+refs: [5211]
 ---
 
 Filed by the reach-eps lane (REACH, PR 3636).
