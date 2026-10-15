@@ -4177,7 +4177,7 @@ fn periodic_envelope<T: Decide>(
     // on the chart's orthonormalised twin and the two maps' distance
     // over the stored image is its own term (`Frame`).
     let ideal = orthonormal_chart(surface);
-    let (derived, derivation) = derive_harmonic(carrier, &ideal, band)?;
+    let (derived, derivation) = derive_harmonic(carrier, &ideal, Placement::over(span), band)?;
     if matches!(derivation, Derivation::FocalSection) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
@@ -4758,6 +4758,68 @@ impl<T: Real> Period<T> {
     /// advance of a winding of `k`.
     pub fn times(self, k: i32) -> T {
         T::from_f64(f64::from(k)) * self.length
+    }
+}
+
+/// **The principal window of an angular channel** starts here: an
+/// angle is placed in `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`.
+///
+/// C4 places a periodic image "over the edge's span in the chart's
+/// principal window" and leaves the window to the implementation. The
+/// one property that matters is where its cut sits: an image whose span
+/// midpoint lands on the cut has its copy picked by rounding. Images
+/// cluster on the landmark angles (a seam at `0`, the half turn, the
+/// quarter turns), so the cut sits at a generic angle, `−1` radian.
+/// Measured over the workspace suite's harmonic images (3228 distinct,
+/// 237 k reads, planes excluded): the number whose midpoint lies within
+/// `1e-6` of each candidate cut, and the number a candidate moves from
+/// where the derivation used to put it.
+///
+/// | window | moved | on the cut |
+/// |---|---|---|
+/// | `(−π, π]` | 11.1% | 76.9 k |
+/// | `(0, τ]` | 37.8% | 87.6 k |
+/// | `(−π/2, 3π/2]` | 0.9% | 21.6 k |
+/// | `(−1, τ − 1]` | 0.8% | 0 |
+///
+/// A body can still put a midpoint on the cut (a cone rotated so its
+/// seam sits at `−1`); no reader may tell the two copies apart there.
+pub const ANGLE_WINDOW_START: f64 = -1.0;
+
+/// **An angle read off the geometry**: the two frame components of a
+/// direction, as `atan2` would read them, with no arithmetic of its own.
+/// Its one exit is [`Azimuth::near`], which names the angle within half
+/// a turn of a stated reference: a renaming of the one direction, never
+/// a decision, so no whole-period integer is read off its value.
+#[derive(Clone, Copy, Debug)]
+pub struct Azimuth<T> {
+    y: T,
+    x: T,
+}
+
+impl<T: Real> Azimuth<T> {
+    /// The direction `(x, y)` in a chart's angular frame.
+    pub fn of(y: T, x: T) -> Self {
+        Self { y, x }
+    }
+
+    /// The angle of the direction in `(anchor − π, anchor + π]`: the
+    /// direction rotated back by `anchor`, read by `atan2`, and the
+    /// anchor added again. An anchored `atan2`, so the cut sits half a
+    /// turn from the anchor, wherever that is.
+    pub fn near(self, anchor: T) -> T {
+        let (s, c) = anchor.sin_cos();
+        anchor + (self.y * c - self.x * s).atan2(self.x * c + self.y * s)
+    }
+
+    /// The angle placed in the principal window ([`ANGLE_WINDOW_START`])
+    /// at `slope · t_mid` from where this direction is read: the angle a
+    /// channel moving at `slope` per unit of the carrier's parameter
+    /// starts at, so that it lies in the window at the span's midpoint
+    /// `t_mid`.
+    pub fn placed(self, slope: T, t_mid: T) -> T {
+        let centre = T::pi() + T::from_f64(ANGLE_WINDOW_START);
+        self.near(centre - slope * t_mid)
     }
 }
 
@@ -7448,6 +7510,75 @@ fn seam_envelope<T: Decide>(
 /// `atan2(−y, −x) + π`. The frame trilean chooses between two
 /// formulas identical mod τ (the negative-`y` side differs by 2π);
 /// degenerate and in-band arms keep the direct one (tie-break, D9).
+/// **Where a derivation places its angular phases** (C4): over the
+/// edge's span, in the principal window ([`ANGLE_WINDOW_START`]). It
+/// carries the span's midpoint; a phase is the angle its channel reads
+/// at the image's own origin, placed so that the channel lies in the
+/// window at that midpoint ([`Placement::phase`]). Where the carrier's
+/// parameter starts then moves no stored image: a carrier stated whole
+/// periods off reads the same placed image.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Placement<T> {
+    mid: T,
+}
+
+impl<T: Real> Placement<T> {
+    /// Placement over the edge's span `[t0, t1]`.
+    pub(crate) fn over((t0, t1): (T, T)) -> Self {
+        Self {
+            mid: (t0 + t1) * T::from_f64(0.5),
+        }
+    }
+
+    /// The span's midpoint.
+    pub(crate) fn mid(self) -> T {
+        self.mid
+    }
+
+    /// The shift that names an angle `at`, read at the span's midpoint,
+    /// in the principal window: the window's name of the same direction,
+    /// less `at`. A whole number of turns up to rounding; for an image
+    /// whose channels are read piece by piece (the projected one), whose
+    /// deck origin it sets.
+    pub(crate) fn rename(self, at: T) -> T {
+        let (s, c) = at.sin_cos();
+        let centre = T::pi() + T::from_f64(ANGLE_WINDOW_START);
+        Azimuth::of(s, c).near(centre) - at
+    }
+
+    /// Placement over the carrier's own interval ([`own_interval`]), for
+    /// a caller holding no edge.
+    pub(crate) fn own(carrier: &Curve3<T>) -> Self {
+        Self::over(own_interval(carrier))
+    }
+
+    /// The phase of a channel whose direction at the image's origin is
+    /// `dir` and which moves by `offset(t)` from there by parameter `t`:
+    /// the angle of `dir` named so that `phase + offset(mid)` lies in the
+    /// principal window. A renaming through the anchored `atan2`
+    /// ([`Azimuth::near`]); no decision is read.
+    pub(crate) fn phase(self, dir: Azimuth<T>, offset: impl FnOnce(T) -> T) -> T {
+        let centre = T::pi() + T::from_f64(ANGLE_WINDOW_START);
+        dir.near(centre - offset(self.mid))
+    }
+}
+
+/// A carrier's own parameter interval, for a derivation no edge spans:
+/// one turn `[0, τ]` of a periodic carrier, a spline's knot domain, and
+/// `[0, 0]` for a line, whose image has no moving angular channel.
+pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
+    match carrier {
+        Curve3::Line { .. } => (T::zero(), T::zero()),
+        Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+            (T::zero(), T::tau())
+        }
+        Curve3::Nurbs(net) => {
+            let (a, b) = net.domain();
+            (T::from_f64(a), T::from_f64(b))
+        }
+    }
+}
+
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
@@ -7511,12 +7642,13 @@ fn chart_image<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
+    let place = span.map_or_else(|| Placement::own(carrier), Placement::over);
     // The spiric's two exact images come FIRST, because the kind has no
     // `{1, cos, sin, t}` form at all: `carrier_harmonic` answers `None`
     // for it and would turn the one carrier with a closed image on two
     // charts into a blanket refusal.
     if matches!(carrier, Curve3::Spiric { .. }) {
-        return spiric_chart_pcurve(carrier, surface, band);
+        return spiric_chart_pcurve(carrier, surface, place, band);
     }
     // A spline carrier has no closed form on any chart: its image is the
     // projected one, after the incidence test shows it not off the chart.
@@ -7534,7 +7666,7 @@ fn chart_image<T: Decide>(
         return projected::project(carrier, span, surface, band)
             .map(|image| Pcurve::Projected(Box::new(image)));
     }
-    match derive_class(carrier, surface, band) {
+    match derive_class(carrier, surface, place, band) {
         Ok((image, _)) => Ok(image),
         Err(Underived::Refused(e)) => Err(e),
         Err(Underived::SphereGeneral) => projected::project(carrier, span, surface, band)
@@ -7639,8 +7771,8 @@ pub fn chart_iso_family<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let (_, derivation) =
-        derive_harmonic(carrier, surface, band).map_err(IsoFamilyRefusal::Image)?;
+    let (_, derivation) = derive_harmonic(carrier, surface, Placement::own(carrier), band)
+        .map_err(IsoFamilyRefusal::Image)?;
     if let (Derivation::CylinderMeridian, Surface::Cylinder { axis, .. }, Some(form)) =
         (derivation, surface, carrier_harmonic(carrier))
     {
@@ -7674,6 +7806,7 @@ pub fn chart_iso_family<T: Decide>(
 fn derive_class<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let off_chart = |why| Underived::Refused(OffChart(why).refusal(surface, carrier));
@@ -7732,7 +7865,7 @@ fn derive_class<T: Decide>(
             // near-band-radius cylinder as a meridian, which then
             // failed the residual schedule loudly (the 100ε washer).
             let moving = radial_amplitude(&form, axis);
-            let alpha_const = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
+            let alpha_const = place.phase(Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)), |_| T::zero());
             match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
                 // Zero — AND the in-band arm (Err): a sub-escalation
                 // radial amplitude takes the meridian form as a D9
@@ -7760,7 +7893,6 @@ fn derive_class<T: Decide>(
                     // residual). α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
                     // frame, a named trilean metered at the radius.
-                    let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
                         "pcurve_chart_orientation",
@@ -7770,6 +7902,9 @@ fn derive_class<T: Decide>(
                         Ok(sign) => Winding::of(sign),
                         Err(cause) => return Err(winding_escalated(cause).into()),
                     };
+                    let alpha = place.phase(Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)), |m| {
+                        beta.value::<T>() * m
+                    });
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, w.dot(axis)),
@@ -7847,7 +7982,8 @@ fn derive_class<T: Decide>(
                             }
                         };
                     let r_dir = r_ref * h_sign.value();
-                    let alpha = stable_azimuth(r_dir.dot(cv), r_dir.dot(u_ref), band);
+                    let alpha =
+                        place.phase(Azimuth::of(r_dir.dot(cv), r_dir.dot(u_ref)), |_| T::zero());
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, h0 / c_ha),
@@ -7927,7 +8063,6 @@ fn derive_class<T: Decide>(
                         }
                     };
                     let a_dir = a_r * nappe.value();
-                    let alpha = stable_azimuth(a_dir.dot(cv), a_dir.dot(u_ref), band);
                     let orient = a_r.cross(radial(form.b)).dot(axis);
                     // β metered at the rim's own radius — the honest
                     // local lever. The spatial traversal rate equals
@@ -7942,6 +8077,9 @@ fn derive_class<T: Decide>(
                         )
                         .map_err(esc)?,
                     );
+                    let alpha = place.phase(Azimuth::of(a_dir.dot(cv), a_dir.dot(u_ref)), |m| {
+                        beta.value::<T>() * m
+                    });
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, v0),
@@ -8044,19 +8182,22 @@ fn derive_class<T: Decide>(
                     // near a parabola and would turn any off-plane
                     // rounding in the centre by `1/k²`.
                     let start = ra * ns;
-                    Ok((
-                        Pcurve::FocalSection(FocalImage {
-                            u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
-                            t0: frame.phase,
-                            v0: h / c_ha,
-                            va: seam.dot(axis) * semi_u / c_ha,
-                            vb: e_axis.cross(seam).dot(axis) * semi_v / c_ha,
-                            vl: T::zero(),
-                            beta,
-                            sense,
-                        }),
-                        Derivation::FocalSection,
-                    ))
+                    let image = |u0| FocalImage {
+                        u0,
+                        t0: frame.phase,
+                        v0: h / c_ha,
+                        va: seam.dot(axis) * semi_u / c_ha,
+                        vb: e_axis.cross(seam).dot(axis) * semi_v / c_ha,
+                        vl: T::zero(),
+                        beta,
+                        sense,
+                    };
+                    // The azimuth moves by the true anomaly from `t0`: the
+                    // image read from `u0 = 0` is that motion.
+                    let u0 = place.phase(Azimuth::of(start.dot(cv), start.dot(u_ref)), |m| {
+                        Pcurve::FocalSection(image(T::zero())).eval(m).x
+                    });
+                    Ok((Pcurve::FocalSection(image(u0)), Derivation::FocalSection))
                 }
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } => unreachable!(
                     "chart_pcurve: spirics route to spiric_chart_pcurve and splines refuse \
@@ -8108,8 +8249,6 @@ fn derive_class<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
             let esc = winding_escalated;
-            // Branch-stabilized azimuth: see `stable_azimuth`.
-            let stable_az = |y: T, x: T| -> T { stable_azimuth(y, x, band) };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
             match decide(
@@ -8135,7 +8274,6 @@ fn derive_class<T: Decide>(
                             return Err(sphere_circle_incidence(carrier, surface, band)?);
                         }
                     }
-                    let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = Winding::of(
                         decide(
@@ -8145,6 +8283,9 @@ fn derive_class<T: Decide>(
                         )
                         .map_err(esc)?,
                     );
+                    let alpha = place.phase(Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)), |m| {
+                        beta.value::<T>() * m
+                    });
                     let polar = (wa / radius).asin();
                     Ok((
                         Pcurve::Harmonic {
@@ -8224,7 +8365,8 @@ fn derive_class<T: Decide>(
                             ));
                         }
                     };
-                    let alpha = stable_az(d_hat.dot(cv), d_hat.dot(u_ref));
+                    let alpha =
+                        place.phase(Azimuth::of(d_hat.dot(cv), d_hat.dot(u_ref)), |_| T::zero());
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, delta),
@@ -8289,11 +8431,10 @@ fn derive_class<T: Decide>(
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band)
+                            return torus_oblique_circle(carrier, surface, place, band)
                                 .map_err(Underived::Refused);
                         }
                     }
-                    let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = Winding::of(
@@ -8304,11 +8445,15 @@ fn derive_class<T: Decide>(
                         )
                         .map_err(esc)?,
                     );
+                    let alpha = place.phase(Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)), |m| {
+                        beta.value::<T>() * m
+                    });
                     // v₀ from the height/radius pair: R + r·cos v =
-                    // ρ, r·sin v = h — atan2 of the two residual-
-                    // certified coordinates (inner equator lands at
-                    // v = π exactly as the chart states it).
-                    let v0 = w.dot(axis).atan2(rho - major_radius);
+                    // ρ, r·sin v = h — the tube angle of the two
+                    // residual-certified coordinates, placed in the
+                    // window like the azimuth (a parallel holds it).
+                    let v0 =
+                        place.phase(Azimuth::of(w.dot(axis), rho - major_radius), |_| T::zero());
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, v0),
@@ -8332,11 +8477,12 @@ fn derive_class<T: Decide>(
                         // Villarceau class), and the incidence test
                         // separates them from circles off it.
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band)
+                            return torus_oblique_circle(carrier, surface, place, band)
                                 .map_err(Underived::Refused);
                         }
                     }
-                    let alpha = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
+                    let alpha =
+                        place.phase(Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)), |_| T::zero());
                     let (sa, ca) = alpha.sin_cos();
                     let rad = u_ref * ca + cv * sa;
                     // δ from the t = 0 point's meridional components;
@@ -8368,6 +8514,11 @@ fn derive_class<T: Decide>(
                             ));
                         }
                     };
+                    // The tube angle placed in the window at the span's
+                    // midpoint; σ read off `δ`'s sine and cosine above is
+                    // the same on either copy.
+                    let delta =
+                        place.phase(Azimuth::of(aa, a_r.dot(rad)), |m| sigma.value::<T>() * m);
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, delta),
@@ -8410,9 +8561,10 @@ impl From<PcurveCertifyError> for Underived {
 fn derive_harmonic<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
-    derive_class(carrier, surface, band).map_err(|u| match u {
+    derive_class(carrier, surface, place, band).map_err(|u| match u {
         Underived::Refused(e) => e,
         Underived::SphereGeneral => PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
@@ -8499,6 +8651,7 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
     let (
@@ -8611,19 +8764,23 @@ fn torus_oblique_circle<T: Decide>(
     };
     let t0 = stable_azimuth(d.dot(form.b), d.dot(form.a), band);
     let cv = axis.cross(u_ref);
-    Ok((
-        Pcurve::FocalSection(FocalImage {
-            u0: stable_azimuth(d.dot(cv), d.dot(u_ref), band),
-            t0,
-            v0: T::zero() - vl * t0,
-            va: T::zero(),
-            vb: T::zero(),
-            vl,
-            beta: T::zero() - r / (big + (big.powi(2) - r.powi(2)).sqrt()),
-            sense,
-        }),
-        Derivation::FocalSection,
-    ))
+    let image = |u0| FocalImage {
+        u0,
+        t0,
+        v0: T::zero() - vl * t0,
+        va: T::zero(),
+        vb: T::zero(),
+        vl,
+        beta: T::zero() - r / (big + (big.powi(2) - r.powi(2)).sqrt()),
+        sense,
+    };
+    // The azimuth placed in the window at the span's midpoint. The tube
+    // angle runs on the carrier's own parameter from `t0`, a parameter
+    // read and not an angle of the chart, so it is not placed here.
+    let u0 = place.phase(Azimuth::of(d.dot(cv), d.dot(u_ref)), |m| {
+        Pcurve::FocalSection(image(T::zero())).eval(m).x
+    });
+    Ok((Pcurve::FocalSection(image(u0)), Derivation::FocalSection))
 }
 
 /// A circle on a sphere chart that is neither polar nor meridian: off
@@ -8792,6 +8949,7 @@ fn grazes<T: Real>(
 fn spiric_chart_pcurve<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    place: Placement<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
     let Curve3::Spiric {
@@ -8868,12 +9026,18 @@ fn spiric_chart_pcurve<T: Decide>(
                 Sign::Positive | Sign::Negative => WallTorus::Mirror,
             };
             let toward = n * torus.mu::<T>();
-            Ok(spiric(SpiricImage::Wall {
-                u0: stable_azimuth(toward.dot(cv), toward.dot(chart_u), band),
+            let wall = |u0| SpiricImage::Wall {
+                u0,
                 v0: T::zero(),
                 sense: sigma,
                 torus,
-            }))
+            };
+            // The azimuth placed in the window at the span's midpoint,
+            // the image read from `u0 = 0` being its motion there.
+            let u0 = place.phase(Azimuth::of(toward.dot(cv), toward.dot(chart_u)), |m| {
+                spiric(wall(T::zero())).eval(m).x
+            });
+            Ok(spiric(wall(u0)))
         }
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
             let verdict = spiric_off_own_chart(
@@ -9772,7 +9936,8 @@ mod tests {
             radius: 0.1,
             u_ref: Vec3::unit_x(),
         };
-        let (image, derivation) = derive_harmonic(&carrier, &cyl, band()).unwrap();
+        let (image, derivation) =
+            derive_harmonic(&carrier, &cyl, super::Placement::own(&carrier), band()).unwrap();
         assert!(
             matches!(
                 derivation,

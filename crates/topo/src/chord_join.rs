@@ -121,7 +121,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
-use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
+use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -3118,15 +3118,16 @@ fn run_azimuth_images<T: Decide>(
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
-        let base = chart_pcurve(curve.carrier(), surface, band).map_err(|e| match e {
-            geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-                SplitJoinError::Escalated { face, diag: cause }
-            }
-            _ => SplitJoinError::SectionInvariant {
-                face,
-                what: "a run edge has no closed-form chart image on the divided face's chart",
-            },
-        })?;
+        let base =
+            chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
+                geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+                    SplitJoinError::Escalated { face, diag: cause }
+                }
+                _ => SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a run edge has no closed-form chart image on the divided face's chart",
+                },
+            })?;
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {

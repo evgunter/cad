@@ -1165,6 +1165,15 @@ pub(crate) fn project<T: Decide>(
     image.breaks = breaks_vector(&breaks);
     image.azimuth = azimuth;
     image.tube = tube;
+    // C4's placement: the deck origin names the image's azimuth, and on
+    // a torus its tube angle, in the principal window at the span's
+    // midpoint, so where the carrier's parameter starts moves no image.
+    let place = span.map_or_else(|| super::Placement::own(carrier), super::Placement::over);
+    let at = image.eval(place.mid());
+    image.u_off = place.rename(at.x);
+    if matches!(image.chart, ProjectedChart::Torus { .. }) {
+        image.v_off = place.rename(at.y);
+    }
     Ok(image)
 }
 

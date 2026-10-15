@@ -765,8 +765,15 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let (t0, t1) = span(s);
     let reach = t0.abs().max(t1.abs());
     // The stored image is what the mint derives on the chart as stored.
-    let (derived, _) = derive_harmonic(&carrier, &surface, band()).ok()?;
-    let (_, derivation) = derive_harmonic(&carrier, &orthonormal_chart(&surface), band()).ok()?;
+    let (derived, _) =
+        derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band()).ok()?;
+    let (_, derivation) = derive_harmonic(
+        &carrier,
+        &orthonormal_chart(&surface),
+        super::Placement::own(&carrier),
+        band(),
+    )
+    .ok()?;
     // An ellipse a move left on a cone images as a cone section, which
     // its own lane certifies.
     let Pcurve::Harmonic { p0, pa, pb, pl } = derived else {
@@ -1168,7 +1175,8 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     for (surface, carrier, name) in &fixtures {
         let sphere = name.starts_with("sphere");
         let angular_v = sphere || name.starts_with("torus");
-        let (image, _) = derive_harmonic(carrier, surface, band()).unwrap();
+        let (image, _) =
+            derive_harmonic(carrier, surface, super::Placement::own(carrier), band()).unwrap();
         let Pcurve::Harmonic { p0, pa, pb, pl } = image else {
             unreachable!()
         };
@@ -1296,8 +1304,11 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
         let (surface, carrier) = on_chart(&mut s, class);
         let (t0, t1) = span(&mut s);
         let reach = t0.abs().max(t1.abs());
-        let (derived, derivation) = derive_harmonic(&carrier, &surface, band())
-            .unwrap_or_else(|e| panic!("trial {trial} ({class:?}): an exact carrier refused: {e}"));
+        let (derived, derivation) =
+            derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band())
+                .unwrap_or_else(|e| {
+                    panic!("trial {trial} ({class:?}): an exact carrier refused: {e}")
+                });
         let noise = 1e-12 * scale(&surface, &carrier, reach);
         let image = chart_image_harmonic(&derived, &surface, windings_of(derivation))
             .unwrap_or_else(|| panic!("trial {trial} ({class:?}): no closed-form image"));

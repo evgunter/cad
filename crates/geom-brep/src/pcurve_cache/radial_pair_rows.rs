@@ -307,7 +307,8 @@ fn a_still_parallel_reads_its_pair_whole() {
         s,
         Vec3::unit_x(),
     );
-    let (image, derivation) = derive_harmonic(&carrier, &sphere, band()).unwrap();
+    let (image, derivation) =
+        derive_harmonic(&carrier, &sphere, super::Placement::own(&carrier), band()).unwrap();
     assert!(
         matches!(
             derivation,
@@ -585,11 +586,18 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     for (scalar, derived) in [
         (
             "f64",
-            derive_harmonic(&carrier, &surface, band()).map(|(_, d)| d),
+            derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band())
+                .map(|(_, d)| d),
         ),
         (
             "Interval",
-            derive_harmonic(&carrier.map_scalar(f), &surface.map_scalar(f), band()).map(|(_, d)| d),
+            derive_harmonic(
+                &carrier.map_scalar(f),
+                &surface.map_scalar(f),
+                super::Placement::own(&carrier.map_scalar(f)),
+                band(),
+            )
+            .map(|(_, d)| d),
         ),
     ] {
         assert!(

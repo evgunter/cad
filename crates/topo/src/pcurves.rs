@@ -2513,10 +2513,21 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                 }
             })
         };
-        // Every image is a function of the carrier's parameter, and the
-        // children keep the parent's carrier, so each child's image is
-        // the parent's restricted to its sub-interval.
-        let (first, second) = (image.clone(), image);
+        // C4 places a row over its own edge's span, in the chart's
+        // principal window, so a child's row is the placement over its
+        // sub-interval: a closed-form or projected image is derived
+        // there, exactly as the mint derives it. A fitted or general
+        // image has no angular placement, and a stated image the chart
+        // derives nothing for keeps the parent's; each restricts.
+        let child = |a: T, b: T| match &image {
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::Projected(_) => geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band)
+                .unwrap_or_else(|_| image.clone()),
+            _ => image.clone(),
+        };
+        let (first, second) = (child(t0, t), child(t, t1));
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.

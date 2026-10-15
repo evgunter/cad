@@ -2516,7 +2516,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                 return Err(ChartRegionError::Corrupt);
             };
             let (t0, t1) = curve.params();
-            let pcurve = geom_brep::chart_pcurve(curve.carrier(), surface, band)
+            let pcurve = geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
                 .map_err(|_| refuse("no closed-form chart image for this carrier kind"))?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
         } else {

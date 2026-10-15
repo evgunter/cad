@@ -170,12 +170,12 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve,
-    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
-    ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
-    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v,
+    ANGLE_WINDOW_START, Azimuth, BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement,
+    EnvelopeTerm, FocalImage, FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily,
+    IsoFamilyRefusal, NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
+    PcurveCheck, PcurveKind, Period, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage,
+    WalkStop, WallTorus, chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf,
+    chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
