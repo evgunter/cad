@@ -110,12 +110,15 @@ the other sites as `circle-pair-edge-candidates-cancel-at-unequal-radii`
 ## The arc/arc pair pass's instance, closed (PATHS, 2026-10-15)
 
 `an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs`
-closes the `seg.rs` hit: both tangent arms of `arc_arc` read each span
-at the candidate's radial projection onto that arc's own carrier, and
-the internal arm's contact is the midpoint of the foot's two
-projections, `g/2` off each. That is also the point the shared-vertex
-discount (`validate.rs` `judge_pair`) now reads, so its radial error is
-`g/2` rather than `g·r/d`; its angle is the link's, as before.
+closes the `seg.rs` hit: a tangency's candidate in either arm of
+`arc_arc` is the midpoint of the circles' nearest points on the line of
+centres, `|g|/2` off each, which both spans and the shared-vertex
+discount (`validate.rs` `judge_pair`) read. Where the internal
+clearance is within ε but the radical foot stands deeper than the band
+inside both circles (`carrier_circles_chord`), the pair is two
+crossings at the chord's ends, as for a proper secant: one tangency
+there stood for crossings far apart, and a cusp at one of them
+discounted the other at its joint.
 
 Its sweep grepped `\.foot()`, `\.radical()`, `radical_foot(`,
 `chord_ends(` and the `(d² + r₁² − r₂²)/2d` spellings

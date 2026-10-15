@@ -16,7 +16,11 @@
 //! search ([`rivals`]) puts the carriers' two crossings close together,
 //! so an end beside one stands within ε of both carriers while the
 //! segments meet at the other. Draws whose coordinates are too large
-//! for the oracle's `f64` to resolve ε are counted and skipped.
+//! for the oracle's `f64` to resolve ε are counted and skipped. A third
+//! ([`joint`]) judges two adjacent arcs at a joint on circles within ε
+//! of internal tangency the way validation does, shared-vertex discount
+//! included, against the arcs' crossings: none far from the joint may
+//! read clear.
 //!
 //! In a file of its own so the per-file test gate can skip it without
 //! skipping `seg`'s deterministic pair rows.
@@ -25,6 +29,7 @@
 
 test_utils::gated_to![
     "crates/profile/src/seg.rs",
+    "crates/profile/src/validate.rs",
     "crates/geom-core/src/k_stats.rs",
     "crates/geom-core/src/tolerance.rs",
 ];

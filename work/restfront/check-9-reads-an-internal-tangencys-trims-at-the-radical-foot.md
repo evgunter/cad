@@ -53,7 +53,9 @@ as a vertex on the other loop, at Zero or escalated.
 
 ## Remedy
 
-The profile pair pass's: read each trim at the candidate's radial
-projection onto that arc's own carrier, and take the contact midway
-between the two projections (`crates/profile/src/seg.rs` `arc_arc`,
-`radial_foot`).
+The profile pair pass's (`crates/profile/src/seg.rs` `arc_arc`): read
+both trims at the midpoint of the circles' nearest points on the line
+of centres, `|g|/2` off each, rather than at the foot. Arm 5 already
+asks the chord ends at a tangency, so a chord deeper than the band,
+which the pair pass reads as two crossings (`carrier_circles_chord`),
+is read here too, and the foot is the one candidate that needs moving.

@@ -74,39 +74,74 @@ above, including the cases that validate, at both scalars.
 
 ## Outcome
 
-`crates/profile/src/seg.rs` `arc_arc`: a decided tangency's spans each
-read the candidate's radial projection onto their own carrier
-(`radial_foot`, the projection `touches` already took), the carrier's
-point nearest the other circle. The internal arm's contact is the
-midpoint of the foot's two projections, `g/2` off each carrier, so
-`end_in_stretch`'s `nearer_end` and the shared-vertex discount read a
-point beside both arcs rather than centimetres inside or outside them.
-The external arm keeps its point `c₁ + û·r₁`, which is on circle 1
-and `|g|` off circle 2 (no amplification: over 2·10⁵ draws of radii
-0.1–3 at ε = 1e-9 the radical foot's offset is at most 1.02·|g| and
-the arm's point 1.03·|g|, both rounding), and reads its spans through
-the same projection, so both arms read a carrier point.
+`crates/profile/src/seg.rs` `arc_arc`. A tangency's candidate, in the
+external and the internal arm alike, is the midpoint of the circles'
+nearest points on the line of centres, `c₁ ± û·r₁` and `c₂ ± û·r₂`,
+which stand `|g|` apart, so it is `|g|/2` off each carrier. Both spans
+read it, the recorded contact is it, and the shared-vertex discount
+and `end_in_stretch` read it. The external arm needs no measurement
+for this: its nearest points are `|g|` apart by construction, and the
+radical foot's offsets from the two circles sum to `g`.
 
-The arm cannot read "no contact" for arcs within ε by this change: a
-span's definite miss of its own carrier's nearest point still settles
-only through the end reads (`end_touches`), and that argument
-(`end_touches`'s doc) assumes the candidate is each carrier's point of
-least distance to the other, which the projection now is exactly.
+The internal arm then asks a second margin, `carrier_circles_chord`:
+the radical foot's mean depth inside both circles, the sagitta of the
+chord they cut. An internal clearance `g` within ε bounds that depth
+only by `ε·r/d`, so near-concentric carriers within ε of tangency can
+cross at the ends of a chord whose half-length is `√(2g/d)·r`, 0.24 rad
+either side at `d = 17ε`, `g = 0.5ε`. Past the band the pair reads
+those two crossings (`Circles2::crossings`, as a proper secant) rather
+than one tangency; within it the circles cross, if at all, within
+`√(2rε)` of the foot, and the pair reads a tangency; in the band it
+escalates.
 
-Pinned by `rejections::near_concentric_arcs_read_their_tangency_on_each_carrier`
-at f64 and Interval: the reproduction table above (all six rows
-validate; the first four refused `TangentialContact` on main at ε =
-1e-9, 1e-6 and 1e-12) and seven near-concentric pairs whose arcs come
-within ε along the wide stretch where such carriers stay within the
-band (to about `√(2(ε + g)/d)` rad either side), holding the tangency
-direction or not: they refuse `TangentialContact`, `NonSimple Touch`,
-or (nested carriers) escalate on `circle_side`, as on main. A mutant
-that skips the end reads for an arc × arc tangency turns that row red,
-and `seg_reach_fuzz` (1,558 misses at EFFORT = 1). The fuzz's
-near-concentric family now draws centres from Kε to 10⁻²·r apart, with
-arcs reaching across the wide stretch.
+The review found what reading one tangency there cost: a cusp at the
+joint `v` of two adjacent arcs on such carriers, both arcs holding the
+crossing 0.24 rad out, recorded its contact at the tangency, which the
+shared vertex discounted. The PR's midpoint contact made that silent
+at f64 and Interval, every ε, for `g > 0`; `main` refused it only
+because its contact sat at the foot, centimetres from `v`, which also
+refused every smooth tangent joint on the same carriers. Reading the
+crossings refuses the cusp as `NonSimple Crossing` wherever the joint
+stands, and the smooth joint validates.
+
+Pinned at f64 and Interval, ε = 1e-9, 1e-6 and 1e-12:
+
+- `rejections::near_concentric_arcs_read_their_tangency_on_each_carrier`:
+  the reproduction table above (all six rows validate; the first four
+  refused `TangentialContact` on main), and eight pairs within ε along
+  the stretch, which refuse: a tangency, a touch, a crossing, or an
+  escalation on `arc_span` or `circle_side`.
+- `rejections::a_cusp_on_near_concentric_carriers_refuses_its_crossing`:
+  eight cusps, `d` from 17ε to 1000ε, the joint at the tangency
+  direction or 10ε along from it, refuse `NonSimple Crossing` (the
+  first five validated at the review head; the off-direction ones
+  validate under a contact at the foot); three smooth joints validate
+  (`main` refuses the two with `g > 0` as `TangentialContact`, and a
+  contact at the foot refuses the two at the tangency direction).
+- `seg::pair_contact_tests::a_tangency_reads_at_the_midpoint_of_the_nearest_points`:
+  the recorded point, internal (both orders), external and nested, and
+  the chord row's two crossings.
+- `seg_reach_fuzz::a_joint_reads_clear_only_where_its_arcs_cross_near_it`:
+  adjacent arcs at a joint on carriers within ε of internal tangency,
+  judged by `validate::judge_pair` with its discount, against an oracle
+  of the arcs' crossings: none more than `3·√(2r·Kε)` from the joint
+  may read clear. It finds 1614, 769 and 920 at the review head (ε =
+  1e-9, 1e-6, 1e-12) and 165 on `main`.
+
+The fuzz's `near` family draws near-concentric centres from Kε to
+10⁻²·r apart, with arcs reaching across the stretch.
+
+Left open: nested near-concentric carriers (`g ≤ 0`) cross nowhere,
+but a cusp on them keeps its arcs within ε for a quarter radian and
+validates, as on `main`. Filed as
+`a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch`
+(P0, with the question it carries). The review's NOTE-3 is
+`a-vertex-in-an-arcs-gap-within-eps-of-its-carrier-exhausts-the-rays`
+(P3).
 
 Sweep and the class row's other sites: appended to
 `decided-tangent-point-is-the-radical-foot`. Filed RESTFRONT
-`check-9-reads-an-internal-tangencys-trims-at-the-radical-foot` (P3).
-
+`check-9-reads-an-internal-tangencys-trims-at-the-radical-foot` (P3),
+whose arm 5 already asks the chord ends at a tangency; check 9 has no
+shared-vertex discount (arms 1 and 2 report every vertex contact
+between its two loops), so it does not share the cusp's hole.
