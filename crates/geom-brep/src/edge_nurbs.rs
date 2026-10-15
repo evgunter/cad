@@ -676,6 +676,82 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
+/// operands, as [`PlaneNurbsLimbs`] reports them.
+#[derive(Clone, Copy, Debug)]
+pub struct PlaneNurbsIncidence<T: Real> {
+    /// Limb 1: the largest on-locus residual over the schedule, over
+    /// both operands (the sampled max: it steers, it does not certify).
+    pub on_locus_max: T,
+    /// Limb 2: the certified sup-norm distance over the whole span, over
+    /// both operands. This is the number that certifies.
+    pub hull_sup: T,
+}
+
+/// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'
+/// limbs 1 and 2 and nothing about how the two surfaces meet — no
+/// normal-angle sweep and no uniqueness tube. It is `OnPair`'s
+/// certificate on that pair, which states the carrier lies on both
+/// surfaces and leaves the meeting to tier 3.
+///
+/// The wall side is metered against the wall's spline chart: a
+/// described NURBS wall itself, or an `Approx` wall's FIT. Incidence on
+/// an `Approx` wall's description is therefore this bound plus the fit's
+/// own recorded distance from it, which the surface carries
+/// ([`geom::ApproxSurface`]); nothing here adds the two.
+///
+/// The image is [`chart_image`]'s, from the same fixed schedule of foot
+/// points as the full lane's, so the pcurve the mint stores is the one
+/// this certifies.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
+/// wall, a foot that will not converge, an image that will not fit, and
+/// either limb's refusal with its measured bound.
+pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    plane: &Surface<T>,
+    wall: &NurbsSurface<T>,
+    band: Band,
+) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
+    if !matches!(plane, Surface::Plane { .. }) {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the analytic operand of this lane is a PLANE",
+        });
+    }
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    let grid = wall_grid(wall);
+    let wall_op = match &grid {
+        Some(g) => SsiOperand::nurbs_on(wall, g),
+        None => SsiOperand::nurbs(wall),
+    }
+    .map_err(refusal)?;
+    let eval = |t| carrier.eval(t);
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |_, _| Ok(()))?;
+    let (on_locus_max, hull_sup) = crate::ssi::certify::incidence_limbs(
+        carrier,
+        params,
+        &[
+            (&SsiOperand::Analytic(plane), None),
+            (&wall_op, Some(&pcurve)),
+        ],
+        band,
+        &mut crate::ssi::certify::Refused::default(),
+    )
+    .map_err(refusal)?;
+    Ok(PlaneNurbsIncidence {
+        on_locus_max,
+        hull_sup,
+    })
+}
+
 /// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
 /// for an edge between two spline charts, a described wall or a fit on
 /// either side: the carrier's chart image on EACH chart, from the same

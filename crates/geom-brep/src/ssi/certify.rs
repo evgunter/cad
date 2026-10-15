@@ -1803,6 +1803,46 @@ fn certificate<T: Real>(
     }
 }
 
+/// **Limbs 1 and 2 against each of `operands`**: the carrier's largest
+/// sampled on-locus residual and its certified sup-norm distance over
+/// `params`, the worst over the operands. An analytic operand reads its
+/// implicit form; a NURBS one its chart, through the pcurve beside it
+/// (the foot residual at each sample, and the composite hull of
+/// `|S(P(t)) − C(t)|` between them). Incidence alone: nothing here
+/// reads how the operands meet, which is limb 3's and the lanes'
+/// transversality's.
+///
+/// # Errors
+///
+/// [`SsiError::UnsupportedCertificate`] for a NURBS operand with no
+/// pcurve, and either limb's refusal with its measured bound.
+pub(crate) fn incidence_limbs<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    operands: &[(&SsiOperand<'_, T>, Option<&NurbsCurve2<T>>)],
+    band: Band,
+    at: &mut Refused,
+) -> Result<(T, T), SsiError> {
+    let mut on_locus = T::zero();
+    let mut hull_sup = T::zero();
+    for &(op, pc) in operands {
+        let (l1, l2) = match op {
+            SsiOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
+            SsiOperand::Nurbs(s) => {
+                let Some(p) = pc else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: NURBS_LIMBS_NEED_PCURVE,
+                    });
+                };
+                nurbs_limbs(carrier, params, p, s.surface(), band, at)?
+            }
+        };
+        on_locus = on_locus.max(l1);
+        hull_sup = hull_sup.max(l2);
+    }
+    Ok((on_locus, hull_sup))
+}
+
 /// Which limbs a certificate asks: all three in order, or limb 3 alone,
 /// which refinement asks once of a carrier whose refused residual
 /// stopped falling ([`super::refine::refine_by_certificate`]).
@@ -2043,27 +2083,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             (&first, &second, None, None)
         }
     };
-    let mut on_locus = T::zero();
-    let mut hull_sup = T::zero();
     let asked: &[_] = match limbs {
         Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],
     };
-    for &(op, pc) in asked {
-        let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
-            SsiOperand::Nurbs(s) => {
-                let Some(p) = pc else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: NURBS_LIMBS_NEED_PCURVE,
-                    });
-                };
-                nurbs_limbs(carrier, params, p, s.surface(), band, at)?
-            }
-        };
-        on_locus = on_locus.max(l1);
-        hull_sup = hull_sup.max(l2);
-    }
+    let (on_locus, hull_sup) = incidence_limbs(carrier, params, asked, band, at)?;
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of

@@ -129,6 +129,8 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "onpair_plane_nurbs.rs"]
+mod onpair_plane_nurbs;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "pn_apex_pair_over_a_span.rs"]
