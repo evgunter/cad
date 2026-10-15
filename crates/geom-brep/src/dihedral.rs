@@ -1102,6 +1102,41 @@ pub fn reask_pair<T: Decide>(
     }
 }
 
+/// **A chart image a door kept, re-asked the must-carry rule** over
+/// the edge as the door leaves it: its extent (a split, a join, a
+/// re-anchored end) or its surfaces (an offset). `surfaces` are the
+/// edge's two sides after the door, each with its key.
+///
+/// A chart image is a conventional form: it claims the two surfaces
+/// under-determine the locus, which the rule reads over the edge's
+/// extent as well as its pair. So the door asks again, as it does an
+/// `OnPair` ([`reask_pair`]): `Some` is the intrinsic description the
+/// rule now demands — the pair's `Intersection` at a corner, its
+/// `TangentIntersection` at a determinate tangency, each derived, so a
+/// declaration does not ride either — and `None` keeps the image, where
+/// the rule still reads the join under-determined or the edge falls
+/// outside it (one surface on both sides, or a spline face beside it).
+/// The caller leaves a wrap image alone: it bounds one face.
+///
+/// # Errors
+///
+/// [`PairRefusal`] on an in-band or mixed verdict.
+pub fn reask_chart<T: Decide>(
+    surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    interval: (T, T),
+    band: Band,
+) -> Result<Option<crate::EdgeDescriptionSpec<T>>, PairRefusal> {
+    let [(ka, a), (kb, b)] = surfaces;
+    if ka == kb || a.spline_chart().is_some() || b.spline_chart().is_some() {
+        return Ok(None);
+    }
+    Ok(match reask_pair(surfaces, carrier, interval, None, band)? {
+        crate::EdgeDescriptionSpec::OnPair { .. } => None,
+        intrinsic => Some(intrinsic),
+    })
+}
+
 /// Why a join entered as definitely smooth gets no description:
 /// [`must_carry_description`] routes it to its caller's typed refusals.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2685,6 +2720,64 @@ mod tests {
             matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung() == LeverRung::Reading),
             "a poisoned point poisons the gradient, which is not a missing tangent plane: \
              {off_locus:?}"
+        );
+    }
+
+    /// **`reask_chart` asks only where the rule applies.** Two planes at
+    /// a right angle along the `x` axis: as two keys the rule reads a
+    /// corner and demands the section; as one key, or with one side a
+    /// spline face (the same plane as a bilinear net), the edge falls
+    /// outside the rule and the image is kept unasked.
+    #[test]
+    fn reask_chart_asks_only_where_the_rule_applies() {
+        use geom::NurbsSurface;
+        use geom_core::spline::KnotVector;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut keys: slotmap::SlotMap<crate::SurfaceKey, ()> = slotmap::SlotMap::with_key();
+        let (ka, kb) = (keys.insert(()), keys.insert(()));
+        let floor = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let wall = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        };
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let spline_wall = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                kv.clone(),
+                kv,
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(0.0, 0.0, 1.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 1.0),
+                ],
+                vec![1.0; 4],
+            )
+            .unwrap(),
+        ));
+        let edge = geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        };
+        let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
+            reask_chart([a, b], &edge, (0.0, 1.0), band).unwrap()
+        };
+        assert!(
+            matches!(
+                ask((ka, &floor), (kb, &wall)),
+                Some(crate::EdgeDescriptionSpec::Intersection { .. })
+            ),
+            "two keys at a corner: the section"
+        );
+        assert!(ask((ka, &floor), (ka, &wall)).is_none(), "one key: kept");
+        assert!(
+            ask((ka, &floor), (kb, &spline_wall)).is_none(),
+            "beside a spline face: kept"
         );
     }
 }
