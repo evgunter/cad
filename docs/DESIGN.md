@@ -894,13 +894,11 @@ answer. A **lane choice** picks a form for one certified statement the
 body has either way: a pcurve row's class, an edge's rest locus, a
 section curve's formula where both answers give the same cells, a
 carrier's recognised kind at import. Zero takes the closed form; in
-band and definite take a lane whose certificate does not rest on the
-answer, the general lane where one exists or a closed form whose own
-envelope carries the miss, and the derivation says "not shown" so no
-consumer reads the form as shown. A lane choice records nothing, never
-ends as a kernel defect at a build, and refuses only where no lane
-certifies without the answer, with the closed form's pose as its lever
-and never a tolerance offer. A closed form before the general lane is a stage of the one
+band and definite take the general lane, whose certificate does not
+rest on the answer, and every class a lane choice reads has one. A
+lane choice records nothing, never ends as a kernel defect at a build,
+and refuses only where its general lane is not yet written, with the
+closed form's pose as its lever and never a tolerance offer. A closed form before the general lane is a stage of the one
 reading, not a fallback: both state one certificate. A **structural
 act** changes which cells the result has on the answer: a boolean's
 glue, a vertex fusion, an edge join, a split's ON verdict, a section
