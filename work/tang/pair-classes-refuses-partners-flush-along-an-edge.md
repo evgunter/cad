@@ -2,7 +2,7 @@
 id: pair-classes-refuses-partners-flush-along-an-edge
 kind: issue
 title: pair_classes refuses partners that lie flush along an edge, where planar flush faces decide In
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P3
 cost: M
