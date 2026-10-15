@@ -2,7 +2,8 @@
 id: carrier-cross-common-line-reads-far-dot-differences
 kind: issue
 title: carrier_cross's common_line forms its point from a difference of far dot products, off its planes by 1e-11 at the box edge
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-14
 priority: P3
 cost: E
@@ -58,3 +59,10 @@ to `u·|h|/s²` off both curves (`1e-6` at `s = 1e-5`, ε = 1e-9), which
 is the parent row's defect. Pinned by
 `carrier_cross::meetings_rows::every_arm_places_its_meetings_on_both_curves`,
 whose sphere poses sit at `(3.7, −2.1, 0.4)`.
+
+## Closed (PR 5190)
+
+Closed with its twin `common-line-anchors-at-the-world-origin`: the
+function is gone. The translated pose about 1 km off the origin in
+`every_arm_places_its_meetings_on_both_curves` pins the box-edge case at
+three ε.

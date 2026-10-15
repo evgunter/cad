@@ -21,7 +21,7 @@ relative error of about `u/s²`. `p0` divides both of its terms by
 `det`. The function computed `cross = a.normal.cross(b.normal)` a
 few lines up, and `‖cross‖² = s²` is the same determinant read off
 the small quantity. `carrier_cross::common_line`
-(`crates/topo/src/boolean/carrier_cross.rs`) already uses that shape:
+(`crates/topo/src/boolean/carrier_cross.rs`, gone since PR 5190) used that shape:
 `let k = s.powi(2)`.
 
 **What is owed:** `det = cross.norm_squared()`, and a measurement of

@@ -82,6 +82,11 @@ fn halves_of_a_ball_turned_a_little_apart_build_every_op_at_their_closed_forms()
             Ok(()),
             "{label}: tier 3"
         );
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{label}: tier 3′"
+        );
         let m = topo::mass_properties(&out.body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(

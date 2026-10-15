@@ -84,9 +84,11 @@ arms, so their reach is ordinary frontier work.
   - line × ellipse meets where the line crosses the ellipse's plane;
   - circle × ellipse meets on the planes' common line;
   - ellipse × ellipse meets on the planes' common line
-    (`ellipse_meets_plane`, row `bool_carrier_cross_line_meets_ellipse`,
-    levered as the common line's gap from tangency,
-    `disc / (2a²b²·√qa)`).
+    (row `bool_carrier_cross_line_meets_ellipse`, levered as the common
+    line's gap from tangency). Since PR 5190 that line is not formed:
+    `conic_meets_plane` meets each conic with the other's plane in its
+    own angle, and its gap is `(1 − |lift|/reach)·reach/sin`, which is
+    the former `disc / (2a²b²·√qa)` to first order near tangency.
 
   Two ellipses read coplanar are taken as one curve only where they
   are one within the band (`bool_carrier_cross_ellipses_one_curve`).

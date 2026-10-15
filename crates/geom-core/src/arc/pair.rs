@@ -119,6 +119,24 @@ impl<T: Real> Circles<T> {
         inner * ((self.d + self.diff) * (self.sum + self.d)) / two_d.powi(2)
     }
 
+    /// The placement on the first circle of a pair decided within the
+    /// band of a tangency: the radical foot's distance `a` held to
+    /// `[−r₁, r₁]` and the half-chord `h` from its square held at zero.
+    /// Where the two cross (near-concentric circles cross far from where
+    /// they come closest, while each stays within the band of the other),
+    /// these are [`Self::radical`] and [`Self::half_chord`]; where they do
+    /// not, `a = ±r₁` and `h = 0`, the first circle's point on the line of
+    /// centres. Either way `c₁ + û·a ± n·h` lies on the first circle to
+    /// rounding, which the radical foot of a pair that does not cross
+    /// does not: it stands `r₁·|d − |r₁ − r₂||/d` off both, unbounded as
+    /// `d → 0`. `d` must be definitely positive.
+    #[must_use]
+    pub fn on_first(self) -> (T, T) {
+        let reach = self.r1.abs();
+        let a = self.radical().min(reach).max(T::zero() - reach);
+        (a, self.half_chord_squared().max(T::zero()).sqrt())
+    }
+
     /// The half-chord `h`, the square root of
     /// [`Self::half_chord_squared`] with no clamp: called outside a
     /// decided secant, a negative square is the poison (NaN at `f64`, an
@@ -193,6 +211,19 @@ where
         let foot = self.foot();
         [foot + n * h, foot - n * h]
     }
+
+    /// [`Circles::on_first`]'s two points, `c₁ + û·a ± n·h` with `n` as
+    /// in [`Self::chord_ends`]: the crossings where the pair crosses, else
+    /// the touch twice, both on the first circle.
+    #[must_use]
+    pub fn on_first(self, n: V) -> [P; 2]
+    where
+        V: Copy,
+    {
+        let (a, h) = self.pair.on_first();
+        let foot = self.c1 + self.direction() * a;
+        [foot + n * h, foot - n * h]
+    }
 }
 
 impl<T: Real> Circles2<T> {
@@ -211,5 +242,51 @@ impl<T: Real> Circles2<T> {
     pub fn crossings(self) -> [Point2<T>; 2] {
         let u = self.direction();
         self.chord_ends(Vec2::new(-u.y, u.x), self.pair.half_chord())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Circles2;
+    use crate::linalg::{Point2, Vec2};
+
+    /// **The placement on the first circle is the crossings where the
+    /// pair crosses and the first circle's point on the line of centres
+    /// where it does not.** A unit circle and one `d = 1e-8` off it: one
+    /// overhanging it by `0.5e-9` crosses it at `(−0.95, ±0.31)`, about
+    /// `2.82` rad round from the line of centres, though the two stay
+    /// within `1.5e-8` of each other all the way round; one held inside
+    /// it by `0.5e-9` touches it at `(−1, 0)`, where the radical foot
+    /// stands at about `(−1.05, 0)`. A proper secant's placement is the
+    /// radical foot and half-chord bit for bit.
+    #[test]
+    fn the_placement_on_the_first_circle_lies_on_it() {
+        let d = 1e-8;
+        let first = (Point2::new(0.0, 0.0), 1.0);
+        let at = |c2: (Point2<f64>, f64)| Circles2::new(first, c2).on_first(Vec2::new(0.0, 1.0));
+        let overhang = at((Point2::new(d, 0.0), 1.0 + d - 0.5e-9));
+        for p in overhang {
+            let on_second = p.distance(Point2::new(d, 0.0)) - (1.0 + d - 0.5e-9);
+            assert!(
+                (p.distance(Point2::new(0.0, 0.0)) - 1.0).abs() < 1e-15 && on_second.abs() < 1e-15,
+                "an overhanging pair's crossing {p:?}"
+            );
+            assert!(
+                (p.x + 0.95).abs() < 1e-7 && p.y.abs() > 0.3,
+                "far round from the line of centres: {p:?}"
+            );
+        }
+        for p in at((Point2::new(d, 0.0), 1.0 + d + 0.5e-9)) {
+            assert!(
+                p.distance(Point2::new(-1.0, 0.0)) < 1e-15,
+                "a held pair's touch {p:?}"
+            );
+        }
+        let secant = Circles2::new(first, (Point2::new(1.0, 0.0), 1.0));
+        let (a, h) = secant.pair().on_first();
+        assert_eq!(
+            (a.to_bits(), h.to_bits()),
+            (secant.pair().radical().to_bits(), secant.pair().half_chord().to_bits())
+        );
     }
 }
