@@ -3772,8 +3772,8 @@ mod wiring_rows {
     use super::NurbsLane;
     use crate::edge_nurbs::plane_nurbs_limbs;
 
-    /// `Ok(())` when the fields hold `plane_nurbs_limbs` and
-    /// `seeded_foot`; otherwise the first wrong field's name.
+    /// `Ok(())` when the fields hold the lane's certified functions;
+    /// otherwise the first wrong field's name.
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
@@ -3798,6 +3798,12 @@ mod wiring_rows {
         ) {
             return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.incidence,
+            crate::edge_nurbs::plane_nurbs_incidence::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
+        }
         Ok(())
     }
 
@@ -3806,7 +3812,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `seeded_foot` and `analytic_rung3`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `seeded_foot` and `analytic_rung3`"
         );
     }
 
