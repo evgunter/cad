@@ -1132,3 +1132,8 @@ Signed (CLEAVE orchestrator).
   - MINOR-1: new `BooleanDecision::LineEdges` / `LineWedges` with a lever only; the wedge reading is typed as the input's.
   - S1: `wedge_holds` reused.
   - Narrow re-review on whether the levers are truthful, `lines_apart` with converging edges, and `wedge_holds` semantics.
+- 2026-10-15 — PR 5106 round-4 narrow re-review: MERGE. MAJOR-1 is fixed, `lines_apart` is sound, and verdicts agree 100%. Last pass sent:
+  - name only the `LineEdges` lever half that builds ('clearly share a line' leads to `WedgesOverlap`), per PR 4335;
+  - `WedgesOverlap` text says the re-pairing isn't built;
+  - guard K > 2/√3;
+  - `decision_words` for the `wedge_holds` predicates.
