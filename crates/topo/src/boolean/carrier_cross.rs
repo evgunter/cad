@@ -66,7 +66,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
-use crate::validate::decide;
+use crate::validate::{decide, decide_reported};
 
 /// What [`boundary_crossing`] found along an on-carrier edge.
 #[derive(Debug, Clone, Copy)]
@@ -94,8 +94,9 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] when a decision falls in band: whether
-/// a candidate lies inside the span, whether two carriers are parallel,
-/// or the boundary pre-pass's own rows.
+/// the candidates at a span end are one point with it (the crossings'
+/// order), whether two carriers are parallel, or the boundary
+/// pre-pass's own rows.
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller passed, does not resolve.
 ///
@@ -196,6 +197,8 @@ fn lane_inner<T: Decide>(
             None => return Ok(BoundaryCrossing::Unread),
         }
     }
+    // Per end, the metred gaps of the candidates that read at it.
+    let mut at_end: [Vec<T>; 2] = [Vec::new(), Vec::new()];
     // The first meeting in the boundary's walk order: the sweep splits
     // there and re-examines both fragments against this face, so every
     // other meeting is found again on them.
@@ -206,7 +209,18 @@ fn lane_inner<T: Decide>(
         let Some(speed) = geom_brep::carrier_speed::speed_at(carrier, t) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        if !strictly_inside(t, t0, t1, speed, band)? {
+        let gaps = [(t - t0) * speed, (t1 - t) * speed];
+        let signs = gaps.map(|gap| decide("bool_carrier_cross_in_span", Margin::of(gap), band));
+        // A candidate at an end, or in band of it, joins that end's
+        // cluster, which is then read whole: whether it is the end's
+        // own crossing is the cluster's question, and asking it of each
+        // member alone would answer by which member the split took.
+        for ((group, gap), sign) in at_end.iter_mut().zip(gaps).zip(&signs) {
+            if matches!(sign, Ok(Sign::Zero) | Err(_)) {
+                group.push(gap);
+            }
+        }
+        if !signs.iter().all(|s| matches!(s, Ok(Sign::Positive))) {
             continue;
         }
         let p = carrier.eval(t);
@@ -216,7 +230,57 @@ fn lane_inner<T: Decide>(
             return Ok(BoundaryCrossing::At { t, p, at, margin });
         }
     }
+    for group in &at_end {
+        one_point_at_end(group, band)?;
+    }
     Ok(BoundaryCrossing::Clear)
+}
+
+/// Whether the candidates that read at one end of the span, or in band
+/// of it, read as one point with it: the cluster's spread, its farthest
+/// member from its nearest with the end among them, decided once. Each
+/// gap is metred by the carrier's speed at its candidate
+/// ([`geom_brep::carrier_speed::speed_at`]): the chord to the end is the
+/// gap times that speed to second order in the gap, and a gap near the
+/// band is a few band widths long. A member read at the end alone is
+/// not transitive: candidates for
+/// one crossing that a sliver of carriers spreads along the edge each
+/// read Zero at whichever of them the sweep split at, which the operand
+/// order chooses. The spread does not depend on that choice, so the
+/// cluster is one point only where it reads Zero; in band it escalates,
+/// and a spread definitely past the band (members each within it of
+/// the end, so only under a band whose escalation edge is less than
+/// twice its zero) escalates on the margin it read, since no member is
+/// then the crossing more than another.
+fn one_point_at_end<T: Decide>(gaps: &[T], band: Band) -> Result<(), BooleanError> {
+    let Some(&first) = gaps.first() else {
+        return Ok(());
+    };
+    let (lo, hi) = gaps.iter().fold(
+        (first.min(T::zero()), first.max(T::zero())),
+        |(lo, hi), &g| (lo.min(g), hi.max(g)),
+    );
+    let spread = Margin::of(hi - lo);
+    match decide_reported("bool_carrier_cross_cluster_spread", spread, band) {
+        Ok(decided) if decided.sign == Sign::Zero => Ok(()),
+        Ok(decided) => Err(clustered(geom_core::Indeterminate {
+            margin: decided.margin,
+            band,
+            predicate: Some("bool_carrier_cross_cluster_spread"),
+            terminal_sliver: false,
+        })),
+        Err(diag) => Err(clustered(diag)),
+    }
+}
+
+/// A cluster of candidates at a span end that does not read as one
+/// point: which of them is the crossing, and so where the crossings
+/// fall in order along the edge, is undetermined.
+fn clustered(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::Crossing(CrossingDecision::Order),
+        diag,
+    }
 }
 
 /// An in-band decision of this module: where a crossing lands along its
@@ -226,30 +290,6 @@ fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
         decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
         diag,
     }
-}
-
-/// Whether `t` lies strictly inside `[t0, t1]`, each gap metred by
-/// `speed`, the carrier's speed at `t`
-/// ([`geom_brep::carrier_speed::speed_at`]): the chord from
-/// `t` to an end is the gap times that speed to second order in the
-/// gap, and a gap near the band is a few band widths long. An end is
-/// not inside: an endpoint's incidence is the endpoint arms' question.
-fn strictly_inside<T: Decide>(
-    t: T,
-    t0: T,
-    t1: T,
-    speed: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let mut inside = true;
-    for gap in [t - t0, t1 - t] {
-        match decide("bool_carrier_cross_in_span", Margin::of(gap * speed), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => inside = false,
-            Err(diag) => return Err(escalated(diag)),
-        }
-    }
-    Ok(inside)
 }
 
 /// Whether a dimensionless `x` (a sine), levered at `arm`, is
@@ -1718,12 +1758,55 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the closed forms.)
-    use super::{BoundaryCrossing, boundary_crossing};
+    use super::{BoundaryCrossing, boundary_crossing, one_point_at_end};
     use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// The candidates at one end read as one point only as a cluster:
+    /// each below the band from the end (the split) is not enough. The
+    /// gaps are the glued rod's rim cluster (`bisector_nodes`'
+    /// operand-order row), read from the split rod-first, whose spread is
+    /// `1.29e-9`; read in either order it escalates on that spread, as the
+    /// order of crossings. A cluster a tenth as wide reads as one point.
+    /// Under a band whose escalation edge is less than twice its zero, two
+    /// members each Zero at the end can read definitely apart, and that
+    /// escalates too.
+    #[test]
+    fn candidates_at_an_end_escalate_where_the_cluster_spreads_past_the_band() {
+        use crate::boolean::{BooleanDecision, BooleanError, CrossingDecision};
+        let spread = |r: Result<(), BooleanError>| match r {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::Order),
+                diag,
+            }) => diag
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin"),
+            other => panic!("the cluster escalates as the crossings' order: {other:?}"),
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cluster = [9.645e-10, 6.430e-10, -3.215e-10];
+        let mut reversed = cluster;
+        reversed.reverse();
+        let (a, b) = (
+            spread(one_point_at_end(&cluster, band)),
+            spread(one_point_at_end(&reversed, band)),
+        );
+        assert_eq!(a, b, "the spread does not follow the members' order");
+        assert!((a - 1.286e-9).abs() < 1e-15, "the cluster's spread: {a:e}");
+        assert!(one_point_at_end(&cluster.map(|g| g / 10.0), band).is_ok());
+        assert!(one_point_at_end::<f64>(&[], band).is_ok());
+        let narrow = Band::new(1e-9, 1.5e-9).unwrap();
+        let apart = spread(one_point_at_end(&[9e-10, -9e-10], narrow));
+        assert!(
+            apart > 1.5e-9,
+            "both Zero at the end, definitely apart: {apart:e}"
+        );
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {

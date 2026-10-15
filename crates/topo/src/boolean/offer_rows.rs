@@ -2447,7 +2447,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Join
         | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
-        | BooleanErrorKind::Pieces => Vec::new(),
+        | BooleanErrorKind::Pieces
+        | BooleanErrorKind::Revert => Vec::new(),
     }
 }
 
@@ -2651,6 +2652,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_cross.rs",
+        "clustered",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2744,6 +2751,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceOnFace",
         1,
     ),
+    ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
@@ -2798,6 +2806,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
+    ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
+    (
+        "ops.rs",
+        "reverted_lines_disjoint",
+        "BooleanDecision::LineWedges",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "at_rest_refusal", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),

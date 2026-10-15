@@ -424,6 +424,30 @@ pub(crate) fn sector_shape<T: Decide>(
     })
 }
 
+/// [`sector_shape`] for the wedge square to an edge: the sector CCW
+/// about the edge's own direction `axis` from `dir_next` to `dir_own`,
+/// both square to it. The orientation is the edge's (its plus half runs
+/// along `axis`), not a face's, so there is no sense bit to fold:
+/// `axis` is the sector plane's normal as it stands.
+///
+/// # Errors
+///
+/// As [`sector_shape`].
+pub(crate) fn edge_wedge_shape<T: Decide>(
+    dir_own: Vec3<T>,
+    dir_next: Vec3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<SectorShape<T>, SectorFault> {
+    sector_shape(
+        dir_own,
+        dir_next,
+        OutwardNormal::from_chart(axis, true),
+        false,
+        band,
+    )
+}
+
 /// A rung's escalation, as the fault naming that rung. The escalation
 /// is the funnel's — an in-band margin, or a definite verdict the
 /// rung's gate does not admit — so it is on the frame's log already.
