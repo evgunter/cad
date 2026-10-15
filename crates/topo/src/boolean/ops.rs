@@ -5403,8 +5403,6 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::PlanarBoundaryEscalated { .. }
         | V::SliverDihedral { .. }
         | V::MixedDihedral { .. }
-        | V::PairTangencyDetermined { .. }
-        | V::PairCornerDetermined { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::RingContactEscalated { .. }

@@ -46,13 +46,13 @@
 //!
 //! # The authority record (U2 Q3)
 //!
-//! [`EdgeAuthority`] is the per-edge kernel datum that replaces
-//! `MappedCurve`'s NEGATIVE SPACE. Tier 3's prefer-intrinsic rules
-//! (`topo`'s `TransverseNotIntrinsic` / `TangentNotIntrinsic`) today
-//! read "the description is a `MappedCurve`" as "the modeler declared
-//! this locus"; once the conventional forms collapse there is no such
-//! shape to read, so the declaration is recorded data. Sketch truth is
-//! recorded, not derived.
+//! [`EdgeAuthority`] is the per-edge kernel datum that records whether
+//! a sketch entity declared the locus, and with what source: the
+//! declaration doors carry and transport it (a split restricts it, an
+//! offset or a rigid motion moves it). Sketch truth is recorded, not
+//! derived. Tier 3's prefer-intrinsic rules (`topo`'s
+//! `TransverseNotIntrinsic` / `TangentNotIntrinsic`) do not read it:
+//! they key on the description's form (D2).
 
 use geom_core::Real;
 
@@ -92,8 +92,8 @@ pub struct ChartCurve<T: Real> {
 }
 
 /// The **authority record** (U2 Q3): who determined this edge's
-/// locus. Per-edge kernel data, because tier 3's prefer-intrinsic
-/// enforcement must read it and the naming layer is invisible to the
+/// locus. Per-edge kernel data, because the doors that transport a
+/// declaration must read it and the naming layer is invisible to the
 /// kernel.
 ///
 /// `Copy` — [`MappedCurve`] is plain sketch data with no heap payload,
@@ -113,9 +113,7 @@ pub enum EdgeAuthority<T: Real> {
 }
 
 impl<T: Real> EdgeAuthority<T> {
-    /// Whether a modeler DECLARED this locus — the read tier 3's
-    /// prefer-intrinsic rules make, in place of the pre-collapse
-    /// "the description is a pushforward" shape test.
+    /// Whether a modeler DECLARED this locus.
     pub fn is_declared(&self) -> bool {
         matches!(*self, EdgeAuthority::Declared(_))
     }
@@ -169,6 +167,21 @@ impl<T: Real> EdgeDescription<T> {
     /// refuses at rest (`ScaffoldAtRest`).
     pub fn is_scaffold(&self) -> bool {
         matches!(self, EdgeDescription::Scaffold(_))
+    }
+
+    /// Whether this is a **conventional form** the must-carry rule
+    /// judges (D2): an `OnPair`, or a chart image that is not a wrap.
+    /// It claims the edge's two surfaces under-determine its locus,
+    /// whoever stated it. A wrap edge (one surface) falls outside the
+    /// rule, and a scaffold is no description at rest.
+    pub fn is_conventional(&self) -> bool {
+        match self {
+            EdgeDescription::OnPair { .. } => true,
+            EdgeDescription::Chart(c) => !c.wrap,
+            EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::Scaffold(_) => false,
+        }
     }
 
     /// The chart image, when this description has one — the accessor
