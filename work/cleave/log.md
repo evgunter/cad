@@ -1104,3 +1104,8 @@ Signed (CLEAVE orchestrator).
   - MINOR-4: torus concentric circles become `SquareToAxis`.
   - Filed: CLEAVE P3 `a-torus-meridian-circle-…` and `three-readings-of-a-points-rounding-…`; FLUX P2 `a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest`.
   - Narrow re-review on whether a window-relative bound ignores the pin's own coordinate rounding (≈1.1e-13 at 1 km vs ε/K), and on levers that refuse on one side.
+- 2026-10-15 — PR 4810 narrow re-review: MERGE, with no MAJOR.
+  - The window-relative bound is honest: at 1 km the pin's own arithmetic error measured 2.4e-14 < ε/K, which matches DESIGN Q1/D4 ¶4.
+  - `Past` is right, and the census against current main is unchanged.
+  - The levers each have a buildable side.
+  - Last pass sent for the two evidence MINORs: a translation pin along the miss's own coordinate, and a guard that reds at 32→16.
