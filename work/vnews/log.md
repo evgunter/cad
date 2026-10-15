@@ -792,6 +792,11 @@ The one P1, `startup-notices-door-takes-text`, was filed by the
 tool-news unit's sweep: `frame::startup_notices` is the last production
 door that takes text. Start there.
 
+#5182 merged over one red check inherited from main: the slow-set
+row `review_pick_r2`'s pinned tally, reproduced on main's own tree and
+filed and bisected as `work/cleave/review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose`
+(the fix is #4861's lane's). It is annotated on #5182.
+
 **Notes for the next orchestrator**:
 - The machine-wide build slot is the bottleneck. A lane in a fresh
   worktree compiles cold and queues for hours. Reuse a worktree that
