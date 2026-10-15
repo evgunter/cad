@@ -51,9 +51,10 @@
 //!    vertex then pierces `B`'s face through the same [`RingPlan`] as
 //!    any other, its struts paired with `B`'s across the operands. The
 //!    runs' sides are fixed by construction once the walls' senses are
-//!    read: `A`'s sectors about `±â₁` for two rods, about `±â₂` for two
-//!    bores, each bounded by one germ of each ellipse. A rod against a
-//!    bore refuses ([`super::NodeWhy::OppositeSenses`]).
+//!    read: the runs are the sectors where `B` lies inside `A`'s
+//!    material, about `±â₁` where `A` is a rod and `±â₂` where it is a
+//!    bore, each bounded by one germ of each ellipse; `A`'s struts stand
+//!    Out there where the senses agree and In where they differ.
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
@@ -1627,15 +1628,15 @@ fn ring_struts<T: Decide>(
 /// sectors between the arcs alternate sides of the other cylinder (the
 /// section table's `nodes`): on A's wall the sectors about `±â₁` lie
 /// outside B's cylinder and those about `±â₂` inside; on B's wall the
-/// same sectors, the other way round. Which of those is outside B's
-/// material, and inside A's, is each face's sense: for two rods both are
-/// the sectors about `±â₁`, for two bores both about `±â₂`. So the node
-/// is a pierce of B's face by A's ring vertex whose two runs are those
-/// sectors, each bounded by one arc of each ellipse: A's struts span
-/// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
-/// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
-/// against a bore makes A's Out sectors and B's In sectors different
-/// ones, which no pierce ring pairs, and refuses. Both rings hang their
+/// same sectors, the other way round. Which side of a cylinder is its
+/// solid's material is the face's sense. So the node is a pierce of B's
+/// face by A's ring vertex whose two runs are B's sectors inside A's
+/// material — about `±â₁` where A's face bounds a rod, `±â₂` where it
+/// bounds a bore — each bounded by one arc of each ellipse: B's ring,
+/// minted as the pierce's ring ([`mint_ring`]), spans them In, and A's
+/// struts span the same sectors on A's wall, Out where the two faces'
+/// senses agree and In where they differ (a rod against a bore), the
+/// strut's halves swapped for In. Both rings hang their
 /// struts by one tree ([`ring_struts`]), A's facing each germ with the
 /// other half of its strut from B's, as a held pierce's strut does
 /// ([`faces_holding_pierce`]). `arm` meters the germs' order.
@@ -1646,8 +1647,8 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] for walls of opposite senses, or arcs
-/// whose turn toward the axis reads Zero at the walls' radius; either
+/// [`BooleanError::NodeUnbuilt`] for arcs whose turn toward the axis
+/// reads Zero at the walls' radius; either
 /// face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
@@ -1679,13 +1680,17 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // **The runs, by the walls' senses.** Round the node the sectors
     // about `±â₁` on A's wall lie outside B's cylinder and those about
     // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
-    // cylinder and those about `±â₂` outside it. The pierce ring pairs
-    // A's sectors outside B's material with B's inside A's: for two rods
-    // (each face's material on its axis's side) both are the sectors
-    // about `±â₁`, for two bores both about `±â₂`. A rod against a bore
-    // makes them different sectors, which no pierce ring pairs. Each
-    // wall's sense is its outward normal against the radial `node − p`,
-    // which the walls, tangent at the node, are both square to: `±r`.
+    // cylinder and those about `±â₂` outside it. B's ring spans B's
+    // sectors inside A's material, and A's struts span the same sectors
+    // on A's wall, standing on the side A's material takes there. B's
+    // sectors inside A are those about `±â₁` where A's face bounds a rod
+    // (its material on its axis's side), about `±â₂` where it bounds a
+    // bore. On those sectors A's wall lies outside B's material where the
+    // two faces' senses agree (two rods, two bores) and inside it where
+    // they differ (a rod against a bore), so A's struts stand Out or In.
+    // Each wall's sense is its outward normal against the radial
+    // `node − p`, which the walls, tangent at the node, are both square
+    // to: `±r`.
     let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
         let n = outward(operand, body, face)?;
         match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
@@ -1705,20 +1710,15 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
             )),
         }
     };
-    let out_axis = match (
+    let (a_rod, b_rod) = (
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
-    ) {
-        (true, true) => axes[0],
-        (false, false) => axes[1],
-        _ => {
-            return Err(BooleanError::NodeUnbuilt {
-                a_face: faces.0,
-                b_face: faces.1,
-                why: super::NodeWhy::OppositeSenses,
-            });
-        }
-    };
+    );
+    let out_axis = if a_rod { axes[0] } else { axes[1] };
+    // A's struts stand on A's side of the null edge where A's sectors
+    // lie outside B, on the other where they lie inside it: the strut's
+    // halves swap which germ each faces.
+    let a_out = a_rod == b_rod;
     // Each tangent turned toward that axis, so a run's two germs bound
     // the sector about it and their opposites the one about its
     // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
@@ -1833,7 +1833,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
                 )
             }
         };
-        let mint = a.mev_null_run(site, at, NewVertexSide::Above, strut.plus_faces_start)?;
+        let mint = a.mev_null_run(
+            site,
+            at,
+            NewVertexSide::Above,
+            strut.plus_faces_start == a_out,
+        )?;
         let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         if strut.parent.is_none() {
             root_anchor.get_or_insert(created.he_plus);

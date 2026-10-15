@@ -437,14 +437,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "NodeUnbuilt (a rod against a bore)",
-            BooleanError::NodeUnbuilt {
-                a_face: face,
-                b_face: face,
-                why: topo::NodeWhy::OppositeSenses,
-            },
-        ),
-        (
             "NodeUnbuilt (nearly parallel)",
             BooleanError::NodeUnbuilt {
                 a_face: face,

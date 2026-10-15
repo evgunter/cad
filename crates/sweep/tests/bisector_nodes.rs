@@ -11,7 +11,10 @@
 //!   both nodes, each with its own valence-2 vertex there.
 //!
 //! Each operand is turned about its own axis first, so neither wall's
-//! seam passes a node (U2's poses are not these).
+//! seam passes a node (U2's poses are not these). Rods and bores build
+//! in every pairing: two crossing bores, a slanted bore whose difference
+//! is one solid pinched to itself, and a rod against a bore, each in its
+//! row below.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -327,39 +330,162 @@ fn two_crossing_bores_build_every_operation_at_the_closed_forms() {
     }
 }
 
-/// **A rod against a bore is not built: it refuses typed.** Round each
-/// node A's sectors outside B and B's sectors inside A are then
-/// different sectors, which no pierce ring pairs, so the node refuses
-/// `NodeUnbuilt` with that reason, in every operation, both operand
-/// orders and the re-posed twin, rather than reaching the join.
+/// **A rod against a bore builds every operation.** The rod's face
+/// bounds its material on its axis's side and the bore's away from it,
+/// so round each node A's sectors and B's sectors inside the other's
+/// material are the same ones, those about the rod's axis: the node's
+/// ring spans them on both walls, A's struts standing In. The rod runs
+/// along `y` turned about `x` to make `θ` with the bore's axis `z`, the
+/// bore the brick `[−2, 2]³` less a unit rod about `z`.
+///
+/// - At right angles, in closed form: the rod's piece in the brick
+///   holds the bicylinder whole, so `∩ = 4π − 16/3`, `∪ = V_rod +
+///   V_bore − ∩`, `rod ∖ bore = V_rod − ∩`, `bore ∖ rod = V_bore − ∩`.
+/// - At every angle, by inclusion–exclusion within the certified
+///   brackets, and each volume within half a percent of its mesh's.
+/// - Shape: `∪` is one shell touching itself at both nodes (two
+///   valence-2 vertices at each, one per cone), passing 3′; `∩` is two
+///   solids touching at the nodes, its 3′ the census lane's frontier;
+///   `rod ∖ bore` holds the bicylinder, one valence-4 vertex at each
+///   node; `bore ∖ rod` is one solid with one valence-4 vertex at each
+///   node; all three pass 3′.
+///
+/// Both operand orders and the re-posed twin.
 #[test]
-fn a_rod_against_a_bore_refuses_its_node_typed() {
+fn a_rod_against_a_bore_builds_every_operation() {
     let tol = Tol::witness();
+    let measure = |b: &topo::AtRestBody<f64>| {
+        let m = topo::mass_properties(b, tol).unwrap();
+        (m.volume, m.volume_pad)
+    };
     let bore = bored(
         [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
         spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
     );
-    let rod = rod_y(4.0);
-    for (pose, a, b) in [
-        ("direct", rod.clone(), bore.clone()),
-        ("re-posed", repose(&rod), repose(&bore)),
-    ] {
-        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
-        for (order, x, y) in [("rod, bore", &a, &b), ("bore, rod", &b, &a)] {
-            for (op, r) in [
-                ("∪", topo::union(x, y, tol)),
-                ("∩", topo::intersect(x, y, tol)),
-                ("∖", topo::subtract(x, y, tol)),
-            ] {
+    let rod_at = |deg: f64| {
+        spin(
+            &rod_y(4.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            PI / 2.0 - deg.to_radians(),
+        )
+    };
+    let at_origin = [1.0, -1.0].map(|x| Point3::new(x, 0.0, 0.0));
+    let r = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 2.0, 3.0).normalize(),
+        0.7,
+    );
+    let place =
+        geom_core::Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6));
+    let mut poses: Vec<(String, Body<f64>, Body<f64>, [Point3<f64>; 2], bool)> =
+        [90.0_f64, 60.0, 35.0, 150.0]
+            .into_iter()
+            .map(|deg| {
+                (
+                    format!("{deg}°"),
+                    rod_at(deg),
+                    bore.clone(),
+                    at_origin,
+                    deg == 90.0,
+                )
+            })
+            .collect();
+    poses.push((
+        "90°, re-posed".to_string(),
+        repose(&rod_at(90.0)),
+        repose(&bore),
+        at_origin.map(|n| place.transform_point(n)),
+        true,
+    ));
+    for (what, rod, bore, nodes, square) in poses {
+        let (rod, bore) = (
+            finished("the rod", rod, tol),
+            finished("the bore", bore, tol),
+        );
+        let (vr, vb) = (measure(&rod), measure(&bore));
+        for (order, x, y) in [("rod, bore", &rod, &bore), ("bore, rod", &bore, &rod)] {
+            let cut = |op: &str| format!("{what} ({order}), {op}");
+            let i = built(topo::intersect(x, y, tol), nodes, &cut("∩"));
+            let u = built(topo::union(x, y, tol), nodes, &cut("∪"));
+            let rb = built(topo::subtract(&rod, &bore, tol), nodes, &cut("rod ∖ bore"));
+            let br = built(topo::subtract(&bore, &rod, tol), nodes, &cut("bore ∖ rod"));
+            let (vi, vu, vrb, vbr) = (
+                measure(&i.body),
+                measure(&u.body),
+                measure(&rb.body),
+                measure(&br.body),
+            );
+            let close = |got: (f64, f64), want: f64, pad: f64, op: &str| {
                 assert!(
-                    matches!(
-                        r,
-                        Err(topo::BooleanError::NodeUnbuilt {
-                            why: topo::NodeWhy::OppositeSenses,
-                            ..
-                        })
-                    ),
-                    "{pose} ({order}), {op}: the node refuses typed, got {r:?}"
+                    (got.0 - want).abs() <= got.1 + pad + 1e-9,
+                    "{}: volume {} ± {}, want {want} ± {pad}",
+                    cut(op),
+                    got.0,
+                    got.1
+                );
+            };
+            close(
+                (vu.0 + vi.0, vu.1 + vi.1),
+                vr.0 + vb.0,
+                vr.1 + vb.1,
+                "∪ + ∩",
+            );
+            close(vrb, vr.0 - vi.0, vr.1 + vi.1, "rod ∖ bore");
+            close(vbr, vb.0 - vi.0, vb.1 + vi.1, "bore ∖ rod");
+            if square {
+                close(vi, 4.0 * PI - 16.0 / 3.0, 0.0, "∩, closed form");
+            }
+            for (got, op) in [
+                (&i, "∩"),
+                (&u, "∪"),
+                (&rb, "rod ∖ bore"),
+                (&br, "bore ∖ rod"),
+            ] {
+                let mesh = mesh::tessellate(&got.body, 2e-3, tol).expect("the result tessellates");
+                let meshed = mesh::validate::signed_volume(&mesh);
+                let v = measure(&got.body).0;
+                assert!(
+                    (meshed - v).abs() <= 5e-3 * v,
+                    "{}: the mesh encloses {meshed}, the body {v}",
+                    cut(op)
+                );
+            }
+            assert_eq!(
+                (u.solids, u.body.shells().count(), &u.at_nodes),
+                (1, 1, &[vec![2, 2], vec![2, 2]]),
+                "{}: one shell touching itself at both nodes",
+                cut("∪")
+            );
+            assert_eq!(
+                i.at_nodes,
+                [vec![2, 2], vec![2, 2]],
+                "{}: one vertex per cone",
+                cut("∩")
+            );
+            assert!(
+                i.three_prime
+                    .as_ref()
+                    .err()
+                    .is_none_or(|errs| only_curved_within_reach(&i.body, errs)),
+                "{}: the census lane's frontier alone: {:?}",
+                cut("∩"),
+                i.three_prime
+            );
+            for (got, op) in [(&rb, "rod ∖ bore"), (&br, "bore ∖ rod")] {
+                assert_eq!(
+                    got.at_nodes,
+                    [vec![4], vec![4]],
+                    "{}: valence 4 at each node",
+                    cut(op)
+                );
+            }
+            assert_eq!(br.solids, 1, "{}: one solid", cut("bore ∖ rod"));
+            for (got, op) in [(&u, "∪"), (&rb, "rod ∖ bore"), (&br, "bore ∖ rod")] {
+                assert!(
+                    got.three_prime.is_ok(),
+                    "{}: 3′ {:?}",
+                    cut(op),
+                    got.three_prime
                 );
             }
         }
