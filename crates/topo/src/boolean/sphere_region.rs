@@ -318,6 +318,13 @@ impl<T: Decide> SphereFaceRegion<T> {
             {
                 ConicHit::On(_) | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
+                // A circle's `Past` stands on its nearest foot and walks
+                // nothing, so this does not arise; were it to, the point
+                // is unplaced against the boundary and no ray reading
+                // starts from it.
+                ConicHit::Unsettled => {
+                    return Err(RegionRefusal::RayExhausted { outer: self.outer });
+                }
             }
         }
         let w = p - self.center;

@@ -10,51 +10,55 @@
 //! Every length below is metres, and every closed form solves in one
 //! carrier's own parameter: a line's, or a conic's angle.
 //!
-//! - **Two lines.** Their tilt, the sine `s` between them, levered by
-//!   where they can meet: the overlap of the two spans' projections on
-//!   the first line, length `L`, and the escalation `e` either side
-//!   (`curve_pair_pose_tilt`, on `s·(L + 2e)`). The lever is a function of
-//!   the geometry where the spans can meet, not of how long either span
-//!   is, so one pair read whole or in pieces gets one verdict. That reading
-//!   only routes to the parallel arm: a pair it does not read zero is
-//!   crossing where the tilt levered by the longer span reads definite,
-//!   the candidate the first line's point nearest the second, and
-//!   escalates in its band (a short overlap is no evidence the lines
-//!   cross steeply, so it decides nothing else). Read zero over the
-//!   overlap, or zero over the longer span, the second line's distance
-//!   from the overlap's
-//!   middle point on the first (`curve_pair_pose_offset`) decides one line
-//!   ([`Pose::Coincident`]) where it reads zero. Otherwise the pair is
-//!   [`Pose::Parallel`] only where that distance less its most variation
-//!   over the overlap and `e` either side, `(s/c)·(L/2 + e)` with
-//!   `c = |û₁·û₂|`, decides positive (`curve_pair_pose_parallel`). **Why
-//!   that proves no meeting anywhere on either span:** a meeting is two
-//!   points, one per span, within the band's zero `z` of each other, so
-//!   their projections on the first line lie within `z` of each other,
-//!   each inside its own span's projection: the meeting projects within
-//!   `z < e` of the overlap, even where the overlap is empty (the
-//!   projections then part by less than `z`) or shorter than the band.
-//!   Over that stretch the lines' distance moves at most `s/c` per metre
-//!   from its value at the overlap's middle, so it stays past the band's
-//!   escalation and no point of one lies within `z` of the other. The
-//!   parts of either span outside that stretch lie farther than `z` from
-//!   the other span by their projections alone. A margin that does not
-//!   decide positive refuses [`Unsettled::Meter`].
-//! - **A line and a conic.** The line's tilt to the conic's plane, `d̂·n̂`
-//!   levered as two lines' is, by where they can meet: the overlap of the
-//!   line's span's projection on itself with the conic's, the centre's
-//!   projection ± the larger semi-axis, and the escalation either side.
-//!   As two lines' reading, it only routes to the parallel arm; otherwise
-//!   the tilt levered by the longer of the line's span and the conic's
-//!   greatest speed decides, definite: the line crosses the plane once,
+//! - **The router** (two lines, and a line against a conic's plane):
+//!   where the pair can meet is the overlap of the two spans'
+//!   projections on the first line (for a conic, the line's span with
+//!   the conic's centre ± its larger semi-axis), length `L`, and the
+//!   escalation `e` either side. The pair's offset there is the second
+//!   line's distance from the overlap's middle point on the first, or the
+//!   line's height above the conic's plane at that point. **The parallel
+//!   argument runs first, whatever the tilt reads**: where the offset less
+//!   its most variation over the overlap and `e` either side,
+//!   `rate·(L/2 + e)`, decides positive (`curve_pair_pose_parallel`), the
+//!   pair is [`Pose::Parallel`], `rate` being `s/c` for two lines (`s`
+//!   the sine between them, `c = |û₁·û₂|`) and `|d̂·n̂|` for a line and a
+//!   plane. **Why that proves no meeting anywhere on either span:** a
+//!   meeting is two points, one per span, within the band's zero `z` of
+//!   each other, so their projections on the first line lie within `z`
+//!   of each other, each inside its own span's projection (for a conic,
+//!   inside its extent's): the meeting projects within `z < e` of the
+//!   overlap, even where the overlap is empty (the projections then part
+//!   by less than `z`) or shorter than the band. Over that stretch the
+//!   offset moves at most `rate` per metre from its value at the
+//!   overlap's middle, so it stays past the band's escalation and no
+//!   point of one lies within `z` of the other. The parts of either span
+//!   outside that stretch lie farther than `z` from the other by their
+//!   projections alone. **Split invariance follows by construction**: a
+//!   piece of a span projects inside the whole's projection, so a
+//!   piece's overlap is a sub-interval of the whole's, and its offset at
+//!   its own middle less its own variation is at least the whole's
+//!   margin; a pair read Parallel whole is read Parallel in every split.
+//!   Only where that margin does not decide does the tilt route: levered
+//!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
+//!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
+//!   span, the pair is level where it can meet, and the offset at the
+//!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
+//!   and otherwise the parallel margin having not decided refuses
+//!   [`Unsettled::Meter`]. A tilt over the longer span in its band
+//!   escalates.
+//! - **Two lines.** Crossing, the candidate is the first line's point
+//!   nearest the second. Level, the lines are [`Pose::Coincident`] only
+//!   where each span's two ends lie within the zero band of the other's
+//!   carrier (`curve_pair_pose_offset`): a line's distance from another is
+//!   affine along it, so its ends bound it over the whole span, and
+//!   `Coincident` claims one curve over both spans, not only where they
+//!   can meet. Two lines level at a shallow corner, their overlap one
+//!   point and an end apart past the band, are read as the crossing the
+//!   longer span's tilt decides, and refuse [`Unsettled::Meter`] where it
+//!   reads zero.
+//! - **A line and a conic.** Crossing, the line crosses the plane once,
 //!   and the candidate is the closest pair polished from there (below).
-//!   Zero: the line's height
-//!   above the plane at the overlap's middle decides the line in the
-//!   plane where it reads zero, and [`Pose::Parallel`] where it less its
-//!   most variation over the overlap and `e` either side,
-//!   `|d̂·n̂|·(L/2 + e)`, decides positive (`curve_pair_pose_parallel`),
-//!   by the two lines' argument: a meeting projects on the line within
-//!   `z` of the overlap. There the
+//!   Level, the line lies in the plane where it can meet, and there the
 //!   conic's signed distance from the line, `(C(θ) − o)·m̂` with `m̂` the
 //!   line's normal in the plane, is a first harmonic in the conic's angle
 //!   (below).
@@ -579,6 +583,96 @@ fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> (T, T) {
     ((lo + hi) * T::from_f64(0.5), (hi - lo).max(T::zero()))
 }
 
+/// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
+/// distances along it from `o`.
+fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
+    let (t0, t1) = s.params();
+    (
+        (s.carrier().eval(t0) - o).dot(u),
+        (s.carrier().eval(t1) - o).dot(u),
+    )
+}
+
+/// Where the router sends a line's pair (module docs, "The router").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Route {
+    /// Definitely apart over every place they can meet.
+    Parallel,
+    /// Crossing: the tilt definite over the longer span.
+    Crossing,
+    /// Level over where they can meet, the offset there read zero.
+    Level,
+}
+
+/// **The router** of two lines, or of a line and a conic's plane (module
+/// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
+/// most metres the offset moves per metre along the first line, `offset`
+/// the second's distance (or the plane's height) at the overlap's middle,
+/// `length` the overlap's and `lever` the longer span's metres.
+///
+/// The parallel argument runs first and alone: where the offset less its
+/// most variation over the overlap and the escalation either side decides
+/// positive (`curve_pair_pose_parallel`), no point meets, whatever the
+/// tilt reads. Only otherwise does the tilt route: definite over the
+/// longer span, a crossing; zero over the overlap, or over the longer
+/// span, level where the offset reads zero, and [`Unsettled::Meter`]
+/// where it does not, the parallel margin having not decided.
+///
+/// # Errors
+///
+/// The band's escalation of the tilt over the longer span or of the
+/// offset, and the Meter refusal above.
+fn route<T: Decide>(
+    tilt: T,
+    rate: T,
+    offset: T,
+    (length, lever): (T, T),
+    band: Band,
+) -> Result<Route, MeetFault> {
+    let e = T::from_f64(band.escalate());
+    let half = length * T::from_f64(0.5) + e;
+    if decide(row::PARALLEL, Margin::of(offset - rate * half), band) == Ok(Sign::Positive) {
+        return Ok(Route::Parallel);
+    }
+    let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
+        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
+    if !level {
+        return Ok(Route::Crossing);
+    }
+    if definite(row::OFFSET, Margin::of(offset), band)? {
+        return Err(MeetFault::Unsettled(Unsettled::Meter));
+    }
+    Ok(Route::Level)
+}
+
+/// Whether two lines are one curve within the band over both whole spans
+/// (`curve_pair_pose_offset`): each span's ends lie within the zero band
+/// of the other's carrier. A line's distance from another is affine in
+/// its parameter, so its ends bound it over the span.
+fn one_line<T: Decide>(
+    (a, la): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    (b, lb): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    band: Band,
+) -> Result<bool, MeetFault> {
+    let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
+        let w = q - o;
+        (w - u * w.dot(u)).norm()
+    };
+    for (s, other) in [(a, lb), (b, la)] {
+        let (t0, t1) = s.params();
+        for t in [t0, t1] {
+            if definite(
+                row::OFFSET,
+                Margin::of(off(other, s.carrier().eval(t))),
+                band,
+            )? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// Two lines (module docs).
 fn line_line<T: Decide>(
     a: &Span<'_, T>,
@@ -590,45 +684,33 @@ fn line_line<T: Decide>(
     let (u1, u2) = (unit(d1), unit(d2));
     let n = u1.cross(u2);
     let s = n.norm();
-    let e = T::from_f64(band.escalate());
-    let on_first = |sp: &Span<'_, T>| {
-        let (t0, t1) = sp.params();
-        let ends = (sp.carrier().eval(t0), sp.carrier().eval(t1));
-        ((ends.0 - o1).dot(u1), (ends.1 - o1).dot(u1))
+    let first = (o1, u1);
+    let (mid, length) = overlap(on_line(first, a), on_line(first, b));
+    let w = o1 + u1 * mid - o2;
+    let off = (w - u2 * w.dot(u2)).norm();
+    let lever = reach(a).max(reach(b));
+    let crossing = || {
+        let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
+        let point = o1 + u1 * along;
+        Pose::Generic(vec![Candidate {
+            point,
+            ta: line_foot(la, point),
+            tb: line_foot(lb, point),
+        }])
     };
-    let (mid, length) = overlap(on_first(a), on_first(b));
-    // Parallel where the tilt reads zero over where the lines can meet;
-    // otherwise crossing only where it reads definite over the longer
-    // span (module docs).
-    let parallel = decide(row::TILT, Margin::levered(s, length + e + e), band) == Ok(Sign::Zero)
-        || !definite(row::TILT, Margin::levered(s, reach(a).max(reach(b))), band)?;
-    if parallel {
-        let at = o1 + u1 * mid;
-        let w = at - o2;
-        let off = (w - u2 * w.dot(u2)).norm();
-        if !definite(row::OFFSET, Margin::of(off), band)? {
-            return Ok(Pose::Coincident {
-                sense: sense(u1.dot(u2), reach(a).max(reach(b)), band)?,
-                witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-            });
-        }
-        let rate = s / u1.dot(u2).abs();
-        let half = length * T::from_f64(0.5) + e;
-        metered(
-            row::PARALLEL,
-            Margin::of(off - rate * half),
-            Sign::Positive,
-            band,
-        )?;
-        return Ok(Pose::Parallel);
+    match route(s, s / u1.dot(u2).abs(), off, (length, lever), band)? {
+        Route::Parallel => Ok(Pose::Parallel),
+        Route::Crossing => Ok(crossing()),
+        Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
+            sense: sense(u1.dot(u2), lever, band)?,
+            witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
+        }),
+        // Level where they can meet but apart past the band along a span:
+        // a shallow corner, read as the crossing the longer span's tilt
+        // decides.
+        Route::Level if definite(row::TILT, Margin::levered(s, lever), band)? => Ok(crossing()),
+        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
-    let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
-    let point = o1 + u1 * along;
-    Ok(Pose::Generic(vec![Candidate {
-        point,
-        ta: line_foot(la, point),
-        tb: line_foot(lb, point),
-    }]))
 }
 
 /// A line `a` and a conic `b` (module docs).
@@ -645,47 +727,33 @@ fn line_conic<T: Decide>(
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let e = T::from_f64(band.escalate());
-    let (t0, t1) = a.params();
-    let ends = (
-        (a.carrier().eval(t0) - o).dot(u),
-        (a.carrier().eval(t1) - o).dot(u),
-    );
     let c = (k.center - o).dot(u);
-    let (mid, length) = overlap(ends, (c - k.speed_hi(), c + k.speed_hi()));
+    let (mid, length) = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let parallel = decide(row::TILT, Margin::levered(den, length + e + e), band) == Ok(Sign::Zero)
-        || !definite(row::TILT, Margin::levered(den, lever), band)?;
-    if !parallel {
-        // The line's height above the plane runs `|d̂·n̂|` per metre, so
-        // it is within the band's escalation `e/|d̂·n̂|` either side of
-        // the crossing.
-        let point = o + u * ((k.center - o).dot(n) / den);
-        let e = T::from_f64(band.escalate()) + noise;
-        let polish = Polish {
-            a: Side::Line(line),
-            b: Side::Conic(&k),
-            start: (line_foot(line, point), foot(b, point)),
-            reach: e / den.abs(),
-            clear: clearance(b.carrier(), point),
-            lever,
-        };
-        return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
-    }
     let height = (o + u * mid - k.center).dot(n);
-    if definite(row::OFFSET, Margin::of(height), band)? {
-        let half = length * T::from_f64(0.5) + e;
-        metered(
-            row::PARALLEL,
-            Margin::of(height.abs() - den.abs() * half),
-            Sign::Positive,
-            band,
-        )?;
-        return Ok(Pose::Parallel);
+    match route(den, den.abs(), height.abs(), (length, lever), band)? {
+        Route::Parallel => return Ok(Pose::Parallel),
+        Route::Crossing => {
+            // The line's height above the plane runs `|d̂·n̂|` per metre,
+            // so it is within the band's escalation `e/|d̂·n̂|` either side
+            // of the crossing.
+            let point = o + u * ((k.center - o).dot(n) / den);
+            let e = T::from_f64(band.escalate()) + noise;
+            let polish = Polish {
+                a: Side::Line(line),
+                b: Side::Conic(&k),
+                start: (line_foot(line, point), foot(b, point)),
+                reach: e / den.abs(),
+                clear: clearance(b.carrier(), point),
+                lever,
+            };
+            return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
+        }
+        Route::Level => {}
     }
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.

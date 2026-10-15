@@ -278,6 +278,11 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         match self.carrier.clear_of(q, (self.t0, self.t1), band)? {
             Clearance::Clear => Ok(Place::Past),
+            // A kept piece reading zero is no `On`: its reading is the
+            // lower bound `|C(m) − q| − ℓ` on `q`'s distance from the
+            // piece, so zero puts `q` within `z + 2ℓ` of it, past the
+            // zero band `z` the composition's `On` claims, and the place
+            // decides no carrier membership of its own (module docs).
             Clearance::Near(Ok(near)) => Err(CarrierRefusal::Straddle(straddle(
                 "curve_pair_span_past_straddle",
                 near,

@@ -741,7 +741,13 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
 /// the pierce is unread. There the three ops with the first rod first
 /// at 80 refuse `CurvedPierceUnsupported` too, before the sector
-/// reading. The rest of the table holds at every ε.
+/// reading, on the same meter: the seam ruling lies on the other rod's
+/// wall, the interior question reads its meetings with that wall's rim
+/// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
+/// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
+/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
+/// pierce refusals here is that meter. The rest of the table holds at
+/// every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
