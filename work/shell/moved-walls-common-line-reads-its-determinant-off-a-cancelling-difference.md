@@ -28,3 +28,13 @@ the small quantity. `carrier_cross::common_line`
 whether `p0`'s numerators (`r_a − k·r_b`) still dominate at the
 transversal trilean's floor. Not measured: this was found by reading
 the code, and no pose has been shown to move.
+
+2026-10-15 (CLEAVE, `cleave/circle-pair-touch-on-both`): measured on
+the twin this row cites. `carrier_cross::common_line` already used
+`k = s²`, and its `p0` still sat up to `u·|h|/s²` off both planes
+(`1e-6` at `s = 1e-5` with `|h| ≈ 4`, ε = 1e-9; metres at
+`s = 1e-8`): the numerators `h₁ − h₂·c` cancel as the determinant
+does. So the determinant swap alone does not settle this row; reading
+`r_a − k·r_b` at the transversal floor is the measurement owed.
+`carrier_cross` replaced the line by meeting each conic with the other
+plane in its own angle.

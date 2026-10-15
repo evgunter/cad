@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P1
 cost: M
+branch: cleave/circle-pair-touch-on-both
 ---
 
 
@@ -57,3 +58,35 @@ A second designer lane ran its own probe, also never committed: 2000 random pair
 - Rows: one red-then-green row per reproduction above.
 
 FUSE's curve-meeting design (`work/fuse/two-curve-curve-meeting-finders.md`, now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
+
+## Built (branch `cleave/circle-pair-touch-on-both`)
+
+Re-measured on main after PR 5058 with a 50-digit oracle at ε = 1e-9,
+1e-6 and 1e-12. Every witness above survives 5058: its reorder and its
+`Conic` input left the touch arm's foot and both `common_line` arms as
+they were. The row's literal witness (`Δr = 0.9·d`, `d = Kε`) sits on
+the zero threshold (`d − Δr = ε`), so it reads `Zero` only at 1e-9;
+`Δr = 0.95·d` reproduces at all three. `common_line` drifts at 1e-9 and
+1e-12 and holds at 1e-6. A third arm drifted too: the in-plane
+crossings took their direction from the 3D centre offset, which a
+`Zero` plane reading leaves up to the band.
+
+- `conic_meets_plane` replaces `common_line`, `circle_meets_plane` and
+  `ellipse_meets_plane`: each conic meets the other plane in its own
+  angle, from `lift = n·(c_e − c_f)`, with the same rows and the same
+  gap from tangency, now read from `lift`. A `Zero` touch is the
+  clamped double root on the conic.
+- `parallel_circles` reads `geom_core::Circles` in `e`'s plane, `f`'s
+  centre projected into it: the real crossings wherever the half-chord
+  exists, else the point of `e` on the line of centres.
+
+No decision, row or escalation was added. The two crossings, where they
+exist, are on both curves however the touch reads, so the double root
+needs no separate decision here; that is FUSE's reader's to settle.
+Pinned by `carrier_cross::meetings_rows::every_arm_places_its_meetings_on_both_curves`,
+two `crossing_rows` (`a_section_turned_off_the_rims_plane_…`,
+`a_nearly_concentric_circle_in_the_rims_plane_…`) and the boolean
+row `sweep::a_rim_tilted_across_another_on_one_wall`, which main
+refuses at 1e-12. No door reaches the coplanar witness: two circles
+the band reads coplanar but not one curve leave a band-thin region
+between their planes, which the boolean refuses elsewhere.
