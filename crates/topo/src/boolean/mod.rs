@@ -2857,7 +2857,10 @@ pub enum BooleanError {
     /// face, so a later pass would read an orbit an earlier one wrote
     /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`). A partner
     /// along the face where its side is not read is
-    /// [`BooleanError::PartnerAlongFace`].
+    /// [`BooleanError::PartnerAlongFace`]. Neither piece of the other
+    /// solid touches itself there alone, so the operation applied to
+    /// each piece, with the results then combined, meets one read at the
+    /// vertex.
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -4444,7 +4447,8 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a corner of the {} solid lands where the other solid touches itself \
                  ({}), and the Boolean cannot yet classify one corner against both. \
-                 There is no way through this in the kernel yet",
+                 Recourse: apply the operation to each piece of the other solid that \
+                 touches there, then combine the results",
                 operand_word(*operand),
                 match reads[1] {
                     SectorRead::Pierce(_) => "two of its faces meet there",
