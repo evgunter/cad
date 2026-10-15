@@ -6,7 +6,8 @@
 //!   method proposes is settled by [`Span::contact`] on both spans, at its
 //!   foot on each ([`geom::Curve3::foot`], seeded by the candidate's own
 //!   parameter). It composes `geom`'s one-carrier reading with the
-//!   span's reading of its ends, and decides nothing of its own.
+//!   span's reading of its ends ([`Span::read`]), and decides nothing of
+//!   its own.
 //! - **One total table** ([`method`]): one exhaustive match over the two
 //!   carriers' [`CurveKind`]s, with no wildcard arm, fixing each pair's
 //!   method at write time. Line, circle and ellipse pairs are closed
@@ -35,7 +36,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
-pub use span::{Hit, Place, Span, SpanEnd};
+pub use span::{Hit, Place, Reading, Span, SpanEnd};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -226,8 +227,8 @@ fn outcome<T: Decide>(
         if repeats(&points, c.point, band) {
             continue;
         }
-        let on_a = a.contact(c.point, &a.carrier().foot(c.point, c.ta), band);
-        let on_b = b.contact(c.point, &b.carrier().foot(c.point, c.tb), band);
+        let on_a = a.contact(c.point, c.ta, band);
+        let on_b = b.contact(c.point, c.tb, band);
         match (on_a, on_b) {
             (Ok(None), _) | (_, Ok(None)) => {}
             (Ok(Some(on_a)), Ok(Some(on_b))) => {

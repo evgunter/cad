@@ -173,11 +173,12 @@ fn vertex_on_span<T: Decide>(
     band: Band,
 ) -> Result<Option<T>, geom::CarrierRefusal> {
     let (t0, t1) = swept.params();
-    let foot = swept.carrier().foot(vertex, geom::mid_param(t0, t1));
-    Ok(match swept.contact(vertex, &foot, band)? {
-        Some(Hit::On { t, .. }) => Some(t),
-        Some(Hit::End(_)) | None => None,
-    })
+    Ok(
+        match swept.contact(vertex, geom::mid_param(t0, t1), band)? {
+            Some(Hit::On { t, .. }) => Some(t),
+            Some(Hit::End(_)) | None => None,
+        },
+    )
 }
 
 /// A point-on-span refusal of the vertex reading: an escalation is this

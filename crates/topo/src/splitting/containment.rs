@@ -967,44 +967,36 @@ impl<T: Decide> ConicArc<T> {
         )
     }
 
-    /// **Where `q` sits against this edge**, by the two readings read
-    /// directly at `q`'s foot on the carrier ([`geom::Curve3::foot`]):
-    /// whether it lies on the carrier ([`geom::Curve3::on_carrier`], off
+    /// **Where `q` sits against this edge**: the arc's span read by
+    /// [`geom_brep::curve_pair::Span::read`], the one composition of the
+    /// carrier's reading at `q`'s foot ([`geom::Foot::on_carrier`], off
     /// only on a lower bound on its distance from the whole conic, the
-    /// ellipse's Hessian-bounded root), and where the foot sits against
-    /// the arc's ends ([`geom_brep::curve_pair::Span::place`]). A point
-    /// definitely past the arc, whether or not the band places it on the
-    /// carrier, is off the edge: past its ends the arc's nearest point is
-    /// the nearer end, which the place reads clear of the point.
+    /// ellipse's Hessian-bounded root) with the span's reading of its ends
+    /// ([`geom_brep::curve_pair::Span::place`]). A point past the arc is
+    /// off the edge, on its carrier ([`ConicHit::Carrier`]) or not; the
+    /// ellipse's straddle stays a straddle.
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
-        use geom::OnCarrier;
-        use geom_brep::curve_pair::{Place, Span};
+        use geom_brep::curve_pair::{Reading, Span};
         let carrier = self.carrier();
         let span = Span::new(&carrier, self.span);
-        let foot = carrier.foot(q, geom::mid_param(self.span.0, self.span.1));
-        // The place first, so the carrier's own refusal is the last word
-        // on the frame: a straddle is the ellipse's two bounds on its
-        // distance, which no margin says.
-        let place = span.place(q, &foot, band);
-        let on = carrier
-            .on_carrier(q, &foot, band)
-            .map_err(|refusal| match refusal {
-                geom::CarrierRefusal::Escalated(diag) => ReadEscalation::from(diag),
-                geom::CarrierRefusal::Straddle(diag) => ReadEscalation {
+        let near = geom::mid_param(self.span.0, self.span.1);
+        Ok(match span.read(q, near, band) {
+            Ok(Reading::Off) => ConicHit::Off,
+            Ok(Reading::Carrier) => ConicHit::Carrier,
+            Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
+            Ok(Reading::End(_)) => ConicHit::End,
+            Err(geom::CarrierRefusal::Escalated(diag)) => return Err(diag.into()),
+            // The ellipse's two bounds on its distance, which no margin
+            // says: a straddle, typed.
+            Err(geom::CarrierRefusal::Straddle(diag)) => {
+                return Err(ReadEscalation {
                     escalation: Escalation::Straddle,
                     diag,
-                },
-                geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
-                    unreachable!("a conic's carrier reading walks no pieces")
-                }
-            });
-        Ok(match (on, place) {
-            (Ok(OnCarrier::Off), _) | (Err(_), Ok(Place::Past)) => ConicHit::Off,
-            (Ok(OnCarrier::On { .. }), Ok(Place::Past)) => ConicHit::Carrier,
-            (Ok(OnCarrier::On { margin }), Ok(Place::Inside { .. })) => ConicHit::On(margin),
-            (_, Ok(Place::End(_))) => ConicHit::End,
-            (Err(refusal), Ok(Place::Inside { .. }) | Err(_)) => return Err(refusal),
-            (Ok(OnCarrier::On { .. }), Err(diag)) => return Err(diag.into()),
+                });
+            }
+            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
+                unreachable!("a conic's readings walk no spline")
+            }
         })
     }
 

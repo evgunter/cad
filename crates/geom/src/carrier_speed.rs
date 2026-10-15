@@ -59,27 +59,40 @@ pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
     Kind::of(carrier).curvature_hi()
 }
 
-/// A conic's semi-axes as stored, in either order and sign.
-#[derive(Clone, Copy)]
-struct Conic<T> {
+/// **A conic's rates from its semi-axes**, as stored, in either order and
+/// sign: the one home of a conic's speed and curvature bounds
+/// (`geom_brep`'s `Conic` reads them here).
+#[derive(Clone, Copy, Debug)]
+pub struct SemiAxes<T> {
     semi_u: T,
     semi_v: T,
 }
 
-impl<T: Real> Conic<T> {
-    fn speed_lo(self) -> T {
+impl<T: Real> SemiAxes<T> {
+    /// The semi-axes along `u_ref` and `axis × u_ref`.
+    pub fn new(semi_u: T, semi_v: T) -> Self {
+        Self { semi_u, semi_v }
+    }
+
+    /// The least speed `|C′|`: the smaller semi-axis magnitude.
+    pub fn speed_lo(self) -> T {
         crate::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).1
     }
 
-    fn speed_hi(self) -> T {
+    /// The greatest speed `|C′|`, and a bound on `|C″|`: the larger
+    /// semi-axis magnitude.
+    pub fn speed_hi(self) -> T {
         crate::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).0
     }
 
-    fn curvature_hi(self) -> T {
+    /// A bound on the curvature, `speed_hi / speed_lo²`: the tightest
+    /// bend, at the ends of the larger semi-axis.
+    pub fn curvature_hi(self) -> T {
         self.speed_hi() / self.speed_lo().powi(2)
     }
 
-    fn speed_at(self, theta: T) -> T {
+    /// The speed `|C′(θ)|` at `theta`.
+    pub fn speed_at(self, theta: T) -> T {
         let (sin, cos) = theta.sin_cos();
         ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
     }
@@ -88,7 +101,7 @@ impl<T: Real> Conic<T> {
 /// A carrier read by what bounds its rates: a conic by its semi-axes.
 enum Kind<'a, T: Real> {
     Line(Vec3<T>),
-    Conic(Conic<T>),
+    Conic(SemiAxes<T>),
     Spiric { major: T, minor: T, offset: T },
     Nurbs(&'a crate::NurbsCurve3<T>),
 }
@@ -97,14 +110,10 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
     fn of(carrier: &'a crate::Curve3<T>) -> Self {
         match carrier {
             crate::Curve3::Line { dir, .. } => Self::Line(*dir),
-            crate::Curve3::Circle { radius, .. } => Self::Conic(Conic {
-                semi_u: *radius,
-                semi_v: *radius,
-            }),
-            crate::Curve3::Ellipse { semi_u, semi_v, .. } => Self::Conic(Conic {
-                semi_u: *semi_u,
-                semi_v: *semi_v,
-            }),
+            crate::Curve3::Circle { radius, .. } => Self::Conic(SemiAxes::new(*radius, *radius)),
+            crate::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                Self::Conic(SemiAxes::new(*semi_u, *semi_v))
+            }
             crate::Curve3::Spiric {
                 major_radius,
                 minor_radius,

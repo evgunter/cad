@@ -4636,12 +4636,7 @@ fn fold_torus_meridians<T: Decide>(
 /// the hairline escalates honestly. Profile's canonical-form band and
 /// the split join's ordering decide against the same constants.
 fn exact_band() -> Band {
-    match Band::new(f64::from_bits(1), f64::from_bits(2)) {
-        Ok(band) => band,
-        // Two finite, ordered, positive constants: a `BandError` from
-        // them is a kernel bug, not a state (D2 addendum row 4).
-        Err(_) => unreachable!("the exact-order band's constants are valid by construction"),
-    }
+    Band::least()
 }
 
 /// One chain of arcs — non-empty, loop-consecutive, one identity, one
