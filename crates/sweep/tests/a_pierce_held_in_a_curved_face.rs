@@ -23,10 +23,8 @@
 //!   after the join builds.
 //! - **A wall the ruling pierces twice**: the joined rod and square
 //!   against a slab whose two faces the ruling pierces inside the wall.
-//!   The first held pierce rings the wall, and the trim does not read a
-//!   ringed wall at the second, so every op refuses `HeldPierceUnbuilt`
-//!   typed
-//!   (`a-wall-holding-two-pierces-refuses-at-its-own-ring`).
+//!   Both points are read before either is minted, so every op and
+//!   every member order builds.
 //!
 //! A curved face holding the point over a curved pierced face refuses
 //! `HeldPierceUnbuilt` typed: no row reaches it, since the rod alone
@@ -651,40 +649,58 @@ fn a_ringed_wall_holding_the_pierce_refuses_typed_and_pocketing_last_builds() {
     }
 }
 
-/// **A wall the ruling pierces twice refuses typed**: the joined rod
-/// and square against a slab whose top and bottom the ruling pierces
-/// inside the wall. The first held pierce rings the wall, and the trim
-/// does not read a ringed wall at the second: every op, either operand
-/// first, refuses `HeldPierceUnbuilt`, not placed
-/// (`a-wall-holding-two-pierces-refuses-at-its-own-ring`). A slab the
-/// ruling pierces once, at its top or its bottom, builds.
+/// **A wall the ruling pierces twice builds**: the joined rod and square
+/// against a slab whose top and bottom the ruling pierces inside the
+/// wall. Both points are read before either ring vertex is minted, so
+/// the second does not read the first's strut as a ring. Every op of the
+/// pair and the slab, the pair joined either way round, either operand
+/// first, and every member order of the fold, at the three turns.
 #[test]
-fn a_wall_the_ruling_pierces_twice_refuses_typed() {
-    let slab = |z| finished("the slab", brick(PLATE[0], PLATE[1], z, tol()), tol());
-    let twice = slab((0.8, 1.2));
+fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
+    const SLAB_Z: (f64, f64) = (0.8, 1.2);
+    let slab = finished("the slab", brick(PLATE[0], PLATE[1], SLAB_Z, tol()), tol());
+    let in_slab = |q: [f64; 3]| {
+        PLATE[0].0 < q[0]
+            && q[0] < PLATE[0].1
+            && PLATE[1].0 < q[1]
+            && q[1] < PLATE[1].1
+            && SLAB_Z.0 < q[2]
+            && q[2] < SLAB_Z.1
+    };
+    let slab_volume = 6.0 * (SLAB_Z.1 - SLAB_Z.0);
+    let rod_volume = PI * R * R * (ROD_Z.1 - ROD_Z.0);
+    let sq_volume = SQ_AREA * (SQ_Z.1 - SQ_Z.0);
+    // The slab's height lies within both the rod's and the square's.
+    let common = (PI * R * R + SQ_AREA) * (SLAB_Z.1 - SLAB_Z.0);
     for turn in TURNS {
-        let pair = joined(
-            &format!("turn {turn}: rod ∪ square"),
-            &rod(),
-            &prism(&square_foot(turn), SQ_Z),
+        let foot = square_foot(turn);
+        let (rod, sq) = (rod(), prism(&foot, SQ_Z));
+        let in_pair = |q: [f64; 3]| in_rod(q) || in_prism(&foot, SQ_Z, q);
+        for (order, a, b) in [("rod ∪ square", &rod, &sq), ("square ∪ rod", &sq, &rod)] {
+            let pair = joined(&format!("turn {turn}: {order}"), a, b);
+            every_op(
+                &format!("turn {turn}: ({order}) and the slab"),
+                &Closed {
+                    body: &pair,
+                    holds: &in_pair,
+                    volume: rod_volume + sq_volume,
+                },
+                &Closed {
+                    body: &slab,
+                    holds: &in_slab,
+                    volume: slab_volume,
+                },
+                common,
+                99,
+            );
+        }
+        every_order(
+            &format!("turn {turn}: the rod, the square and the slab"),
+            &[rod, sq, slab.clone()],
+            &|q| in_pair(q) || in_slab(q),
+            slab_volume + rod_volume + sq_volume - common,
+            99,
+            &|_| None,
         );
-        for (name, op, _) in OPS {
-            for (what, a, b) in [("pair first", &pair, &twice), ("slab first", &twice, &pair)] {
-                match op(a, b, tol()) {
-                    Err(BooleanError::HeldPierceUnbuilt { placed: false, .. }) => {}
-                    other => panic!("turn {turn}: {name}, {what}: {other:?}"),
-                }
-            }
-        }
-        for z in [(0.3, 1.2), (1.0, 2.5)] {
-            match topo::union(&pair, &slab(z), tol()) {
-                Ok(BooleanResult::Body(r)) => assert_eq!(
-                    topo::validate_geometric(&r.body, tol()),
-                    Ok(()),
-                    "turn {turn}: the slab over {z:?}, pierced once"
-                ),
-                other => panic!("turn {turn}: the slab over {z:?}, pierced once: {other:?}"),
-            }
-        }
     }
 }

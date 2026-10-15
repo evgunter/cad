@@ -1929,10 +1929,53 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
     box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
-    plan: &RingPlan<T>,
+    plans: &[&RingPlan<T>],
     band: Band,
     tol: Tol,
 ) -> Result<Vec<HeldPierce<T>>, BooleanError> {
+    // Every pierce's faces are read before any is written: a ring vertex
+    // minted for one point stands in its face's loop as a strut, which a
+    // trim reads as a ring, and a second point the face holds would then
+    // read unplaced.
+    let mut reads = Vec::new();
+    for plan in plans {
+        reads.extend(held_reads(&*piercing_body, pierced_body, box_holds, plan, band)?);
+    }
+    reads
+        .into_iter()
+        .map(|read| mint_held(piercing_body, read, tol))
+        .collect()
+}
+
+/// What [`held_reads`] decided of one face holding one pierce point,
+/// for [`mint_held`] to write.
+struct HeldRead<T: geom_core::Real> {
+    face: crate::entity::FaceKey,
+    piercing: Operand,
+    pierced: crate::entity::FaceKey,
+    point: geom_core::Point3<T>,
+    /// The pierced face's outward normal at the point.
+    normal: Vec3<T>,
+    /// The run's start germ direction, `n × n_pierced`, normalized.
+    dir: Vec3<T>,
+    arm: T,
+    cells: (
+        (crate::entity::FaceKey, crate::entity::FaceKey),
+        (super::Locus, super::Locus),
+    ),
+    branch: super::Branch,
+    on: geom_core::MarginDiag,
+}
+
+/// [`faces_holding_pierce`]'s reading of `plan`'s point against every
+/// face of `piercing_body`, writing nothing.
+fn held_reads<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &Body<T>,
+    pierced_body: &Body<T>,
+    box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
+    plan: &RingPlan<T>,
+    band: Band,
+) -> Result<Vec<HeldRead<T>>, BooleanError> {
     let (p, piercing, pierced) = (plan.point, plan.piercing, plan.contact.face);
     // The pierce's own neighbourhood meters each reading: the shortest
     // arm its runs were ordered at.
@@ -2139,11 +2182,9 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        let (w, ring_loop) = ring_vertex_in(piercing_body, face, p, tol)?;
         // The face's one run is its half above the pierced face, from
         // the germ `n × n_pierced` round to its opposite, as a sector's
         // transitions read (`pierce_germ_dir`).
-        let d = int.normalize();
         let cells = match piercing {
             Operand::A => (
                 (face, pierced),
@@ -2154,43 +2195,76 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 (super::Locus::InFace(pierced), super::Locus::InFace(face)),
             ),
         };
-        let branch = germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?;
-        let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
-        let mint = piercing_body.mev_null_run(
-            MevSite::Lone { r#loop: ring_loop },
-            w,
-            NewVertexSide::Above,
-            true,
-        )?;
-        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
-        let rec = BoolNullEdgeRecord {
-            operand: piercing,
-            at_vertex: w,
-            edge: created.edge,
-            attr,
-            dangling: true,
-            germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
-        };
-        out.push(HeldPierce {
-            strut: rec,
+        out.push(HeldRead {
+            face,
+            piercing,
+            pierced,
+            point: p,
+            normal: plan.normal,
+            dir: int.normalize(),
+            arm,
+            cells,
+            branch: germ_branch((piercing_body, pierced_body), piercing, cells, p, band)?,
             on,
-            plan: RingPlan {
-                contact: VfContact {
-                    vertex: w,
-                    face: pierced,
-                },
-                piercing,
-                point: p,
-                normal: plan.normal,
-                runs: vec![PlannedRun {
-                    edge: created.edge,
-                    germs,
-                    order: [(d, arm), (-d, arm)],
-                }],
-            },
         });
     }
     Ok(out)
+}
+
+/// Mints [`HeldRead`]'s ring vertex in its face and its run's strut,
+/// and returns them with the pierce's half of its ring.
+fn mint_held<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &mut Body<T>,
+    read: HeldRead<T>,
+    tol: Tol,
+) -> Result<HeldPierce<T>, BooleanError> {
+    let HeldRead {
+        face,
+        piercing,
+        pierced,
+        point,
+        normal,
+        dir: d,
+        arm,
+        cells,
+        branch,
+        on,
+    } = read;
+    let (w, ring_loop) = ring_vertex_in(piercing_body, face, point, tol)?;
+    let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
+    let mint = piercing_body.mev_null_run(
+        MevSite::Lone { r#loop: ring_loop },
+        w,
+        NewVertexSide::Above,
+        true,
+    )?;
+    let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+    let rec = BoolNullEdgeRecord {
+        operand: piercing,
+        at_vertex: w,
+        edge: created.edge,
+        attr,
+        dangling: true,
+        germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
+    };
+    Ok(HeldPierce {
+        strut: rec,
+        on,
+        plan: RingPlan {
+            contact: VfContact {
+                vertex: w,
+                face: pierced,
+            },
+            piercing,
+            point,
+            normal,
+            runs: vec![PlannedRun {
+                edge: created.edge,
+                germs,
+                order: [(d, arm), (-d, arm)],
+            }],
+        },
+    })
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
