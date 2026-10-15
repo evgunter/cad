@@ -119,10 +119,9 @@ use crate::names::emit::{
     Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    Cover, CrossedEdge, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
+    Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
     crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
     joined_candidates, least_per_line, name_edge_pieces, name_parent_faces, rank_crossings,
-    straight_segment,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -563,10 +562,11 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// never off the fold:
 /// - a finished EDGE lies within member `n`'s edge `e` when its two
 ///   faces descend from `e`'s two faces in `n` (their names cite them,
-///   through a `Merged` set or a `Fragment`) and both its ends lie on
-///   `e`'s closed segment ([`ON_MEMBER_EDGE`]); it runs ALONG `e` when
-///   instead the two overlap over a length on one line
-///   ([`Segment::cover`]);
+///   through a `Merged` set or a `Fragment`) and it lies within `e`
+///   along `e`'s carrier: a segment of its line where `e` is straight,
+///   a span of its certified curve where `e` is curved
+///   ([`joined_along`], [`ON_MEMBER_EDGE`]); it runs ALONG `e` when
+///   instead the two overlap over a length of that carrier;
 /// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
 ///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
 ///   from a face of `n` that `w` lies on.
@@ -664,16 +664,22 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(from0), Some(from1)) = (self.face_ents.get(f0), self.face_ents.get(f1)) else {
             return Ok(none);
         };
-        // A union reads a curved joined edge from its two faces
-        // (`work/emit/a-unions-flush-reading-is-straight-only.md`).
-        if !is_straight(self.body, k) {
+        // An edge on a carrier that places no point covers nothing, and
+        // the fold's name for it stands
+        // (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+        if let EdgeCarrier::Unread = EdgeCarrier::of_edge(self.body, k)? {
             return Ok(none);
         }
         let (d0, d1): (Vec<MemberFace>, Vec<MemberFace>) = (
             from0.iter().copied().collect(),
             from1.iter().copied().collect(),
         );
-        let candidates = joined_candidates(&d0, &d1, |i| Ok(self.member_by_index(i)?.body), true)?;
+        let candidates = joined_candidates(
+            &d0,
+            &d1,
+            |i| Ok(self.member_by_index(i)?.body),
+            is_straight(self.body, k),
+        )?;
         let mut named = Vec::with_capacity(candidates.len());
         for ((i, r), arc) in candidates {
             let m = self.member_by_index(i)?;
@@ -855,7 +861,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             cited,
             |line: &MemberEntity| {
                 let (body, edge) = member_edge(self.members, line.0, line.1.name())?;
-                straight_segment(body, edge)
+                EdgeCarrier::of_edge(body, edge).map(Some)
             },
             self.bnd,
         )?;
@@ -1109,9 +1115,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:
-    /// `Some(true)` for the same edge, and for a straight edge lying on
-    /// `like`'s straight line the way their directions agree; `None`
-    /// where `of` does not lie on that line.
+    /// `Some(true)` for the same edge, and for an edge lying on `like`'s
+    /// line, straight or curved, the way their directions agree
+    /// ([`EdgeCarrier::runs_with`]); `None` where `of` does not lie on
+    /// that line.
     fn same_way(
         &self,
         of: &MemberEntity,
@@ -1122,11 +1129,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
         let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
-        if !(is_straight(of_body, of_edge) && is_straight(like_body, like_edge)) {
-            return Ok(None);
-        }
-        Segment::of_edge(like_body, like_edge)?.runs_with(
-            &Segment::of_edge(of_body, of_edge)?,
+        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with(
+            &EdgeCarrier::of_edge(of_body, of_edge)?,
             ON_MEMBER_EDGE,
             self.bnd,
         )

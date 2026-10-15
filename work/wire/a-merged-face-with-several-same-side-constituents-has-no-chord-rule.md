@@ -125,8 +125,8 @@ only the mate (the five `Rest` findings) now refuses
 to glue on the mate alone (to a body whose coplanar tops and bottoms
 were left unmerged), waits on this rule. The kernel tour's crosslap
 declares the whole inventory and glues; only the naming layer stops.
-Pinned in `crates/pncad-py/tests/test_north_star.py`
-(`TestCrosslapAtTheNamingWall`).
+Pinned in `crates/pncad-py/tests/test_north_star.py` at the time
+(`TestCrosslapAtTheNamingWall`); see below.
 
 ## More orders once declarations stop refusing by order (EMIT, 2026-10-06)
 
@@ -186,3 +186,18 @@ own:
 - the crosslap.
 
 Only the sunk boss was re-measured.
+
+## The document crosslap leaves the row (EMIT, 2026-10-15)
+
+The boolean now keeps the split records of the edges its carve of
+discarded material kills (`BooleanNaming::carved_lineage`, closing
+`work/emit/a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy.md`).
+The crosslap's chords on the merged bottom read through to the
+operands' own edges, so they are named as those pieces and never
+reach `chord_descent`: the union evaluates, and
+`TestCrosslapGlued` pins its exact oracle, 1.875. Measured by
+toggling the read of the copy in `emit_topo::KilledSplits`: without
+it the scene still refuses `merged_chord_constituents`. The rule this
+row asks for is unchanged:
+`wire_legal_union_refusals::a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug`
+still reaches it.
