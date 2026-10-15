@@ -155,7 +155,14 @@ fn moves_by_chart(door: &str, offset: impl Fn(&mut Body<f64>, f64)) {
     let rows = [
         ("ccw", wedge(true), true, 1.0, true, a_d),
         ("cw", wedge(false), false, -1.0, true, a_d),
-        ("ccw reverted", wedge(true).revert(), false, -1.0, true, a_d),
+        (
+            "ccw reverted",
+            wedge(true).revert().unwrap(),
+            false,
+            -1.0,
+            true,
+            a_d,
+        ),
         (
             "ccw, top reversed",
             wedge_top_reversed(true),
