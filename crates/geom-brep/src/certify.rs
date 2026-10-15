@@ -1547,8 +1547,11 @@ impl<T: Decide> EdgeCurve<T> {
 /// Its one constructor is [`NurbsLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
 /// the statement that the scalar it is parameterised by may certify,
-/// and the limbs a door records are the ones `plane_nurbs_limbs`
-/// derived and decided. The field is private and no other constructor exists. A
+/// and the limbs a door records are the ones the lane's functions
+/// derived and decided: [`crate::plane_nurbs_limbs`],
+/// [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
+/// (an `OnPair`'s incidence alone), with [`crate::analytic_rung3`]'s
+/// verdict. Its fields are private and no other constructor exists. A
 /// scalar that may not certify cannot write the value:
 ///
 /// ```compile_fail,E0599
@@ -1653,6 +1656,17 @@ pub struct NurbsLane<T: Real> {
         &Surface<T>,
         Band,
     ) -> Result<(), crate::edge_nurbs::AnalyticRung3Refusal>,
+    /// [`crate::plane_nurbs_incidence`] at `T`.
+    incidence: fn(
+        &Curve3<T>,
+        (T, T),
+        &Surface<T>,
+        &geom::NurbsSurface<T>,
+        Band,
+    ) -> Result<
+        crate::edge_nurbs::PlaneNurbsIncidence<T>,
+        crate::edge_nurbs::PlaneNurbsRefusal,
+    >,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
         &geom::NurbsCurve3<T>,
@@ -1671,6 +1685,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
+            incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
             foot: Self::seeded_foot,
         }
     }
@@ -1700,6 +1715,20 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, params, plane, wall, extent, band)
+    }
+
+    /// The lane's incidence alone for a carrier of any kind on a plane ×
+    /// NURBS pair ([`crate::plane_nurbs_incidence`]), over `params`.
+    fn incidence(
+        self,
+        carrier: &Curve3<T>,
+        params: (T, T),
+        plane: &Surface<T>,
+        wall: &geom::NurbsSurface<T>,
+        band: Band,
+    ) -> Result<crate::edge_nurbs::PlaneNurbsIncidence<T>, crate::edge_nurbs::PlaneNurbsRefusal>
+    {
+        (self.incidence)(carrier, params, plane, wall, band)
     }
 
     /// The lane's limbs for a declared carrier of any kind between two
@@ -2356,6 +2385,31 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
 /// coincident with zero (|r| ≤ ε). Positive/Negative beyond the band ⇒
 /// [`CertifyError::ResidualExceeded`]; in-band or poisoned ⇒
 /// [`CertifyError::Escalated`].
+/// The declaration's meter at sample `i`: the carrier at `p` against the
+/// mapped source at the sample's schedule fraction
+/// (`carrier_matches_mapped_source`, [`CertCheck::MappedSource`]), where
+/// a declaration is carried.
+fn mapped_source<T: Decide>(
+    declared: Option<&crate::mapped::MappedCurve<T>>,
+    i: u32,
+    p: Point3<T>,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), CertifyError> {
+    let Some(mc) = declared else {
+        return Ok(());
+    };
+    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
+    check_residual(
+        "carrier_matches_mapped_source",
+        CertCheck::MappedSource,
+        i,
+        Margin::of(p.distance(mc.eval(frac))),
+        band,
+        max_residual,
+    )
+}
+
 fn check_residual<T: Decide>(
     name: &'static str,
     check: CertCheck,
@@ -2537,12 +2591,16 @@ fn run_checks<T: Decide>(
     // and so does one under the scaffolding door: nothing mints
     // either, and neither has a certified meter — a derived image
     // needs the analytic chart machinery, and a fitted carrier
-    // "matching" a mapped source states no residual at all.
+    // "matching" a mapped source states no residual at all. An `OnPair`
+    // passes here and is decided where its pair resolves: the plane ×
+    // NURBS lane's limb 2 bounds any carrier between its samples, and
+    // two analytic surfaces' per-sample residuals do not.
     if matches!(spec.carrier, Curve3::Nurbs(_))
         && !matches!(
             spec.description,
             EdgeDescriptionSpec::Intersection { .. }
                 | EdgeDescriptionSpec::TangentIntersection { .. }
+                | EdgeDescriptionSpec::OnPair { .. }
                 | EdgeDescriptionSpec::Chart { image: Some(_), .. }
         )
     {
@@ -2594,6 +2652,16 @@ fn run_checks<T: Decide>(
         OnPair {
             surfs: [(SurfaceKey, Surface<T>); 2],
             declared: Option<crate::mapped::MappedCurve<T>>,
+        },
+        /// D2's conventional pair on a PLANE and a spline chart (a
+        /// described NURBS wall, or an `Approx` one's fit): the lane's
+        /// incidence on both over the whole span, and the declaration's
+        /// meter at each sample as on [`Resolved::OnPair`].
+        OnPairNurbs {
+            plane: Surface<T>,
+            wall: Surface<T>,
+            declared: Option<crate::mapped::MappedCurve<T>>,
+            lane: NurbsLane<T>,
         },
         /// D3's fenced scaffolding door: a pushforward standing in
         /// as a description while the edge is TRANSIENT.
@@ -2715,9 +2783,29 @@ fn run_checks<T: Decide>(
             if k1 == k2 {
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
-            Resolved::OnPair {
-                surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
-                declared,
+            // A plane and a spline chart meter incidence through the
+            // plane × NURBS lane, tried first as `Intersection` tries
+            // it: `resolve` refuses the spline side, which has no
+            // implicit form. Two spline charts have no incidence lane
+            // yet and refuse there.
+            if let Some((_, plane, wall)) = plane_nurbs_pair(pair, surfaces) {
+                Resolved::OnPairNurbs {
+                    plane,
+                    wall,
+                    declared,
+                    lane: lane.ok_or(CertifyError::NurbsLaneNotSupplied)?,
+                }
+            } else {
+                // Two analytic surfaces' `OnPair` holds no lane for a
+                // spline carrier yet
+                // (`work/tang/onpair-on-two-analytic-surfaces-refuses-a-spline-carrier.md`).
+                if matches!(spec.carrier, Curve3::Nurbs(_)) {
+                    return Err(CertifyError::Unimplemented);
+                }
+                Resolved::OnPair {
+                    surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
+                    declared,
+                }
             }
         }
         EdgeDescriptionSpec::Scaffold(mc) => Resolved::Scaffold(mc),
@@ -2922,7 +3010,7 @@ fn run_checks<T: Decide>(
             EdgeDescription::TangentIntersection { pair, witness }
         }
         Resolved::Scaffold(mc) => EdgeDescription::Scaffold(mc),
-        Resolved::OnPair { .. } => {
+        Resolved::OnPair { .. } | Resolved::OnPairNurbs { .. } => {
             let EdgeDescriptionSpec::OnPair { pair, .. } = spec.description else {
                 return Err(CertifyError::Unimplemented);
             };
@@ -3306,17 +3394,7 @@ fn run_checks<T: Decide>(
                 // the wall's old radius, and an offset lane that
                 // dropped it. Both would have been caught here rather
                 // than by a row someone thought to write.
-                if let Some(mc) = declared {
-                    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
-                    check_residual(
-                        "carrier_matches_mapped_source",
-                        CertCheck::MappedSource,
-                        i,
-                        Margin::of(p.distance(mc.eval(frac))),
-                        band,
-                        &mut max_residual,
-                    )?;
-                }
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
             // Incidence on both surfaces, as `Intersection` meters it,
             // and nothing about how they meet: admissibility is tier
@@ -3342,17 +3420,14 @@ fn run_checks<T: Decide>(
                     band,
                     &mut max_residual,
                 )?;
-                if let Some(mc) = declared {
-                    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
-                    check_residual(
-                        "carrier_matches_mapped_source",
-                        CertCheck::MappedSource,
-                        i,
-                        Margin::of(p.distance(mc.eval(frac))),
-                        band,
-                        &mut max_residual,
-                    )?;
-                }
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
+            }
+            // Both surfaces are the lane's, after the loop: its limbs
+            // bound the plane's residual over the whole span as well as
+            // the wall's. The declaration is metered here.
+            Resolved::OnPairNurbs { declared, .. } => {
+                let p = spec.carrier.eval(t);
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
             // The plane × NURBS lane owns its OWN schedule (denser
             // than this one, and shared with the certificate's foot
@@ -3425,6 +3500,28 @@ fn run_checks<T: Decide>(
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
             .max(limbs.hull_sup.abs());
+    }
+
+    // ---- OnPair, plane × NURBS, over a carrier of any kind: the lane's
+    // incidence on both operands (limbs 1–2), and nothing about how
+    // they meet. The wall side is metered against its spline chart, an
+    // `Approx` wall's fit; incidence on that wall's description adds the
+    // fit's own recorded distance, which this certificate does not
+    // read (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
+    // the `Intersection` lane's posture too). ----
+    if let Resolved::OnPairNurbs {
+        plane, wall, lane, ..
+    } = &resolved
+    {
+        let Some(wall) = wall.spline_chart() else {
+            return Err(CertifyError::Unimplemented);
+        };
+        let incidence = lane
+            .incidence(&spec.carrier, (t0, t1), plane, wall, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(incidence.on_locus_max.abs())
+            .max(incidence.hull_sup.abs());
     }
 
     // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
@@ -3659,8 +3756,8 @@ mod wiring_rows {
     use super::NurbsLane;
     use crate::edge_nurbs::plane_nurbs_limbs;
 
-    /// `Ok(())` when the fields hold `plane_nurbs_limbs` and
-    /// `seeded_foot`; otherwise the first wrong field's name.
+    /// `Ok(())` when the fields hold the lane's certified functions;
+    /// otherwise the first wrong field's name.
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
@@ -3685,6 +3782,12 @@ mod wiring_rows {
         ) {
             return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.incidence,
+            crate::edge_nurbs::plane_nurbs_incidence::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
+        }
         Ok(())
     }
 
@@ -3693,7 +3796,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `seeded_foot` and `analytic_rung3`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `seeded_foot` and `analytic_rung3`"
         );
     }
 
