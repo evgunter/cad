@@ -2780,6 +2780,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     const MISMATCH: &str = "its stored description does not match its geometry";
     const BOUND: &str = bound_reason!("it strays from its faces");
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
+    const STRADDLES: &str =
+        "its faces are not certainly crossing along it, so they do not fix where it runs";
     // The lead is this window's own.
     let why = match e {
         CertifyError::ChartImageUnavailable { .. }
@@ -2798,6 +2800,26 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::ImageMiss,
+            ..
+        }) => {
+            "it is on its spline face where the check looked, but the check's own image of it \
+             there misses by more than the tolerance"
+        }
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::HullSupChart | geom_brep::SsiLimb::HullValueChart,
+            ..
+        }) => bound_reason!(
+            "it strays from its spline face, read through the check's own image of it on that \
+             face,"
+        ),
+        // No producer writes a `Limb` of limb 3: the tube refuses as
+        // `TubeStraddles` or `TubeNotOneArc`, whose reason this is.
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::Tube,
+            ..
+        }) => STRADDLES,
         CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
             if limb.check().bounds_a_miss() {
                 BOUND
@@ -2854,9 +2876,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
         CertifyError::PlaneNurbs(P::TubeStraddles { .. })
-        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => {
-            "its faces are not certainly crossing along it, so they do not fix where it runs"
-        }
+        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => STRADDLES,
         CertifyError::PlaneNurbs(P::TubeNotOneArc { .. })
         | CertifyError::AnalyticRung3(A::TubeNotOneArc { .. }) => {
             "its curve is not proved to span one arc of its faces' crossing"
@@ -12010,7 +12030,7 @@ mod tests {
             (
                 "pcurve fitted hull sup, definite",
                 pcurve(PcurveCertifyError::FittedLimb {
-                    limb: geom_brep::SsiLimb::HullSup,
+                    limb: geom_brep::SsiLimb::HullSupChart,
                     margin: MarginDiag::value(5e-8),
                 }),
                 format!(
@@ -16690,6 +16710,9 @@ mod certify_escalation_rows {
                  tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
                  indicate a kernel bug worth reporting",
             ),
+            // Against the plane the bound is the carrier's own; against
+            // the spline face it reads the carrier through the check's
+            // image.
             (
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
@@ -16700,6 +16723,31 @@ mod certify_escalation_rows {
                 "the check's certified bound on how far it strays from its faces exceeds the \
                  tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
                  indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::HullSupChart,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its spline face, read \
+                 through the check's own image of it on that face, exceeds the tolerance. \
+                 Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting",
+            ),
+            // The lane's own image misses where the carrier is on the
+            // face: the certificate's limit, never the carrier's fault.
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
+                        margin: geom_core::MarginDiag::value(4.6e-4),
+                    },
+                )),
+                "it is on its spline face where the check looked, but the check's own image of \
+                 it there misses by more than the tolerance. Recourse: loosen the tolerance, as \
+                 a last resort; this refusal may indicate a kernel bug worth reporting",
             ),
             (
                 says(CertifyError::AnalyticRung3(
