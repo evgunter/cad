@@ -72,7 +72,7 @@ The lane now certifies a CIRCLE carrier, an arc rim, through its exact `Pcurve::
 **The doors, measured again with (C)** (both switched to the pair; sweep + topo + step-import, default ε): **34 failures, against 68 without it.**
 - All 37 `HullValueChart` arc-rim refusals are gone.
 - 6 × `NurbsLaneUnsupported` (Dual) and 5 × `PlaneNurbs(Unsupported …)` (Interval) remain; that is blocker 2.
-- 1 × `OnPairArcRim`.
+- No rim refuses `OnPairArcRim`.
 - The rest are rows that pin the rims' present `Chart(plane)` form, or knock-ons of the same bodies.
 
 So the doors now wait on blocker 2 alone, plus re-baselining the rows that pin `Chart(plane)`.
