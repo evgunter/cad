@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-15
 priority: P3
 cost: M
-needs_ev: true
 refs: [band-scale-torus-geometry-ends-as-a-kernel-defect]
 ---
 
@@ -34,3 +33,7 @@ piece); the D3 clause "or a closed form whose own envelope carries the
 miss" goes; the meridian form is used only where the ruling is shown.
 The D3 edit is in the `[ev]` PR that carries this question. Building the
 lane joins unit E of the 5142/5113 implementation plan.
+
+## The answer
+
+Ev on `[ev]` PR 5186 (2026-10-15, "sounds good!"): in band always takes the general lane, and every class a lane choice reads has one. A line on a cylinder gets a projected image; the meridian form is used only where the ruling is shown. Built in unit E of the 5142/5113 implementation plan.
