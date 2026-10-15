@@ -1127,3 +1127,8 @@ Signed (CLEAVE orchestrator).
   - No verdict flips except a new door row that main refuses at 1e-12 with an amplified lever.
   - Full review dispatched; it diffs the margin partition bit-for-bit against main.
   - Disk: removed the merged 4810 dir and my target dir (17→23 GB free).
+- 2026-10-15 — PR 5106 round 4 (`22fd89e82c`), CI green on the merged head.
+  - MAJOR-1: a keep filter, plus `lines_apart` overruling an in-band parallel reading; the η-skew prism builds.
+  - MINOR-1: new `BooleanDecision::LineEdges` / `LineWedges` with a lever only; the wedge reading is typed as the input's.
+  - S1: `wedge_holds` reused.
+  - Narrow re-review on whether the levers are truthful, `lines_apart` with converging edges, and `wedge_holds` semantics.
