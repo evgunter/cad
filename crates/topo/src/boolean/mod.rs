@@ -2755,7 +2755,8 @@ pub enum BooleanError {
         /// Whether the holding face's trim placed the point inside it:
         /// `false` where it could not read its trim there; `true` where
         /// it did, in a pose no row reaches: both faces curved, a spline
-        /// pierced face, or a held face with no normal at the point.
+        /// pierced face, a held face with no normal at the point, or two
+        /// pierces of the operand holding one point in the face.
         placed: bool,
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that

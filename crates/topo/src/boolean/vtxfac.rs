@@ -1919,7 +1919,8 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// minted ([`mint_held`])**. A minted ring vertex's strut stands in its
 /// face as a ring, so a face holding two points, read at the second
 /// after the first's mint, would read its trim unplaced. Two pierces of
-/// one face at one point hold one ring vertex there. A definite refusal
+/// one face at one point, a pose no row reaches, refuses
+/// [`BooleanError::HeldPierceUnbuilt`]. A definite refusal
 /// at any face outranks an escalation at any other, as in the pierce
 /// pass this serves.
 ///
@@ -1959,15 +1960,29 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     for plan in plans {
         for read in held_reads(&*piercing_body, pierced_body, box_holds, plan, band)? {
             match read {
-                // Two pierces of one face at one point hold one ring
-                // vertex there: the later is the earlier's, as a ring
-                // vertex minted first would have read it, on the face's
-                // boundary.
+                // Two pierces of one face at one point would mint two ring
+                // vertices there. No row reaches the pose, so no answer
+                // here is checked: it refuses, before anything is written.
                 Ok(read) => {
-                    let mut held = None;
                     for earlier in reads.iter().filter(|r| r.face == read.face) {
                         match super::one_vertex_at(earlier.point, read.point, band) {
-                            Ok(Some(_)) => held = Some(()),
+                            Ok(Some(_)) => {
+                                let kind = |body: &Body<T>, face| {
+                                    body.face_surface_linked(
+                                        face,
+                                        proven(&body.faces, face, EntityId::Face),
+                                    )
+                                    .kind()
+                                };
+                                return Err(BooleanError::HeldPierceUnbuilt {
+                                    operand: read.piercing,
+                                    face: read.face,
+                                    pierced: read.pierced,
+                                    kind: kind(piercing_body, read.face),
+                                    pierced_kind: kind(pierced_body, read.pierced),
+                                    placed: true,
+                                });
+                            }
                             Ok(None) => {}
                             Err(diag) => {
                                 escalated.get_or_insert(BooleanError::Escalated {
@@ -1977,9 +1992,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    if held.is_none() {
-                        reads.push(read);
-                    }
+                    reads.push(read);
                 }
                 // **A definite refusal outranks an escalation**, as in the
                 // pierce pass this serves: every face of every pierce is
