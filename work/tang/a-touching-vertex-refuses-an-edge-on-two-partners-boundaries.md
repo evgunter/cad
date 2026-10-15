@@ -2,11 +2,12 @@
 id: a-touching-vertex-refuses-an-edge-on-two-partners-boundaries
 kind: issue
 title: A touching vertex refuses an edge on two partners' boundaries that the partner-faces reading decides
-status: dispatched
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
 refs: [pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided]
+closed: 2026-10-15
 ---
 
 Filed by the sweep of `pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided`.
@@ -33,3 +34,34 @@ Route `touch_classes`' two-`On` edge through `along_partners`, keeping
 the refusal beside a partner that reads nothing or is not `pointed`.
 No suite row is known to reach the refusal. Add a public witness, or
 show that none exists.
+
+## Closed
+
+`touch_classes` takes the touching vertex's own sectors and the band,
+and reads an edge on two or more of its side's partners' boundaries
+with `along_partners`, as `pair_classes` does: `On` where a half-plane
+one partner alone leaves the edge in is decidedly apart from every
+other's, an `Escalated` `PartnerFaces` otherwise. The refusal beside a
+partner on the edge's side that reads nothing or is not `pointed`
+stays, ahead of the faces' reading. `vtxfac::TouchUndecided` carries
+either.
+
+**Public witness** (`a_vertex_read_by_two_sector_passes`,
+`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`):
+the plate united with two pyramids standing on `MEET` that share an
+edge ray, against a pyramid standing there with an edge along that ray,
+outside both arches, in the wedge between them, or with a face in each.
+On main all 18 cells (3 pyramids, every op, both slots) refused
+`VertexReadTwice(Pierce, Pair)` from `touch_classes`. Now 16 build,
+sound against tier 3, tier 3′ as the file reads it, the naming's
+classes, the material at the probes and inclusion–exclusion, at every
+pose. The other 2, the pyramid less the arches where the pyramid's
+faces lie in them, refuse `Revert(WedgesOverlap)`: reverting the arches
+overlaps their coincident edges' wedges along the ray
+(`work/topo/reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier.md`).
+The arches alone, without the plate, are classed by `pair_classes` and
+answer the same 18 cells identically on main and here.
+
+The `Escalated` arm and the kept refusal are pinned by the unit row
+`vtxfac::tests::a_touching_edge_on_two_partners_boundaries_reads_their_faces`;
+no public pose is known to reach either beside a touch.

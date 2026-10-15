@@ -5288,6 +5288,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         datum: out.datum,
                         flush: out.flush,
                         face: c.face,
+                        own: Vec::new(),
                         pairs: Vec::new(),
                     },
                 );
@@ -5438,6 +5439,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                                 along.get_or_insert(along_face(AlongFace::FacesInOnePlane));
                             }
                             pair.side = Some(side);
+                            touch.own.clone_from(own);
                             touch.pairs.push(pair);
                         }
                         vtxfac::PartnerRead::Across => {
@@ -5502,19 +5504,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for (&(operand, vertex), touch) in &touches {
         // A touching vertex classes every edge or refuses, as it did
         // before its touch was read at all.
-        let classes =
-            vtxfac::touch_classes(&touch.classes, &touch.pairs).map_err(
-                |partner| match partner {
-                    Some(partner) => BooleanError::VertexReadTwice {
-                        operand,
-                        vertex,
-                        reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
-                    },
-                    None => BooleanError::ClassificationInvariant {
-                        what: "a touching vertex's undecided edge has no partner on its side",
-                    },
+        let classes = vtxfac::touch_classes(&touch.own, &touch.classes, &touch.pairs, band)
+            .map_err(|undecided| match undecided {
+                vtxfac::TouchUndecided::Beside(Some(partner)) => BooleanError::VertexReadTwice {
+                    operand,
+                    vertex,
+                    reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
                 },
-            )?;
+                vtxfac::TouchUndecided::Beside(None) => BooleanError::ClassificationInvariant {
+                    what: "a touching vertex's undecided edge has no partner on its side",
+                },
+                vtxfac::TouchUndecided::Along(refusal) => refusal,
+            })?;
         read.push(((operand, vertex), classes));
     }
     for (&key, (own, pairs)) in &paired {
@@ -5750,6 +5751,9 @@ struct Touch<T: Real> {
     flush: bool,
     /// The pierced face.
     face: FaceKey,
+    /// Its own sectors, as its pairs read them: a re-read pierce writes
+    /// nothing, so its orbit is the operand's.
+    own: Vec<sectors::BoolSector<T>>,
     /// Each pair's partner side and rows, in pair order.
     pairs: Vec<vtxfac::PairRead<T>>,
 }

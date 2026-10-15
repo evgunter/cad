@@ -32,6 +32,9 @@
 //!   inside an island in the void, and one inside a void in the arch;
 //!   a pyramid over a void in a quadrilateral arch, with the plate and
 //!   without;
+//! - **two arches sharing a ray**, united with the plate, against a
+//!   pyramid with an edge along that ray, which lies on both arches'
+//!   boundaries (`vtxfac::along_partners`);
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
 //!   touching vertex pairs with (`vtxfac::partner_side`), pyramids along
@@ -64,9 +67,9 @@ use common::meeting::{
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
     AlongFace, AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand,
-    SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
-    point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    RevertError, SectorRead, SideCode, SolidContainment, ValidationError, intersect,
+    mass_properties, point_in_solid, point_in_solid_of, readback, subtract, union,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const THIRD: f64 = 1.0 / 3.0;
@@ -340,6 +343,22 @@ fn builds_along(
     along: bool,
     ray: Option<[f64; 3]>,
 ) -> usize {
+    builds_where(label, x, y, pose, along, ray, &[])
+}
+
+/// [`builds_along`], where each op of `reverting` refuses instead, as
+/// reverting `y` overlaps its coincident edges' wedges
+/// (`work/topo/reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier.md`);
+/// the volumes are checked without it.
+fn builds_where(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    along: bool,
+    ray: Option<[f64; 3]>,
+    reverting: &[&str],
+) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
     // Each op's keep over (in x, in y).
@@ -362,8 +381,17 @@ fn builds_along(
     .into_iter()
     .enumerate()
     {
+        let reverts = reverting.contains(&what);
         let what = format!("{label}, {}, {what}", pose.label);
         v[k] = match r {
+            Err(BooleanError::Revert {
+                source: RevertError::WedgesOverlap { .. },
+                ..
+            }) if reverts => f64::NAN,
+            _ if reverts => panic!(
+                "{what}: refuses the revert's overlap, got {:?}",
+                r.map(|_| ())
+            ),
             Ok(BooleanResult::Body(r)) => {
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
@@ -389,7 +417,7 @@ fn builds_along(
         (i2, i, "|y ∩ x|"),
     ] {
         assert!(
-            (sum - want).abs() < 1e-9,
+            sum.is_nan() || (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"
         );
     }
@@ -913,6 +941,66 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
         &s.bare_hollow,
         pose,
     );
+}
+
+/// **A touching vertex with an edge along two arches' shared ray builds
+/// in every op**: the plate united with two pyramids standing on
+/// [`MEET`] that share an edge ray, against a pyramid standing there
+/// with an edge along that ray. Its apex touches the top and pairs with
+/// both arches' apexes, and the edge lies on both arches' boundaries;
+/// the arches' faces part around the ray, so the edge is on the solid's
+/// (`vtxfac::along_partners`). The pyramid lies outside both arches,
+/// inside the wedge between their far faces, or with a face in each,
+/// at rest (every pose: the row below). Where the pyramid's faces lie in the arches, the
+/// pyramid less the arches refuses as reverting them overlaps their
+/// coincident edges' wedges along the ray ([`builds_where`]).
+#[test]
+fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
+    along_two_arches_shared_ray(&Pose::rest());
+}
+
+/// [`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`]
+/// at every pose. Slow set.
+#[test]
+fn a_touching_vertex_along_two_arches_shared_ray_builds_at_every_pose() {
+    for pose in &poses() {
+        along_two_arches_shared_ray(pose);
+    }
+}
+
+/// The arches' scene ([`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`])
+/// at `pose`.
+fn along_two_arches_shared_ray(pose: &Pose) {
+    let plate = posed_box("the plate", PLATE, pose, t());
+    let shared = bearing(40.0, 0.4, 0.5);
+    let arches = [
+        [bearing(0.0, 0.4, 0.5), shared, bearing(20.0, 0.25, 0.4)],
+        [shared, bearing(80.0, 0.4, 0.5), bearing(60.0, 0.25, 0.4)],
+    ]
+    .map(|base| tet(base, pose));
+    let line = arches.iter().fold(plate, |body, arch| {
+        built("the plate and arches", union(&body, arch, t()))
+    });
+    let along = bearing(40.0, 0.6, 0.75);
+    for (label, base, reverting) in [
+        (
+            "a pyramid along the arches' ray, outside both",
+            [along, bearing(160.0, 0.4, 0.5), bearing(220.0, 0.4, 0.5)],
+            &[][..],
+        ),
+        (
+            "a pyramid along the arches' ray, in the wedge between them",
+            [along, bearing(20.0, 0.2, 0.3), bearing(60.0, 0.2, 0.3)],
+            &["x − y"][..],
+        ),
+        (
+            "a pyramid along the arches' ray, a face in each",
+            [along, bearing(10.0, 0.3, 0.45), bearing(70.0, 0.3, 0.45)],
+            &["x − y"][..],
+        ),
+    ] {
+        builds_where(label, &tet(base, pose), &line, pose, false, None, reverting);
+    }
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two
