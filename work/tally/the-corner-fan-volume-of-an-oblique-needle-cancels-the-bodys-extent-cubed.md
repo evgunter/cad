@@ -9,7 +9,7 @@ cost: M
 refs: [a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever]
 ---
 
-Found by FLUSH's needle-class design fork (fork-log row 142, PR 5119),
+Found by FLUSH's needle-class design fork (fork-log row 149, PR 5119),
 designer probes on `flush/needle-design-y` at `bfec39bf9`
 (`crates/topo/tests/needle_design_y_probes.rs`, a hidden
 `volume_enclosure_probe` in `props.rs`).
@@ -39,7 +39,7 @@ it (its products are exact in binary); a closed-form face escapes it.
 The designer's proposed re-posing: each planar face's flux as its
 plane's signed distance from the corner times the face's own area,
 whose error scales with the face's own flux (ulp(L)·L·A_face). If Ev
-rules the volume's sign bandless on PR 5119 (row 142), this is the
+rules the volume's sign bandless on PR 5119 (row 149), this is the
 conditioning that makes that sign hold on oblique needles, and the
 needle unit takes it; otherwise it stands on its own as a wrong
 `mass_properties` value.

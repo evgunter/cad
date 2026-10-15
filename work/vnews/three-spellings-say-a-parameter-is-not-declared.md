@@ -2,11 +2,14 @@
 id: three-spellings-say-a-parameter-is-not-declared
 kind: issue
 title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchVariable's own
-status: open
+status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+branch: vnews/a-missing-parameter-is-said-one-way
+closed: 2026-09-28
+pr: 5182
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`,
@@ -92,3 +95,30 @@ range probe on an undeclared parameter tells the reader to declare it,
 and the chrome does not offer the door to do so. That PR left the
 answer unchanged, since the answer is behaviour, and whoever settles the
 wording here also settles whether the offer follows it.
+
+## Closed (2026-09-28)
+
+The fact has one composition, `Refusal::undeclared_wording`
+(`crates/viewer/src/session/refuse.rs`): *variable {var} is not in
+this document*. `Refusal::NoSuchVariable`'s `Display` renders it and
+then the recourse, `editor_core::edit::UNKNOWN_VAR_RECOURSE` (*pick a
+variable the document holds*); the properties pane's `standing_verdict`
+(`Standing::Variable { present: false }`) draws it bare. So the
+recourse — an instruction to an attempt — stays on the refusal's half,
+and the fact reads the same on both surfaces. The pane's *no longer*
+went with the pane's literal: *not in this document* is true at both
+doors, including a probe or a drag naming a variable that was never
+declared, which *no longer* is not.
+
+The evidence above is answered by the variables rework on main: the
+recourse is no longer *declare it first* but *pick a variable the
+document holds*, so the sentence no longer promises an offer the chrome
+does not make.
+
+The edit door's own sentence (`EditError::UnknownVar`, *{var} is not a
+variable of this document*) is still its own literal — filed on
+DOCTAIL's slate as
+`the-not-declared-fact-is-composed-on-both-sides-of-the-crate-edge`.
+The node-shaped sibling (the pane's *deleted* against `NoSuchSlot` for
+a drag on a deleted node's slot) is filed as
+`a-drag-on-a-deleted-nodes-slot-says-the-slot-is-missing`.

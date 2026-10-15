@@ -2164,18 +2164,22 @@ class TestTable(unittest.TestCase):
         self.assertEqual(props.surface_area, 35.5)
 
 
-class TestCrosslapAtTheNamingWall(unittest.TestCase):
-    """Tour scene `crosslap` (row 37): the two notched beams MATED.
-    The joint's contacts are the mate (the notch floor/ceiling and the
-    four crossing walls, all `SameOpposite`) and the beams' tops and
-    bottoms, which carry on into each other across the notch edges —
-    continuations. The kernel glues them at the scene's exact oracle 2·(BEAM_VOL − NOTCH_VOL) = 1.875
-    (`demos/tour/src/crosslap.rs` asserts it), and the document layer
-    stops at the naming wall the next test pins.
+class TestCrosslapGlued(unittest.TestCase):
+    """Tour scene `crosslap` (row 37): the two notched beams UNIONED.
+    The joint's contacts are the notch floor/ceiling and the four
+    crossing walls, all `SameOpposite`, and the beams' tops and bottoms,
+    which carry on into each other across the notch edges —
+    continuations. The union glues them at the scene's exact oracle
+    2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
+    asserts it).
 
-    The wall is the bottom plane's: the glued bottoms merge into one
-    face whose seam chords no naming rule places (`kind == "naming"`),
-    a measured residue pinned below, not hidden."""
+    The bottom plane merges beam A's bottom with both of beam B's
+    coplanar bottom halves. The seam edges bordering that merged face
+    are pieces of the operands' own edges, whose split lineage runs
+    through edges the boolean's carve of its discarded material killed
+    (`BooleanNaming::carved_lineage`), so they are named as those
+    pieces, and no chord reads through to the merged face's several
+    constituents (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`)."""
 
     def beams(self, doc):
         beam_a = doc.insert(
@@ -2186,33 +2190,16 @@ class TestCrosslapAtTheNamingWall(unittest.TestCase):
         )
         return beam_a, beam_b
 
-    def test_the_merge_stage_bottom_hits_the_naming_wall(self):
-        """The measured residue, pinned so its fall is loud: the union
-        glues the whole joint — the mate (the notch floor/ceiling and
-        the four crossing walls, all `SameOpposite`) plus the
-        `SameOriented` exteriors, continuations — but the boolean node
-        still fails in the document layer's NAMING emitter. The bottom plane merges beam A's bottom with BOTH of
-        beam B's coplanar bottom halves, so a seam chord bordering the
-        merged face reads through to two faces of one operand, and no
-        rule picks the one it lies on: a missing rule, not a kernel
-        bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
-        This wall is where the document crosslap stands. When this test
-        fails with the union succeeding, the wall has fallen: pin the
-        glued oracle here."""
+    def test_the_glued_joint_meets_the_oracle(self):
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
         glued = doc.insert(Node.union([beam_a, beam_b]))
         ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(glued))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(glued)
-        self.assertEqual(caught.exception.kind, "naming")
-        # WHICH naming refusal, beside the carrier's word: the missing
-        # rule for a merged face holding several faces of one operand,
-        # which wants a naming rule rather than a kernel fix. That this
-        # arm is the one standing here is what a reader of this residue
-        # needs.
-        self.assertEqual(caught.exception.inner_kind, "merged_chord_constituents")
+        self.assertTrue(ev.succeeded(glued))
+        body = ev.value(glued).body()
+        body.validate()
+        # Dyadic scene: the oracle holds EXACTLY, as the tour pins it.
+        self.assertEqual(body.mass_properties().volume, 1.875)
 
 
 class TestCrosslapExploded(unittest.TestCase):

@@ -371,7 +371,7 @@ fn the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts() {
     let mut across = ring_stops;
     across[4] = ("B1", "BBssBB");
     across[6] = ("the tie bar", "BBssBB");
-    for (name, t, _) in tori_of_one_face_pair(2.0, 0.5) {
+    for (name, t) in tori_of_one_face_pair(2.0, 0.5) {
         let want = if name.ends_with("vertex at 1") {
             &off_equator
         } else if name.ends_with("vertex at 0") {

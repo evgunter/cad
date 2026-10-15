@@ -214,3 +214,27 @@ pub(super) fn discard_row<T: geom_core::Real>(
     }
     Ok(row)
 }
+
+/// **The split records an operand's carve takes with it**: each edge of
+/// `src`, the operand clone, that `carved` no longer holds and that held
+/// a `SplitEdge` record, with the edge it was split from, in the clone's
+/// keys (`BooleanNaming::carved_lineage`). The carve removes a dropped
+/// edge's birth record with the edge, so a kept piece split off it
+/// leads to its parent only through this copy. A row's
+/// [`DiscardRow::boundary_chains`] hold the edges of a discarded face
+/// whose face across is dropped too; an edge the carve kills beside a
+/// face the row counts as kept is in no chain, and is here.
+pub(super) fn carved_lineage<T: geom_core::Real>(
+    src: &Body<T>,
+    carved: &Body<T>,
+) -> std::collections::BTreeMap<EdgeKey, EdgeKey> {
+    let mut lineage = std::collections::BTreeMap::new();
+    super::edge_join::record_killed_lineage(
+        &mut lineage,
+        &super::edge_join::split_records(src),
+        src.edges()
+            .map(|(e, _)| e)
+            .filter(|&e| carved.get_edge(e).is_none()),
+    );
+    lineage
+}

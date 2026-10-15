@@ -804,11 +804,13 @@ edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
 jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check refuses a declared
-conventional description on a definitely-transverse edge. Escalated
-dihedrals, seam edges and NURBS/`Approx`-adjacent edges are exempt, so
-ε-tightening can escalate but never flip a valid body to invalid. An
-unenforced preference drifts silently — exactly the failure shape this
+conventional form by the predicate itself. The check reads the
+description's form, not who declared the locus: a conventional
+description on an edge the must-carry rule reads determinate is wrong,
+declared or derived. The rule needs two surfaces and a definite
+reading, so a wrap edge (one surface) and an edge whose dihedral is not
+read definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
@@ -883,6 +885,29 @@ is the section). Import is not exempt: it reads the same readings with
 the file's own coincidence distance as the band. C5
 (`crates/geom-brep/README.md`) is this rule's instance for surface and
 curve pairs.
+
+**What a consumer does with the answer.** A reading of which special
+case a geometry is (a class, a pose's trilean) answers *shown* (Zero),
+*ruled out* (definite) or *in band*, and in band means only that the
+case is not shown. Its consumer is one of two kinds, and each owes the
+build and the `unproven-coincidence` lint exactly what it does with the
+answer. A **lane choice** picks a form for one certified statement the
+body has either way: a pcurve row's class, an edge's rest locus, a
+section curve's formula where both answers give the same cells, a
+carrier's recognised kind at import. Zero takes the closed form; in
+band and definite take the general lane, whose certificate does not
+rest on the answer, and every class a lane choice reads has one. A
+lane choice records nothing, never ends as a kernel defect at a build,
+and refuses only where its general lane is not yet written, with the
+closed form's pose as its lever and never a tolerance offer. A closed form before the general lane is a stage of the one
+reading, not a fallback: both state one certificate. A **structural
+act** changes which cells the result has on the answer: a boolean's
+glue, a vertex fusion, an edge join, a split's ON verdict, a section
+trilean that decides how many curves meet and where. Zero acts and is
+recorded (D10), in band refuses with the decision's own lever (D4 ¶1),
+at the reading or at the result's finished-body gate, and definite
+keeps apart. At rest, only a definite contradiction of what is stored
+is a defect.
 
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
@@ -1593,7 +1618,10 @@ deciding operation through and their names there, never by a stamp
 the kernel carries; a contact record a result carries cites the
 coincidence that backs it. A per-construction table of output forms is
 only ever a cache generated from the symbolic evaluation and checked
-against it, never written by hand.
+against it, never written by hand. A reading that only chooses a cell's
+form (D3's lane choice) infers no coincidence and records nothing; a
+door that makes cells one on a class it read (the boolean's edge join)
+records it.
 
 **Booleans.** A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an

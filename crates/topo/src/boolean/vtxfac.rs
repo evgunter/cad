@@ -50,10 +50,8 @@
 //!    `A`'s face gets a lone ring vertex with a strut per run, and that
 //!    vertex then pierces `B`'s face through the same [`RingPlan`] as
 //!    any other, its struts paired with `B`'s across the operands. The
-//!    runs' sides are fixed by construction once the walls' senses are
-//!    read: `A`'s sectors about `±â₁` for two rods, about `±â₂` for two
-//!    bores, each bounded by one germ of each ellipse. A rod against a
-//!    bore refuses ([`super::NodeWhy::OppositeSenses`]).
+//!    runs and their sides are fixed by construction once the walls'
+//!    senses are read ([`mint_node`] states the rule).
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
@@ -1627,18 +1625,19 @@ fn ring_struts<T: Decide>(
 /// sectors between the arcs alternate sides of the other cylinder (the
 /// section table's `nodes`): on A's wall the sectors about `±â₁` lie
 /// outside B's cylinder and those about `±â₂` inside; on B's wall the
-/// same sectors, the other way round. Which of those is outside B's
-/// material, and inside A's, is each face's sense: for two rods both are
-/// the sectors about `±â₁`, for two bores both about `±â₂`. So the node
-/// is a pierce of B's face by A's ring vertex whose two runs are those
-/// sectors, each bounded by one arc of each ellipse: A's struts span
-/// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
-/// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
-/// against a bore makes A's Out sectors and B's In sectors different
-/// ones, which no pierce ring pairs, and refuses. Both rings hang their
-/// struts by one tree ([`ring_struts`]), A's facing each germ with the
-/// other half of its strut from B's, as a held pierce's strut does
-/// ([`faces_holding_pierce`]). `arm` meters the germs' order.
+/// same sectors, the other way round. Which side of a cylinder is its
+/// solid's material is the face's sense. So the node is a pierce of B's
+/// face by A's ring vertex whose two runs are the sectors of B's wall
+/// inside A's material — about `±â₁` where A's face bounds a rod, `±â₂`
+/// where it bounds a bore — each bounded by one arc of each ellipse.
+/// B's ring, minted as the pierce's ring ([`mint_ring`]), spans them In,
+/// and A's struts span the same sectors on A's wall. Both rings hang
+/// their struts by one tree ([`ring_struts`]), ordered about B's normal,
+/// A's facing each germ with the other half of its strut from B's, as a
+/// held pierce's strut does ([`faces_holding_pierce`]); where the walls'
+/// senses differ (a rod against a bore) A's normal at the node is B's
+/// reversed, so A's struts read each run in A's own turn: from B's end
+/// germ, In. `arm` meters the germs' order.
 ///
 /// The germs ride their arcs' ellipses: `e₁`'s the split's positive
 /// branch, `e₂`'s its negative one ([`crate::ring_path::LoopSplit`]'s
@@ -1646,8 +1645,8 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] for walls of opposite senses, or arcs
-/// whose turn toward the axis reads Zero at the walls' radius; either
+/// [`BooleanError::NodeUnbuilt`] for arcs whose turn toward the axis
+/// reads Zero at the walls' radius; either
 /// face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
@@ -1679,13 +1678,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // **The runs, by the walls' senses.** Round the node the sectors
     // about `±â₁` on A's wall lie outside B's cylinder and those about
     // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
-    // cylinder and those about `±â₂` outside it. The pierce ring pairs
-    // A's sectors outside B's material with B's inside A's: for two rods
-    // (each face's material on its axis's side) both are the sectors
-    // about `±â₁`, for two bores both about `±â₂`. A rod against a bore
-    // makes them different sectors, which no pierce ring pairs. Each
-    // wall's sense is its outward normal against the radial `node − p`,
-    // which the walls, tangent at the node, are both square to: `±r`.
+    // cylinder and those about `±â₂` outside it. The runs are B's
+    // sectors inside A's material: those about `±â₁` where A's face
+    // bounds a rod (its material on its axis's side), about `±â₂` where
+    // it bounds a bore. Each wall's sense is its outward normal against
+    // the radial `node − p`, which the walls, tangent at the node, are
+    // both square to: `±r`.
     let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
         let n = outward(operand, body, face)?;
         match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
@@ -1705,20 +1703,14 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
             )),
         }
     };
-    let out_axis = match (
+    let (a_rod, b_rod) = (
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
-    ) {
-        (true, true) => axes[0],
-        (false, false) => axes[1],
-        _ => {
-            return Err(BooleanError::NodeUnbuilt {
-                a_face: faces.0,
-                b_face: faces.1,
-                why: super::NodeWhy::OppositeSenses,
-            });
-        }
-    };
+    );
+    let run_axis = if a_rod { axes[0] } else { axes[1] };
+    // The walls' outward normals at the node are both `±radial`, so
+    // they agree where the senses do and are opposed where they differ.
+    let normals_agree = a_rod == b_rod;
     // Each tangent turned toward that axis, so a run's two germs bound
     // the sector about it and their opposites the one about its
     // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
@@ -1728,7 +1720,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
         match decide(
             "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(out_axis), arm),
+            Margin::levered(t.dot(run_axis), arm),
             band,
         ) {
             Ok(Sign::Positive) => Ok(t),
@@ -1808,6 +1800,20 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let mut strut_edge = BTreeMap::new();
     let mut root_anchor: Option<HalfEdgeKey> = None;
     let mut tips: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
+    // The runs' starts and the tree's facing turn about B's normal, and
+    // `mev_null_run` reads a run in A's own turn (the sense theorem's
+    // forward wedge, `join`'s module docs). Where the normals agree that
+    // is the same turn, and A's runs lie out of B's material: two rods'
+    // runs about `±â₁` outside B's cylinder, two bores' about `±â₂`
+    // inside it. Where they are opposed A's turn is B's reversed, so each
+    // run starts at the germ it ends at in B's, the tree's facing names
+    // A's start as it names B's, and the run lies in B's material: a rod's about `±â₁`
+    // outside the bore's cylinder, a bore's about `±â₂` inside the rod's.
+    let run_side = if normals_agree {
+        NewVertexSide::Above
+    } else {
+        NewVertexSide::Below
+    };
     for strut in &tree {
         let (start_germ, end_germ) = run_germs[strut.run];
         let (at, site) = match strut.parent {
@@ -1833,8 +1839,15 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
                 )
             }
         };
-        let mint = a.mev_null_run(site, at, NewVertexSide::Above, strut.plus_faces_start)?;
-        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+        let mint = a.mev_null_run(site, at, run_side, strut.plus_faces_start)?;
+        // The halves face A's start and end; the record keeps B's slot
+        // order, slot k one germ in both (the null-edge pair's contract).
+        let (created, attr, [a_start, a_end]) = (mint.created, mint.attr, mint.halves);
+        let (start_he, end_he) = if normals_agree {
+            (a_start, a_end)
+        } else {
+            (a_end, a_start)
+        };
         if strut.parent.is_none() {
             root_anchor.get_or_insert(created.he_plus);
         }
@@ -1901,19 +1914,30 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// piercing vertex's own faces lies on (their siblings on one carrier,
 /// which a valid body never lets overlap them), and where the point is
 /// not definitely off that carrier.
-/// only: a curved face that holds the point, or whose trim cannot say
-/// whether it does, and a plane face holding it over a curved pierced
-/// face, refuse [`BooleanError::HeldPierceUnbuilt`] before anything is
-/// written.
+///
+/// **On a curved face, or over one**, the run is the plane case's. Its
+/// germs are the two faces' section's tangents at the point, `±n × n_p`
+/// across their tangent planes, exact for every smooth pair as
+/// [`pierce_germ_dir`] argues. Its half is charged for the curved face's
+/// bend as a pierce sector's side is (`sectors::sagitta_charge`): what
+/// the first order puts above the pierced face must stand off it past
+/// the sagitta within the pierce's arm. [`BooleanError::HeldPierceUnbuilt`]
+/// refuses before anything is written where a curved face's trim cannot
+/// say whether it holds the point (nothing is guessed), and where both
+/// faces are curved or the pierced face is a spline, poses no row
+/// reaches.
 ///
 /// # Errors
 ///
 /// [`BooleanError::HeldPierceUnbuilt`] as above; a coincidence or an
-/// escalation where the point's side of a plane, its place in a face,
-/// or the two planes' angle is in band; and
+/// escalation where the point's place on a face's carrier, its place in
+/// a face, or the two faces' angle is in band;
+/// [`BooleanError::CurvedSectorSideUnsupported`], or an escalation of
+/// [`super::BooleanDecision::PierceCurvature`], where the bends' charge
+/// does not clear the band; and
 /// [`BooleanError::ClassificationInvariant`] where a face holding the
-/// point lies in the pierced face's plane, which a valid operand cannot
-/// reach.
+/// point lies in the pierced face's tangent plane, which a valid operand
+/// cannot reach.
 pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
@@ -1959,86 +1983,137 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         if own.contains(&face) {
             continue;
         }
-        let Some(plane) = face_plane(piercing_body, face) else {
-            // A curved face is read only where its box can hold the
-            // point, as a plane is only where the point is on it.
-            if !box_holds(face, p) {
-                continue;
-            }
-            // Off the carrier, the face holds nothing: decided first, as
-            // the plane arm decides its plane first. A spline face has no
-            // residual, and its trim is asked.
-            let surface = piercing_body
-                .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
-            if !matches!(
-                surface.kind(),
-                geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
-            ) && matches!(
-                decide(
-                    "bool_curved_contain_carrier",
-                    Margin::of(geom_brep::implicit_residual(surface, p)),
-                    band,
-                ),
-                Ok(Sign::Positive | Sign::Negative)
-            ) {
-                continue;
-            }
-            // A face on one of their carriers is their sibling there,
-            // which a valid body never lets overlap them: it holds the
-            // point outside.
-            if own
-                .iter()
-                .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
-            {
-                continue;
-            }
-            let (placement, _) =
-                super::contain::curved_face_placement_decided(piercing_body, face, p, band)
-                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
-            let kind = kind_of(piercing_body, face);
-            match placement {
-                super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {
+        // The face's outward normal at the point, its bend there (`None`
+        // on a plane), and the reading that puts the point on it.
+        let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
+            None => {
+                // A curved face is read only where its box can hold the
+                // point, as a plane is only where the point is on it.
+                if !box_holds(face, p) {
+                    continue;
+                }
+                // Off the carrier, the face holds nothing: decided first,
+                // as the plane arm decides its plane first. A spline face
+                // has no residual, and its trim is asked.
+                let surface = piercing_body
+                    .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+                let side = (!matches!(
+                    surface.kind(),
+                    geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
+                ))
+                .then(|| {
+                    geom_core::k_stats::decide_reported(
+                        "bool_curved_contain_carrier",
+                        Margin::of(geom_brep::implicit_residual(surface, p)),
+                        band,
+                    )
+                });
+                if matches!(side, Some(Ok(ref d)) if d.sign != Sign::Zero) {
+                    continue;
+                }
+                let held_lever = PierceLever::of(surface, p).within(arm);
+                // A face on one of their carriers is their sibling there,
+                // which a valid body never lets overlap them: it holds
+                // the point outside.
+                if own
+                    .iter()
+                    .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
+                {
+                    continue;
+                }
+                let (placement, _) =
+                    super::contain::curved_face_placement_decided(piercing_body, face, p, band)
+                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                let kind = kind_of(piercing_body, face);
+                match placement {
+                    super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
+                    // Where the trim cannot say, nothing is guessed: the
+                    // face may hold the point (D4).
+                    super::contain::CurvedPlacement::Trim(None) => {
+                        return Err(unbuilt(face, kind, false));
+                    }
+                    // Off the face, or on its boundary, which the sweep's
+                    // pierces and splits hold.
+                    super::contain::CurvedPlacement::OffCarrier
+                    | super::contain::CurvedPlacement::Trim(Some(_)) => continue,
+                }
+                // A spline face's trim never places a point In; were one
+                // to, the face has no residual and no normal to build on.
+                let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
+                };
+                let normal = match crate::face_normal::face_outward_normal_at(
+                    piercing_body,
+                    face,
+                    p,
+                    band,
+                ) {
+                    Ok(Some(n)) => n.vec(),
+                    Ok(None) => return Err(unbuilt(face, kind, true)),
+                    Err(refusal) => {
+                        return Err(BooleanError::of_pierced_normal(refusal, piercing, face));
+                    }
+                };
+                (normal, Some(held_lever), side)
+            }
+            Some(plane) => {
+                let side = geom_core::k_stats::decide_reported(
+                    "bool_vertex_face_side",
+                    Margin::of((p - plane.origin).dot(plane.normal)),
+                    band,
+                );
+                if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
+                    continue;
                 }
-                super::contain::CurvedPlacement::Trim(None) => {
-                    return Err(unbuilt(face, kind, false));
+                // A plane the point is in band of matters only where the
+                // point lies in the face. On the face's boundary the point
+                // is a vertex or an edge of the piercing body: the sweep's
+                // pierces and splits hold it.
+                let (at, _) =
+                    super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
+                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                if at != FaceContainment::In {
+                    continue;
                 }
-                // Off the face, or on its boundary, which the sweep's
-                // pierces and splits hold.
-                super::contain::CurvedPlacement::OffCarrier
-                | super::contain::CurvedPlacement::Trim(Some(_)) => continue,
+                (plane.normal, None, side)
             }
         };
-        let side = geom_core::k_stats::decide_reported(
-            "bool_vertex_face_side",
-            Margin::of((p - plane.origin).dot(plane.normal)),
-            band,
-        );
-        if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
-            continue;
-        }
-        // A plane the point is in band of matters only where the point
-        // lies in the face. On the face's boundary the point is a vertex
-        // or an edge of the piercing body: the sweep's pierces and
-        // splits hold it.
-        let (at, _) = super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
-            .map_err(|e| super::reduce::esc(e, piercing, face))?;
-        if at != FaceContainment::In {
-            continue;
-        }
-        let side = side.map_err(|diag| {
-            BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
-        })?;
-        if face_plane(pierced_body, pierced).is_none() {
-            return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
-        }
-        let int = plane.normal.cross(plan.normal);
+        // The point lies in the face: its place on the face's carrier
+        // in band is a coincidence, decided nowhere else.
+        let on = on
+            .map_err(|diag| {
+                BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+            })?
+            .margin;
+        // The bend the run is charged for: the curved face's of the two.
+        // Both curved is a pose no row reaches: the Boolean refuses each
+        // such pair before any pierce (a rod against a lying cylinder, a
+        // coaxial ball or cone), so no answer here is checked, and it
+        // refuses. A spline pierced face has no bend to read.
+        let lever = match (held_lever, kind_of(pierced_body, pierced)) {
+            (held, geom::SurfaceKind::Plane) => held,
+            (None, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
+                return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
+            }
+            (None, _) => Some(
+                PierceLever::of(
+                    pierced_body.face_surface_linked(
+                        pierced,
+                        proven(&pierced_body.faces, pierced, EntityId::Face),
+                    ),
+                    p,
+                )
+                .within(arm),
+            ),
+            (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
+        };
+        let int = held_normal.cross(plan.normal);
         match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "a pierce point lies inside a face of the piercing operand in the \
-                           pierced face's plane",
+                           pierced face's tangent plane",
                 });
             }
             Err(diag) => {
@@ -2047,6 +2122,34 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     DeclarationRead::Moot,
                     diag,
                 ));
+            }
+        }
+        // **The run's half, charged for the bend.** The face's half
+        // above the pierced face leaves it at the sine `|n × n_pierced|`
+        // along the face's direction across the section. Past the curved
+        // face's sagitta, `l²/ρ` at `l` (`sectors::sagitta_charge`
+        // carries why without the ½), it stands at least `sin·l − l²/ρ`
+        // off the pierced face: the charge, read where it peaks within
+        // the pierce's arm. Two planes have no bend, and are not charged.
+        // The normal doors refuse the points with no bend radius (a
+        // cone's apex, a degenerate torus) before this reads one.
+        if let Some(lever) = lever {
+            match crate::validate::decide_reported(
+                "bool_held_pierce_curved",
+                Margin::of(super::sectors::sagitta_charge(int.norm(), lever, arm)),
+                band,
+            ) {
+                Ok(decided) => {
+                    if let Some(refused) = geom_brep::recourse::Refused::of(decided, band) {
+                        return Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused });
+                    }
+                }
+                Err(diag) => {
+                    return Err(BooleanError::Escalated {
+                        decision: super::BooleanDecision::PierceCurvature,
+                        diag,
+                    });
+                }
             }
         }
         let (w, ring_loop) = ring_vertex_in(piercing_body, face, p, tol)?;
@@ -2083,7 +2186,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         };
         out.push(HeldPierce {
             strut: rec,
-            on: side.margin,
+            on,
             plan: RingPlan {
                 contact: VfContact {
                     vertex: w,

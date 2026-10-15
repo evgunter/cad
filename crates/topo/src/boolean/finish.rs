@@ -63,6 +63,9 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub graft: GraftMap,
     /// The faces the selection discarded (`BooleanNaming::discards`).
     pub discards: Vec<DiscardRow>,
+    /// The split records each operand's carve killed, A's then B's, in
+    /// clone keys (`BooleanNaming::carved_lineage`).
+    pub carved_lineage: [BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>; 2],
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -270,6 +273,10 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|_| desync("carving the kept A component failed"))?;
     let mut b_kept = carve(&red.b, b_solid, &b_kept_shells)
         .map_err(|_| desync("carving the kept B component failed"))?;
+    let carved_lineage = [
+        super::discard::carved_lineage(&red.a, &a_kept),
+        super::discard::carved_lineage(&red.b, &b_kept),
+    ];
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
@@ -410,6 +417,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         vertex_map,
         graft,
         discards,
+        carved_lineage,
     })
 }
 
