@@ -5264,7 +5264,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => (&mut a, &b),
             Operand::B => (&mut b, &a),
         };
-        let mut held = Vec::new();
         // Each curved face's box, read once: a pierce point is placed in
         // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
@@ -5287,16 +5286,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .iter()
             .filter_map(|(_, plan)| plan.as_ref())
             .collect();
-        if !plans.is_empty() {
-            held.extend(vtxfac::faces_holding_pierce(
-                piercing_body,
-                pierced_body,
-                &box_holds,
-                &plans,
-                band,
-                tol,
-            )?);
-        }
+        let held = vtxfac::faces_holding_pierce(
+            piercing_body,
+            pierced_body,
+            &box_holds,
+            &plans,
+            band,
+            tol,
+        )?;
         let held_on: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));

@@ -64,4 +64,11 @@ Each passes tier 3 and tier 3′, matches its closed-form volume, and matches th
 
 **What still refuses.** The pocketed wall still refuses `placed: false`: its ring is a real hole.
 
+**`wall_outline` (`solid_contain.rs:1412`) is unchanged.** The mechanism named it as a second ringed-wall reader. The fix keeps the scaffolding ring away from both readers instead of teaching either of them about it, so neither changes.
+
+**The rest of the pass:**
+
+- Two pierces of one face at one point mint one ring vertex there, as the face's boundary read of the first's ring vertex had made them before.
+- A definite refusal at any face of any pierce outranks an escalation at another, as in the pierce pass this serves.
+
 **The lying-cylinder sibling** has a different root, and this does not close it. Over the cylinder's whole span, the folds that ring the wall before the second prism comes still refuse `CurvedPierceUnsupported`. There the ring is the first prism's footprint, a real hole in the wall at rest.

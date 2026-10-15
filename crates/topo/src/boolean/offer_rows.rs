@@ -3011,6 +3011,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "held_reads", "Coincide::Sectors", 1),
     ("vtxfac.rs", "held_reads", "Coincide::VertexOnFace", 1),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "mint_node", "Coincide::Sectors", 3),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
