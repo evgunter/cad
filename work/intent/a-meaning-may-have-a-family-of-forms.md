@@ -1,10 +1,10 @@
 ---
 id: a-meaning-may-have-a-family-of-forms
 kind: ruling
-title: D8: one meaning, a family of forms — a value people author several ways keeps the form written and lowers through one reading
-status: open
+title: D8: the recipe keeps the form that was written — a family of forms — a value people author several ways keeps the form written and lowers through one reading
+status: closed
+closed: 2026-10-15
 opened: 2026-10-15
-needs_ev: true
 ---
 
 
