@@ -6,8 +6,8 @@
 //! Each row lofts a polygon prism, restates a cap rim as an `OnPair` of
 //! the cap's plane and the wall (certified through the plane × NURBS
 //! lane's incidence), and reads the wall's image again with the stored
-//! one detached. (An arc rim's arm waits for the lane to certify arc
-//! rims: `work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`.)
+//! one detached. An arc rim takes the arc-rim arm, its incidence
+//! certified through the very `IsoArc` the mint stored.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -154,4 +154,56 @@ fn a_spline_carried_rim_on_its_pair_derives_what_its_intersection_does() {
         derived(&intersection, h),
         "the pair's image is the intersection's"
     );
+}
+
+/// **An arc rim on its pair takes the arc-rim arm, and its certificate is
+/// the stored image's.** Restated as an `OnPair`, the rim's incidence on
+/// the wall is certified through the `IsoArc` the mint stored for it
+/// (topo hands it to certification as stated), and re-derives that same
+/// image; certified through the builder's candidate instead, with nothing
+/// stated, it holds to the same bound.
+#[test]
+fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
+    let mut body = prism(1.0);
+    let rims: Vec<_> = wall_rims(&body)
+        .into_iter()
+        .filter(|(_, p)| matches!(p, Pcurve::IsoArc { .. }))
+        .collect();
+    assert_eq!(rims.len(), 2, "the arc wall's two rims");
+    for (h, stored) in rims {
+        restate(&mut body, h, None, false);
+        assert_eq!(
+            derived(&body, h),
+            format!("{stored:?}"),
+            "the arc rim's image on its pair"
+        );
+        let edge = body.get_half_edge(h).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        let certified = body
+            .get_curve_geom(curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .clone();
+        let spec = certified.restated_spec();
+        let (start, end) = (
+            spec.carrier.eval(spec.param_start),
+            spec.carrier.eval(spec.param_end),
+        );
+        let surfaces = |k| body.get_surface(k).cloned();
+        let built = geom_brep::EdgeCurve::certify_via(
+            spec,
+            start,
+            end,
+            surfaces,
+            1.0,
+            Band::linear(tol()).unwrap(),
+            Some(geom_brep::NurbsLane::certified()),
+        )
+        .expect("the builder's image certifies too");
+        assert_eq!(
+            built.certificate().max_residual,
+            certified.certificate().max_residual,
+            "the stored image and the builder's certify to one bound"
+        );
+    }
 }

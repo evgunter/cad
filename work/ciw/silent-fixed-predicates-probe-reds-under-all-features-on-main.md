@@ -4,6 +4,8 @@ kind: issue
 title: rim_dim_review_probes' silent-fixed-predicates probe is red on main under --all-features: an undeclared flush subtract no longer refuses
 status: open
 opened: 2026-10-10
+priority: P1
+cost: E
 ---
 
 
@@ -44,3 +46,7 @@ Not bisected.
   fires `bool_plane_orient`, or retire the flush half with the reason.
 - The class this row is an instance of (probe suites the PR gate
   never runs) is `work/ciw/tests-red-under-all-features-never-run-by-ci.md`.
+
+## 2026-10-15 — moved from TINT to CIW (CIW orchestrator, at Ev's direction)
+
+TINT has no orchestrator. This red sits in a nightly job that CIW owns, and its fix is the test's own (a stale premise in the test, not a kernel defect), so CIW takes it. If the fix turns out to need kernel code, it is routed to the crate's owner.

@@ -977,6 +977,18 @@ fn joined_spec<T: Decide>(
         }
         geom_brep::EdgeAuthority::Derived => None,
     };
+    // The join's refusal of a pair or an image the rule refuses over
+    // the joined span.
+    let refused = |refusal| match refusal {
+        geom_brep::PairRefusal::InBand(escalation) => {
+            let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
+            super::ops::seam_refusal(reading, diag)
+        }
+        geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
+            edge: join.kept,
+            stations: Some(stations),
+        },
+    };
     let description = match kept.description() {
         geom_brep::EdgeDescription::Intersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
@@ -1002,22 +1014,26 @@ fn joined_spec<T: Decide>(
                 declared,
                 band,
             )
-            .map_err(|refusal| match refusal {
-                geom_brep::PairRefusal::InBand(escalation) => {
-                    let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
-                    super::ops::seam_refusal(reading, diag)
-                }
-                geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
-                    edge: join.kept,
-                    stations: Some(stations),
-                },
-            })?,
-        geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
-            surface: c.surface,
-            image: if c.wrap { None } else { Some(c.pcurve.clone()) },
-            wrap: c.wrap,
-            declared,
-        },
+            .map_err(refused)?,
+        // An image is asked the same, between the joined edge's faces,
+        // as every door that keeps one is. The join takes two images only
+        // where both faces are on one surface key ([`joinable`]'s iso
+        // family of one chart), which the rule leaves alone, so no input
+        // reaches its demand here.
+        geom_brep::EdgeDescription::Chart(c) => {
+            let demanded = if c.wrap {
+                None
+            } else {
+                body.reask_chart_on(join.kept, carrier, (a, b), band)
+                    .map_err(refused)?
+            };
+            demanded.unwrap_or_else(|| geom_brep::EdgeDescriptionSpec::Chart {
+                surface: c.surface,
+                image: if c.wrap { None } else { Some(c.pcurve.clone()) },
+                wrap: c.wrap,
+                declared,
+            })
+        }
         geom_brep::EdgeDescription::Scaffold(_) => {
             return Err(desync("a joined edge is scaffolding at rest"));
         }
