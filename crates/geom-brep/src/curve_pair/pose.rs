@@ -15,9 +15,14 @@
 //!   the first line, length `L`, and the escalation `e` either side
 //!   (`curve_pair_pose_tilt`, on `s·(L + 2e)`). The lever is a function of
 //!   the geometry where the spans can meet, not of how long either span
-//!   is, so one pair read whole or in pieces gets one verdict. Read
-//!   definite, the candidate is the first line's point nearest the
-//!   second. Read zero, the second line's distance from the overlap's
+//!   is, so one pair read whole or in pieces gets one verdict. That reading
+//!   only routes to the parallel arm: a pair it does not read zero is
+//!   crossing where the tilt levered by the longer span reads definite,
+//!   the candidate the first line's point nearest the second, and
+//!   escalates in its band (a short overlap is no evidence the lines
+//!   cross steeply, so it decides nothing else). Read zero over the
+//!   overlap, or zero over the longer span, the second line's distance
+//!   from the overlap's
 //!   middle point on the first (`curve_pair_pose_offset`) decides one line
 //!   ([`Pose::Coincident`]) where it reads zero. Otherwise the pair is
 //!   [`Pose::Parallel`] only where that distance less its most variation
@@ -39,8 +44,11 @@
 //!   levered as two lines' is, by where they can meet: the overlap of the
 //!   line's span's projection on itself with the conic's, the centre's
 //!   projection ± the larger semi-axis, and the escalation either side.
-//!   Definite: the line crosses the plane once, and the candidate is the
-//!   closest pair polished from there (below). Zero: the line's height
+//!   As two lines' reading, it only routes to the parallel arm; otherwise
+//!   the tilt levered by the longer of the line's span and the conic's
+//!   greatest speed decides, definite: the line crosses the plane once,
+//!   and the candidate is the closest pair polished from there (below).
+//!   Zero: the line's height
 //!   above the plane at the overlap's middle decides the line in the
 //!   plane where it reads zero, and [`Pose::Parallel`] where it less its
 //!   most variation over the overlap and `e` either side,
@@ -589,7 +597,12 @@ fn line_line<T: Decide>(
         ((ends.0 - o1).dot(u1), (ends.1 - o1).dot(u1))
     };
     let (mid, length) = overlap(on_first(a), on_first(b));
-    if !definite(row::TILT, Margin::levered(s, length + e + e), band)? {
+    // Parallel where the tilt reads zero over where the lines can meet;
+    // otherwise crossing only where it reads definite over the longer
+    // span (module docs).
+    let parallel = decide(row::TILT, Margin::levered(s, length + e + e), band) == Ok(Sign::Zero)
+        || !definite(row::TILT, Margin::levered(s, reach(a).max(reach(b))), band)?;
+    if parallel {
         let at = o1 + u1 * mid;
         let w = at - o2;
         let off = (w - u2 * w.dot(u2)).norm();
@@ -645,7 +658,9 @@ fn line_conic<T: Decide>(
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    if definite(row::TILT, Margin::levered(den, length + e + e), band)? {
+    let parallel = decide(row::TILT, Margin::levered(den, length + e + e), band) == Ok(Sign::Zero)
+        || !definite(row::TILT, Margin::levered(den, lever), band)?;
+    if !parallel {
         // The line's height above the plane runs `|d̂·n̂|` per metre, so
         // it is within the band's escalation `e/|d̂·n̂|` either side of
         // the crossing.
