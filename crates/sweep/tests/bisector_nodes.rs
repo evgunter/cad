@@ -760,18 +760,23 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 /// `1e-8°`. The crossing's candidates on a rim gather round whichever of
 /// them the sweep split it at, and which that is follows the operand
 /// order: each order must read the cluster as one point, or neither.
+/// The orders agree on the outcome, and on the decision and margin of an
+/// escalation, at every band; which poses build is the band's.
 ///
 /// At the default band:
 ///
-/// - `1e-9°`: the cluster reads as one point; ∩ and ∪ build, alike.
-/// - `1e-8°`: two of its candidates lie `1.29e-9` apart, in band, and
-///   both orders escalate at the crossing (`Crossing(OnEdge)`).
-/// - `1e-7°`: both orders escalate, on one margin read at two sites.
+/// - the rod along `y` turned to `1e-9°` reads the cluster as one point,
+///   and ∩ and ∪ build alike; at `1e-8°` the cluster spreads `1.29e-9`,
+///   in band, and both orders escalate it as the crossings' order;
+/// - the rod about `z` tilted `1e-8°`, its seam on the tilt's plane
+///   (turned `0` or `π`), escalates the same way in both orders, and with
+///   its seam a quarter turn off it builds alike;
+/// - at `1e-7°` both orders escalate on one margin, but at two
+///   decisions, which this row does not hold alike
+///   (`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     let tol = Tol::witness();
-    // Which poses build is the band's: a wider one reads the `1e-8°`
-    // cluster as one point. The orders agree at every band.
     let default_band = tol.eps() == geom_core::tolerance::DEFAULT_EPS;
     let bore = finished(
         "the bore",
@@ -781,12 +786,12 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
         ),
         tol,
     );
-    /// An outcome as the orders are compared: a volume, or an escalation
-    /// with its margin, or another refusal's kind.
+    /// An outcome as the orders are compared: a volume, an escalation's
+    /// decision and margin, or another refusal's kind.
     #[derive(Debug)]
     enum Outcome {
         Built(f64, f64),
-        Escalated(f64),
+        Escalated(String, f64),
         Refused(String),
     }
     let outcome = |r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
@@ -795,12 +800,12 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
             Outcome::Built(m.volume, m.volume_pad)
         }
         Ok(_) => Outcome::Built(0.0, 0.0),
-        Err(topo::BooleanError::Escalated { diag, .. }) => Outcome::Escalated(
+        Err(topo::BooleanError::Escalated { decision, diag }) => Outcome::Escalated(
+            format!("{decision:?}"),
             diag.margin
                 .diagnostic_f64_for_error_text()
                 .value()
-                .expect("an f64 margin")
-                .abs(),
+                .expect("an f64 margin"),
         ),
         Err(e) => Outcome::Refused(
             format!("{e:?}")
@@ -810,16 +815,47 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
                 .to_string(),
         ),
     };
-    for (deg, builds) in [(1e-9_f64, true), (1e-8, false), (1e-7, false)] {
-        let rod = finished(
+    let tilted = |rod: Body<f64>, deg: f64| {
+        finished(
             "the rod",
-            spin(
-                &rod_y(4.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                PI / 2.0 - deg.to_radians(),
-            ),
+            spin(&rod, Vec3::new(1.0, 0.0, 0.0), deg.to_radians()),
             tol,
-        );
+        )
+    };
+    let along_y = |deg: f64| tilted(rod_y(4.0), 90.0 - deg);
+    let about_z = |turn: f64, deg: f64| {
+        tilted(
+            spin(&cyl(1.0, 4.0), Vec3::new(0.0, 0.0, 1.0), PHI + turn),
+            deg,
+        )
+    };
+    /// A pose: its name, the rod, whether the orders must agree on the
+    /// escalation's decision, and whether it builds at the default band.
+    type Pose = (String, topo::AtRestBody<f64>, bool, bool);
+    let poses: Vec<Pose> = vec![
+        ("along y, 1e-9°".into(), along_y(1e-9), true, true),
+        ("along y, 1e-8°".into(), along_y(1e-8), true, false),
+        ("along y, 1e-7°".into(), along_y(1e-7), false, false),
+        (
+            "about z, seam 0, 1e-8°".into(),
+            about_z(0.0, 1e-8),
+            true,
+            false,
+        ),
+        (
+            "about z, seam π, 1e-8°".into(),
+            about_z(PI, 1e-8),
+            true,
+            false,
+        ),
+        (
+            "about z, seam π/2, 1e-8°".into(),
+            about_z(PI / 2.0, 1e-8),
+            true,
+            true,
+        ),
+    ];
+    for (what, rod, one_decision, builds) in poses {
         for (op, f) in [
             ("∩", topo::intersect::<f64> as fn(_, _, _) -> _),
             ("∪", topo::union::<f64>),
@@ -827,19 +863,21 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
             let (rb, br) = (outcome(f(&rod, &bore, tol)), outcome(f(&bore, &rod, tol)));
             let alike = match (&rb, &br) {
                 (Outcome::Built(v, p), Outcome::Built(w, q)) => (v - w).abs() <= p + q + 1e-9,
-                (Outcome::Escalated(m), Outcome::Escalated(n)) => (m - n).abs() <= 1e-15,
+                (Outcome::Escalated(d, m), Outcome::Escalated(e, n)) => {
+                    (!one_decision || d == e) && (m - n).abs() <= 1e-15
+                }
                 (Outcome::Refused(a), Outcome::Refused(b)) => a == b,
                 _ => false,
             };
             assert!(
                 alike,
-                "{deg}°, {op}: (rod, bore) {rb:?}, (bore, rod) {br:?}"
+                "{what}, {op}: (rod, bore) {rb:?}, (bore, rod) {br:?}"
             );
             if default_band {
                 assert_eq!(
                     matches!(rb, Outcome::Built(..)),
                     builds,
-                    "{deg}°, {op}: {rb:?}"
+                    "{what}, {op}: {rb:?}"
                 );
             }
         }
