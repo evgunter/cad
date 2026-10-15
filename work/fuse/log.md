@@ -1004,3 +1004,10 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Residual:** the `carrier_speed` home (both lean `geom`), and a typed `Foot` vs a seed (cosmetic).
   - **Live defect** found by the Fable designer: `carrier_cross` reads vertices at `param_near`, which is not an ellipse's foot, so it can decide a false Off. Sent to the lane to fix in c1.
   - **For Ev:** 5154's body updated with A/B verbatim; a comment posted.
+- 2026-10-15: Ev approved the span/carrier recommendation on 5154: "the recommendation sounds good! thank you!".
+  - **Fork-log row 146** is filled in: A = Fable, B = Opus (byte 191).
+  - **Next:** the split is sent to the lane for c1. It covers:
+    - `geom` gains `foot`→`Foot`, and `on_carrier`, which decides Off only on a lower bound; `carrier_speed` moves to `geom`.
+    - `Span::place`, and one composition, `Span::contact`.
+    - `Hit::End` names its end.
+    - C5 is reworded, with no list.
