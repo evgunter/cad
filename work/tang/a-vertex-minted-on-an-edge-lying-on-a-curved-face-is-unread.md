@@ -1,7 +1,7 @@
 ---
 id: a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread
 kind: issue
-title: A vertex a split mints on an edge lying on a curved face or a conic lying in a plane is not read against that face; the curved case refuses order-dependently
+title: A vertex a split mints on a conic lying in a plane is not read against that face
 status: open
 opened: 2026-10-15
 priority: P2
@@ -75,3 +75,39 @@ The curved witness above is a committed row, and both slots answer
 alike in every op: the minted vertex is read against the curved face,
 or the refusal is the same in both slots. The conic case is settled the
 same way, with the ridge grid still building where it builds.
+
+## The curved half, done (2026-10-15)
+
+Branch `tang/minted-vertex-on-curved-face`. The sweep's worklist entry
+carries each face an edge was read lying in, ends only, as
+`reduce::LyingIn`: a plane (`Plane`), or a curved face with the rule its
+arm read the edge under (`Curved(face, OnCurved)`). That rule is
+`OnCurved::Declared { interior_clear }` from the covered `(Zero, Zero)`
+arm, and `OnCurved::Undeclared` from the undeclared arm's `LiesOn` /
+`Constant`. `read_lying_in` reads a minted vertex against a curved face
+by the arm's own side question, then `vertex_on_curved_face`, and
+combines the placement under that rule (`Placement::declared`, or
+`Placement::undeclared_no_interior`). A placement the rule cannot
+combine keeps the arm's frontier (`CurvedPierceUnsupported`).
+
+The witness is committed as
+`crates/sweep/tests/a_minted_vertex_on_a_curved_face.rs`'s
+`a_wedge_on_the_ruling_answers_every_op_in_both_slots`. Its piece rests
+outside the wall (−80°..−40°), with tools at 60°..120° and 40°..80°.
+Every op builds in both slots at its closed form, tier 3 clean. On main
+the tool-first slot refuses `Join(UnpairedLooseEnds)` at 60°..120°, and
+`ClassificationInvariant` in the 40°..80° union.
+
+What is left in this item is the conic half below.
+
+## The conic half, as it stands
+
+`reduce::sweep_direction`'s conic lane, `ConicPlaneMeet::Parallel` arm
+(`crates/topo/src/boolean/reduce.rs`, the arm commented "The conic's
+plane is parallel to the face's"), still takes a conic lying in a
+face's plane by its ends only. `LyingIn`'s doc says why it is not
+recorded. Carrying it moves the ridge grid
+(`crates/sweep/tests/a_rim_in_a_face_beside_a_resting_ridge.rs`,
+`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`),
+whose slot-asymmetric refusals this half is about. The grid did not
+move with the curved half.

@@ -975,6 +975,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         pt(c),
         &declared,
         &mut acc,
+        &mut None,
         band(),
         tol,
     )
@@ -1035,6 +1036,7 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         pt(c),
         &declared,
         &mut acc,
+        &mut None,
         band(),
         tol,
     )
@@ -2939,6 +2941,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::WallRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "read_lying_in",
+        "Coincide::VertexOnCurvedFace",
         1,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),

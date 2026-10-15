@@ -1151,9 +1151,30 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 {
                     continue;
                 }
+                let mut lies_on = None;
                 let event = curved_face_arm(
-                    x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
+                    x,
+                    y,
+                    x_is,
+                    edge_key,
+                    &edge,
+                    u,
+                    v,
+                    face,
+                    pu,
+                    pv,
+                    declared,
+                    contacts,
+                    &mut lies_on,
+                    band,
+                    tol,
                 )?;
+                // An edge the arm read lying on the face, ends only: a
+                // later split's vertex is read against it too. A pierce
+                // requeues the pieces at this face, which reads them.
+                if let (Some(rule), CurvedEvent::None | CurvedEvent::Recorded) = (lies_on, &event) {
+                    lying_in.push(LyingIn::Curved(face, rule));
+                }
                 if !matches!(event, CurvedEvent::None | CurvedEvent::Deferred)
                     && let Some(tr) = trace.as_deref_mut()
                 {
@@ -1290,12 +1311,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
-                // Only the line lane's coplanar arm grows `lying_in`, and a
-                // conic's pieces are conics, so its splits read nothing
-                // (`Pending`).
+                // Only the line lane's coplanar arm records a plane, and a
+                // conic's pieces are conics, so no conic carries one
+                // (`LyingIn`).
                 debug_assert!(
-                    meet.is_none() || lying_in.is_empty(),
-                    "a conic edge carries the faces it lies in"
+                    meet.is_none() || !lying_in.iter().any(|l| matches!(l, LyingIn::Plane(_))),
+                    "a conic edge carries a plane it lies in"
                 );
                 let covers = edge_covers(x, x_is, &edge, face, declared);
                 let touch_at_end = if meet.is_none() || covers.is_empty() {
@@ -1631,7 +1652,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the face as the ends are (`lying_in`).
                 (za, zb) => {
                     if (za, zb) == (Sign::Zero, Sign::Zero) {
-                        lying_in.push(face);
+                        lying_in.push(LyingIn::Plane(face));
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
@@ -1807,7 +1828,8 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
             match curved_face_arm(
-                x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, band, tol,
+                x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, &mut None,
+                band, tol,
             )? {
                 CurvedEvent::None => {}
                 CurvedEvent::Recorded => {
@@ -2042,6 +2064,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     pv: Point3<T>,
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
+    lies_on: &mut Option<OnCurved>,
     band: Band,
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
@@ -2491,6 +2514,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
+            *lies_on = Some(OnCurved::Declared {
+                interior_clear: inside.clear(),
+            });
             Placement::declared([Some(hu), Some(hv)], inside.clear()).ok_or_else(frontier)
         }
         (Sign::Zero, Sign::Positive) if admitted(Sign::Positive) => {
@@ -2637,6 +2663,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         band,
                         tol,
                     };
+                    *lies_on = Some(OnCurved::Undeclared);
                     lying_on(&arc, y, contacts)?.ok_or_else(frontier)
                 }
                 SpanVerdict::AtApex => Err(at_apex()),
@@ -4420,23 +4447,46 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// An edge the sweep has yet to read, from face index `start` on.
-/// `lying_in` holds the planar faces before `start` that the line lane's
-/// coplanar arm read the edge in, ends only: a split of the edge reads
+/// `lying_in` holds the faces before `start` that an arm read the edge
+/// lying in by its ends only ([`LyingIn`]): a split of the edge reads
 /// the vertex it mints against them ([`read_then_requeue`]), whichever
-/// lane splits it. A conic edge's is empty: a conic lying in a face's
-/// plane (`ConicPlaneMeet::Parallel`) is not recorded, since reading a
-/// later split's vertex against that face turns operations that build
-/// sound into refusals
-/// (`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`).
-///
-/// An edge lying on a CURVED face (the curved arm's endpoint postures)
-/// is not carried either, and refuses order-dependently where a later
-/// split mints a vertex on it
-/// (`work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`).
+/// lane splits it.
 struct Pending {
     edge: EdgeKey,
     start: usize,
-    lying_in: Vec<FaceKey>,
+    lying_in: Vec<LyingIn>,
+}
+
+/// A face an edge lies in, read at the edge's ends only, and the rule a
+/// vertex a later split mints on the edge is read against it under.
+///
+/// A conic lying in a face's plane (`ConicPlaneMeet::Parallel`) is not
+/// recorded: reading a later split's vertex against that face turns
+/// operations that build sound into refusals
+/// (`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`,
+/// `work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`).
+#[derive(Debug, Clone, Copy)]
+enum LyingIn {
+    /// A planar face the line lane's coplanar arm read the edge in: the
+    /// vertex takes the planar side-then-[`vertex_on_face`] read.
+    Plane(FaceKey),
+    /// A curved face [`curved_face_arm`] read the edge on: the vertex is
+    /// placed by [`vertex_on_curved_face`] and the placement combined
+    /// under the arm's own rule.
+    Curved(FaceKey, OnCurved),
+}
+
+/// The rule [`curved_face_arm`] read an edge lying on a curved face
+/// under, which a vertex minted on the edge is read under too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OnCurved {
+    /// The covered `(Zero, Zero)` arm ([`Placement::declared`]), with
+    /// whether it certified the edge's interior clear of the face's
+    /// boundary, which every piece of the edge inherits.
+    Declared { interior_clear: bool },
+    /// The undeclared `(Zero, Zero)` arm's arc or ruling on the carrier
+    /// ([`Placement::undeclared_no_interior`]).
+    Undeclared,
 }
 
 /// Reads vertex `w` of `x`, at `p`, against planar `face` of `y`:
@@ -4478,14 +4528,14 @@ fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     w: VertexKey,
     next_face: usize,
-    lying_in: &[FaceKey],
+    lying_in: &[LyingIn],
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     read_lying_in(
-        (x, x_is, edge),
+        (x, x_is, parent, edge),
         y,
         w,
         lying_in,
@@ -4498,34 +4548,86 @@ fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The contact half of [`read_then_requeue`]: `w` of `x`, minted on
-/// `edge`, against each planar face of `y` in `lying_in`.
+/// `edge` (`edge_key`), against each face of `y` in `lying_in`, under
+/// the read each entry names ([`LyingIn`]).
+///
+/// # Errors
+///
+/// A side the band cannot decide refuses as the arm's own ends do; a
+/// curved placement the arm's rule cannot combine keeps its frontier
+/// ([`BooleanError::CurvedPierceUnsupported`]).
 #[allow(clippy::too_many_arguments)]
 fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
-    (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
+    (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
     y: &mut Body<T>,
     w: VertexKey,
-    lying_in: &[FaceKey],
+    lying_in: &[LyingIn],
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let p = x.resolve_vertex_point(w, crate::live::Proven);
-    for &face in lying_in {
-        let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
-            what: "a face an edge lies in lost its plane",
-        })?;
-        let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
-        read_on_plane(
-            (x, x_is),
-            y,
-            (w, p),
-            (face, &plane),
-            read,
-            contacts,
-            band,
-            tol,
-        )?;
+    for &lies in lying_in {
+        match lies {
+            LyingIn::Plane(face) => {
+                let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
+                    what: "a face an edge lies in lost its plane",
+                })?;
+                let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+                read_on_plane(
+                    (x, x_is),
+                    y,
+                    (w, p),
+                    (face, &plane),
+                    read,
+                    contacts,
+                    band,
+                    tol,
+                )?;
+            }
+            LyingIn::Curved(face, rule) => {
+                let surface = y
+                    .get_face(face)
+                    .and_then(|f| y.get_surface(f.surface))
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "a curved face an edge lies on lost its surface",
+                    })?;
+                // The arm's own endpoint side question, asked of the
+                // minted vertex.
+                let on = geom_core::k_stats::decide_reported(
+                    "bool_vertex_face_side",
+                    Margin::of(geom_brep::implicit_residual(surface, p)),
+                    band,
+                )
+                .map_err(|diag| {
+                    let which = Coincide::VertexOnCurvedFace;
+                    let read = edge_face_read(x, x_is, edge, face, declared, which);
+                    BooleanError::coincidence(which, read, diag)
+                })?;
+                if on.sign != Sign::Zero {
+                    continue;
+                }
+                let placed =
+                    vertex_on_curved_face(x_is, y, w, p, face, on.margin, contacts, band, tol)?;
+                let event = match rule {
+                    OnCurved::Declared { interior_clear } => {
+                        Placement::declared::<T>([Some(placed), None], interior_clear)
+                    }
+                    OnCurved::Undeclared => {
+                        Placement::undeclared_no_interior::<T>([Some(placed), None])
+                    }
+                };
+                if event.is_none() {
+                    return Err(BooleanError::CurvedPierceUnsupported {
+                        operand: x_is,
+                        face,
+                        edge: edge_key,
+                        band,
+                    });
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -4540,7 +4642,7 @@ fn requeue<T: Decide>(
     parent: EdgeKey,
     w: VertexKey,
     next_face: usize,
-    lying_in: &[FaceKey],
+    lying_in: &[LyingIn],
 ) -> Result<(), BooleanError> {
     let emanating =
         x.get_vertex(w)
@@ -4764,6 +4866,7 @@ mod declaration_order_rows {
             pt(c),
             &declared,
             &mut acc,
+            &mut None,
             b,
             tol,
         )
@@ -4950,6 +5053,7 @@ mod declaration_order_rows {
                 pt(c),
                 &declared,
                 &mut acc,
+                &mut None,
                 b,
                 tol,
             ));
@@ -5192,6 +5296,7 @@ mod declaration_order_rows {
             pt(c),
             &declared,
             &mut acc,
+            &mut None,
             b,
             tol,
         )
