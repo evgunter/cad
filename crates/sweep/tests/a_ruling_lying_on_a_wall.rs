@@ -728,10 +728,24 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// three with the first rod first at 80, which escalate on the sector
 /// reading's `conic_bend` before reaching that frontier. None reads the
 /// rims' crossings away.
+///
+/// **At a coarse ε every op refuses `CurvedPierceUnsupported` first.** A
+/// seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`, so it stays
+/// within the band's escalation `e = 10ε` of the plane for `e/0.01`
+/// metres either side. It meets the rim at the ellipse's tip, whose
+/// radius of curvature is `b²/a = 10⁻⁴` m. The meeting reader's basin
+/// meter needs the sine between the two (here one) to clear the turn of
+/// the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`, which
+/// fails once `ε` passes about `2.5·10⁻⁸`: the reading refuses
+/// `Unsettled::Meter` (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`)
+/// and the pierce is unread. At `ε = 10⁻⁹` and `10⁻¹²` the table above
+/// holds.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
     let rod = rod_of(0.01, -3.0, 6.0);
+    let e = geom_core::Band::linear(tol).unwrap().escalate();
+    let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
     for k in [0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
         let d = k * tol.eps();
         let (a, b) = (
@@ -740,7 +754,12 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
         );
         for (op, res) in six(&a, &b) {
             let label = format!("k = {k}: {op}");
-            if k < 1.0 {
+            if meter_refuses {
+                assert!(
+                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the basin meter refuses at this ε: {res:?}"
+                );
+            } else if k < 1.0 {
                 assert!(
                     matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
                     "{label}: one curve, refused past it: {res:?}"
