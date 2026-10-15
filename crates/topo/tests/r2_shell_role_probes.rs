@@ -200,3 +200,68 @@ fn r2_needle_faces() {
         println!("R2F face={k:?} sense={} surface={s:?} verts={vs:?}", f.sense);
     }
 }
+
+/// Delta check: a needle CAVITY at a boolean door, `brick ∖ needle`.
+/// Check 7 reads the solid off its outer shell; check 10 reads the
+/// needle shell's role, whose rays and volume are the needle class's.
+/// How does the door type it, and how does a needle SOLID type there?
+#[test]
+#[ignore = "review probe"]
+fn r2_needle_cavity_and_solid_at_the_door() {
+    let tol = Tol::witness();
+    let e = tol.eps();
+    let big = AtRestBody::validate(
+        common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol),
+        tol,
+    )
+    .expect("brick");
+    for m in [10.5, 15.0, 21.0, 30.0, 40.0] {
+        let w = m * e;
+        let a = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.5, 0.5 + w), (-0.5, 1.5), tol),
+            tol,
+        )
+        .expect("a wall");
+        let b = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (-0.5, 1.5), (0.5, 0.5 + w), tol),
+            tol,
+        )
+        .expect("a wall");
+        let needle = topo::intersect(&a, &b, tol);
+        let needle_line = match &needle {
+            Ok(r) => match r.body() {
+                Some(_) => "built".to_owned(),
+                None => "empty".to_owned(),
+            },
+            Err(err) => format!("{err}"),
+        };
+        println!("R2D eps={e:e} m={m} a∩b needle: {}", needle_line.chars().take(400).collect::<String>());
+        let slab = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol),
+            tol,
+        );
+        let fill = AtRestBody::validate(
+            common::brick::<f64>((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol),
+            tol,
+        );
+        let line = match (slab, fill) {
+            (Ok(slab), Ok(fill)) => match topo::subtract(&big, &slab, tol) {
+                Ok(r) => match r.body() {
+                    Some(c1) => match topo::union(&c1.body, &fill, tol) {
+                        Ok(r2) => format!(
+                            "built {:?}",
+                            r2.body().map(|b| b.body.solids().map(|(_, s)| s.shells.len()).collect::<Vec<_>>())
+                        ),
+                        Err(err) => format!("{err:?}").chars().take(300).collect::<String>()
+                            + " || "
+                            + &format!("{err}").chars().take(400).collect::<String>(),
+                    },
+                    None => "slab cut empty".to_owned(),
+                },
+                Err(err) => format!("slab cut refused: {err}"),
+            },
+            (s, f) => format!("operands: slab ok={} fill ok={}", s.is_ok(), f.is_ok()),
+        };
+        println!("R2D eps={e:e} m={m} needle cavity: {line}");
+    }
+}
