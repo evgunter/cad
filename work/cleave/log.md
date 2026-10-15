@@ -1110,3 +1110,7 @@ Signed (CLEAVE orchestrator).
   - `Past` is right, and the census against current main is unchanged.
   - The levers each have a buildable side.
   - Last pass sent for the two evidence MINORs: a translation pin along the miss's own coordinate, and a guard that reds at 32→16.
+- 2026-10-15 — PR 4810 merged (`fcc680bde8`, unit 3). Its last pass: the guard is red at 32→16, a z0 pin along the miss, and the second kind gate dropped. Merged with `gate ok` red only on GERM's copysign census, with a PR comment. Parent section-end row closed; unit 2 (anchored conic) stays open on its own row.
+- 2026-10-15 — Dispatched two P1s:
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out`: `mass_properties` returns Ok with a wrong-signed volume. Root-cause transform vs certificate.
+  - `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`: re-measure after 5058 first.

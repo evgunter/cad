@@ -2,10 +2,11 @@
 id: a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out
 kind: issue
 title: A rigid turn of a tier-3-valid section-ellipse sliver reads it inside-out, and mass_properties returns Ok with a wrong-signed volume, at ε = 1e-9
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: cleave/rigid-turn-sliver-volume
 ---
 
 
