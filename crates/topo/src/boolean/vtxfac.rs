@@ -1621,13 +1621,14 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// **On a curved face, or over one**, the run is the plane case's. Its
 /// germs are the two faces' section's tangents at the point, `±n × n_p`
 /// across their tangent planes, exact for every smooth pair as
-/// [`pierce_germ_dir`] argues. Its half is charged for the two faces'
-/// bends as a pierce sector's side is (`sectors::sagitta_charge`): what
+/// [`pierce_germ_dir`] argues. Its half is charged for the curved face's
+/// bend as a pierce sector's side is (`sectors::sagitta_charge`): what
 /// the first order puts above the pierced face must stand off it past
-/// both sagittas within the pierce's arm. A curved face whose trim
-/// cannot say whether it holds the point refuses
-/// [`BooleanError::HeldPierceUnbuilt`] before anything is written:
-/// nothing is guessed.
+/// the sagitta within the pierce's arm. [`BooleanError::HeldPierceUnbuilt`]
+/// refuses before anything is written where a curved face's trim cannot
+/// say whether it holds the point (nothing is guessed), and where both
+/// faces are curved or the pierced face is a spline, poses no row
+/// reaches.
 ///
 /// # Errors
 ///
@@ -1681,16 +1682,6 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         .map(|he| piercing_body.face_of_linked(he))
         .collect();
     let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, arm));
-    // The pierced face's bend at the point, which a held run on a
-    // curved face, or over one, is charged for (below).
-    let pierced_lever = PierceLever::of(
-        pierced_body.face_surface_linked(
-            pierced,
-            proven(&pierced_body.faces, pierced, EntityId::Face),
-        ),
-        p,
-    )
-    .within(arm);
     for face in faces {
         if own.contains(&face) {
             continue;
@@ -1797,6 +1788,25 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
             })?
             .margin;
+        // The bend the run is charged for: the curved face's of the two.
+        // Both curved is a pose no row reaches: the Boolean refuses each
+        // such pair before any pierce (a rod against a lying cylinder, a
+        // coaxial ball or cone), so no answer here is checked, and it
+        // refuses. A spline pierced face has no bend to read.
+        let lever = match (
+            held_lever,
+            pierced_body.face_surface_linked(
+                pierced,
+                proven(&pierced_body.faces, pierced, EntityId::Face),
+            ),
+        ) {
+            (held, geom::Surface::Plane { .. }) => held,
+            (None, geom::Surface::Nurbs(_) | geom::Surface::Approx(_)) => {
+                return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
+            }
+            (None, surface) => Some(PierceLever::of(surface, p).within(arm)),
+            (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
+        };
         let int = held_normal.cross(plan.normal);
         match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
             Ok(Sign::Positive) => {}
@@ -1814,17 +1824,16 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         }
-        // **The run's half, charged for the bends.** The face's half
+        // **The run's half, charged for the bend.** The face's half
         // above the pierced face leaves it at the sine `|n × n_pierced|`
-        // along the face's direction across the section. Past the two
-        // faces' sagittas, each `l²/ρ` at `l` (`sectors::sagitta_charge`
-        // carries why without the ½), it stands at least
-        // `sin·l − l²·(1/ρ + 1/ρ_pierced)` off the pierced face: the
-        // charge at the combined bend, read where it peaks within the
-        // pierce's arm. Two planes have no bend, and are not charged.
-        if held_lever.is_some() || face_plane(pierced_body, pierced).is_none() {
-            let held = held_lever.unwrap_or_else(super::sectors::NO_CURVATURE);
-            let lever = T::one() / (T::one() / held + T::one() / pierced_lever);
+        // along the face's direction across the section. Past the curved
+        // face's sagitta, `l²/ρ` at `l` (`sectors::sagitta_charge`
+        // carries why without the ½), it stands at least `sin·l − l²/ρ`
+        // off the pierced face: the charge, read where it peaks within
+        // the pierce's arm. Two planes have no bend, and are not charged.
+        // The normal doors refuse the points with no bend radius (a
+        // cone's apex, a degenerate torus) before this reads one.
+        if let Some(lever) = lever {
             match crate::validate::decide_reported(
                 "bool_held_pierce_curved",
                 Margin::of(super::sectors::sagitta_charge(int.norm(), lever, arm)),

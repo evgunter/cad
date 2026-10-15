@@ -2702,8 +2702,9 @@ pub enum BooleanError {
     /// passes the point. The face holding the point takes a vertex
     /// there. Here the curved face's trim could not say whether it holds
     /// the point (a ringed wall, a spline face, an outline the chart door
-    /// does not read), so nothing is guessed. Refused before anything is
-    /// built.
+    /// does not read), so nothing is guessed; or the two faces make a
+    /// pose no row reaches (`placed` below). Refused
+    /// before anything is built.
     HeldPierceUnbuilt {
         /// The piercing operand, whose face holds the point.
         operand: Operand,
@@ -2717,8 +2718,8 @@ pub enum BooleanError {
         pierced_kind: geom::SurfaceKind,
         /// Whether the holding face's trim placed the point inside it:
         /// `false` where it could not read its trim there; `true` where
-        /// it did, on a face with no residual or normal to build on (a
-        /// spline face, whose trim no door reads yet).
+        /// it did, in a pose no row reaches: both faces curved, a spline
+        /// pierced face, or a held face with no normal at the point.
         placed: bool,
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
@@ -4296,8 +4297,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a solid of the {} operand has an edge lying in a {} face of another of its \
                  solids, and a {} face of the other operand crosses both there{}. Recourse: \
-                 join the solid holding that face to the other operand first, cut that face \
-                 after this join, or move the edge off the face",
+                 join the solid holding that face to the other operand first, or move the edge \
+                 off the face; where a cut left a hole in that face, make the cut after this \
+                 join",
                 operand_word(*operand),
                 kind_word(*kind),
                 kind_word(*pierced_kind),

@@ -62,27 +62,45 @@ the three refused `HeldPierceUnbuilt` on main (`9fda94407`).
 - **`placed: false`**: the joined pair pocketed beside the point, so
   the wall carries a ring the cylinder trim does not read.
 
-`faces_holding_pierce` now builds the curved cases as it builds the
-plane one:
+`faces_holding_pierce` now builds a curved held face over a plane, and
+a plane held face over a curved pierced face, as it builds two planes:
 
 - a ring vertex at the point;
 - one Out run, with germs `±n × n_p` across the two faces' tangent
   planes;
-- the run's half charged for both faces' bends at the pierce's arm
-  (`sectors::sagitta_charge`, shared with `read_side`).
+- the run's half charged for the curved face's bend at the pierce's
+  arm (`sectors::sagitta_charge`, shared with `read_side`).
 
-A trim that cannot say still refuses `HeldPierceUnbuilt` typed. Its
-recourse now names cutting the face after the join, which builds.
+This holds for one held pierce per face. A wall the ruling pierces
+twice refuses at the ring its first held pierce mints
+(`a-wall-holding-two-pierces-refuses-at-its-own-ring`).
 
-The first two build:
+What still refuses `HeldPierceUnbuilt` typed:
+
+- a trim that cannot say whether it holds the point. Its recourse now
+  names making the cut that holed the face after the join, which
+  builds for the pocketed wall.
+- both faces curved, or a spline pierced face. No row reaches either:
+  the rod alone already refuses against a lying cylinder and a coaxial
+  cone (`GermFrameUnsupported`) and against a coaxial ball
+  (`CurvedBooleanUnsupported`).
+
+The rod rows, and the lying cylinder capped across both prisms, build:
 
 - every op, either operand first;
 - both join orders and three poses of the ruling;
 - every member order of the fold, carried.
 
 Each passes tier 3 and tier 3′, matches its closed-form volume, and
-matches the material at the probes, at all three ε.
+matches the material at every probe, at all three ε.
 
-A curved face over a curved pierced face is not reached. The rod alone
-refuses against a lying cylinder (`GermFrameUnsupported`) and against
-a coaxial ball (`CurvedBooleanUnsupported`).
+Over the lying cylinder's whole span:
+
+- every op builds;
+- the fold builds where the prisms join first;
+- the orders that ring the wall first refuse `CurvedPierceUnsupported`;
+- the in-solid walk leaves outside probes unread there
+  (`the-in-solid-walk-reads-no-outside-of-a-body-with-a-ringed-cylinder-wall`).
+
+A plate tilted near tangency builds a body the tessellator meshes short
+(`a-tilted-plate-across-a-held-pierce-tessellates-short`).
