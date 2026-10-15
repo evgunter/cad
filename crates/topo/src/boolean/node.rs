@@ -176,3 +176,55 @@ pub(super) fn bisectors<T: Decide>(
     .flatten()?;
     Some(section.planes)
 }
+
+/// **The pierced wall's datum at a pierce point `p` on the bisector plane
+/// `branch` names**, for what lies on the piercing wall: that plane's unit
+/// normal, signed to point the way the pierced face's outward normal
+/// does. On the piercing wall the pierced wall's residual is `±c·d₀·d₁`
+/// (`c > 0`, `+` where A pierces), so at `p`, where the branch's
+/// distance `dᵢ` is zero, it grows along `±sign(dⱼ)·n̂ᵢ` across the
+/// plane: a product of decided signs.
+///
+/// `None` keeps the tangent plane: a branch naming no plane, `dⱼ` not
+/// definite at `p`, or the pierced face's outward side undecided
+/// against its axis.
+pub(super) fn bisector_datum<T: Decide>(
+    planes: [Bisector<T>; 2],
+    branch: super::Branch,
+    piercing: Operand,
+    p: geom_core::Point3<T>,
+    (pierced, n_pierced): (&geom::Surface<T>, geom_brep::OutwardNormal<T>),
+    band: Band,
+) -> Option<geom_brep::OutwardNormal<T>> {
+    use geom_core::{Margin, Sign};
+    let (on, other) = match branch {
+        super::Branch::Positive => (planes[0], planes[1]),
+        super::Branch::Negative => (planes[1], planes[0]),
+        super::Branch::Only => return None,
+    };
+    let other = match crate::validate::decide(
+        super::reduce::factored_crossing::FACTORED_PLANE_SIDE,
+        Margin::of((p - other.0).dot(other.1)),
+        band,
+    ) {
+        Ok(sign @ (Sign::Positive | Sign::Negative)) => sign,
+        Ok(Sign::Zero) | Err(_) => return None,
+    };
+    let &geom::Surface::Cylinder { origin, axis, .. } = pierced else {
+        return None;
+    };
+    // The pierced wall's residual grows radially, away from its axis.
+    let w = p - origin;
+    let radial = w - axis * (w.dot(axis) / axis.norm_squared());
+    let outward = match crate::validate::decide(
+        "bool_factored_pierced_sense",
+        Margin::of(n_pierced.vec().dot(radial)),
+        band,
+    ) {
+        Ok(Sign::Positive) => true,
+        Ok(Sign::Negative) => false,
+        Ok(Sign::Zero) | Err(_) => return None,
+    };
+    let grows = (other == Sign::Positive) == (piercing == Operand::A);
+    Some(geom_brep::OutwardNormal::from_chart(on.1, grows == outward))
+}

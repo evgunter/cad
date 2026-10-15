@@ -648,6 +648,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
+    branch: Option<super::Branch>,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -725,17 +726,56 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // until the lumps have run: a tangent sector's lump reads its whole
     // sector off the two carriers and overwrites the bound's reading,
     // so the bend's refusal stands only for a bound no lump took.
+    // **The pierced wall through the bisector plane the sweep found the
+    // pierce on** (`branch`), for a sector of a wall that crosses the
+    // pierced wall as an equal pair ([`super::node::bisector_datum`]).
+    // There the two walls' normals stand only about the node's distance
+    // apart, and the plane's signed normal stands in for the pierced
+    // face's tangent plane: a bound on that wall reads its side across
+    // the plane, with no curvature charge, and the sector's germ rides
+    // the plane's ellipse.
+    let on_wall: Vec<Option<OutwardNormal<T>>> = sectors
+        .iter()
+        .map(|s| {
+            let planes = super::node::bisectors(
+                (&*piercing_body, piercing, s.face),
+                (pierced_body, contact.face),
+                band,
+            )?;
+            super::node::bisector_datum(
+                planes,
+                branch?,
+                piercing,
+                p,
+                (pierced_surface, n_pierced),
+                band,
+            )
+        })
+        .collect();
     let mut entries = Vec::with_capacity(n);
     let mut unread_bends = Vec::new();
-    for s in &sectors {
-        let (read, on) = match pierce_side_reported(
-            s.end,
-            s.end_reach,
-            n_pierced,
-            pierced_shape,
-            pierced_lever.within(s.end_reach.length()),
-            band,
-        ) {
+    for (k, s) in sectors.iter().enumerate() {
+        // A bound lies on the wall of either sector it bounds: entry `k`
+        // is sector `k`'s end and sector `k − 1`'s start.
+        let side = match on_wall[k].or(on_wall[(k + n - 1) % n]) {
+            Some(plane) => pierce_side_reported(
+                s.end,
+                s.end_reach,
+                plane,
+                super::sectors::FaceShape::Plane,
+                super::sectors::NO_CURVATURE(),
+                band,
+            ),
+            None => pierce_side_reported(
+                s.end,
+                s.end_reach,
+                n_pierced,
+                pierced_shape,
+                pierced_lever.within(s.end_reach.length()),
+                band,
+            ),
+        };
+        let (read, on) = match side {
             Ok(read) => read,
             Err(
                 refusal @ BooleanError::Escalated {
@@ -1150,12 +1190,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        let dir = pierce_germ_dir(s, n_pierced.vec(), out, band)?;
-        Ok((
-            cells,
-            dir,
-            germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?,
-        ))
+        let (dir, branch) = match (on_wall[t], branch) {
+            (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
+            _ => (
+                pierce_germ_dir(s, n_pierced.vec(), out, band)?,
+                germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?,
+            ),
+        };
+        Ok((cells, dir, branch))
     };
     let run_germs = runs
         .iter()
@@ -3886,6 +3928,7 @@ mod tests {
                 super::super::BooleanOp::Union,
                 &super::super::GluedPairs::default(),
                 &super::super::ReductionContacts::default(),
+                None,
                 None,
                 band,
             )

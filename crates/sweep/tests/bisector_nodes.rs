@@ -269,9 +269,11 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 ///   edge, which keeps the quadric's door;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
-/// - `δ` beyond the band and short of `√band`: the crossing layer
-///   passes, and the pierce vertex's side reading refuses next, its
-///   sagitta charge `δ²/4` short of the band
+/// - `δ` beyond the band and short of `√band`: each pierce reads the
+///   partner wall through the plane the sweep found it on, so a cap
+///   builds at its closed form, and so do a seam's `∪` and `∩`; a seam's
+///   `∖` still refuses at rest, its arcs from each pierce to the node
+///   read a lamina until their wedge is levered at their faces
 ///   (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`);
 /// - `δ` past `√band`: every operation builds at its closed form.
 ///
@@ -291,13 +293,13 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
     enum Want {
         Door,
         Escalates,
-        SideRefuses,
+        PastThePierce,
         Builds,
     }
     for (delta, want) in [
         (0.3 * zero, Want::Door),
         (4.0 * zero, Want::Escalates),
-        (30.0 * escalate, Want::SideRefuses),
+        (30.0 * escalate, Want::PastThePierce),
         (5.0 * escalate.sqrt(), Want::Builds),
     ] {
         let poses = [
@@ -356,12 +358,34 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 ),
                                 "{cut}: the crossings' distance in band, got {r:?}"
                             ),
-                            Want::SideRefuses => assert!(
+                            // The pierce reads its sides and germ through the
+                            // branch the sweep found it on. A cap builds; a
+                            // seam's ∪ and ∩ build, and its ∖ keeps arcs from
+                            // each pierce to the node `2δ` long at a dihedral of
+                            // `δ`, which tier 3 reads a lamina until the wedge
+                            // is levered at its faces (U-lever).
+                            Want::PastThePierce if capped || op != "∖" => {
+                                let Ok(BooleanResult::Body(out)) = r else {
+                                    panic!("{cut}: builds, got {r:?}");
+                                };
+                                let m = topo::mass_properties(&out.body, tol).unwrap();
+                                assert!(
+                                    (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                    "{cut}: volume {} ± {}, want {closed}",
+                                    m.volume,
+                                    m.volume_pad
+                                );
+                            }
+                            Want::PastThePierce => assert!(
                                 matches!(
-                                    r,
-                                    Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+                                    &r,
+                                    Err(topo::BooleanError::ResultInvalid { errors })
+                                        if errors.iter().all(|e| matches!(
+                                            e,
+                                            topo::ValidationError::LaminaWedge { .. }
+                                        ))
                                 ),
-                                "{cut}: past the crossing layer, the pierce's side, got {r:?}"
+                                "{cut}: the short arcs' wedge at rest, got {r:?}"
                             ),
                             Want::Builds => {
                                 let Ok(BooleanResult::Body(out)) = r else {
@@ -469,43 +493,44 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
     }
 }
 
-/// **At oblique angles the pierce vertex's ring reaches further**
-/// (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`): A's
-/// seam turned `δ` off a node, at 35° with `r = 1` and at 60° with
-/// `r = 0.5`, crosses the partner wall at two pierces the bisector planes
-/// find, and each pierce's side reading escalates `PierceCurvature`. The
-/// offsets scale with `√band`, as the sagitta charge's margin does, so
-/// each pose stands at the same place in the ring at every ε. Every
-/// operation, both operand orders.
+/// **At oblique angles, past the pierce**: A's seam turned `δ` off a
+/// node, at 35° with `r = 1` and at 60° with `r = 0.5`, crosses the
+/// partner wall at two pierces that read it through their bisector
+/// plane. At `δ = 3·√band` the result's short arcs from each pierce to
+/// the node still refuse at rest (`EdgeUndescribed`), until their wedge
+/// is levered at their faces; at `5·√band` every operation builds. The
+/// offsets scale with `√band`, as the arcs' first-order wedge does.
+/// Every operation, both operand orders.
 #[test]
-fn an_oblique_seam_near_a_node_escalates_at_the_pierce() {
+fn an_oblique_seam_near_a_node_builds_past_the_ring_at_rest() {
     let tol = Tol::witness();
     let root = geom_core::Band::linear(tol).unwrap().escalate().sqrt();
-    for (deg, r, delta) in [(35.0_f64, 1.0, 5.0 * root), (60.0, 0.5, 4.0 * root)] {
-        let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
-        let b = spin(
-            &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
-            Vec3::new(1.0, 0.0, 0.0),
-            deg.to_radians(),
-        );
-        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
-        for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
-            for (op, got) in [
-                ("∪", topo::union(x, y, tol)),
-                ("∩", topo::intersect(x, y, tol)),
-                ("∖", topo::subtract(x, y, tol)),
-            ] {
-                assert!(
-                    matches!(
-                        got,
-                        Err(topo::BooleanError::Escalated {
-                            decision: topo::BooleanDecision::PierceCurvature,
-                            ..
-                        })
-                    ),
-                    "{deg}°, r = {r}, δ = {delta:e} ({order}), {op}: the pierce's side \
-                     reading escalates, got {got:?}"
-                );
+    for (deg, r) in [(35.0_f64, 1.0), (60.0, 0.5)] {
+        for (k, builds) in [(3.0, false), (5.0, true)] {
+            let delta = k * root;
+            let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
+            let b = spin(
+                &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
+                Vec3::new(1.0, 0.0, 0.0),
+                deg.to_radians(),
+            );
+            let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+            for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+                for (op, got) in [
+                    ("∪", topo::union(x, y, tol)),
+                    ("∩", topo::intersect(x, y, tol)),
+                    ("∖", topo::subtract(x, y, tol)),
+                ] {
+                    let what = format!("{deg}°, r = {r}, δ = {delta:e} ({order}), {op}");
+                    if builds {
+                        assert!(got.is_ok(), "{what}: builds, got {got:?}");
+                    } else {
+                        assert!(
+                            matches!(got, Err(topo::BooleanError::EdgeUndescribed { .. })),
+                            "{what}: the short arcs at rest, got {got:?}"
+                        );
+                    }
+                }
             }
         }
     }
@@ -833,9 +858,6 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// - `B∖A` is four solids touching at the nodes, its 3′ the census
 ///   lane's frontier alone.
 ///
-/// At ε 1e-6 the 3° slant's sector side falls in the band and every
-/// operation there refuses `CurvedSectorSideUnsupported`, typed.
-///
 /// The volumes close under inclusion–exclusion (`∪ + ∩ = V_A + V_B`,
 /// `A∖B = V_A − ∩`, `B∖A = V_B − ∩`) within the certified brackets, and
 /// each sits within half a percent of its mesh's enclosed volume. The
@@ -890,27 +912,6 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
             ("B, A", &b, &a, (vb, va), false),
         ] {
             let cut = |op: &str| format!("{what} ({order}), {op}");
-            // At the coarse ε the shallowest slant's sector side, a
-            // second-order reading at the node's tangency, falls in the
-            // band: every operation refuses that, typed.
-            let coarse = geom_core::Band::linear(tol).unwrap().zero() >= 1e-6;
-            if coarse && what.starts_with("3°") {
-                for (op, r) in [
-                    ("∩", topo::intersect(x, y, tol)),
-                    ("∪", topo::union(x, y, tol)),
-                    ("∖", topo::subtract(x, y, tol)),
-                ] {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
-                        ),
-                        "{}: the sector side's typed refusal at this ε, got {r:?}",
-                        cut(op)
-                    );
-                }
-                continue;
-            }
             let i = built(topo::intersect(x, y, tol), nodes, &cut("∩"));
             let u = built(topo::union(x, y, tol), nodes, &cut("∪"));
             let d = built(topo::subtract(x, y, tol), nodes, &cut("∖"));

@@ -155,6 +155,10 @@ pub(super) struct ContactAcc {
     seen_vv: std::collections::BTreeMap<(VertexKey, VertexKey), usize>,
     seen_ab: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
     seen_ba: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
+    /// The bisector plane each vertex the sweep placed on an equal
+    /// cylinder pair's partner wall lies on ([`factored_crossing`]), by
+    /// its operand: the pierce reads that wall through it.
+    pub(super) branches: std::collections::BTreeMap<(Operand, VertexKey), super::Branch>,
 }
 
 /// **A vertex identity the reduction decided**, before it is known
@@ -245,6 +249,13 @@ impl ContactAcc {
         }
     }
     /// The records, each citing rows of the decisions alongside them.
+    /// The branches the sweep recorded ([`Self::branches`]), taken out.
+    pub(super) fn take_branches(
+        &mut self,
+    ) -> std::collections::BTreeMap<(Operand, VertexKey), super::Branch> {
+        core::mem::take(&mut self.branches)
+    }
+
     pub(super) fn finish(self) -> (ReductionContacts, Vec<PendingRow>) {
         (self.records, self.pending)
     }
@@ -1165,8 +1176,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the piercing side, and the remainder fragment
                 // is re-queued so the second root of the same span is
                 // found on the next pass.
-                let (t, p, at, on) = match event {
-                    CurvedEvent::Pierce { t, p, at, on } => (t, p, at, on),
+                let (t, p, at, on, branch) = match event {
+                    CurvedEvent::Pierce {
+                        t,
+                        p,
+                        at,
+                        on,
+                        branch,
+                    } => (t, p, at, on, branch),
                     CurvedEvent::Deferred => {
                         deferred.push(DeferredTouch {
                             x_is,
@@ -1189,6 +1206,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     FaceContainment::In => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
+                        if let Some(branch) = branch {
+                            contacts.branches.insert((x_is, w), branch);
+                        }
                         read_then_requeue(
                             &mut worklist,
                             (x, x_is, edge_key, &edge),
@@ -2530,7 +2550,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce { t, p, at, on }),
+                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+                    t,
+                    p,
+                    at,
+                    on,
+                    branch: None,
+                }),
                 // A constant residual cannot be zero at one end and
                 // definite at the other, and a definite miss cannot
                 // hold a zero endpoint: both CONTRADICT the endpoint
@@ -2657,7 +2683,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce { t, p, at, on }),
+                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+                    t,
+                    p,
+                    at,
+                    on,
+                    branch: None,
+                }),
                 // The straddle's crossing, found and certified OFF this
                 // face: every root inside the span is on the carrier
                 // outside the trim, and both ends are definitely off the
@@ -2697,7 +2729,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce { t, p, at, on }),
+                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+                    t,
+                    p,
+                    at,
+                    on,
+                    branch: None,
+                }),
                 SpanVerdict::NoInterior
                 | SpanVerdict::Elsewhere
                 | SpanVerdict::Miss
@@ -2792,9 +2830,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // roots cannot settle keeps the frontier door.
                 Ok(Sign::Zero | Sign::Negative) => {
                     match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                        SpanVerdict::Pierce { t, p, at, on } => {
-                            Ok(CurvedEvent::Pierce { t, p, at, on })
-                        }
+                        SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+                            t,
+                            p,
+                            at,
+                            on,
+                            branch: None,
+                        }),
                         // No interior root, or no root at all:
                         // definitely clear, and exactly so — the bound
                         // that sent us here could only ever have said
@@ -2973,6 +3015,7 @@ fn interior<T: Decide>(
             p,
             at,
             on: Some(margin),
+            branch: None,
         })),
         BoundaryCrossing::Clear => Ok(Interior::Clear),
         BoundaryCrossing::Unread => Err(frontier()),
@@ -3132,6 +3175,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
                 p,
                 at,
                 on: Some(margin),
+                branch: None,
             }),
             BoundaryCrossing::Clear => interior_clear(),
             BoundaryCrossing::Unread => None,
@@ -3934,6 +3978,11 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
         /// The margin that decided `p` on the boundary entity `at`
         /// names (`None` for `In`, a transverse pierce).
         on: Option<MarginDiag>,
+        /// The bisector plane the crossing lies on, where the sweep read
+        /// an equal cylinder pair's wall through its planes
+        /// ([`factored_crossing`]); the pierce reads the partner wall
+        /// through it.
+        branch: Option<super::Branch>,
     },
 }
 

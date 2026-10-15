@@ -5172,6 +5172,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let edge_splits = core::mem::take(&mut acc.splits);
+    let branches = acc.take_branches();
     let (mut contacts, mut pending) = acc.finish();
     let mut glued = Vec::with_capacity(declared.verified.touches.len());
     for touch in &declared.verified.touches {
@@ -5227,6 +5228,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &declared,
                 &contacts,
                 reread,
+                branches.get(&(operand, c.vertex)).copied(),
                 band,
             ) {
                 Ok(out) => out,
@@ -5262,6 +5264,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &declared,
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
+                            branches.get(&(operand, c.vertex)).copied(),
                             band,
                         ) {
                             Ok(_) | Err(BooleanError::Escalated { .. }) => {}
