@@ -48,22 +48,17 @@ needle unit takes it; otherwise it stands on its own as a wrong
 
 ## Resolution
 
-FLUSH's volume half, PR 5119, commit `735bee07c`: the re-derivation reads
-each planar face's flux as its plane's distance from the corner along the
-stored normal times its own signed area, `((a − c)·N)(A⃗·N)/(N·N)`, on the
-fan route and the polygon route alike (`props::quad_lane`'s
-`plane_flux`). The polygon rows' exact oracle reads the same value.
+FLUSH's volume half, PR 5119. Two commits:
+- **`735bee07c`, the planar arm.** The re-derivation reads each planar face's flux as its plane's distance from the reference point along the stored normal, times its own signed area: `((a − c)·N)(A⃗·N)/(N·N)`. It does so on the fan route and the polygon route alike (`props::quad_lane`'s `plane_flux`). The polygon rows' exact oracle reads the same value.
+- **`8a921c14a`, the reference point.** The point is now a vertex of the body, no longer the least corner of the loop points. On a body turned off the axes, that corner stands off by up to the body's length. That distance multiplied each long face's flux, so the terms cancelled in pairs: `brick ∩ brick` leaving a 2Kε needle at ε 1e-12 still straddled zero in three of four poses. A vertex has the body's own coordinates, so moving a face's geometry by it rounds no more than the body does.
 
-Width/|V| of the re-derivation's enclosure, the needle `1 × w × w` turned
-about (37, −21, 13) by 0.7 rad off (0.3, −0.2, 0.5), before → after:
+Width/|V| of the re-derivation's enclosure for the needle `1 × w × w`, turned about (37, −21, 13) by 0.7 rad off (0.3, −0.2, 0.5), before → after both commits:
 
 | ε | w = 10.5ε | 12ε | 15ε | 21ε | 30ε |
 |---|---|---|---|---|---|
-| 1e-9 | 0.15 → 1.9e-8 | 0.095 → 1.4e-8 | 0.069 → 1.6e-8 | 0.037 → 9.6e-9 | 0.017 → 7.7e-9 |
-| 1e-6 | 1.6e-7 → 1.6e-11 | 1.2e-7 → 2.2e-11 | 7.2e-8 → 1.1e-11 | 3.1e-8 → 1.1e-11 | 1.5e-8 → 7.4e-12 |
+| 1e-9 | 0.15 → 1.7e-8 | 0.095 → 1.3e-8 | 0.069 → 1.3e-8 | 0.037 → 8.8e-9 | 0.017 → 6.5e-9 |
+| 1e-6 | 1.6e-7 → 2.0e-11 | 1.2e-7 → 1.7e-11 | 7.2e-8 → 1.2e-11 | 3.1e-8 → 8.6e-12 | 1.5e-8 → 6.5e-12 |
 
-Along the axes it is unchanged, at about 4e-16. The f64 sums
-`mass_properties` reports still fan from one corner, so their value on an
-oblique needle stays as measured above; the volume's sign, which the
-certified enclosure now reads alone, no longer rests on them.
+Along the axes it is unchanged, at about 4e-16.
 
+The f64 sums that `mass_properties` reports still fan from one corner, so their value on an oblique needle stays as measured above. The volume's sign, which the certified enclosure now reads alone, no longer rests on them.
