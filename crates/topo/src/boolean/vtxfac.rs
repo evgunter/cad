@@ -2077,18 +2077,21 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         // such pair before any pierce (a rod against a lying cylinder, a
         // coaxial ball or cone), so no answer here is checked, and it
         // refuses. A spline pierced face has no bend to read.
-        let lever = match (
-            held_lever,
-            pierced_body.face_surface_linked(
-                pierced,
-                proven(&pierced_body.faces, pierced, EntityId::Face),
-            ),
-        ) {
-            (held, geom::Surface::Plane { .. }) => held,
-            (None, geom::Surface::Nurbs(_) | geom::Surface::Approx(_)) => {
+        let lever = match (held_lever, kind_of(pierced_body, pierced)) {
+            (held, geom::SurfaceKind::Plane) => held,
+            (None, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
                 return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
             }
-            (None, surface) => Some(PierceLever::of(surface, p).within(arm)),
+            (None, _) => Some(
+                PierceLever::of(
+                    pierced_body.face_surface_linked(
+                        pierced,
+                        proven(&pierced_body.faces, pierced, EntityId::Face),
+                    ),
+                    p,
+                )
+                .within(arm),
+            ),
             (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
         };
         let int = held_normal.cross(plan.normal);

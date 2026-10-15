@@ -4355,9 +4355,8 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a solid of the {} operand has an edge lying in a {} face of another of its \
                  solids, and a {} face of the other operand crosses both there{}. Recourse: \
-                 join the solid holding that face to the other operand first, or move the edge \
-                 off the face; where a cut left a hole in that face, make the cut after this \
-                 join",
+                 join that solid to the other operand first, cut any hole in that face after \
+                 this join, or move the edge off the face",
                 operand_word(*operand),
                 kind_word(*kind),
                 kind_word(*pierced_kind),
