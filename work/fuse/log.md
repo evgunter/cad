@@ -1054,3 +1054,6 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Where:** all come from the new pass 5′ (`sweep_curved_edge_edge`), sweeping curved edge × edge pairs as main never did. Nearly all (355 of 361) refusals are at a shared vertex.
   - **Breakdown:** NURBS × line escalates at walk points 1–7 nm from the joint; tangent fillet joints hit the meter; 6 are the coplanar-ellipse frontier.
   - **Designer pair dispatched** on how the census should read joined edge pairs: byte 108, A = Opus, B = Fable, recorded on `analysis/design-fork/census-joined-edge-pairs`.
+- 2026-10-16: the joined-edges designer pair converged after two rounds; fork-log row 151.
+  - **Converged:** the reader takes no topology and reads ends first; a found meeting claims its run (the ring rule); a run holds exactly one decided meeting or escalates; the found root is deflated; the polish step is fixed; `Meeting::run` goes; the census is unchanged.
+  - **For Ev:** the `[ev]` PR 5214 (stacked on c2) asks for one C5 sentence. Item `curve-pair-meetings-are-runs` sets `needs_ev: true`.
