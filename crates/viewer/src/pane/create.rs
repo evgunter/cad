@@ -33,7 +33,7 @@ use crate::session::{
 };
 use crate::sketch;
 use crate::theme::Theme;
-use crate::tools::{ToolKind, ToolNotice};
+use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
@@ -711,16 +711,14 @@ impl ViewerBehavior<'_> {
                             // not landed reads the same in both.
                             Err(error) => {
                                 self.notices.push(frame::tool_news(
-                                    ToolKind::Mate.says(&error.respoken(self.session.doc())),
-                                    frame::Retold::Again,
+                                    &ToolKind::Mate.refuses(&error.respoken(self.session.doc())),
                                 ));
                             }
                         }
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
-                            ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
-                            frame::Retold::Again,
+                            &ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"),
                         ));
                     }
                 }
@@ -908,14 +906,9 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 Ok(None) => {}
-                // The add-datum form is not a seated TOOL, so it has
-                // no `ToolKind` to compose the prefix — the form's own
-                // name is the sentence's subject here.
                 Err(error) => {
-                    self.notices.push(frame::tool_news(
-                        format!("add datum: {error}"),
-                        frame::Retold::Again,
-                    ));
+                    self.notices
+                        .push(frame::tool_news(&FormKind::AddDatum.refuses(&error)));
                 }
             }
         }
@@ -1218,15 +1211,12 @@ impl ViewerBehavior<'_> {
                 // this one does not assume the other got it right.
                 (None, _) => {
                     self.notices.push(frame::tool_news(
-                        "add profile: no frame picked",
-                        frame::Retold::Again,
+                        &FormKind::AddProfile.refuses(&"no frame picked"),
                     ));
                 }
                 (_, Err(error)) => {
-                    self.notices.push(frame::tool_news(
-                        format!("add profile: {error}"),
-                        frame::Retold::Again,
-                    ));
+                    self.notices
+                        .push(frame::tool_news(&FormKind::AddProfile.refuses(&error)));
                 }
             }
         }
@@ -1270,10 +1260,8 @@ impl ViewerBehavior<'_> {
                             },
                         ),
                         Err(error) => {
-                            self.notices.push(frame::tool_news(
-                                format!("extrude: {error}"),
-                                frame::Retold::Again,
-                            ));
+                            self.notices
+                                .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
                         }
                     }
                 }
@@ -1755,19 +1743,15 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.push_labelled(noun, op),
                             Some(Err(error)) => {
-                                self.notices.push(frame::tool_news(
-                                    ToolKind::Blend.says(&error),
-                                    frame::Retold::Again,
-                                ));
+                                self.notices
+                                    .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
                             }
                             None => {}
                         }
                     }
                     Err(error) => {
-                        self.notices.push(frame::tool_news(
-                            ToolKind::Blend.says(&error),
-                            frame::Retold::Again,
-                        ));
+                        self.notices
+                            .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
                     }
                 }
             }
@@ -1864,17 +1848,15 @@ impl ViewerBehavior<'_> {
                     // that does not is committed as it is and said.
                     (_, Err(op)) => {
                         self.notices.push(frame::tool_news(
-                            "label: this form creates no node to label",
-                            frame::Retold::Again,
+                            &FormKind::Label.refuses(&"this form creates no node to label"),
                         ));
                         self.ops.push(*op);
                     }
                 }
             }
-            Err(fault) => self.notices.push(frame::tool_news(
-                format!("label: {fault}"),
-                frame::Retold::Again,
-            )),
+            Err(fault) => self
+                .notices
+                .push(frame::tool_news(&FormKind::Label.refuses(&fault))),
         }
     }
 
@@ -1901,8 +1883,7 @@ impl ViewerBehavior<'_> {
                 match op(self.drafts, *self.notation) {
                     Ok(op) => self.push_labelled(noun, op),
                     Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
+                        self.notices.push(frame::tool_news(&kind.refuses(&error)));
                     }
                 }
             }

@@ -523,8 +523,15 @@ UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
 image's sector condition refuses one); no caller's window enters
-it. A row is its placed image: a lifted copy is the row together with
-a deck element and is never certified again. The face's rows lift its loops, and `topo::pcurves` certifies the
+it. On a periodic chart a harmonic image's winding is structure the
+row stores, never decided in metres: the row holds its windings (`β`,
+and `σ` where the second channel is an angle) as the derivation's own
+values, `certify` compares them with the image it re-derives exactly,
+and the image's sweep is the carrier's own span, which the edge
+certificate decides at the carrier's rate. The envelope is the row's
+one statement in metres. A row is its placed image: a lifted copy is
+the row together with a deck element and is never certified again.
+The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
 of periods on each periodic channel, and on a sphere the involution
 twin) as an integer, by the half-period marks read outward from zero,
@@ -560,7 +567,13 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. A
+covers refuses at the producer rather than reaching rest uncached.
+A closed-form class gate is a lane choice (D3): in band or definite,
+the carrier takes a lane whose certificate does not rest on the class,
+its projected image where the chart has one. Whether the carrier lies
+on the chart at all is a residual, not a class gate: a miss is the
+lever on a declared carrier and a defect only on one the kernel
+derived. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds

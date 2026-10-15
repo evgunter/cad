@@ -27,3 +27,14 @@ Fix: decide both through named margins, read the offset at the faces
 faces' extent from there.
 
 Found by `tang/cylinder-offsets-at-the-reach`'s sweep. Read, not probed.
+
+## Its sibling
+
+`carrier_on_surface` (same file) decides whether an edge's carrier lies
+on a plane by sampling `CERT_SAMPLES` points against `<= eps`: no named
+margin, no band, and a sampled pass is not a bound between the samples.
+D3 says import is not exempt from the one reading per question (it
+reads the readings with the file's coincidence distance as the band),
+so both gates want the kernel's point-on-carrier reading rather than a
+local comparison. Found by the special-case designer fork on `[ev]` PR
+5113 (2026-10-14). Read, not probed.
