@@ -32,3 +32,15 @@ agent session's integration token that dispatch is refused with
 **The question for CIW** is the cost of adding `sweep` to the list
 against the latency cut, or a narrower route such as the eps rows of
 the changed test files only.
+
+## 2026-10-15 — a kernel diff in topo, red only in sweep at 1e-12 (TANG, PR 5192)
+
+PR 5192 changes `crates/topo/src/boolean/` and adds sweep rows. Its
+row `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`
+refused at ε 1e-12 only (`carrier_endpoint_end`, an interval split
+vertex [0, 1.76e-12] wide). Local runs of topo, sweep and editor-core
+at the default ε passed. CI caught it only because the same diff edited
+`.config/nextest.toml`, which forced `TIER=all` and `eps_extra=all()`.
+A topo-only diff makes `eps_extra=package(topo)`. That runs none of the
+sweep rows where topo's booleans are exercised, so the same defect
+would have merged green and reddened the nightly.

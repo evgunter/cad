@@ -49,3 +49,12 @@ the other gap it exposed: the slow set is skipped when a TIER=all diff
 seeds no crate).
 
 — build-time lane (NURBS), 2026-10-14
+
+## 2026-10-15 — again on PR 5192 (TANG)
+
+The failing row's `FAIL [0.087s] (9818/14131)` sat about 50 tests before
+the 5000-line tail that `get_job_logs` serves, and the run log's blob
+host refuses the session's proxy (403). The panic was read only after
+pushing a temporary `failure-output = "final"` on the `ci` profile,
+which moved the output into the closing summary, and reverting it in
+the next commit.

@@ -95,7 +95,7 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   their schedule.
 /// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
 ///   place of the image pushed through the chart, and, with the loop
-///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
