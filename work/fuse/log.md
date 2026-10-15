@@ -1034,3 +1034,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **The two 1e-6 sweep reds** are main's: noted on tint and ssiedge rows.
   - **Merging main into c** hit main's new TANG row, `bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order`. At 1e-8° one order builds and the other escalates, because `line_line` levers the tilt by each piece's own span length, which depends on how the sweep split the edge.
   - **Ruled by the orchestrator: option A.** Lever by the spans' projected overlap and read the offset inside it, so the verdict is split-invariant. This flips the row's `builds=false` at the 1e-8° poses, with the reason stated, and puts a note on TANG's row. It is stage (b)'s own argument, not ratified text.
+- 2026-10-15: c3 (local, unpushed) runs the full workspace `ci` profile: 31 failures.
+  - **Loft/NURBS imports (about 20):** they escalate on `curve_pair_span_end_chord` (margins 1.4–7.4e-9). Hypothesis: the census reads, by geometry, a vertex that is the edge's own end, where D3 exempts reading a record.
+  - **Sweep fillet/seam bodies (11):** tier 3′ refuses `NotCertifiable` from `meet`'s walk, where the old census walk decided. The two walks had drifted.
+  - **Next:** not re-blessed; sent back to the lane to root-cause. 5154 and 5162 are unaffected (both green); the Opus re-review of 5154 is still running.
