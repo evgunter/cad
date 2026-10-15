@@ -9,6 +9,7 @@ priority: P3
 cost: M
 closed: 2026-09-28
 branch: vnews/the-mirror-class-census
+pr: 5182
 ---
 
 `a-disabled-control-says-why-in-four-shapes` parked **"a control drawn

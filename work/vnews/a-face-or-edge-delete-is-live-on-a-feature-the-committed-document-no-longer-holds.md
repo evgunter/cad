@@ -9,6 +9,7 @@ cost: E
 refs: [the-mirror-class-is-unswept-outside-the-properties-pane]
 closed: 2026-09-28
 branch: vnews/a-stale-delete-says-why
+pr: 5182
 ---
 
 

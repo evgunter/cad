@@ -8,6 +8,7 @@ priority: P2
 cost: M
 closed: 2026-09-28
 branch: vnews/ratified-says-where
+pr: 5182
 ---
 
 **Read §The census (2026-09-24) first.** It is the population of
