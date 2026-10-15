@@ -47,7 +47,12 @@ pub struct AimedPair {
     pub shell: crate::entity::ShellKey,
     /// The face the ray was aimed at.
     pub aimed: FaceKey,
-    /// The point on it the ray was aimed at, as coordinates.
+    /// The point on it the ray was aimed at, as coordinates: a witness
+    /// rendered once, never a value to compare. The point exists only at
+    /// the run's scalar, and a refusal payload carries no `f64` out of a
+    /// `T: Decide` (#990, `geom_core::real`'s "two shapes that are not
+    /// decisions"), so it takes the witness posture
+    /// ([`crate::census`]'s `witness`).
     pub aim: String,
     /// The face of the ray's closest crossing.
     pub near: FaceKey,
@@ -67,6 +72,7 @@ pub struct SetAside {
     pub aimed: FaceKey,
     /// The point on it the ray was aimed at, as coordinates; `None`
     /// where no ray was cast at it (a face the ray test has no arm for).
+    /// A witness, as [`AimedPair::aim`] is, by #990.
     pub aim: Option<String>,
     /// Why it read nothing.
     pub why: SetAsideWhy,
