@@ -374,17 +374,16 @@ fn the_donuts_meridian_and_concentric_poses_build_their_true_bodies() {
 /// the inner one) each meridian or concentric circle crosses the face's
 /// wrap edges once, and on the torus seamed on `y = 0` both circles of a
 /// plane `y = h` lie on one face. Every pose of the donut's row, every
-/// op, but for the plane `y = 0` where its circle is an edge of the
-/// torus ([`a_section_circle_along_an_equator_edge_refuses_typed`]).
+/// op. Where an equator is an edge of the torus (the one-face torus's
+/// wrap parallel with its vertex on it, both of the seamed torus's), the
+/// plane `y = 0` holds that closed edge in its face: a section loop
+/// whose one site is the edge's own vertex.
 #[test]
 fn two_loops_on_one_face_pair_build_their_true_bodies() {
     let (big_r, r) = (2.0, 0.5);
-    for (name, body, equator_edge) in tori_of_one_face_pair(big_r, r) {
+    for (name, body) in tori_of_one_face_pair(big_r, r) {
         let t = ring(body, (big_r, r));
         for (pose, p, meet) in planar_poses() {
-            if equator_edge && pose == "P2" {
-                continue;
-            }
             holds_to_the_truth(
                 &format!("{name}, {pose}"),
                 &t,
@@ -397,21 +396,20 @@ fn two_loops_on_one_face_pair_build_their_true_bodies() {
 }
 
 /// The one-face torus with its vertex at three phases and the torus
-/// seamed on `y = 0`, each named, and whether an equator (`y = 0`) is
-/// one of its edges: the one-face torus's wrap parallel where its vertex
-/// lies on an equator, and both of the seamed torus's.
-pub(crate) fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>, bool)> {
+/// seamed on `y = 0`, each named. An equator (`y = 0`) is an edge of the
+/// one-face torus whose vertex lies on it (its wrap parallel), and both
+/// are edges of the seamed torus.
+pub(crate) fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>)> {
     let mut tori: Vec<_> = [0.0, 1.0, PI]
         .into_iter()
         .map(|phase| {
             (
                 format!("the one-face torus, vertex at {phase}"),
                 one_face_torus(big_r, r, phase),
-                phase != 1.0,
             )
         })
         .collect();
-    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r), true));
+    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r)));
     tori
 }
 
@@ -558,34 +556,6 @@ fn a_comb_across_a_torus_of_one_face_pair_builds_its_true_body() {
                 &comb(teeth),
                 meet,
                 about_the_tube(big_r, r),
-            );
-        }
-    }
-}
-
-/// **A section circle along an equator edge of the torus refuses typed**
-/// in every op: the plane `y = 0` against the one-face torus whose
-/// vertex lies on an equator, whose wrap parallel is that circle, and
-/// against the torus seamed on `y = 0`, whose two equators are both
-/// circles. A closed edge of one operand lying in the other's face is a
-/// section loop with no site but its own vertex, which the join does not
-/// represent (`work/sect/closed-in-face-section-loop-has-one-site.md`).
-#[test]
-fn a_section_circle_along_an_equator_edge_refuses_typed() {
-    let (big_r, r) = (2.0, 0.5);
-    for (name, body, equator_edge) in tori_of_one_face_pair(big_r, r) {
-        if !equator_edge {
-            continue;
-        }
-        for (label, got) in six(&body, &above(0.0)) {
-            assert!(
-                matches!(
-                    got,
-                    Err(topo::BooleanError::Join(ref j))
-                        if matches!(j.error(), topo::SplitJoinError::SingleSiteSectionLoop { .. })
-                ),
-                "{name}, P2, {label}: {:?}",
-                got.map(|r| r.body().map(|b| b.kind))
             );
         }
     }
