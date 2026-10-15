@@ -24,8 +24,9 @@
 //! count proper crossings; odd ⇒ In. Grazing configurations (an
 //! endpoint on the ray line, a crossing at the query point) are not
 //! errors of the geometry but of the *ray choice*: retry with the next
-//! direction of a fixed schedule (profile's golden-angle device,
-//! promoted to 3-D). The schedule directions are built from a fixed
+//! direction of a fixed schedule (profile's device of a fixed ray
+//! schedule, promoted to 3-D; profile steps by the golden angle, this
+//! table is dyadic). The schedule directions are built from a fixed
 //! table of space directions projected into the plane — no basis
 //! choice by coordinate comparison anywhere (a comparison-picked basis
 //! could diverge between the f64 and interval lanes; a fixed schedule
@@ -496,7 +497,7 @@ impl PointInLoopError {
 }
 
 /// The fixed schedule of space directions (module docs). 16 entries:
-/// three axes plus golden-angle-spread oblique members — for any unit
+/// three axes plus oblique members of dyadic components — for any unit
 /// plane normal, most members project to a definitely-nonzero in-plane
 /// direction (an all-graze outcome is the typed exhaustion error).
 ///

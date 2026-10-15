@@ -362,11 +362,12 @@ const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
 
 /// The turn about the face's normal its aimed ray's tangent component
 /// makes off the normal's frame (`Vec3::orthonormal_basis`), as
-/// `(sin, cos)` of the golden angle ([`geom_core::GOLDEN_ANGLE`], the
-/// one the ray schedules step by): an axis frame's tangent would lay the
-/// ray in a coordinate plane, parallel to every face of a box across it,
-/// where a turn the model has no reason to share lays it parallel to
-/// none.
+/// `(sin, cos)` of the golden angle ([`geom_core::GOLDEN_ANGLE`], which
+/// profile's planar ray schedule also steps by; topo's own ray schedules,
+/// `SCHEDULE` and `SCHEDULE_2D`, are dyadic tables and no reader of
+/// it): an axis frame's tangent would lay the ray in a coordinate plane,
+/// parallel to every face of a box across it, where a turn the model has
+/// no reason to share lays it parallel to none.
 fn aim_turn() -> (f64, f64) {
     geom_core::GOLDEN_ANGLE.sin_cos()
 }
@@ -419,9 +420,11 @@ fn aim_turn() -> (f64, f64) {
 /// An aimed ray read in band on two faces that do not meet refuses on
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
 /// is the answer, and the volume's margin, a mean half-thickness, would
-/// only judge the selection thin. Where the volume does not read either,
-/// a sharp corner's pair in band is the refusal: the selection is thin
-/// wherever an aimed ray crossed it.
+/// only judge the selection thin. A ray whose crossings lie in band of
+/// each other on two faces that meet is set aside at a sharp corner
+/// ([`SetAsideWhy::Corner`]): it reads nothing and is never the refusal,
+/// and where the volume does not read either, the volume's refusal is,
+/// carrying the rays set aside ([`SideUnread::Fallback`]).
 ///
 /// # Errors
 ///
