@@ -57,14 +57,11 @@ enum Move {
     /// All by the same relative [`MOVE`], a zero one not at all: two
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
-    /// The census's fallback for a document whose branches
-    /// [`Move::Apart`] moves, never a gating row's: on a document of
-    /// lengths it is a dilation — of every length but the profile's,
-    /// which the pinned lift holds at the nominal
-    /// (`work/intent/the-pinned-profile-lift-launders-at-sym.md`) — so a
-    /// laundered quantity that depends
-    /// only on ratios of the variables (an angle, a unit normal's
-    /// component, a fraction of a domain) does not move under it.
+    /// The fallback for a document whose branches [`Move::Apart`]
+    /// moves, which a row pins by name: on a document of lengths it is
+    /// a dilation, so a laundered quantity that depends only on ratios
+    /// of the variables (an angle, a unit normal's component, a
+    /// fraction of a domain) does not move under it.
     InStep,
 }
 
@@ -82,6 +79,8 @@ struct Found {
     drifted: usize,
     /// Decisions whose DAG reached an opaque value.
     opaque: usize,
+    /// Decisions the `p0` build's numeric channel left indeterminate.
+    escalated: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
     laundered: BTreeSet<&'static str>,
     /// The same, after a decision the builds answered with different
@@ -131,25 +130,33 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
     }
 }
 
-/// A session at the shipped budget, or, under `REVALUE_TIER=off`, at a
-/// zero-term budget: the identity tier switched off, which re-valuation
-/// does not read (it walks the DAG, which a session records at any
-/// budget). The census takes it for the documents whose discharge walks
-/// at `Sym<f64>`, with every variable a symbol, outrun a run.
+/// The drive's budget, which [`immediate_session`] discharges at.
+const BUDGET: SymBudget = SymBudget {
+    max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+    max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+};
+
+/// **The session a build is recorded in: a deferring one**, as the
+/// coincidence door replays in (`coincide/replay.rs`). Re-valuation
+/// reads each decision's DAG, its value and its numeric sign, never the
+/// identity tier's verdict, and a deferring session builds the same
+/// DAG without discharging every margin as it is decided. The two take
+/// different decisions only where the `f64` channel escalates and the
+/// tier would prove the margin `Zero`, so a row reads `escalated`.
 fn session<R>(f: impl FnOnce() -> R) -> R {
-    let off = std::env::var("REVALUE_TIER").is_ok_and(|v| v == "off");
-    let budget = if off {
-        SymBudget {
-            max_terms: 0,
-            max_degree: 0,
-        }
-    } else {
-        SymBudget {
-            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        }
-    };
-    with_session_rules(budget, SymRules::shipped(), f).0
+    geom_core::sym::deferred::with_deferred_session(
+        BUDGET,
+        SymRules::shipped(),
+        editor_core::drive::DEFAULT_SYM_RETRY,
+        f,
+    )
+    .0
+}
+
+/// A session that discharges every decision as it is taken, at the
+/// drive's budget: what [`revalue_cost_profile`] prices.
+fn immediate_session<R>(f: impl FnOnce() -> R) -> R {
+    with_session_rules(BUDGET, SymRules::shipped(), f).0
 }
 
 fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
@@ -210,6 +217,12 @@ fn tally(
     let mut flipped = None;
     for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
         found.compared += 1;
+        if a.sign.is_none() {
+            found.escalated += 1;
+            if std::env::var_os("REVALUE_DETAIL").is_some() {
+                eprintln!("  escalated #{} {}: p0 {:?}", k + 1, a.predicate, a.value);
+            }
+        }
         *found.seen.entry(a.predicate).or_default() += 1;
         let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
         let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
@@ -309,6 +322,11 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
          laundered quantity that depends only on ratios of the variables does not move, so a \
          row's move is pinned and a change of it is read ({found:?})"
     );
+    assert_eq!(
+        found.escalated, 0,
+        "{name}: a decision the f64 channel escalated, where a session that discharges as it \
+         decides could prove Zero and take another branch than this deferring one ({found:?})"
+    );
     assert!(
         found.moved >= floor,
         "{name}: {} margins moved and re-valued, under the row's floor of {floor} — the row \
@@ -347,18 +365,22 @@ macro_rules! rows {
 }
 
 rows! {
-    revalue_plate_param: "plate_param", Apart, 650, [];
-    revalue_boss_union: "boss_union", Apart, 560, [];
+    // In step: moved apart, the frame's axes tilt and its builds part
+    // at `point_in_loop_arm`.
+    revalue_plate_param: "plate_param", InStep, 3900, [];
+    // In step: moved apart, its builds part at
+    // `pcurve_chart_azimuth_frame`.
+    revalue_boss_union: "boss_union", InStep, 3200, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 220, [];
-    revalue_die_chamfer: "die_chamfer", Apart, 740, [];
-    revalue_face_sketch: "face_sketch", Apart, 250, [];
-    revalue_heat_sink_fins: "heat_sink_fins", Apart, 190, [];
-    revalue_loft_prism: "loft_prism", Apart, 3, [];
-    revalue_measured_web: "measured_web", Apart, 45, [];
-    revalue_declared_tangency: "declared_tangency", Apart, 160, [];
+    revalue_cut_cylinder: "cut_cylinder", InStep, 1050, [];
+    revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
+    revalue_face_sketch: "face_sketch", Apart, 580, [];
+    revalue_heat_sink_fins: "heat_sink_fins", Apart, 1350, [];
+    revalue_loft_prism: "loft_prism", Apart, 259, [];
+    revalue_measured_web: "measured_web", Apart, 710, [];
+    revalue_declared_tangency: "declared_tangency", Apart, 1210, [];
 }
 
 /// The census over the whole corpus, one document per run with
@@ -393,6 +415,7 @@ fn revalue_census() {
             moved,
             drifted,
             opaque,
+            escalated,
             laundered,
             after_flip,
             mode,
@@ -400,7 +423,7 @@ fn revalue_census() {
             parted,
         } = &found;
         eprintln!(
-            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
+            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, escalated {escalated}, \
              laundered {laundered:?}, after_flip {after_flip:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
@@ -616,4 +639,36 @@ fn revalue_mirrors_every_op_as_sym_builds_it() {
         drifted.is_empty(),
         "ops whose re-valued margin is not Sym<f64>'s at p1: {drifted:?}"
     );
+}
+
+/// What the identity tier costs on one document's `p0` build when every
+/// decision is discharged as it is taken: the cost profile
+/// (`geom_core::sym::profile`) and the decisions per predicate.
+#[test]
+#[ignore = "evidence: REVALUE_DOC=<name> cargo nextest run -p editor-core --run-ignored only -E 'test(revalue_cost_profile)' --no-capture"]
+fn revalue_cost_profile() {
+    use geom_core::sym::profile::{start_profile, take_profile};
+    let name = std::env::var("REVALUE_DOC").expect("REVALUE_DOC=<name>");
+    let cd = corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == name)
+        .unwrap_or_else(|| panic!("{name} is not a corpus document"));
+    let vars = continuous_vars(&cd.doc);
+    let at_p0: BTreeMap<VarId, f64> = vars.iter().map(|(id, _)| (*id, 0.0)).collect();
+    start_profile();
+    let t = std::time::Instant::now();
+    let decisions = immediate_session(|| build(&cd.doc, &options(&at_p0)));
+    let wall = t.elapsed();
+    let profile = take_profile();
+    let mut per: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    for d in &decisions {
+        let e = per.entry(d.predicate).or_default();
+        e.0 += 1;
+        e.1 += usize::from(d.proven);
+    }
+    eprintln!("{name}: {} decisions in {wall:.1?}", decisions.len());
+    for (p, (n, proven)) in per {
+        eprintln!("  {p:40} {n:6} proven {proven:6}");
+    }
+    eprintln!("{}", profile.render());
 }
