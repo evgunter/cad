@@ -1074,10 +1074,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let SweepStrategy::Realized = strategy;
         face_tree(y, &faces, knobs, pad, band)?
     };
-    let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
-        x.edges().map(|(k, _)| (k, 0)).collect();
+    let mut worklist: std::collections::VecDeque<Pending> = x
+        .edges()
+        .map(|(edge, _)| Pending {
+            edge,
+            start: 0,
+            lying_in: Vec::new(),
+        })
+        .collect();
 
-    while let Some((edge_key, start)) = worklist.pop_front() {
+    while let Some(Pending {
+        edge: edge_key,
+        start,
+        mut lying_in,
+    }) = worklist.pop_front()
+    {
         // The fragment's candidate face indices, ascending — the
         // realized set is a subsequence of the idealized scan, so the
         // examination order (and with it every split/requeue) is
@@ -1178,13 +1189,35 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     FaceContainment::In => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     FaceContainment::OnEdge(ey) => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                         push_vv(contacts, x_is, w, wy, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     FaceContainment::OnVertex(vy) => {
                         let w = split_logged(
@@ -1197,7 +1230,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             contacts,
                         )?;
                         push_vv(contacts, x_is, w, vy, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                 }
                 break 'faces;
@@ -1246,6 +1290,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
+                // Only the line lane's coplanar arm grows `lying_in`, and a
+                // conic's pieces are conics, so its splits read nothing
+                // (`Pending`).
+                debug_assert!(
+                    meet.is_none() || lying_in.is_empty(),
+                    "a conic edge carries the faces it lies in"
+                );
                 let covers = edge_covers(x, x_is, &edge, face, declared);
                 let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
@@ -1387,7 +1438,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 FaceContainment::In => {
                                     let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     push_vf(contacts, x_is, w, face, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
@@ -1402,7 +1464,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, wy, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
@@ -1416,35 +1489,37 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, vy, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                             }
                         }
                         // No interior root lands in the face:
                         // endpoint processing only.
-                        let side = |w: VertexKey, p: Point3<T>| {
-                            vertex_face_side(
-                                (x, (w, p)),
-                                (y, face, &plane),
-                                (plane.origin, plane.normal),
-                                band,
-                            )
-                        };
                         let read =
                             edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-                        let on_face = |refusal| vertex_refusal(refusal, read);
-                        let s1 = side(u, pu).map_err(on_face)?;
-                        let s2 = side(v, pv).map_err(on_face)?;
                         let mut hit = false;
-                        if s1.sign == Sign::Zero {
-                            hit |= vertex_on_face(
-                                x_is, y, u, pu, face, &plane, s1.margin, contacts, band, tol,
-                            )?;
-                        }
-                        if s2.sign == Sign::Zero {
-                            hit |= vertex_on_face(
-                                x_is, y, v, pv, face, &plane, s2.margin, contacts, band, tol,
+                        for end in [(u, pu), (v, pv)] {
+                            hit |= read_on_plane(
+                                (x, x_is),
+                                y,
+                                end,
+                                (face, &plane),
+                                read,
+                                contacts,
+                                band,
+                                tol,
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
@@ -1488,7 +1563,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         FaceContainment::In => {
                             let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vf(contacts, x_is, w, face, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
@@ -1496,7 +1582,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             let wy =
                                 split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
@@ -1510,7 +1607,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 contacts,
                             )?;
                             push_vv(contacts, x_is, w, vy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                     }
@@ -1518,8 +1626,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // Endpoint(s) on the face plane: `dovertexonface`
                 // (steps 2–4, 7–8). A fully coplanar pair (Zero, Zero)
                 // deliberately gets endpoint treatment ONLY (module
-                // docs: interior events surface via neighbor faces).
+                // docs: interior events surface via neighbor faces),
+                // and a vertex a later split mints on the edge is read
+                // against the face as the ends are (`lying_in`).
                 (za, zb) => {
+                    if (za, zb) == (Sign::Zero, Sign::Zero) {
+                        lying_in.push(face);
+                    }
                     let mut hit = false;
                     if za == Sign::Zero {
                         hit |= vertex_on_face(
@@ -2001,6 +2114,26 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     }
     let curve = certified(x.get_curve_geom(edge.curve))?.clone();
+    // **An edge on a wall of an equal cylinder pair with meeting axes,
+    // against the pair's other wall**: read through the two bisector
+    // planes, whose crossings are first order where the quadric's are
+    // not ([`factored_crossing`]).
+    if !covered
+        && matches!(surface, geom::Surface::Cylinder { .. })
+        && let Some(event) = factored_crossing::factored_crossing(
+            (x, x_is),
+            (edge, curve.carrier(), curve.params()),
+            [(u, pu), (v, pv)],
+            (&mut *y, face),
+            declared,
+            contacts,
+            frontier,
+            band,
+            tol,
+        )?
+    {
+        return Ok(event);
+    }
     // Conic carriers: a CIRCLE carrier gets a definite-miss verdict in
     // closed form, and the verdict is the edge's ARC, not the carrier
     // it rides. Two enclosures of the residual are folded, and the
@@ -3482,58 +3615,13 @@ fn wall_crossing<T: Decide + Bounds>(
                 Ok(Sign::Negative) | Err(_) => return Ok(SpanVerdict::Unsettled),
             }
         }
-        // The face's own trim decides whether a crossing of the CARRIER
-        // is a crossing of this FACE. `None` is the chart door's honest
-        // remainder (a ringed face, a boundary outside its outline
-        // classes, a full-period window outside the band class) and
-        // keeps the caller's
-        // frontier rather than reading as "outside".
-        //
-        // **A landing point definitely OFF the carrier is not "outside
-        // the trim".** The root was certified ON the surface, so the
-        // point containment decides is off it CONTRADICTS that
-        // certificate — a root the band cannot stand behind at this
-        // pose. Reading it as a sibling face's crossing would step over
-        // a real crossing and report the span clear; it keeps the door.
-        match super::contain::curved_face_placement_decided(y, face, p, band) {
-            Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => {
-                return Ok(SpanVerdict::Unsettled);
-            }
+        match landing(y, face, p, band)? {
+            Landing::Unplaced => return Ok(SpanVerdict::Unsettled),
             // On the carrier and definitely outside THIS face's trim:
             // the carrier is crossed, but not here. The other roots may
             // still land in the face, so the loop continues.
-            Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => crossed_elsewhere = true,
-            Ok((CurvedPlacement::Trim(Some(at)), on)) => {
-                return Ok(SpanVerdict::Pierce { t, p, at, on });
-            }
-            Err(super::contain::ContainError::Escalated {
-                decision,
-                escalation,
-                diag,
-            }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment {
-                        decision,
-                        escalation,
-                    },
-                    diag,
-                });
-            }
-            Err(super::contain::ContainError::StaleFace(face)) => {
-                super::contain::driver_face_stale(face)
-            }
-            // The face's boundary read refused (a lone-vertex loop, a
-            // loop it cannot walk, a chart refusal, an arc's end its
-            // corners disagree with): the roots are not placed, so the
-            // caller keeps its door.
-            Err(
-                super::contain::ContainError::EmptyLoop(_)
-                | super::contain::ContainError::LoopUnreadable(_)
-                | super::contain::ContainError::Curved(_)
-                | super::contain::ContainError::RayExhausted
-                | super::contain::ContainError::Uncrossable(_)
-                | super::contain::ContainError::ArcEndClearOfCorners(_),
-            ) => return Ok(SpanVerdict::Unsettled),
+            Landing::Out => crossed_elsewhere = true,
+            Landing::At(at, on) => return Ok(SpanVerdict::Pierce { t, p, at, on }),
         }
     }
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))
@@ -3550,6 +3638,66 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
         SpanVerdict::Elsewhere
     } else {
         SpanVerdict::NoInterior
+    }
+}
+
+/// Where a crossing of a curved face's carrier lands in the face
+/// ([`landing`]).
+enum Landing {
+    /// In the face or on its boundary, `at`, by the margin that decided
+    /// a boundary landing.
+    At(FaceContainment, Option<MarginDiag>),
+    /// On the carrier and definitely outside the face's trim.
+    Out,
+    /// No verdict: the caller keeps its door.
+    Unplaced,
+}
+
+/// **Where the crossing point `p`, certified on `face`'s carrier, lands
+/// in the face's trim** ([`super::contain::curved_face_placement_decided`]).
+///
+/// `Unplaced` is the chart door's honest remainder (a ringed face, a
+/// boundary outside its outline classes, a full-period window outside
+/// the band class), never "outside". **A landing point definitely OFF
+/// the carrier is not "outside the trim" either**: the crossing was
+/// certified ON the surface, so a point containment decides is off it
+/// contradicts that certificate, a crossing the band cannot stand behind
+/// at this pose. Reading it as a sibling face's crossing would step over
+/// a real one, so it is `Unplaced` too, as is a boundary read the face
+/// refuses (a lone-vertex loop, a loop it cannot walk, a chart refusal,
+/// an arc's end its corners disagree with).
+fn landing<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Landing, BooleanError> {
+    match super::contain::curved_face_placement_decided(y, face, p, band) {
+        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => Ok(Landing::Unplaced),
+        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => Ok(Landing::Out),
+        Ok((CurvedPlacement::Trim(Some(at)), on)) => Ok(Landing::At(at, on)),
+        Err(super::contain::ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
+            diag,
+        }),
+        Err(super::contain::ContainError::StaleFace(face)) => {
+            super::contain::driver_face_stale(face)
+        }
+        Err(
+            super::contain::ContainError::EmptyLoop(_)
+            | super::contain::ContainError::LoopUnreadable(_)
+            | super::contain::ContainError::Curved(_)
+            | super::contain::ContainError::RayExhausted
+            | super::contain::ContainError::Uncrossable(_)
+            | super::contain::ContainError::ArcEndClearOfCorners(_),
+        ) => Ok(Landing::Unplaced),
     }
 }
 
@@ -4271,15 +4419,128 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     split_logged(y, y_is, edge, t, Some(p), tol, contacts)
 }
 
+/// An edge the sweep has yet to read, from face index `start` on.
+/// `lying_in` holds the planar faces before `start` that the line lane's
+/// coplanar arm read the edge in, ends only: a split of the edge reads
+/// the vertex it mints against them ([`read_then_requeue`]), whichever
+/// lane splits it. A conic edge's is empty: a conic lying in a face's
+/// plane (`ConicPlaneMeet::Parallel`) is not recorded, since reading a
+/// later split's vertex against that face turns operations that build
+/// sound into refusals
+/// (`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`).
+///
+/// An edge lying on a CURVED face (the curved arm's endpoint postures)
+/// is not carried either, and refuses order-dependently where a later
+/// split mints a vertex on it
+/// (`work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`).
+struct Pending {
+    edge: EdgeKey,
+    start: usize,
+    lying_in: Vec<FaceKey>,
+}
+
+/// Reads vertex `w` of `x`, at `p`, against planar `face` of `y`:
+/// on the plane, it goes to [`vertex_on_face`]. Returns whether it
+/// recorded a contact; a side the band cannot decide refuses as
+/// `read` names it.
+#[allow(clippy::too_many_arguments)]
+fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is): (&Body<T>, Operand),
+    y: &mut Body<T>,
+    (w, p): End<T>,
+    (face, plane): (FaceKey, &PlaneDesc<T>),
+    read: DeclarationRead,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<bool, BooleanError> {
+    let on = vertex_face_side(
+        (x, (w, p)),
+        (y, face, plane),
+        (plane.origin, plane.normal),
+        band,
+    )
+    .map_err(|refusal| vertex_refusal(refusal, read))?;
+    if on.sign != Sign::Zero {
+        return Ok(false);
+    }
+    vertex_on_face(x_is, y, w, p, face, plane, on.margin, contacts, band, tol)
+}
+
+/// Reads `w`, a vertex a split minted on `edge` of `x`, against each
+/// face of `lying_in` as the edge's ends were read, then requeues the
+/// edge's two pieces from face index `next_face`, carrying `lying_in`
+/// on. Every split goes on through here, so none skips the read.
+#[allow(clippy::too_many_arguments)]
+fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
+    worklist: &mut std::collections::VecDeque<Pending>,
+    (x, x_is, parent, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
+    y: &mut Body<T>,
+    w: VertexKey,
+    next_face: usize,
+    lying_in: &[FaceKey],
+    declared: &super::GluedPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    read_lying_in(
+        (x, x_is, edge),
+        y,
+        w,
+        lying_in,
+        declared,
+        contacts,
+        band,
+        tol,
+    )?;
+    requeue(worklist, x, parent, w, next_face, lying_in)
+}
+
+/// The contact half of [`read_then_requeue`]: `w` of `x`, minted on
+/// `edge`, against each planar face of `y` in `lying_in`.
+#[allow(clippy::too_many_arguments)]
+fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
+    y: &mut Body<T>,
+    w: VertexKey,
+    lying_in: &[FaceKey],
+    declared: &super::GluedPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let p = x.resolve_vertex_point(w, crate::live::Proven);
+    for &face in lying_in {
+        let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
+            what: "a face an edge lies in lost its plane",
+        })?;
+        let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+        read_on_plane(
+            (x, x_is),
+            y,
+            (w, p),
+            (face, &plane),
+            read,
+            contacts,
+            band,
+            tol,
+        )?;
+    }
+    Ok(())
+}
+
 /// Requeues both children of a just-split edge (parent keeps the
 /// leading span and its key; `w` is the minted vertex whose emanating
-/// half-edge names the trailing child).
+/// half-edge names the trailing child), from face index `next_face`,
+/// each carrying `lying_in`.
 fn requeue<T: Decide>(
-    worklist: &mut std::collections::VecDeque<(EdgeKey, usize)>,
+    worklist: &mut std::collections::VecDeque<Pending>,
     x: &Body<T>,
     parent: EdgeKey,
     w: VertexKey,
     next_face: usize,
+    lying_in: &[FaceKey],
 ) -> Result<(), BooleanError> {
     let emanating =
         x.get_vertex(w)
@@ -4292,8 +4553,13 @@ fn requeue<T: Decide>(
             what: "split child edge unresolvable",
         },
     )?;
-    worklist.push_back((parent, next_face));
-    worklist.push_back((child, next_face));
+    for edge in [parent, child] {
+        worklist.push_back(Pending {
+            edge,
+            start: next_face,
+            lying_in: lying_in.to_vec(),
+        });
+    }
     Ok(())
 }
 
@@ -4372,6 +4638,9 @@ mod undeclared_rule_rows {
         }
     }
 }
+
+#[path = "factored_crossing.rs"]
+pub(super) mod factored_crossing;
 
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]

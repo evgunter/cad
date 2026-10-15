@@ -111,14 +111,14 @@ pub use dihedral::{
     MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
     SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
-    classify_dihedral_reported, classify_material_pairing, classify_material_pairing_as,
-    folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
-    must_carry_over_edge, reask_pair, second_order_walk, tangent_second_order,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
+    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_pair,
+    second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, nurbs_pair_limbs,
-    plane_nurbs_limbs,
+    PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3,
+    is_analytic, nurbs_pair_limbs, plane_nurbs_incidence, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -171,11 +171,11 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
-    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
+    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
+    ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_period_walk, whole_periods,
+    chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

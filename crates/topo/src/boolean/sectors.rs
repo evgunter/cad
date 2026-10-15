@@ -2635,9 +2635,11 @@ mod tests {
             read: Ok(read),
             sectors: saddle,
         };
-        assert_eq!(
-            super::super::vtxfac::touch_classes(&[(first, SideCode::Out)], &[pair]),
-            Err(Some(partner)),
+        assert!(
+            matches!(
+                super::super::vtxfac::touch_classes(&[], &[(first, SideCode::Out)], &[pair], band()),
+                Err(super::super::vtxfac::TouchUndecided::Beside(Some(p))) if p == partner
+            ),
             "a touch beside a saddle refuses"
         );
     }

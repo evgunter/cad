@@ -374,8 +374,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, WalkStop, chart_pcurve_over,
-    whole_period_count, whole_period_walk,
+    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, Period, WalkStop, chart_pcurve_over,
 };
 use geom_core::Tol;
 use geom_core::k_stats::decide;
@@ -1475,7 +1474,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // that follows, which compares the chart's boundary row
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
-        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+        geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_)
+        | geom_brep::EdgeDescription::OnPair { .. }
             if matches!(carrier, geom::Curve3::Circle { .. }) =>
         {
             arc_rim()
@@ -1519,20 +1520,20 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         //
         // A carrier the exact candidates do not claim stores its
         // `General` image.
-        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+        geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_)
+        | geom_brep::EdgeDescription::OnPair { .. }
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
             iso_schedule("pcurve_iso_line_rim", Vec::new())
         }
-        geom_brep::EdgeDescription::Intersection { .. } => {
+        // An `OnPair` names the same two surfaces an `Intersection`
+        // does, and its locus is the same question about the carrier.
+        geom_brep::EdgeDescription::Intersection { .. }
+        | geom_brep::EdgeDescription::OnPair { .. } => {
             iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
-        // An `OnPair` never names a spline chart: its incidence meter
-        // reads each surface's implicit form, which a spline lacks, so
-        // certification refuses one
-        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
-        geom_brep::EdgeDescription::OnPair { .. }
-        | geom_brep::EdgeDescription::TangentIntersection { .. }
+        geom_brep::EdgeDescription::TangentIntersection { .. }
         | geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
@@ -2507,7 +2508,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                     half_edge,
                     refusal: SplitRefusal::Joint(match miss {
                         PinMiss::Escalated(cause) => Some(cause),
-                        PinMiss::Discontinuity | PinMiss::OutOfReach => None,
+                        PinMiss::Discontinuity => None,
                     }),
                 }
             })
@@ -3650,13 +3651,6 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
                 half_edge: cycle[index],
                 cause,
             },
-            WalkFail::Miss {
-                index,
-                miss: PinMiss::OutOfReach,
-            } => PcurveMintError::Certify {
-                half_edge: cycle[index],
-                error: PcurveCertifyError::BranchOutOfReach,
-            },
             WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
         })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
@@ -3761,13 +3755,6 @@ fn walk_runs<T: AtRestPolicy>(
                 half_edge: keys[index],
                 cause,
             }),
-            Err(WalkFail::Miss {
-                index,
-                miss: PinMiss::OutOfReach,
-            }) => refused.push(PcurveMintError::Certify {
-                half_edge: keys[index],
-                error: PcurveCertifyError::BranchOutOfReach,
-            }),
             Err(WalkFail::Item(never)) => match never {},
             Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
         }
@@ -3828,9 +3815,6 @@ pub(crate) enum PinMiss {
     Discontinuity,
     /// A decision escalated.
     Escalated(Indeterminate),
-    /// The gap is more than [`geom_brep::MAX_BRANCH_PERIODS`] steps of
-    /// the orbit from the predecessor's exit.
-    OutOfReach,
 }
 
 /// Why [`walk_cycle`] refused, with the index of the item it refused
@@ -4072,7 +4056,7 @@ impl AzimuthRule {
 /// points with one 3-D image differ by a deck element of the chart: a
 /// whole number of periods per periodic channel and, on a sphere,
 /// possibly the involution `(u, v) ↦ (u + π, π − v)` ([`sphere_twin`]).
-/// This decides which, as integers ([`geom_brep::whole_period_count`]),
+/// This decides which, as integers ([`geom_brep::Period::decide`]),
 /// the azimuth's marks metered at the vertex's own lever
 /// ([`joint_arm`]).
 ///
@@ -4092,8 +4076,8 @@ impl AzimuthRule {
 /// nearest orbit points in the chart metric.
 ///
 /// The integer counts the orbit's steps, so on a sphere it counts half
-/// periods, and `geom_brep::MAX_BRANCH_PERIODS` bounds half periods
-/// there: half its reach in whole periods.
+/// periods. The marks are read outward from zero with no cap, however
+/// many steps out the gap lies ([`geom_brep::Period::decide`]).
 ///
 /// **What that room buys, and where it is not enough.** Where it exceeds
 /// the joint bound below (the chart ends `≤ 4ε` apart in metres), the
@@ -4188,11 +4172,7 @@ fn decide_joint<T: Decide>(
     let arm = joint_arm(chart, vertex);
     let whole = |k: i32| T::from_f64(f64::from(k));
     let twin = sphere_twin(surface, image);
-    let orbit = if twin.is_some() {
-        Orbit::HalfPeriodsWithTwin
-    } else {
-        Orbit::Periods
-    };
+    let orbit = Orbit::of(surface, image);
     let gap = prev.x - image.eval(entry_t).x;
     let marks = |p: T| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
     let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
@@ -4203,10 +4183,12 @@ fn decide_joint<T: Decide>(
         }
         _ => 0,
     };
-    let (is_twin, ku) = match twin {
-        Some(_) => (m.rem_euclid(2) == 1, m.div_euclid(2)),
-        None => (false, m),
-    };
+    // An odd step of a two-step orbit lands on the twin; the whole
+    // periods are the steps over the orbit's count.
+    let (is_twin, ku) = (
+        m.rem_euclid(orbit.steps()) == 1,
+        m.div_euclid(orbit.steps()),
+    );
     let sheet = match twin {
         Some(t) if is_twin => t,
         _ => image.clone(),
@@ -4214,14 +4196,17 @@ fn decide_joint<T: Decide>(
     // The second channel's periods, on the chosen sheet; a shift of the
     // first channel moves no second-channel value.
     let kv = match polar_arm(surface) {
-        Some(polar) => whole_period_count(
-            "pcurve_loop_branch",
-            prev.y - sheet.eval(entry_t).y,
-            tau,
-            |g| Margin::levered(g, polar),
-            band,
-        )
-        .map_err(PinMiss::from)?,
+        Some(polar) => {
+            let gap = prev.y - sheet.eval(entry_t).y;
+            Period::new(tau)
+                .decide(
+                    "pcurve_loop_branch",
+                    gap,
+                    |g| Margin::levered(g, polar),
+                    band,
+                )
+                .map_err(|stop| PinMiss::from(stop.miss))?
+        }
         None => 0,
     };
     // A spline chart has no angular second channel (`polar_arm` is
@@ -4261,9 +4246,9 @@ fn decide_joint<T: Decide>(
 /// they meet and the turn's joint decision there missed: it escalated
 /// (`Some`, a near-pole offset in band included), or decided a miss
 /// (`None`) — the gap on a mark and decided off every orbit point the
-/// near-pole read tries at the vertex's lever, or periods past the
-/// branch reach. The ends are one point, so neither is
-/// "no turn"; a kill writes no element through any of them.
+/// near-pole read tries at the vertex's lever. The ends are one point,
+/// so neither is "no turn"; a kill writes no element through any of
+/// them.
 ///
 /// # Panics
 ///
@@ -4301,7 +4286,7 @@ pub(crate) fn turn_element<T: Decide>(
     ) {
         Ok(element) => Ok(Some(element)),
         Err(PinMiss::Escalated(cause)) => Err(Some(cause)),
-        Err(PinMiss::Discontinuity | PinMiss::OutOfReach) => Err(None),
+        Err(PinMiss::Discontinuity) => Err(None),
     }
 }
 
@@ -4316,7 +4301,6 @@ impl From<BranchMiss> for PinMiss {
     fn from(miss: BranchMiss) -> Self {
         match miss {
             BranchMiss::Undecided(cause) => Self::Escalated(cause),
-            BranchMiss::OutOfReach => Self::OutOfReach,
             BranchMiss::OnMark => Self::Discontinuity,
         }
     }
@@ -4325,9 +4309,9 @@ impl From<BranchMiss> for PinMiss {
 /// **A joint's orbit**: the step its marks count in, and the offsets
 /// about the image the near-pole read tries first
 /// ([`near_pole_gap_closes`]), in that step; the read then tries the
-/// two branches astride the mark the walk stopped on. The step and the
-/// offsets travel together, so an offset is never read in the other
-/// orbit's step.
+/// two branches astride the mark the walk stopped on. Both are read off
+/// one fact, the steps in a period ([`Orbit::steps`]), so an offset is
+/// never read in the other orbit's step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Orbit {
     /// No twin: whole periods. The image itself, then the image one
@@ -4340,20 +4324,40 @@ pub(crate) enum Orbit {
 }
 
 impl Orbit {
-    /// The offsets tried, first to last, in [`Orbit::step`]s.
-    pub(crate) fn offsets(self) -> &'static [i32] {
-        match self {
-            Self::Periods => &[0, 1, -1],
-            Self::HalfPeriodsWithTwin => &[0, 1, -1, 2, -2],
+    /// The orbit of a joint into `image` on `surface`: half periods
+    /// where the image has a sphere twin ([`sphere_twin`]), whole periods
+    /// elsewhere. The one fact the walk ([`decide_joint`]) and the room
+    /// fence ([`joint_has_room`]) both read.
+    pub(crate) fn of<T: Real>(surface: &Surface<T>, image: &Pcurve<T>) -> Self {
+        if sphere_twin(surface, image).is_some() {
+            Self::HalfPeriodsWithTwin
+        } else {
+            Self::Periods
         }
     }
 
-    /// The step of `period` this orbit counts in.
-    pub(crate) fn step<T: Real>(self, period: T) -> T {
+    /// The steps in one period: 1, or 2 where the twin sits half a
+    /// period over.
+    pub(crate) fn steps(self) -> i32 {
         match self {
-            Self::Periods => period,
-            Self::HalfPeriodsWithTwin => period * T::from_f64(0.5),
+            Self::Periods => 1,
+            Self::HalfPeriodsWithTwin => 2,
         }
+    }
+
+    /// The offsets tried, first to last, in [`Orbit::step`]s: the image,
+    /// then each step out to one period, either way round.
+    pub(crate) fn offsets(self) -> impl Iterator<Item = i32> + Clone {
+        core::iter::once(0).chain((1..=self.steps()).flat_map(|m| [m, -m]))
+    }
+
+    /// The step of `period` this orbit counts in, as the period its
+    /// marks are read in.
+    pub(crate) fn step<T: Real>(self, period: T) -> Period<T> {
+        Period::new(match self.steps() {
+            1 => period,
+            n => period * T::from_f64(1.0 / f64::from(n)),
+        })
     }
 }
 
@@ -4406,10 +4410,10 @@ fn near_pole_gap_closes<T: Decide>(
     let bracket = astride
         .into_iter()
         .flatten()
-        .filter(|m| !orbit.offsets().contains(m));
-    let tried = orbit.offsets().iter().copied().chain(bracket);
+        .filter(|m| !orbit.offsets().any(|o| o == *m));
+    let tried = orbit.offsets().chain(bracket);
     match first_within("pcurve_loop_pole_gap", tried, band, |&m| {
-        arm.meter(gap - T::from_f64(f64::from(m)) * step)
+        arm.meter(gap - step.times(m))
     }) {
         Ok(Some(m)) => NearRead::Closes(m),
         Ok(None) => NearRead::Off,
@@ -4418,7 +4422,7 @@ fn near_pole_gap_closes<T: Decide>(
 }
 
 /// **A joint's whole orbit steps by the marks, with the near-pole
-/// read**: [`geom_brep::whole_period_count`] of `gap` in `orbit`'s
+/// read**: [`geom_brep::Period::decide`] of `gap` in `orbit`'s
 /// steps of `period`, metered at the vertex's lever `arm`. Where a mark
 /// misses (undecided, or the gap on it), an orbit point whose gap is
 /// decided within ε at that lever is taken ([`near_pole_gap_closes`],
@@ -4468,8 +4472,7 @@ pub(crate) fn lever_periods<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    let step = orbit.step(period);
-    match whole_period_walk(name, gap, step, |g| arm.meter(g), band) {
+    match orbit.step(period).decide(name, gap, |g| arm.meter(g), band) {
         Ok(k) => Ok(k),
         Err(WalkStop {
             miss: miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark),
@@ -4482,7 +4485,6 @@ pub(crate) fn lever_periods<T: Decide>(
             },
             NearRead::Off => Err(miss),
         },
-        Err(stop) => Err(stop.miss),
     }
 }
 
@@ -4503,7 +4505,9 @@ pub(crate) fn branches_astride<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<[i32; 2], BranchMiss> {
-    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    let j = Period::new(period)
+        .decide(name, gap - period * T::from_f64(0.5), meter, band)
+        .map_err(|stop| stop.miss)?;
     Ok([j, j + 1])
 }
 
@@ -4565,6 +4569,7 @@ fn joint_has_room<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
     u_period: Option<T>,
+    orbit: Orbit,
     band: Band,
 ) -> bool {
     let surface = chart.surface();
@@ -4574,11 +4579,8 @@ fn joint_has_room<T: Decide>(
     if surface.spline_chart().is_some() {
         return true;
     }
-    let step = if matches!(surface, Surface::Sphere { .. }) {
-        period * T::from_f64(0.5)
-    } else {
-        period
-    };
+    // The step the walk decided this joint's integer in.
+    let step = orbit.step(period).length();
     // The ends' least distance from the axis, and a quarter of the
     // chord between two of them half a step apart.
     let lever = joint_arm(chart, vertex).magnitude() - T::from_f64(2.0 * band.zero());
@@ -4832,8 +4834,24 @@ pub fn chart_boundary<T: AtRestPolicy>(
     for (index, lp) in loops.iter().enumerate() {
         let mut walked: Vec<Walked<T>> = Vec::new();
         walk_loop(body, face, *lp, described, band, &mut walked)?;
-        // The chord polygon is drawn on the loop's lift: each image moved
-        // by the elements summed from the loop's first half-edge.
+        // The joint bound the polygon leans on rests on each row's
+        // envelope (check 4), and these rows are fresh derivations in
+        // the CALLER's chart, which no mint certified. So each
+        // closed-form row is certified against that chart here, as the
+        // row it is, before it is lifted; a fitted or general one reads
+        // its stored certificate ([`chart_edge`]).
+        for w in &walked {
+            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
+            }
+        }
+        // The chord polygon is drawn on the loop's lift: each row with the
+        // deck element summed from the loop's first half-edge (C4: a lifted
+        // copy is the row and its element, never certified again).
         let elements: Vec<JointElement> = walked
             .iter()
             .map(|w| {
@@ -4885,7 +4903,8 @@ pub fn chart_boundary<T: AtRestPolicy>(
         // bound a different region. So each joint's room is decided here
         // ([`joint_has_room`]), and a joint without it refuses.
         for w in &walked {
-            if !joint_has_room(described, entry_vertex(body, w.key), period, band) {
+            let orbit = Orbit::of(chart, &w.pcurve);
+            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
                 return Err(PcurveMintError::JointWithoutRoom {
                     face,
                     r#loop: *lp,
@@ -4904,21 +4923,6 @@ pub fn chart_boundary<T: AtRestPolicy>(
         // the joint bound [`decide_joint`] states of the exit before it.
         if !Winding::of(elements.iter().copied()).is_zero() {
             return Err(PcurveMintError::LoopWraps { face, r#loop: *lp });
-        }
-        // The joint bound the polygon leans on rests on each row's
-        // envelope (check 4), and these rows are fresh derivations in
-        // the CALLER's chart, which no mint certified. So each
-        // closed-form row is certified against that chart here, before
-        // its entry is read as a vertex; a fitted or general one reads
-        // its stored certificate ([`chart_edge`]).
-        for w in &walked {
-            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
-                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error,
-                    })?;
-            }
         }
         let mut edges = Vec::with_capacity(walked.len());
         for w in &walked {
@@ -5142,10 +5146,6 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     Err(PinMiss::Escalated(cause)) => findings.push(PcurveMintError::Escalated {
                         half_edge: he,
                         cause,
-                    }),
-                    Err(PinMiss::OutOfReach) => findings.push(PcurveMintError::Certify {
-                        half_edge: he,
-                        error: PcurveCertifyError::BranchOutOfReach,
                     }),
                 }
             }
@@ -6120,7 +6120,6 @@ mod stretch_meter {
             Ok(element) => format!("{element:?}"),
             Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
             Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
-            Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
         };
         let lift = |u| {
             format!(
@@ -6275,7 +6274,6 @@ mod stretch_meter {
                 Ok(other) => format!("{other:?}"),
                 Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
                 Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
-                Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
             }
         };
         // `π·lever` as a fraction of the escalate edge, in band: the
@@ -6584,7 +6582,7 @@ mod recourse_tests {
         let finding = PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
             error: PcurveCertifyError::FittedEscalated {
-                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
                 cause: Indeterminate {
                     margin: MarginDiag::value(5e-9),
                     band: Band::new(1e-9, 1e-8).unwrap(),
@@ -6597,9 +6595,9 @@ mod recourse_tests {
             finding.to_string(),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
-             passes limb 2 (control-hull sup-norm bound) is undecided: margin 5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; \
-             this refusal may indicate a kernel bug worth reporting"
+             passes limb 2 (control-hull sup-norm bound through its pcurve) is undecided: \
+             margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+             kernel bug worth reporting"
         );
     }
 }
@@ -6767,7 +6765,7 @@ mod polar_shift_tests {
 }
 
 #[cfg(test)]
-mod pole_slit_tests {
+pub(crate) mod pole_slit_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use core::f64::consts::{FRAC_PI_2, PI};
@@ -6791,6 +6789,15 @@ mod pole_slit_tests {
     /// down, rim arc. Returns the body, the cap and the cap's loop
     /// members.
     fn slit_cap() -> (Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>) {
+        slit_cap_below(1.0).expect("the slit cap mints")
+    }
+
+    /// [`slit_cap`] with its first rim arc's carrier parameter
+    /// `periods` whole periods below the azimuth it covers, or the
+    /// minting pass's refusal.
+    pub(crate) fn slit_cap_below(
+        periods: f64,
+    ) -> Result<(Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>), super::PcurveMintError> {
         let tol = Tol::witness();
         let v0 = 0.5;
         let mut body = Body::<f64>::new();
@@ -6836,7 +6843,7 @@ mod pole_slit_tests {
                 at(PI, v0),
                 // A period below the azimuth it covers, `[0, π]`: its
                 // image's base sits a period below the slit's.
-                rim(-2.0 * PI, -PI),
+                rim(-2.0 * PI * periods, PI - 2.0 * PI * periods),
                 tol,
             )
             .unwrap();
@@ -6892,13 +6899,115 @@ mod pole_slit_tests {
             tol,
         )
         .unwrap();
-        crate::mint_pcurves(&mut body, tol).unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
         let LoopBoundary::Cycle { first } = body.get_loop(cap_loop).unwrap().boundary else {
             panic!("the cap's loop is a cycle")
         };
         let members = body.loop_cycle(first).unwrap();
         assert_eq!(members.len(), 4, "rim arc, slit up, slit down, rim arc");
-        (body, cap, members)
+        Ok((body, cap, members))
+    }
+
+    /// **A half-turn patch of the unit cylinder** (axis `+z`, seam `+x`)
+    /// between heights 0 and 1: the bottom arc `u ∈ [0, π]`, its circle
+    /// carrier's parameter `periods` whole periods below the azimuth it
+    /// covers, a ruling up `u = π`, the top arc back to `u = 0` and a
+    /// ruling down. Minted, or the minting pass's refusal.
+    pub(crate) fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        let tol = Tol::witness();
+        let p = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0, 0.0), true).unwrap();
+        let cylinder = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Cylinder {
+                        origin: Point3::new(0.0, 0.0, 0.0),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(cylinder, plane),
+                    witness: p(0.5 * (t0 + t1), z),
+                },
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, z),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let shift = 2.0 * PI * periods;
+        let bottom_spec = rim(&mut body, 0.0, -shift, PI - shift);
+        let bottom = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(PI, 0.0),
+                bottom_spec,
+                tol,
+            )
+            .unwrap();
+        let up = body
+            .mev(
+                MevSite::Fan {
+                    he1: bottom.he_minus,
+                    he2: bottom.he_minus,
+                },
+                p(PI, 1.0),
+                EdgeCurveSpec::line_between(p(PI, 0.0), p(PI, 1.0)),
+                tol,
+            )
+            .unwrap();
+        // The top arc, its carrier run `[0, π]` like the bottom's, from
+        // `u = π` back to `u = 0`.
+        let mut top_spec = rim(&mut body, 1.0, 0.0, PI);
+        top_spec.carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        };
+        let top = body
+            .mev(
+                MevSite::Fan {
+                    he1: up.he_minus,
+                    he2: up.he_minus,
+                },
+                p(0.0, 1.0),
+                top_spec,
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: top.he_minus,
+                he2: bottom.he_plus,
+            },
+            EdgeCurveSpec::line_between(p(0.0, 1.0), p(0.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok(body)
     }
 
     /// The cap's stored rows — each half-edge's image and joint element —
@@ -6908,6 +7017,309 @@ mod pole_slit_tests {
             .iter()
             .map(|&he| format!("{he:?} {:?} {:?}", body.pcurve(he), body.joint(he)))
             .collect()
+    }
+
+    /// **A patch across the seam of a net closed in `u`.** A triangular
+    /// prism stated as one degree-1 net, `u` knots at `0.3` and `0.7`,
+    /// its first and last columns the same locus, so the chart closes in
+    /// `u` with period `1`. The patch covers the two facets either side
+    /// of the seam, `u ∈ [0.7, 1] ∪ [0, 0.3]`, `v ∈ [0, 1]`: a bottom
+    /// split at the seam vertex, iso-line sides at `u = 0.3` and `0.7`,
+    /// a top split the same way. Every edge is a straight line on a
+    /// facet's edge or along a knot line, so each row is an iso line.
+    pub(crate) fn prism_patch_across_the_seam()
+    -> Result<(Body<f64>, FaceKey), super::PcurveMintError> {
+        let tol = Tol::witness();
+        let (c0, c1, c2) = (
+            (1.0, 0.0),
+            (-0.5, 0.75_f64.sqrt()),
+            (-0.5, -(0.75_f64.sqrt())),
+        );
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        let ku =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1).unwrap();
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [c0, c1, c2, c0]
+            .into_iter()
+            .flat_map(|c| [at(c, 0.0), at(c, 1.0)])
+            .collect();
+        let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(c2, 0.0), true).unwrap();
+        let wall = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(std::sync::Arc::new(net)),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let column = |c: (f64, f64)| [at(c, 0.0), at(c, 1.0)];
+        // A cap edge: the net's own row at height `v`, its carrier the
+        // row on the net's basis and the chart's `u` as its parameter,
+        // over `[u0, u1]`; its image the row `v`, stated, since the seam's
+        // two sides `u = 1` and `u = 0` are one point to a projection.
+        let row = |v: f64, (u0, u1): (f64, f64)| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart_image(
+                wall,
+                geom_brep::Pcurve::IsoLine {
+                    p0: geom_core::Point2::new(0.0, v),
+                    pl: geom_core::Vec2::new(1.0, 0.0),
+                },
+            ),
+            carrier: Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1)
+                        .unwrap(),
+                    vec![at(c0, v), at(c1, v), at(c2, v), at(c0, v)],
+                    vec![1.0; 4],
+                )
+                .unwrap(),
+            )),
+            param_start: u0,
+            param_end: u1,
+        };
+        // A side: the straight column at `u`, from height `v0` to `v1`.
+        let side = |c: (f64, f64), u: f64, (v0, v1): (f64, f64)| {
+            let [p, q] = column(c);
+            let (p, q) = if v0 < v1 { (p, q) } else { (q, p) };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart_image(
+                    wall,
+                    geom_brep::Pcurve::IsoLine {
+                        p0: geom_core::Point2::new(u, v0),
+                        pl: geom_core::Vec2::new(0.0, v1 - v0),
+                    },
+                ),
+                carrier: Curve3::Line {
+                    origin: p,
+                    dir: q - p,
+                },
+                param_start: 0.0,
+                param_end: 1.0,
+            }
+        };
+        let fan = |he| MevSite::Fan { he1: he, he2: he };
+        // The bottom, rising in `u` across the seam vertex.
+        let b1 = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(c0, 0.0),
+                row(0.0, (0.7, 1.0)),
+                tol,
+            )
+            .unwrap();
+        let b2 = body
+            .mev(fan(b1.he_minus), at(c1, 0.0), row(0.0, (0.0, 0.3)), tol)
+            .unwrap();
+        // Up the side at `u = 0.7` from the start, and the top the same
+        // way as the bottom.
+        let up = body
+            .mev(fan(b1.he_plus), at(c2, 1.0), side(c2, 0.7, (0.0, 1.0)), tol)
+            .unwrap();
+        let t1 = body
+            .mev(fan(up.he_minus), at(c0, 1.0), row(1.0, (0.7, 1.0)), tol)
+            .unwrap();
+        let t2 = body
+            .mev(fan(t1.he_minus), at(c1, 1.0), row(1.0, (0.0, 0.3)), tol)
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: t2.he_minus,
+                he2: b2.he_minus,
+            },
+            side(c1, 0.3, (1.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok((body, seed.face))
+    }
+
+    /// **A lifted copy is the row and its element, never certified
+    /// again.** On the prism patch across the seam of a net closed in
+    /// `u`, each face's walk decides a joint element of a whole chart
+    /// period, `Deck.u = ±1`, and lifts iso-line rows by it: the patch's
+    /// side at `u = 0.7` to `u = −0.3`, off the knot domain an iso line's
+    /// hull bound holds on. `chart_boundary` certifies each row as the
+    /// row it is, before the lift, so both faces bound, the patch's
+    /// polygon spanning `u ∈ [−0.3, 0.3]` across the seam. Certifying
+    /// the lifted copy instead refuses: the bottom row lifted to
+    /// `u ∈ [−0.3, 0]` reads its net off the domain, and its map
+    /// residual is exceeded.
+    #[test]
+    fn a_lifted_iso_line_off_the_knot_domain_is_its_row_and_element() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, patch) = prism_patch_across_the_seam().unwrap();
+        for (f, face) in body.faces() {
+            let s = body.get_surface(face.surface).unwrap().clone();
+            let elements: Vec<_> = {
+                let LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+                else {
+                    panic!("the outer loop is a cycle")
+                };
+                body.loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .map(|he| body.joint(he))
+                    .collect()
+            };
+            assert!(
+                elements.iter().any(|e| matches!(
+                    e,
+                    Some(crate::joint::JointElement::Shift(d)) if d.u != 0
+                )),
+                "{f:?}: the walk crosses the seam: {elements:?}"
+            );
+            let bound = super::chart_boundary(&body, f, &s, band)
+                .unwrap_or_else(|e| panic!("{f:?} bounds: {e:?}"));
+            if f == patch {
+                let us: Vec<f64> = bound.loops[0].edges.iter().map(|e| e.a().x).collect();
+                let (lo, hi) = us
+                    .iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &u| {
+                        (l.min(u), h.max(u))
+                    });
+                assert!(
+                    (lo + 0.3).abs() < 1e-12 && (hi - 0.3).abs() < 1e-12,
+                    "the patch spans the seam: {us:?}"
+                );
+            }
+        }
+    }
+
+    /// **A body stated periods off reads downstream as its principal
+    /// twin.** The rows the walk mints far out reach the readers built
+    /// on them, and each reads what the same body at zero periods reads:
+    /// - `chart_boundary` bounds both faces of the cylinder patch 5, 6
+    ///   and 10 periods below on the twin's polygon;
+    /// - `chart_region_overlap` against the twin finds positive area on
+    ///   either face at 5 periods and on the patch's own face at 10;
+    /// - the slit cap's joint on the pole refuses `chart_boundary` on
+    ///   the same half-edge at 3 and 10 periods as at zero.
+    ///
+    /// The other face 6 periods below refuses `TouchingBoundary`, and
+    /// that refusal is rounding, measured: the carrier's stated end
+    /// `π − 6τ` rounds as it is written, so its seat's corner reads
+    /// `π` plus 4 ulp, the two loops' walls are no longer exactly
+    /// collinear, and the overlap refuses as it does any near-flush
+    /// seat. No branch decision enters it; at 5 periods the end happens
+    /// to round back to `π`.
+    #[test]
+    fn a_body_stated_periods_off_reads_downstream_as_its_principal_twin() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let twin = cylinder_patch_below(0.0).unwrap();
+        let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
+        assert_eq!(faces.len(), 2);
+        let bound = |body: &Body<f64>, f: FaceKey| {
+            let s = body
+                .get_surface(body.get_face(f).unwrap().surface)
+                .unwrap()
+                .clone();
+            super::chart_boundary(body, f, &s, band)
+        };
+        for periods in [5.0, 6.0, 10.0] {
+            let body = cylinder_patch_below(periods).unwrap();
+            for &f in &faces {
+                let corners = |body: &Body<f64>| -> Vec<(f64, f64)> {
+                    let bound = bound(body, f).unwrap();
+                    bound
+                        .loops
+                        .iter()
+                        .flat_map(|l| &l.edges)
+                        .map(|e| (e.a().x, e.a().y))
+                        .collect()
+                };
+                let (far, near) = (corners(&body), corners(&twin));
+                assert_eq!(far.len(), near.len());
+                for (x, y) in far.iter().zip(&near) {
+                    assert!(
+                        (x.0 - y.0).abs() < 1e-12 && (x.1 - y.1).abs() < 1e-12,
+                        "{periods} periods, {f:?}: {far:?} against {near:?}"
+                    );
+                }
+            }
+            let overlaps: Vec<_> = faces
+                .iter()
+                .map(|&f| crate::chart_region_overlap(&body, f, &twin, f, band))
+                .collect();
+            let expected = if periods == 5.0 {
+                [
+                    Ok(crate::ChartOverlap::PositiveArea),
+                    Ok(crate::ChartOverlap::PositiveArea),
+                ]
+            } else {
+                [
+                    Ok(crate::ChartOverlap::PositiveArea),
+                    Err(crate::ChartRegionError::TouchingBoundary),
+                ]
+            };
+            assert_eq!(overlaps, expected, "{periods} periods");
+        }
+        let cap_bound = |periods: f64| {
+            let (body, cap, _) = slit_cap_below(periods).unwrap();
+            bound(&body, cap).map(|_| ())
+        };
+        let principal = cap_bound(0.0);
+        assert!(
+            matches!(
+                principal,
+                Err(super::PcurveMintError::SingularChartJoint { .. })
+            ),
+            "{principal:?}"
+        );
+        for periods in [3.0, 10.0] {
+            assert_eq!(cap_bound(periods), principal, "{periods} periods");
+        }
+    }
+
+    /// **A carrier stated whole periods off its azimuth mints.** Nothing
+    /// bounds where a circle carrier's parameter runs against the azimuth
+    /// it covers, so the loop walk's joint gap carries that offset, and
+    /// the walk reads its marks from zero however far out it lies:
+    /// - the slit cap with its first rim arc 3 and 10 periods below,
+    ///   counted in the sphere's half steps, 6 and 20 of them;
+    /// - a half-turn cylinder patch with its bottom arc 5 and 10 periods
+    ///   below.
+    ///
+    /// Each mints, re-mints from every anchor where it is the slit cap,
+    /// and reads clean. Check 4 reads no offset here: each stored image is
+    /// its own re-derivation, its fidelity branch zero.
+    #[test]
+    fn a_carrier_stated_periods_off_its_azimuth_mints() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for periods in [3.0, 10.0] {
+            let (mut body, cap, members) = slit_cap_below(periods)
+                .unwrap_or_else(|e| panic!("slit cap {periods} periods below: {e:?}"));
+            let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
+            let minted = rows(&body, &members);
+            for &anchor in &members {
+                body.get_loop_mut(cap_loop).unwrap().boundary =
+                    LoopBoundary::Cycle { first: anchor };
+                crate::mint_pcurves_of(&mut body, &[cap], Tol::witness()).unwrap_or_else(|e| {
+                    panic!("{periods} periods below, anchored at {anchor:?}: {e:?}")
+                });
+                assert_eq!(
+                    rows(&body, &members),
+                    minted,
+                    "{periods}, anchored at {anchor:?}"
+                );
+                assert_eq!(super::validate_pcurves(&body, band), vec![], "{periods}");
+            }
+        }
+        for periods in [5.0, 10.0] {
+            let body = cylinder_patch_below(periods)
+                .unwrap_or_else(|e| panic!("cylinder patch {periods} periods below: {e:?}"));
+            assert_eq!(
+                super::validate_pcurves(&body, band),
+                vec![],
+                "cylinder {periods}"
+            );
+        }
     }
 
     /// **The pass re-mints a pole-slit loop from every anchor, and reads
@@ -7633,7 +8045,7 @@ mod turn_miss {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod room_fence_tests {
-    use super::{DescribedChart, joint_has_room};
+    use super::{DescribedChart, Orbit, joint_has_room};
     use geom::Surface;
     use geom_core::{Band, Point3, Vec3};
 
@@ -7644,11 +8056,20 @@ mod room_fence_tests {
         Band::new(EPS, 1.5 * EPS).unwrap()
     }
 
+    /// The fence at `vertex`, on the orbit a harmonic image on
+    /// `surface` walks (a sphere's, half periods with its twin).
     fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
+        let image = geom_brep::Pcurve::Harmonic {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pa: geom_core::Vec2::new(0.0, 0.0),
+            pb: geom_core::Vec2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        };
         joint_has_room(
             DescribedChart::of(surface).unwrap(),
             vertex,
             Some(core::f64::consts::TAU),
+            Orbit::of(surface, &image),
             tight(),
         )
     }

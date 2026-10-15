@@ -157,15 +157,19 @@ pub enum PlaneNurbsRefusal {
     /// defect report.
     CarrierDomain(CarrierDomainRefusal),
     /// A certificate limb exceeded ε, with its number. **The
-    /// declare-and-check refusal**: limb 1 measured the file's carrier
-    /// off its surfaces by this much; limb 2's certified bound on that
-    /// miss is this much, so the certificate cannot show the carrier on
-    /// them.
+    /// declare-and-check refusal**: limb 1 measured the carrier's foot
+    /// distance from a surface; limb 2 bounds the carrier's distance from
+    /// an analytic surface ([`SsiLimb::HullSup`], [`SsiLimb::HullValue`]),
+    /// or reads it through the lane's own image of it on a spline one,
+    /// a bound on the carrier's miss and the image's together
+    /// ([`SsiLimb::HullSupChart`], [`SsiLimb::HullValueChart`]); at a
+    /// break where the carrier's own foot decides Zero, the miss is the
+    /// image's ([`SsiLimb::ImageMiss`]).
     Limb {
         /// Which limb refused.
         limb: SsiLimb,
-        /// What the classifier saw of limb 1's measured miss, or of limb
-        /// 2's bound on it, in metres, for error reporting only
+        /// What the classifier saw of the limb's reading, in metres,
+        /// for error reporting only
         /// ([`MarginDiag`]): it rides
         /// [`PlaneNurbsRefusal::decision`]'s sign-certain arm to the import
         /// door's words on it.
@@ -433,28 +437,55 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
-                     m, past the run tolerance — the certificate cannot show the carrier is on \
-                     them",
+                    "{} bounds the declared carrier's distance from an analytic surface by \
+                     {margin:e} m, past the run tolerance — the certificate cannot show the \
+                     carrier stays on that surface between the schedule's samples",
+                    limb.name()
+                ),
+                SsiLimb::HullSupChart => write!(
+                    f,
+                    "{} bounds the declared carrier's distance from the spline surface, read \
+                     through the certificate's own image of the carrier on it, by {margin:e} \
+                     m, past the run tolerance — limb 1 found the carrier on that surface at \
+                     every schedule sample, and the certificate cannot show it stays on it \
+                     between them",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
-                     is off the surface point its description names",
+                    "{} reads {margin:e} m at a break, past the run tolerance: the declared \
+                     carrier against the surface point the certificate's own image of it \
+                     names there, which bounds the carrier's miss and is not the miss — the \
+                     certificate cannot show the carrier is on that surface",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
                     f,
-                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
-                     is not on both surfaces",
+                    "{} reads {margin:e} m at a break, past the run tolerance, where the \
+                     declared carrier is on the surface — the certificate's own image of the \
+                     carrier misses the carrier's foot path there, and the carrier is not \
+                     shown off its surfaces",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
+                    f,
+                    "{} measured the declared carrier {margin:e} m from a surface, past the run \
+                     tolerance — the carrier is not on both surfaces",
+                    limb.name()
+                ),
+                // No producer writes a `Limb` of limb 3: the tube refuses
+                // as `TubeStraddles` or `TubeNotOneArc`, or escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the certificate \
+                     cannot show the carrier is its surfaces' one crossing",
                     limb.name()
                 ),
             },
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 over {boxes} boxes of the chain — a sliver of the surface pair along the \
                  locus at this tolerance; the certificate's proven clearance from zero is {:e} \
                  m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
@@ -481,7 +512,9 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 f,
                 "limb 2 could not enclose the declared carrier between samples: {r}"
             ),
-            Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
+            Self::Unsupported { what } => {
+                write!(f, "outside the spline Intersection lane: {what}")
+            }
         }
     }
 }
@@ -571,17 +604,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: T,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    let Surface::Plane { normal, .. } = *plane else {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the analytic operand of this lane is a PLANE; another kind needs its own \
-                   chart uniqueness form",
-        });
-    };
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
-    }
+    let normal = plane_lane_door(plane, wall)?;
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -673,6 +696,91 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         tube_transversality: cert.tube_transversality,
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
+    })
+}
+
+/// The plane × NURBS lanes' door: the analytic operand a plane, whose
+/// normal it returns, and the wall a described surface.
+fn plane_lane_door<T: Real>(
+    plane: &Surface<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Vec3<T>, PlaneNurbsRefusal> {
+    let Surface::Plane { normal, .. } = *plane else {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the analytic operand of this lane is a PLANE; another kind needs its own \
+                   chart uniqueness form",
+        });
+    };
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    Ok(normal)
+}
+
+/// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
+/// operands, as [`PlaneNurbsLimbs`] reports them.
+#[derive(Clone, Copy, Debug)]
+pub struct PlaneNurbsIncidence<T: Real> {
+    /// Limb 1: the largest on-locus residual over the schedule, over
+    /// both operands (the sampled max: it steers, it does not certify).
+    pub on_locus_max: T,
+    /// Limb 2: the certified sup-norm distance over the whole span, over
+    /// both operands. This is the number that certifies.
+    pub hull_sup: T,
+}
+
+/// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'
+/// limbs 1 and 2 and nothing about how the two surfaces meet — no
+/// normal-angle sweep and no uniqueness tube. It is `OnPair`'s
+/// certificate on that pair, which states the carrier lies on both
+/// surfaces and leaves the meeting to tier 3.
+///
+/// The wall side is metered against the wall's spline chart: a
+/// described NURBS wall itself, or an `Approx` wall's FIT. Incidence on
+/// an `Approx` wall's description is therefore this bound plus the fit's
+/// own recorded distance from it, which the surface carries
+/// ([`geom::ApproxSurface`]); nothing here adds the two
+/// (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
+///
+/// The image is [`chart_image`]'s, from the same fixed schedule of foot
+/// points as the full lane's, so the pcurve the mint stores is the one
+/// this certifies.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
+/// wall, a foot that will not converge, an image that will not fit, and
+/// either limb's refusal with its measured bound.
+pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    plane: &Surface<T>,
+    wall: &NurbsSurface<T>,
+    band: Band,
+) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
+    plane_lane_door(plane, wall)?;
+    // The chart image alone: the wall's grid and chart speeds are the
+    // tube's, which incidence does not ask.
+    let eval = |t| carrier.eval(t);
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |_, _| Ok(()))?;
+    use crate::ssi::certify::IncidenceOperand;
+    let (on_locus_max, hull_sup) = crate::ssi::certify::incidence_limbs(
+        carrier,
+        params,
+        &[
+            IncidenceOperand::Analytic(plane),
+            IncidenceOperand::Chart(wall, &pcurve),
+        ],
+        band,
+        &mut crate::ssi::certify::Refused::default(),
+    )
+    .map_err(refusal)?;
+    Ok(PlaneNurbsIncidence {
+        on_locus_max,
+        hull_sup,
     })
 }
 

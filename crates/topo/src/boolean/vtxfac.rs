@@ -283,13 +283,26 @@ fn layered<'a, T: geom_core::Real>(
     }
 }
 
+/// Why [`touch_classes`] leaves a touching vertex's edge undecided.
+#[derive(Debug)]
+pub(super) enum TouchUndecided {
+    /// Beside this partner on the edge's side, which read nothing or
+    /// whose cone lies in no half-space the reading decides
+    /// (`WedgeRead::pointed`), or failing that the first there; `None`
+    /// where no partner is on that side.
+    Beside(Option<VertexKey>),
+    /// The edge lies on two or more partners' boundaries, and
+    /// [`along_partners`] refuses, or the vertex's own sectors name no
+    /// edge for it, an invariant ([`partners_class`]).
+    Along(BooleanError),
+}
+
 /// **The classes of a touching vertex's edges against the other solid**,
-/// from its pierce's classes (`touch`) and its pairs'. `Err` where an
-/// edge is left undecided, which refuses: the partner on that edge's
-/// side that read nothing or whose cone lies in no half-space the
-/// reading decides (`WedgeRead::pointed`), or failing that the first
-/// there. An edge is undecided only beside a partner, so `None` breaks
-/// that.
+/// from its pierce's classes (`touch`), its pairs', and its own sectors
+/// (`own`). An edge is left undecided ([`TouchUndecided`]) beside a
+/// partner on its side that read nothing or whose cone lies in no
+/// half-space the reading decides (`WedgeRead::pointed`), or where
+/// the partners' faces along it refuse.
 ///
 /// Near the point the other solid is the pierced face's half-space `H`
 /// and the material of each partner, whose link lies in one closed
@@ -299,24 +312,29 @@ fn layered<'a, T: geom_core::Real>(
 /// boundary. An edge off the face is outside every cone on the other
 /// side, so only its own side's partners read it, [`layered`] over its
 /// pierce's class: outside `H` beside no cone, inside `H` beside no
-/// void. An edge on the face is on the solid's boundary, along a
-/// partner's ray or not: `H` is on one side of it and outside every
-/// cone on the other, so no partner reads it.
-pub(super) fn touch_classes<T: geom_core::Real>(
+/// void. An edge on two or more of those partners' boundaries reads
+/// [`along_partners`], as [`pair_classes`]' does: off the face, `H` is
+/// on one side of the edge everywhere around it, so the material turns
+/// where the partners' does. An edge on the face is on the solid's
+/// boundary, along a partner's ray or not: `H` is on one side of it and
+/// outside every cone on the other, so no partner reads it.
+pub(super) fn touch_classes<T: Decide>(
+    own: &[BoolSector<T>],
     touch: &[(HalfEdgeKey, SideCode)],
     pairs: &[PairRead<T>],
-) -> Result<Vec<(HalfEdgeKey, SideCode)>, Option<VertexKey>> {
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, SideCode)>, TouchUndecided> {
     touch
         .iter()
-        .map(|&(he, own)| {
-            let side = || pairs.iter().filter(move |p| p.side == Some(own));
-            let unread = side().find(|p| !p.read.as_ref().is_ok_and(|r| r.pointed));
-            match unread {
-                Some(_) => None,
-                None => layered(own, he, side()),
+        .map(|&(he, own_side)| {
+            let side = || pairs.iter().filter(move |p| p.side == Some(own_side));
+            if let Some(p) = side().find(|p| !p.read.as_ref().is_ok_and(|r| r.pointed)) {
+                return Err(TouchUndecided::Beside(Some(p.partner)));
             }
-            .map(|c| (he, c))
-            .ok_or_else(|| unread.or_else(|| side().next()).map(|p| p.partner))
+            let class = partners_class(own, he, side(), band, || layered(own_side, he, side()))
+                .map_err(TouchUndecided::Along)?
+                .ok_or_else(|| TouchUndecided::Beside(side().next().map(|p| p.partner)))?;
+            Ok((he, class))
         })
         .collect()
 }
@@ -461,27 +479,43 @@ fn layered_alone<T: Decide>(
         .rows
         .iter()
         .map(|&(he, _)| {
-            let on: Vec<_> = pairs
-                .iter()
-                .filter(|p| {
-                    p.read
-                        .as_ref()
-                        .is_ok_and(|r| r.rows.contains(&(he, SideCode::On)))
-                })
-                .collect();
-            let class = if let [_, _, ..] = on.as_slice() {
-                let edge = own
-                    .iter()
-                    .find(|s| s.he == he && s.end_edge())
-                    .ok_or_else(|| invariant("a vertex's row names no edge of its own sectors"))?;
-                along_partners(edge, &on, band)?
-            } else {
+            let class = partners_class(own, he, pairs.iter(), band, || {
                 layered(base, he, pairs.iter())
-                    .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?
-            };
+            })?
+            .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?;
             Ok((he, class))
         })
         .collect()
+}
+
+/// **The class of the vertex's edge `he` among `partners`**: read by
+/// their faces ([`along_partners`]) where it lies on two or more of
+/// their boundaries, else `layer`'s; `Ok(None)` where `layer` leaves it
+/// undecided. Refuses as an invariant where the vertex's own sectors
+/// (`own`) name no edge for `he`.
+fn partners_class<'a, T: Decide + 'a>(
+    own: &[BoolSector<T>],
+    he: HalfEdgeKey,
+    partners: impl Iterator<Item = &'a PairRead<T>>,
+    band: Band,
+    layer: impl FnOnce() -> Option<SideCode>,
+) -> Result<Option<SideCode>, BooleanError> {
+    let on: Vec<_> = partners
+        .filter(|p| {
+            p.read
+                .as_ref()
+                .is_ok_and(|r| r.rows.contains(&(he, SideCode::On)))
+        })
+        .collect();
+    if let [_, _, ..] = on.as_slice() {
+        let edge = own.iter().find(|s| s.he == he && s.end_edge()).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a vertex's row names no edge of its own sectors",
+            },
+        )?;
+        return along_partners(edge, &on, band).map(Some);
+    }
+    Ok(layer())
 }
 
 /// **A direction strictly inside a partner's cone**, as a probe edge
@@ -1932,7 +1966,8 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// minted ([`mint_held`])**. A minted ring vertex's strut stands in its
 /// face as a ring, so a face holding two points, read at the second
 /// after the first's mint, would read its trim unplaced. Two pierces of
-/// one face at one point hold one ring vertex there. A definite refusal
+/// one face at one point, a pose no row reaches, refuses
+/// [`BooleanError::HeldPierceUnbuilt`]. A definite refusal
 /// at any face outranks an escalation at any other, as in the pierce
 /// pass this serves.
 ///
@@ -1972,15 +2007,29 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     for plan in plans {
         for read in held_reads(&*piercing_body, pierced_body, box_holds, plan, band)? {
             match read {
-                // Two pierces of one face at one point hold one ring
-                // vertex there: the later is the earlier's, as a ring
-                // vertex minted first would have read it, on the face's
-                // boundary.
+                // Two pierces of one face at one point would mint two ring
+                // vertices there. No row reaches the pose, so no answer
+                // here is checked: it refuses, before anything is written.
                 Ok(read) => {
-                    let mut held = None;
                     for earlier in reads.iter().filter(|r| r.face == read.face) {
                         match super::one_vertex_at(earlier.point, read.point, band) {
-                            Ok(Some(_)) => held = Some(()),
+                            Ok(Some(_)) => {
+                                let kind = |body: &Body<T>, face| {
+                                    body.face_surface_linked(
+                                        face,
+                                        proven(&body.faces, face, EntityId::Face),
+                                    )
+                                    .kind()
+                                };
+                                return Err(BooleanError::HeldPierceUnbuilt {
+                                    operand: read.piercing,
+                                    face: read.face,
+                                    pierced: read.pierced,
+                                    kind: kind(piercing_body, read.face),
+                                    pierced_kind: kind(pierced_body, read.pierced),
+                                    placed: true,
+                                });
+                            }
                             Ok(None) => {}
                             Err(diag) => {
                                 escalated.get_or_insert(BooleanError::Escalated {
@@ -1990,9 +2039,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    if held.is_none() {
-                        reads.push(read);
-                    }
+                    reads.push(read);
                 }
                 // **A definite refusal outranks an escalation**, as in the
                 // pierce pass this serves: every face of every pierce is
@@ -2904,13 +2951,13 @@ mod tests {
     /// pierce's class: flipped once per cone that holds it, a met cone
     /// holding what it reads In and a hollow one (read through its
     /// complement) what it reads Out; on one partner's boundary, on the
-    /// solid's, at any depth. On two boundaries, or beside a partner
-    /// that read nothing or whose cone lies in no half-space, it names a
-    /// partner to refuse on. Each input but the last two is a partner a
-    /// scene of `a_vertex_read_by_two_sector_passes` reads: an arch, a
-    /// void in the arch, the cavity's void, an island in it, arches
-    /// apart, and arches sharing a ray; no scene reaches the last two,
-    /// which stand for the touch's two refusals beside a partner. One
+    /// solid's, at any depth. Beside a partner that read nothing or
+    /// whose cone lies in no half-space, it names a partner to refuse
+    /// on (on two boundaries: the row below). Each input but the last
+    /// two is a partner a scene of `a_vertex_read_by_two_sector_passes`
+    /// reads: an arch, a void in the arch, the cavity's void, an island
+    /// in it, and arches apart; no scene reaches the last two, which
+    /// stand for the touch's two refusals beside a partner. One
     /// pair alone keeps its rows; pairs alone refuse beside a partner
     /// that reads nothing, against the vertex's edges or the other
     /// partner's (here a partner of no sectors, so on fewer than two
@@ -2989,15 +3036,6 @@ mod tests {
                 Ok(vec![(e, Out), (f, In), (g, On)]),
             ),
             (
-                "on two arches' shared ray",
-                vec![(e, Out), (g, Out)],
-                vec![
-                    read(w, Some(Out), true, &[(e, Out), (g, On)]),
-                    read(x, Some(Out), true, &[(e, Out), (g, On)]),
-                ],
-                Err(Some(w)),
-            ),
-            (
                 "beside a partner that reads nothing",
                 vec![(e, On), (f, Out)],
                 vec![read(w, Some(Out), true, &three), unread(x, Some(Out))],
@@ -3020,10 +3058,14 @@ mod tests {
                 Err(Some(x)),
             ),
         ];
-        for (what, touch, pairs, want) in touches {
-            assert_eq!(touch_classes(&touch, &pairs), want, "{what}");
-        }
         let band = Band::linear(Tol::witness()).unwrap();
+        for (what, touch, pairs, want) in touches {
+            let got = touch_classes::<f64>(&[], &touch, &pairs, band).map_err(|u| match u {
+                TouchUndecided::Beside(p) => p,
+                TouchUndecided::Along(e) => panic!("{what}: {e:?}"),
+            });
+            assert_eq!(got, want, "{what}");
+        }
         let own = VertexKey::from(key(6));
         let (pw, px) = (SectorRead::Pair(w), SectorRead::Pair(x));
         for (what, pairs, want) in [
@@ -3082,6 +3124,82 @@ mod tests {
                 (got, want) => panic!("{what}: got {got:?}, want {want:?}"),
             }
         }
+    }
+
+    /// **A touching edge on two partners' boundaries reads their faces**
+    /// ([`along_partners`]): an edge along x, each partner a corner with
+    /// one face leaving it, one in the plane z = 0 and the other's turned
+    /// `tilt` about x. Their half-planes part by the tilt, so the edge is
+    /// on the solid's boundary, `On`. Flush, they refuse
+    /// [`super::super::BooleanDecision::PartnerFaces`]. Beside a partner on
+    /// the edge's side whose cone lies in no half-space, the edge still
+    /// names it to refuse on, its faces unread.
+    #[test]
+    fn a_touching_edge_on_two_partners_boundaries_reads_their_faces() {
+        use super::super::sectors::{Reach, WedgeRead};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let he = HalfEdgeKey::from(key(1));
+        let (w, x) = (VertexKey::from(key(4)), VertexKey::from(key(5)));
+        let o = geom_core::Point3::new(0.0, 0.0, 0.0);
+        let along = Vec3::new(1.0, 0.0, 0.0);
+        let chord = |d: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + d,
+        };
+        let sector = |end: Vec3<f64>| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: along,
+            end,
+            start_reach: chord(along),
+            end_reach: chord(end),
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(along.cross(end), true),
+            arm: 1.0,
+        };
+        let partner = |partner, pointed, end| PairRead {
+            partner,
+            side: Some(SideCode::Out),
+            read: Ok(WedgeRead {
+                pointed,
+                met: true,
+                rows: vec![(he, SideCode::On)],
+            }),
+            sectors: vec![sector(end)],
+        };
+        let own = [BoolSector {
+            he,
+            start: Vec3::new(0.0, -1.0, 0.0),
+            start_reach: chord(Vec3::new(0.0, -1.0, 0.0)),
+            end: along,
+            end_reach: chord(along),
+            ..sector(Vec3::new(0.0, -1.0, 0.0))
+        }];
+        let touch = [(he, SideCode::Out)];
+        let flat = partner(w, true, Vec3::new(0.0, 1.0, 0.0));
+        let turned =
+            |tilt: f64, pointed| partner(x, pointed, Vec3::new(0.0, tilt.cos(), tilt.sin()));
+        let got = touch_classes(&own, &touch, &[flat.clone(), turned(0.5, true)], band);
+        assert!(
+            matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
+            "partners apart along it: {got:?}"
+        );
+        let got = touch_classes(&own, &touch, &[flat.clone(), turned(0.0, true)], band);
+        assert!(
+            matches!(
+                got,
+                Err(TouchUndecided::Along(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::PartnerFaces,
+                    ..
+                }))
+            ),
+            "partners flush along it: {got:?}"
+        );
+        let got = touch_classes(&own, &touch, &[flat, turned(0.5, false)], band);
+        assert!(
+            matches!(got, Err(TouchUndecided::Beside(Some(p))) if p == x),
+            "beside a partner in no half-space: {got:?}"
+        );
     }
 
     /// A bound's entry; an `On` carries the Zero `on_margin` it read.

@@ -2447,7 +2447,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Join
         | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
-        | BooleanErrorKind::Pieces => Vec::new(),
+        | BooleanErrorKind::Pieces
+        | BooleanErrorKind::Revert => Vec::new(),
     }
 }
 
@@ -2651,6 +2652,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_cross.rs",
+        "clustered",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2685,6 +2692,30 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "conic_quadric/mod.rs",
         "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "factored_crossing",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "factored_crossing",
+        "BooleanDecision::of_conic_root",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "factored_crossing",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "factored_crossing",
+        "Coincide::VertexOnCurvedFace",
         1,
     ),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
@@ -2744,9 +2775,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceOnFace",
         1,
     ),
+    ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
+    (
+        "mod.rs",
+        "decision_words",
+        "Coincide::VertexOnCurvedFace",
+        1,
+    ),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
     ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
@@ -2798,6 +2836,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
+    ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
+    (
+        "ops.rs",
+        "reverted_lines_disjoint",
+        "BooleanDecision::LineWedges",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "at_rest_refusal", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
@@ -2896,6 +2941,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
+    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "split_other_at_point",
@@ -2928,12 +2974,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
-    (
-        "reduce.rs",
-        "wall_crossing",
-        "BooleanDecision::Containment",
-        1,
-    ),
+    ("reduce.rs", "landing", "BooleanDecision::Containment", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),

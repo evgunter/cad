@@ -303,31 +303,14 @@ pub mod test_support {
     pub use crate::props::{FaceTerm, mass_properties_with_face_terms};
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
-        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
+        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
         cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
-        describe_as_intersections, drill_hole, face_facing, geometric_cube, holed_block,
-        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
-        wedge_on_a_block_top,
+        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
+        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
+        plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z,
+        split_plane, straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
-
-    /// Tier 3's local checks on `body` at the band of `eps` rather than
-    /// the run's: `Tol` is committed once per process, so this is how
-    /// one test reads a body built at the run's ε at a tighter one.
-    ///
-    /// # Panics
-    ///
-    /// Where `eps` forms no band with the run's K.
-    #[allow(clippy::expect_used)]
-    pub fn tier3_at(
-        body: &Body<f64>,
-        eps: f64,
-        tol: geom_core::Tol,
-    ) -> Vec<crate::ValidationError> {
-        let band = geom_core::Band::linear_at(tol, eps).expect("a band at eps");
-        crate::validate::tier3_local_checks(body, band, tol, None, None).0
-    }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
@@ -1008,6 +991,7 @@ pub use replace_face::{
     offset_charts_edge_plans_for_tests, offset_corner_arms_for_tests, offset_edge_plans_for_tests,
     offset_edge_specs_for_tests,
 };
+pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
