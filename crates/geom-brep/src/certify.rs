@@ -862,7 +862,7 @@ impl CertCheck {
             // No kernel construction mints a span of no length or a
             // reversed one (`CertifyError::IntervalNotForward`).
             Self::ParamSpan => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this edge is not vanishingly short",
+                lever: "move the geometry so this edge runs forward over a clear length",
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
@@ -1561,7 +1561,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///
 /// ```compile_fail,E0308
 /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// use geom_core::{Band, Point3};
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
@@ -1571,9 +1571,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
-///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
+///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
+///                   e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
 ///         limbs.hull_sup = 0.0;
 ///         Ok(limbs)
@@ -1595,7 +1596,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///
 /// ```
 /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// use geom_core::{Band, Point3};
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
@@ -1605,9 +1606,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
-///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
+///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
+///                   e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
 ///         limbs.hull_sup = 0.0;
 ///         Ok(limbs)
@@ -1623,7 +1625,8 @@ pub struct NurbsLane<T: Real> {
     /// [`crate::plane_nurbs_limbs`] at `T`.
     limbs:
         fn(
-            &geom::NurbsCurve3<T>,
+            &Curve3<T>,
+            (T, T),
             &Surface<T>,
             &geom::NurbsSurface<T>,
             T,
@@ -1633,7 +1636,8 @@ pub struct NurbsLane<T: Real> {
     /// [`crate::nurbs_pair_limbs`] at `T`.
     pair_limbs:
         fn(
-            &geom::NurbsCurve3<T>,
+            &Curve3<T>,
+            (T, T),
             &geom::NurbsSurface<T>,
             &geom::NurbsSurface<T>,
             T,
@@ -1683,29 +1687,32 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 }
 
 impl<T: Real> NurbsLane<T> {
-    /// The lane's limbs for a declared carrier on a plane × NURBS pair.
+    /// The lane's limbs for a declared carrier of any kind on a plane ×
+    /// NURBS pair, over the edge's interval `params`.
     fn limbs(
         self,
-        carrier: &geom::NurbsCurve3<T>,
+        carrier: &Curve3<T>,
+        params: (T, T),
         plane: &Surface<T>,
         wall: &geom::NurbsSurface<T>,
         extent: T,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.limbs)(carrier, plane, wall, extent, band)
+        (self.limbs)(carrier, params, plane, wall, extent, band)
     }
 
-    /// The lane's limbs for a declared carrier between two spline charts
-    /// ([`crate::nurbs_pair_limbs`]).
+    /// The lane's limbs for a declared carrier of any kind between two
+    /// spline charts ([`crate::nurbs_pair_limbs`]), over `params`.
     fn pair_limbs(
         self,
-        carrier: &geom::NurbsCurve3<T>,
+        carrier: &Curve3<T>,
+        params: (T, T),
         a: &geom::NurbsSurface<T>,
         b: &geom::NurbsSurface<T>,
         extent: T,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.pair_limbs)(carrier, a, b, extent, band)
+        (self.pair_limbs)(carrier, params, a, b, extent, band)
     }
 
     /// The between-samples certificate of a rung-3 carrier between two
@@ -3393,8 +3400,10 @@ fn run_checks<T: Decide>(
         tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
     }
 
-    // ---- Intersection, plane × NURBS only (M7-8): the whole
-    // declare-and-check certificate — the closed-form plane residual,
+    // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
+    // any kind: the whole declare-and-check certificate (C2's three
+    // limbs, limbs 1–2 reading the carrier through the
+    // carrier-enclosure door) — the closed-form plane residual,
     // the certified foot residual on the wall, the between-samples
     // sup bound, the per-sample transversality and the uniqueness
     // tube. The lane refuses typed WITH its measured bound; a
@@ -3404,15 +3413,6 @@ fn run_checks<T: Decide>(
         plane, wall, lane, ..
     } = &resolved
     {
-        let Curve3::Nurbs(ref carrier) = spec.carrier else {
-            return Err(CertifyError::PlaneNurbs(
-                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
-                    what: "the declared carrier of a plane × NURBS Intersection must be a \
-                           spline: the certificate's limbs are hull statements about a \
-                           control net",
-                },
-            ));
-        };
         // `plane_nurbs_pair` admits only a wall with a chart.
         let Some(wall) = wall.spline_chart() else {
             return Err(CertifyError::Unimplemented);
@@ -3421,30 +3421,22 @@ fn run_checks<T: Decide>(
         // `band`; they enter the certificate's worst residual and are
         // not decided again.
         let limbs = lane
-            .limbs(carrier, plane, wall, extent, band)
+            .limbs(&spec.carrier, (t0, t1), plane, wall, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
             .max(limbs.hull_sup.abs());
     }
 
-    // ---- Intersection, NURBS × NURBS: the same lane's certificate
-    // against both charts, its tube the two-chart one. ----
+    // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
+    // the same lane's certificate against both charts, its tube the
+    // two-chart one. ----
     if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {
-        let Curve3::Nurbs(ref carrier) = spec.carrier else {
-            return Err(CertifyError::PlaneNurbs(
-                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
-                    what: "the declared carrier of a NURBS × NURBS Intersection must be a \
-                           spline: the certificate's limbs are hull statements about a \
-                           control net",
-                },
-            ));
-        };
         let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
             return Err(CertifyError::Unimplemented);
         };
         let limbs = lane
-            .pair_limbs(carrier, a, b, extent, band)
+            .pair_limbs(&spec.carrier, (t0, t1), a, b, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -3673,7 +3665,10 @@ mod wiring_rows {
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(lane.limbs, plane_nurbs_limbs::<T> as fn(_, _, _, _, _) -> _) {
+        if !std::ptr::fn_addr_eq(
+            lane.limbs,
+            plane_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
+        ) {
             return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
         }
         if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
@@ -3687,7 +3682,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.pair_limbs,
-            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _) -> _,
+            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
         }
@@ -5415,7 +5410,7 @@ mod tests {
     fn each_split_verdict_ends_as_its_own_arm() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let span = "Recourse: move the geometry so this edge is not vanishingly short";
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
         let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
@@ -5501,6 +5496,68 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A span of no length and a reversed one each render whole under
+    /// the one lever, which names the forward edge both lack, at a build
+    /// and in band at rest.
+    #[test]
+    fn a_zero_and_a_reversed_span_render_whole() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let in_band = |m| CertifyError::IntervalNotForward {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(m),
+                band,
+            }),
+        };
+        let reversed = CertifyError::IntervalNotForward {
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-1e-3),
+            },
+        };
+        let rows = [
+            (
+                in_band(0.0),
+                Reading::Build,
+                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect worth reporting",
+            ),
+            (
+                in_band(0.0),
+                Reading::AtRest,
+                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
+            ),
+            (
+                reversed,
+                Reading::Build,
+                "the stored parameter interval runs backwards — increasing parameter must run \
+                 from the edge's start vertex to its end vertex. Recourse: move the geometry so \
+                 this edge runs forward over a clear length; an edge of no length, or a reversed \
+                 one, is one no kernel construction mints, so this is a kernel defect worth \
+                 reporting",
+            ),
+            (
+                in_band(-5e-10),
+                Reading::AtRest,
+                "the stored parameter interval is not shown to run forward (margin -5e-10 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
+            ),
+        ];
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|(error, reading, want)| {
+                let got = error.render(*reading);
+                (got != *want).then(|| format!("{reading:?} {error:?}:\n got  {got}\n want {want}"))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     /// The residual families pair their definite and undecided arms per
@@ -5675,14 +5732,14 @@ mod tests {
         let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
         let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
-        let no_span = "Recourse: move the geometry so this edge is not vanishingly short; an edge \
-                       of no length, or a reversed one, is one no kernel construction mints, so \
-                       this is a kernel defect worth reporting";
+        let no_span = "Recourse: move the geometry so this edge runs forward over a clear length; \
+                       an edge of no length, or a reversed one, is one no kernel construction \
+                       mints, so this is a kernel defect worth reporting";
         let rows = [
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
-                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-                 length is intended, tighten the tolerance below 5e-10 m",
+                "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+                 this length is intended, tighten the tolerance below 5e-10 m",
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
@@ -5779,9 +5836,9 @@ mod tests {
                 }
                 .ending(Reading::AtRest)
                 .unwrap(),
-                "Recourse: move the geometry so this edge is not vanishingly short; an edge of \
-                 no length, or a reversed one, is one no kernel construction mints, so this is a \
-                 kernel defect or a damaged file, worth reporting",
+                "Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
             ),
             (
                 CertifyError::ResidualExceeded {
@@ -5858,8 +5915,8 @@ mod tests {
             }
             .render(Reading::Build),
             "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
-             band (±1e-9). Recourse: move the geometry so this edge is not vanishingly short; no \
-             tolerance a run admits decides this length",
+             band (±1e-9). Recourse: move the geometry so this edge runs forward over a clear \
+             length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"
         );
         for cause in [rejected, in_band] {

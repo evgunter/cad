@@ -360,6 +360,15 @@ fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
     }
 }
 
+/// A spiric with no certified net over the span holding its root's
+/// zero.
+fn carrier_enclosure() -> geom_brep::CarrierEnclosureRefusal {
+    geom_brep::CarrierEnclosureRefusal {
+        kind: geom::CurveKind::Spiric,
+        span: (3.140625, 3.15),
+    }
+}
+
 /// The carrier-domain refusal on a domain too narrow for its ends.
 fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
@@ -383,6 +392,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::PcurveFit,
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_invalid()),
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
+        PlaneNurbsRefusal::CarrierEnclosure(carrier_enclosure()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             margin: MarginDiag::value(1e-7),
@@ -639,6 +649,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
+        PcurveCertifyError::CarrierEnclosure(carrier_enclosure()),
         PcurveCertifyError::FittedEscalated {
             decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
             cause: diag(),

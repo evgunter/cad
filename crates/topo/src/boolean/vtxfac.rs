@@ -44,6 +44,16 @@
 //!    ring null edges are the documented ch. 15 transient; joining
 //!    consumes them in PR 5. Tier 1 holds after every op (pinned by the
 //!    acceptance test).
+//! 4. **The node** ([`mint_node`], called from [`super::node`]): a
+//!    crossing of an equal cylinder pair's two section ellipses inside
+//!    a face of each operand has no operand vertex, so one is minted:
+//!    `A`'s face gets a lone ring vertex with a strut per run, and that
+//!    vertex then pierces `B`'s face through the same [`RingPlan`] as
+//!    any other, its struts paired with `B`'s across the operands. The
+//!    runs' sides are fixed by construction once the walls' senses are
+//!    read: `A`'s sectors about `±â₁` for two rods, about `±â₂` for two
+//!    bores, each bounded by one germ of each ellipse. A rod against a
+//!    bore refuses ([`super::NodeWhy::OppositeSenses`]).
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
@@ -1477,26 +1487,7 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     // The ring's struts ([`crate::null::ring_tree`]), read before any
     // write.
-    let mut tied = false;
-    let ring = if runs.len() > 1 {
-        let germs: Vec<_> = runs.iter().flat_map(|(.., run)| run.order).collect();
-        let member: Vec<usize> = runs.iter().flat_map(|&(k, ..)| [k, k]).collect();
-        let (order, tie) = germ_order(&germs, &member, first.normal, (piercing, face), band)?;
-        tied = tie;
-        crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a pierce's runs read as crossing chords about the pierced face's normal",
-            },
-        )?
-    } else {
-        // One run: nothing to order, and either half may face either
-        // germ, so no germ is read; its strut faces its end germ first.
-        vec![crate::null::RingStrut {
-            run: 0,
-            parent: None,
-            plus_faces_start: false,
-        }]
-    };
+    let (ring, tied) = ring_struts(&runs, first.normal, (piercing, face), band)?;
     let pierced = piercing.other();
     let (w, ring_loop) = ring_vertex_in(pierced_body, face, p, tol)?;
     let mut out = RingOut {
@@ -1586,6 +1577,299 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             site,
         });
     }
+    Ok(out)
+}
+
+/// **A pierce ring's struts** ([`crate::null::ring_tree`]) over its
+/// runs, each with its pierce's index in its ring's plans, ordered about
+/// the pierced face's outward `normal`, and whether two germs tied
+/// ([`germ_order`]). One run has nothing to order, and either half may
+/// face either germ, so no germ is read; its strut faces its end germ
+/// first.
+#[allow(clippy::type_complexity)] // (struts, tied)
+fn ring_struts<T: Decide>(
+    runs: &[(usize, &RingPlan<T>, &PlannedRun<T>)],
+    normal: Vec3<T>,
+    site: (Operand, crate::entity::FaceKey),
+    band: Band,
+) -> Result<(Vec<crate::null::RingStrut>, bool), BooleanError> {
+    if runs.len() == 1 {
+        return Ok((
+            vec![crate::null::RingStrut {
+                run: 0,
+                parent: None,
+                plus_faces_start: false,
+            }],
+            false,
+        ));
+    }
+    let germs: Vec<_> = runs.iter().flat_map(|(.., run)| run.order).collect();
+    let member: Vec<usize> = runs.iter().flat_map(|&(k, ..)| [k, k]).collect();
+    let (order, tied) = germ_order(&germs, &member, normal, site, band)?;
+    let struts = crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
+        BooleanError::ClassificationInvariant {
+            what: "a pierce's runs read as crossing chords about the pierced face's normal",
+        },
+    )?;
+    Ok((struts, tied))
+}
+
+/// **A node of an equal cylinder pair's section, built** (the sibling of
+/// the pierce ring, [`mint_ring`]): the point `node` where the two
+/// bisector-plane ellipses cross, inside A's face `faces.0` and B's face
+/// `faces.1`, which the walls are tangent at. Neither operand has a
+/// vertex there, so each wall takes a ring vertex at the node
+/// ([`ring_vertex_in`]) and the section's four arcs leave it.
+///
+/// The arcs' tangents are `tangents` (`e₁`'s, then `e₂`'s, either way
+/// along each), `axes` the walls' axes, A's first, and `radial` the
+/// node less the axes' meeting point. Round the node each wall's four
+/// sectors between the arcs alternate sides of the other cylinder (the
+/// section table's `nodes`): on A's wall the sectors about `±â₁` lie
+/// outside B's cylinder and those about `±â₂` inside; on B's wall the
+/// same sectors, the other way round. Which of those is outside B's
+/// material, and inside A's, is each face's sense: for two rods both are
+/// the sectors about `±â₁`, for two bores both about `±â₂`. So the node
+/// is a pierce of B's face by A's ring vertex whose two runs are those
+/// sectors, each bounded by one arc of each ellipse: A's struts span
+/// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
+/// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
+/// against a bore makes A's Out sectors and B's In sectors different
+/// ones, which no pierce ring pairs, and refuses. Both rings hang their
+/// struts by one tree ([`ring_struts`]), A's facing each germ with the
+/// other half of its strut from B's, as a held pierce's strut does
+/// ([`faces_holding_pierce`]). `arm` meters the germs' order.
+///
+/// The germs ride their arcs' ellipses: `e₁`'s the split's positive
+/// branch, `e₂`'s its negative one ([`crate::ring_path::LoopSplit`]'s
+/// bisector).
+///
+/// # Errors
+///
+/// [`BooleanError::NodeUnbuilt`] for walls of opposite senses, or arcs
+/// whose turn toward the axis reads Zero at the walls' radius; either
+/// face's normal refusing at the node; [`germ_order`]'s and
+/// [`mint_ring`]'s refusals; the Euler operators'.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
+    (a, b): (&mut Body<T>, &mut Body<T>),
+    faces: (crate::entity::FaceKey, crate::entity::FaceKey),
+    (node, radial): (geom_core::Point3<T>, Vec3<T>),
+    tangents: [Vec3<T>; 2],
+    axes: [Vec3<T>; 2],
+    arm: T,
+    band: Band,
+    tol: Tol,
+) -> Result<RingOut<T>, BooleanError> {
+    // Each face's outward normal at the node, which it lies on.
+    let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
+        match crate::face_normal::face_outward_normal_at(body, face, node, band) {
+            Ok(Some(n)) => Ok(n.vec()),
+            Ok(None) => Err(BooleanError::ClassificationInvariant {
+                what: "a node's face has no outward normal",
+            }),
+            Err(refusal) => Err(BooleanError::of_pierced_normal(refusal, operand, face)),
+        }
+    };
+    let normal = outward(Operand::B, b, faces.1)?;
+    let cells = (
+        faces,
+        (super::Locus::InFace(faces.0), super::Locus::InFace(faces.1)),
+    );
+    // **The runs, by the walls' senses.** Round the node the sectors
+    // about `±â₁` on A's wall lie outside B's cylinder and those about
+    // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
+    // cylinder and those about `±â₂` outside it. The pierce ring pairs
+    // A's sectors outside B's material with B's inside A's: for two rods
+    // (each face's material on its axis's side) both are the sectors
+    // about `±â₁`, for two bores both about `±â₂`. A rod against a bore
+    // makes them different sectors, which no pierce ring pairs. Each
+    // wall's sense is its outward normal against the radial `node − p`,
+    // which the walls, tangent at the node, are both square to: `±r`.
+    let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
+        let n = outward(operand, body, face)?;
+        match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            // The normal of a wall of radius `r` read against its own
+            // radius at the node is `±r`, which the section table decided
+            // definite on this band before the ellipses were returned
+            // (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`).
+            Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
+                what: "a node's wall reads its outward normal square to its radius",
+            }),
+            Err(diag) => Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            )),
+        }
+    };
+    let out_axis = match (
+        sense(Operand::A, a, faces.0)?,
+        sense(Operand::B, b, faces.1)?,
+    ) {
+        (true, true) => axes[0],
+        (false, false) => axes[1],
+        _ => {
+            return Err(BooleanError::NodeUnbuilt {
+                a_face: faces.0,
+                b_face: faces.1,
+                why: super::NodeWhy::OppositeSenses,
+            });
+        }
+    };
+    // Each tangent turned toward that axis, so a run's two germs bound
+    // the sector about it and their opposites the one about its
+    // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
+    // between the axes: the pair's parallel gate decided `θ` apart at
+    // the walls' span, and a turn too small to read at their radius is a
+    // node this pass cannot build.
+    let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
+        match decide(
+            "bool_node_tangent_toward_axis",
+            Margin::levered(t.dot(out_axis), arm),
+            band,
+        ) {
+            Ok(Sign::Positive) => Ok(t),
+            Ok(Sign::Negative) => Ok(-t),
+            Ok(Sign::Zero) => Err(BooleanError::NodeUnbuilt {
+                a_face: faces.0,
+                b_face: faces.1,
+                why: super::NodeWhy::NearlyParallel,
+            }),
+            Err(diag) => Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            )),
+        }
+    };
+    let (g1, g2) = (toward(tangents[0])?, toward(tangents[1])?);
+    let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, d, branch) };
+    let (on_e1, on_e2) = (super::Branch::Positive, super::Branch::Negative);
+    // A run's start is the germ its sector is entered by, turning
+    // counterclockwise about B's outward normal: `e₂`'s where `e₁`'s
+    // tangent turns to `e₂`'s that way.
+    let e1_first = match decide(
+        "bool_node_run_turn",
+        Margin::levered(g1.cross(g2).dot(normal), arm),
+        band,
+    ) {
+        Ok(Sign::Positive) => false,
+        Ok(Sign::Negative) => true,
+        // The arcs cross square, `g₁ ⟂ g₂` in the tangent plane whose
+        // normal this reads, so the margin is `±r`: definite wherever the
+        // section table decided the ellipses' minor semi-axis `r`
+        // (`geom`'s `ellipse_minor_positive`) on this band.
+        Ok(Sign::Zero) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a node's two arcs leave it along one line",
+            });
+        }
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
+    };
+    let run = |d1: Vec3<T>, d2: Vec3<T>| {
+        let (x, y) = (germ(d1, on_e1), germ(d2, on_e2));
+        if e1_first { (x, y) } else { (y, x) }
+    };
+    let run_germs = [run(g1, g2), run(-g1, -g2)];
+    // A's struts, one per run, hung by the ring's tree.
+    let (wa, loop_a) = ring_vertex_in(a, faces.0, node, tol)?;
+    let provisional: Vec<PlannedRun<T>> = run_germs
+        .iter()
+        .map(|&(s, e)| PlannedRun {
+            edge: crate::entity::EdgeKey::default(),
+            germs: (s, e),
+            order: [(s.1, arm), (e.1, arm)],
+        })
+        .collect();
+    let contact = VfContact {
+        vertex: wa,
+        face: faces.1,
+    };
+    let plan = RingPlan {
+        contact,
+        piercing: Operand::A,
+        point: node,
+        normal,
+        runs: provisional,
+    };
+    let runs: Vec<(usize, &RingPlan<T>, &PlannedRun<T>)> =
+        plan.runs.iter().map(|run| (0, &plan, run)).collect();
+    let (tree, _) = ring_struts(&runs, normal, (Operand::A, faces.1), band)?;
+    let mut edges = Vec::new();
+    let mut strut_edge = BTreeMap::new();
+    let mut root_anchor: Option<HalfEdgeKey> = None;
+    let mut tips: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
+    for strut in &tree {
+        let (start_germ, end_germ) = run_germs[strut.run];
+        let (at, site) = match strut.parent {
+            None => (
+                wa,
+                match root_anchor {
+                    None => MevSite::Lone { r#loop: loop_a },
+                    Some(he) => MevSite::Fan { he1: he, he2: he },
+                },
+            ),
+            Some(parent) => {
+                let &(tip, back) =
+                    tips.get(&parent)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "a node strut's parent is minted after it",
+                        })?;
+                (
+                    tip,
+                    MevSite::Fan {
+                        he1: back,
+                        he2: back,
+                    },
+                )
+            }
+        };
+        let mint = a.mev_null_run(site, at, NewVertexSide::Above, strut.plus_faces_start)?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+        if strut.parent.is_none() {
+            root_anchor.get_or_insert(created.he_plus);
+        }
+        tips.insert(strut.run, (created.vertex, created.he_minus));
+        strut_edge.insert(strut.run, created.edge);
+        edges.push(BoolNullEdgeRecord {
+            operand: Operand::A,
+            at_vertex: at,
+            edge: created.edge,
+            attr,
+            dangling: true,
+            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
+        });
+    }
+    let plan = RingPlan {
+        runs: plan
+            .runs
+            .into_iter()
+            .enumerate()
+            .map(|(i, run)| {
+                Ok(PlannedRun {
+                    edge: *strut_edge
+                        .get(&i)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "a node's run has no strut on A's side",
+                        })?,
+                    ..run
+                })
+            })
+            .collect::<Result<_, BooleanError>>()?,
+        ..plan
+    };
+    let mut out = mint_ring(b, &[&plan], band, tol)?;
+    edges.append(&mut out.edges);
+    out.edges = edges;
     Ok(out)
 }
 

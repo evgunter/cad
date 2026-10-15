@@ -227,9 +227,13 @@ fn the_box_contains_every_sample_of_the_minted_rim() {
 }
 
 /// **Row 7 — rigid re-pose parity.** The cavity's minted spiric
-/// carriers re-posed by `transform` equal, field by field within one
-/// ulp, the carriers of the re-posed operand's own cavity — the
-/// lune's re-pose row, on the kind-changing mint.
+/// carriers re-posed by `transform` equal, field by field, the carriers
+/// of the re-posed operand's own cavity — the lune's re-pose row, on the
+/// kind-changing mint. The two orders agree up to the rigid map (D10),
+/// not to the bit: the re-pose rounds every stored coordinate to its
+/// own ulp, and each field is computed from those coordinates, so a
+/// field may differ by a few ulps of the coordinates' magnitude, the
+/// reach `|c| + R + r` of the carrier's points.
 #[test]
 fn the_minted_rim_survives_a_rigid_re_pose() {
     let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
@@ -265,7 +269,6 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     let mut want = spiric_edges(&posed_after);
     let got = spiric_edges(&offset_after);
     assert_eq!((want.len(), got.len()), (2, 2));
-    let ulp = |x: f64| (x.abs() * f64::EPSILON).max(f64::MIN_POSITIVE);
     for (_, g, _) in got {
         let Curve3::Spiric {
             center: gc,
@@ -295,6 +298,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         else {
             unreachable!()
         };
+        let reach = wc.distance(Point3::origin()) + wr + wm;
+        let slack = 4.0 * reach * f64::EPSILON;
         for (a, b) in [
             (gc.x, wc.x),
             (gc.y, wc.y),
@@ -310,8 +315,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
             (gd, wd),
         ] {
             assert!(
-                (a - b).abs() <= ulp(a),
-                "field {a} vs {b} differs by more than one ulp"
+                (a - b).abs() <= slack,
+                "field {a} vs {b} differs by more than four ulps of the reach {reach}"
             );
         }
     }

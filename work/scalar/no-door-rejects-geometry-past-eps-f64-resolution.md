@@ -112,3 +112,31 @@ D4 ¶4 (`docs/DESIGN.md`) reads: "the session box is 1 km, no coordinate larger 
 ### Repair shape
 
 There are two candidate homes for the check: a construction-time check at the doors that mint geometry (sketch/profile, builders, import placement), or a validator check at rest (`topo::validate`). D4 ¶4 says "at construction". The box's lever arm (`Band::angular_at`'s conservative universal arm) and the SSI scale levers (`work/ssimarch/ssi-scale-levers-cite-a-size-range-with-no-number.md`) then have a refusal to cite. Weigh where the check lives and what a box-crossing refusal names before implementing.
+
+## 2026-10-14: seam note from GERM (`germ/pt-section-gaps`)
+
+GERM closed `work/germ/plane-torus-section-gaps-decide-far-coordinates-uncharged.md`
+into this item: the plane×torus section's misreads all sat at
+`1e5`–`1e6` m, outside the box, and charging its accepting gaps with
+the coordinates' resolution would be a tolerance growing with
+position (D4 ¶1). Inside the box the section reads as at the origin.
+For whoever builds the box gate:
+
+- **(a) The far-frame rows run geometry outside the box.**
+  `topo`'s `ring_path::far_frame_rows` (PR 5012) moves its islands to
+  coordinates of about `1e6`. Once the gate exists, ask which of those
+  rows still exercise reachable geometry, and whether PR 5012's
+  per-site charge of `ring_path`'s `resolution` still earns its place
+  inside the box. Its section-lane row has already moved inside
+  (`a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
+- **(b) K has no lower bound.** geom-core `tolerance.rs`
+  `refuse_env_k` admits any finite K above 1, while the floor argument
+  (a gap's few roundings at the box edge stay inside the escalation
+  band at `EPS_MIN`) relies on K covering those few roundings. A K
+  near 1 leaves no room for them. One site that leans on it with a
+  difference of far dot products still in place: geom-brep `locus.rs`,
+  `Section::faces_clear` reads `lo − at`, with `at` the locus's
+  origin dotted with `across` and `lo`, `hi` the caller's face extents
+  along it, each a far dot product.
+- **(c)** The ruling and both designers' in-box measurements are in
+  the GERM item above.

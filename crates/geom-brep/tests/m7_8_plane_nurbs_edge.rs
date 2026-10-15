@@ -48,8 +48,15 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    let limbs = plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band())
-        .expect("the true locus certifies");
+    let limbs = plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    )
+    .expect("the true locus certifies");
     println!(
         "M7-8 quarter-cylinder ruling: on_locus_max = {:e} m, hull_sup = {:e} m, \
          tube = {:?}, tube_transversality = {:e} m over {} boxes, \
@@ -87,7 +94,14 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
     // budget and the honest verdict is acceptance.
     let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
             let value = upper(margin);
             println!(
@@ -131,7 +145,14 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
         let p = carrier.eval(f64::from(i) / 8.0);
         assert_eq!(p.y, 0.0, "the carrier stays exactly on the y = 0 plane");
     }
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
             let value = upper(margin);
             println!(
@@ -160,7 +181,14 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &tangent, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &tangent,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { sample, .. }) => {
             println!("M7-8 tangential plane: refused at interior sample {sample}");
         }
@@ -201,7 +229,14 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
             assert_eq!(
                 lever,
@@ -247,7 +282,14 @@ fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
             assert_eq!(lever, PointLever::Extent, "the lever the refusal names");
             let m = verdict.margin().diagnostic_f64_for_error_text().value();
@@ -571,7 +613,14 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
         };
 
-        let lane = plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+        let lane = plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &transverse_plane(),
+            &wall,
+            1.0,
+            band(),
+        );
         let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {
             panic!("[{lo:e}, {hi:e}] the lane must refuse as the domain door: {lane:?}");
         };

@@ -149,6 +149,11 @@ macro_rules! proximity_lever {
     };
 }
 
+/// [`BooleanDecision::CylinderAxes`]'s subject, the sentence the carrier
+/// ladder's own axis rung (`carrier_cyl_axis_parallel`, a
+/// `Coincide::Carriers` rung) reads in too.
+pub(crate) const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
+
 /// The corner edge-length lever as a literal, for `concat!`
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
@@ -227,6 +232,11 @@ pub enum BooleanDecision {
     /// Where a straight edge crosses a cylinder wall: a rung of the line
     /// × wall quadratic.
     WallRoots(WallRung),
+    /// Whether the axes of a cylinder face of each solid are parallel,
+    /// so the walls meet in rulings: the sine between the axes levered
+    /// at the walls' span (`cc_axes_parallel`, read where the join takes
+    /// the pair's section).
+    CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
     TorusRoots,
@@ -863,6 +873,14 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// [`RESULT_SHELL`] at the split door ([`BooleanDecision::render_at_split`]):
+/// the same decision on the same margin, in the split's lever, since the
+/// split has one operand and a plane.
+const SPLIT_RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so each piece it leaves is clearly thick",
+    ..RESULT_SHELL
+};
+
 /// Whether the faces touching along a seam curve apart or share their
 /// curvature ([`BooleanDecision::SeamJet`]): the sagitta their relative
 /// bend subtends over the folded lever arm, a determinate tangency on a
@@ -1410,6 +1428,7 @@ impl BooleanDecision {
             Self::WallRoots(WallRung::Discriminant) => {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
+            Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
@@ -1567,6 +1586,15 @@ impl BooleanDecision {
                 "edge's drift off the cylinder's axis",
                 SizedPass::Positive,
             ),
+            // Only a zero passes, along the rulings: a definite tilt goes
+            // on to other escalations and then to the skew and
+            // meeting-axes frontiers, so the lever names the parallel
+            // side alone and no smaller tolerance decides it passing.
+            // The margin is the axes' drift over the walls' span, which a
+            // turn moves.
+            Self::CylinderAxes => {
+                Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
+            }
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
             // cannot hold a zero endpoint); a zero is a tangency, refused
@@ -1647,11 +1675,29 @@ impl BooleanDecision {
             .to_string()
     }
 
+    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::ShellRole`] ends in the split's own lever, every other
+    /// decision as at the Boolean.
+    #[must_use]
+    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
+        let ending = match self {
+            Self::ShellRole { .. } => Ending::Sized(SPLIT_RESULT_SHELL),
+            _ => self.ending(diag),
+        };
+        diag.undecided(self.subject(), self.counted(ending.recourse(diag)))
+            .to_string()
+    }
+
     /// The one ending the verdict gives at `diag`, with no subject: a
     /// result shell's role read in band also counts the shells beside it
     /// the same tolerance decided.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        let ending = self.ending(diag).recourse(diag);
+        self.counted(self.ending(diag).recourse(diag))
+    }
+
+    /// `ending`, after the count of the other in-band shells where this
+    /// is [`Self::ShellRole`].
+    fn counted(self, ending: String) -> String {
         match self {
             Self::ShellRole { others: 0, .. } => ending,
             Self::ShellRole { others: 1, .. } => format!(
@@ -1931,6 +1977,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::WallRoots => {
                     WallRung::iter().map(BooleanDecision::WallRoots).collect()
                 }
+                BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
@@ -2236,6 +2283,12 @@ pub(in crate::boolean) mod tests {
                     "Recourse: turn the edge clearly away from the direction of the cylinder's \
                      axis",
                     SizedPass::Positive,
+                ),
+            ),
+            BooleanDecision::CylinderAxes => (
+                "whether two cylinders' axes are parallel",
+                Ending::Lever(
+                    "Recourse: turn one part so the two cylinders' axes are clearly parallel",
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (

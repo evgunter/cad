@@ -134,15 +134,19 @@
 //! instance. Wall–wall seams adopt through the
 //! **IsoCurve rung** (the carrier bitwise-matched against the
 //! adjacent walls' `boundary_iso_u` columns, certified through the
-//! iso residual lane), cap rims through the conventional rung's
-//! Nurbs-adjacency exemption (`PlacedSegment` for line rims — the
+//! iso residual lane). A cap rim adopts at the `Intersection` rung
+//! where the plane × NURBS certificate takes its carrier — a straight
+//! rim, whose chart image on the wall is straight — and otherwise
+//! through the conventional rung's Nurbs-adjacency exemption
+//! (`PlacedSegment` for a line rim the certificate refuses — the
 //! native loft's own description class, which is what the NURBS
-//! chart's pcurve mint accepts; `RevolvedPoint` for arc rims on
-//! rational walls, which mint nothing — the native rational body's
-//! own state). Multi-ring NURBS faces keep refusing typed at the
-//! curved-face ring gate (no NURBS chart inversion — stage-1
-//! recognition territory, named there), as do spline sub-types the
-//! writer never emits (knots-implied `QUASI_UNIFORM_CURVE` and kin).
+//! chart's pcurve mint accepts; `RevolvedPoint` for arc rims, whose
+//! degree-1 chart image the certificate's hull refuses, on rational
+//! walls minting nothing — the native rational body's own state).
+//! Multi-ring NURBS faces keep refusing typed at the curved-face ring
+//! gate (no NURBS chart inversion — stage-1 recognition territory,
+//! named there), as do spline sub-types the writer never emits
+//! (knots-implied `QUASI_UNIFORM_CURVE` and kin).
 //!
 //! **Coverage is bounded by what the writer can emit** (#207): the
 //! loft/sweep skin's chord-length fit drifts unit weights on any

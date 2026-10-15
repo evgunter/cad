@@ -2,11 +2,13 @@
 id: param-span-lever-says-vanishingly-short-of-a-reversed-span
 kind: issue
 title: geom-brep: CertCheck::ParamSpan's lever says "not vanishingly short" of a span reversed by a definite length
-status: dispatched
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: E
 branch: encl/param-span-lever
+pr: 5138
+closed: 2026-10-14
 ---
 
 (Filed by the ENCL implementer of `param-span-reversed-at-a-build-tells-two-stories`, from the PR 5023 style review, Q4.)

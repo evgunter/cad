@@ -2780,6 +2780,11 @@ fn classify_band(e: &BandError) -> &'static str {
     }
 }
 
+/// Why limb 2 refused a carrier it has no certified net of, at rest:
+/// the edge certificate's reason and a fitted row's alike.
+const CARRIER_ENCLOSURE: &str = "the check cannot enclose a curve over part of its range, so it \
+     cannot bound how far the curve strays from its faces between samples";
+
 fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
@@ -2854,6 +2859,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
+        CertifyError::PlaneNurbs(P::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
@@ -2894,7 +2900,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
-            | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
+            | CertifyError::PlaneNurbs(
+                P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
+            )
             | CertifyError::AnalyticRung3(
                 A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
             ) => NOT_YET_ENDING,
@@ -3313,6 +3321,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     "a boundary curve's parameter range cannot carry its image on the face",
                     Some(REPARAMETERIZE),
                 ),
+                C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
@@ -5866,6 +5875,31 @@ pub(crate) struct InBandShell {
     pub(crate) sliver: crate::props::CertifiedSliver,
 }
 
+/// **The one spelling of a result the at-rest gate refused for the
+/// kernel's findings** ([`crate::boolean::AtRestRefusal::Kernel`]), at the
+/// Boolean and the split:
+/// `subject` names the result, and the first finding renders with its
+/// own ending.
+pub(crate) fn write_result_not_at_rest(
+    f: &mut fmt::Formatter<'_>,
+    subject: fmt::Arguments<'_>,
+    errors: &[ValidationError],
+) -> fmt::Result {
+    match errors {
+        [first, ..] => write!(
+            f,
+            "{subject} did not pass the at-rest gate, so no body is returned ({} finding(s)); \
+             the first: {first}",
+            errors.len(),
+        ),
+        [] => write!(
+            f,
+            "{subject} did not pass the at-rest gate, so no body is returned. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        ),
+    }
+}
+
 /// Check 7's names: the bracket's high end under `positive_volume`, the
 /// refusal this check has always made, and its low end under
 /// `positive_volume_enclosure`, whether the sign is already certain.
@@ -6394,7 +6428,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// too: not unit, but a direction. Unit-ness and orthogonality are the
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
-fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
+pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
     use geom_core::is_finite_length as finite;
     let components = finite(v.x) && finite(v.y) && finite(v.z);
     let len = v.norm();
@@ -12010,8 +12044,8 @@ mod tests {
                     sample: 0,
                     cause: in_band,
                 }),
-                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-                 length is intended, tighten the tolerance below 5e-10 m"
+                "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+                 this length is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
@@ -16711,7 +16745,7 @@ mod certify_escalation_rows {
             (
                 escalated(CertCheck::ParamSpan, in_band),
                 "its length is too close to zero to decide at this tolerance. Recourse: move \
-                 the geometry so this edge is not vanishingly short, or, if this length is \
+                 the geometry so this edge runs forward over a clear length, or, if this length is \
                  intended, tighten the tolerance below 5e-10 m",
             ),
             (
@@ -16854,14 +16888,14 @@ mod certify_escalation_rows {
                     verdict: zero(5.0e-10),
                 }),
                 "its length is within the tolerance of zero. Recourse: move the geometry so \
-                 this edge is not vanishingly short, or, if this length is intended, tighten \
-                 the tolerance below 5e-11 m",
+                 this edge runs forward over a clear length, or, if this length is intended, \
+                 tighten the tolerance below 5e-11 m",
             ),
             (
                 says(CertifyError::IntervalNotForward { verdict: zero(0.0) }),
                 "its length is within the tolerance of zero. Recourse: move the geometry so \
-                 this edge is not vanishingly short; an edge of no length, or a reversed one, is \
-                 one no kernel construction mints, so this is a kernel defect or a damaged \
+                 this edge runs forward over a clear length; an edge of no length, or a reversed \
+                 one, is one no kernel construction mints, so this is a kernel defect or a damaged \
                  file, worth reporting",
             ),
             (

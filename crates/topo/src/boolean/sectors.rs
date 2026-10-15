@@ -1383,6 +1383,14 @@ fn germ_curve<T: Decide>(
 /// could answer otherwise. A conic or spline can meet such a partner
 /// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
+///
+/// For two closed edges (each one vertex, both its ends) the far end is
+/// the site itself, so the pairing holds of every such pair and says
+/// nothing: two closed circles tangent at one site are one segment here
+/// whether or not they are one curve. Two that are not (two coplanar
+/// rims tangent outside each other at their shared vertex) are told
+/// apart downstream, where the join refuses their loop
+/// ([`crate::chord_join::SplitJoinError::SectionLoopMixed`]).
 fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,

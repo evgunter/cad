@@ -126,6 +126,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
 mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -307,6 +309,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_concave_bar.rs"]
+mod band_concave_bar;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
@@ -694,6 +698,8 @@ mod split_edge_fitted_rows;
 mod split_edge_loft_charts;
 #[path = "split_edge_on_faces_poses.rs"]
 mod split_edge_on_faces_poses;
+#[path = "split_seam_vanishing_tilt.rs"]
+mod split_seam_vanishing_tilt;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1157,6 +1163,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]

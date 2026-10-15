@@ -57,6 +57,7 @@ mod carrier_net;
 pub mod carrier_speed;
 pub mod certify;
 pub mod conic_bend;
+pub mod curve_pair;
 pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
@@ -88,12 +89,14 @@ pub mod pcurve_cache;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
+pub mod roots;
 pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
 
+pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
@@ -169,9 +172,9 @@ pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
     FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_periods,
+    chart_stretch_sup_v, whole_period_count, whole_period_walk, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
