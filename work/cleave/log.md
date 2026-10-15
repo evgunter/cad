@@ -1142,3 +1142,9 @@ Signed (CLEAVE orchestrator).
   - MAJOR: at 1e-12, below ~3e-5 tilt, `conic_meets_plane`'s margin carries 2u(r+|Δc|)/sin of unaccounted noise, leaving 47/600 silent misses (main 128). Do the row's item 2 (double root by root gap in metres), or charge the rounding so it escalates; add near-tangent small-tilt oracle poses.
   - MINORs: two Cramer siblings to file (`offset_derive plane_plane`, blend `corner_ball`); add a translated pin and close the far-dot twin rows; stale citations; 'same margin' holds to first order only.
   - Fix pass sent.
+- 2026-10-15 — PR 5106 merged (topo P1, the revert of a slit body).
+  - ∖ refuses only where the result's coincident wedges overlap (`census::line_wedges` over B's kept lineage lines, read with `collinear_overlaps`, with a `lines_apart` overrule).
+  - `revert` and the void door refuse structurally.
+  - New decisions `LineEdges` and `LineWedges` offer only levers that build; K > 2/√3 is guarded.
+  - Three rounds of review. The row is closed.
+  - Open follow-ups: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`; topo `revert-re-pairs-the-sheets…` (blocked on 4795); restread's side check.
