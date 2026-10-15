@@ -222,7 +222,9 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     common::assert_every_chord_named_by_the_fence(&body, &errs);
     // Stated conventionally instead, all nine read a corner: the
     // dihedral classification the scaffolds hide.
-    common::assert_every_chord_reads_transverse(&body, Tol::witness());
+    let mut paired = body.clone();
+    let want = common::every_chord_stated_as_its_pair(&mut paired, Tol::witness());
+    assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
@@ -1092,8 +1094,8 @@ mod interval_lane {
     /// squares, the FULL mini-extrude e2e now runs at `Interval`:
     /// non-dyadic rims, Newell side planes, the seed-cap setter, the
     /// prefer-intrinsic upgrade of all nine edges, and tiers 1–3 clean
-    /// after the upgrade (the M2 PR 4 enforcement names the nine
-    /// pre-upgrade conventional descriptions at rest) — Q1's replay
+    /// after the upgrade (the transience fence names the nine
+    /// pre-upgrade scaffolds at rest) — Q1's replay
     /// lane works for real (non-dyadic) geometry, which is exactly
     /// what PR 4's extrude and PR 5's revolve need.
     #[test]
@@ -1109,7 +1111,9 @@ mod interval_lane {
         // scalar.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         common::assert_every_chord_named_by_the_fence(&body, &errs);
-        common::assert_every_chord_reads_transverse(&body, geom_core::Tol::witness());
+        let mut paired = body.clone();
+        let want = common::every_chord_stated_as_its_pair(&mut paired, Tol::witness());
+        assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
         // The prefer-intrinsic upgrade at the interval scalar.
         common::describe_as_intersections(&mut body, geom_core::Tol::witness());
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));

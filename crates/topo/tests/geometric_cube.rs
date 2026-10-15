@@ -46,7 +46,9 @@ fn geometric_cube_passes_all_three_tiers() {
     assert_every_chord_named_by_the_fence(&t.body, &errs);
     // Stated conventionally instead, every chord reads a corner: the
     // dihedral classification the scaffolds hide.
-    common::assert_every_chord_reads_transverse(&t.body, Tol::witness());
+    let mut paired = t.body.clone();
+    let want = common::every_chord_stated_as_its_pair(&mut paired, Tol::witness());
+    assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;

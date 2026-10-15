@@ -1229,6 +1229,16 @@ mod square {
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Tol, Vec3};
 
+    /// A pose by name: the moved surface, the held one, and an edge on
+    /// both over its span.
+    type Pose = (
+        &'static str,
+        Surface<f64>,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+    );
+
     #[test]
     fn every_held_pose_routes_and_reads_the_section() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -1262,7 +1272,7 @@ mod square {
             u_ref: x,
         };
         let s = std::f64::consts::FRAC_1_SQRT_2;
-        let poses: Vec<(&str, Surface<f64>, Surface<f64>, Curve3<f64>, (f64, f64))> = vec![
+        let poses: Vec<Pose> = vec![
             (
                 "plane beside a plane holding its normal",
                 plane(o, z, x),

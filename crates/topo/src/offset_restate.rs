@@ -63,9 +63,9 @@ pub(crate) fn restate<T: Real>(
         &dyn Fn() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let declared = || match &authority {
+    let declared = || match authority {
         EdgeAuthority::Derived => Ok(None),
-        EdgeAuthority::Declared(mc) => Ok(Some(carried(mc.clone())?)),
+        EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
     };
     Ok(match description {
         EdgeDescription::Intersection { pair, .. } => {
