@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-placement-is-the-bundle-of-mates]
+blocked_on: [a-placement-is-the-bundle-of-mates, poses-move-by-lengths-and-angles]
 refs: [intent-stage3-is-built]
 ---
 

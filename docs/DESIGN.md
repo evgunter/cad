@@ -1388,16 +1388,16 @@ variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
 which are only defined: read off a body's geometry (a face's plane, a
-carrier's axis or centre, a vertex's point), by coordinates over scalar variables in a
-frame the definition reads, by a construction over other poses, as a
+carrier's axis or centre, a vertex's point), moved from another pose by a slide along, or a spin about, a direction
+or axis the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
 none is defined from nothing, and no construction reads one; the shapes
 (`Body`, `Bodies`, an ordered list of bodies whose length is a `Count`,
 and `Profile`), which only an operation defines, a `Profile` being 2-D
 shape whose numbers are read only against each other, and a sweep
-reading a profile and, at most, a direction in the profile's own axes
-(an extrude's slant, held to one side of the profile's plane) or a 2-D
-axis line (a revolve's), never a frame; and the selections of a shape:
+reading a profile and, at most, a heading and a tilt in the profile's
+own axes (an extrude's slant, held to one side of the profile's plane)
+or a point and a heading (a revolve's axis line), never a frame; and the selections of a shape:
 one cell of a body (`Face`, `Edge`, `Vertex`), or the set of them a
 reader takes (`Faces`, `Edges`; a set kind exists only for a slot that
 reads one). A variable is
@@ -1409,8 +1409,11 @@ rational fractions of a turn, and a lone `0`, which carries no unit and
 so stands at any dimension as the omission it marks (`0 mm` is a
 dimensioned literal, so typing it mints a variable); each is the shape
 of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
-offers an existing variable of equal value; declining the offer is what
-makes the two distinct. A variable without a name is read by exactly
+offers an existing variable of equal value that it is not already the
+same as (VR8); declining the offer is what makes the two distinct. A
+lone `0` is the one typed value that is a constant rather than a
+variable, so typing it draws no offer and a default `0` is never the
+one offered. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
 readers share has a name the person gave it; an output is spoken by
 its operation.
@@ -1419,11 +1422,18 @@ A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
 forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
 slot holds its own kind; a finer value is read through its projection,
+the role it is read through (a frame's x, y or z axis, origin or
+coordinate plane; a plane's normal; an axis's line or direction) being
+part of the read,
 and an incidence between poses (an axis in a plane, a point on an axis)
-is a construction over one variable, never a check between two. A face
+is a construction over one variable, never a check between two. No
+slot holds a component of a direction or of a frame's axis: every
+number a pose, a construction's axis or a placement holds is a `Length`
+along one freedom or an `Angle` about one, and a 2-D direction is an
+angle. A face
 reads as a plane and a vertex as a point; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
-holds its frame, as scalar slots, and is never a variable of a 2-D kind;
+holds its frame, as length and angle slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
 
 **Operations.** A node is an operation: it reads variables and defines
@@ -1526,8 +1536,9 @@ kind mismatch at the door, and a kernel bug anywhere else. A
 **placement** is the bundle of mates and values that pins one copy of a
 part relative to others: two placements of a part are two copies; a
 copy is pinned when its mates and values together leave nothing free,
-and a body's symmetry pins nothing (a value it makes unobservable is
-reported, never refused). Its mates and values are on equal footing,
+and a body's symmetry pins nothing (a written value it makes
+unobservable, a placement's or a pose move's, is reported, never
+refused). Its mates and values are on equal footing,
 and a constraint any of whose equations the others already fix refuses
 as an overconstraint, pinned or not, decided by subgroup algebra
 (A11 (1)) without measuring; where two copies meet beyond what their
@@ -1547,7 +1558,7 @@ measured from the target's along the freedom, a spin the angle between
 their reference directions about it, each a function of the relative
 pose alone, so no order of the values is chosen. Zero is always a valid
 value and says the two bodies' own coordinates agree as far as the
-mates allow; the façade writes it as a free variable for each freedom a
+mates allow; the façade writes the constant `0` for each freedom a
 gesture leaves unnamed. A rotation left by a lone point mate has no
 such chart and is lowered by a direction mate first. A placement is the
 only reader of a body's own coordinates, and reads them only through
