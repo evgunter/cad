@@ -1413,6 +1413,23 @@ fn partners_along_the_face_build_sound_against_the_germ() {
                 ];
                 for (xl, xb) in xs {
                     let label = format!("{ylabel} | {xl}");
+                    // A corner within twice the band of the apex is no
+                    // pyramid the fixture can make: its strut's span
+                    // escalates. "An edge inside the along face" puts one
+                    // there beside a half-turn partner whose two along
+                    // corners nearly oppose (δ 1e-3), which reaches here
+                    // since its orientation reads at rest.
+                    let near = |c: &[f64; 3]| {
+                        (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() * scale
+                            <= 2.0 * t().k() * eps
+                    };
+                    if xb.iter().any(near) {
+                        *probe
+                            .refused
+                            .entry("x: a corner within the band of the apex".to_owned())
+                            .or_default() += 1;
+                        continue;
+                    }
                     let x_b = p(xb);
                     let x_g = c(xb);
                     let before = (germ.wrong, germ.missing, germ.doubled);
