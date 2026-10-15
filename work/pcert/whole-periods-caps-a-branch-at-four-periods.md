@@ -7,7 +7,6 @@ opened: 2026-10-02
 priority: P3
 cost: E
 refs: [loop-walk-branch-is-an-opaque-floor-atom]
-needs_ev: true
 ---
 
 
@@ -57,3 +56,6 @@ also settled the open sub-point (a lifted image is the row plus its deck
 element, never re-certified) and dropped the walk's estimate (every
 decision's gap is within about two periods once images are placed).
 
+## The answer
+
+Ev took the recommendation on `[ev]` PR 5142 (2026-10-15, "i think this sounds good"): no cap; images placed over the edge's span in the principal window; a row is its placed image and a lifted copy is the (row, deck element) pair, never re-certified; the walk reads the half-period marks from zero; a `Period` per closed channel (a net's `v` included) owned by the chart, and an `Azimuth` exit from `atan2` through a stated reference. C4 carries it.
