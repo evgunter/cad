@@ -1169,6 +1169,22 @@ replay; and structural parameters (hole *count*) are explicitly
 distinct from continuous ones (hole *diameter*), so parameter-driven
 topology change is stated, not emergent.
 
+**The recipe keeps the form that was written.** Where people state the
+same thing in more than one natural way, the recipe may hold a family
+of forms for it: one enum whose variants each keep exactly the numbers
+the person wrote, all lowering through one reading that every consumer
+goes through. A sketch arc is the pattern: `arc_to` takes a `Bulge`,
+`Via` (through a point), `Center`, `Sweep` or `ArcLen` spec, the
+program stores the spec as written, and each lowers to the one
+`Segment::Arc` (carrier and sweep) that every reader of a profile reads
+(PATHS-DESIGN). That is how an exact authored value and a single
+interface coexist. A family is not a second spelling, which is one fact
+held in two places that can disagree, or a derived number stored in
+place of the one written. A form joins a family only because it is how
+someone authors the value, never for the kernel's convenience. Where a
+form's numbers name no value it refuses typed, as `Via` does for three
+collinear points (`ArcViaCollinear`).
+
 ### D9 (agreed): Determinism policy and engineering charter
 
 - Same build + same inputs → bit-identical outputs. No hash-map
