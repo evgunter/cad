@@ -117,6 +117,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
+//! | `carrier_circles_chord` | the radical foot's mean depth inside both circles | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |
@@ -799,6 +800,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "carrier_circles_external",
         kind: EndingKind::Sized,
     },
+    // the depth of the chord two nearly internally tangent circles cut, at its midpoint
+    DecisionEnding {
+        name: "carrier_circles_chord",
+        kind: EndingKind::Sized,
+    },
     // two circles told apart by their centre separation plus their radius difference
     DecisionEnding {
         name: "carrier_circles_identity",
@@ -1096,6 +1102,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "full_turn_reach" => "whether a full turn reaches round its carrier",
         "full_turn_sense" => "which way a full turn runs",
         "canonical_order_y" => "which of two points comes first along y",
+        "carrier_circles_chord" => "whether two circles touching from inside cut a chord",
         "carrier_circles_external" => "whether two circles touch from outside",
         "carrier_circles_identity" => "whether two circles are one circle",
         "carrier_circles_internal" => "whether two circles touch from inside",
@@ -1435,6 +1442,7 @@ impl fmt::Display for ProfileError {
                             "carrier_line_circle"
                                 | "carrier_circles_external"
                                 | "carrier_circles_internal"
+                                | "carrier_circles_chord"
                         )
                     );
                 if near_tangency {
@@ -2438,7 +2446,7 @@ impl CanonGuide {
 /// Arity check + segment construction for one input loop. One vertex
 /// is enough: D1's full turn is one segment at one vertex
 /// ([`seg::build_loop_seg`]).
-fn build_loop_segs<T: Decide>(
+pub(crate) fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
     consistency: Consistency,
@@ -2497,7 +2505,7 @@ fn seg_refusal<T: Real>(
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
+pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     loops: &[L],
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),

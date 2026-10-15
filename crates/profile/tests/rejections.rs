@@ -617,7 +617,9 @@ fn validate_both(p: &profile::Profile<f64>) -> Result<(), ProfileError> {
 /// reaches far from angle 0 when `d` is a few ε: there, a hole inside
 /// the unit circle and a hole outside the other circle, with the arcs
 /// holding angle 0 or not, must refuse: a tangency, an end's touch, or
-/// (for nested carriers) an end read in band of the other carrier.
+/// an end read in band of the other carrier or the other span. Where the
+/// carriers cross (`g > 0`) they read as two crossings 0.24 rad either
+/// side of angle 0, not as one tangency.
 #[test]
 fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
     let eps = tol().eps();
@@ -652,14 +654,20 @@ fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
         second: pair.1,
         kind: ContactKind::Touch,
     };
+    let crossing = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Crossing,
+    };
     for (d, g, (from, sweep), (hi, lo), want) in [
-        (17.0, 0.5, (-0.2, 0.4), (0.2, -0.2), Some(tangent())),
-        (17.0, 0.5, (0.1, 0.4), (0.3, 0.05), Some(touch())),
-        (17.0, 0.5, (-0.3, 0.2), (0.2, -0.2), Some(touch())),
-        (17.0, 0.5, (-0.2, 0.4), (0.3, 0.1), Some(touch())),
-        (17.0, -0.5, (0.1, 0.4), (0.3, 0.05), None),
-        (17.0, -0.5, (-0.3, 0.2), (-0.05, -0.25), None),
-        (34.0, 0.9, (0.05, 0.1), (0.12, 0.08), Some(touch())),
+        (17.0, 0.5, (-0.2, 0.4), (0.2, -0.2), Err("arc_span")),
+        (17.0, -0.5, (-0.2, 0.4), (0.2, -0.2), Ok(tangent())),
+        (17.0, 0.5, (0.1, 0.4), (0.3, 0.05), Ok(crossing())),
+        (17.0, 0.5, (-0.3, 0.2), (0.2, -0.2), Ok(touch())),
+        (17.0, 0.5, (-0.2, 0.4), (0.3, 0.1), Ok(touch())),
+        (17.0, -0.5, (0.1, 0.4), (0.3, 0.05), Err("circle_side")),
+        (17.0, -0.5, (-0.3, 0.2), (-0.05, -0.25), Err("circle_side")),
+        (34.0, 0.9, (0.05, 0.1), (0.12, 0.08), Ok(touch())),
     ] {
         let (one, two) = near_concentric(d * eps, g * eps);
         let p = profile(vec![
@@ -669,13 +677,83 @@ fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
         ]);
         let label = format!("d = {d}ε, g = {g}ε, arc {from}+{sweep} against {hi}..{lo}");
         match (validate_both(&p), want) {
-            (Err(got), Some(want)) => assert_eq!(got, want, "{label}"),
-            (Err(ProfileError::Escalated { site, source }), None) => {
+            (Err(got), Ok(want)) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), Err(predicate)) => {
                 assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
-                assert_eq!(source.predicate, Some("circle_side"), "{label}");
+                assert_eq!(source.predicate, Some(predicate), "{label}");
             }
             (got, _) => panic!("{label}: {got:?}"),
         }
+    }
+}
+
+/// One loop: an arc of `one` into the joint at its polar angle `at`, an
+/// arc of `two` out of it through `sweep` (back the way the first came
+/// at a cusp, on round at a smooth joint), and lines home.
+fn joint_loop(
+    (one, two): ((Point2<f64>, f64), (Point2<f64>, f64)),
+    at: f64,
+    sweep: f64,
+) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = |(centre, radius): (Point2<f64>, f64), sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let mut vertices = vec![
+        (rim(one, at - 2.0), arc(one, 2.0)),
+        (rim(one, at), arc(two, sweep)),
+        (rim(two, at + sweep), Segment::Line),
+    ];
+    if sweep > 0.0 {
+        vertices.push((Point2::new(0.0, 0.0), Segment::Line));
+    }
+    profile(vec![ProfileLoop::new(vertices)])
+}
+
+/// **A cusp on near-concentric carriers refuses the crossing its arcs
+/// make away from the joint.** Carriers `d` apart whose internal
+/// clearance `g` is within ε stay within the band for about
+/// `√(2(ε + g)/d)` rad either side of the tangency direction, and for
+/// `g > 0` cross at `±√(2g/d)`: 0.24 rad out at `d = 17ε`, `g = 0.5ε`.
+/// Two arcs leaving a joint there the same way both hold one crossing,
+/// so the pair crosses, however near the tangency direction the joint
+/// stands; two leaving it opposite ways meet only at the joint, a
+/// smooth tangent joint that validates. The joint's arcs are adjacent,
+/// so a contact recorded at the joint is the shared vertex's to
+/// discount: the smooth rows hold the tangency's contact there, and the
+/// cusp rows hold the crossing apart from it.
+#[test]
+fn a_cusp_on_near_concentric_carriers_refuses_its_crossing() {
+    let eps = tol().eps();
+    let crossing = Err(ProfileError::NonSimple {
+        first: sref(0, 0),
+        second: sref(0, 1),
+        kind: ContactKind::Crossing,
+    });
+    for (d, g, at, sweep, want) in [
+        (17.0, 0.5, 0.0, -1.6, crossing.clone()),
+        (17.0, 0.9, 0.0, -1.6, crossing.clone()),
+        (34.0, 0.5, 0.0, -1.2, crossing.clone()),
+        (100.0, 0.5, 0.0, -0.8, crossing.clone()),
+        (1000.0, 0.5, 0.0, -0.3, crossing.clone()),
+        (17.0, 0.5, -10.0, -1.6, crossing.clone()),
+        (17.0, 0.5, 10.0, -1.6, crossing.clone()),
+        (1000.0, 0.5, -10.0, -0.3, crossing.clone()),
+        (17.0, 0.5, 0.0, 1.6, Ok(())),
+        (17.0, -0.5, 0.0, 1.6, Ok(())),
+        (1000.0, 0.5, -10.0, 1.6, Ok(())),
+    ] {
+        let p = joint_loop(near_concentric(d * eps, g * eps), at * eps, sweep);
+        assert_eq!(
+            validate_both(&p),
+            want,
+            "d = {d}ε, g = {g}ε, joint at {at}ε, second arc through {sweep}"
+        );
     }
 }
 
