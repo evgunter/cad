@@ -319,8 +319,11 @@ pub enum BooleanDecision {
     /// line along a length (`census::collinear_overlaps`, read of the
     /// edges whose pieces the result keeps): the turn between them, the
     /// gap between their lines, and the order and overlap of their ends
-    /// along it. Every definite verdict passes, on sets that differ by
-    /// rung, so the lever alone is named.
+    /// along it. Every definite verdict passes the reading, on sets that
+    /// differ by rung, so the lever alone is named; and it names only the
+    /// move that builds, the edges clearly apart, since two edges clearly
+    /// on one line go on to the result's wedges, which refuse where ∖
+    /// reversed them unjoined ([`crate::RevertError`]).
     LineEdges,
     /// Whether the material the result's edges along one line bound
     /// overlaps there (`census::line_wedges`), asked where ∖ reversed a
@@ -330,7 +333,11 @@ pub enum BooleanDecision {
     /// on the line are the operands' faces, which the result carries
     /// exactly, so the reading is of the input and moving the geometry
     /// reaches it; its rungs pass on different sets, so the lever alone
-    /// is named.
+    /// is named. It names only the move that builds, the faces clearly
+    /// parting, since wedges that clearly overlap refuse
+    /// ([`crate::RevertError::WedgesOverlap`]). No fixture is known to
+    /// reach it: every in-band pose tried stops upstream, as it does on
+    /// the code before this reading.
     LineWedges,
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at
@@ -870,12 +877,12 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 };
 
 /// [`BooleanDecision::LineEdges`]' lever.
-const LINE_EDGES_LEVER: &str = "move the geometry so the subtracted solid's straight edges \
-                                clearly share a line or clearly stand apart";
+const LINE_EDGES_LEVER: &str =
+    "move the geometry so the subtracted solid's straight edges clearly stand apart";
 
 /// [`BooleanDecision::LineWedges`]' lever.
-const LINE_WEDGES_LEVER: &str =
-    "move the geometry so the faces meeting along that line clearly part or clearly overlap there";
+const LINE_WEDGES_LEVER: &str = "move the geometry so the faces meeting along that line clearly \
+                                 part there";
 
 /// Whether the faces at a seam edge cross or touch tangentially
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
@@ -2403,14 +2410,14 @@ pub(in crate::boolean) mod tests {
                 "whether two straight edges of the subtracted solid lie on one line along a length",
                 Ending::Lever(
                     "Recourse: move the geometry so the subtracted solid's straight edges \
-                     clearly share a line or clearly stand apart",
+                     clearly stand apart",
                 ),
             ),
             BooleanDecision::LineWedges => (
                 "whether the material that the result's edges along one line bound overlaps there",
                 Ending::Lever(
                     "Recourse: move the geometry so the faces meeting along that line clearly \
-                     part or clearly overlap there",
+                     part there",
                 ),
             ),
             BooleanDecision::EdgeOnFaces => (

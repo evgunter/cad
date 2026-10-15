@@ -2745,6 +2745,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceOnFace",
         1,
     ),
+    ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),

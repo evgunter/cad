@@ -426,7 +426,8 @@ impl core::fmt::Display for RevertError {
             Self::WedgesOverlap { from, to, .. } => write!(
                 f,
                 "the result's edges on the line from {from} to {to} bound overlapping material: \
-                 the faces meeting there are not paired as the material pairs them"
+                 the reversal pairs the faces meeting there as the material does not, and the \
+                 re-pairing it needs is not built"
             ),
             Self::NoSheet { .. } => write!(
                 f,

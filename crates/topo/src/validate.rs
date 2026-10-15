@@ -8187,7 +8187,45 @@ fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
 /// # Errors
 ///
 /// The escalation of a sign the verdict needed.
-pub(crate) fn wedge_holds<T: Decide>(
+fn wedge_holds<T: Decide>(
+    n: geom_core::Vec3<T>,
+    a: geom_core::Vec3<T>,
+    b: geom_core::Vec3<T>,
+    d: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    wedge_holds_named(&PINCH_CORNER, n, a, b, d, band)
+}
+
+/// The predicate names one caller of [`wedge_holds_named`] decides its
+/// four signs under, so each question's K samples stay its own.
+pub(crate) struct WedgeNames {
+    /// Whether the direction leaves the wedge's first bound inward.
+    pub(crate) after_leaving: &'static str,
+    /// Whether it lies short of the second bound.
+    pub(crate) before_arriving: &'static str,
+    /// Whether the wedge turns under or over a half turn.
+    pub(crate) turn: &'static str,
+    /// Whether a wedge of no turn is straight or a cusp.
+    pub(crate) straight: &'static str,
+}
+
+/// Tier 3's pinch-corner names ([`wedge_holds`]).
+const PINCH_CORNER: WedgeNames = WedgeNames {
+    after_leaving: "pinch_corner_after_leaving",
+    before_arriving: "pinch_corner_before_arriving",
+    turn: "pinch_corner_turn",
+    straight: "pinch_corner_straight",
+};
+
+/// [`wedge_holds`] under the caller's predicate names: the same reading,
+/// asked of another question.
+///
+/// # Errors
+///
+/// The escalation of a sign the verdict needed.
+pub(crate) fn wedge_holds_named<T: Decide>(
+    names: &WedgeNames,
     n: geom_core::Vec3<T>,
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,
@@ -8198,14 +8236,10 @@ pub(crate) fn wedge_holds<T: Decide>(
         decide(name, Margin::of(n.dot(x.cross(y)) / x.norm()), band).map(|s| s == Sign::Positive)
     };
     let (after_a, before_b) = (
-        left("pinch_corner_after_leaving", a, d),
-        left("pinch_corner_before_arriving", d, b),
+        left(names.after_leaving, a, d),
+        left(names.before_arriving, d, b),
     );
-    match decide(
-        "pinch_corner_turn",
-        Margin::of(n.dot(a.cross(b)) / a.norm()),
-        band,
-    )? {
+    match decide(names.turn, Margin::of(n.dot(a.cross(b)) / a.norm()), band)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -8218,11 +8252,7 @@ pub(crate) fn wedge_holds<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match decide(
-            "pinch_corner_straight",
-            Margin::of(a.dot(b) / a.norm()),
-            band,
-        )? {
+        Sign::Zero => match decide(names.straight, Margin::of(a.dot(b) / a.norm()), band)? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },

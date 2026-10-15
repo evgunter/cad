@@ -1437,7 +1437,20 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
 /// the shorter is among them without comparing lengths. Readings this
 /// does not decide leave the pair to its escalation, and are not
 /// pushed.
+///
+/// **Sound only where the band's ratio `K` exceeds `2/√3`.** With the
+/// band `(z, K·z)`, the in-band turn moves the shorter edge's offset
+/// from the other line by less than `K·z` end to end, and each end
+/// stands at `K·z` or more, so every point of it stands at least
+/// `(√3/2)·K·z` off the line: more than the zero threshold `z`, which a
+/// coincidence needs, exactly where `K > 2/√3`. A run whose `K` is
+/// smaller (`CAD_AMBIGUITY_K` admits any `K > 1`) is not read apart, and
+/// the pair keeps its escalation; a const assertion beside
+/// [`ratio_reads_apart`] pins the default above the bound.
 fn lines_apart<T: Decide>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>, band: Band) -> bool {
+    if !ratio_reads_apart(band.zero(), band.escalate()) {
+        return false;
+    }
     [(ea, eb), (eb, ea)].into_iter().all(|(on, off)| {
         [off.p0, off.p0 + off.dir * off.len].into_iter().all(|q| {
             let gap = Margin::norm3((q - on.p0).cross(on.dir));
@@ -1448,6 +1461,20 @@ fn lines_apart<T: Decide>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>, band: Band) -> bool 
         })
     })
 }
+
+/// Whether a band `(zero, escalate)` is wide enough for [`lines_apart`]:
+/// `escalate / zero > 2/√3` ([`TWO_OVER_ROOT_3`]).
+const fn ratio_reads_apart(zero: f64, escalate: f64) -> bool {
+    escalate > TWO_OVER_ROOT_3 * zero
+}
+
+/// `2/√3`, rounded up in its last digit so the bound is never read
+/// looser than it is.
+const TWO_OVER_ROOT_3: f64 = 1.154_700_538_379_252;
+
+// [`lines_apart`]'s bound holds at the default ratio
+// (`geom_core::DEFAULT_K`).
+const _: () = assert!(ratio_reads_apart(1.0, geom_core::DEFAULT_K));
 
 /// **Every pair of line edges `body` holds on one segment by structure**:
 /// two distinct line edges whose ends lie on the same two point keys
@@ -1539,7 +1566,8 @@ struct Wedge<T: Real> {
 /// plus half's: an interior direction comes from the sector rungs
 /// ([`crate::sector_shape::sector_shape`]), which refuse a spike, and
 /// whether a direction lies strictly inside it is tier 3's pinch-corner
-/// reading ([`crate::validate::wedge_holds`]), the same question that
+/// reading ([`crate::validate::wedge_holds_named`], under names of its
+/// own, [`LINE_WEDGE`]), the same question that
 /// check asks of two corners at a pinch vertex. Two wedges whose edges
 /// overlap along the line overlap where a sheet or the interior
 /// direction of one lies strictly inside the other: two arcs of a
@@ -1645,9 +1673,35 @@ fn wedge<T: Decide>(body: &Body<T>, e: &EdgeGeo<T>, band: Band) -> Result<Wedge<
 /// half's sheet to its plus half's, every direction scaled to the
 /// wedge's arm so each sign is a length.
 fn strictly_inside<T: Decide>(w: &Wedge<T>, v: Vec3<T>, band: Band) -> Result<bool, WedgeRefusal> {
-    crate::validate::wedge_holds(w.axis, w.next * w.arm, w.own * w.arm, v * w.arm, band)
-        .map_err(WedgeRefusal::Undecided)
+    crate::validate::wedge_holds_named(
+        &LINE_WEDGE,
+        w.axis,
+        w.next * w.arm,
+        w.own * w.arm,
+        v * w.arm,
+        band,
+    )
+    .map_err(WedgeRefusal::Undecided)
 }
+
+/// [`strictly_inside`]'s predicate names: tier 3's pinch-corner
+/// reading, asked of a line's wedges under names of its own, so the K
+/// stream keeps the two questions apart.
+const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
+    after_leaving: LINE_WEDGE_AFTER_LEAVING,
+    before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
+    turn: LINE_WEDGE_TURN,
+    straight: LINE_WEDGE_STRAIGHT,
+};
+
+/// [`LINE_WEDGE`]'s first-bound sign.
+pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = "pm_census_wedge_after_leaving";
+/// [`LINE_WEDGE`]'s second-bound sign.
+pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = "pm_census_wedge_before_arriving";
+/// [`LINE_WEDGE`]'s turn.
+pub(crate) const LINE_WEDGE_TURN: &str = "pm_census_wedge_turn";
+/// [`LINE_WEDGE`]'s straight-or-cusp sign.
+pub(crate) const LINE_WEDGE_STRAIGHT: &str = "pm_census_wedge_straight";
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body

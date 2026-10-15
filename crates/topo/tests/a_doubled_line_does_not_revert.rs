@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use common::meeting::{MEET, Pose, at, posed_box, poses};
+use common::meeting::{MEET, Pose, at, posed_box, posed_boxes, poses};
 use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
@@ -312,4 +312,68 @@ fn a_tool_with_near_parallel_edges_standing_apart_builds() {
             "{what}: volume {v}, closed form {closed}"
         );
     }
+}
+
+/// **Two bricks of the tool a few ε apart on one line escalate, naming
+/// only the move that builds.** The tool holds the bricks
+/// `[0, 1] × [0, 1] × [0.5, 1.5]` and `[−1, −g] × [−1, 0] × [0.5, 1.5]`,
+/// whose edges at the gap lie within `g = 4 ε` of one line inside the
+/// box `[−0.5, 0.5]² × [0, 2]`. Whether they share it is in band:
+/// ∖ refuses `LineEdges`, whose lever is the bricks clearly apart, not
+/// clearly on one line (which ∖ refuses as reversed wedges). Moved
+/// clearly apart, `g = 0.25`, it builds: the box's 2 less the two
+/// bricks inside it, `0.25 + 0.5 · (0.5 − g)`.
+#[test]
+fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
+    let tol = t();
+    let tool = |g: f64| {
+        posed_boxes(
+            "the bricks",
+            &[
+                [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)],
+                [(-1.0, -g), (-1.0, 0.0), (0.5, 1.5)],
+            ],
+            &Pose::rest(),
+            tol,
+        )
+    };
+    let a = posed_box(
+        "the box",
+        [(-0.5, 0.5), (-0.5, 0.5), (0.0, 2.0)],
+        &Pose::rest(),
+        tol,
+    );
+    let refusal = subtract(&a, &tool(4.0 * tol.eps()), tol).err();
+    let Some(
+        refusal @ BooleanError::Escalated {
+            decision: topo::BooleanDecision::LineEdges,
+            diag,
+        },
+    ) = refusal
+    else {
+        panic!("{refusal:?}, not the line's escalation");
+    };
+    assert_eq!(
+        refusal.to_string(),
+        format!(
+            "whether two straight edges of the subtracted solid lie on one line along a length \
+             is undecided: margin {:e} lies inside the ambiguity band ({:e}, {:e}). Recourse: move the \
+             geometry so the subtracted solid's straight edges clearly stand apart",
+            diag.margin,
+            diag.band.zero(),
+            diag.band.escalate()
+        )
+    );
+    let g = 0.25;
+    let BooleanResult::Body(r) =
+        subtract(&a, &tool(g), tol).unwrap_or_else(|e| panic!("moved apart: {e}"))
+    else {
+        panic!("moved apart: empty");
+    };
+    let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+    let closed = 2.0 - 0.25 - 0.5 * (0.5 - g);
+    assert!(
+        (v - closed).abs() < 1e-9,
+        "moved apart: volume {v}, closed form {closed}"
+    );
 }

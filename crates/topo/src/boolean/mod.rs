@@ -259,6 +259,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
+        // The line's wedges ∖ reads on its result (`census::line_wedges`),
+        // tier 3's pinch-corner reading under names of its own.
+        crate::census::LINE_WEDGE_AFTER_LEAVING
+        | crate::census::LINE_WEDGE_BEFORE_ARRIVING
+        | crate::census::LINE_WEDGE_TURN
+        | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
