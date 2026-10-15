@@ -14,7 +14,9 @@
 //! seam passes a node (U2's poses are not these). Rods and bores build
 //! in every pairing: two crossing bores, a slanted bore whose difference
 //! is one solid pinched to itself, and a rod against a bore, each in its
-//! row below.
+//! row below. The last row turns the rod within a hair of the bore's
+//! axis, where the walls are glued and no node is read: there the
+//! answer must not follow the operand order.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -747,6 +749,92 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
             } else {
                 assert!(r.is_ok(), "{what}: builds, got {r:?}");
             }
+        }
+    }
+}
+
+/// **A rod turned within a hair of its bore's axis answers the same in
+/// either operand order.** At `θ` this small the rod's wall lies within
+/// the band of the bore's along its whole length, and its seam ruling
+/// meets each rim at a turn the tilt spreads by about `1.3e-9` per
+/// `1e-8°`. The crossing's candidates on a rim gather round whichever of
+/// them the sweep split it at, and which that is follows the operand
+/// order: each order must read the cluster as one point, or neither.
+///
+/// - `1e-9°`: the cluster reads as one point; ∩ and ∪ build, alike.
+/// - `1e-8°`: two of its candidates lie `1.29e-9` apart, in band, and
+///   both orders escalate at the crossing (`Crossing(OnEdge)`).
+/// - `1e-7°`: both orders escalate, on one margin read at two sites.
+#[test]
+fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
+    let tol = Tol::witness();
+    let bore = finished(
+        "the bore",
+        bored(
+            [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+            spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+        ),
+        tol,
+    );
+    /// An outcome as the orders are compared: a volume, or an escalation
+    /// with its margin, or another refusal's kind.
+    #[derive(Debug)]
+    enum Outcome {
+        Built(f64, f64),
+        Escalated(f64),
+        Refused(String),
+    }
+    let outcome = |r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
+        Ok(BooleanResult::Body(out)) => {
+            let m = topo::mass_properties(&out.body, tol).unwrap();
+            Outcome::Built(m.volume, m.volume_pad)
+        }
+        Ok(_) => Outcome::Built(0.0, 0.0),
+        Err(topo::BooleanError::Escalated { diag, .. }) => Outcome::Escalated(
+            diag.margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin")
+                .abs(),
+        ),
+        Err(e) => Outcome::Refused(
+            format!("{e:?}")
+                .split([' ', '{', '('])
+                .next()
+                .unwrap()
+                .to_string(),
+        ),
+    };
+    for (deg, builds) in [(1e-9_f64, true), (1e-8, false), (1e-7, false)] {
+        let rod = finished(
+            "the rod",
+            spin(
+                &rod_y(4.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0 - deg.to_radians(),
+            ),
+            tol,
+        );
+        for (op, f) in [
+            ("∩", topo::intersect::<f64> as fn(_, _, _) -> _),
+            ("∪", topo::union::<f64>),
+        ] {
+            let (rb, br) = (outcome(f(&rod, &bore, tol)), outcome(f(&bore, &rod, tol)));
+            let alike = match (&rb, &br) {
+                (Outcome::Built(v, p), Outcome::Built(w, q)) => (v - w).abs() <= p + q + 1e-9,
+                (Outcome::Escalated(m), Outcome::Escalated(n)) => (m - n).abs() <= 1e-15,
+                (Outcome::Refused(a), Outcome::Refused(b)) => a == b,
+                _ => false,
+            };
+            assert!(
+                alike,
+                "{deg}°, {op}: (rod, bore) {rb:?}, (bore, rod) {br:?}"
+            );
+            assert_eq!(
+                matches!(rb, Outcome::Built(..)),
+                builds,
+                "{deg}°, {op}: {rb:?}"
+            );
         }
     }
 }

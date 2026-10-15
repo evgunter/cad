@@ -1243,12 +1243,29 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the closed forms.)
-    use super::{BoundaryCrossing, boundary_crossing};
+    use super::{BoundaryCrossing, boundary_crossing, one_point_at_end};
     use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// The candidates at one end read as one point only pairwise: each
+    /// below the band from the end (the split) is not enough. The gaps
+    /// are the glued rod's rim cluster (`bisector_nodes`' operand-order
+    /// row), read from the split rod-first, whose farthest pair is
+    /// `1.29e-9` apart; a cluster a tenth as wide reads as one point.
+    #[test]
+    fn candidates_at_an_end_escalate_where_two_of_them_lie_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cluster = [9.645e-10, 6.430e-10, -3.215e-10];
+        assert!(matches!(
+            one_point_at_end(&cluster, band),
+            Err(crate::boolean::BooleanError::Escalated { .. })
+        ));
+        assert!(one_point_at_end(&cluster.map(|g| g / 10.0), band).is_ok());
+        assert!(one_point_at_end::<f64>(&[], band).is_ok());
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {
