@@ -717,16 +717,31 @@ pub(crate) const EDGE_ON_FACES_LEVER: &str =
 pub(crate) const EDGE_ON_PLANE_LEVER: &str =
     edge_on_faces_lever!(geom_core::split_plane_recourse!(), "the plane");
 
+/// An edge along the split's cut read in band of a face it bounds, in
+/// the split's words: its finish's describer and its join's section chord
+/// end.
+pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
+    diag.undecided(
+        edge_on_faces_subject!("an edge along the cut"),
+        diag.lever_ending(EDGE_ON_PLANE_LEVER),
+    )
+    .to_string()
+}
+
 /// **Whether an attachment refusal is an edge's own reading on its
 /// faces**, the input's (D9 row 1), at every door that describes an edge
 /// between vertices an earlier reading placed: its carrier's residual
 /// against a surface it lies on, or its chart image's, read in band, on a
 /// line carrier. A line is the chord between those vertices, so its miss
-/// is their offset plus a rounding, which escalating tells truly. A
-/// circle, ellipse, spiric or spline is a construction from the surfaces,
-/// whose own error can be amplified into the band (an ellipse nearly along
-/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
-/// the gate's refusal, as does every other check and a definite miss.
+/// is their offset plus a few ulp of coordinates, within the share of
+/// the band K's headroom presumes (`crate::validate::resolved`'s
+/// premise). A circle, ellipse, spiric or spline is a construction from
+/// the surfaces, whose own error can be amplified into the band (an
+/// ellipse nearly along a cylinder's axis carries its semi-major axis's
+/// rounding): at these doors it keeps the gate's refusal, as does every
+/// other check and a definite miss. The join reads a section conic's
+/// pins against its carrier's resolution instead
+/// (`chord_join::section_pin_refusal`).
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,

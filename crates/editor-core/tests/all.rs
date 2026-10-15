@@ -169,6 +169,8 @@ mod edit_has_minted;
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
+#[path = "edit_one_cycle_members.rs"]
+mod edit_one_cycle_members;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]

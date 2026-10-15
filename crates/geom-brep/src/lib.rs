@@ -54,6 +54,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 mod carrier_net;
+pub mod carrier_resolution;
 pub mod carrier_speed;
 pub mod certify;
 pub mod conic_bend;
