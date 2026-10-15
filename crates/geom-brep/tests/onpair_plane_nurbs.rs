@@ -386,10 +386,10 @@ fn an_arc_rim_certifies_on_its_pair_through_its_exact_image() {
 fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     let off = 1e3 * Tol::witness().get().eps;
     match arc_on_pair(rim(1.0 + off, core::f64::consts::FRAC_PI_2), None) {
-        Err(CertifyError::OnPairArcRim { fitted, .. }) => {
+        Err(CertifyError::OnPairArcRim { bound, .. }) => {
             assert!(
-                matches!(fitted, PlaneNurbsRefusal::Limb { margin, .. } if upper(margin) >= 0.5 * off),
-                "the fitted path's measured miss: {fitted:?}"
+                upper(bound) >= 0.5 * off,
+                "the fitted path's measured miss: {bound:?}"
             );
         }
         other => panic!("an arc rim {off:e} off its wall must refuse with both causes: {other:?}"),

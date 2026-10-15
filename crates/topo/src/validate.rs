@@ -2824,8 +2824,11 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     let why = match e {
         // An arc rim's refusal reads as its fitted path's, the one that
         // carries the measured bound.
-        CertifyError::OnPairArcRim { fitted, .. } => {
-            return classify_certify(&CertifyError::PlaneNurbs(*fitted));
+        CertifyError::OnPairArcRim { limb, bound, .. } => {
+            return classify_certify(&CertifyError::PlaneNurbs(P::Limb {
+                limb: *limb,
+                margin: *bound,
+            }));
         }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }

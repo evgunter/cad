@@ -562,15 +562,21 @@ pub enum CertifyError {
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
     /// `OnPair` of a plane and a spline wall over an ARC rim: the arc
     /// rim's exact image did not certify against the wall
-    /// ([`crate::plane_nurbs_incidence`]), and neither did the carrier's
-    /// fitted image. Both causes are carried: the exact image's
-    /// certification refusal, and the fitted path's with its measured
-    /// bound.
+    /// ([`crate::plane_nurbs_incidence`]), and the carrier's fitted image
+    /// measured it off the wall. Both causes are carried: the check of
+    /// the exact image's certificate that refused, and the fitted path's
+    /// limb with its measured bound. (A fitted path that refused before
+    /// measuring carries no bound, and refuses as the lane's own,
+    /// [`CertifyError::PlaneNurbs`].)
     OnPairArcRim {
-        /// Why the exact arc-rim image did not certify.
-        iso: crate::pcurve_cache::PcurveCertifyError,
-        /// The fitted path's refusal, with its measured bound.
-        fitted: crate::edge_nurbs::PlaneNurbsRefusal,
+        /// The check of the exact arc-rim image's certificate that
+        /// refused, `None` where the image refused before any check (not
+        /// a rim on a boundary row of the chart, or a partial one).
+        iso: Option<crate::pcurve_cache::PcurveCheck>,
+        /// The fitted path's refusing limb.
+        limb: crate::ssi::SsiLimb,
+        /// Its measured bound.
+        bound: geom_core::MarginDiag,
     },
     /// `Intersection` of two analytic surfaces over a rung-3
     /// (`Curve3::Nurbs`) carrier: the analytic rung-3 certificate (C2's
@@ -671,11 +677,25 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
-            Self::OnPairArcRim { iso, fitted } => write!(
-                f,
-                "an arc rim's incidence on its spline wall did not certify: its exact \
-                 boundary-row image refused ({iso}), and its fitted image refused — {fitted}"
-            ),
+            Self::OnPairArcRim { iso, limb, bound } => {
+                write!(
+                    f,
+                    "an arc rim's incidence on its spline wall did not certify: its exact \
+                     boundary-row image refused "
+                )?;
+                match iso {
+                    Some(check) => write!(f, "at its {check:?} check")?,
+                    None => write!(f, "as no full rim on a boundary row of the chart")?,
+                }
+                write!(
+                    f,
+                    ", and its fitted image refused — {}",
+                    crate::edge_nurbs::PlaneNurbsRefusal::Limb {
+                        limb: *limb,
+                        margin: *bound
+                    }
+                )
+            }
             Self::AnalyticRung3(refusal) => write!(
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
@@ -786,12 +806,10 @@ impl CertifyError {
             Self::ChartImageUnavailable { .. } => {
                 (CertCheck::ChartImage, RefusedArm::SignCertain(None))
             }
-            Self::PlaneNurbs(refusal)
-            | Self::OnPairArcRim {
-                fitted: refusal, ..
-            } => {
-                return refusal.decision();
+            Self::OnPairArcRim { limb, bound, .. } => {
+                (limb.check(), RefusedArm::SignCertain(Some(*bound)))
             }
+            Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
@@ -816,10 +834,7 @@ impl CertifyError {
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         let at = at.into();
         match self {
-            Self::PlaneNurbs(refusal)
-            | Self::OnPairArcRim {
-                fitted: refusal, ..
-            } => refusal.ending(at),
+            Self::PlaneNurbs(refusal) => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
             _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
@@ -3599,8 +3614,12 @@ fn run_checks<T: Decide>(
             .incidence(&spec.carrier, (t0, t1), plane, wall, stated, band)
             .map_err(|e| match e {
                 crate::edge_nurbs::IncidenceRefusal::Lane(e) => from_plane_nurbs(e),
-                crate::edge_nurbs::IncidenceRefusal::ArcRim { iso, fitted } => {
-                    CertifyError::OnPairArcRim { iso, fitted }
+                crate::edge_nurbs::IncidenceRefusal::ArcRim { iso, limb, bound } => {
+                    CertifyError::OnPairArcRim {
+                        iso: iso.refused_check(),
+                        limb,
+                        bound,
+                    }
                 }
             })?;
         max_residual = max_residual

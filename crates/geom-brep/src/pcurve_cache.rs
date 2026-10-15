@@ -1530,7 +1530,7 @@ impl Grazer {
 }
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
 // crate's `test-support` feature, test builds only).
 #[cfg_attr(
@@ -1939,6 +1939,13 @@ impl core::fmt::Display for PcurveCertifyError {
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
+    /// The check this refusal restates, or `None` for a refusal no check
+    /// of this door owns ([`Self::decided`]'s first half).
+    #[must_use]
+    pub fn refused_check(&self) -> Option<PcurveCheck> {
+        self.decided().map(|(check, _)| check)
+    }
+
     /// The check this refusal restates and the arm it refused on, or
     /// `None` for a refusal no check of this door owns: an unsupported
     /// class, a missing operand, a band the tolerance cannot form, a

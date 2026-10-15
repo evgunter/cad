@@ -25,7 +25,7 @@ pub fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
 
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SplineError {
     /// The knot vector fails the clamped-v1 contract; `reason` names
     /// the exact violation.

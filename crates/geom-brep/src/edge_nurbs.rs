@@ -759,14 +759,17 @@ pub enum IncidenceRefusal {
     /// The lane's own refusal, with its measured bound.
     Lane(PlaneNurbsRefusal),
     /// An arc rim whose exact image did not certify, and whose fitted
-    /// image did not either: the arc-rim certificate's refusal (of the
-    /// stated image, or of the last candidate), and the fitted path's
-    /// with its measured bound.
+    /// image measured it off the wall: the arc-rim certificate's refusal
+    /// (of the stated image, or of the last candidate), and the fitted
+    /// path's refusing limb with its measured bound. A fitted path that
+    /// refused before measuring is [`IncidenceRefusal::Lane`].
     ArcRim {
         /// Why the exact image did not certify.
         iso: crate::pcurve_cache::PcurveCertifyError,
-        /// The fitted path's refusal, with its measured bound.
-        fitted: PlaneNurbsRefusal,
+        /// The fitted path's refusing limb.
+        limb: crate::ssi::SsiLimb,
+        /// Its measured bound.
+        bound: MarginDiag,
     },
 }
 
@@ -894,8 +897,14 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
             })();
             match fitted {
                 Ok(limbs) => Ok(fold(limbs, (T::zero(), T::zero()))),
-                Err(fitted) if matches!(carrier, Curve3::Circle { .. }) => {
-                    Err(IncidenceRefusal::ArcRim { iso, fitted })
+                Err(PlaneNurbsRefusal::Limb { limb, margin })
+                    if matches!(carrier, Curve3::Circle { .. }) =>
+                {
+                    Err(IncidenceRefusal::ArcRim {
+                        iso,
+                        limb,
+                        bound: margin,
+                    })
                 }
                 Err(fitted) => Err(IncidenceRefusal::Lane(fitted)),
             }
