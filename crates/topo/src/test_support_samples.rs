@@ -645,13 +645,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             }),
         },
         PcurveCertifyError::FittedLimb {
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::SsiLimb::HullSupChart,
             margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::CarrierEnclosure(carrier_enclosure()),
         PcurveCertifyError::FittedEscalated {
-            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
             cause: diag(),
         },
         PcurveCertifyError::IntervalNotForward,
@@ -1245,14 +1245,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 transverse: 3,
                 smooth: 4,
             },
-        },
-        ValidationError::PairTangencyDetermined {
-            edge,
-            sagitta: geom_core::MarginDiag::value(5e-3),
-        },
-        ValidationError::PairCornerDetermined {
-            edge,
-            wedge: geom_core::MarginDiag::value(5e-3),
         },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },

@@ -580,9 +580,12 @@ fn adopt_edges(
             //
             // A plane × spline edge is an image in the PLANE side of its
             // pair, as the native loft's rims are
-            // (`sweep::swept::describe_face_rim_at_rest`): the pair cannot
-            // carry it, a spline wall having no implicit form to meter
-            // incidence on — a capability gap, not D2's classification
+            // (`sweep::swept::describe_face_rim_at_rest`), until the
+            // pair certifies every such rim: its incidence lane
+            // (`geom_brep::plane_nurbs_incidence`) does not yet certify
+            // an arc rim, whose limb-2 hull reads a fitted chart image,
+            // and the rung is not to pick a description by what the lane
+            // can certify — a capability gap, not D2's classification
             // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
             // The rung's gate (`nurbs_plane_pair`) is exactly "one
             // described spline wall and one plane", so the plane is in

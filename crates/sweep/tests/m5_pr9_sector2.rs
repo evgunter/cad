@@ -198,7 +198,13 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         panic!("a strut is a line");
     };
     // The conventional description extrude would have kept: the
-    // extruded profile point under the identity placement.
+    // extruded profile point under the identity placement, at rest as
+    // an image in one of the pair's charts.
+    let chart = curve
+        .description()
+        .pair()
+        .expect("the tangency names its pair")
+        .keys()[0];
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
             geom_brep::MappedSource::ExtrudedPoint {
@@ -210,7 +216,8 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,
-    };
+    }
+    .at_rest_in_chart(chart, false);
     body.set_edge_curve(edge, spec, Tol::witness())
         .expect("the conventional description certifies (residuals only)");
     let errs = topo::validate_geometric(&body, Tol::witness()).expect_err("the must-carry fires");

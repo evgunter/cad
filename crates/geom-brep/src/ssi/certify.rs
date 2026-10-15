@@ -291,8 +291,13 @@ pub struct SsiCertificate<T: Real> {
 pub enum SsiLimb {
     /// Limb 1 — on-locus residual.
     OnLocus,
-    /// Limb 2 — the control-hull sup-norm bound.
+    /// Limb 2 against an analytic operand — the carrier's certified
+    /// distance bound from the surface, the carrier read alone.
     HullSup,
+    /// Limb 2 against a NURBS operand — the certified bound on
+    /// `|S(P(t)) − C(t)|`, the carrier read through its pcurve: a bound
+    /// on the carrier's miss and on the pcurve's together.
+    HullSupChart,
     /// Limb 2 against an analytic operand — the composite's certified
     /// value at one of its breaks, past the band's zero: limb 1's
     /// linearized residual, measured where the bound did not clear.
@@ -303,6 +308,12 @@ pub enum SsiLimb {
     /// surface from above, so the bound over a span holding the break
     /// cannot clear.
     HullValueChart,
+    /// [`HullValueChart`](Self::HullValueChart) at a break where the
+    /// carrier's own distance from the surface, read through its foot
+    /// as limb 1 reads it, decides Zero: the carrier is on the surface
+    /// there, so the value past the band is the pcurve's own miss of
+    /// the carrier's foot path.
+    ImageMiss,
     /// Limb 3 — the uniqueness tube.
     Tube,
 }
@@ -313,10 +324,15 @@ impl SsiLimb {
         match self {
             Self::OnLocus => "limb 1 (on-locus residual)",
             Self::HullSup => "limb 2 (control-hull sup-norm bound)",
+            Self::HullSupChart => "limb 2 (control-hull sup-norm bound through its pcurve)",
             Self::HullValue => "limb 2 (the carrier's residual at a break of its composite)",
             Self::HullValueChart => {
                 "limb 2 (the carrier against its pcurve's surface point at a break of its \
                  composite)"
+            }
+            Self::ImageMiss => {
+                "limb 2 (the pcurve's surface point against a carrier on the surface, at a \
+                 break of its composite)"
             }
             Self::Tube => "limb 3 (uniqueness tube)",
         }
@@ -339,9 +355,9 @@ impl SsiLimb {
     pub fn check(self) -> CertCheck {
         match self {
             Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
-            Self::HullSup => CertCheck::PlaneNurbsHull,
+            Self::HullSup | Self::HullSupChart => CertCheck::PlaneNurbsHull,
             Self::HullValue => CertCheck::AnalyticBreakResidual,
-            Self::HullValueChart => CertCheck::PlaneNurbsHullValue,
+            Self::HullValueChart | Self::ImageMiss => CertCheck::PlaneNurbsHullValue,
             Self::Tube => CertCheck::Transversality,
         }
     }
@@ -650,7 +666,40 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
-    let sup = hull_limb(&CHART_HULL, subdivide(hull, band)?, band, at)?;
+    let stopped = subdivide(hull, band)?;
+    // A break past the band bounds the carrier's miss through its
+    // pcurve's surface point. Where the carrier's own foot there decides
+    // Zero, the miss is the pcurve's ([`SsiLimb::ImageMiss`]). The tell
+    // names the refusal; it is not part of what the certificate states,
+    // so it is decided outside the verdict log (ledger row F21).
+    let carrier_on_surface = |tb: f64| {
+        let th = if tb == t0 {
+            h0
+        } else if tb == t1 {
+            h1
+        } else {
+            T::from_f64(tb)
+        };
+        let p = pcurve.eval(th);
+        surface
+            .project_from_seed(carrier.eval(th), p.x.lo(), p.y.lo())
+            .is_ok_and(|proj| {
+                matches!(
+                    geom_core::k_stats::check_unlogged(
+                        "ssi_image_miss_tell",
+                        proj.distance,
+                        band,
+                        "F21"
+                    ),
+                    Ok(Sign::Zero)
+                )
+            })
+    };
+    let arm = match stopped {
+        Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
+        _ => &CHART_HULL,
+    };
+    let sup = hull_limb(arm, stopped, band, at)?;
     Ok((worst, sup))
 }
 
@@ -1063,6 +1112,8 @@ pub(crate) fn subdivide<P, E>(
 pub(crate) struct HullArm {
     /// The bound's predicate.
     sup: &'static str,
+    /// The limb a refusal on the bound names.
+    sup_limb: SsiLimb,
     /// The value's predicate.
     value: &'static str,
     /// The limb a refusal on the value names.
@@ -1073,6 +1124,7 @@ pub(crate) struct HullArm {
 /// residual.
 const ANALYTIC_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup",
+    sup_limb: SsiLimb::HullSup,
     value: "ssi_hull_value",
     value_limb: SsiLimb::HullValue,
 };
@@ -1081,8 +1133,16 @@ const ANALYTIC_HULL: HullArm = HullArm {
 /// quantity at a point.
 pub(crate) const CHART_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup_chart",
+    sup_limb: SsiLimb::HullSupChart,
     value: "ssi_hull_value_chart",
     value_limb: SsiLimb::HullValueChart,
+};
+
+/// [`CHART_HULL`] at a break where the carrier is on the surface: a
+/// refusal on the value there names the pcurve's own miss.
+const CHART_IMAGE_HULL: HullArm = HullArm {
+    value_limb: SsiLimb::ImageMiss,
+    ..CHART_HULL
 };
 
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
@@ -1118,7 +1178,7 @@ pub(crate) fn hull_limb<T: Decide>(
         hull.uncleared(band, &mut at.spans);
     }
     limb_verdict(
-        SsiLimb::HullSup,
+        arm.sup_limb,
         decided,
         || RefusedResidual::Over(hull.sup),
         at,
@@ -1803,6 +1863,47 @@ fn certificate<T: Real>(
     }
 }
 
+/// An operand of limbs 1 and 2: what [`incidence_limbs`] reads of it,
+/// and nothing a tube needs (no chart speeds).
+#[derive(Clone, Copy)]
+pub(crate) enum IncidenceOperand<'a, T: geom_core::CertifiedBounds> {
+    /// An analytic surface, read through its implicit form.
+    Analytic(&'a Surface<T>),
+    /// A spline chart, read through the carrier's image on it.
+    Chart(&'a NurbsSurface<T>, &'a NurbsCurve2<T>),
+}
+
+/// **Limbs 1 and 2 against each of `operands`**: the carrier's largest
+/// sampled on-locus residual and its certified sup-norm distance over
+/// `params`, the worst over the operands. An analytic operand reads its
+/// implicit form; a chart, the carrier's image on it (the foot residual
+/// at each sample, and the composite hull of `|S(P(t)) − C(t)|` between
+/// them). Incidence alone: nothing here reads how the operands meet,
+/// which is limb 3's and the lanes' transversality's.
+///
+/// # Errors
+///
+/// Either limb's refusal with its measured bound.
+pub(crate) fn incidence_limbs<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    operands: &[IncidenceOperand<'_, T>],
+    band: Band,
+    at: &mut Refused,
+) -> Result<(T, T), SsiError> {
+    let mut on_locus = T::zero();
+    let mut hull_sup = T::zero();
+    for op in operands {
+        let (l1, l2) = match *op {
+            IncidenceOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
+            IncidenceOperand::Chart(s, p) => nurbs_limbs(carrier, params, p, s, band, at)?,
+        };
+        on_locus = on_locus.max(l1);
+        hull_sup = hull_sup.max(l2);
+    }
+    Ok((on_locus, hull_sup))
+}
+
 /// Which limbs a certificate asks: all three in order, or limb 3 alone,
 /// which refinement asks once of a carrier whose refused residual
 /// stopped falling ([`super::refine::refine_by_certificate`]).
@@ -2043,27 +2144,22 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             (&first, &second, None, None)
         }
     };
-    let mut on_locus = T::zero();
-    let mut hull_sup = T::zero();
     let asked: &[_] = match limbs {
         Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],
     };
-    for &(op, pc) in asked {
-        let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
-            SsiOperand::Nurbs(s) => {
-                let Some(p) = pc else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: NURBS_LIMBS_NEED_PCURVE,
-                    });
-                };
-                nurbs_limbs(carrier, params, p, s.surface(), band, at)?
-            }
-        };
-        on_locus = on_locus.max(l1);
-        hull_sup = hull_sup.max(l2);
-    }
+    let operands = asked
+        .iter()
+        .map(|&(op, pc)| match op {
+            SsiOperand::Analytic(s) => Ok(IncidenceOperand::Analytic(s)),
+            SsiOperand::Nurbs(s) => pc.map(|p| IncidenceOperand::Chart(s.surface(), p)).ok_or(
+                SsiError::UnsupportedCertificate {
+                    what: NURBS_LIMBS_NEED_PCURVE,
+                },
+            ),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (on_locus, hull_sup) = incidence_limbs(carrier, params, &operands, band, at)?;
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
