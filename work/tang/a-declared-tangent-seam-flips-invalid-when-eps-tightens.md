@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: E
-design: true
-needs_ev: true
 ---
 
 
@@ -71,3 +69,26 @@ An `[ev]` ruling on D2's "never flip" sentence for declared edges. Either:
 - the sentence is scoped to what holds: derived descriptions escalate,
   while a declaration is the modeler's claim and is refused where a
   finer ε contradicts it (a wording change).
+
+## Ev's decision (PR 5150, 2026-10-15)
+
+Approved by Ev after three reconciliation rounds (row 148 of
+`docs/DESIGN-FORK-LOG.md`), with D2's paragraph reworded on the PR to
+state the rule's scope as one principle. Neither option above: the
+framing dissolved. What to build:
+
+- Tier 3 validates a body only at its build ε. Delete the finer-ε
+  branch in check 4 (`finer`, `escalates`), the two escalation variants
+  `PairCornerDetermined` and `PairTangencyDetermined`, and the band
+  parameter `topo::test_support::tier3_at` passes; tier 3's band comes
+  from `tol`.
+- Check 4 keys its demand on the description's form, not its
+  authority: a conventional description (`OnPair`, or a `Chart` that is
+  not a wrap) on an edge the must-carry rule reads determinate refuses
+  (`TransverseNotIntrinsic`, `TangentNotIntrinsic`), declared or
+  derived.
+- The offset arm's `held_neighbour_restated` stores what the rule reads,
+  not the neighbour's declaration (the designer measured 8 rows that
+  change, all hand-stated fixtures or duplicate reports).
+- No standing door audit; the landing PR sweeps once for a door that
+  mints a conventional form the rule would read determinate.

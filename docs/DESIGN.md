@@ -808,12 +808,8 @@ description's form, not who declared the locus: a conventional
 description on an edge the must-carry rule reads determinate is wrong,
 declared or derived. The rule needs two surfaces and a definite
 reading, so a wrap edge (one surface) and an edge whose dihedral is not
-read definitely (in band, or beside a spline face) fall outside it. A
-body is validated only at the ε it was built at (D4 ¶1); changing ε
-rebuilds it from its recipe (`SetTolerance`), describing every edge by
-this rule at the new ε, so a change of ε never yields a body this check
-refuses. An
-unenforced preference drifts silently — exactly the failure shape this
+read definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
