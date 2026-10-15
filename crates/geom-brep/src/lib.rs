@@ -111,7 +111,7 @@ pub use dihedral::{
     MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
     SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
-    classify_dihedral_reported, classify_material_pairing, classify_material_pairing_as,
+    classify_material_pairing, classify_material_pairing_as,
     folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
     must_carry_over_edge, reask_pair, second_order_walk, tangent_second_order,
 };

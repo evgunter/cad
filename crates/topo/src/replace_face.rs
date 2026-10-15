@@ -2755,12 +2755,11 @@ fn plan_edge<T: Decide>(
         }
         // An image in an untouched neighbour's chart: the edge has left
         // the locus it draws and lies on the moved surface and that
-        // neighbour, whose pair the rule is asked.
+        // neighbour, whose pair the rule is asked; it stores what the
+        // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
             let declared = carried_declaration()?;
-            if declared.is_none() {
-                neighbour_section(c.surface)?;
-            }
+            neighbour_section(c.surface)?;
             let held = body.get_surface(c.surface).unwrap_or_else(|| {
                 dangling_link(
                     EntityId::Edge(edge),
@@ -2768,16 +2767,14 @@ fn plan_edge<T: Decide>(
                     GeomRef::Surface(c.surface),
                 )
             });
-            crate::offset_restate::held_neighbour_restated(old_key, declared, |declared| {
-                crate::offset_restate::re_ask_on_pair(
-                    edge,
-                    [(old_key, new_surface), (c.surface, held)],
-                    &carrier,
-                    (t0, t1),
-                    declared,
-                    band,
-                )
-            })?
+            crate::offset_restate::re_ask_on_pair(
+                edge,
+                [(old_key, new_surface), (c.surface, held)],
+                &carrier,
+                (t0, t1),
+                declared,
+                band,
+            )?
         }
         EdgeDescription::Intersection { pair, witness } => {
             EdgeDescriptionSpec::Intersection { pair, witness }

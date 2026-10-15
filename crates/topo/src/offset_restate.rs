@@ -74,8 +74,9 @@ pub(crate) fn restate<T: Real>(
         EdgeDescription::Chart(c) => match beside_moving(c.surface, sides) {
             // The image names no key the moving side wears after the
             // move, and the edge has left the locus it draws: it lies on
-            // the moved pair, which the rule is asked again.
-            Some(moving) => held_neighbour_restated(moving, declared, re_ask)?,
+            // the moved pair, which the rule is asked again, and it
+            // stores what the rule reads, declared or not.
+            Some(_) => re_ask(declared)?,
             None => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: (!slides).then_some(c.pcurve),
@@ -115,36 +116,6 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
                 source: escalation.diag(),
             },
         }
-    })
-}
-
-/// An edge whose description is an image in a held neighbour's chart,
-/// that neighbour holding still while the edge's other side `moving`
-/// moves, restated for the move: the image names no key the moving side
-/// wears after the move and the edge has left the locus it draws, so
-/// it lies on the moved pair, which `re_ask` asks the rule again
-/// ([`re_ask_on_pair`]).
-///
-/// A declaration rides the pair where the rule reads it
-/// under-determined. Where it reads the pair a corner or a determinate
-/// tangency, a declared edge stays an image in the moving side's own
-/// chart, as it was before the pair existed: whether such a door drops
-/// the declaration or refuses is D2's open prefer-intrinsic authority
-/// question (`work/topotail/offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section.md`),
-/// not this door's to settle.
-pub(crate) fn held_neighbour_restated<T: Real>(
-    moving: SurfaceKey,
-    declared: Option<MappedCurve<T>>,
-    re_ask: impl FnOnce(Option<MappedCurve<T>>) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
-) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let reasked = re_ask(declared)?;
-    Ok(match (reasked, declared) {
-        (
-            EdgeDescriptionSpec::Intersection { .. }
-            | EdgeDescriptionSpec::TangentIntersection { .. },
-            Some(mc),
-        ) => EdgeDescriptionSpec::chart(moving).declared_by(mc),
-        (reasked, _) => reasked,
     })
 }
 
