@@ -740,8 +740,8 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// reading refuses `Unsettled::Meter`
 /// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
 /// the pierce is unread. There the three ops with the first rod first
-/// at 80 escalate on the line pose's tilt (`curve_pair_pose_tilt`)
-/// before the sector reading. The rest of the table holds at every ε.
+/// at 80 refuse `CurvedPierceUnsupported` too, before the sector
+/// reading. The rest of the table holds at every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
@@ -778,17 +778,12 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
             } else {
                 // Exactly the ops with the first rod first, at 80, reach the
                 // sector reading first.
-                let sector = k > 50.0 && op.starts_with('t');
+                let sector = k > 50.0 && op.starts_with('t') && !meter_refuses;
                 if sector {
                     let Err(BooleanError::Escalated { diag, .. }) = &res else {
                         panic!("{label}: escalates on the sector reading: {res:?}");
                     };
-                    let first = if meter_refuses {
-                        "curve_pair_pose_tilt"
-                    } else {
-                        "conic_bend"
-                    };
-                    assert_eq!(diag.predicate, Some(first), "{label}");
+                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
                 } else {
                     assert!(
                         matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
