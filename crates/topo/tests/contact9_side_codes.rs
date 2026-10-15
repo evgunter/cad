@@ -490,7 +490,7 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     let tool = common::finished("tool", common::mapped_cube(point, tol), tol);
     let q = point(0.5, 0.99, 0.1 * dip / -e[2][2]);
     let cut = body_of(subtract(&tool, &block, tol), "tool − block");
-    let (sliver, corners) = wedge_sliver(e, dip / -e[2][2], |u, v, w| point(u, v, w));
+    let (sliver, corners) = wedge_sliver(e, dip / -e[2][2], point);
     has_corners(&cut, &corners, "tool − block");
     let v = volume(&cut);
     assert!(

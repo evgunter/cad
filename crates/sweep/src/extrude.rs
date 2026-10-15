@@ -1550,6 +1550,9 @@ fn side_surface<T: Decide>(
 /// ([`topo::wedge_reach`]): Transverse upgrades; Smooth
 /// descends through [`geom_brep::must_carry_over_edge`] (the arm
 /// below); Indeterminate is the typed [`ExtrudeError::SliverRim`].
+#[allow(clippy::too_many_arguments)] // two call sites in one loop; the
+// arguments are the upgrade's fixed context, not a configuration
+// surface.
 fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
