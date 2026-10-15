@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P1
 cost: M
-needs_ev: true
 branch: flush/shell-role-reader
 pr: 5119
 refs: [4990]
@@ -87,3 +86,22 @@ refusals are typed and what they say.
   `crates/sweep/tests/fillet_h6_cap_rim.rs`,
   `crates/sweep/tests/review_blend_k_rk_probes.rs` and
   `crates/sweep/tests/shell7_r2_probes.rs`.
+
+## Ruling
+
+Ev, PR 5119, 2026-10-15 ("this sounds good!", after asking why the
+near-edge question should not escalate and rewording the tie-break as
+a principle). Fork-log row 142. In DESIGN:
+- D10: a ray within the band of an edge meets it, half a crossing for
+  each face the edge bounds, and reads the role as the sign of its
+  count of crossings; it refuses only on a pair; the volume's sign is
+  certified by its enclosure alone, never held against the band, read
+  where no ray reads.
+- Q1: an instrument does not represent a tie-break the band forbids it
+  to make.
+- D1 check 7: definitely inside-out by any reading is invalid.
+
+Sequencing: the volume half (V/A off `read_role`, the enclosure's sign
+alone, the planar re-derivation as plane distance × face area) lands in
+PR 5119. The tie-reading ray and the volume backstop's V/A (Ev: "filing
+removing V/A on flush works") are the next FLUSH unit.
