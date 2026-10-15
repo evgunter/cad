@@ -2779,6 +2779,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
+    (
+        "mod.rs",
+        "decision_words",
+        "Coincide::VertexOnCurvedFace",
+        1,
+    ),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
     ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),

@@ -209,7 +209,7 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 /// walls' boundaries, and the node pass refuses them. Every operation,
 /// both poses.
 #[test]
-fn a_rim_through_the_nodes_refuses_at_the_crossing_layer() {
+fn a_rim_through_the_nodes_refuses_typed() {
     let tol = Tol::witness();
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
     for (what, a, b, at_node) in [
@@ -387,6 +387,125 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/// **A rim vertex on a node refuses as a node on the boundary.** A branch
+/// rod capped at the axes' meeting point with its seam turned onto the
+/// node puts its rim's one vertex there, on both bisector planes: the
+/// crossing reads an operand vertex at a node, which no lane builds yet,
+/// and names it `NodeUnbuilt(OnBoundary)` with its recourse. The same
+/// branch capped `10·√band` off the station (`1e-3` at the witness
+/// band), its seam still at the node's angle, builds at its closed form. Both operand roles, both poses,
+/// every operation.
+#[test]
+fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
+    let tol = Tol::witness();
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    for (what, a, b) in [
+        (
+            "A's rim vertex",
+            rod_at(0.0, 2.0, 0.0),
+            across(&rod(-2.0, 2.0)),
+        ),
+        (
+            "B's rim vertex",
+            rod(-2.0, 2.0),
+            across(&rod_at(0.0, 2.0, 0.0)),
+        ),
+    ] {
+        for (pose, a, b) in [
+            ("direct", a.clone(), b.clone()),
+            ("re-posed", repose(&a), repose(&b)),
+        ] {
+            let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+            for (op, r) in [
+                ("∪", topo::union(&a, &b, tol)),
+                ("∩", topo::intersect(&a, &b, tol)),
+                ("A∖B", topo::subtract(&a, &b, tol)),
+                ("B∖A", topo::subtract(&b, &a, tol)),
+            ] {
+                assert!(
+                    matches!(
+                        r,
+                        Err(topo::BooleanError::NodeUnbuilt {
+                            why: topo::NodeWhy::OnBoundary(_),
+                            ..
+                        })
+                    ),
+                    "{what}, {pose}, {op}: a node at an operand vertex, got {r:?}"
+                );
+            }
+        }
+    }
+    let dz = 10.0 * geom_core::Band::linear(tol).unwrap().escalate().sqrt();
+    let (a, b) = (
+        finished("A", rod_at(dz, 2.0, 0.0), tol),
+        finished("B", across(&rod(-2.0, 2.0)), tol),
+    );
+    let s = (1.0 - dz * dz).sqrt();
+    let cap = 2.0 * (s.powi(3) / 3.0 - dz * dz.acos() + s);
+    let (va, vb) = (PI * (2.0 - dz), 4.0 * PI);
+    for (op, r, want) in [
+        ("∪", topo::union(&a, &b, tol), va + vb - cap),
+        ("∩", topo::intersect(&a, &b, tol), cap),
+        ("A∖B", topo::subtract(&a, &b, tol), va - cap),
+        ("B∖A", topo::subtract(&b, &a, tol), vb - cap),
+    ] {
+        let Ok(BooleanResult::Body(out)) = r else {
+            panic!("capped {dz:e} off, {op}: builds, got {r:?}");
+        };
+        // Its cap's lunes are the mesh's
+        // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
+        let m = topo::mass_properties(&out.body, tol).unwrap();
+        assert!(
+            (m.volume - want).abs() <= m.volume_pad + 1e-9,
+            "capped {dz:e} off, {op}: volume {} ± {}, want {want}",
+            m.volume,
+            m.volume_pad
+        );
+    }
+}
+
+/// **At oblique angles the pierce vertex's ring reaches further**
+/// (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`): A's
+/// seam turned `δ` off a node, at 35° with `r = 1` and at 60° with
+/// `r = 0.5`, crosses the partner wall at two pierces the bisector planes
+/// find, and each pierce's side reading escalates `PierceCurvature`. The
+/// offsets scale with `√band`, as the sagitta charge's margin does, so
+/// each pose stands at the same place in the ring at every ε. Every
+/// operation, both operand orders.
+#[test]
+fn an_oblique_seam_near_a_node_escalates_at_the_pierce() {
+    let tol = Tol::witness();
+    let root = geom_core::Band::linear(tol).unwrap().escalate().sqrt();
+    for (deg, r, delta) in [(35.0_f64, 1.0, 5.0 * root), (60.0, 0.5, 4.0 * root)] {
+        let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
+        let b = spin(
+            &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
+            Vec3::new(1.0, 0.0, 0.0),
+            deg.to_radians(),
+        );
+        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+        for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+            for (op, got) in [
+                ("∪", topo::union(x, y, tol)),
+                ("∩", topo::intersect(x, y, tol)),
+                ("∖", topo::subtract(x, y, tol)),
+            ] {
+                assert!(
+                    matches!(
+                        got,
+                        Err(topo::BooleanError::Escalated {
+                            decision: topo::BooleanDecision::PierceCurvature,
+                            ..
+                        })
+                    ),
+                    "{deg}°, r = {r}, δ = {delta:e} ({order}), {op}: the pierce's side \
+                     reading escalates, got {got:?}"
+                );
             }
         }
     }

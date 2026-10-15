@@ -29,6 +29,10 @@ use crate::entity::{Edge, FaceKey, VertexKey};
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 
+/// The predicate an end's distance from a bisector plane is decided on:
+/// whether the end lies on the partner wall, read through the planes.
+pub(in crate::boolean) const FACTORED_PLANE_SIDE: &str = "bool_factored_plane_side";
+
 /// **The crossing of `face`, a wall of an equal cylinder pair with
 /// meeting axes, by an edge of `x` lying on the pair's other wall**,
 /// read through the two bisector planes (module docs). `Ok(None)` leaves
@@ -37,17 +41,22 @@ use crate::validate::decide;
 /// planar lane takes, or two crossings that coincide, the edge passing
 /// through a node.
 ///
-/// Otherwise the answer takes the quadric route's arms. The first
-/// crossing strictly inside the span that the trim places in the face
-/// (on its boundary included) is a pierce, which the sweep splits and
+/// Otherwise the answer takes the quadric route's arms. Of the crossings
+/// strictly inside the span, taken in plane order (the `â₁ − â₂` plane's
+/// first, then the other's), the first the trim places in the face (on
+/// its boundary included) is a pierce, which the sweep splits and
 /// re-queues; with none, each end on a plane, so on the partner wall,
 /// is placed in the face (the endpoint posture,
 /// [`vertex_on_curved_face`]), and the span is eventless here when every
-/// such end is placed elsewhere.
+/// such end is placed elsewhere. An end on both planes is a node at an
+/// operand vertex: where the face holds it, it refuses as a node on the
+/// boundary.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`]: two crossings whose distance is in band
+/// [`BooleanError::NodeUnbuilt`] (`OnBoundary`) for an end at a node the
+/// face does not place outside it; [`BooleanError::Escalated`]: two
+/// crossings whose distance is in band
 /// (`VertexOnVertex`), or a planar lane's root in band; an end's plane
 /// distance in band (`VertexOnCurvedFace`); a landing the containment
 /// door escalates; the typed frontier where a landing or an end has no
@@ -65,10 +74,10 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<Option<CurvedEvent<T>>, BooleanError> {
     let walls = [edge.he_plus, edge.he_minus].map(|he| x.face_of_half_edge(he));
-    let Some(planes) = walls
+    let Some((wall, planes)) = walls
         .into_iter()
         .flatten()
-        .find_map(|wall| node::bisectors((x, x_is, wall), (y, face), band))
+        .find_map(|wall| node::bisectors((x, x_is, wall), (y, face), band).map(|p| (wall, p)))
     else {
         return Ok(None);
     };
@@ -81,7 +90,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     // either plane lies on the partner wall.
     let dist = |pw: Point3<T>, (centre, normal): node::Bisector<T>| {
         geom_core::k_stats::decide_reported(
-            "bool_vertex_face_side",
+            FACTORED_PLANE_SIDE,
             Margin::of((pw - centre).dot(normal)),
             band,
         )
@@ -163,6 +172,22 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     for (k, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
         if k == 1 && v == u {
             break;
+        }
+        if ends[k].iter().all(|d| d.sign == Sign::Zero) {
+            match landing(y, face, pw, band)? {
+                Landing::Out => {}
+                Landing::At(..) | Landing::Unplaced => {
+                    let (a_face, b_face) = match x_is {
+                        Operand::A => (wall, face),
+                        Operand::B => (face, wall),
+                    };
+                    return Err(BooleanError::NodeUnbuilt {
+                        a_face,
+                        b_face,
+                        why: crate::boolean::NodeWhy::OnBoundary(x_is),
+                    });
+                }
+            }
         }
         let on = ends[k].into_iter().find(|d| d.sign == Sign::Zero);
         if let Some(on) = on {

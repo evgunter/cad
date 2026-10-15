@@ -3,11 +3,11 @@ id: a-sqrt-band-refused-ring-around-every-pinch-node
 kind: issue
 title: A √band refused ring around every pinch node: the pierce vertex reads a family pierce through the pierced wall's tangent plane
 status: open
-priority: P1
+priority: P2
 cost: H
 design: true
 opened: 2026-10-15
-refs: [pinch-carrying-machinery-valence-4]
+refs: [pinch-carrying-machinery-valence-4, 5192, 5193]
 ---
 
 
@@ -68,7 +68,8 @@ cap poses:
 `bisector_nodes::an_edge_near_a_node_crosses_through_the_bisector_planes`
 pins that sequence relative to the band.
 
-**One step further, measured and reverted.** An experiment read a
+**One step further, measured, not merged** (branch
+`tang/u2a-pierce-plane-reads-experiment`, 4d6290606). An experiment read a
 bound lying on the piercing wall against the bisector plane the pierce
 lies on, signed to the pierced face's outward side: `sign(dⱼ(p)) ·
 sign(departure·n̂ᵢ)`, from `f_B|A = c·d₀·d₁`. It also took the wall
@@ -93,3 +94,25 @@ So closing the ring reaches the pierce classification (`vtxfac`,
 `sectors`), containment, and at least one at-rest wedge predicate. The
 last of these is a tier-3 question that the U2 design rules out ("no
 tier-3 change"), which is why this row is a design question.
+
+## The ring at oblique angles reaches further (PR 5192)
+
+Measured at the witness band, with A's seam `δ` off a node and every
+operation:
+
+| pair | `CurvedSectorSideUnsupported` | `PierceCurvature` escalates | builds |
+|---|---|---|---|
+| 90°, r = 1 | | δ = 1e-4 | δ ≥ 3e-4 |
+| 35°, r = 1 | δ = 1e-4 | δ = 3e-4 … 1e-3 | δ ≥ 1.5e-3 |
+| 60°, r = 0.5 | δ = 1e-4 | δ = 3e-4 … 5e-4 | δ ≥ 7e-4 |
+
+`bisector_nodes::an_oblique_seam_near_a_node_escalates_at_the_pierce`
+pins the two oblique poses at `δ = 5·√band` and `4·√band`. A unit that
+re-levers the pierce's side reading has to close them.
+
+## For the design
+
+The design question is the near-node fork now in [ev] PR 5193. The
+`LaminaWedge` result bears on U2's "no tier-3 change" claim, which U2b
+and U2c inherit: a body near a node carries arcs about `2δ` long whose
+dihedral is about `δ`. A designer pair weighs it before anyone builds.

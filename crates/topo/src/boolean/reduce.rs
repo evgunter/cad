@@ -4640,7 +4640,7 @@ mod undeclared_rule_rows {
 }
 
 #[path = "factored_crossing.rs"]
-mod factored_crossing;
+pub(super) mod factored_crossing;
 
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]

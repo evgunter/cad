@@ -169,6 +169,9 @@ pub(super) fn bisectors<T: Decide>(
         Operand::A => super::join::crossing_cylinder_reading(on_x, on_y, band),
         Operand::B => super::join::crossing_cylinder_reading(on_y, on_x, band),
     }
+    // A reading that refuses (a margin of the family in band) is folded
+    // into `None`: the pair keeps the quadric's route, whose own reads
+    // then decide or refuse it, as the node pass skips such a pair.
     .ok()
     .flatten()?;
     Some(section.planes)
