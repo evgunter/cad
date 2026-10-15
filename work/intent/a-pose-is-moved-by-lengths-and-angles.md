@@ -2,9 +2,9 @@
 id: a-pose-is-moved-by-lengths-and-angles
 kind: ruling
 title: FORK-MOVE: a pose is moved by lengths and angles along and about what it reads; no slot holds a direction component; a default is the constant 0
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-14
-needs_ev: true
 ---
 
 

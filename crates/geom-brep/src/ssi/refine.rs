@@ -445,12 +445,12 @@ mod tests {
     fn refusal(lo: f64, hi: f64, value: f64) -> Located {
         Located {
             error: SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(value),
             },
             at: Some(Box::new(Spans {
                 refusal: LimbRefusal {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(value),
                     residual: RefusedResidual::Over(value),
                 },
@@ -580,7 +580,7 @@ mod tests {
                     matches!(
                         *refusal,
                         SsiError::CertificateLimb {
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             ..
                         }
                     ),
@@ -596,7 +596,7 @@ mod tests {
                         *round,
                         RefusedRound {
                             samples: *n,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::Over(*margin),
                         },
                         "each round as it was refused"

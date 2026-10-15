@@ -311,23 +311,6 @@ pub fn classify_dihedral<T: Decide>(
         .map_err(WedgeEscalation::into_lever)
 }
 
-/// [`classify_dihedral`], keeping the wedge decision's reporting margin
-/// (`"dihedral_wedge"`): for a finding that quotes the angle it read,
-/// tier 3's escalation of a pair a tighter ε reads a corner.
-///
-/// # Errors
-///
-/// As [`classify_dihedral`].
-pub fn classify_dihedral_reported<T: Decide>(
-    s1: &Surface<T>,
-    s2: &Surface<T>,
-    p: Point3<T>,
-    extent: T,
-    band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
-    wedge_decided(s1, s2, p, extent, band).map_err(WedgeEscalation::into_lever)
-}
-
 /// Why [`wedge_decided`] could not classify: a rung of the levered
 /// reading, or no tangent plane to read an angle between.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -634,9 +617,8 @@ impl<T: Real> StationHook<T> for () {
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SecondOrderWalk<B> {
-    /// Every station read `Positive`; the first station's reporting
-    /// margin, the sagitta a finding that quotes the walk names.
-    Determinate(geom_core::MarginDiag),
+    /// Every station read `Positive`.
+    Determinate,
     /// The first station not `Positive` read `Zero`/`Negative`.
     UnderDetermined,
     /// The first station not `Positive` was in band.
@@ -673,7 +655,6 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
-    let mut first = None;
     for (p, tau) in stations {
         let station = Station {
             p,
@@ -686,10 +667,8 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
         match second_order_verdict(&station.jet, station.arm, band) {
             Ok(Decided {
                 sign: Sign::Positive,
-                margin,
-            }) => {
-                first.get_or_insert(margin);
-            }
+                ..
+            }) => {}
             Ok(_) => return SecondOrderWalk::UnderDetermined,
             Err(source) => return SecondOrderWalk::InBand(source),
         }
@@ -698,8 +677,8 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
         }
     }
     // No station at all reads nothing, the vacuous determinacy the
-    // empty walk has always answered; its margin is the unreadable one.
-    SecondOrderWalk::Determinate(first.unwrap_or(geom_core::MarginDiag::INVALID))
+    // empty walk has always answered.
+    SecondOrderWalk::Determinate
 }
 
 /// [`tangent_second_order`]'s reading: the verdict, and the two
@@ -863,12 +842,12 @@ pub fn must_carry_over_edge<T: Decide>(
         band,
         &mut (),
     ) {
-        SecondOrderWalk::Determinate(_)
+        SecondOrderWalk::Determinate
             if crate::tangent::tangent_certificate_lane(carrier, s1, s2) =>
         {
             MustCarryVerdict::JetDeterminate
         }
-        SecondOrderWalk::Determinate(_) | SecondOrderWalk::UnderDetermined => {
+        SecondOrderWalk::Determinate | SecondOrderWalk::UnderDetermined => {
             MustCarryVerdict::UnderDetermined
         }
         SecondOrderWalk::InBand(source) => {
@@ -2243,7 +2222,7 @@ mod tests {
         let mut s = Script::default();
         assert!(matches!(
             walk::<f64>(2.0, &mut s),
-            SecondOrderWalk::Determinate(_)
+            SecondOrderWalk::Determinate
         ));
         assert_eq!((&s.before, &s.after), (&all, &all), "an unbroken walk");
 
@@ -2297,7 +2276,7 @@ mod tests {
         let interior = usize::try_from(crate::CERT_SAMPLES - 2).expect("a small count");
         let (answer, n) = metered(&mut Script::default());
         assert!(
-            matches!(answer, SecondOrderWalk::Determinate(_)) && n == interior,
+            matches!(answer, SecondOrderWalk::Determinate) && n == interior,
             "an unbroken walk decides every station"
         );
         assert_eq!(

@@ -1475,7 +1475,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // that follows, which compares the chart's boundary row
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
-        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+        geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_)
+        | geom_brep::EdgeDescription::OnPair { .. }
             if matches!(carrier, geom::Curve3::Circle { .. }) =>
         {
             arc_rim()
@@ -1519,20 +1521,20 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         //
         // A carrier the exact candidates do not claim stores its
         // `General` image.
-        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+        geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_)
+        | geom_brep::EdgeDescription::OnPair { .. }
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
             iso_schedule("pcurve_iso_line_rim", Vec::new())
         }
-        geom_brep::EdgeDescription::Intersection { .. } => {
+        // An `OnPair` names the same two surfaces an `Intersection`
+        // does, and its locus is the same question about the carrier.
+        geom_brep::EdgeDescription::Intersection { .. }
+        | geom_brep::EdgeDescription::OnPair { .. } => {
             iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
-        // An `OnPair` never names a spline chart: its incidence meter
-        // reads each surface's implicit form, which a spline lacks, so
-        // certification refuses one
-        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
-        geom_brep::EdgeDescription::OnPair { .. }
-        | geom_brep::EdgeDescription::TangentIntersection { .. }
+        geom_brep::EdgeDescription::TangentIntersection { .. }
         | geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
@@ -6584,7 +6586,7 @@ mod recourse_tests {
         let finding = PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
             error: PcurveCertifyError::FittedEscalated {
-                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
                 cause: Indeterminate {
                     margin: MarginDiag::value(5e-9),
                     band: Band::new(1e-9, 1e-8).unwrap(),
@@ -6597,9 +6599,9 @@ mod recourse_tests {
             finding.to_string(),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
-             passes limb 2 (control-hull sup-norm bound) is undecided: margin 5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; \
-             this refusal may indicate a kernel bug worth reporting"
+             passes limb 2 (control-hull sup-norm bound through its pcurve) is undecided: \
+             margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+             kernel bug worth reporting"
         );
     }
 }

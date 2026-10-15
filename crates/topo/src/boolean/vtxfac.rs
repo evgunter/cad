@@ -1915,6 +1915,15 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// which a valid body never lets overlap them), and where the point is
 /// not definitely off that carrier.
 ///
+/// **Every pierce of `plans` is read ([`held_reads`]) before any is
+/// minted ([`mint_held`])**. A minted ring vertex's strut stands in its
+/// face as a ring, so a face holding two points, read at the second
+/// after the first's mint, would read its trim unplaced. Two pierces of
+/// one face at one point, a pose no row reaches, refuses
+/// [`BooleanError::HeldPierceUnbuilt`]. A definite refusal
+/// at any face outranks an escalation at any other, as in the pierce
+/// pass this serves.
+///
 /// **On a curved face, or over one**, the run is the plane case's. Its
 /// germs are the two faces' section's tangents at the point, `±n × n_p`
 /// across their tangent planes, exact for every smooth pair as
@@ -1942,10 +1951,99 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
     box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
-    plan: &RingPlan<T>,
+    plans: &[&RingPlan<T>],
     band: Band,
     tol: Tol,
 ) -> Result<Vec<HeldPierce<T>>, BooleanError> {
+    let mut reads: Vec<HeldRead<T>> = Vec::new();
+    let mut escalated = None;
+    for plan in plans {
+        for read in held_reads(&*piercing_body, pierced_body, box_holds, plan, band)? {
+            match read {
+                // Two pierces of one face at one point would mint two ring
+                // vertices there. No row reaches the pose, so no answer
+                // here is checked: it refuses, before anything is written.
+                Ok(read) => {
+                    for earlier in reads.iter().filter(|r| r.face == read.face) {
+                        match super::one_vertex_at(earlier.point, read.point, band) {
+                            Ok(Some(_)) => {
+                                let kind = |body: &Body<T>, face| {
+                                    body.face_surface_linked(
+                                        face,
+                                        proven(&body.faces, face, EntityId::Face),
+                                    )
+                                    .kind()
+                                };
+                                return Err(BooleanError::HeldPierceUnbuilt {
+                                    operand: read.piercing,
+                                    face: read.face,
+                                    pierced: read.pierced,
+                                    kind: kind(piercing_body, read.face),
+                                    pierced_kind: kind(pierced_body, read.pierced),
+                                    placed: true,
+                                });
+                            }
+                            Ok(None) => {}
+                            Err(diag) => {
+                                escalated.get_or_insert(BooleanError::Escalated {
+                                    decision: super::BooleanDecision::VertexOnVertex,
+                                    diag,
+                                });
+                            }
+                        }
+                    }
+                    reads.push(read);
+                }
+                // **A definite refusal outranks an escalation**, as in the
+                // pierce pass this serves: every face of every pierce is
+                // read, so which is read first does not choose between
+                // the two.
+                Err(e @ BooleanError::Escalated { .. }) => {
+                    escalated.get_or_insert(e);
+                }
+                Err(definite) => return Err(definite),
+            }
+        }
+    }
+    if let Some(escalated) = escalated {
+        return Err(escalated);
+    }
+    reads
+        .into_iter()
+        .map(|read| mint_held(piercing_body, read, tol))
+        .collect()
+}
+
+/// What [`held_reads`] decided of one face holding one pierce point,
+/// for [`mint_held`] to write.
+struct HeldRead<T: geom_core::Real> {
+    face: crate::entity::FaceKey,
+    piercing: Operand,
+    pierced: crate::entity::FaceKey,
+    point: geom_core::Point3<T>,
+    /// The pierced face's outward normal at the point.
+    normal: Vec3<T>,
+    /// The run's start germ direction, `n × n_pierced`, normalized.
+    dir: Vec3<T>,
+    arm: T,
+    cells: (
+        (crate::entity::FaceKey, crate::entity::FaceKey),
+        (super::Locus, super::Locus),
+    ),
+    branch: super::Branch,
+    on: geom_core::MarginDiag,
+}
+
+/// [`faces_holding_pierce`]'s reading of `plan`'s point against every
+/// face of `piercing_body`, writing nothing: each face that holds the
+/// point, or that refuses. The outer error is the plan's own.
+fn held_reads<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &Body<T>,
+    pierced_body: &Body<T>,
+    box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
+    plan: &RingPlan<T>,
+    band: Band,
+) -> Result<Vec<Result<HeldRead<T>, BooleanError>>, BooleanError> {
     let (p, piercing, pierced) = (plan.point, plan.piercing, plan.contact.face);
     // The pierce's own neighbourhood meters each reading: the shortest
     // arm its runs were ordered at.
@@ -1958,7 +2056,6 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
             what: "a pierce ring's pierce has no run",
         })?;
     let faces: Vec<_> = piercing_body.faces().map(|(k, _)| k).collect();
-    let mut out = Vec::new();
     let kind_of = |body: &Body<T>, face| {
         body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
             .kind()
@@ -1979,10 +2076,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         .map(|he| piercing_body.face_of_linked(he))
         .collect();
     let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, arm));
-    for face in faces {
-        if own.contains(&face) {
-            continue;
-        }
+    let read_face = |face| -> Result<Option<HeldRead<T>>, BooleanError> {
         // The face's outward normal at the point, its bend there (`None`
         // on a plane), and the reading that puts the point on it.
         let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
@@ -1990,7 +2084,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 // A curved face is read only where its box can hold the
                 // point, as a plane is only where the point is on it.
                 if !box_holds(face, p) {
-                    continue;
+                    return Ok(None);
                 }
                 // Off the carrier, the face holds nothing: decided first,
                 // as the plane arm decides its plane first. A spline face
@@ -2009,7 +2103,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     )
                 });
                 if matches!(side, Some(Ok(ref d)) if d.sign != Sign::Zero) {
-                    continue;
+                    return Ok(None);
                 }
                 let held_lever = PierceLever::of(surface, p).within(arm);
                 // A face on one of their carriers is their sibling there,
@@ -2019,7 +2113,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     .iter()
                     .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
                 {
-                    continue;
+                    return Ok(None);
                 }
                 let (placement, _) =
                     super::contain::curved_face_placement_decided(piercing_body, face, p, band)
@@ -2035,7 +2129,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     // Off the face, or on its boundary, which the sweep's
                     // pierces and splits hold.
                     super::contain::CurvedPlacement::OffCarrier
-                    | super::contain::CurvedPlacement::Trim(Some(_)) => continue,
+                    | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
                 // A spline face's trim never places a point In; were one
                 // to, the face has no residual and no normal to build on.
@@ -2063,7 +2157,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     band,
                 );
                 if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
-                    continue;
+                    return Ok(None);
                 }
                 // A plane the point is in band of matters only where the
                 // point lies in the face. On the face's boundary the point
@@ -2073,7 +2167,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 if at != FaceContainment::In {
-                    continue;
+                    return Ok(None);
                 }
                 (plane.normal, None, side)
             }
@@ -2152,11 +2246,9 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        let (w, ring_loop) = ring_vertex_in(piercing_body, face, p, tol)?;
         // The face's one run is its half above the pierced face, from
         // the germ `n × n_pierced` round to its opposite, as a sector's
         // transitions read (`pierce_germ_dir`).
-        let d = int.normalize();
         let cells = match piercing {
             Operand::A => (
                 (face, pierced),
@@ -2167,43 +2259,80 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 (super::Locus::InFace(pierced), super::Locus::InFace(face)),
             ),
         };
-        let branch = germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?;
-        let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
-        let mint = piercing_body.mev_null_run(
-            MevSite::Lone { r#loop: ring_loop },
-            w,
-            NewVertexSide::Above,
-            true,
-        )?;
-        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
-        let rec = BoolNullEdgeRecord {
-            operand: piercing,
-            at_vertex: w,
-            edge: created.edge,
-            attr,
-            dangling: true,
-            germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
-        };
-        out.push(HeldPierce {
-            strut: rec,
+        Ok(Some(HeldRead {
+            face,
+            piercing,
+            pierced,
+            point: p,
+            normal: plan.normal,
+            dir: int.normalize(),
+            arm,
+            cells,
+            branch: germ_branch((piercing_body, pierced_body), piercing, cells, p, band)?,
             on,
-            plan: RingPlan {
-                contact: VfContact {
-                    vertex: w,
-                    face: pierced,
-                },
-                piercing,
-                point: p,
-                normal: plan.normal,
-                runs: vec![PlannedRun {
-                    edge: created.edge,
-                    germs,
-                    order: [(d, arm), (-d, arm)],
-                }],
+        }))
+    };
+    Ok(faces
+        .into_iter()
+        .filter(|face| !own.contains(face))
+        .filter_map(|face| read_face(face).transpose())
+        .collect())
+}
+
+/// Mints [`HeldRead`]'s ring vertex in its face and its run's strut,
+/// and returns them with the pierce's half of its ring.
+fn mint_held<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &mut Body<T>,
+    read: HeldRead<T>,
+    tol: Tol,
+) -> Result<HeldPierce<T>, BooleanError> {
+    let HeldRead {
+        face,
+        piercing,
+        pierced,
+        point,
+        normal,
+        dir: d,
+        arm,
+        cells,
+        branch,
+        on,
+    } = read;
+    let (w, ring_loop) = ring_vertex_in(piercing_body, face, point, tol)?;
+    let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
+    let mint = piercing_body.mev_null_run(
+        MevSite::Lone { r#loop: ring_loop },
+        w,
+        NewVertexSide::Above,
+        true,
+    )?;
+    let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+    let rec = BoolNullEdgeRecord {
+        operand: piercing,
+        at_vertex: w,
+        edge: created.edge,
+        attr,
+        dangling: true,
+        germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
+    };
+    Ok(HeldPierce {
+        strut: rec,
+        on,
+        plan: RingPlan {
+            contact: VfContact {
+                vertex: w,
+                face: pierced,
             },
-        });
-    }
-    Ok(out)
+            piercing,
+            point,
+            normal,
+            runs: vec![PlannedRun {
+                edge: created.edge,
+                germs,
+                order: [(d, arm), (-d, arm)],
+            }],
+        },
+    })
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
