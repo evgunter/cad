@@ -677,6 +677,12 @@ fn holes_covering_more_than_the_face_refuse_by_name() {
 /// third of the arc's length would escalate, and its mean width still
 /// clears the band. A rim turns through its stored span, so no decide
 /// reads the arc's length.
+///
+/// The area is held to what the wall's stored points determine: its two
+/// rulings are a metre long and their ends are points of magnitude up to
+/// 2, each placed to half an ulp there, so the region is known to about
+/// `2 · 1 m · 2⁻⁵¹ m`, `4·f64::EPSILON` m², whatever point the vector
+/// area is summed about. That is 4·10⁻⁵ of this wall's area.
 #[test]
 fn a_wall_one_and_a_half_bands_wide_measures() {
     let du = 1.5 * band().escalate() / ALPHA.sin();
@@ -689,7 +695,7 @@ fn a_wall_one_and_a_half_bands_wide_measures() {
         let (_, got) = measure(&[chart_loop(&verts)], true)
             .unwrap_or_else(|e| panic!("a wall {du:e} rad wide: refused {e:?}"));
         assert!(
-            (got - area).abs() <= 1e-9 * area,
+            (got - area).abs() <= 4.0 * f64::EPSILON,
             "a wall {du:e} rad wide: area {got:e} against {area:e}"
         );
     }
