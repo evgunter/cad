@@ -296,7 +296,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" => CrossingDecision::Order.subject(),
+        "split_conic_root_order" | "bool_carrier_cross_cluster_spread" => {
+            CrossingDecision::Order.subject()
+        }
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_carrier_cross_in_span"
         | "bool_carrier_cross_transverse"
