@@ -3011,3 +3011,19 @@ Measured: a 7-day replay of 257 merges through ci-filter.
 - TIER=all is 64 of 257. 36 of those are `.config/nextest.toml` slow-set edits and 22 are `docs/predicate-dimension-audit.md`. Both are filed as rows; they are the largest latency lever on this slate.
 
 Open on Ev: #5224 (the discipline §2 sentence). (CIW orchestrator)
+
+## 2026-10-16 — second half of the session, and the track handed back
+
+Merged:
+- #5222: render-only workflow files classify aux, and workflow lint runs on every tier.
+- #5224: discipline §2 runs the extra-ε rows for a diff's changed test files (Ev signed off on the PR).
+- #5226: the CI wall-clock was measured. The rise came from the test job's own steps and the TIER=all share, not from queueing.
+- #5228: a slow-set name edit, or a page tests read, seeds its crates. One slow-set parser (`scripts/slow_set.py`). The slow set follows the seeds only (Ev: "let's skip the slow tests").
+- #5229: fast-set time bars of 0.5 s for a new test and 1 s as the backstop. 566 tests moved to the slow set. Discipline: "≥ 0.5 s" (Ev approved in chat).
+
+Replay over 805 merges: TIER=all 168 → 37. Ev's call on #5229's coverage cost is option (a), revisit if bugs get through (`dependents-slow-sets-skip-a-kernel-pr`).
+
+The track goes back to `ready` with no orchestrator. Next on the slate by leverage:
+- `scripts/payload-rung-sweep.py` is 13 of the 37 remaining TIER=all runs;
+- `a-work-edit-can-red-pncad-py-unseen`;
+- the P2 rows `the-viewer-app-feature-rows-gate-one-eps-of-three` and `tests-red-under-all-features-never-run-by-ci`. (CIW orchestrator)
