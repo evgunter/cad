@@ -47,7 +47,8 @@ The other nine are:
 - **on**: an upper bound inside it;
 - **receding**: `d² = H² + D²` strictly growing away from the meeting, `H` the height above the other's plane and `D` the in-plane distance, in one of three certified ways;
 
-and the feet on the other conic move one way. The argument is in the module docs. Otherwise the root is polished and metered as before, so a window holding a second meeting still refuses or finds it.
+
+The window is read modulo the conic's period over the part on its span, and an arc of it no found meeting's ring bounds must read off throughout. The argument is in the module docs. Otherwise the root is polished and metered as before, so a window holding a second meeting still refuses or finds it.
 
 All sixteen rows pass. The geom-brep rows that pin the poses:
 - `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window` (the rim and fillet circle);

@@ -65,7 +65,7 @@ The four places where the reader used the old terms now use the ruled ones:
 - **One meeting per stretch** (`curve_pair::stretches`, row `curve_pair_meet_stretch`). Two meetings next to each other along a span lie in two stretches only where the point halfway between them is definitely off the other span. Otherwise it escalates, carrying both. Stretches are read along each span in turn. On a span with no ends, the last and first meetings are next to each other across the seam. A stretch with no meeting escalates through the refusal held at its candidate.
 - **Deflation** (`pose::owed`), only on the arms whose first harmonic is the meeting's own equation: line × circle and line × ellipse in one plane (Vieta), and coplanar circles (the reflection across the line of centres). One found meeting leaves the other root `2θ_hi − θ_J`, and two leave none.
   - Across a plane (a line or a conic crossing the other's plane), a root is a crossing of the plane and not a meeting. Its window, about `e/|d̂·n̂|` either side, can hold several meetings, so those arms divide nothing out. PR 5227's review showed real meetings lost when it was skipped.
-  - Beside a found meeting, a conic's window is read instead (`pose::window`). It is the found meetings' own when every piece past their rings reads off, on, or receding (the distance certified growing away from the meeting), and the feet on the other conic move one way. Otherwise the root is polished and metered as with no meeting found.
+  - Beside a found meeting, a conic's window is read instead (`pose::window`). It is read modulo the conic's period over the part on its span. It is the found meetings' own when every piece past their rings reads off, on, or receding (the distance certified growing away from the meeting); an arc no ring bounds must read off throughout. Otherwise the root is polished and metered as with no meeting found.
   - Two lines' crossing is linear and lands inside a found joint's ring, so that form divides nothing out either.
   - The coplanar subdivisions divide nothing out; their roots in a found meeting's ring are not read again.
 - **The polish fix** (`walk::polished_feet`). The walk's witnesses halfway to the feet of the other span's ends stand on feet polished by `Curve3::foot`, not on raw piece middles.
@@ -78,7 +78,9 @@ The rows that pin each mechanism, each red under the bug it names:
 - `meet_rows::a_found_meetings_root_is_divided_out_of_the_closed_form` (deflation, the interval tangent joint);
 - `plane_rows::*`, four rows (no deflation across a plane: never decided with a meeting missing);
 - `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window` and `meet_rows::a_fillet_joint_between_two_ellipses_is_read_by_its_window` (fillet joints decided by their window);
-- `pose::window::rows::*` (each window reading, and a control holding a second meeting);
+- `pose::window::rows::*` (each window reading, the ring inside `e`, the harmonic's bounds, the seam, and a control holding a second meeting);
+- `pose::window::oracle::*` (the dense-distance counterexample search, slow set, and two pinned counterexamples);
+- `plane_rows::two_meetings_across_a_whole_turns_seam_*` and `plane_rows::a_seam_vertex_at_the_joint_leaves_the_meeting_before_the_seam` (a window across a closed span's seam);
 - `meet_rows::two_lines_joined_at_a_vertex_meet_there_alone` (line × line's crossing in the joint's ring);
 - `walk::tests::the_walks_witnesses_stand_on_polished_feet` (the polish fix).
 
