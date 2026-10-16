@@ -1092,6 +1092,13 @@ Flagged, NOT fixed here (dispositions):
   is the per-predicate attribution of 1,054 rows, now under their own
   name.
 
+  **Retired (2026-10-16, `expr-non-finite-asks-value-times-zero`).**
+  `value · 0` reads `[0, 0]` for an unbounded enclosure (`[MAX, ∞]`,
+  `[0, ∞]`, `[−∞, ∞]`), so the check passed an expression whose value
+  ran to infinity. `refuse_non_finite` now asks `Real::is_bounded`,
+  which is not a band decision, so this site decides nothing and
+  records no `expr_non_finite` K sample.
+
 - **F19** (added by TRIM-3, the chart-boundary outside test)
   `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the
   six rows above.

@@ -296,20 +296,27 @@ fn eps_row(eps: f64) -> usize {
 /// as it moves [`PLATE_LEDGER`]'s: `Plain/Assertion` 1186 → 2690 and
 /// `Early/Assertion` 2229 → 4121 forms, and their digests, at every
 /// row; calls and the `*/Decision` lines hold.
+///
+/// The final non-finite check asking boundedness rather than deciding
+/// `value · 0` (`expr-non-finite-asks-value-times-zero`) takes its
+/// calls out of `Plain/Decision` (981 → 928, forms 9426 → 9415); the
+/// forms it used to build first are now built under `Plain/Assertion`
+/// (2690 → 2697). Its digests move at every row; the `Early/*` lines
+/// and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
-     Plain/Assertion calls 514 forms 2690 frozen 0 digest 80b737bceb9a4872fbea8255b9055340\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
-     Plain/Assertion calls 514 forms 2690 frozen 0 digest 8bd598498af0bdacbe74a0fcf7ba06b0\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
-     Plain/Assertion calls 514 forms 2690 frozen 0 digest b1ab6975915064a74b64f5cb5df7566b\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
 ];
@@ -606,9 +613,16 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Door/Decision` 7391 → 7987; `Early/Decision` 8970 → 8955, the arm
 /// the edge's chord no longer builds; every call, every decision tally
 /// and the largest form hold.
+///
+/// The final non-finite check asking boundedness
+/// (`expr-non-finite-asks-value-times-zero`): `Plain/Decision`
+/// 1048 → 1003 calls and 16062 → 16013 forms, `Plain/Assertion`
+/// 5753 → 5790 forms, which it now builds where the check's walk built
+/// them first, and both digests; the frozen counts, the `Early/*` and
+/// `Door/*` lines and the largest form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 16062 frozen 324 digest 715619d65a643a83cc5e70b84b682d55\n\
-     Plain/Assertion calls 654 forms 5753 frozen 405 digest b7a5528b5bf4a27272385a1fb050d90f\n\
+     Plain/Decision calls 1003 forms 16013 frozen 324 digest 5a00e900e5b75a93d7c4a204eab0bb17\n\
+     Plain/Assertion calls 654 forms 5790 frozen 405 digest eae9779dd552c4c2607469dbee61dbef\n\
      Early/Decision calls 352 forms 8955 frozen 0 digest b7df112980f31400f624889d1eabd515\n\
      Early/Assertion calls 654 forms 6972 frozen 0 digest f0e4564a343b8e6322ec666c5a03e5ab\n\
      Door/Decision calls 396 forms 7987 frozen 0 digest f849cdbc1af49b153010b84116530ce4";

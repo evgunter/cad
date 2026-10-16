@@ -1393,6 +1393,11 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
 /// certifies. With it shut the end cap and its `FlipZ` twin refuse at
 /// `newell_plane_residual`, and the start cap certifies on the forms
 /// alone, every decision as it reads with the read on.
+///
+/// The final non-finite check asks boundedness and decides nothing
+/// (`expr-non-finite-asks-value-times-zero`), so `symbolic` falls by
+/// its 44 theorems in every receipt (972 → 928, 573 → 529); `numeric`
+/// and the verdicts hold.
 #[test]
 fn m10_what_the_read_buys_on_the_tilted_caps() {
     let doc_of = |base, place| r2_document(1.0e-3, base, place);
@@ -1412,24 +1417,24 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
             "tiltU end cap",
             Base::TiltU,
             Place::Derived(1),
-            (972, 514),
-            (573, 300),
+            (928, 514),
+            (529, 300),
             Some("newell_plane_residual"),
         ),
         (
             "flipZ derived",
             Base::FlipZ,
             Place::Derived(1),
-            (972, 514),
-            (573, 300),
+            (928, 514),
+            (529, 300),
             Some("newell_plane_residual"),
         ),
         (
             "tiltU start-cap",
             Base::TiltU,
             Place::DerivedStartCap,
-            (972, 514),
-            (972, 514),
+            (928, 514),
+            (928, 514),
             None,
         ),
     ];
