@@ -53,6 +53,8 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
+#[path = "r2_5225_probes.rs"]
+mod r2_5225_probes;
 #[path = "budget_meter.rs"]
 mod budget_meter;
 #[path = "cert10r1_assembly_accounting.rs"]
