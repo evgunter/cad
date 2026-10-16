@@ -1001,10 +1001,13 @@ fn a_candidate_in_a_found_meetings_ring_is_not_read_again() {
     }
 }
 
+/// A carrier and the parameters of a span on it.
+type Carried = (Curve3<f64>, (f64, f64));
+
 /// A line leaving the end `(0, R)` of an arc of radius `R = 10⁻²` from
 /// `0.3` to `π/2`, through the arc's point `δ` before its end: the arc
 /// span, the line's over a millimetre, and that second point.
-fn secant_from_the_end(delta: f64) -> ([(Curve3<f64>, (f64, f64)); 2], Point3<f64>) {
+fn secant_from_the_end(delta: f64) -> ([Carried; 2], Point3<f64>) {
     let r = 1e-2;
     let arc = circle([0.0; 3], [0.0, 0.0, 1.0], r);
     let end = arc.eval(PI / 2.0);
@@ -1191,15 +1194,14 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
     let chord = line(lo.to_array(), (hi - lo).to_array());
     let whole = Span::new(&c, (0.0, TAU)).endless();
     let seg = Span::new(&chord, (0.0, (hi - lo).norm()));
-    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| match got {
-        Err(r) => matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2,
-        Ok(_) => false,
+    let escalated = |refused: Option<&super::MeetRefusal<f64>>| {
+        refused.is_some_and(|r| matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2)
     };
     for (order, got) in [
         ("circle first", meet(&whole, &seg, band())),
         ("chord first", meet(&seg, &whole, band())),
     ] {
-        assert!(escalated(&got), "{order}: {got:?}");
+        assert!(escalated(got.as_ref().err()), "{order}: {got:?}");
     }
     let mut found = super::Found::default();
     for (point, ta, tb) in [(hi, 1e-3, (hi - lo).norm()), (lo, TAU - 1e-3, 0.0)] {
@@ -1207,5 +1209,8 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
     }
     assert_eq!(found.points.len(), 2, "both chord ends meet the circle");
     let got = found.finish(&whole, &seg, None, band());
-    assert!(escalated(&got), "held across the seam: {got:?}");
+    assert!(
+        escalated(got.as_ref().err()),
+        "held across the seam: {got:?}"
+    );
 }
