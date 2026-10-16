@@ -271,10 +271,10 @@ fn a_projected_row_off_its_deck_refuses() {
     let carrier = general_circle::<Interval>();
     let image =
         geom_brep::chart_pcurve_over(&carrier, t0, t1, &sphere::<Interval>(), band).unwrap();
-    let moved = image.map_affine(
-        |p| geom_core::Point2::new(p.x + Interval::from_f64(1e-3), p.y),
-        |v| v,
-    );
+    let moved = image.map_affine(geom_brep::ChartMap {
+        u: geom_brep::AxisMap::shift(Interval::from_f64(1e-3)),
+        v: geom_brep::AxisMap::identity(),
+    });
     let err = PcurveCache::certify(moved, t0, t1, &carrier, &sphere::<Interval>(), band)
         .expect_err("a row off its deck does not certify");
     assert!(

@@ -3957,21 +3957,21 @@ mod tests {
 
     #[test]
     fn zero_trig_harmonic_passes_and_sinusoid_refuses() {
-        let linear = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let linear = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert_pt(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), 0.0, 0.5);
 
         // The tilted-cut class: an alive sin channel refuses typed.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.3),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.3),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, 3.0, true).is_err());
     }
 
@@ -3979,12 +3979,12 @@ mod tests {
     fn a_numerically_almost_zero_trig_channel_refuses_typed() {
         // The C6 statement with teeth: 1e-300 is NOT a structural
         // zero, and no scalar zero-test on T may decide otherwise.
-        let nearly = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::new(0.0, 1e-300),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let nearly = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::new(0.0, 1e-300),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&nearly, 0.0, 3.0, true).is_err());
     }
 
@@ -4267,12 +4267,12 @@ mod tests {
         // reach the machinery — the tilted-cut image refuses typed at
         // the variant gate (`pcurve_entry`), which is exactly the
         // exclusion the module docs name.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, core::f64::consts::PI, true).is_err());
     }
 
@@ -4643,12 +4643,12 @@ mod tests {
                     (Vec2::zero(), Vec2::new(tiny, 0.0)),
                     (Vec2::zero(), Vec2::new(0.0, tiny)),
                 ] {
-                    let h = geom_brep::Pcurve::Harmonic {
-                        p0: Point2::new(0.0, 0.0),
+                    let h = geom_brep::Pcurve::free_harmonic(
+                        Point2::new(0.0, 0.0),
                         pa,
                         pb,
-                        pl: Vec2::new(1.0, 0.0),
-                    };
+                        Vec2::new(1.0, 0.0),
+                    );
                     assert!(
                         pcurve_entry(&h, 0.0, 1.0, true).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
@@ -4661,12 +4661,12 @@ mod tests {
         fn r1_negative_zero_is_the_zero_function_and_passes() {
             // -0.0 == 0.0 in value: the trig term is the exact zero
             // function, so admitting it is sound (structure, not bits).
-            let h = geom_brep::Pcurve::Harmonic {
-                p0: Point2::new(0.25, 0.5),
-                pa: Vec2::new(-0.0, 0.0),
-                pb: Vec2::new(0.0, -0.0),
-                pl: Vec2::new(1.0, 2.0),
-            };
+            let h = geom_brep::Pcurve::free_harmonic(
+                Point2::new(0.25, 0.5),
+                Vec2::new(-0.0, 0.0),
+                Vec2::new(0.0, -0.0),
+                Vec2::new(1.0, 2.0),
+            );
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 

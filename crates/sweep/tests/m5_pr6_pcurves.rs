@@ -15,7 +15,7 @@ use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, split};
-use topo::{Body, Pcurve, validate_geometric};
+use topo::{Body, validate_geometric};
 
 /// The corpus shape (i) profile: a radius-0.5 disc as two half-circle
 /// arcs — extrudes to a cylinder whose two wall faces share one
@@ -152,7 +152,8 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
             1,
             "exactly one side of a section edge is a cylinder face"
         );
-        let Some((_, pa, pb, pl)) = above.pcurve(stored[0]).unwrap().pcurve().harmonic_form() else {
+        let Some((_, pa, pb, pl)) = above.pcurve(stored[0]).unwrap().pcurve().harmonic_form()
+        else {
             panic!("the minting lane stores closed-form images")
         };
         // The sinusoid graph: azimuth affine with unit winding, height

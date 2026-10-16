@@ -22,12 +22,7 @@ fn lift(p: &Pcurve<f64>) -> Pcurve<Interval> {
     };
     let f = Interval::from_f64;
     let v = |q: Vec2<f64>| Vec2::new(f(q.x), f(q.y));
-    Pcurve::Harmonic {
-        p0: Point2::new(f(p0.x), f(p0.y)),
-        pa: v(pa),
-        pb: v(pb),
-        pl: v(pl),
-    }
+    Pcurve::free_harmonic(Point2::new(f(p0.x), f(p0.y)), v(pa), v(pb), v(pl))
 }
 
 /// `topo-gate`: an image whose azimuth channel carries a harmonic pair
@@ -38,12 +33,12 @@ fn lift(p: &Pcurve<f64>) -> Pcurve<Interval> {
 fn a_harmonic_azimuth_inside_the_band_reads_its_sup() {
     let r = 0.5;
     let k = 0.6 * band().zero() / r;
-    let image = Pcurve::Harmonic {
-        p0: Point2::new(0.3, 0.2),
-        pa: Vec2::new(k, 0.0),
-        pb: Vec2::new(k, 0.0),
-        pl: Vec2::new(1.0, 0.0),
-    };
+    let image = Pcurve::free_harmonic(
+        Point2::new(0.3, 0.2),
+        Vec2::new(k, 0.0),
+        Vec2::new(k, 0.0),
+        Vec2::new(1.0, 0.0),
+    );
     let f = Interval::from_f64;
     let face = FaceKey::default();
     assert!(
@@ -68,12 +63,12 @@ fn a_harmonic_azimuth_inside_the_band_reads_its_sup() {
 /// `Interval`. The coefficient sum reads `0.2·2π`.
 #[test]
 fn the_axial_travel_bound_reads_the_pair_at_its_sup() {
-    let image = Pcurve::Harmonic {
-        p0: Point2::new(0.3, 0.2),
-        pa: Vec2::new(0.0, 0.1),
-        pb: Vec2::new(0.0, 0.1),
-        pl: Vec2::new(1.0, 0.0),
-    };
+    let image = Pcurve::free_harmonic(
+        Point2::new(0.3, 0.2),
+        Vec2::new(0.0, 0.1),
+        Vec2::new(0.0, 0.1),
+        Vec2::new(1.0, 0.0),
+    );
     let n = 1 << 16;
     let dv = |t: f64| (-0.1 * t.sin() + 0.1 * t.cos()).abs();
     let travel = (0..n)

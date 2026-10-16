@@ -2,10 +2,12 @@
 id: chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever
 kind: issue
 title: The chart-winding classifier escalates on its first candidate at a band-sized lever, before the candidate that decides
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
+closed: 2026-10-16
+branch: pcert/windings-structure
 ---
 
 
@@ -65,3 +67,17 @@ a sentence in D10.
 ## The answer
 
 Ev on `[ev]` PR 5113 (2026-10-14/15): decision 1 accepted (windings are structure the row stores and `certify` compares exactly); decision 3 replaced by the D3 principle (a class gate is a lane choice: in band or definite it takes a lane whose certificate does not rest on the class, records nothing, never ends as a defect; where no lane exists yet it refuses lever-only with "not yet", never a tolerance offer); the edge join records its class Zeros (D10). Decision 2 (the torus convention at admission) is split out to `a-torus-faces-convention-is-decided-where-the-face-is-admitted`, waiting on the import-validation conversation.
+
+## Closed
+
+By PCERT unit B2a (branch `pcert/windings-structure`), the answer's
+first decision: a harmonic row's angle channel stores its phase and its
+windings (`geom_brep::Channel::Angle`, an `i32`), and certification
+compares the stored windings with the derivation's exactly
+(`PcurveCertifyError::WindingMismatch`), so no decision reads a winding
+off a slope at any lever. The classifier, its `pcurve_chart_azimuth_affine`
+and `pcurve_chart_winding` decisions and the harmonic lane's
+`pcurve_azimuth_period` gate are gone. The near-apex child row now
+certifies: `topo/tests/cone_apex_sector_joints.rs`'s
+`a_split_near_a_narrow_apex_passes_its_joint` splits the ruling at slant
+`1.5·K·ε` and the body validates, at `f64` and at `Interval`.

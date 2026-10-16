@@ -717,8 +717,8 @@ mod tests {
     fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
         use crate::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
+        use geom_brep::EdgeCurveSpec;
         use geom_brep::certify::{CertCheck, CertifyError};
-        use geom_brep::{EdgeCurveSpec, Pcurve};
         use geom_core::{Band, Point3, Vec3};
 
         let tol = Tol::witness();
@@ -780,8 +780,7 @@ mod tests {
 
         let reverted = body.revert().unwrap();
         let mirrored = curve_of(&reverted);
-        let Some((q0, qa, qb, ql)) = image_of(&mirrored).harmonic_form()
-        else {
+        let Some((q0, qa, qb, ql)) = image_of(&mirrored).harmonic_form() else {
             panic!("the mirrored image keeps its kind")
         };
         for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {

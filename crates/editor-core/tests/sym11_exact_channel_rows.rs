@@ -96,12 +96,20 @@ use crate::m10_9_pins_interval::measured_studies;
 /// link `[356, 259, 542]` → `[348, 295, 548]`, bracket
 /// `[1453, 1008, 1969]` → `[1433, 1096, 1984]`, pad `[1317, 1159, 2976]`
 /// → `[1305, 1211, 2997]`. No dispute fired.
+///
+/// A harmonic row's windings stored as structure (PCERT B2a, `[ev]` PR
+/// 5113's first decision) retire the decisions that read them off a
+/// slope: plate `[1032, 726, 741]` → `[984, 686, 741]`, annulus
+/// `[550, 471, 920]` → `[502, 431, 920]`, link `[348, 295, 548]` →
+/// `[324, 275, 548]`, bracket `[1433, 1096, 1984]` → `[1373, 1046,
+/// 1984]`, pad `[1305, 1211, 2997]` → `[1269, 1181, 2997]`. The decisions
+/// are gone, not moved; no dispute fired, and `frozen` holds.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1032, 726, 741]),
-    ("r1_annulus", [550, 471, 920]),
-    ("r2_link", [348, 295, 548]),
-    ("r2_filleted_bracket", [1433, 1096, 1984]),
-    ("r2_rounded_pad", [1305, 1211, 2997]),
+    ("two_hole_plate", [984, 686, 741]),
+    ("r1_annulus", [502, 431, 920]),
+    ("r2_link", [324, 275, 548]),
+    ("r2_filleted_bracket", [1373, 1046, 1984]),
+    ("r2_rounded_pad", [1269, 1181, 2997]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

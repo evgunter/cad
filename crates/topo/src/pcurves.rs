@@ -6050,12 +6050,7 @@ mod stretch_meter {
         use geom_core::{Point2, Vec2};
         let zero = Vec2::new(0.0, 0.0);
         let at = Point2::new(0.4, 0.5);
-        let image = Pcurve::Harmonic {
-            p0: at,
-            pa: zero,
-            pb: zero,
-            pl: zero,
-        };
+        let image = Pcurve::free_harmonic(at, zero, zero, zero);
         for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
             let s = flat_chart(span);
             let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
@@ -6093,12 +6088,7 @@ mod stretch_meter {
         let zero = Vec2::new(0.0, 0.0);
         let tau = std::f64::consts::TAU;
         let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
-            let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, v),
-                pa: zero,
-                pb: zero,
-                pl: zero,
-            };
+            let image = Pcurve::free_harmonic(Point2::new(0.0, v), zero, zero, zero);
             let prev = Point2::new(gap, v);
             decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
         };
@@ -6246,12 +6236,7 @@ mod stretch_meter {
             let d = lever / alpha.sin();
             let vertex = Point3::new(lever, 0.0, d * alpha.cos());
             let flat = Vec2::new(0.0, 0.0);
-            let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, d),
-                pa: flat,
-                pb: flat,
-                pl: flat,
-            };
+            let image = Pcurve::free_harmonic(Point2::new(0.0, d), flat, flat, flat);
             let prev = Point2::new(gap, d);
             match decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band()) {
                 Ok(JointElement::Shift(deck)) if deck.v == 0 && !deck.twin => {
@@ -6728,13 +6713,14 @@ mod polar_shift_tests {
         );
         assert_eq!([pm.x, pm.y, pa.x, pa.y], [1.0, 0.0, 0.0, 0.0703125]);
 
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.3, 0.4),
-            pa: Vec2::new(1.0, 0.25),
-            pb: Vec2::new(-0.5, 1.0),
-            pl: Vec2::new(0.125, -0.375),
-        };
-        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form() else {
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.3, 0.4),
+            Vec2::new(1.0, 0.25),
+            Vec2::new(-0.5, 1.0),
+            Vec2::new(0.125, -0.375),
+        );
+        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form()
+        else {
             panic!("the harmonic arm keeps its variant");
         };
         assert_eq!(p0.y, 0.4 + 3.0 * period);
@@ -7342,12 +7328,14 @@ pub(crate) mod pole_slit_tests {
                 // The left meridian's stored image: the constant azimuth
                 // one copy of which is `−1`.
                 for (he, _) in body.half_edges() {
-                    if let Some(geom_brep::Pcurve::Harmonic { p0, pl, .. }) =
-                        body.pcurve(he).map(|c| c.pcurve())
+                    if let Some(geom_brep::Pcurve::Harmonic {
+                        u: geom_brep::Channel::Angle { phase, winding: 0 },
+                        ..
+                    }) = body.pcurve(he).map(|c| c.pcurve())
                     {
-                        let off = (p0.x + 1.0).rem_euclid(tau);
-                        if pl.x == 0.0 && (off < 2.0 * far || tau - off < 2.0 * far) {
-                            here.push(p0.x);
+                        let off = (phase + 1.0).rem_euclid(tau);
+                        if off < 2.0 * far || tau - off < 2.0 * far {
+                            here.push(*phase);
                         }
                     }
                 }
@@ -7971,12 +7959,7 @@ mod lift_rows {
     fn at<T: Decide>(u: f64, v: f64) -> Pcurve<T> {
         let f = T::from_f64;
         let zero = Vec2::new(f(0.0), f(0.0));
-        Pcurve::Harmonic {
-            p0: Point2::new(f(u), f(v)),
-            pa: zero,
-            pb: zero,
-            pl: zero,
-        }
+        Pcurve::free_harmonic(Point2::new(f(u), f(v)), zero, zero, zero)
     }
 
     fn on_sphere<T: Decide>(u: f64, v: f64) -> Point3<T> {
@@ -8387,12 +8370,12 @@ mod room_fence_tests {
     /// The fence at `vertex`, on the orbit a harmonic image on
     /// `surface` walks (a sphere's, half periods with its twin).
     fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
-        let image = geom_brep::Pcurve::Harmonic {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pa: geom_core::Vec2::new(0.0, 0.0),
-            pb: geom_core::Vec2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-        };
+        let image = geom_brep::Pcurve::free_harmonic(
+            geom_core::Point2::new(0.0, 0.0),
+            geom_core::Vec2::new(0.0, 0.0),
+            geom_core::Vec2::new(0.0, 0.0),
+            geom_core::Vec2::new(1.0, 0.0),
+        );
         joint_has_room(
             DescribedChart::of(surface).unwrap(),
             vertex,

@@ -3950,9 +3950,9 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
         // Non-periodic charts have no azimuth, so there is no lever to
         // answer — not even 1. Every caller asks on a periodic chart
-        // only: `chart_windings` and `chart_arms_at` on the cone arm,
-        // the harmonic lane's angular gates and fidelity term behind
-        // their own non-periodic exclusion.
+        // only: `chart_arms_at` on the cone arm, and the harmonic lane's
+        // fidelity term and the focal and spiric lanes behind their own
+        // non-periodic exclusion.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
             "azimuth_lever: a {} chart has no azimuth, and every caller asks on a \
              periodic chart only",
@@ -9916,6 +9916,106 @@ mod tests {
                 "corruption {i} certified: {out:?}"
             );
         }
+    }
+
+    /// **Windings are structure, compared exactly** (C4; `[ev]` PR 5113's
+    /// first decision). A rim's image with its azimuth's winding negated
+    /// is no number a corruption moved: certification refuses it as the
+    /// windings' mismatch, naming both, at `Interval` (where check 3's
+    /// cross-check, which an `f64` row reads first, is not run).
+    #[test]
+    fn a_rows_windings_are_compared_exactly() {
+        use geom_core::Interval;
+        let f = Interval::from_f64;
+        let cyl = cylinder(0.5).map_scalar(f);
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        }
+        .map_scalar(f);
+        let Pcurve::Harmonic {
+            u: Channel::Angle { phase, winding: 1 },
+            v,
+        } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
+            panic!("a rim winds once with the chart frame")
+        };
+        let flipped = Pcurve::Harmonic {
+            u: Channel::Angle { phase, winding: -1 },
+            v,
+        };
+        let out = PcurveCache::certify(flipped, f(0.0), f(PI), &carrier, &cyl, band());
+        assert!(
+            matches!(
+                out,
+                Err(PcurveCertifyError::WindingMismatch {
+                    stored: [Some(-1), None],
+                    derived: [Some(1), None],
+                })
+            ),
+            "{out:?}"
+        );
+    }
+
+    /// **A row's channels are its chart's.** The same rim's image with
+    /// its azimuth stored as a free channel, and a plane's circle with
+    /// its first coordinate stored as an angle, each refuse as the
+    /// channels' mismatch at check 1, before any number is read.
+    #[test]
+    fn a_rows_channels_are_its_charts() {
+        let cyl = cylinder(0.5);
+        let rim = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let Some((p0, pa, pb, pl)) = chart_pcurve(&rim, &cyl, band()).unwrap().harmonic_form()
+        else {
+            panic!("a rim images harmonic")
+        };
+        let out = PcurveCache::certify(
+            Pcurve::free_harmonic(p0, pa, pb, pl),
+            0.0,
+            PI,
+            &rim,
+            &cyl,
+            band(),
+        );
+        assert!(
+            matches!(
+                out,
+                Err(PcurveCertifyError::ChannelKindMismatch {
+                    chart: geom::SurfaceKind::Cylinder
+                })
+            ),
+            "{out:?}"
+        );
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let Pcurve::Harmonic { u, v } = chart_pcurve(&rim, &plane, band()).unwrap() else {
+            panic!("a circle in a plane images harmonic")
+        };
+        let [c, ..] = u.coefficients();
+        let angled = Pcurve::Harmonic {
+            u: Channel::fixed_angle(c),
+            v,
+        };
+        let out = PcurveCache::certify(angled, 0.0, PI, &rim, &plane, band());
+        assert!(
+            matches!(
+                out,
+                Err(PcurveCertifyError::ChannelKindMismatch {
+                    chart: geom::SurfaceKind::Plane
+                })
+            ),
+            "{out:?}"
+        );
     }
 
     /// The envelope is a genuine sup bound over the whole span, not a

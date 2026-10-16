@@ -604,12 +604,21 @@ const PLATE_MAX_TERMS: usize = 28;
 /// and digests move on every line; the largest form holds.
 /// The placement's lever, the direction's length, squares by
 /// `powi(2)`: the `Plain/Assertion` digest, with every count held.
+///
+/// A harmonic row's windings are structure it stores and certification
+/// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
+/// the decisions that read a winding off a slope are gone: the angle
+/// channel's two affine decisions, the winding walk and the harmonic
+/// lane's period gate, `Plain/Decision` 1032 → 984 calls and
+/// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
+/// 468 → 428; forms and digests move with them, and freezes and the
+/// largest form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1032 forms 15912 frozen 324 digest 88364aa057b0d497e2bb24dce6439e74\n\
-     Plain/Assertion calls 726 forms 4870 frozen 417 digest 350b39390a6cf6f90133b53cded33525\n\
+     Plain/Decision calls 984 forms 15906 frozen 324 digest b3b310b3eba13d067468c3f900cff63f\n\
+     Plain/Assertion calls 686 forms 4850 frozen 417 digest 043d16670f448a364ca42818a8ce3776\n\
      Early/Decision calls 352 forms 8940 frozen 0 digest 34ae2c431ac12a43705a8dbd2b2846bc\n\
-     Early/Assertion calls 726 forms 5791 frozen 0 digest ae586774ba4a2c927e7a337c24f6325d\n\
-     Door/Decision calls 468 forms 7635 frozen 0 digest f9c3a497d34ad9013e727c0428b01675";
+     Early/Assertion calls 686 forms 5771 frozen 0 digest 3cf579f7e57e9c7202051d3b8d5a8afd\n\
+     Door/Decision calls 428 forms 7605 frozen 0 digest 5b85d32cab8e3080b41752724b6fce00";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

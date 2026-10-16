@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{Pcurve, PcurveCache};
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Band, Tol};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError};
@@ -56,16 +56,12 @@ fn halves(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
 /// a part of the chart the face does not reach.
 fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveCache<f64> {
     let cache = body.pcurve(he).unwrap();
-    let Some((p0, pa, pb, pl)) = cache.pcurve().clone().harmonic_form() else {
-        panic!("a cylinder sheet's rows are harmonic")
-    };
+    assert!(
+        matches!(cache.pcurve(), Pcurve::Harmonic { .. }),
+        "a cylinder sheet's rows are harmonic"
+    );
     let tau = core::f64::consts::TAU;
-    let shifted = Pcurve::Harmonic {
-        p0: Point2::new(p0.x + tau, p0.y),
-        pa,
-        pb,
-        pl,
-    };
+    let shifted = cache.pcurve().shift_branch(1.0, tau);
     let edge = body.get_half_edge(he).unwrap().edge;
     let curve = body
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
