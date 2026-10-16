@@ -723,7 +723,9 @@ EdgeDescription =
                                              -- reads under-determined)
   | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, same-surface splits)
+                                             -- (iso-lines, seams, same-surface splits,
+                                             -- rows a construction states on a
+                                             -- spline chart)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
@@ -735,14 +737,20 @@ select — a face split at a smooth profile join, where at a G2 join even
 `TangentIntersection` fails its margin, and rightly, or a tangent piece
 shorter than the second order resolves — is `OnPair { pair }`: the
 carrier is the defining data, its certificate is incidence on both
-surfaces, and no door chooses a chart, since a chart key there records
+surfaces, each read through that surface's own chart-image certificate
+(the one meter every pcurve carries, never a second implicit reading of
+the same fact), and no door chooses a chart, since a chart key there records
 nothing about the locus and each face's pcurve is its own derived
 cache. Whether the pair is smooth along it is not the certificate's
 claim; tier 3's must-carry predicate admits the arm exactly where it
 reads the join under-determined. A locus one chart defines
 (parameterization seams — infinite-order contact, the seam's position
-pure convention; iso-lines; splits whose two faces share one surface)
-is `Chart`: one (surface, `Pcurve`) form covers all of them
+pure convention; iso-lines; splits whose two faces share one surface;
+a row or column a construction states on a spline chart, such as a
+loft's cap rim, the row its wall was skinned through, even where a
+second surface holds it too, since that chart's key records the locus
+exactly where an analytic chart's image of a curve lying in it records
+nothing) is `Chart`: one (surface, `Pcurve`) form covers all of them
 (PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
 not variants. A `MappedCurve` survives as the `Scaffold` payload and as
 the `EdgeAuthority` record — one authoritative source, never two peer

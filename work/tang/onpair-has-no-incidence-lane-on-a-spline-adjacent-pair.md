@@ -7,6 +7,7 @@ opened: 2026-10-13
 priority: P2
 cost: H
 refs: [plane-nurbs-certificate-refuses-at-rest-rows-of-lofts-and-sweeps, onpair-has-no-incidence-lane-on-two-spline-charts]
+needs_ev: true
 ---
 
 

@@ -596,12 +596,14 @@ stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. A conventional edge takes one of two
 forms: `EdgeDescription::OnPair { pair }` for a locus two distinct
 surfaces under-determine, certified by incidence on both (each
-surface's per-sample residual, as `Intersection` meters it) and named
-by no chart, and `EdgeDescription::Chart { surface, pcurve, wrap }` for
+surface's chart-image certificate, the `|S(P(t)) − C(t)|` statement its
+pcurve carries) and named by no chart, and `EdgeDescription::Chart { surface, pcurve, wrap }` for
 a locus one chart defines (wraps, iso lines, splits whose two faces
 share one surface, stated spline isos), with `EdgeAuthority` recording
 who declared the locus. Which form an edge between two faces takes is
-decided in one home, `topo::rest_locus` (`RestLocus`): one surface
+decided in one home, `topo::rest_locus` (`RestLocus`): an edge a
+construction states as a spline chart's row or column rests in that
+chart; otherwise one surface
 record is one surface; two records the carrier-equality ladder reads
 as one carrier over the faces' region are one surface too, since
 incidence on both is incidence on one, and the edge rests in the first
