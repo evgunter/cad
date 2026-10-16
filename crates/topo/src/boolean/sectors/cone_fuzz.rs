@@ -979,6 +979,8 @@ fn check_partners(
             vertex,
             std::slice::from_ref(&probe),
             &pairs,
+            // Every face here is a polygon cone's, a plane.
+            &|_| Ok(super::FaceShape::Plane),
             band,
         )
         .map(|(rows, _)| rows)

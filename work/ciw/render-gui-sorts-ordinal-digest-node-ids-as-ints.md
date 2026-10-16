@@ -2,10 +2,11 @@
 id: render-gui-sorts-ordinal-digest-node-ids-as-ints
 kind: issue
 title: render_gui.py sorts snapshot node ids with key=int, but PR 4244's ids are ordinal:digest, so the viewer GUI montage lane crashes
-status: open
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: E
+closed: 2026-10-15
 ---
 
 
@@ -32,3 +33,10 @@ ordinal carries), or read whatever order the snapshot itself declares.
 Fail loud on a key with neither form, as the function's docstring
 already requires. Then re-render the lane and check that its cell names
 are unchanged.
+
+## Closed
+
+`demos/render_gui.py`'s `node_kinds` sorts snapshot node keys with
+`node_id_order`, which reads a key as an `ordinal:digest` node id (the
+spelling `MintId::parse` in `crates/editor-core/src/mint.rs` accepts) and
+orders by ordinal, then digest; any other key exits loud naming the key.
