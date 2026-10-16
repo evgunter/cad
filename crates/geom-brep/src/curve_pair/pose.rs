@@ -189,10 +189,12 @@
 //! other's plane marks a window, about `e/|d̂·n̂|` of arc either side,
 //! where it lies within the band's escalation of that plane, and that
 //! window can hold more than one meeting, each in a stretch of its own.
-//! Each plane root is polished and metered as it would be with no meeting
-//! found; a candidate it gives nearer a found meeting than the
-//! escalation is that meeting again (C5's ring rule), and a meter that
-//! cannot place one refuses. The coplanar subdivisions divide nothing
+//! A conic's plane root whose window holds a found meeting is read
+//! instead (`window`): where the window certainly holds no meeting but
+//! the found ones, the root is not polished. Every other plane root is
+//! polished and metered as it would be with no meeting found; a candidate
+//! it gives nearer a found meeting than the escalation is that meeting
+//! again (C5's ring rule), and a meter that cannot place one refuses. The coplanar subdivisions divide nothing
 //! out: their roots nearer a found meeting than the escalation are not
 //! read again.
 //!

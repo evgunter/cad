@@ -1,93 +1,50 @@
-//! **A plane root's window beside a found meeting** (the parent module's
-//! docs, "deflation"): whether the arc of the first conic within the
-//! band's escalation of the second's plane holds no meeting but the ones
-//! already found.
+//! **A plane root's window beside a found meeting** (the parent
+//! module's docs, "A crossing of the other's plane"): whether the arc of a
+//! conic `a` where its height `H(θ)` above conic `b`'s plane is within the
+//! band's escalation `e` holds no meeting but those already found. Past
+//! that window `a` is off `b`. Each found meeting `J` claims its ring, the
+//! arc within `e` of it (C5's ring rule). The window, read modulo `a`'s
+//! period over the part of it on `a`'s span, is the found meetings' own
+//! when each arc of it past the rings, read outward from them, is cut into
+//! pieces that each read:
 //!
-//! A conic `a` crossing or touching the plane of a conic `b` has a first
-//! harmonic `H(θ)`, its height above that plane, and a root `θ_r` of it
-//! marks a window, the arc about `θ_r` where `|H| ≤ e` (`Range::band_arc`).
-//! Past the window `a` lies more than `e` from `b`'s plane, so definitely
-//! off `b`. Inside it, a found meeting `J` on `a` claims its ring, the
-//! arc within `e` of it (C5: a candidate there cannot be decided distinct
-//! from `J`). The window is the found meetings' own when every point of it
-//! outside their rings is certified one of:
+//! - **(i) off** (`curve_pair_window_off`): a lower bound on the distance
+//!   `d` to `b`'s carrier past the zero band — the greater of the middle's
+//!   [`Curve3::clearance`] less the piece's reach, and the least `|H|`;
+//! - **on** (`curve_pair_window_on`): an upper bound inside the zero band —
+//!   the middle's foot gap plus the reach, or `√(|H|² + (L·|F|)²)` at most;
+//! - **(ii) receding** (`curve_pair_window_recedes`): `d` strictly growing
+//!   away from the ring.
 //!
-//! - **(i) off** (`curve_pair_window_off`): a piece whose lower bound on
-//!   its distance from `b`'s carrier exceeds the zero band, read exactly:
-//!   the greater of the middle's [`Curve3::clearance`] less the piece's
-//!   reach (its half-width at `a`'s greatest speed) and the least `|H|`
-//!   over the piece (below). No point of it is on `b`, though it may lie
-//!   within the band's escalation;
-//! - **on** (`curve_pair_window_on`): a piece every point of which is
-//!   on `b`'s carrier, read in the zero band: an upper bound on its
-//!   distance, the middle's foot gap plus the reach, or
-//!   `√(|H|² + (L·|F|)²)` at their most over the piece (below);
-//! - **(ii) receding** (`curve_pair_window_recedes`): a piece over which
-//!   the distance `d(θ)` from `b`'s carrier strictly grows away from `J`.
+//! An arc bounded by no ring must read off throughout.
 //!
-//! **Why (ii) holds.** `b` lies in its plane, so `d² = H² + D²`, `D` the
-//! distance from `Q(θ)`, `a(θ)`'s image in that plane, to `b`. Let
-//! `F(θ) = X²/A² + Y²/B² − 1` be `b`'s level at `Q` (`level_on`), `s` and
-//! `L` `b`'s smaller and larger semi-axes, `q*` a foot of `Q` on `b` and
-//! `ν` the unit vector from `q*` to `Q`, so `Q − q* = D·ν` and
-//! `(D²)′ = 2D·ν·Q′`. `F` is quadratic in the plane, its Hessian `2M`,
-//! `M = diag(1/A², 1/B²)`, so `∇F(Q) = ∇F(q*) + 2D·Mν`; and `∇F(q*)` is
-//! normal to `b` at `q*`, along `ν` outside (`F > 0`) and against it
-//! inside, of length between `2/L` and `2/s`. Hence
+//! **(ii).** `b` is planar, so `d² = H² + D²`, `D` the distance of `a(θ)`'s
+//! image `Q` in `b`'s plane to `b`. With `F` `b`'s level at `Q`
+//! (`level_on`), `s ≤ L` `b`'s semi-axes, `q*` a foot of `Q` and
+//! `Q − q* = D·ν`: `F` has Hessian `2M`, `M = diag(1/A², 1/B²)`, so
+//! `∇F(Q) = ∇F(q*) + 2D·Mν` with `∇F(q*)` along `±ν`, of length in
+//! `[2/L, 2/s]`; hence `(D²)′ = 2D·ν·Q′`,
 //! `ν·Q′ = sign(F)·(F′ − 2D·Mν·Q′)/|∇F(q*)|`, `|2D·Mν·Q′| ≤ 2D·|Q′|/s²`,
-//! `|Q′|` at most `a`'s greatest speed. Two bounds on `D` close it:
-//! `D ≤ L·|F|`, since the point of `b` along `Q`'s unit-coordinate
-//! direction lies `|ρ − 1|·|Q − c|/ρ ≤ L·|ρ − 1|` from `Q`,
-//! `ρ = √(F + 1)`, and `|ρ − 1| = |F|/(ρ + 1) ≤ |F|`; and `D` at least
-//! `b`'s lower bound in the plane ([`geom::ellipse_level_clearance`]),
-//! so at least `min(s/4, |F|·s/4)` (the coplanar ellipse pair's ceiling,
-//! which a circle meets too). A piece recedes in any of three ways
-//! (for every foot, so the one-sided derivatives agree):
+//! `|Q′|` at most `a`'s greatest speed. And `L·|F| ≥ D ≥ min(s/4, |F|·s/4)`:
+//! the point of `b` along `Q`'s unit-coordinate direction lies
+//! `≤ L·|√(F + 1) − 1| ≤ L·|F|` from `Q`, and the lower bound is
+//! [`geom::ellipse_level_clearance`]'s, held to the coplanar ellipse
+//! pair's ceiling. A piece recedes (for every foot) where `H` and `H′`
+//! keep the sign away from the ring and either `F` and `F′` do too with
+//! `|F′| > 2L·|F|·|Q′|/s²`, or `2|H|·|H′|` exceeds the level's drift
+//! `D·L·(|F′| + 2D·|Q′|/s²)`; or where `F` and `F′` keep that sign and
+//! `D·s·(|F′| − 2L·|F|·|Q′|/s²)` exceeds `2|H|·|H′|`. `H`, `F` and their
+//! slopes are bounded over a piece by Taylor's theorem as
+//! [`crate::half_angle::certified_subdivision`] bounds its harmonic.
 //!
-//! - **the height and the level both grow**: `H` and `H′` keep one
-//!   sign, their product's the direction away from `J`, and so do `F` and
-//!   `F′`, with `|F′| > 2L·|F|·|Q′|/s² ≥ 2D·|Q′|/s²`, so `ν·Q′` has the
-//!   sign away from `J`;
-//! - **the height grows and the level's drift is less**: `H` and `H′`
-//!   as above, and `(H²)′ = 2|H|·|H′|` exceeds
-//!   `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`;
-//! - **the level grows faster than the height falls**: `F` and `F′` keep
-//!   one sign, their product's the direction away from `J`, and
-//!   `(D²)′ ≥ D·s·(|F′| − 2L·|F|·|Q′|/s²)` exceeds `|(H²)′|`.
-//!
-//! An on piece's every point lies within `√(|H|² + (L·|F|)²)` of `b`, each
-//! at its most over the piece, where
-//! that reads in the zero band. Each of `H`, `H′`, `F`, `F′` is
-//! bounded over the piece by Taylor's theorem about its middle with the
-//! harmonics' exact top-derivative bound, `Σ k⁴·A_k` for `F` and `A` for
-//! `H`, each charged its rounding (Bernstein's inequality), and each
-//! reading is decided exactly (the least band): these are signs of
-//! bounds, not distances the band resolves.
-//!
-//! **Why the three make the window the found meetings'.** Read every
-//! piece from a found meeting's ring outward, to the window's end or to
-//! the middle of the arc before the next ring. A second meeting `P` there
-//! would be a point of `a` on `b` beyond a point `Q` that is not, both
-//! past the ring. `Q` lies in no on piece, so its piece is receding or
-//! off, and `d` is past the zero band at its far end. Each piece after
-//! it keeps `d` past the zero band from its near end on: an off piece
-//! everywhere, a receding one by growing, and an on piece cannot follow,
-//! since its near end would be on. So `P` is not on, and every point of
-//! the window on `b`'s carrier past a ring is connected to that ring
-//! through points on it. Whether two found meetings so connected are one
-//! meeting is the stretch reading's to decide (`curve_pair::stretches`).
-//!
-//! **Those points are on `b`'s span or past its end together**: a point on
-//! `b`'s carrier moves its foot along `b` at `a′·b̂′` over a positive
-//! factor (the foot is within the zero band, far inside `b`'s curvature
-//! radius), and that keeps its sign over the window where the unit
-//! tangents at `J`, `â′` and `b̂′`, have `|â′·b̂′|` past the turn each can
-//! take: `a`'s curvature bound times the window's arc, and `b`'s times
-//! `π/2` of the feet's chord, the window's arc and twice the escalation
-//! (an arc of `b` with its curvature times its chord at most one is at
-//! most `π/2` of that chord). So the feet move one way from `J`'s, and
-//! the points of the window on `b`'s span past the ring, if any, adjoin
-//! the ring. Read only where a piece reads on or receding.
+//! **No second meeting.** A second meeting `P` past a ring would lie
+//! beyond a point `Q` that is not on `b`. `Q`'s piece is receding or off,
+//! so `d` is past the zero band at its far end, and every piece after it
+//! keeps it there: off throughout, receding by growing, and on cannot
+//! follow. So the window's points on `b`'s carrier past a ring adjoin that
+//! ring through points on it. Where their feet on `b` leave `b`'s span,
+//! `b`'s end lies within the band of `a`, so the ends, read first, found
+//! it as a meeting with its own ring, or escalated.
 
 #[cfg(test)]
 mod oracle;
@@ -160,7 +117,11 @@ struct Bounds<T> {
     slope_at: T,
 }
 
-/// [`Bounds`] of `p` over the piece of half-width `w` about `m`.
+/// [`Bounds`] of `p` over the piece of half-width `w` about `m`: Taylor's
+/// theorem about `m` with the turn's top-derivative bound, as
+/// [`crate::half_angle::certified_subdivision`] reads its clear and
+/// monotone tests. That walk keeps its own arithmetic, in the order its
+/// rows and three topo doors were measured on, rather than share this.
 fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
     let ([v, d1, d2, d3], [e0, e1, e2, e3], top) = jet(p, m, noise);
     let (two, six, tf) = (T::from_f64(2.0), T::from_f64(6.0), T::from_f64(24.0));
@@ -430,6 +391,7 @@ mod rows {
 
     use super::{Joint, Window};
     use crate::Conic;
+    use crate::half_angle::TrigPoly;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
@@ -635,5 +597,132 @@ mod rows {
                 "{label}: a window with a meeting across the seam is not the joint's"
             );
         }
+    }
+
+    /// **A ring lies within the band's escalation of its meeting.** A
+    /// circle of radius `2`, its speed its greatest everywhere, and a found
+    /// meeting `g` off its point at `θ = 0`, square to it, for `g` from
+    /// nothing to `0.9·e`: every point of the ring is nearer the meeting
+    /// than `e`, and its ends are past half of what the gap leaves, so the
+    /// ring is not trivially small. Red where the ring reaches past `e`.
+    #[test]
+    fn a_ring_lies_within_the_escalation_of_its_meeting() {
+        let band = band();
+        let e = band.escalate();
+        let a = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 2.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = Curve3::Circle {
+            center: Point3::new(5.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: 3.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let w = Window {
+            a: &ka,
+            span_a: (-1.0, 1.0),
+            b: &kb,
+            carrier_b: &b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise: 0.0,
+        };
+        for g in [0.0, 0.5 * e, 0.9 * e] {
+            let joint = Joint {
+                point: a.eval(0.0) + Vec3::new(0.0, 0.0, g),
+                ta: 0.0,
+            };
+            let radius = w.ring(&joint, 0.0, band).unwrap();
+            let far = (0..=1000)
+                .map(|i| (a.eval(radius * (f64::from(i) / 500.0 - 1.0)) - joint.point).norm())
+                .fold(0.0, f64::max);
+            assert!(
+                far < e,
+                "g = {g:e}: the ring reaches {far:e} from its meeting"
+            );
+            assert!(
+                (a.eval(radius) - a.eval(0.0)).norm() > 0.4 * (e - g),
+                "g = {g:e}: the ring's half-width {radius:e} is not trivially small"
+            );
+        }
+    }
+
+    /// **A harmonic's bounds over a piece hold at its extremes.** Three
+    /// polynomials of degree two, one of them flat to third order at `0`,
+    /// and one of degree one, over pieces of
+    /// half-width `10⁻³` to `1.5` about 64 middles round the turn: the
+    /// lower and upper bounds on `|p|` and `|p′|` enclose the least and
+    /// greatest sampled. And a polynomial read from harmonics rounded by
+    /// `0.9` of its charge, at a middle where it is flat: its lower bound
+    /// stays at or under the true polynomial's value. Red where the Taylor
+    /// remainder drops its fourth-order term, or the rounding goes
+    /// uncharged.
+    #[test]
+    fn a_harmonics_bounds_over_a_piece_hold_at_its_extremes() {
+        let poly = |c: [f64; 3], s: [f64; 3], degree: u8| TrigPoly {
+            cos: [c[0], c[1], c[2], 0.0, 0.0],
+            sin: [0.0, s[1], s[2], 0.0, 0.0],
+            degree,
+        };
+        let at = |p: &TrigPoly<f64>, t: f64| {
+            let (mut v, mut d) = (p.cos[0], 0.0);
+            for k in 1..=usize::from(p.degree) {
+                let kf = k as f64;
+                let (sn, cs) = (kf * t).sin_cos();
+                v += p.cos[k] * cs + p.sin[k] * sn;
+                d += kf * (p.sin[k] * cs - p.cos[k] * sn);
+            }
+            (v, d)
+        };
+        for (n, p) in [
+            poly([0.3, 1.0, 2.0], [0.0, -0.5, 1.5], 2),
+            poly([2.5, 0.2, -1.0], [0.0, 0.7, 0.1], 2),
+            poly([0.1, 1.0, 0.0], [0.0, 2.0, 0.0], 1),
+            // Flat to third order at `0`: `−3 + t⁴/2`.
+            poly([0.0, -4.0, 1.0], [0.0; 3], 2),
+        ]
+        .iter()
+        .enumerate()
+        {
+            for i in 0..64 {
+                let m = core::f64::consts::TAU * f64::from(i) / 64.0;
+                for w in [1e-3, 0.1, 0.5, 1.0, 1.5] {
+                    let b = super::bounds(p, m, w, 0.0);
+                    let (mut lo, mut hi, mut slo, mut shi) =
+                        (f64::INFINITY, 0.0_f64, f64::INFINITY, 0.0_f64);
+                    for j in 0..=400 {
+                        let (v, d) = at(p, m + w * (f64::from(j) / 200.0 - 1.0));
+                        (lo, hi) = (lo.min(v.abs()), hi.max(v.abs()));
+                        (slo, shi) = (slo.min(d.abs()), shi.max(d.abs()));
+                    }
+                    let tiny = 1e-12;
+                    assert!(
+                        b.lo <= lo + tiny && b.hi >= hi - tiny,
+                        "poly {n} about {m} ± {w}: |p| in [{lo}, {hi}], bounds [{}, {}]",
+                        b.lo,
+                        b.hi
+                    );
+                    assert!(
+                        b.slope_lo <= slo + tiny && b.slope_hi >= shi - tiny,
+                        "poly {n} about {m} ± {w}: |p′| in [{slo}, {shi}], bounds [{}, {}]",
+                        b.slope_lo,
+                        b.slope_hi
+                    );
+                }
+            }
+        }
+        let noise = 1e-9;
+        let truth = poly([1.0, 0.5, 0.0], [0.0; 3], 1);
+        let rounded = poly([1.0 + 0.9 * noise, 0.5, 0.0], [0.0; 3], 1);
+        let b = super::bounds(&rounded, 0.0, 1e-6, noise);
+        let (v, _) = at(&truth, 0.0);
+        assert!(
+            b.lo <= v,
+            "the rounded harmonics' lower bound {} under the true value {v}",
+            b.lo
+        );
     }
 }
