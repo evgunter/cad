@@ -152,3 +152,82 @@ fn a_wedge_on_the_ruling_answers_every_op_in_both_slots() {
         }
     }
 }
+
+/// The line body: the cylinder unioned (cylinder first) with the wedge
+/// prism `wedge(a, b, z0, h)`.
+fn line_body(a: f64, b: f64, z0: f64, h: f64) -> AtRestBody<f64> {
+    match topo::union(&rod(), &wedge(a, b, z0, h), t()).unwrap() {
+        BooleanResult::Body(r) => r.body,
+        other => panic!("the line body: {other:?}"),
+    }
+}
+
+/// **Two wedges sharing the wall's tangent-plane face refuse an untyped
+/// join, in every op and order**, today
+/// (`work/tang/two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends.md`).
+/// The piece opens over −90°..−50° and the tool over −150°..−90°, both
+/// over `z ∈ [0.2, 1.8]`, so their caps coincide; each has a side along
+/// −90°, in the plane `x = 1`. Pins the refusal, so it flips when fixed.
+#[test]
+fn two_wedges_sharing_the_tangent_plane_face_refuse_unpaired_loose_ends() {
+    let line = line_body(-90.0, -50.0, 0.2, 1.6);
+    let tool = wedge(-150.0, -90.0, 0.2, 1.6);
+    let ops: [(&str, Op); 3] = [
+        ("intersection", topo::intersect),
+        ("subtraction", topo::subtract),
+        ("union", topo::union),
+    ];
+    for (name, op) in ops {
+        for (order, got) in [
+            ("line body first", op(&line, &tool, t())),
+            ("tool first", op(&tool, &line, t())),
+        ] {
+            let Err(e) = got else {
+                panic!("{name}, {order}: builds, where it refused")
+            };
+            assert_eq!(
+                format!("{e:?}"),
+                "Join(BooleanJoin(UnpairedLooseEnds { count: 4 }))",
+                "{name}, {order}"
+            );
+        }
+    }
+}
+
+/// **A difference leaving a zero-angle cusp along the ruling refuses at
+/// `sector_straight`**, today
+/// (`work/tang/a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight.md`),
+/// its rejected margin the z-overlap along the ruling. Pins the refusal,
+/// so it flips when fixed.
+#[test]
+fn a_difference_leaving_a_cusp_along_the_ruling_refuses_sector_straight() {
+    let cells = [
+        // Piece 50°..90° over z ∈ [0.5, 1.5]; tool 60°..120° over
+        // z ∈ [0.7, 1.2].
+        ("A", (50.0, 90.0, 0.5, 1.0), (60.0, 120.0, 0.7, 0.5), "0.5"),
+        // Piece −90°..−50° and tool −120°..−60°, both over z ∈ [0.2, 1.8].
+        (
+            "B",
+            (-90.0, -50.0, 0.2, 1.6),
+            (-120.0, -60.0, 0.2, 1.6),
+            "1.6",
+        ),
+    ];
+    for (cell, (pa, pb, pz, ph), (ta, tb, tz, th), overlap) in cells {
+        let line = line_body(pa, pb, pz, ph);
+        let tool = wedge(ta, tb, tz, th);
+        let Err(e) = topo::subtract(&tool, &line, t()) else {
+            panic!("cell {cell}: tool ∖ line builds, where it refused")
+        };
+        let got = format!("{e:?}");
+        for want in [
+            "Escalated { decision: LineWedges".to_owned(),
+            format!(
+                "MarginDiag(Value({overlap}, Some(Rejection {{ sign: Positive, passes: Negative }})"
+            ),
+            "predicate: Some(\"sector_straight\")".to_owned(),
+        ] {
+            assert!(got.contains(&want), "cell {cell}: {got} lacks {want}");
+        }
+    }
+}

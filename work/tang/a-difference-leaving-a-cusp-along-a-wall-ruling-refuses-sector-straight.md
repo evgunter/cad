@@ -41,7 +41,22 @@ a real fold, not a reading in the band.
 ## Extent
 
 PR 5218's review measured 6 such cells over its probe poses, 2 of them
-refusing the same way on main, so the shape predates PR 5218. The two
+refusing the same way on main, so the shape predates PR 5218. With `rod`,
+`wedge` and `line_body` of
+`crates/sweep/tests/a_minted_vertex_on_a_curved_face.rs`, those two are:
+
+- **A**: line body `rod ∪ wedge(50, 90, 0.5, 1.0)`, tool
+  `wedge(60, 120, 0.7, 0.5)`; tool ∖ line refuses at sector_straight
+  with margin 0.5;
+- **B**: line body `rod ∪ wedge(−90, −50, 0.2, 1.6)`, tool
+  `wedge(−120, −60, 0.2, 1.6)`; tool ∖ line refuses at sector_straight
+  with margin 1.6.
+
+Each margin is the z-overlap along the ruling. Both are reproduced on
+main (`3bdf48c60`) at ε 1e-9, 1e-6 and 1e-12, and pinned by
+`a_difference_leaving_a_cusp_along_the_ruling_refuses_sector_straight`
+(the decision, the predicate and the rejected margin), so they flip when
+fixed. The two
 witness cells above refused earlier on main (`JoinDesync`); PR 5218's
 reads clear them past the join to here. It is wider than boxes: any tool whose difference
 leaves a zero-angle cusp along a ruling of a wall. It is the same shape
