@@ -1061,3 +1061,6 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - CI was green on 19b1a7e. main had moved by #5207 and #5213; the merge with main was clean, type-checked, and passed the gates, `work.py lint`, and 4576 of 4659 geom-brep + topo tests (the remaining 79 were cut off by a container restart, not failed).
   - The lint red on c/c2 was the stale `from_f64(band.escalate())` allowlist count, fixed on both.
   - #5162 (c2) retargeted to main; its merge with main is under the same local check.
+- 2026-10-16: merged #5162 (c2: the census confirm and edge-face cut read `meet`) at 022dad8.
+  - CI was green on 4fd3527. Merged with main (through #5206/#5215, whose Rust changes are comments only), it type-checked and passed the gates, `work.py lint`, the slow-set name check, the rustdoc gate's flags on geom/geom-brep/topo, and all 4662 geom-brep + topo tests.
+  - Ev on #5214: "i think this is alright? the terminology is a bit confusing". The C5 sentence is reworded in plain terms (09cbb85, "stretches" for "runs of the in-band locus"); #5214 is retargeted to main and waits on Ev's word on the wording.
