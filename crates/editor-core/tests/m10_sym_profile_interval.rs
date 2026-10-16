@@ -618,12 +618,16 @@ const PLATE_MAX_TERMS: usize = 28;
 /// and digests move on every line; the largest form holds.
 /// The placement's lever, the direction's length, squares by
 /// `powi(2)`: the `Plain/Assertion` digest, with every count held.
+/// With the wedge levered at its faces' extent as well, the calls and
+/// frozen counts are the placement's and the forms take both: Plain/Assertion
+/// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
+/// the largest form holds.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1032 forms 15912 frozen 324 digest 88364aa057b0d497e2bb24dce6439e74\n\
-     Plain/Assertion calls 726 forms 4870 frozen 417 digest 350b39390a6cf6f90133b53cded33525\n\
-     Early/Decision calls 352 forms 8940 frozen 0 digest 34ae2c431ac12a43705a8dbd2b2846bc\n\
-     Early/Assertion calls 726 forms 5791 frozen 0 digest ae586774ba4a2c927e7a337c24f6325d\n\
-     Door/Decision calls 468 forms 7635 frozen 0 digest f9c3a497d34ad9013e727c0428b01675";
+     Plain/Assertion calls 726 forms 6081 frozen 417 digest 51027fbbc0bf84ed20a5111a9f5eb455\n\
+     Early/Decision calls 352 forms 8925 frozen 0 digest 97cf18df3dcefdc966f079463d5ae16e\n\
+     Early/Assertion calls 726 forms 7244 frozen 0 digest a7c7805193d992e57142257d5bfff8e8\n\
+     Door/Decision calls 468 forms 8231 frozen 0 digest 6897cdbe766db6961837137e83fbb074";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

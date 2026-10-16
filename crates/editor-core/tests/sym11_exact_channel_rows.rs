@@ -103,13 +103,16 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `[1032, 726, 741]`, annulus `[566, 399, 904]` → `[550, 471, 920]`,
 /// link `[356, 259, 542]` → `[348, 295, 548]`, bracket
 /// `[1453, 1008, 1969]` → `[1433, 1096, 1984]`, pad `[1317, 1159, 2976]`
-/// → `[1305, 1211, 2997]`. No dispute fired.
+/// → `[1305, 1211, 2997]`. No dispute fired. With the wedge levered at
+/// its faces' extent as well, the two moves add: bracket `[1433, 1096,
+/// 2059]` and pad `[1305, 1211, 3543]`, the wedge's `frozen` (+75, +546)
+/// on top of the placement's.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1032, 726, 741]),
     ("r1_annulus", [550, 471, 920]),
     ("r2_link", [348, 295, 548]),
-    ("r2_filleted_bracket", [1433, 1096, 1984]),
-    ("r2_rounded_pad", [1305, 1211, 2997]),
+    ("r2_filleted_bracket", [1433, 1096, 2059]),
+    ("r2_rounded_pad", [1305, 1211, 3543]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

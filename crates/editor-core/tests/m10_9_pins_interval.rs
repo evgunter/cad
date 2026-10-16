@@ -596,7 +596,8 @@ fn m10_9_what_the_registry_buys() {
 /// dials alike: `symbolic` −24 (the frame reads), `numeric` +100 (fifty
 /// placements' two marks), and `frozen` +18, the marks' contradiction
 /// checks whose forms froze; the frame reads were proved, so froze
-/// nothing.
+/// nothing. With the wedge levered at its faces' extent as well, the two
+/// moves add: (1348, 1384, 3990), the wedge's +546 frozen on top.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -630,7 +631,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1348, 1384, 3444), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1348, 1384, 3990), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
