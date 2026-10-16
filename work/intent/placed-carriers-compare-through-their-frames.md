@@ -24,3 +24,5 @@ an opaque symbol per #4322). Measure first whether rung 3 proves
 `turn/4` identities through the fold.
 
 After the stage 3 re-spec (2026-10-09), H waits on stage 3 C (`a-mate-relates-two-poses`), not on the placement unit B. The bundle exists after B, but its mates read poses off geometry only after C. Replaying B's offset frames at `Sym` would be written twice.
+
+- 2026-10-16 (INTENT): when H lands, two things should change. The tour bench's three `unproven-coincidence` findings (one per mate's seat, the viewer's `checks: 3 finding(s)`, `gui-gauge-assembly-shows-three-check-findings`) should go quiet. And `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`, which pins today's unproven state, turns red and is re-pinned to the proof. Update the comment beside `bench` in `demos/tour/src/assembly.rs` too.
