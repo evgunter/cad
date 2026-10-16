@@ -179,10 +179,12 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     let ev: Evaluation<f64> = crate::fixture::run(&doc, &opts);
     let gathered = || product_recorded(&doc, &ev, tol).expect_err("a failed placement");
     let refusal = gathered();
-    assert_eq!(
-        refusal,
-        ProductError::Root(NodeStanding::Failed { node: placement }),
-        "the premise: the gather refuses the failed placement"
+    assert!(
+        matches!(
+            refusal,
+            ProductError::Root(NodeStanding::Failed { node }) if node == placement
+        ),
+        "the premise: the gather refuses the failed placement: {refusal:?}"
     );
     let carries_the_gathers_refusal = |err: ChecksError| match &err {
         ChecksError::Product {

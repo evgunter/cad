@@ -239,10 +239,13 @@ fn refuses_the_failed_placement(
 ) {
     let result = assemble(doc, ev, Tol::witness());
     match &result {
-        Err(AssemblyError::Product(refusal)) => assert_eq!(
-            **refusal,
-            editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node: badref }),
-            "the failed placement is the gate's answer"
+        Err(AssemblyError::Product(refusal)) => assert!(
+            matches!(
+                **refusal,
+                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
+                    if node == badref
+            ),
+            "the failed placement is the gate's answer: {refusal:?}"
         ),
         _ => panic!("expected the failed placement, got {}", headline(&result)),
     }

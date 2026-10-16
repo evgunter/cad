@@ -323,11 +323,13 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     );
     // The placement is in the product, so the gather refuses it typed.
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Product(refusal)) => assert_eq!(
-            *refusal,
-            editor_core::ProductError::Root(editor_core::NodeStanding::Failed {
-                node: mate.placement
-            }),
+        Err(AssemblyError::Product(refusal)) => assert!(
+            matches!(
+                *refusal,
+                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
+                    if node == mate.placement
+            ),
+            "{refusal:?}"
         ),
         other => panic!("a mate with no value fails its placement at the gate: {other:?}"),
     }
