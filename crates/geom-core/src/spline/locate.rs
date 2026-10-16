@@ -255,6 +255,11 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// `false`. At `Interval` it reads the bracket, as the locator does:
     /// a wide value answers by its lower end. The wrappers answer by
     /// their value part.
+    ///
+    /// `false` is "not every value", not "no value": a caller that
+    /// branches on it rather than refusing tells a point or poison
+    /// apart from a wide value first, since a wide value's members may
+    /// take both branches.
     fn structure_positive(self) -> bool {
         self.value_channel() > 0.0
     }

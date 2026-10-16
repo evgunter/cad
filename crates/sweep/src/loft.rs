@@ -586,57 +586,60 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
     /// point is finite.
     fn first_not_finite(&self) -> Option<usize> {
         match self {
-            Self::Loops(sections) => sections
-                .iter()
-                .position(|loops| !loops.iter().all(|lp| loop_is_finite(lp.as_profile_loop()))),
-            Self::Validated(sections) => sections.iter().position(|p| !profile_is_finite(p)),
+            Self::Loops(sections) => sections.iter().position(|loops| {
+                !loops
+                    .iter()
+                    .all(|lp| loop_all(lp.as_profile_loop(), T::is_bounded))
+            }),
+            Self::Validated(sections) => {
+                sections.iter().position(|p| !profile_all(p, T::is_bounded))
+            }
         }
+    }
+
+    /// Whether every input to the skin is a point: each placement's
+    /// value channel (`channel_places`, which [`sweep_body`] composes
+    /// in `f64`) and each section value.
+    fn all_points(&self, channel_places: &[Affine3<f64>]) -> bool {
+        let point = |v: T| v.point_value().is_some();
+        channel_places
+            .iter()
+            .all(|p| p.components().iter().all(|c| c.is_finite()))
+            && match self {
+                Self::Loops(sections) => sections
+                    .iter()
+                    .all(|loops| loops.iter().all(|lp| loop_all(lp.as_profile_loop(), point))),
+                Self::Validated(sections) => sections.iter().all(|p| profile_all(p, point)),
+            }
     }
 
     /// The sections' value channel at `f64`, validated: the canonical
     /// form, and for loops the record each is validated along at `T`
-    /// ([`validate_guided`]). `None` when a section or placement is
-    /// wider than a point, so has no `f64` value to validate.
+    /// ([`validate_guided`]). Read only where [`Self::all_points`]
+    /// holds.
     #[allow(clippy::type_complexity)]
     fn channel(
         &self,
         channel_places: &[Affine3<f64>],
         v_degree: usize,
         tol: Tol,
-    ) -> Option<Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), LoftError>> {
-        let finite = |p: &Affine3<f64>| p.components().iter().all(|c| c.is_finite());
-        if !channel_places.iter().all(finite) {
-            return None;
-        }
+    ) -> Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), LoftError> {
         match self {
             Self::Loops(sections) => {
                 let channel: Vec<Section<L::Channel>> = sections
                     .iter()
                     .map(|s| s.iter().map(SectionLoop::channel).collect())
                     .collect();
-                if !channel
-                    .iter()
-                    .all(|s| s.iter().all(|lp| loop_is_finite(lp.as_profile_loop())))
-                {
-                    return None;
-                }
-                Some(
-                    validate_loft(&channel, channel_places, v_degree, tol).map_err(LoftError::Skin),
-                )
+                validate_loft(&channel, channel_places, v_degree, tol).map_err(LoftError::Skin)
             }
             Self::Validated(sections) => {
                 let canonical: Vec<ValidatedProfile<f64>> = sections
                     .iter()
                     .map(ValidatedProfile::value_channel)
                     .collect();
-                if !canonical.iter().all(profile_is_finite) {
-                    return None;
-                }
-                Some(
-                    check_shapes(&canonical)
-                        .map(|()| (canonical, Vec::new()))
-                        .map_err(LoftError::Skin),
-                )
+                check_shapes(&canonical)
+                    .map(|()| (canonical, Vec::new()))
+                    .map_err(LoftError::Skin)
             }
         }
     }
@@ -693,13 +696,9 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     where
         T: ProjectiveScalar,
     {
-        let Some(channel) = self
-            .sections
-            .channel(self.channel_places, self.v_degree, self.tol)
-        else {
-            return Err(LoftError::SectionStructure);
-        };
-        let (_, structures) = channel?;
+        let (_, structures) =
+            self.sections
+                .channel(self.channel_places, self.v_degree, self.tol)?;
         let canonical = match self.sections {
             SectionsAtT::Loops(sections) => {
                 validate_guided(sections, self.places, &structures, self.tol)
@@ -726,10 +725,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     ///   points; an interior knot wider than a point) the skin refuses
     ///   typed ([`SkinError`]).
     fn enclosure(self) -> Self::Out {
-        let Some(channel) = self
-            .sections
-            .channel(self.channel_places, self.v_degree, self.tol)
-        else {
+        if !self.sections.all_points(self.channel_places) {
             let canonical = match self.sections {
                 SectionsAtT::Loops(sections) => {
                     validate_at_t(sections, self.places, self.tol).map_err(LoftError::Skin)?
@@ -738,8 +734,10 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             };
             check_shapes(&canonical).map_err(LoftError::Skin)?;
             return self.in_t(canonical);
-        };
-        let (canonical, _) = channel?;
+        }
+        let (canonical, _) = self
+            .sections
+            .channel(self.channel_places, self.v_degree, self.tol)?;
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         // The placements the `f64` skin was selected on, entered as the
         // computed values they are: every reader of this half — the
@@ -1220,37 +1218,36 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
     )
 }
 
-/// Whether every value of `lp` is finite for every value it stands for
-/// ([`Real::is_bounded`]).
-fn loop_is_finite<T: Real>(lp: &profile::ProfileLoop<T>) -> bool {
-    lp.vertices().iter().all(point_is_finite)
+/// Whether `holds` of every value of `lp`.
+fn loop_all<T: Real>(lp: &profile::ProfileLoop<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
+    lp.vertices().iter().all(|p| point_all(p, holds))
         && lp.segments().iter().all(|s| match s {
             profile::Segment::Line => true,
-            profile::Segment::Arc(arc) => arc_is_finite(arc),
+            profile::Segment::Arc(arc) => arc_all(arc, holds),
         })
 }
 
-/// [`loop_is_finite`] for a canonical form.
-fn profile_is_finite<T: Real>(profile: &ValidatedProfile<T>) -> bool {
+/// [`loop_all`] for a canonical form.
+fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
     profile.loops().iter().all(|lp| {
-        lp.vertices().iter().all(point_is_finite)
+        lp.vertices().iter().all(|p| point_all(p, holds))
             && lp.segments().iter().all(|s| {
-                point_is_finite(&s.start)
-                    && point_is_finite(&s.end)
+                point_all(&s.start, holds)
+                    && point_all(&s.end, holds)
                     && match &s.kind {
                         profile::SegmentKind::Line => true,
-                        profile::SegmentKind::Arc { arc, .. } => arc_is_finite(arc),
+                        profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })
     })
 }
 
-fn point_is_finite<T: Real>(p: &Point2<T>) -> bool {
-    p.x.is_bounded() && p.y.is_bounded()
+fn point_all<T: Real>(p: &Point2<T>, holds: impl Fn(T) -> bool) -> bool {
+    holds(p.x) && holds(p.y)
 }
 
-fn arc_is_finite<T: Real>(arc: &geom_core::Arc2<T>) -> bool {
-    point_is_finite(&arc.centre) && arc.radius.is_bounded() && arc.sweep.is_bounded()
+fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
+    point_all(&arc.centre, holds) && holds(arc.radius) && holds(arc.sweep)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
