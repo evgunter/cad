@@ -654,18 +654,19 @@ is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under
 a `Zero` reading is placed by the exactly degenerate formula, never by the
 generic one. Two spans meet along stretches. A *stretch* is a longest
-interval of one span which is nowhere definitely off the other. A
-*meeting* is a stretch in which the span is definitely on the other at
-exactly one point or along exactly one interval (a crossing, a touch or a
-shared run), and the meeting is the whole stretch, not only the part
-definitely on. Each span's ends are read against the other span before
-anything else. A stretch definitely on the other nowhere, or at more than
-one place, escalates: between two such places the spans are nowhere
-definitely apart, so whether they are two crossings or one run is
-undecided. Two curves may cross any number of times, and each crossing in
-a stretch of its own is its own meeting; a candidate nearer a found
-meeting than the band's escalation width cannot be decided distinct from
-it, so it is not read again.
+interval of one span which is nowhere definitely off the other; a
+*meeting* is a longest interval of one span which is everywhere
+definitely on the other, a single point for a crossing or a touch and a
+longer interval for a shared run. Each span's ends are read against the
+other span before anything else. A stretch holding exactly one meeting
+is reported as that meeting, which takes the whole stretch; a stretch
+holding no meeting, or more than one, escalates, since between two
+meetings in one stretch the spans are nowhere definitely apart and
+whether they are two crossings or one run is undecided. Two curves may
+cross any number of times, and each crossing in a stretch of its own is
+its own meeting; a candidate nearer a found meeting than the band's
+escalation width cannot be decided distinct from it, so it is not read
+again.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
