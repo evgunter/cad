@@ -1845,8 +1845,14 @@ impl<T: Decide> Body<T> {
         );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified =
-            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(u == w, p_u, p_w),
+            p_u,
+            p_w,
+            [face_key; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1938,8 +1944,14 @@ impl<T: Decide> Body<T> {
         );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified =
-            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(u == w, p_u, p_w),
+            p_u,
+            p_w,
+            [face_key; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -2021,8 +2033,14 @@ impl<T: Decide> Body<T> {
         );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified =
-            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(u == w, p_u, p_w),
+            p_u,
+            p_w,
+            [face_key; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
         let rows = self.plan_site_rows(
@@ -2113,8 +2131,14 @@ impl<T: Decide> Body<T> {
         );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified =
-            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(u == w, p_u, p_w),
+            p_u,
+            p_w,
+            [face_key; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.
         let rows = self.plan_site_rows(

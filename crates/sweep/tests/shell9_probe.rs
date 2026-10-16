@@ -168,6 +168,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
                 point(&reverted, start_v),
                 point(&reverted, end_v),
                 |sk| reverted.get_surface(sk).cloned(),
+                1.0,
                 band,
             )
         };

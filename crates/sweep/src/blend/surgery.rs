@@ -5430,7 +5430,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 surfaces: [(s1, surf1), (s2, surf2)],
                 carrier: &curve,
                 interval: (t0, t1),
-                chord: p0.distance(p1),
+                reach: topo::wedge_reach(
+                    body,
+                    [sides.plus.face, sides.minus.face],
+                    &curve,
+                    (t0, t1),
+                ),
                 witness,
             },
             band,

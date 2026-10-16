@@ -299,25 +299,19 @@ fn shoulder_cut() -> topo::SplitPlane<f64> {
 
 /// **The tangent ruling stores what the must-carry rule demands, at
 /// every depth.** The shoulder's seam is a ruling of the unit cylinder
-/// against its tangent plane, `κ_rel = 1`, so over a depth `h < 1` the
-/// rule meters the sagitta `h²/2` against the run's band `(ε, K·ε)`:
-///
-/// - `h²/2 ≤ ε` — under-determined: the surfaces do not determine the
-///   locus over so short a ruling, so the seam is the pair's
-///   conventional locus (`OnPair` over the wall and the section), and
-///   both pieces are tier-3 valid with their closed-form volumes;
-/// - in band — the rule's own typed refusal, naming the sagitta;
-/// - beyond `K·ε` — jet-determinate: the intrinsic tangency.
-///
-/// Each row's depth is a multiple of `√(2ε)`, so the rows hold at every
-/// tolerance row the suite runs at; the rows at `0.99`, `1.01`,
-/// `0.99·√K` and `1.01·√K` sit 2% either side of the two boundaries.
+/// against its tangent plane, `κ_rel = 1`, and the rule levers the
+/// sagitta at the faces' extent (`topo::wedge_reach`): the wall's
+/// quarter arc and the section's width reach past the radius, so the
+/// arm is the radius and the sagitta `1/2` at every depth. Every depth
+/// stores the intrinsic tangency, both pieces tier-3 valid with their
+/// closed-form volumes; the depths are the ones that put a sagitta
+/// levered at the ruling's own length under, in and over the band
+/// (multiples of `√(2ε)`, 2% either side of each boundary).
 #[test]
 fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
     let eps = tol().eps();
     let k = tol().k();
     let unit = (2.0 * eps).sqrt();
-    let in_band = |c: f64| c * c > 1.0 && c * c < k;
     let root_k = k.sqrt();
     for c in [
         0.25,
@@ -335,20 +329,6 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
         let h = c * unit;
         let label = format!("h = {c}·√(2ε) = {h:e}");
         let result = topo::split(&shoulder(h), &shoulder_cut(), tol());
-        if in_band(c) {
-            match result {
-                Err(topo::SplitError::Join(topo::SplitJoinError::TangentChordBendEscalated {
-                    diag,
-                    ..
-                })) => assert_eq!(
-                    diag.predicate,
-                    Some("tangent_second_order"),
-                    "{label}: the rule's sagitta decides"
-                ),
-                other => panic!("{label}: an in-band sagitta refuses by the rule, got {other:?}"),
-            }
-            continue;
-        }
         let halves = result.unwrap_or_else(|e| panic!("{label}: the shoulder cuts, got {e:?}"));
         let want = [("above", 2.0 + std::f64::consts::FRAC_PI_4), ("below", 2.0)];
         let mut seams = 0;
@@ -389,20 +369,15 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
                     .and_then(|g| g.certified())
                     .expect("the seam is described")
                     .description();
-                match description {
-                    geom_brep::EdgeDescription::TangentIntersection { .. } => {
-                        assert!(c * c >= k, "{label}: {side} stores the intrinsic tangency");
-                    }
-                    geom_brep::EdgeDescription::OnPair { pair: named } => {
-                        assert!(c * c <= 1.0, "{label}: {side} stores {named:?}");
-                        assert_eq!(
-                            *named,
-                            geom_brep::SurfacePair::new(pair[0], pair[1]),
-                            "{label}: {side}'s seam names the wall and the section"
-                        );
-                    }
-                    other => panic!("{label}: {side}'s seam stores {other:?}"),
-                }
+                assert!(
+                    matches!(
+                        description,
+                        geom_brep::EdgeDescription::TangentIntersection { pair: named, .. }
+                            if *named == geom_brep::SurfacePair::new(pair[0], pair[1])
+                    ),
+                    "{label}: {side}'s seam is the wall's and the section's tangency, got \
+                     {description:?}"
+                );
                 seams += 1;
             }
         }
@@ -414,18 +389,14 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
 /// the piece.** The `y < 1` piece of the shoulder cut at its seam (the
 /// unit cylinder's ruling `x = 0, y = 1`, `κ_rel = 1`, stored as the
 /// intrinsic tangency) is cut again by `z = 1 − d` (both normals) and
-/// `z = d`, so the seam splits into a long piece and one of length `d`,
-/// over which the rule meters the sagitta `d²/2`:
-///
-/// - `d²/2 ≤ ε` — under-determined: the short piece stores the pair's
-///   conventional locus (`OnPair` over its two faces), derived (no
-///   declaration), its carrier on the ruling to within ε; both pieces
-///   are tier-3 valid with their closed-form volumes;
-/// - in band — the split refuses with the rule's own typed sagitta;
-/// - beyond `K·ε` — both pieces keep the intrinsic tangency.
-///
-/// `d` is a multiple of `√(2ε)`, so the rows hold at every tolerance
-/// row the suite runs at, with rows 1% either side of both boundaries.
+/// `z = d`, so the seam splits into a long piece and one of length `d`.
+/// The rule levers each piece's sagitta at its faces' extent
+/// (`topo::wedge_reach`), and the short piece's wall and section still
+/// run the shoulder's width, past the radius: both pieces keep the
+/// intrinsic tangency, tier-3 valid with their closed-form volumes, at
+/// the lengths that put a sagitta levered at the piece's own length
+/// under, in and over the band (multiples of `√(2ε)`, 1% either side
+/// of each boundary).
 #[test]
 fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
     let eps = tol().eps();
@@ -460,31 +431,9 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                 tol(),
             );
             let result = topo::split(&wall, &plane, tol());
-            if c * c > 1.0 && c * c < k {
-                match result {
-                    Err(topo::SplitError::Reduce(topo::SplitReduceError::CrossingInsertion {
-                        source,
-                        ..
-                    })) => match *source {
-                        topo::EulerOpError::SplitSmoothBendEscalated { diag, .. } => assert_eq!(
-                            diag.predicate,
-                            Some("tangent_second_order"),
-                            "{label}: the rule's sagitta decides"
-                        ),
-                        other => {
-                            panic!("{label}: an in-band piece refuses by the rule, got {other:?}")
-                        }
-                    },
-                    other => {
-                        panic!("{label}: an in-band piece refuses at the crossing, got {other:?}")
-                    }
-                }
-                continue;
-            }
             let halves = result.unwrap_or_else(|e| panic!("{label}: the seam cuts, got {e:?}"));
             // The plane's normal side holds `z > cut` for `+z`.
             let heights = if up > 0.0 { [1.0 - z, z] } else { [z, 1.0 - z] };
-            let mut short = 0;
             for (height, part) in heights.into_iter().zip([&halves.above, &halves.below]) {
                 let piece = part
                     .body()
@@ -531,54 +480,16 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                     .and_then(|g| g.certified())
                     .expect("the seam is described");
                 let faces = [surface_of(seam.he_plus), surface_of(seam.he_minus)];
-                match curve.description() {
-                    geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
-                        assert!(
-                            height > 0.5 || c * c >= k,
-                            "{label}: a piece the rule leaves under-determined stores the tangency"
-                        );
-                        assert_eq!(
-                            *pair,
-                            geom_brep::SurfacePair::new(faces[0], faces[1]),
-                            "{label}: the tangency names the seam's faces"
-                        );
-                    }
-                    geom_brep::EdgeDescription::OnPair { pair } => {
-                        assert!(
-                            height < 0.5 && c * c <= 1.0,
-                            "{label}: the {height:e} piece stores {pair:?}"
-                        );
-                        assert_eq!(
-                            *pair,
-                            geom_brep::SurfacePair::new(faces[0], faces[1]),
-                            "{label}: the pair is the seam's faces"
-                        );
-                        assert!(
-                            matches!(curve.authority(), geom_brep::EdgeAuthority::Derived),
-                            "{label}: the locus is derived, never declared"
-                        );
-                        // The oracle: the carrier lies on the true
-                        // ruling, inside the piece.
-                        let (t0, t1) = curve.params();
-                        let (lo, hi) = if height == z { (0.0, z) } else { (z, 1.0) };
-                        for i in 0..=8 {
-                            let t = t0 + (t1 - t0) * f64::from(i) / 8.0;
-                            let p = curve.carrier().eval(t);
-                            assert!(
-                                on_the_ruling(p) && p.z >= lo - eps && p.z <= hi + eps,
-                                "{label}: the carrier at t = {t} is {p:?}, off the ruling"
-                            );
-                        }
-                        short += 1;
-                    }
-                    other => panic!("{label}: the seam stores {other:?}"),
-                }
+                assert!(
+                    matches!(
+                        curve.description(),
+                        geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+                            if *pair == geom_brep::SurfacePair::new(faces[0], faces[1])
+                    ),
+                    "{label}: the {height:e} piece keeps the tangency of its faces, got {:?}",
+                    curve.description()
+                );
             }
-            assert_eq!(
-                short,
-                usize::from(c * c <= 1.0),
-                "{label}: only an under-determined piece stores the pair"
-            );
         }
     }
 }
@@ -621,13 +532,12 @@ fn shoulder_seam(piece: &Body<f64>) -> (&'static str, Vec<geom::SurfaceKind>) {
 }
 
 /// **One locus, one description, whichever door made it.** The thin
-/// shoulder's seam the chord mints (a cut at depth `h = ½√(2ε)`, the
-/// rule under-determined over the whole ruling) and the short piece
-/// `split_edge` leaves of the deep shoulder's tangent seam (a cut at
-/// `z = d`, `d = ½√(2ε)`) are the same geometric locus — a short ruling
-/// of the unit cylinder against its tangent plane — and both store it as
-/// the pair of those two surfaces, naming no chart: before `OnPair`, the
-/// chord stored the section's chart and `split_edge` the wall's.
+/// shoulder's seam the chord mints (a cut at depth `h = ½√(2ε)`) and
+/// the short piece `split_edge` leaves of the deep shoulder's tangent
+/// seam (a cut at `z = d`, `d = ½√(2ε)`) are the same geometric locus —
+/// a short ruling of the unit cylinder against its tangent plane,
+/// between faces that run past the radius — and both store it as the
+/// tangency of those two surfaces.
 #[test]
 fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
     let short = 0.5 * (2.0 * tol().eps()).sqrt();
@@ -645,18 +555,18 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
     let pieces = topo::split(&wall, &plane, tol()).expect("the seam cuts short");
     let by_split_edge = pieces.below.body().expect("the short piece");
     let want = (
-        "OnPair",
+        "TangentIntersection",
         vec![geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane],
     );
     assert_eq!(
         shoulder_seam(chord.above.body().expect("material above")),
         want,
-        "the chord's seam is the pair"
+        "the chord's seam is the tangency"
     );
     assert_eq!(
         shoulder_seam(by_split_edge),
         want,
-        "split_edge's short piece is the same pair"
+        "split_edge's short piece is the same tangency"
     );
 }
 
@@ -680,13 +590,11 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
     cap
 }
 
-/// **An offset that lengthens the pair re-asks it.** The thin
-/// shoulder's chord seam (`h = ½√(2ε)`, under-determined, `OnPair`) is
-/// re-anchored when either cap moves out by `d = c·√(2ε)`; the seam is then
-/// `h + d` long, its sagitta far past `K·ε`, so the rule over the edge
-/// as it now runs demands the intrinsic tangency, and the body is valid
-/// at rest. Keeping the pair verbatim left a body tier 3 refuses
-/// (`TangentNotIntrinsic`).
+/// **An offset that lengthens the seam keeps the tangency.** The thin
+/// shoulder's chord seam (`h = ½√(2ε)`) is the intrinsic tangency, its
+/// wedge levered at the faces' extent; it is re-anchored when either
+/// cap moves out by `d = c·√(2ε)`, the seam then `h + d` long, and the
+/// body is valid at rest with the seam still the tangency.
 #[test]
 fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
     let h = 0.5 * (2.0 * tol().eps()).sqrt();
@@ -698,8 +606,8 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
         .clone();
     assert_eq!(
         shoulder_seam(&wall).0,
-        "OnPair",
-        "the short seam is the pair"
+        "TangentIntersection",
+        "the short seam is the tangency"
     );
     // Lengthened to `(½ + c)·√(2ε)`, past the band's `√K` at K = 10 at
     // every ε row (an absolute `d` of a millimetre is in band at 1e-6).
@@ -726,18 +634,14 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
     }
 }
 
-/// **A join that lengthens the pair re-asks it.** The wall piece of a
-/// shoulder `7·√(2ε)` deep carries its seam as the intrinsic tangency;
-/// `split_edge` cuts two pieces `d = c·√(2ε)` long off its start, each
-/// under-determined (`OnPair`, `c² ≤ 1`), the rest determinate. The join
-/// takes the vertex between the two pieces (a pair and a tangency do not
-/// join) and asks the rule again over the joined seam, `2d` long:
-///
-/// - `(2c)² ≤ 1` — still under-determined: one `OnPair` seam;
-/// - `1 < (2c)² < K` — in band: the join refuses with the seam's own
-///   second-order decision, never storing the pair it no longer is.
+/// **A join of the seam's pieces keeps the tangency.** The wall piece
+/// of a shoulder `7·√(2ε)` deep carries its seam as the intrinsic
+/// tangency; `split_edge` cuts two pieces `d = c·√(2ε)` long off its
+/// start, each still the tangency (its faces run past the radius, the
+/// wedge's arm), and the join takes the seam back to one tangency,
+/// valid at rest.
 #[test]
-fn a_join_of_two_pair_pieces_re_asks_the_joined_seam() {
+fn a_join_of_the_seams_pieces_keeps_the_tangency() {
     let unit = (2.0 * tol().eps()).sqrt();
     let ruling = |piece: &Body<f64>| -> Vec<EdgeKey> {
         let eps = tol().eps();
@@ -757,7 +661,7 @@ fn a_join_of_two_pair_pieces_re_asks_the_joined_seam() {
         let c = piece.get_curve_geom(curve).unwrap().certified().unwrap();
         (format!("{:?}", c.description()), c.params())
     };
-    for (c, joined_in_band) in [(0.4, false), (0.9, true)] {
+    for c in [0.4, 0.9] {
         let d = c * unit;
         let label = format!("d = {c}·√(2ε)");
         let mut body = topo::split(&shoulder(7.0 * unit), &shoulder_cut(), tol())
@@ -777,46 +681,26 @@ fn a_join_of_two_pair_pieces_re_asks_the_joined_seam() {
         };
         let rest = cut(&mut body, seam, 7.0 * unit);
         cut(&mut body, rest, 7.0 * unit - d);
-        let pairs = ruling(&body)
-            .into_iter()
-            .filter(|&e| description(&body, e).0.starts_with("OnPair"))
-            .count();
-        assert_eq!(pairs, 2, "{label}: two pieces are the pair");
+        let tangent = |body: &Body<f64>| {
+            ruling(body)
+                .into_iter()
+                .map(|e| description(body, e).0.starts_with("TangentIntersection"))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            tangent(&body),
+            [true; 3],
+            "{label}: every piece is the tangency"
+        );
         let band = geom_core::Band::linear(tol()).unwrap();
-        match body.join_edges(band, tol()) {
-            Ok(_) if !joined_in_band => {
-                assert_eq!(
-                    topo::validate_geometric(&body, tol()),
-                    Ok(()),
-                    "{label}: valid at rest"
-                );
-                let kinds: Vec<_> = ruling(&body)
-                    .into_iter()
-                    .map(|e| {
-                        description(&body, e)
-                            .0
-                            .split(' ')
-                            .next()
-                            .unwrap()
-                            .to_string()
-                    })
-                    .collect();
-                assert_eq!(
-                    kinds.iter().filter(|k| k.as_str() == "OnPair").count(),
-                    1,
-                    "{label}: the two pieces join into one pair, got {kinds:?}"
-                );
-            }
-            Err(topo::BooleanError::Escalated {
-                decision: topo::BooleanDecision::SeamJet,
-                diag,
-            }) if joined_in_band => assert_eq!(
-                diag.predicate,
-                Some("tangent_second_order"),
-                "{label}: the joined seam's sagitta decides"
-            ),
-            other => panic!("{label}: got {:?}", other.map(|_| ())),
-        }
+        body.join_edges(band, tol())
+            .unwrap_or_else(|e| panic!("{label}: the pieces join, got {e:?}"));
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "{label}: valid at rest"
+        );
+        assert_eq!(tangent(&body), [true], "{label}: one tangency seam");
     }
 }
 
@@ -1069,12 +953,13 @@ fn a_nested_aligned_touch_answers_every_op() {
     }
 }
 
-/// **A pair the rule reads under-determined is clean at its build ε.**
-/// The wall piece of a shoulder `c·√(2ε)` deep (`c ≤ 1`, the second
-/// order zero-side at the run's ε) stores its seam as a derived
-/// `OnPair`, and tier 3 reads the body at the ε it was built at.
+/// **A thin shoulder's seam is clean at its build ε.** The wall piece
+/// of a shoulder `c·√(2ε)` deep (`c ≤ 1`, where a sagitta levered at the
+/// ruling's own length would be zero-side) stores its seam as the
+/// tangency of faces that run past the radius, and tier 3 reads the
+/// body at the ε it was built at.
 #[test]
-fn a_pair_read_under_determined_is_clean_at_its_build_eps() {
+fn a_thin_shoulders_seam_is_clean_at_its_build_eps() {
     let eps = tol().eps();
     for c in [0.25, 0.5, 0.8] {
         let wall = topo::split(&shoulder(c * (2.0 * eps).sqrt()), &shoulder_cut(), tol())
@@ -1085,8 +970,8 @@ fn a_pair_read_under_determined_is_clean_at_its_build_eps() {
             .clone();
         assert_eq!(
             shoulder_seam(&wall).0,
-            "OnPair",
-            "c = {c}: the seam is the pair"
+            "TangentIntersection",
+            "c = {c}: the seam is the tangency"
         );
         assert_eq!(
             topo::validate_geometric(&wall, tol()),

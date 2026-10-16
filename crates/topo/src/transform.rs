@@ -609,17 +609,24 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        let mapped =
-            crate::policy_lane::certify(spec, start, end, surfaces, band).map_err(|refusal| {
-                match refusal {
-                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                        TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-                    }
-                    crate::policy_lane::ByPolicy::Refused(source) => {
-                        TransformError::Certify { edge: ek, source }
-                    }
+        // A rigid motion keeps every length, so the wedge's reach is the
+        // source body's, read before `out`'s curves are half mapped.
+        let reach = crate::wedge_reach(
+            body,
+            crate::edge_faces(body, ek),
+            old.carrier(),
+            (param_start, param_end),
+        );
+        let mapped = crate::policy_lane::certify(spec, start, end, surfaces, reach, band).map_err(
+            |refusal| match refusal {
+                crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                    TransformError::NurbsLaneUnsupported { edge: ek, scalar }
                 }
-            })?;
+                crate::policy_lane::ByPolicy::Refused(source) => {
+                    TransformError::Certify { edge: ek, source }
+                }
+            },
+        )?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }

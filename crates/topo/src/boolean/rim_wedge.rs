@@ -114,12 +114,12 @@ pub(crate) enum RimRouting {
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
 /// the displacement it induces over the reach the verdict is consumed
-/// across, and that reach is the rim's diameter — the same extent the
-/// caller then meters the wedge screen and the material arm at, so all
-/// three stages lever against one arm and their margins are comparable.
-/// The extent is DERIVED here rather than threaded in, and the reason is
-/// that it cannot be threaded: it is a property of the rim, and the
-/// caller has no rim until this function returns one. `ra.radius +
+/// across, and that reach is the rim's diameter. That diameter is
+/// derived here, not threaded in, because it cannot be: it is a
+/// property of the rim, and the caller has no rim until this function
+/// returns one. (The wedge screen and the material arm after it read a
+/// different quantity, the faces' wedge, which the caller levers at the
+/// faces' reach, `crate::wedge_reach`, as every reader of it does.) `ra.radius +
 /// rb.radius` is that diameter for any pair whose radii agree, and a
 /// pair whose radii disagree is about to be rejected on the radius
 /// margin regardless.
@@ -1026,9 +1026,9 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// whose own samples disagree escalates rather than being decided by
 /// majority, which is the fold's rule.
 ///
-/// `extent` is the lever arm the angular margins are metered at — the
-/// contact's own reach, so a misalignment is priced as the
-/// displacement it induces where the verdict is consumed.
+/// `reach` is the lever arm the wedge's margins are metered at — the
+/// two faces' extent ([`crate::wedge_reach`]), as every reader of the
+/// wedge between an edge's faces levers it.
 ///
 /// `sense_plus`/`sense_minus` are the two faces' `Face::sense` BITS,
 /// passed through to the `geom_brep` doors that mint the outward
@@ -1047,7 +1047,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     s_minus: &geom::Surface<T>,
     sense_minus: bool,
     rim: Rim<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<RimRouting, Indeterminate> {
     let Rim {
@@ -1086,7 +1086,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     let mut all_smooth = true;
     for i in 0..n {
         let (p, _) = station(i);
-        match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)
+        match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band)
             .map_err(|escalation| escalation.diag())?
         {
             geom_brep::DihedralClass::Transverse => all_smooth = false,
@@ -1118,7 +1118,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         s_plus,
         s_minus,
         (0..n).map(station),
-        extent,
+        reach,
         band,
         &mut stations,
     ) {

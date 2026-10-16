@@ -195,6 +195,7 @@ fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
             start,
             end,
             surfaces,
+            1.0,
             Band::linear(tol()).unwrap(),
             Some(geom_brep::NurbsLane::certified()),
         )

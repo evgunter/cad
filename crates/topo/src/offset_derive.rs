@@ -1353,9 +1353,15 @@ mod square {
             let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
                 .expect("the pose is decided");
             assert!(route.implemented, "{name}: {}", route.note);
-            let read =
-                geom_brep::reask_pair([(ka, &moved), (kb, &held)], &carrier, (t0, t1), None, band)
-                    .expect("the rule reads the pair");
+            let read = geom_brep::reask_pair(
+                [(ka, &moved), (kb, &held)],
+                &carrier,
+                (t0, t1),
+                1.0,
+                None,
+                band,
+            )
+            .expect("the rule reads the pair");
             assert!(
                 matches!(read, geom_brep::EdgeDescriptionSpec::Intersection { .. }),
                 "{name}: {read:?}"
