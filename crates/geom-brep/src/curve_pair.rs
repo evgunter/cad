@@ -459,14 +459,18 @@ fn stretches<T: Decide>(
     Ok(())
 }
 
-/// Whether the parameter `s` definitely precedes `t`: two parameters
-/// compared, read exactly (the least pair of positive `f64`s).
+/// Whether the parameter `s` definitely precedes `t`
+/// ([`compare`]).
 fn before<T: Decide>(s: T, t: T) -> bool {
-    geom_core::k_stats::decide(
-        "curve_pair_meet_order",
-        geom_core::Margin::of(s - t),
-        Band::least(),
-    ) == Ok(geom_core::Sign::Negative)
+    compare("curve_pair_meet_order", s, t) == Some(geom_core::Sign::Negative)
+}
+
+/// **Two parameters compared, read exactly** (the least pair of positive
+/// `f64`s) under `row`: the sign of `s − t`, `None` where an enclosure
+/// straddles. A parameter is no distance the band resolves, so the band
+/// plays no part.
+pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
+    geom_core::k_stats::decide(row, geom_core::Margin::of(s - t), Band::least()).ok()
 }
 
 /// A point-on-span refusal as the meeting's: an escalation as itself, a

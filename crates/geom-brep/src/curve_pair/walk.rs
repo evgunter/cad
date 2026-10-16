@@ -248,11 +248,7 @@ fn polished_feet<T: Decide>(
 
 /// Whether two parameters are one, read exactly.
 fn same<T: Decide>(s: T, t: T) -> bool {
-    decide(
-        "curve_pair_walk_same_foot",
-        Margin::of(s - t),
-        Band::least(),
-    ) == Ok(Sign::Zero)
+    super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart

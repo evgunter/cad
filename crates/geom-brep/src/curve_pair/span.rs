@@ -52,7 +52,7 @@
 //! carrier's where it refused too, else the place's.
 
 use geom::{CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
-use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::k_stats::{decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
@@ -218,11 +218,9 @@ impl<'a, T: Decide> Span<'a, T> {
                 // would wrap the whole turn: there either branch is as
                 // near, so it is read on the one whose cut lies at the
                 // middle instead.
-                let exact = Band::least();
-                let inside = decide("curve_pair_span_branch", Margin::of(r - T::pi()), exact)
-                    == Ok(Sign::Negative)
-                    && decide("curve_pair_span_branch", Margin::of(r + T::pi()), exact)
-                        == Ok(Sign::Positive);
+                let row = "curve_pair_span_branch";
+                let inside = super::compare(row, r, T::pi()) == Some(Sign::Negative)
+                    && super::compare(row, r, T::zero() - T::pi()) == Some(Sign::Positive);
                 if inside {
                     mid + r
                 } else {
