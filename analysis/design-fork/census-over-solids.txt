@@ -1,0 +1,4 @@
+fork: census-over-solids (INTENT, #4666 follow-up: record_at_rest without groups)
+drawn: 2026-10-16T19:23:16Z
+byte: 222 (even)
+mapping: A = Opus, B = Fable
