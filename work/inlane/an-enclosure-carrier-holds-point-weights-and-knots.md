@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P1
 design: true
+needs_ev: true
 cost: H
 refs: [the-skin-at-interval-encloses-the-nominal-skin]
 ---
@@ -88,3 +89,34 @@ in homogeneous form.
 The two designers' weighing (`memories/orchestration-model.md`) comes
 first. A and C touch ratified text, so whichever is chosen goes to Ev
 as an `[ev]` PR.
+
+## Recommendation (both designers, converged after one round)
+
+Option A, framed as a correction rather than a permission (fork-log row
+153, byte 96: A = Opus, B = Fable). C6 re-worded in this PR:
+
+- A carrier at an enclosure scalar stands for a family, so its knot
+  positions and weights may be enclosures as its poles are. Structure
+  is the combinatorial part (degree, counts, multiplicities,
+  breakpoint order, the skin's and fit's discrete decisions), decided
+  once for every member: certified at an enclosure scalar (runs ascend,
+  weights positive, the span read hulls every reachable span).
+- A structure decision whose members may disagree refuses typed,
+  naming it and carrying its margin (as `LoftError::StackingEscalated`
+  does), so the E6 drive bisects and a sliver is terminal. A shortcut
+  decision (equal weights, the integral test) takes the general route
+  instead; `held-value-equalities-decided-on-the-value-channel` folds in.
+- The sub-arc count rule moves its breakpoints off multiples of π/2 by
+  a named η: an interval bracket contains the true sweep, so a
+  right-angle fillet, a circle half or a bulge of 1 straddles an exact
+  breakpoint whatever the rounding. At `f64` every document arc keeps
+  its count. Form constants enter as `T::pi()`.
+- The skin's compatibility step at Interval runs the homogeneous ring
+  algebra (fork3's sentence, kept verbatim, becomes the general rule).
+- The stored net stays Cartesian `(P, w)`.
+- B (witness parameterization), C (uniform v) and E (an f64-lifted arc
+  weight) are rejected: each picks a representative member or changes
+  every loft's surface, and none covers weights.
+- PR 85's signed sentence (a fit's structure is the f64 pipeline's) is
+  unchanged: a loft is not a fitted cache.
+
