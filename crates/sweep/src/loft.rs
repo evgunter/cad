@@ -133,7 +133,7 @@ pub struct Lofted<T: Real> {
     /// wall `j − 1 mod n`'s `u = 1`).
     pub seam_edges: Vec<Vec<EdgeKey>>,
     /// **The v-parameter each input section sits at** —
-    /// [`LoftGeometry::section_params`] carried out to the caller
+    /// [`LoftGeometry::section_params`](crate::skin::LoftGeometry::section_params) carried out to the caller
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
     /// geometry, so "what spacing did the skin choose for my
     /// sections?" is answered by the result rather than re-derived by
@@ -428,7 +428,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 ///
 /// `None` when the section has no loops at all, which the caller
 /// reports as [`LoftError::SectionStructure`]: a section that reached
-/// here without an outer loop is a corrupt [`LoftGeometry`], not an
+/// here without an outer loop is a corrupt [`LoftGeometry`](crate::skin::LoftGeometry), not an
 /// input fault.
 fn outer_world<T: Real>(
     profile: &ValidatedProfile<T>,

@@ -931,7 +931,7 @@ pub enum IncidenceRefusal {
 /// described NURBS wall, or an `Approx` one whose chart is its FIT):
 ///
 /// - **A circle carrier** — an arc rim — first through its exact
-///   [`Pcurve::IsoArc`] image's certificate ([`PcurveCache::certify`],
+///   [`Pcurve::IsoArc`] image's certificate ([`PcurveCache::certify`](crate::pcurve_cache::PcurveCache::certify),
 ///   `MapResidualIsoHull`): limb 1 its sampled residual, limb 2 its
 ///   envelope. The image is `stated` where the caller holds one (the
 ///   pcurve the mint already stored for this rim), certified as it
@@ -1767,7 +1767,7 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
 /// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
 /// whatever `per_sample` returns.
 ///
-/// The carrier enters as its [`Schedule`]: [`net_schedule`] for a
+/// The carrier enters as its [`Schedule`]: `net_schedule` for a
 /// spline, its own knot domain and held ends.
 pub(crate) fn chart_image<T, F>(
     schedule: Schedule<'_, T>,

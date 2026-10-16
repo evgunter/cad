@@ -23,8 +23,8 @@ use super::{MAX_NESTING, MAX_PRODUCER_NESTING, MetaError, MetaInt, MetaValue};
 ///
 /// [`MetaError`] on an integer outside `i64` and `u64` ([`MetaInt`]), non-finite floats,
 /// non-string map keys, a value that would nest past
-/// [`MAX_NESTING`](super::MAX_NESTING), a producer that nests past
-/// [`MAX_PRODUCER_NESTING`](super::MAX_PRODUCER_NESTING) however little
+/// [`MAX_NESTING`], a producer that nests past
+/// [`MAX_PRODUCER_NESTING`] however little
 /// of it the value keeps, or a producer `Serialize` impl's own error.
 /// Either depth is refused before the producer is read any deeper, so
 /// a producer of any depth, a self-referential one included, is read

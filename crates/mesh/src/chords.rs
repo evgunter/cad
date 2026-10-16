@@ -501,7 +501,7 @@ fn nurbs_tighten(
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
-/// degree are both refused by [`KnotVector::clamped`] at construction,
+/// degree are both refused by [`KnotVector::clamped`](geom_core::KnotVector::clamped) at construction,
 /// so no image carrying either can reach here. Multiplicity `= p` — a
 /// C⁰ kink — IS constructible and IS admitted: the bound is a
 /// Lipschitz statement, which C⁰ suffices for.

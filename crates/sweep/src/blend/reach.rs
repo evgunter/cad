@@ -2698,7 +2698,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 // A carrier with a speed bound (a line, a circle, an
                 // ellipse) is read piecewise; any other is not certified.
                 let in_core = |c: &Curve3<T>, span| {
-                    let speed = geom_brep::carrier_speed::speed_hi(c)?;
+                    let speed = geom::carrier_speed::speed_hi(c)?;
                     curve_in_core(speed, &|t| c.eval(t), span, &reach.core, band)
                 };
                 let prism = Prism {

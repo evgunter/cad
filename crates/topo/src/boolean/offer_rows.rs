@@ -1383,7 +1383,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
     let partner = |end| PairRead {
         partner: VertexKey::default(),
         side: None,
-        read: None,
+        read: Err(crate::boolean::UnreadNeighbourhood::OneFace),
         sectors: vec![sector(end)],
     };
     let flat = partner(Vec3::new(0.0, 1.0, 0.0));
@@ -2672,12 +2672,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
         "escalated",
-        "BooleanDecision::Crossing",
-        1,
-    ),
-    (
-        "carrier_cross.rs",
-        "clustered",
         "BooleanDecision::Crossing",
         1,
     ),

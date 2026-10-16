@@ -1877,7 +1877,7 @@ pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalErro
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only
 /// evaluator of this crate's expression arithmetic: the measurement
-/// sublanguage ([`crate::measure`]) evaluates its own tree, and a
+/// sublanguage ([`crate::measure`](mod@crate::measure)) evaluates its own tree, and a
 /// second copy of this door would be a second chance to forget it —
 /// which is exactly what happened, and what shipped a
 /// `Holds { measured: inf }` verdict. Any evaluator that produces a

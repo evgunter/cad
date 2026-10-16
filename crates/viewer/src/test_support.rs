@@ -272,7 +272,7 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 /// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
 /// scene through the op vocabulary, because the gesture is what that
 /// row is about; this is the scene alone, each body placed. Its union's volume is
-/// [`boss_on_block_union_volume`].
+/// `boss_on_block_union_volume`.
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
     let (doc, plane) = inserted(&Doc::empty_derived(label, tol), xy_frame(), tol);

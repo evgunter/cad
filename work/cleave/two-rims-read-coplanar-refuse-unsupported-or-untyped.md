@@ -33,3 +33,15 @@ the transverse row reads the planes parallel at every k below 100.
    coincident-cut case, not to escalate it.
 
 The pin asserts both refusals exactly; the fix updates it.
+3. **k = 80, the three ops with the first rod first: an escalation on
+   `conic_bend`.** `t ∪ b`, `t ∖ b` and `t ∩ b` refuse
+   `Escalated { decision: Coincidence(SectorSide, Moot) }` on
+   `conic_bend` (`geom_brep::conic_bend::conic_bend_side`), at a margin
+   of about `1e-19`: the bend does not clear the residue. It showed once
+   `carrier_cross` became a caller of `geom_brep::curve_pair::meet`
+   (`work/fuse/the-curve-pair-reader.md`, stage (c)). Before that, a
+   boundary vertex on the far side of the rod was projected onto a seam
+   ruling and split it at a point inside the run the ruling shares with
+   the face's seam edge, and the op reached the `CurvedPierceUnsupported`
+   frontier first. Whether the sector reading belongs in band at a rim
+   80·ε from its partner is not yet measured.
