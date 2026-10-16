@@ -708,23 +708,17 @@ residual bound against the described locus (D4). The type is
 
 ```text
 EdgeDescription =
-  | Intersection        { pair, witness }    -- transverse surface–surface
-                                             -- intersection: the branch of
-                                             -- S₁∩S₂ through the witness, between
-                                             -- the edge's vertices (the witness is
-                                             -- also the marching seed);
-                                             -- `pair` is the set {S₁, S₂}, unordered
-  | TangentIntersection { pair, witness }    -- tangential contact locus; same
-                                             -- shape, margin one order up
-  | Declared { pair, pushforward }           -- a curve two distinct surfaces
-                                             -- UNDER-determine that a construction
-                                             -- DECLARED: the pushforward is the
-                                             -- defining data, symmetric in the pair
-                                             -- (sweep joins, loft rims and seams)
-  | OnPair              { pair }             -- a curve two distinct surfaces
-                                             -- under-determine that nothing declared:
-                                             -- the carrier is the defining data, lying
-                                             -- on both; at rest only on an imported edge
+  | Intersection        { pair, selector }   -- a curve of S₁∩S₂, `pair` the set
+                                             -- {S₁, S₂}, unordered; the selector
+                                             -- picks which curve: a witness
+                                             -- (the branch through a point, also
+                                             -- the marching seed) or a structural
+                                             -- selector (a construction's
+                                             -- pushforward); whether the surfaces
+                                             -- cross (read `Intersection`) or touch
+                                             -- to order k (read `TangentIntersection`)
+                                             -- is what the certificate reads, never
+                                             -- a second stored record
   | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
                                              -- (iso-lines, seams, same-surface splits)
@@ -732,36 +726,29 @@ EdgeDescription =
                                              -- lower-dim entity; never at rest
 ```
 
-The intrinsic variants describe loci determined by their surfaces; the
-conventional forms carry the defining data for loci the surfaces
-*under*-determine. A locus on two distinct surfaces that they do not
-select — a face split at a smooth profile join, where at a G2 join even
-`TangentIntersection` fails its margin, and rightly — is defined by
-what the construction knows of it: the profile vertex swept, the
-section placed, the section vertex skinned through a loft's sections.
-That is `Declared { pair, pushforward }`: the declared pushforward is
-the defining data, the carrier its certified cache, and the description
-names both surfaces and privileges neither chart. A locus two surfaces
-under-determine that no construction declared — an imported edge whose
-file gives two surfaces and a curve and nothing more — is
-`OnPair { pair }`: the carrier is the defining data, and tier 3 admits
-it at rest only on an edge whose authority says it was imported, as it
-admits no `Scaffold` at rest. Either form's certificate is incidence on
-both surfaces, each read through that surface's own chart-image
-certificate (the one meter every pcurve carries, never a second
-implicit reading of the same fact). Whether the pair is smooth along it
-is not the certificate's claim; tier 3's must-carry predicate admits
-these arms exactly where it reads the join under-determined, and where
-the surfaces determine the locus the intrinsic form describes it and the
-declaration is its witness and its provenance. The second-order reading
-that tells a tangency determinate is taken across the locus, over the
-faces, so a short piece of a tangency stays `TangentIntersection`. A
-locus one chart defines (parameterization seams — infinite-order
-contact, the seam's position pure convention; iso-lines; splits whose
-two faces share one surface) is `Chart`: one (surface, `Pcurve`) form
-covers all of them (PCURVE-UNIFY-DESIGN); the exact classes stay as
-certification lanes, not variants. A `MappedCurve` survives as the
-`Scaffold` payload, as `Declared`'s pushforward and as the
+A two-surface edge is always a curve of the two surfaces' intersection,
+and its selector says which: no two-surface edge is conventional. A
+**witness** selector is the branch through a point; it serves a derived
+locus (a boolean's contact, an imported edge), and is admitted only
+where its margin certifies: transversality for a crossing, the order-k
+jet system's margin for a tangency of order k (below), each taken across
+the locus, over the faces, never along the edge. A **structural**
+selector is a construction's pushforward (a profile vertex swept, a
+section placed, a section vertex skinned through a loft's sections); it
+picks the curve exactly whatever the contact order, so a construction
+never classifies its own joins by measurement, and the sketch's joint
+class is the one reading of their kind. Its certificate is the
+pushforward's meter and incidence on each surface, each read through
+that surface's own chart-image certificate (the one meter every pcurve
+carries). A derived locus whose selecting lane is not written refuses
+typed, naming the lane; a coincidence of two surfaces in band is refused
+at the structural act that made them adjacent. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface;
+two records that read as one carrier) is `Chart`: one (surface,
+`Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
+classes stay as certification lanes, not variants. A `MappedCurve`
+survives as the `Scaffold` payload, as a structural selector and as the
 `EdgeAuthority` record — one authoritative source, never two peer
 representations needing cross-reconciliation.
 
@@ -770,9 +757,9 @@ an unconditional challenge: every edge must have an intensional
 description — there is no escape hatch, so it cannot be reached for
 when not absolutely necessary. This holds for imported geometry (D7):
 the intrinsic variants are checkable properties of the geometry as it
-now stands, and the conventional form carries its own defining data, so
-extensional input is *adopted* by reconstructing the description it
-satisfies. What import pressure-tests is the completeness of the
+now stands, and a construction's structural selector is its own data,
+so extensional input is *adopted* by reconstructing the selector it
+satisfies, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
 taxonomy (imported fillets force `TangentIntersection`), not the need
 for a fallback.
 
@@ -785,7 +772,7 @@ it crosses another branch of the same pair and the two surfaces are
 tangent (two equal cylinders with intersecting axes: their section is
 two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
 connected set, so the witness selects the branch, and transversality
-holds on the open edge, which is where certification samples it. `TangentIntersection`'s validity sits one
+holds on the open edge, which is where certification samples it. A tangency's validity sits one
 differential order up: surfaces coincident within ε and normal-parallel
 within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
 r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
@@ -795,9 +782,10 @@ Reconstructing a tangency locus is well-conditioned *despite* the
 tangency because its defining system includes the first-order
 normal-alignment equations: the normal angle grows linearly with
 transverse distance, and the second-order margin is the
-implicit-function-theorem denominator for that jet system. (Order-k
+implicit-function-theorem denominator for that jet system. Order-k
 contact generalizes: defining equations from the k-jet, margin at order
-k+1.) In the intrinsic variants "the locus lies on both surfaces" holds
+k+1, so a curvature-continuous join (k = 3) is read as a tangency where
+its third-order separation certifies, not left under-determined. In the intrinsic variants "the locus lies on both surfaces" holds
 *by definition*; only the caches need certification. Vertices
 generalize the same way (three surfaces / endpoint of a locus, with a
 witness). A locus in the ambiguous band — a dihedral within a few
@@ -809,23 +797,22 @@ others is such a locus: the dihedral is continuous along it, so the two
 readings bracket an in-band point the schedule did not sample, and it
 refuses typed, naming the two stations.
 
-**Prefer-intrinsic rule, tier-3-enforced.** Wherever an intrinsic
-description is certifiable, it *is* the stored description — including
-for native constructions: a fillet we build stores its boundary edges
-as `TangentIntersection`, the rolling-ball construction demoted to
-supplying the witness and initial caches. Construction history lives in
-D5 provenance, never in the description, so native and imported bodies
-carry identical descriptions. At rest, every *definitely-transverse*
-edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
-jet-determinate tangency must carry `TangentIntersection`
+**Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
+intrinsic, and its selector is the one the curve is picked by: a
+construction's structural selector for an edge it built, a witness for a
+derived locus. A fillet we build carries its rolling ball's contact rail
+as its selector; a sweep carries the profile vertex it swept, whatever
+the joint's contact order. A pushforward that selects the curve is
+description, not history; D5 provenance stays the record of who built
+the edge, and native and imported bodies carry identical *loci* — an
+imported edge may carry a witness where the native one carries its
+pushforward. At rest, a witness selector must certify its reading:
+a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
+otherwise), a jet-determinate tangency as `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
-admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check reads the
-description's form, not who declared the locus: a conventional
-description on an edge the must-carry rule reads determinate is wrong,
-declared or derived. The rule needs two surfaces and a definite
-reading, so a wrap edge (one surface) and an edge whose dihedral is not
-read definitely (in band, or beside a spline face) fall outside it.
+admits the class). The rule needs two surfaces and a definite reading, so
+a wrap edge (one surface) and an edge whose dihedral is not read
+definitely (in band, or beside a spline face) fall outside it.
 An unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
@@ -1127,9 +1114,9 @@ library spelling of.
 Imported geometry is not second-class. Rather than an extensional escape
 hatch, import **reconstructs** the intensional description the
 extensional data satisfies — possible because the intrinsic variants
-are properties of the current geometry, and the conventional form
-carries its own defining data, so an imported seam curve *is* the
-convention, adopted directly. Pipeline:
+are properties of the current geometry: an imported edge recovers its
+selector (a boundary iso, the analytic contact catalogue, a swept net's
+structure) or refuses typed, naming the lane that would recover it. Pipeline:
 
 1. **Surface recognition**: an imported NURBS within ε of an analytic
    surface is promoted to it, restoring D3's exactness to imported

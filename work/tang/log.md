@@ -998,3 +998,12 @@ siblings went to WIRE and EMIT.
   - a short split piece of a `TangentIntersection` falls to the pair because `folded_lever_arm` folds the edge's chord extent into the second-order arm;
   - `rest_locus`'s in-band coincidence and undecided-rung arms answer the pair (a D3 lane choice);
   - STEP adoption declares lines and circles through a sketch made up from the carrier (`mapped_self_description`), and mints no `OnPair` today.
+- 2026-10-16: rounds 3–5 of the plane × spline rim fork (row 152), on Ev's PR 5216 comments.
+  - Measured on main f6730185: 202 undeclared `OnPair` certifications across sweep, topo and step-import, from five path types:
+    - `chord_join.rs:2261`, a shallow tangent ruling;
+    - `split.rs:356`, short pieces of a `TangentIntersection`, with join, offset and chord rows;
+    - `blend/surgery.rs:5421`, fillet corner arcs;
+    - `splitting/finish.rs:1219` → `carrier_pair.rs:666`, the in-band coincidence arm, which reaches rest in `split_through_an_apex`'s in-band corner rows;
+    - import: none in the corpus.
+  - The first three are lane-shape gaps that planned units close: the lever arm over the faces, pose-based witness certificates, and blend rails as structural selectors. The fourth is the in-band case D2 forbids a conventional form for.
+  - Retracted: the round-2 claim that a G2 join's margin falls in band. The order-3 jet margin is about 1e-3 m, against a band of about 1e-8.
