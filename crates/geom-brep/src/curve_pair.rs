@@ -512,3 +512,14 @@ mod one_curve_rows;
 mod plane_rows;
 #[cfg(test)]
 mod span_rows;
+#[cfg(test)]
+mod r3_probes;
+#[cfg(test)]
+pub(crate) fn meet_rows_circle_tilted(t: f64) -> geom::Curve3<f64> {
+    geom::Curve3::Circle {
+        center: geom_core::Point3::origin(),
+        axis: geom_core::Vec3::new(0.0, -t.sin(), t.cos()),
+        radius: 1.0,
+        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+    }
+}

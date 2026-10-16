@@ -606,3 +606,85 @@ mod rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+mod r3_probes {
+    use core::f64::consts::TAU;
+
+    use geom::Curve3;
+    use geom_core::{Band, Point3};
+
+    use super::{Joint, Window};
+    use crate::Conic;
+
+    pub(super) fn holds_at(
+        (a, span_a): (&Curve3<f64>, (f64, f64)),
+        b: &Curve3<f64>,
+        window: (f64, f64),
+        joints: &[(f64, f64)],
+        band: Band,
+    ) -> bool {
+        let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+        let lever = ka.speed_hi().max(kb.speed_hi());
+        let o = Point3::origin();
+        let noise =
+            crate::rounding_charge((ka.center - o).norm() + (kb.center - o).norm() + lever + lever);
+        let w = Window {
+            a: &ka,
+            span_a,
+            b: &kb,
+            carrier_b: b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise,
+        };
+        let js: Vec<_> = joints
+            .iter()
+            .map(|&(ta, tb)| Joint {
+                point: a.eval(ta),
+                ta,
+                tb,
+            })
+            .collect();
+        w.holds_only(window, &js, band)
+    }
+
+    /// The pose of `a_window_holding_a_second_meeting_is_not_the_joints`,
+    /// but `a` read as a whole turn whose seam sits on the plane root: the
+    /// second meeting lies across the seam.
+    #[test]
+    fn probe_window_across_the_seam() {
+        let t = 3e-8_f64;
+        let a = super::super::super::meet_rows_circle_tilted(t);
+        let cb = 0.5 + 1e-4;
+        let b = Curve3::Circle {
+            center: Point3::new(cb, 0.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.5,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
+        let th = ((1.0 - xp * xp).sqrt() / t.cos()).asin();
+        let p = a.eval(th);
+        let tb = (p.y).atan2(p.x - cb);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let mut rows = Vec::new();
+        for (label, span, window) in [
+            ("no seam (control)", (-3.0, 3.0), (-0.02, 0.02)),
+            ("seam at 0, window about 0", (0.0, TAU), (-0.02, 0.02)),
+            ("seam at 0, window about tau", (0.0, TAU), (TAU - 0.02, TAU + 0.02)),
+            ("seam at 0, window 0.05", (0.0, TAU), (-0.05, 0.05)),
+            ("seam at 0, window 0.1", (0.0, TAU), (-0.1, 0.1)),
+            ("seam at 0, window 0.2", (0.0, TAU), (-0.2, 0.2)),
+            ("seam at 0, window 0.34", (0.0, TAU), (-0.3398, 0.3398)),
+        ] {
+            let got = holds_at((&a, span), &b, window, &[(th, tb)], band);
+            eprintln!("{label}: holds_only = {got}");
+            rows.push((label, got));
+        }
+        assert!(
+            rows.iter().all(|&(_, g)| !g),
+            "a window holding a second meeting across the seam certified: {rows:?}"
+        );
+    }
+}
