@@ -28,16 +28,21 @@ That refusal is untyped as to cause and carries no recourse, which D4
 does not allow: a pair either builds, or refuses typed with what would
 answer it.
 
-**Not reproduced with PR 5218's fixture.** With the `wedge` and `rod`
-fixtures of `crates/sweep/tests/a_minted_vertex_on_a_curved_face.rs`
-(sides 0.5 long, piece z ∈ [0.5, 1.5]), every op builds in both orders:
-for the piece alone, for the piece unioned onto the cylinder, and for
-the cylinder alone, each against the tool. So the witness depends on a
-detail of the review's fixture (side length, the piece's z range, or how
-the line body is built). The first step is to commit the review's exact
-fixture as a row.
+**The fixture.** With `rod` and `wedge` of
+`crates/sweep/tests/a_minted_vertex_on_a_curved_face.rs` (sides 0.5
+long; `wedge(a, b, z0, h)` over `z ∈ [z0, z0 + h]`), the line body is
+`rod ∪ wedge(−90, −50, 0.2, 1.6)`, cylinder first, and the tool is
+`wedge(−150, −90, 0.2, 1.6)`. The piece's z range is the tool's, so their
+caps coincide. That is what PR 5218's first attempt (piece over
+`z ∈ [0.5, 1.5]`) missed, and why it built there. Reproduced on main
+(`3bdf48c60`) at ε 1e-9, 1e-6 and 1e-12: every op, both orders, refuses
+`Join(BooleanJoin(UnpairedLooseEnds { count: 4 }))`.
+
+**Pinned** by
+`two_wedges_sharing_the_tangent_plane_face_refuse_unpaired_loose_ends`
+in that file, which asserts the exact refusal, so it flips when fixed.
 
 ## Owed
 
-The witness as a committed row, then a typed answer: build, or a typed
-refusal with a recourse.
+A typed answer: build, or a typed refusal with a recourse; the pinned
+row is then re-baselined to it.
