@@ -627,6 +627,19 @@ impl<S: crate::Slot + Clone> Mate<S> {
 }
 
 impl<S: crate::Slot> Mate<S> {
+    /// **Whether this is a world pin** ([`Mate::world_pin`]): the world
+    /// on `a` at a pose, the copy on `b` in its own frame, coincident.
+    #[must_use]
+    pub fn is_world_pin(&self) -> bool {
+        matches!((&self.a, &self.b), (SideRead::World, SideRead::Copy))
+            && self.alignment.a.base == FrameBase::World
+            && self.alignment.b.base == FrameBase::Part
+            && self.alignment.b.offset.steps.is_empty()
+            && self.alignment.primitive == MatePrimitive::FrameCoincidence
+            && self.alignment.sense == AxisSense::Aligned
+            && self.alignment.clocking.is_none()
+    }
+
     /// Each side's read with its side, `a` first.
     pub fn sides(&self) -> [(MateSide, &SideRead<S::Read>); 2] {
         [(MateSide::A, &self.a), (MateSide::B, &self.b)]

@@ -2087,6 +2087,16 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
         .record
         .unit(placement, || pair_left_factor(s, first))?;
     if first.target_side().is_world() {
+        // A lone world pin's frame is its pose, as its own placement
+        // chain evaluates it (identity and witness steps kept marked),
+        // so a pinned copy sits at its pose bit for bit at every scalar
+        // and is placed with no motion re-admitted.
+        if let [only] = mates.as_slice()
+            && only.data.is_world_pin()
+            && let Ok(pose) = only.data.alignment.a.offset.motion_at(s.env, s.band)
+        {
+            return Ok(Solved::World(pose, factor));
+        }
         return Ok(Solved::World(marked(coset.representative), factor));
     }
     if !target_placement {
