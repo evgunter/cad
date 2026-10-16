@@ -968,3 +968,42 @@ siblings went to WIRE and EMIT.
   Band the 3 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
 - 2026-10-15: closed `pair-classes-refuses-partners-flush-along-an-edge` (PR 5207). `along_partners` reads its partners' face shapes (`vtxfac::ShapeOf`, read on the partners' body; a face with no carrier is an invariant). Where every half-plane meets another's at a decided zero and every meeting is of plane faces bounding material on opposite sides, the faces are glued, and the edge reads `On`, not the item's `In`: the coincidence holds only to within the band, so only `On` is decided there (D4). The orchestrator ruled it after the polygon-cone fuzzer (seed `0x334ea383a21209f7`) failed `In` on two pair probes. Plane faces on one side, a curved face in a meeting, and a chord in band each keep `Escalated(PartnerFaces)`. Public witness: two blocks in face contact against a pyramid whose edge runs through the contact face; main refused all 18 cells, all build now, the union naming that edge `On`.
+- 2026-10-16: design fork on `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair` (fork-log row 152), opened as an `[ev]` PR. Evidence both designers measured, with every probe reverted:
+  - **Doors switched to the pair, at main #5198:**
+    - topo: 0 failures.
+    - step-import: 3 failures. dm1 edge #352's refusal text changes; that file is refused on main too.
+    - sweep: about 42 failures:
+      - 5 at Interval: `PlaneNurbs(Unsupported "…not exact")`, with exact inputs;
+      - 6 at Dual: `NurbsLaneUnsupported`;
+      - about 9 at f64: offset/shell `dihedral_arm` margin `Invalid`;
+      - 3 at f64: `FootPointInconclusive`, last distance about 1e-13;
+      - the rest pin the present form.
+  - **Loft door switched to `Chart(wall)` with the mint's row image:**
+    - every Interval and Dual loft row passes;
+    - still failing: the offset/shell `dihedral_arm` rows and the offset's rim re-anchor; `onpair_rim_pcurves`; two split rows, where the child inherits the parent's stated `IsoArc`; `a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name`; one mass-props golden.
+  - **`OnPair` with no lane** (the plane image plus the wall's exact image):
+    - sweep Dual rows: 26/27 pass;
+    - topo + step-import Dual/Interval rows: 132/132 pass;
+    - geom-brep `onpair|plane_nurbs|incidence` rows: 57/58 pass.
+  - **Correction to the item:** Interval holds the plane × NURBS lane. What refuses is `ssi::certify::composite_form`'s exactness gate, on a cap plane fitted at Interval even from exact inputs.
+  - **Off-question defects to file:**
+    - offset/shell `dihedral_arm` reads a rim not stated in the plane's chart as `Invalid` (DL6 class);
+    - `FootPointInconclusive` at about 1e-13 is a stop criterion, not a miss;
+    - the Dual attach gate refuses lane classes its f64 anchor certified, which surfaces as `PairingViolation::ResultArm`;
+    - the `composite_form` exactness gate on a plane operand, for `Intersection`.
+- 2026-10-16: round 2 of the plane × spline rim fork (row 152), on Ev's pushback in PR 5216. Census of every site on main (f6730185) that rests a two-surface locus with no declaration:
+  - sweep joins and rims (extrude, revolve, loft rims) are already declared (`ExtrudedPoint`, `RevolvedPoint`, `PlacedSegment` through `Body::describe_at_rest`);
+  - loft wall–wall seams are undeclared `Chart` columns, and need a skinned-vertex source;
+  - fillet contacts and tangent section chords go undeclared through a lane gate: `must_carry_over_edge` files a `Determinate` reading outside `tangent_certificate_lane` as `UnderDetermined`;
+  - a short split piece of a `TangentIntersection` falls to the pair because `folded_lever_arm` folds the edge's chord extent into the second-order arm;
+  - `rest_locus`'s in-band coincidence and undecided-rung arms answer the pair (a D3 lane choice);
+  - STEP adoption declares lines and circles through a sketch made up from the carrier (`mapped_self_description`), and mints no `OnPair` today.
+- 2026-10-16: rounds 3–5 of the plane × spline rim fork (row 152), on Ev's PR 5216 comments.
+  - Measured on main f6730185: 202 undeclared `OnPair` certifications across sweep, topo and step-import, from five path types:
+    - `chord_join.rs:2261`, a shallow tangent ruling;
+    - `split.rs:356`, short pieces of a `TangentIntersection`, with join, offset and chord rows;
+    - `blend/surgery.rs:5421`, fillet corner arcs;
+    - `splitting/finish.rs:1219` → `carrier_pair.rs:666`, the in-band coincidence arm, which reaches rest in `split_through_an_apex`'s in-band corner rows;
+    - import: none in the corpus.
+  - The first three are lane-shape gaps that planned units close: the lever arm over the faces, pose-based witness certificates, and blend rails as structural selectors. The fourth is the in-band case D2 forbids a conventional form for.
+  - Retracted: the round-2 claim that a G2 join's margin falls in band. The order-3 jet margin is about 1e-3 m, against a band of about 1e-8.

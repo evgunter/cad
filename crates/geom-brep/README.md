@@ -593,23 +593,27 @@ drift and frame terms — with the schedule its cross-check), `Projected`
 (the projected image above, on an analytic chart), `Fitted` and `General`
 (on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
-parameter stays chart-neutral. A conventional edge takes one of two
-forms: `EdgeDescription::OnPair { pair }` for a locus two distinct
-surfaces under-determine, certified by incidence on both (each
-surface's per-sample residual, as `Intersection` meters it) and named
-by no chart, and `EdgeDescription::Chart { surface, pcurve, wrap }` for
-a locus one chart defines (wraps, iso lines, splits whose two faces
-share one surface, stated spline isos), with `EdgeAuthority` recording
-who declared the locus. Which form an edge between two faces takes is
-decided in one home, `topo::rest_locus` (`RestLocus`): one surface
+parameter stays chart-neutral. A two-surface edge is `EdgeDescription::Intersection { pair, selector }`,
+a curve of the pair's intersection picked by a structural selector where
+the curve is known in advance (a closed form of the pair, or a curve
+chosen in a region of 2-D overlap; stated by a construction, recovered
+by an import; certified by its own meter and incidence on both surfaces, each surface's chart-image certificate, the `|S(P(t)) − C(t)|`
+statement its pcurve carries) or by a witness where it must be derived
+numerically (certified by its transversality or order-k jet margin);
+`EdgeDescription::Chart { surface, pcurve,
+wrap }` is a locus one chart defines (wraps, iso lines, splits whose two
+faces share one surface), with `EdgeAuthority` recording who determined
+the locus. Which form an edge between two faces takes is decided in one
+home, `topo::rest_locus` (`RestLocus`): one surface
 record is one surface; two records the carrier-equality ladder reads
 as one carrier over the faces' region are one surface too, since
 incidence on both is incidence on one, and the edge rests in the first
 record's chart; two distinct carriers, or a kind outside the ladder,
-are the pair; and a coincidence in band, a rung that cannot decide, or
-a region that does not read is the pair too, an answer rather than a
-guess, since the pair's certificate (incidence on both surfaces) holds
-whether or not they are one carrier. The chart collapse and its fence are
+are the pair, carrying a structural selector where the pair's curve has
+a closed form and a witness otherwise; a coincidence in band
+is refused at the structural act that made the two faces adjacent, and
+a rung that cannot decide or a region that does not read refuses typed,
+naming the lane. The chart collapse and its fence are
 `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
