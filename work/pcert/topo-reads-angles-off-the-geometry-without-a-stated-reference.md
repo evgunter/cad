@@ -11,8 +11,10 @@ cost: M
 
 Filed by unit B1 of the `[ev]` PR 5142 answer (branch
 `pcert/azimuth-placement`), which moved geom-brep's chart-image
-derivation onto `geom_brep::Azimuth::near` and left topo's own reads
-for this audit, as the plan with the orchestrator agreed.
+derivation onto `geom_brep::Azimuth` (the principal read, placed in
+the window through `geom_brep::Period::decide`'s marks) and left
+topo's own reads for this audit, as the plan with the orchestrator
+agreed.
 
 ## What
 

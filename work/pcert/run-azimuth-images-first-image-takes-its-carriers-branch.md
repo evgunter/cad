@@ -68,9 +68,19 @@ placed over its edge's span in the chart's principal window
 derived over its own edge's span, is placed like every other, and no
 pin of its own is needed. The row this item asked for is back:
 `topo::chord_join::first_image_rows::the_window_walk_reads_a_far_stated_face_in_its_twins_window_from_any_start`.
-The cone seam that a midpoint pin moved sits inside the window
-(`u ≈ 0`, the cut at `−1`), and `refusal_concision`'s cone union reads
-as before.
+`refusal_concision`'s cone union reads as before, with the window's
+cut at `−1`, at `0` (on the cone's seam, `u ≈ −2.4e-16`) and at `0.5`
+(the seam placed at `τ`), so no reader on that union path tells the
+window's copies apart. What turned it red under unit A's pin, traced by
+putting the pin back: the pin read the first rim's midpoint azimuth off
+the physical radial direction (`π`), but the cone face lies on the
+`v < 0` nappe, whose chart azimuth is the physical one plus `π`, and the
+image read `u ≈ 0` there. The half-period gap refused in
+`nearest_branch` (`SectionInvariant`, "half a period from the previous
+edge's exit"), the cone face's trim lost its window
+(`contain::curved_face_placement_decided` read `Trim(None)`), and the
+union fell to `CurvedPierceUnsupported`. The placement reads the chart's
+own azimuth through the derivation, so the nappe is right.
 
 The `TouchingBoundary` pin on the half-turn patch's second face at 6 and
 10 periods does **not** flip: placement names the image's values in the
