@@ -1819,7 +1819,7 @@ fn name_boolean_edges<T: Decide>(
 /// What an edge the output stage's joins made lies along.
 enum JoinedCover {
     /// Along no operand edges that cover it: named from its two faces,
-    /// as a seam is ([`ChordKind`]).
+    /// as a seam is (`ChordKind`).
     Faces,
     /// Within one operand edge, a piece of it.
     One(OpSide<EdgeKey>),

@@ -2844,7 +2844,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 /// Its one producer is [`fitted_lane`], which runs limb 2's hull
 /// against the row's chart and nothing else: the composite refuses
 /// [`SsiError::UnsupportedCertificate`](crate::ssi::SsiError), and the
-/// limb's verdict a definite [`SsiError::CertificateLimb`] or an
+/// limb's verdict a definite [`SsiError::CertificateLimb`](crate::ssi::SsiError::CertificateLimb) or an
 /// escalated `CertificateEscalated`. Those are the arms written out.
 ///
 /// **Escalations leave by a different door.** They are the only
