@@ -2663,6 +2663,7 @@ fn senses_at<T: Decide>(
     {
         return Err(NamingError::PartnerUnread {
             vertex: v,
+            partner: u.partner,
             unread: *u,
         });
     }
@@ -4574,8 +4575,8 @@ mod tests {
         let keys = BTreeSet::from([(topo::Operand::B, partner), (topo::Operand::A, listed)]);
         assert!(matches!(
             senses_at(&naming, other, &keys, &a, &b),
-            Err(NamingError::PartnerUnread { vertex: at, unread })
-                if at == other && unread == naming.unread_partners[0]
+            Err(NamingError::PartnerUnread { vertex: at, partner: met, unread })
+                if at == other && met == partner && unread == naming.unread_partners[0]
         ));
         // The same vertex key read from the other operand is not listed.
         let keys = BTreeSet::from([(topo::Operand::B, listed)]);

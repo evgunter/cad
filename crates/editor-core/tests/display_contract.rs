@@ -2735,6 +2735,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::PartnerUnread {
                 vertex: topo::VertexKey::default(),
+                partner: topo::VertexKey::default(),
                 unread: topo::UnreadPartner {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),

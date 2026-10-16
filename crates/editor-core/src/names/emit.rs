@@ -314,6 +314,11 @@ pub enum NamingError {
     PartnerUnread {
         /// The result-body vertex.
         vertex: VertexKey,
+        /// The partner, `unread.partner`: the other operand's vertex, in
+        /// that operand's clone keys. A field of its own so the sentence
+        /// renders it as one (`pncad-py`'s prose census decides a
+        /// rendered binding only at a variant's own field).
+        partner: VertexKey,
         /// The boolean's record: the operand vertex whose edges went
         /// unclassed, the partner it met and why that read nothing.
         unread: topo::UnreadPartner,
@@ -508,21 +513,20 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::PartnerUnread {
                 vertex,
-                unread:
-                    topo::UnreadPartner {
-                        operand,
-                        partner,
-                        neighbourhood,
-                        ..
-                    },
+                partner,
+                unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {operand:?}'s vertex meeting the \
-                 other operand's vertex {partner:?}, which the boolean read nothing of: it lies \
-                 {}. So the boolean classed none of the vertex's edges and the crossing there has \
-                 no senses to name it by; reading them against the partner's neighbourhood is not \
+                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
+                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
+                 the boolean classed none of the vertex's edges and the crossing there has no \
+                 senses to name it by; reading them against the partner's neighbourhood is not \
                  built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
-                match neighbourhood {
+                match unread.operand {
+                    topo::Operand::A => "A",
+                    topo::Operand::B => "B",
+                },
+                match unread.neighbourhood {
                     topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
                     topo::UnreadNeighbourhood::NoBisector =>
                         "on an edge of two faces, neither holding a bisector to read their wedge by",
@@ -1795,6 +1799,7 @@ mod display_tests {
             (
                 NamingError::PartnerUnread {
                     vertex: two_vertices().0,
+                    partner: two_vertices().1,
                     unread: topo::UnreadPartner {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,

@@ -1099,6 +1099,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 if here(u.member, u.other, u.at)? {
                     return Ok(Some(NamingError::PartnerUnread {
                         vertex: v,
+                        partner: u.record.partner,
                         unread: u.record,
                     }));
                 }
@@ -3553,8 +3554,8 @@ mod tests {
         let others = BTreeSet::from([members[1].read]);
         assert!(matches!(
             flush.sense_against(listed, &line, &others, &links),
-            Err(NamingError::PartnerUnread { vertex, unread })
-                if vertex == listed && unread == record
+            Err(NamingError::PartnerUnread { vertex, partner, unread })
+                if vertex == listed && partner == record.partner && unread == record
         ));
         // Judged against a member the name does not cite, the record
         // says nothing of this crossing.
