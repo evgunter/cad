@@ -533,7 +533,9 @@ sizing (the inventory is a computed pin,
 `mesh/tests/all.rs::the_eps_inventory_is_pinned`); the one ε read
 that is a classification — pole identification — owes a guard so an
 ε flip can never move emitted coordinates with δ held fixed (#896).
-**The tessellation criterion is DISTANCE-ONLY**: no angular-deflection
+**The tessellation criterion is DISTANCE-ONLY**, as ε is
+([intrinsic.epsilon]): δ bounds how far any point of the mesh lies from
+the true surface, and nothing else. There is no angular-deflection
 criterion in the certified tessellator — every contracted consumer
 is manufacturing-shaped, and a certified angular bound would cost
 normal-variation enclosure machinery purchased only for visual
