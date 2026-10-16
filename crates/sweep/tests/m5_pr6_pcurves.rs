@@ -152,7 +152,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
             1,
             "exactly one side of a section edge is a cylinder face"
         );
-        let Pcurve::Harmonic { pa, pb, pl, .. } = *above.pcurve(stored[0]).unwrap().pcurve() else {
+        let Some((_, pa, pb, pl)) = above.pcurve(stored[0]).unwrap().pcurve().harmonic_form() else {
             panic!("the minting lane stores closed-form images")
         };
         // The sinusoid graph: azimuth affine with unit winding, height
@@ -205,8 +205,8 @@ fn a_seam_edge_carries_one_image_and_two_joint_elements_on_one_surface() {
         );
         let lift = body.loop_lift(lp).unwrap();
         let x = |he| {
-            let Pcurve::Harmonic { p0, .. } =
-                lift.iter().find(|r| r.half_edge == he).unwrap().pcurve
+            let Some((p0, _, _, _)) =
+                (lift.iter().find(|r| r.half_edge == he).unwrap().pcurve).harmonic_form()
             else {
                 panic!("the minting lane stores closed-form images")
             };
@@ -277,7 +277,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     let band = Band::linear(Tol::witness()).unwrap();
     let (he, _) = prism.half_edges().next().unwrap();
     let derived = topo::pcurve_of(&prism, he, band).unwrap();
-    let Pcurve::Harmonic { pa, pb, .. } = derived else {
+    let Some((_, pa, pb, _)) = derived.harmonic_form() else {
         panic!("chart_pcurve derives closed-form images")
     };
     assert!(

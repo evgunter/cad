@@ -1135,7 +1135,7 @@ pub(crate) fn harmonic_travel<T: Real>(
     t1: T,
     forward: bool,
 ) -> Option<(T, T)> {
-    let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
+    let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
         return None;
     };
     let at = |t: T| {

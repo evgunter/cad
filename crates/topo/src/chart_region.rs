@@ -2437,7 +2437,10 @@ fn pcurve_entry<T: Decide + Bounds>(
         // line edge of a plane chart land here; a tilted-section
         // sinusoid (`pa`/`pb` alive) refuses — including a
         // numerically-almost-zero channel, deliberately.
-        Pcurve::Harmonic { p0, pa, pb, pl } => {
+        Pcurve::Harmonic { .. } => {
+            let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
+                unreachable!("a harmonic image reads as its coefficients")
+            };
             if exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y) {
                 let t = if forward { t0 } else { t1 };
                 Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
@@ -4556,7 +4559,7 @@ mod tests {
         };
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
-        let geom_brep::Pcurve::Harmonic { pa, .. } = &pcurve else {
+        let Some((_, pa, _, _)) = (&pcurve).harmonic_form() else {
             panic!("the tilted section charts to a Harmonic");
         };
         assert!(

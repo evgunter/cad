@@ -167,7 +167,7 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
             };
             let face = body.face_of_half_edge(he)?;
             let sphere = body.get_surface(body.get_face(face)?.surface)?.clone();
-            let Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
+            let Some((p0, pa, pb, pl)) = row.pcurve().harmonic_form() else {
                 return None;
             };
             let twin = body.joint(he)?.deck().twin;

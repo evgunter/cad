@@ -56,7 +56,7 @@ fn halves(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
 /// a part of the chart the face does not reach.
 fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveCache<f64> {
     let cache = body.pcurve(he).unwrap();
-    let Pcurve::Harmonic { p0, pa, pb, pl } = cache.pcurve().clone() else {
+    let Some((p0, pa, pb, pl)) = cache.pcurve().clone().harmonic_form() else {
         panic!("a cylinder sheet's rows are harmonic")
     };
     let tau = core::f64::consts::TAU;

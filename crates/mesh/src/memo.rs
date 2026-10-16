@@ -1093,12 +1093,17 @@ impl KeyWriter {
 
     fn pcurve(&mut self, p: &Pcurve<f64>) {
         match p {
-            Pcurve::Harmonic { p0, pa, pb, pl } => {
+            Pcurve::Harmonic { .. } => {
+                // The coefficient view: an angle channel's windings read
+                // as its rate, so the key is the image's numbers as before.
+                let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
+                    unreachable!("a harmonic image reads as its coefficients")
+                };
                 self.u8(0);
-                self.p2(*p0);
-                self.v2(*pa);
-                self.v2(*pb);
-                self.v2(*pl);
+                self.p2(p0);
+                self.v2(pa);
+                self.v2(pb);
+                self.v2(pl);
             }
             Pcurve::Fitted(c) => {
                 self.u8(1);

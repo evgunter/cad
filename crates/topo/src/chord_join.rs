@@ -3469,7 +3469,7 @@ fn chart_v_du<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
         return Ok(None);
     };
     // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as

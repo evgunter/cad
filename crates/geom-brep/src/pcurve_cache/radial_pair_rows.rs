@@ -402,16 +402,13 @@ fn a_stored_image_moved_in_both_channels_reads_one_displacement() {
         r,
         Vec3::unit_x(),
     );
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
-        panic!("a rim images harmonic")
-    };
     let d = 0.6 * zero();
-    let stored = Pcurve::Harmonic {
-        p0: Point2::new(p0.x + d / r, p0.y + d),
-        pa,
-        pb,
-        pl,
-    };
+    let stored = chart_pcurve(&carrier, &cyl, band())
+        .unwrap()
+        .map_affine(super::ChartMap {
+            u: super::AxisMap::shift(d / r),
+            v: super::AxisMap::shift(d),
+        });
     certifies(
         "fidelity, both channels",
         &stored,
@@ -438,16 +435,12 @@ fn the_cones_fidelity_channels_add() {
         v * FRAC_PI_4.sin(),
         Vec3::unit_x(),
     );
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &surface, band()).unwrap()
-    else {
-        panic!("a rim images harmonic")
-    };
-    let stored = Pcurve::Harmonic {
-        p0: Point2::new(p0.x + 1.0, p0.y + v),
-        pa,
-        pb,
-        pl,
-    };
+    let stored = chart_pcurve(&carrier, &surface, band())
+        .unwrap()
+        .map_affine(super::ChartMap {
+            u: super::AxisMap::shift(1.0),
+            v: super::AxisMap::shift(v),
+        });
     let (t0, t1) = (0.0, TAU);
     let sup = (0..=4096)
         .map(|i| {

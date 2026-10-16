@@ -770,7 +770,7 @@ mod tests {
         let image_of =
             |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
         let source = curve_of(&body);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+        let Some((p0, pa, pb, pl)) = image_of(&source).harmonic_form() else {
             panic!("a circle in a plane chart is a harmonic image")
         };
         assert!(
@@ -780,12 +780,7 @@ mod tests {
 
         let reverted = body.revert().unwrap();
         let mirrored = curve_of(&reverted);
-        let Pcurve::Harmonic {
-            p0: q0,
-            pa: qa,
-            pb: qb,
-            pl: ql,
-        } = image_of(&mirrored)
+        let Some((q0, qa, qb, ql)) = image_of(&mirrored).harmonic_form()
         else {
             panic!("the mirrored image keeps its kind")
         };

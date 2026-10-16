@@ -17,7 +17,7 @@ fn band() -> Band {
 }
 
 fn lift(p: &Pcurve<f64>) -> Pcurve<Interval> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
         unreachable!("the rows store harmonic images")
     };
     let f = Interval::from_f64;

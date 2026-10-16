@@ -529,7 +529,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // circle mints a projected one at rest (an oblique fillet
             // corner's octant); the props door refuses that face's spherical
             // triangle before this lane is asked.
-            let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
+            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
                        an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
@@ -739,8 +739,11 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                             major: iv(*major),
                             minor: iv(*minor),
                         },
-                        Pcurve::Harmonic { p0, pa, pb, pl } => {
-                            WallImage::Harmonic([pair(*p0), vec(*pa), vec(*pb), vec(*pl)])
+                        image @ Pcurve::Harmonic { .. } => {
+                            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
+                                unreachable!("a harmonic image reads as its coefficients")
+                            };
+                            WallImage::Harmonic([pair(p0), vec(pa), vec(pb), vec(pl)])
                         }
                         _ => WallImage::Other,
                     },

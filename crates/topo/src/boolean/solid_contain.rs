@@ -2473,7 +2473,7 @@ fn torus_chart_windows<T: Decide>(
             }
             Err(_) => return Ok(None),
         };
-        let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
+        let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
             return Ok(None);
         };
         // The torus lane's images carry no trigonometric part in either

@@ -216,7 +216,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
         .half_edges()
         .find_map(|(he, h)| {
             let row = body.pcurve(he)?;
-            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
+            let Some((p0, pa, pb, pl)) = row.pcurve().harmonic_form() else {
                 return None;
             };
             let edge = body.get_edge(h.edge)?;

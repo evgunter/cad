@@ -1824,7 +1824,10 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// identity, so every image form takes it exactly
 /// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
 pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
-    pcurve.map_affine(|p| geom_core::Point2::new(p.x, p.y + k * period), |v| v)
+    pcurve.map_affine(geom_brep::ChartMap {
+        u: geom_brep::AxisMap::identity(),
+        v: geom_brep::AxisMap::shift(k * period),
+    })
 }
 
 /// The sphere chart's INVOLUTION twin of an image: `S(u + π, π − v) =
@@ -1846,10 +1849,10 @@ pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> 
         return None;
     }
     let pi = T::pi();
-    Some(pcurve.map_affine(
-        |p| geom_core::Point2::new(p.x + pi, pi - p.y),
-        |v| geom_core::Vec2::new(v.x, T::zero() - v.y),
-    ))
+    Some(pcurve.map_affine(geom_brep::ChartMap {
+        u: geom_brep::AxisMap::shift(pi),
+        v: geom_brep::AxisMap::reflect_about(pi),
+    }))
 }
 
 /// One half-edge's minted chart curve, before certification: the
@@ -6731,7 +6734,7 @@ mod polar_shift_tests {
             pb: Vec2::new(-0.5, 1.0),
             pl: Vec2::new(0.125, -0.375),
         };
-        let Pcurve::Harmonic { p0, pa, pb, pl } = shift_polar_branch(&harmonic, 3.0, period) else {
+        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form() else {
             panic!("the harmonic arm keeps its variant");
         };
         assert_eq!(p0.y, 0.4 + 3.0 * period);
