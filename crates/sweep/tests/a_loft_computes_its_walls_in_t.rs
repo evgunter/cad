@@ -256,7 +256,10 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
             let (lo, hi) = box_about(0.2);
             Interval::from_bounds(lo, hi)
         }),
-        ("a point bulge", Interval::from_f64(0.2)),
+        (
+            "a point bulge, its sweep widened by `atan`",
+            Interval::from_f64(0.2),
+        ),
     ] {
         match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
             Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
@@ -281,6 +284,47 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())
         ),
+    }
+}
+
+/// **Point inputs keep the lifted `f64` skin.** Where every input to
+/// the skin is a point, the loft at `Interval` is the `f64` loft lifted,
+/// bit for bit: an arc section (lifted from `f64`, so its sweep is a
+/// point), and three sections at v-degree 1, whose interior knot is a
+/// computed parameter. That is the status quo, not an enclosure claim
+/// over a box: the family is one member. Widening one section of the
+/// second loft refuses (`what_a_carrier_cannot_hold_refuses_typed_at_interval`).
+#[test]
+fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
+    use geom_core::Interval;
+    let lift = |s: Vec<ProfileLoop<f64>>| -> Vec<ProfileLoop<Interval>> {
+        s.iter()
+            .map(|lp| lp.map_scalar(Interval::from_f64))
+            .collect()
+    };
+    let cases: [(&str, Vec<Vec<ProfileLoop<f64>>>, Vec<f64>); 2] = [
+        (
+            "an arc section",
+            vec![section(0.2), section(0.2)],
+            vec![0.0, 1.0],
+        ),
+        (
+            "three sections at v-degree 1",
+            vec![quad(1.2), quad(1.3), quad(1.2)],
+            vec![0.0, 1.0, 2.0],
+        ),
+    ];
+    for (what, sections, zs) in cases {
+        let places: Vec<Affine3<f64>> = zs.iter().map(|z| at_height(*z)).collect();
+        let nominal =
+            loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the f64 loft builds");
+        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
+        let lifted_places: Vec<Affine3<Interval>> =
+            places.iter().map(|p| p.map(Interval::from_f64)).collect();
+        let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
+        assert_eq!(enclosed.section_params, nominal.section_params, "{what}");
+        assert_eq!(wall_bits(&enclosed), wall_bits(&nominal), "{what}");
     }
 }
 

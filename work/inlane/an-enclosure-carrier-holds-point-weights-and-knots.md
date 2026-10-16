@@ -1,7 +1,7 @@
 ---
 id: an-enclosure-carrier-holds-point-weights-and-knots
 kind: issue
-title: At an enclosure scalar a carrier holds point weights and knots, so an arc section, or an interior averaged knot wider than a point, refuses where the loft should enclose its family
+title: May a carrier at an enclosure scalar hold non-point weights and knots? Until it may, an arc section, or an interior averaged knot wider than a point, refuses where the loft should enclose its family
 status: open
 opened: 2026-10-11
 priority: P1
@@ -70,6 +70,20 @@ compatible.
   say). The knots are then points everywhere. This changes every loft's
   `f64` surface and re-baselines broadly, which is a definitional choice
   (Q8, Book Eq. 10.8). It does nothing for arc weights.
+
+## The premise, checked
+
+Option A amends C6's sentence "a value that names no single point
+refuses typed" (`crates/geom-brep/README.md`). `git log --all -S'names
+no single point refuses typed'` finds it written at f7816d7771
+(2026-10-11, "C6 re-worded ... lands with u2's carrier change"). That
+was the INTENT orchestrator's session, not an Ev ruling. C6's
+certified-refinement sentence ("its refined weights are generally not
+`f64`, so it is held only as homogeneous enclosures") is older, and
+traces to the `[ev]` PR at 43d0fcad61 (fork3, 2026-10-10), so it is
+Ev-ratified. A designer pair should read that PR's ruling before
+weighing A, since A would let a carrier hold what that sentence keeps
+in homogeneous form.
 
 The two designers' weighing (`memories/orchestration-model.md`) comes
 first. A and C touch ratified text, so whichever is chosen goes to Ev
