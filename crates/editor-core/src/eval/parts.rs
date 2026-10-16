@@ -826,6 +826,7 @@ pub(crate) fn keyed_copies<T: Decide>(
                 bodies,
                 family,
                 table: Arc::clone(&value.name_table),
+                motion: None,
             })
         };
         match &value.payload {

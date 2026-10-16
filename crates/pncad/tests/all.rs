@@ -4199,13 +4199,16 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // Solid order = placement order: instance 0's two solids sit at x = 0
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Body(b)) => {
+        Some(pncad::document::ValuePayload::Copies(copies)) => {
+            let [b] = copies.bodies.as_slice() else {
+                panic!("an instance's copies are its part's product, one body")
+            };
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }
-        other => panic!("an instance's value is a body, got {other:?}"),
+        other => panic!("an instance's value is its copies, got {other:?}"),
     };
     let (lo0, hi0) = xs(ids[0]);
     let (lo1, hi1) = xs(ids[1]);
@@ -4919,7 +4922,11 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+/// - **The solve's per-placement split** (`solve_document_by_placement`):
+///   the solve with each placement's recorded decisions kept apart, for
+///   a check of how an evaluation shares them out. A consumer asks
+///   `solve_document`, carried, and reads each placement's own log.
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -5014,6 +5021,7 @@ const NOT_CARRIED: [&str; 96] = [
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
+    "solve_document_by_placement",
     "std_deviation",
     "to_value",
     "verdict_summary",

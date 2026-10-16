@@ -137,8 +137,9 @@ impl core::error::Error for ExportError {}
 /// Serializes the single body `node` denotes in `evaluation` as a STEP
 /// (AP214 Part 21) exchange file and returns it as a string.
 ///
-/// Accepts a `Body` value or a non-empty `Boolean`; every other shape
-/// of result is a typed [`ExportError`], never a guess.
+/// Accepts a `Body` value, a non-empty `Boolean`, or an instance's
+/// copies read as its part product's one body; every other shape of
+/// result is a typed [`ExportError`], never a guess.
 ///
 /// # Errors
 ///
@@ -161,6 +162,8 @@ pub fn step_for_node(
         ValuePayload::Boolean(BooleanValue::Empty) => {
             return Err(ExportError::EmptyBoolean { node });
         }
+        // An instance's copies, read as the one body its part product is.
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => {
             return Err(ExportError::NotABody {
                 node,

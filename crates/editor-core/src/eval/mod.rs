@@ -1129,6 +1129,12 @@ pub struct KeyedCopy<T: Decide> {
     pub family: bool,
     /// Its names, indexing `bodies` by position.
     pub table: Arc<crate::names::NameTable>,
+    /// **The motion a reader moves `bodies` by**: an instance's copy
+    /// holds its part's bodies where the part put them, and is placed
+    /// when a reader reads that one copy, so an instance that nothing
+    /// reads copy by copy places its part once. `None` for bodies that
+    /// stand where they are read, and for the bit-exact identity.
+    pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
 impl<T: Decide> Copies<T> {
