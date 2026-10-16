@@ -60,6 +60,7 @@ jobs:
       run_build: ${{ steps.classify.outputs.RUN_BUILD }}
       test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       seeds: ${{ steps.classify.outputs.SEEDS }}
+      all_reason: ${{ steps.classify.outputs.ALL_REASON }}
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
       run_interval_backend: ${{ steps.paths.outputs.interval }}
@@ -243,7 +244,9 @@ jobs:
       - name: dual-review log self-test
         run: python3 scripts/dual-review-log.py --selftest
       - name: slow-set name check self-test
-        run: python3 scripts/check-slow-set-names.py --selftest
+        run: |
+          python3 scripts/slow_set.py --selftest
+          python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
       - name: install ruff (pinned, official prebuilt)
@@ -382,22 +385,24 @@ jobs:
             echo "::endgroup::"
           done
           exit $rc
-      - name: test (the slow set of the crates this diff seeds; every crate on a seedless all-tier diff)
-        if: '!cancelled() && (needs.filter.outputs.seeds != '''' || needs.filter.outputs.tier == ''all'')'
+      - name: the slow set did not run (an all-tier run that seeds no crate)
+        if: '!cancelled() && needs.filter.outputs.seeds == '''' && needs.filter.outputs.tier == ''all'''
+        env:
+          ALL_REASON: ${{ needs.filter.outputs.all_reason }}
+        run: |
+          echo "The slow set did not run: this run seeds no crate, and the nightly runs the whole slow set. TIER=all because of ${ALL_REASON:-a reason the filter did not report}." \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: test (the slow set of the crates this diff seeds)
+        if: '!cancelled() && needs.filter.outputs.seeds != '''''
         env:
           SEEDS: ${{ needs.filter.outputs.seeds }}
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
-          # The `ci` profile skips the slow set; a crate's own slow tests still
-          # run when the diff touches that crate. An `all`-tier diff that seeds
-          # no crate (a workflow, manifest, toolchain or nextest config change)
-          # can move every binary, so it runs the whole slow set.
-          slow="$(python3 -c "import tomllib; f = tomllib.load(open('.config/nextest.toml', 'rb'))['profile']['ci']['default-filter'].strip(); assert f.startswith('not ('); print(f[4:])")"
-          if [ -n "$SEEDS" ]; then
-            pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
-          else
-            pkgs="all()"
-          fi
+          # The `ci` profile skips the slow set; a crate's own slow tests run
+          # when the diff seeds that crate, on every tier. A workspace-level
+          # file seeds no crate and adds none; the nightly runs the whole set.
+          slow="$(python3 scripts/slow_set.py --expr)"
+          pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
           cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
