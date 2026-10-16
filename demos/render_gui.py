@@ -55,6 +55,7 @@ import sys
 import time
 
 import publish_lane
+from lane_cells import frame_path
 from strip_png_stamps import encode_chunk
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -373,7 +374,7 @@ def main():
         names = cell_names(docs)
         for doc in docs:
             name = names[doc]
-            dest = stage / f"{name}.png"
+            dest = frame_path(stage, name)
             print(f"  [{name}] opening {doc.name[:8]}…", flush=True)
             photograph(viewer, doc, dest, env, name)
             stamp_author(dest, args.author)

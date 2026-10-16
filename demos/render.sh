@@ -703,7 +703,7 @@ if [ "$LANE" = --freecad ]; then
     # lane directory holds — the same bytes that get committed.
     "$VENV/bin/python" strip_png_stamps.py "$STAGE"
     # shellcheck disable=SC2086  # scene names are identifiers, by construction
-    "$VENV/bin/python" publish_lane.py "$STAGE" "$RD" $names
+    "$VENV/bin/python" publish_lane.py --sidecars "$STAGE" "$RD" $names
     exec "$VENV/bin/python" compose_montage.py out "$RD" \
         --montage=montage-freecad.png \
         '--banner=FreeCAD/OCC render — OCC re-tessellation of the kernel'\''s own STEP exports (compare renders/montage.png: the kernel'\''s facets)'
@@ -783,7 +783,7 @@ echo "kernel lane: $(scene_stats "$STATS_UNIT" "${times[@]}"), ${PASS_SECS}s wal
 # Same wall-clock strip as the STEP lane, before publishing.
 "$VENV/bin/python" strip_png_stamps.py "$STAGE"
 # shellcheck disable=SC2086  # scene names are identifiers, by construction
-"$VENV/bin/python" publish_lane.py "$STAGE" "$RD" $names
+"$VENV/bin/python" publish_lane.py --sidecars "$STAGE" "$RD" $names
 
 # The kernel sheet carries its own provenance banner too, so the two
 # sheets superimpose exactly — cell for cell AND banner for banner.

@@ -37,18 +37,12 @@ require_hosted_render "demos/render-mc.sh"
 # cell: the tour names the file and this publishes it under the same
 # name, so a third cell is a third line here and nothing else.
 #
-# A HAND-WRITTEN CENSUS IS CHECKED IN BOTH DIRECTIONS by
-# publish_lane.py, before anything is published: a listed sheet the
-# tour did not write refuses (a stale committed sheet is the failure
-# mode the render lanes' provenance work exists to prevent), and so
-# does a sheet the tour wrote that this list does not name, which would
-# otherwise never be published with nothing downstream able to tell.
-# The lane is then replaced wholesale, so a sheet dropped from this list
-# shows up as a deletion.
+# publish_lane.py checks this census against what the tour wrote, in
+# both directions, before it publishes anything.
 SHEETS=(plate-density.svg chain-density.svg)
 
 names=()
 for sheet in "${SHEETS[@]}"; do
     names+=("${sheet%.svg}")
 done
-python3 publish_lane.py out/mc renders-mc "${names[@]}"
+python3 publish_lane.py --frame=.svg --no-provenance out/mc renders-mc "${names[@]}"

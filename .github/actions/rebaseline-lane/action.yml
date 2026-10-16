@@ -80,9 +80,8 @@ runs:
         echo "$drift"
 
         # A MISSING CELL IS NEVER RE-BASELINED AWAY. Every lane publishes
-        # its whole pass (demos/publish_lane.py; the uv lane writes its one
-        # sheet whole), so a committed cell this pass did not draw is a
-        # deletion here. Either the render dropped
+        # its whole pass through demos/publish_lane.py, so a committed cell
+        # this pass did not draw is a deletion here. Either the render dropped
         # a scene, which is a failure to fix, or the cell was renamed or
         # retired, which a person confirms by deleting the old file in a
         # commit. Modifications and additions are an ordinary

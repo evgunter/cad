@@ -30,8 +30,8 @@ Three publish steps existed and only one did that:
 - `demos/render-wild.sh` cleared `*.png` before moving the pass in.
 
 `demos/render-mc.sh` copied its listed sheets, so a sheet dropped from
-`SHEETS` would also have stayed committed. `demos/render-uv.sh` writes one
-fixed-name sheet and has nothing to orphan.
+`SHEETS` would also have stayed committed, and `demos/render-uv.sh` wrote
+its one sheet straight into the lane, so a renamed sheet would have too.
 
 **What the taker owes:** one publish step for every lane that replaces the
 lane's committed cells with the pass wholesale, so a cell the pass did not
@@ -45,9 +45,10 @@ job produced and error if it's missing any file that was there before, so
 that someone can clear it by manually deleting the old file if it was
 actually supposed to go." So nothing auto-deletes a committed cell.
 
-`demos/publish_lane.py` is the one publish step, called by `render.sh`
-(both lanes), `render-wild.sh`, `render_gui.py` and `render-mc.sh`. It
-refuses a stage that is not exactly the cells the pass was asked for,
+`demos/publish_lane.py` is the one publish step, called by every lane:
+`render.sh` (both lanes), `render-wild.sh`, `render-uv.sh`,
+`render_gui.py` and `render-mc.sh`. It refuses a stage that is not
+exactly the cells the pass was asked for, by exact file name,
 then removes every committed cell file in the lane and copies the stage
 in (a `.fail.txt` displacing its frame, a `.note.txt` beside it), then
 runs the provenance guard over the lane. The action's `lost cells` error
