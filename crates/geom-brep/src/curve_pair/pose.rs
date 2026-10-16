@@ -1168,6 +1168,35 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = (kb.semi_u, kb.semi_v);
     let (ub, vb) = (kb.u_ref, kb.v_ref());
+    let (poly, terms) = level_on(ka, kb);
+    let small = big_a.abs().min(big_b.abs());
+    let (t0, t1) = e.params();
+    let (ceiling, reach) = level_ceiling(small);
+    let frame = SubdivisionFrame {
+        t0,
+        t1,
+        speed_hi: ka.speed_hi(),
+        noise: crate::rounding_charge(terms),
+        // `g` vanishes at the second's centre: no floor but zero holds.
+        f_per_metre: T::zero(),
+        f_per_metre_hi: ceiling,
+        residual_reach: Some(reach),
+    };
+    let residual = |theta: T| {
+        let d = ka.point(theta) - kb.center;
+        geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
+    };
+    subdivided(&poly, &residual, &frame, place, band)
+}
+
+/// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
+/// `a(θ)` in `b`'s plane, `(X, Y)` in `b`'s frame and `(A, B)` its
+/// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
+/// first harmonic); and the term bound its rounding is charged on. The
+/// height of `a(θ)` above `b`'s plane plays no part.
+fn level_on<T: Decide>(ka: &Conic<T>, kb: &Conic<T>) -> (crate::half_angle::TrigPoly<T>, T) {
+    let (big_a, big_b) = (kb.semi_u, kb.semi_v);
+    let (ub, vb) = (kb.u_ref, kb.v_ref());
     let (ua, va) = (ka.u_ref * ka.semi_u, ka.v_ref() * ka.semi_v);
     let w = ka.center - kb.center;
     // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
@@ -1187,23 +1216,7 @@ fn coplanar_ellipses<T: Decide>(
     .poly();
     let small = big_a.abs().min(big_b.abs());
     let terms = ((w.norm() + ka.semi_u.abs() + ka.semi_v.abs()) / small).powi(2) + T::one();
-    let (t0, t1) = e.params();
-    let (ceiling, reach) = level_ceiling(small);
-    let frame = SubdivisionFrame {
-        t0,
-        t1,
-        speed_hi: ka.speed_hi(),
-        noise: crate::rounding_charge(terms),
-        // `g` vanishes at the second's centre: no floor but zero holds.
-        f_per_metre: T::zero(),
-        f_per_metre_hi: ceiling,
-        residual_reach: Some(reach),
-    };
-    let residual = |theta: T| {
-        let d = ka.point(theta) - kb.center;
-        geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
-    };
-    subdivided(&poly, &residual, &frame, place, band)
+    (poly, terms)
 }
 
 /// **The ceiling on an ellipse's level per metre of
