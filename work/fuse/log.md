@@ -1074,3 +1074,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - c3: the pass-5′ WIP committed (a47c39d), main merged in (54a3675, one doc-hunk conflict in census/curved.rs kept c3's paragraph), pushed; topo + geom-brep type-check.
   - c3 implementation dispatched (Opus lane): ends first, the ring rule at `e`, one meeting per stretch, deflation, the polish-step fix, `Meeting::run`/`run_candidates` removed, the four terminology sites restated.
   - Review tier for c3: **dual** — the reader's meeting semantics are tricky logic that every curved boolean and the census read through, hard to change later.
+- 2026-10-16: a container restart killed the c3 lane mid-work. Its uncommitted edits (10 files, +910/−349 across curve_pair and the census) survived on disk and are committed and pushed as 1e49bca; its last topo run was 3045 passed, 4 failed. A fresh Opus lane resumes from there, committing as it goes.
