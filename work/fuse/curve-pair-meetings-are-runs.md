@@ -42,9 +42,9 @@ Stage (c3) of `the-curve-pair-reader` adds pass 5′: the census sweeps every cu
 
 ## Left open
 
-- The 6 coplanar-ellipse refusals: `two-coplanar-ellipses-have-no-meeting-method`.
-- Check sweep's edge-edge record writers at tangent joints: confirm may start reporting stale records on pairs whose interiors meet only in a joint's run.
-- File in geom-brep: the walk reads no span end as a candidate of its own.
+- The 6 coplanar-ellipse refusals: `two-coplanar-ellipses-have-no-meeting-method`. They are the only refusals of the 31 rows left, on 3 rows of `sweep`: `split_across_a_revolve_seam::a_tube_cut_across_its_axis_splits_into_two_annular_halves`, `split_across_a_revolve_seam::a_counterbore_and_a_cone_socket_split_across_their_axes` and `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`, each refusing tier 3′ typed `NotCertifiable { what: "two ellipses in one plane that are not one curve" }`.
+- `sweep` writes no edge-edge record of its own, and `topo` and `sweep` pass with the census confirm reading `meet` under the stretch rule, so no record written at a tangent joint now reads stale. A touch at an edge's end now confirms its vertex-on-edge record alone, which closes `a-tangency-at-an-edges-end-confirms-two-records`.
+- The walk reads each span's end as a candidate of its own, first, so that finding needs no row.
 
 ## Ruling
 
@@ -52,12 +52,28 @@ Ev approved the C5 sentence on PR 5214 (2026-10-16) in Ev's own terms: a *stretc
 
 ## Bringing the code to the terms (part of this unit)
 
-The code does not yet use the ruled terms. Each of these is the code this unit changes anyway:
-- `curve_pair::Meeting` is documented as "A point on both spans" (`crates/geom-brep/src/curve_pair.rs:94`), while a meeting can be a shared run, which the code carries separately as `Meetings::shared`. Document `Meeting`/`Meetings` in the ruled terms (a meeting is a point or a run; `shared` is a run meeting).
-- `Meeting::run` (`curve_pair.rs:106`) and `pose::run_candidates` call a meeting's fringe its "run". Both go (above).
-- `Meetings::points` states the old ring rule ("a point the zero band puts at a meeting already read is not one again", `curve_pair.rs:117`). Restate it as the stretch rule.
-- `curve_pair/span.rs:5` calls a span "the stretch of the carrier an edge covers". Reword it ("the part of the carrier") so *stretch* names only the ruled term in the curve-pair reader.
+The four places where the reader used the old terms now use the ruled ones:
+- `curve_pair::Meeting` is a meeting at a point, a crossing or a touch; a shared run, the other kind, is `Meetings::shared`.
+- `Meeting::run` and `pose::run_candidates` are gone, with the `curve_pair_pose_run` row and every consumer's filter on them (`carrier_cross`, `census::edge_crossings`, `census::curved`).
+- `Meetings::points` states the stretch rule: each point is the one meeting of its stretch, a candidate nearer a found meeting than the band's escalation width is not read again, and a stretch holding two meetings escalates.
+- `curve_pair/span.rs` calls a span "the part of the carrier an edge covers". *Stretch* names only the ruled term in the curve-pair reader: pose's parallel argument and a span row (`an_end_is_read_by_its_chord_on_a_slow_arc`) say interval and arc.
+
+## How the code reads the rule
+
+- **Ends first** (`curve_pair::closed`, `walk::meet`). Each span's ends are read against the other before the pose or the walk's witnesses. The pose is handed the meetings so found (`pose::closed`'s `known`).
+- **The ring** (`curve_pair::ringed`, row `curve_pair_meet_same`). A candidate whose distance from a found meeting is not decided past the band is not read. A refusal held at a point a later meeting rings is no refusal of the answer.
+- **One meeting per stretch** (`curve_pair::stretches`, row `curve_pair_meet_stretch`). Two meetings next along the first span lie in two stretches only where the point halfway between them is definitely off the second. Otherwise it escalates, carrying both. On a span with no ends, the last and first meetings are next to each other across the seam. A stretch with no meeting escalates through the refusal held at its candidate.
+- **Deflation** (`pose::owed`). A first harmonic's roots are symmetric about its high extreme. So one found meeting leaves the other root `2θ_hi − θ_J`, and two leave none. This covers line × circle and line × ellipse (Vieta), coplanar circles (the reflection across the line of centres) and a conic across the other's plane, where a deflated root inside a found meeting's ring is not polished. A line has one crossing of a line or a plane, so a found meeting leaves it none. The coplanar circle × ellipse subdivision divides nothing out, and its roots in a found meeting's ring are not read again.
+- **The polish fix** (`walk::polished_feet`). The walk's witnesses halfway to the feet of the other span's ends stand on feet polished by `Curve3::foot`, not on raw piece middles.
+
+The rows that pin each mechanism, each red under the bug it names:
+- `meet_rows::a_candidate_in_a_found_meetings_ring_is_not_read_again` (the ring);
+- `meet_rows::two_meetings_in_one_stretch_escalate` (a line leaving an arc's end, `5·10⁻⁹` off it, and meeting it again `20 µm` on);
+- `meet_rows::two_meetings_across_an_endless_spans_seam_escalate` (the seam);
+- `meet_rows::a_found_meetings_root_is_divided_out_of_the_closed_form` (deflation, the interval tangent joint);
+- `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_not_polished` (deflation in the ring, the fillet joint's `Meter`);
+- `walk::tests::the_walks_witnesses_stand_on_polished_feet` (the polish fix).
 
 ## Status
 
-The implementation lands with c3.
+Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. Of the 31 rows, 28 pass. The 3 left are the coplanar-ellipse frontier (above).

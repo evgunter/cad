@@ -1191,8 +1191,9 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
     let chord = line(lo.to_array(), (hi - lo).to_array());
     let whole = Span::new(&c, (0.0, TAU)).endless();
     let seg = Span::new(&chord, (0.0, (hi - lo).norm()));
-    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| {
-        matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2)
+    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| match got {
+        Err(r) => matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2,
+        Ok(_) => false,
     };
     for (order, got) in [
         ("circle first", meet(&whole, &seg, band())),
