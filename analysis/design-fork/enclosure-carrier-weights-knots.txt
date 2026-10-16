@@ -1,0 +1,4 @@
+fork: enclosure-carrier-weights-knots (INLANE, an-enclosure-carrier-holds-point-weights-and-knots)
+drawn: 2026-10-16T22:17:26Z
+byte: 96 (even)
+mapping: A = Opus, B = Fable
