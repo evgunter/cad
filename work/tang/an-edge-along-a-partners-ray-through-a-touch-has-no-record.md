@@ -64,7 +64,18 @@ face the solid's own link lies on (`vtxfac::partner_side`): out of it
 when it is in the wedge or under the face; in it (a void below the top
 whose ray lies on it, the wedge the void's complement), when it is in
 both. The mirrored void scene, red on main in `x ∪ y`, now builds and
-holds tier 3′ in every op, both slots, every pose. A curved face holding the
+holds tier 3′ in every op, both slots, every pose.
+
+A touch's two ends must read the material by one rule (`touch_rows`).
+Where a solid has an edge and a plane face on the line, one end may
+read the face as a held face and the other as a sector of the solid's
+own vertex. The contact-line arm read such a face's half-turn blind to
+the edge's wedge. It now folds the face into that edge's wedge by the
+same side-composed rule, keeping the blind reading between two edges
+and for a curved face. That turns `three_solids_on_one_line`'s
+subtraction of the 0° prism into a recorded touch: main reads it
+Dropped at both ends and tier 3′ refuses its edge-edge overlap. It is
+pinned by `edges_on_the_line_recorded`. A curved face holding the
 line refuses as the partner beside it does (filed:
 `a-line-held-by-a-curved-touched-face-refuses-at-the-edge-edge-event`).
 `three_prime`'s edge-edge `ray` admission is gone, and all 12 tests of

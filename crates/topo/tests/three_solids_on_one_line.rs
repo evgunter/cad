@@ -833,13 +833,40 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
                 volume: line_volume,
             };
             let refuses = |_: &str, _| crosses.then_some(BooleanErrorKind::VertexReadTwice);
-            every_op(
-                &format!("the prism over {:?}, the line body {order:?}", tool.foot),
-                &line,
-                &tool_closed,
-                common,
-                &refuses,
-            );
+            let what = format!("the prism over {:?}, the line body {order:?}", tool.foot);
+            every_op(&what, &line, &tool_closed, common, &refuses);
+            if !crosses {
+                edges_on_the_line_recorded(&what, body, &b);
+            }
+        }
+    }
+}
+
+/// **The edges along the line of every body `x` and `y` make are
+/// recorded where they touch**: tier 3′ over the result's records
+/// refuses no overlap of two edges, in any op or slot. The 0° prism's
+/// edge runs along the line body's, which holds the third's face beside
+/// it: in a subtraction both lie on the result, and each end of their
+/// shared stretch reads the face with the line body's edge
+/// (`recl::HeldFace`).
+fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) {
+    for (name, op, _) in OPS {
+        for (first, a, b) in [(true, x, y), (false, y, x)] {
+            let Ok(BooleanResult::Body(r)) = op(a, b, t()) else {
+                continue;
+            };
+            if let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) {
+                assert!(
+                    !errors.iter().any(|e| matches!(
+                        e,
+                        topo::ValidationError::UnrecordedContact {
+                            contact: topo::CensusContact::EdgeEdgeOverlap { .. },
+                            ..
+                        }
+                    )),
+                    "{name} of {what}, the line body first: {first}: {errors:?}"
+                );
+            }
         }
     }
 }
