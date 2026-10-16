@@ -666,6 +666,7 @@ pub(super) fn recl_edges<T: Decide>(
     declared: &super::GluedPairs<T>,
     band: Band,
     reversed: &Reversed,
+    held: [Option<HeldFace<T>>; 2],
     touches: &mut Vec<[crate::entity::HalfEdgeKey; 2]>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
@@ -677,6 +678,8 @@ pub(super) fn recl_edges<T: Decide>(
         start_holder: usize,
         real: bool,
         dir: geom_core::Vec3<T2>,
+        /// What lies behind the direction ([`Reach`]).
+        reach: Reach<T2>,
         /// The mentioning sector's arm, which its direction's readings
         /// are metered at.
         arm: T2,
@@ -699,10 +702,10 @@ pub(super) fn recl_edges<T: Decide>(
             } else {
                 secs[idx].end_edge()
             };
-            let dir = if at_start {
-                secs[idx].start
+            let (dir, reach) = if at_start {
+                (secs[idx].start, secs[idx].start_reach)
             } else {
-                secs[idx].end
+                (secs[idx].end, secs[idx].end_reach)
             };
             if !mentions
                 .iter()
@@ -713,6 +716,7 @@ pub(super) fn recl_edges<T: Decide>(
                     start_holder: f_s,
                     real,
                     dir,
+                    reach,
                     arm: secs[idx].arm,
                 });
             }
@@ -770,7 +774,7 @@ pub(super) fn recl_edges<T: Decide>(
         // carry drops the touch with it (`ops::Descendants`).
         let mut meet = |aw: Wedge, bw: Wedge, fallback| {
             let read = resolve_edge_edge(
-                a_sectors, b_sectors, a_body, b_body, op, declared, band, aw, bw, fallback,
+                a_sectors, b_sectors, a_body, b_body, op, declared, band, held, aw, bw, fallback,
             )?;
             let edge =
                 |secs: &[BoolSector<T>], w: Wedge| w.edge.then(|| bound(secs, w.flankers[0]));
@@ -828,7 +832,8 @@ pub(super) fn recl_edges<T: Decide>(
             let b_ws = wedges(&b_ms, &a_ms, false)?;
             // Two wedges neither of which is an edge's meet along the
             // ray's edge, or the ray itself where it holds none.
-            let line = group.iter().find(|m| m.real).unwrap_or(&group[0]).dir;
+            let line = group.iter().find(|m| m.real).unwrap_or(&group[0]);
+            let line = (line.dir, line.reach);
             let mut germs = Vec::new();
             for &aw in &a_ws {
                 for &bw in &b_ws {
@@ -1164,6 +1169,70 @@ impl Half {
     }
 }
 
+/// **A face of one solid's through a vertex pair's point**: the face
+/// the other solid's vertex there touches (`vtxfac`'s pierce read
+/// again), with the datum that touch was read against, and the touch
+/// it names where a line on the face is not read
+/// ([`BooleanError::PartnerAlongFace`]).
+///
+/// The solid's material about a common line through the point is its
+/// wedge at its own vertex there and, where the face holds the line,
+/// the half-turn under the face too: the face is the solid's but no
+/// sector of its vertex's, since the vertex lies on its own face
+/// ([`resolve_edge_edge`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct HeldFace<T: geom_core::Real> {
+    /// The face's datum at the point.
+    pub datum: super::vtxfac::PierceDatum<T>,
+    /// The other operand, whose vertex touches the face.
+    pub operand: Operand,
+    /// Its touching vertex.
+    pub vertex: crate::entity::VertexKey,
+    /// The face.
+    pub face: crate::entity::FaceKey,
+    /// The face's solid's vertex at the point.
+    pub partner: crate::entity::VertexKey,
+}
+
+impl<T: Decide> HeldFace<T> {
+    /// Whether the face holds the common line `axis`, read off the
+    /// line's own bound (`reach`) as the touch's partners are
+    /// (`vtxfac::partner_side`): a decided zero holds it, a definite
+    /// side does not, and a reading within the band refuses typed. A
+    /// curved face holding the line refuses as the partner beside it
+    /// does: which side of the face the line's neighbourhood takes is
+    /// second order.
+    fn holds(&self, axis: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+        let lever = self.datum.lever.within(reach.length());
+        let read = super::sectors::pierce_side(
+            axis,
+            reach,
+            self.datum.normal,
+            self.datum.shape,
+            lever,
+            band,
+        )?;
+        if read.code != SideCode::On {
+            return Ok(false);
+        }
+        if self.datum.shape == super::sectors::FaceShape::Curved {
+            return Err(self.along(super::AlongFace::Curved));
+        }
+        Ok(true)
+    }
+
+    /// The refusal of a line on the face whose reading `along` names.
+    const fn along(&self, along: super::AlongFace) -> BooleanError {
+        BooleanError::PartnerAlongFace {
+            operand: self.operand,
+            vertex: self.vertex,
+            face: self.face,
+            partner: self.partner,
+            along,
+        }
+    }
+}
+
 /// **A wedge of one solid's material about a common line**
 /// ([`resolve_edge_edge`]): its two flankers `[before, after]`, the first's
 /// end bound and the second's start bound its flanks.
@@ -1200,9 +1269,10 @@ impl Wedge {
     }
 }
 
-/// **The common line two wedges meet along**: an edge's start bound, A's
-/// where both are edges — `sector_shape`'s unit direction of a chord its
-/// arm rung decided long, so the axis as it stands — else `fallback`.
+/// **The common line two wedges meet along**, with the reach behind it:
+/// an edge's start bound, A's where both are edges — `sector_shape`'s
+/// unit direction of a chord its arm rung decided long, so the axis as
+/// it stands — else `fallback`.
 /// Two wedges neither of which is an edge's, with no fallback, have no
 /// line to meet along: no caller passes them.
 fn common_line<T: geom_core::Real>(
@@ -1210,11 +1280,12 @@ fn common_line<T: geom_core::Real>(
     b_sectors: &[BoolSector<T>],
     aw: Wedge,
     bw: Wedge,
-    fallback: Option<Vec3<T>>,
-) -> Result<Vec3<T>, BooleanError> {
+    fallback: Option<Rep<T>>,
+) -> Result<Rep<T>, BooleanError> {
+    let bound = |s: &BoolSector<T>| (s.start, s.start_reach);
     match (aw.edge, bw.edge, fallback) {
-        (true, _, _) => Ok(a_sectors[aw.flankers[0]].start),
-        (false, true, _) => Ok(b_sectors[bw.flankers[0]].start),
+        (true, _, _) => Ok(bound(&a_sectors[aw.flankers[0]])),
+        (false, true, _) => Ok(bound(&b_sectors[bw.flankers[0]])),
         (false, false, Some(line)) => Ok(line),
         (false, false, None) => Err(BooleanError::ClassificationInvariant {
             what: "an edge-edge site's common line is an edge of neither solid",
@@ -1253,6 +1324,13 @@ fn common_line<T: geom_core::Real>(
 /// normal: a representative's two half-space readings agree, and one
 /// lying on the plane reads `[Along, Away]`.
 ///
+/// A solid whose vertex lies on a face of its own there holds the
+/// half-turn under that face too, where the face holds the line
+/// ([`HeldFace`]): a representative is in that solid's material when it
+/// is in the wedge or under the face. The face is read only where it
+/// holds the line to a decided zero; a line within the band of it
+/// refuses typed.
+///
 /// With no germ, the event is a touch where the op keeps every
 /// flanking face, which leaves both edges on the result's boundary
 /// ([`EdgeEdge`]).
@@ -1265,11 +1343,21 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     op: BooleanOp,
     declared: &super::GluedPairs<T>,
     band: Band,
+    held: [Option<HeldFace<T>>; 2],
     aw: Wedge,
     bw: Wedge,
-    fallback: Option<Vec3<T>>,
+    fallback: Option<Rep<T>>,
 ) -> Result<EdgeEdge, BooleanError> {
-    let axis = common_line(a_sectors, b_sectors, aw, bw, fallback)?;
+    let (axis, axis_reach) = common_line(a_sectors, b_sectors, aw, bw, fallback)?;
+    // Each solid's face holding the line, A's then B's.
+    let mut holding = [None; 2];
+    for (slot, face) in holding.iter_mut().zip(held) {
+        if let Some(face) = face
+            && face.holds(axis, axis_reach, band)?
+        {
+            *slot = Some(face);
+        }
+    }
     let ([fa_s, fa_e], [fb_s, fb_e]) = (aw.flankers, bw.flankers);
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
     // A line bound's side of the other solid's flanking plane is its
@@ -1428,14 +1516,31 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 }
             }
         }
-        match halves {
+        let in_wedge = match halves {
             // On both planes the rep lies in a half-turn wedge's one
             // plane, on the face it lies along: that face's coplanar
             // verdict is its membership, and the flank it points away
             // from says nothing about it.
-            [Half::Along(inside), Half::Away] | [Half::Away, Half::Along(inside)] => Ok(inside),
-            [h0, h1] if h0.inside() == h1.inside() => Ok(h0.inside()),
-            _ => wedge_is_reflex(other_secs, other, arm, band),
+            [Half::Along(inside), Half::Away] | [Half::Away, Half::Along(inside)] => inside,
+            [h0, h1] if h0.inside() == h1.inside() => h0.inside(),
+            _ => wedge_is_reflex(other_secs, other, arm, band)?,
+        };
+        // The other solid's face holding the line adds the half-turn
+        // under it. A flank on that face is a face of the touching
+        // vertex's lying on it, which the touch does not read.
+        let Some(face) = holding[usize::from(own_is_a)] else {
+            return Ok(in_wedge);
+        };
+        match side_code(
+            w,
+            reach,
+            face.datum.normal,
+            super::sectors::NO_CURVATURE(),
+            band,
+        )? {
+            SideCode::In => Ok(true),
+            SideCode::Out => Ok(in_wedge),
+            SideCode::On => Err(face.along(super::AlongFace::Flush)),
         }
     };
     let a_fl = [
@@ -2045,6 +2150,7 @@ mod tests {
                 BooleanOp::Union,
                 &declared,
                 band,
+                [None, None],
                 Wedge::at_bound(&half_turn, 0),
                 Wedge::at_bound(&b, 0),
                 None,
@@ -2074,6 +2180,7 @@ mod tests {
             BooleanOp::Union,
             &declared,
             band,
+            [None, None],
             Wedge::at_bound(&half_turn, 0),
             Wedge::at_bound(&half_turn, 0),
             None,
@@ -2181,6 +2288,7 @@ mod tests {
                 BooleanOp::Union,
                 &declared,
                 band,
+                [None, None],
                 Wedge::at_bound(&sa, 0),
                 Wedge::at_bound(&sb, 0),
                 None,
@@ -2366,6 +2474,7 @@ mod tests {
             &declared,
             band,
             &Reversed::default(),
+            [None, None],
             &mut Vec::new(),
         )
         .expect_err("the sense at an in-band arm refuses");
@@ -2377,6 +2486,126 @@ mod tests {
             diag.margin.diagnostic_f64_for_error_text().value(),
             Some(arm),
             "the sense is metered at the corners' arm"
+        );
+    }
+
+    /// **A solid with an edge and a face on one line holds the half-turn
+    /// under the face as well as its edge's wedge**
+    /// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
+    /// A's corner is a wedge above the plane `y = 0` about the line `z`
+    /// (a pyramid lying on a plate), and A's face on that plane holds the
+    /// line, its material below; B's corner is a wedge below the plane
+    /// about the same line (a pyramid hanging in the plate). Read by the
+    /// edges' wedges alone, each lies outside the other, so `A − B`
+    /// drops B's flanks and `A ∪ B` keeps them all; under the face, B's
+    /// flanks are in A, so `A − B` keeps them, a touch along the line,
+    /// and `A ∪ B` swallows them. A face the line leaves at a definite
+    /// slope holds nothing of it, and one the line leaves within the band
+    /// refuses as the side of a bound does.
+    #[test]
+    fn a_solid_with_an_edge_and_a_face_on_the_line_holds_the_half_turn_under_the_face() {
+        use super::super::sectors::{FaceShape, PierceLever, Reach};
+        use super::super::vtxfac::PierceDatum;
+        use crate::boolean::{BooleanDecision, Glue, GluedPairs};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let (u, v) = (1.0 / 5f64.sqrt(), 2.0 / 5f64.sqrt());
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: Vec3<f64>| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        // Each corner's two faces through the line, the wedge between
+        // `p` and `q` its material.
+        let corner = |p: Vec3<f64>, q: Vec3<f64>, np: Vec3<f64>, nq: Vec3<f64>| {
+            [sector(z, p, np), sector(q, z, nq)]
+        };
+        let above = corner(
+            Vec3::new(u, v, 0.0),
+            Vec3::new(-u, v, 0.0),
+            Vec3::new(v, -u, 0.0),
+            Vec3::new(-v, -u, 0.0),
+        );
+        let below = corner(
+            Vec3::new(h, -h, 0.0),
+            Vec3::new(-h, -h, 0.0),
+            Vec3::new(h, h, 0.0),
+            Vec3::new(-h, h, 0.0),
+        );
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let body = crate::body::Body::<f64>::new();
+        // A's face through the point, its outward normal `n`.
+        let face = |n: Vec3<f64>| HeldFace {
+            datum: PierceDatum {
+                normal: OutwardNormal::from_chart(n, true),
+                shape: FaceShape::Plane,
+                lever: PierceLever::Everywhere(super::super::sectors::NO_CURVATURE()),
+            },
+            operand: Operand::B,
+            vertex: crate::entity::VertexKey::default(),
+            face: crate::entity::FaceKey::default(),
+            partner: crate::entity::VertexKey::default(),
+        };
+        let run = |op, held: Option<HeldFace<f64>>| {
+            let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
+            let mut first_read = records.clone();
+            let mut touches = Vec::new();
+            recl_edges(
+                &mut records,
+                &mut first_read,
+                &above,
+                &below,
+                &body,
+                &body,
+                op,
+                &declared,
+                band,
+                &Reversed::default(),
+                [held, None],
+                &mut touches,
+            )
+            .map(|()| touches.len())
+        };
+        let flat = face(Vec3::new(0.0, 1.0, 0.0));
+        for (op, wedges, under) in [(BooleanOp::Subtract, 0, 1), (BooleanOp::Union, 1, 0)] {
+            assert_eq!(run(op, None).unwrap(), wedges, "{op:?} by the wedges");
+            assert_eq!(run(op, Some(flat)).unwrap(), under, "{op:?} under the face");
+            // Tipped so the line rises off the face at a definite slope.
+            let tipped = face(Vec3::new(0.0, 0.8, 0.6));
+            assert_eq!(
+                run(op, Some(tipped)).unwrap(),
+                wedges,
+                "{op:?} off the face"
+            );
+        }
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let err = run(
+            BooleanOp::Subtract,
+            Some(face(Vec3::new(0.0, (1.0 - mid * mid).sqrt(), mid))),
+        )
+        .expect_err("a line within the band of the face refuses");
+        let BooleanError::Escalated { decision, .. } = &err else {
+            panic!("an escalation: {err:?}");
+        };
+        assert_eq!(
+            *decision,
+            BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
+            "{err}"
         );
     }
 

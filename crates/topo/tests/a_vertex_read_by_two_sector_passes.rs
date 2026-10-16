@@ -158,9 +158,8 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// Where `ray` names the far end of the lying pyramid's ray along the
 /// top (relative to [`MEET`]), that ray's contacts may refuse too: its
 /// corner on the top and the ray on it, the operand's own, likewise not
-/// carried; and an edge of the other operand along the ray, whose
-/// overlap with it the result's record does not carry
-/// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
+/// carried. The result's record carries an edge of the other
+/// operand's along the ray.
 /// Where `glued` names the corners, in order round it, of a rectangle in
 /// which one operand's own pieces touch, glued face to face, their own
 /// contacts there may refuse too: coincident corners, and edges
@@ -240,7 +239,6 @@ fn three_prime(
                 }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
-                CensusContact::EdgeEdgeOverlap { a, b } => on_ray(a) && on_ray(b),
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
