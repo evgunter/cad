@@ -1096,3 +1096,9 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - MAJOR, executed: `holds_only` clips the window at a whole-turn span's seam without wrapping, so a real meeting across the seam is lost. This includes a closed rim whose seam vertex is the fillet joint.
   - Also: the feet guard is reachable but argued redundant; 5 certificate mutants survive every row (one, ring ×4, breaks C5's `e`); a non-total sort comparator that may panic; a metres+radians mix; duplicated helpers and stale docs.
   - Fix pass 2 dispatched, including committing the reviewer's oracle as a permanent counterexample-search row.
+- 2026-10-16: PR 5227 fix pass 2 in (head 776d30e, CI green, 8415/8415).
+  - The window is read modulo the period across a seam, and a part no ring bounds must read off.
+  - The feet guard is dropped on the ends-first argument.
+  - M02/M03/M04(jet)/M12/M17 are killed (M12 and M17 by pinned oracle counterexamples). The call-site rounding charges stay unpinned below f64 resolution, resting on `rounding_charge`.
+  - The oracle is kept on the fuzz harness (slow set). The non-total sort and the unit mix are fixed.
+  - Delta reviewer re-dispatched to confirm by execution.
