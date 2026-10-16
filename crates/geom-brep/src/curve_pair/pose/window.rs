@@ -91,7 +91,7 @@
 
 use geom::Curve3;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use super::{Conic, level_on};
 use crate::half_angle::TrigPoly;
@@ -107,12 +107,11 @@ pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) noise: T,
 }
 
-/// A found meeting: its point and its parameter on each carrier.
+/// A found meeting: its point and its parameter on `a`.
 #[derive(Clone, Copy)]
 pub(super) struct Joint<T: geom_core::Real> {
     pub(super) point: Point3<T>,
     pub(super) ta: T,
-    pub(super) tb: T,
 }
 
 /// How a piece reads (module docs).
@@ -175,9 +174,10 @@ fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
     }
 }
 
-/// Whether `x` is definitely positive, read exactly.
+/// Whether `x` is definitely positive, read exactly
+/// ([`super::super::compare`]).
 fn positive<T: Decide>(row: &'static str, x: T) -> bool {
-    decide(row, Margin::of(x), Band::least()) == Ok(Sign::Positive)
+    super::super::compare(row, x, T::zero()) == Some(Sign::Positive)
 }
 
 /// Whether `x` and `y` are definitely of the sign `away` names
@@ -272,15 +272,20 @@ impl<T: Decide> Window<'_, T> {
     /// **The pieces of `(l, r)`, each read**, halved until each reads or
     /// one is narrower than the band; `None` past the budget or at a piece
     /// that cannot read.
-    fn pieces(&self, (l, r): (T, T), away: bool, band: Band) -> Option<Vec<Read>> {
-        let level = level_on(self.a, self.b);
+    fn pieces(
+        &self,
+        (l, r): (T, T),
+        away: bool,
+        level: &(TrigPoly<T>, T),
+        band: Band,
+    ) -> Option<Vec<Read>> {
         let speed = self.a.speed_hi();
         let mut out = Vec::new();
         let mut stack = vec![(l, r)];
         let mut budget = geom_core::bisect::PIECE_BUDGET;
         while let Some((pl, pr)) = stack.pop() {
             budget = budget.checked_sub(1)?;
-            if let Some(read) = self.read((pl, pr), away, &level, band) {
+            if let Some(read) = self.read((pl, pr), away, level, band) {
                 out.push(read);
                 continue;
             }
@@ -297,118 +302,110 @@ impl<T: Decide> Window<'_, T> {
         Some(out)
     }
 
+    /// **The half-width of `j`'s ring on `a`, in `a`'s parameter**: the arc
+    /// about `ta` every point of which lies certainly within the band's
+    /// escalation `e` of `j`'s point, `(e − g)/(2·speed)`, `g` the gap from
+    /// `a(ta)` to it and `speed` `a`'s greatest. `None` where `g` leaves
+    /// no such arc.
+    fn ring(&self, j: &Joint<T>, ta: T, band: Band) -> Option<T> {
+        let gap = (self.a.point(ta) - j.point).norm();
+        let e = T::from_f64(band.escalate());
+        let radius = (e - gap) / (T::from_f64(2.0) * self.a.speed_hi());
+        positive("curve_pair_window_ring", radius).then_some(radius)
+    }
+
     /// **Whether the window `(lo, hi)` holds no meeting but the found
     /// `joints`** (module docs). `false` where a reading cannot certify it:
     /// the root is then polished as with no meeting found.
+    ///
+    /// The window is read modulo `a`'s period: each of its turns that
+    /// meets `a`'s span is read over that part, so a window across the
+    /// span's seam is read on both sides of it, and the part of a window
+    /// past an open span's end, which is no point of the span, is not.
     pub(super) fn holds_only(&self, (lo, hi): (T, T), joints: &[Joint<T>], band: Band) -> bool {
         let two = T::from_f64(2.0);
-        let (t0, t1) = self.span_a;
-        let mid = (t0 + t1) / two;
-        let near = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
-        let centre = near((lo + hi) / two);
-        let half = (hi - lo) / two;
-        if !positive("curve_pair_window_width", T::pi() / two - half) {
+        if !positive("curve_pair_window_width", T::pi() / two - (hi - lo) / two) {
             return false;
         }
-        let (lo, hi) = (centre - half, centre + half);
-        let clip = |t: T| t.max(t0).min(t1);
-        let (lo, hi) = (clip(lo), clip(hi));
-        let speed = self.a.speed_hi();
-        let e = T::from_f64(band.escalate());
-        // Each found meeting in the window, with the half-width of the
-        // arc about it a ring certainly holds.
-        let mut rings: Vec<(T, T, Joint<T>)> = Vec::new();
-        for j in joints {
-            let ta = near(j.ta);
-            if !(positive("curve_pair_window_ring", ta - lo + e)
-                && positive("curve_pair_window_ring", hi - ta + e))
-            {
+        let (t0, t1) = self.span_a;
+        let level = level_on(self.a, self.b);
+        let turns = [-2.0, -1.0, 0.0, 1.0, 2.0].map(|k| T::tau() * T::from_f64(k));
+        let mut anchored = false;
+        for &turn in &turns {
+            let (l, h) = ((lo + turn).max(t0), (hi + turn).min(t1));
+            if !positive("curve_pair_window_width", h - l) {
                 continue;
             }
-            let gap = (self.a.point(ta) - j.point).norm();
-            let radius = (e - gap) / (two * speed);
-            if !positive("curve_pair_window_ring", radius) {
-                return false;
-            }
-            rings.push((ta - radius, ta + radius, *j));
-        }
-        if rings.is_empty() {
-            return false;
-        }
-        rings.sort_by(|x, y| {
-            if super::super::compare("curve_pair_window_ring", x.0, y.0) == Some(Sign::Negative) {
-                core::cmp::Ordering::Less
-            } else {
-                core::cmp::Ordering::Greater
-            }
-        });
-        // The arcs between the rings, and between them and the window's
-        // ends; each knows which of its ends a ring bounds.
-        let mut arcs: Vec<((T, T), bool, bool)> = Vec::new();
-        let mut from = (lo, false);
-        for &(rl, rr, _) in &rings {
-            if positive("curve_pair_window_ring", rl - from.0) {
-                arcs.push(((from.0, rl), from.1, true));
-            }
-            from = (from.0.max(rr), true);
-        }
-        if positive("curve_pair_window_ring", hi - from.0) {
-            arcs.push(((from.0, hi), from.1, false));
-        }
-        // An arc between two rings is read outward from each, to its middle.
-        let mut sides: Vec<((T, T), bool)> = Vec::new();
-        for ((l, r), ring_left, ring_right) in arcs {
-            match (ring_left, ring_right) {
-                (true, true) => {
-                    let m = (l + r) / two;
-                    sides.push(((l, m), true));
-                    sides.push(((m, r), false));
+            // The found meetings on this part, each with its ring, in order.
+            let mut rings: Vec<(T, T)> = Vec::new();
+            for j in joints {
+                for &again in &turns {
+                    let ta = j.ta + again;
+                    let Some(radius) = self.ring(j, ta, band) else {
+                        return false;
+                    };
+                    if positive("curve_pair_window_ring", ta + radius - l)
+                        && positive("curve_pair_window_ring", h - (ta - radius))
+                    {
+                        let at = rings
+                            .iter()
+                            .position(|&(rl, _)| before(ta - radius, rl))
+                            .unwrap_or(rings.len());
+                        rings.insert(at, (ta - radius, ta + radius));
+                    }
                 }
-                (true, false) => sides.push(((l, r), true)),
-                (false, true) => sides.push(((l, r), false)),
-                (false, false) => return false,
+            }
+            anchored |= !rings.is_empty();
+            // The arcs between the rings and the part's ends, each read
+            // outward from the rings that bound it; one no ring bounds
+            // anchors no meeting, and must read off throughout.
+            let mut sides: Vec<((T, T), Option<bool>)> = Vec::new();
+            let mut from = (l, false);
+            for &(rl, rr) in &rings {
+                if positive("curve_pair_window_ring", rl - from.0) {
+                    sides.extend(outward((from.0, rl), from.1, true));
+                }
+                from = (from.0.max(rr), true);
+            }
+            if positive("curve_pair_window_ring", h - from.0) {
+                sides.extend(outward((from.0, h), from.1, false));
+            }
+            for (arc, away) in sides {
+                let Some(reads) = self.pieces(arc, away.unwrap_or(true), &level, band) else {
+                    return false;
+                };
+                if away.is_none() && reads.iter().any(|&x| x != Read::Off) {
+                    return false;
+                }
             }
         }
-        let mut near_joint = false;
-        for ((l, r), away) in sides {
-            let Some(reads) = self.pieces((l, r), away, band) else {
-                return false;
-            };
-            near_joint |= reads.iter().any(|&x| x != Read::Off);
-        }
-        !near_joint
-            || rings
-                .iter()
-                .all(|&(_, _, j)| self.feet_move_one_way(j, hi - lo, band))
-    }
-
-    /// **Whether the feet of the window's points on `b` move one way
-    /// along `b` from `j`'s** (module docs): `|â′·b̂′|` at `j` past the
-    /// turn each unit tangent can take over the window's arc of
-    /// `width`.
-    fn feet_move_one_way(&self, j: Joint<T>, width: T, band: Band) -> bool {
-        let (Some((_, da)), Some((_, db))) = (tangent(self.a, j.ta), tangent(self.b, j.tb)) else {
-            return false;
-        };
-        let arc = self.a.speed_hi() * width;
-        let chord = arc + T::from_f64(band.escalate()) * T::from_f64(2.0);
-        let kb = self.b.curvature_hi();
-        if !positive("curve_pair_window_feet", T::one() - kb * chord) {
-            return false;
-        }
-        let turn =
-            self.a.curvature_hi() * arc + kb * chord * T::from_f64(core::f64::consts::FRAC_PI_2);
-        positive("curve_pair_window_feet", da.dot(db).abs() - turn)
+        anchored
     }
 }
 
-/// `k`'s point and unit tangent at `t`; `None` where the speed is not
-/// definitely positive.
-fn tangent<T: Decide>(k: &Conic<T>, t: T) -> Option<(Point3<T>, Vec3<T>)> {
-    let (s, c) = t.sin_cos();
-    let d = k.v_ref() * (k.semi_v * c) - k.u_ref * (k.semi_u * s);
-    let speed = d.norm();
-    positive("curve_pair_window_feet", speed).then(|| (k.point(t), d * (T::one() / speed)))
+/// An arc's sides as read outward from the rings bounding it: from a
+/// ring on its left away up `θ` (`Some(true)`), from one on its right
+/// away down it (`Some(false)`), from rings on both to its middle, and
+/// with none as a whole (`None`).
+fn outward<T: Decide>(
+    (l, r): (T, T),
+    ring_left: bool,
+    ring_right: bool,
+) -> Vec<((T, T), Option<bool>)> {
+    match (ring_left, ring_right) {
+        (true, true) => {
+            let m = (l + r) / T::from_f64(2.0);
+            vec![((l, m), Some(true)), ((m, r), Some(false))]
+        }
+        (true, false) => vec![((l, r), Some(true))],
+        (false, true) => vec![((l, r), Some(false))],
+        (false, false) => vec![((l, r), None)],
+    }
+}
+
+/// Whether `s` definitely precedes `t` ([`super::super::compare`]).
+fn before<T: Decide>(s: T, t: T) -> bool {
+    super::super::compare("curve_pair_window_ring", s, t) == Some(Sign::Negative)
 }
 
 #[cfg(test)]
@@ -434,7 +431,7 @@ mod rows {
         (a, span_a): (&Curve3<f64>, (f64, f64)),
         b: &Curve3<f64>,
         window: (f64, f64),
-        joint: (f64, f64),
+        joint: f64,
     ) -> bool {
         let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
         let lever = ka.speed_hi().max(kb.speed_hi());
@@ -450,9 +447,8 @@ mod rows {
             noise,
         };
         let j = Joint {
-            point: a.eval(joint.0),
-            ta: joint.0,
-            tb: joint.1,
+            point: a.eval(joint),
+            ta: joint,
         };
         w.holds_only(window, &[j], band())
     }
@@ -473,12 +469,7 @@ mod rows {
     fn a_window_read_off_past_the_ring_holds_the_joint_alone() {
         let (a, b, root) = crossing_at(FRAC_PI_2);
         assert!(
-            holds(
-                (&a, (-0.5, 0.5)),
-                &b,
-                (root - 1e-4, root + 1e-4),
-                (0.0, 0.0)
-            ),
+            holds((&a, (-0.5, 0.5)), &b, (root - 1e-4, root + 1e-4), 0.0),
             "the window off past the ring holds the joint alone"
         );
     }
@@ -521,12 +512,7 @@ mod rows {
     fn a_window_read_receding_by_the_level_holds_the_joint_alone() {
         let (a, b, root) = crossing_at(1e-2);
         assert!(
-            holds(
-                (&a, (-0.5, 0.5)),
-                &b,
-                (root - 1e-4, root + 1e-4),
-                (0.0, 0.0)
-            ),
+            holds((&a, (-0.5, 0.5)), &b, (root - 1e-4, root + 1e-4), 0.0),
             "the window receding by the level holds the joint alone"
         );
     }
@@ -559,12 +545,7 @@ mod rows {
             u_ref: Vec3::new(0.0, 0.0, 1.0),
         };
         assert!(
-            holds(
-                (&a, (0.0, FRAC_PI_2)),
-                &b,
-                (-6.3e-5, 6.3e-5),
-                (0.0, -FRAC_PI_2)
-            ),
+            holds((&a, (0.0, FRAC_PI_2)), &b, (-6.3e-5, 6.3e-5), 0.0),
             "the receding window holds the joint alone"
         );
     }
@@ -598,11 +579,51 @@ mod rows {
         };
         let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
         let th = -((1.0 - xp * xp).sqrt() / t.cos()).asin();
-        let p = a.eval(th);
-        let tb = (p.y).atan2(p.x - cb);
         assert!(
-            !holds((&a, (th, 0.5)), &b, (th, 0.02), (th, tb)),
+            !holds((&a, (th, 0.5)), &b, (th, 0.02), th),
             "a window with the second meeting in it is not the joint's"
         );
+    }
+
+    /// **A window across `a`'s seam is read on both sides of it.** The
+    /// pose of `a_window_holding_a_second_meeting_is_not_the_joints`, the
+    /// tilted circle read as a whole turn `(0, 2π)` whose seam is the plane
+    /// root, so the second meeting lies across it; and an open span whose
+    /// ends lie `0.002` and `0.003` either side of the root. Over windows
+    /// from `±0.02` to `±0.34`, about `0` or about `2π`, none is the
+    /// joint's. Red where a window is clipped to the span's parameters
+    /// rather than read modulo the turn.
+    #[test]
+    fn a_window_across_the_seam_is_read_on_both_sides() {
+        let t = 3e-8_f64;
+        let a = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, -t.sin(), t.cos()),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cb = 0.5 + 1e-4;
+        let b = Curve3::Circle {
+            center: Point3::new(cb, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
+        let th = ((1.0 - xp * xp).sqrt() / t.cos()).asin();
+        let tau = core::f64::consts::TAU;
+        for (label, span, window) in [
+            ("about 0", (0.0, tau), (-0.02, 0.02)),
+            ("about 2π", (0.0, tau), (tau - 0.02, tau + 0.02)),
+            ("±0.05", (0.0, tau), (-0.05, 0.05)),
+            ("±0.2", (0.0, tau), (-0.2, 0.2)),
+            ("±0.34", (0.0, tau), (-0.3398, 0.3398)),
+            ("open about the root", (0.002, tau - 0.003), (-0.02, 0.02)),
+        ] {
+            assert!(
+                !holds((&a, span), &b, window, th),
+                "{label}: a window with a meeting across the seam is not the joint's"
+            );
+        }
     }
 }

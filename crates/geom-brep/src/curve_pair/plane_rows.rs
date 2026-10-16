@@ -193,3 +193,116 @@ fn two_meetings_found_near_one_plane_root_leave_the_other_roots_meetings() {
         );
     }
 }
+
+/// The tilted unit circle of
+/// `two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root`, read
+/// as a whole turn whose seam (`θ = 0`) is the plane root, against a flat
+/// circle crossing its image at `±y`: two meetings, one each side of the
+/// seam, in one window. The flat circle's span ends at one of them, found
+/// first; the other lies across the seam. Ended or endless, seam at `0`
+/// or at `−π`, either span first. Red where the window is read on one
+/// side of the seam only.
+fn seam_rows(cases: &[(f64, f64, f64)]) {
+    for &(t, rb, y) in cases {
+        let a = circle([0.0; 3], [0.0, -t.sin(), t.cos()], 1.0);
+        let cb = (1.0 - y * y).sqrt() - (rb * rb - y * y).sqrt();
+        let b = circle([cb, 0.0, 0.0], [0.0, 0.0, 1.0], rb);
+        let th = (y / t.cos()).asin();
+        let want = [a.eval(th), a.eval(TAU - th)];
+        let phi = y.atan2((1.0 - y * y).sqrt() - cb);
+        for (sl, sb) in [("J above", (-0.5, phi)), ("J below", (-phi, 0.5))] {
+            for (el, ended) in [("endless", false), ("ended", true)] {
+                for (ol, a0) in [("seam 0", 0.0), ("seam −π", -PI)] {
+                    let s1 = Span::new(&a, (a0, a0 + TAU));
+                    let s1 = if ended { s1 } else { s1.endless() };
+                    let s2 = Span::new(&b, sb);
+                    let label = format!("t {t:e} rb {rb} y {y:e}: {sl}, {el}, {ol}");
+                    none_missing(
+                        &format!("{label}, tilted first"),
+                        &meet(&s1, &s2, band()),
+                        &want,
+                    );
+                    none_missing(
+                        &format!("{label}, flat first"),
+                        &meet(&s2, &s1, band()),
+                        &want,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **Two meetings across a whole turn's seam, in a wide window.**
+/// `seam_rows` at the shallow tilt `3·10⁻⁸` and a flat circle of radius
+/// `0.5`, crossing at `y ≈ ±0.0141`.
+#[test]
+fn two_meetings_across_a_whole_turns_seam_are_both_read() {
+    let cb: f64 = 0.5 + 1e-4;
+    let x = (1.0 + cb * cb - 0.25) / (2.0 * cb);
+    seam_rows(&[(3e-8, 0.5, (1.0 - x * x).sqrt())]);
+}
+
+/// **Two meetings across a whole turn's seam, in a narrow window.**
+/// `seam_rows` at steeper tilts and larger flat circles, the meetings
+/// `2` to `8` mm either side of the seam.
+#[test]
+fn two_meetings_across_a_whole_turns_seam_in_a_narrow_window_are_both_read() {
+    seam_rows(&[
+        (1e-7, 0.9, 4e-3),
+        (2e-7, 0.9, 2e-3),
+        (1e-7, 0.5, 4e-3),
+        (5e-8, 0.95, 8e-3),
+    ]);
+}
+
+/// **A closed rim whose seam vertex is the joint, and a second meeting
+/// before the seam.** The tilted unit circle read as a whole turn
+/// `(0, 2π)`, both its ends at `J = (1, 0, 0)` on the flat circle's
+/// plane; a flat circle through `J` and through the rim's image `δ`
+/// before the seam, `2` to `4` mm: the shape of a closed edge whose one
+/// vertex is a fillet joint. Red where the window about the seam is read
+/// on one side of it.
+#[test]
+fn a_seam_vertex_at_the_joint_leaves_the_meeting_before_the_seam() {
+    for &(t, rb, delta) in &[
+        (1e-7_f64, 0.9_f64, 4e-3_f64),
+        (1e-7, 1.2, 4e-3),
+        (2e-7, 0.9, 2e-3),
+    ] {
+        let c = t.cos();
+        let a = circle([0.0; 3], [0.0, -t.sin(), c], 1.0);
+        let j = Point3::new(1.0, 0.0, 0.0);
+        let pp = Point3::new(delta.cos(), -c * delta.sin(), 0.0);
+        let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
+        let chord = pp - j;
+        let half = 0.5 * chord.norm();
+        let n = Vec3::new(chord.y, -chord.x, 0.0).normalize();
+        let n = if n.dot(Point3::origin() - m) > 0.0 {
+            n
+        } else {
+            n * -1.0
+        };
+        let centre = m + n * (rb * rb - half * half).sqrt();
+        let b = circle(centre.to_array(), [0.0, 0.0, 1.0], rb);
+        let ang = |q: Point3<f64>| (q.y - centre.y).atan2(q.x - centre.x);
+        let (pj, pq) = (ang(j), ang(pp));
+        let want = [j, a.eval(TAU - delta)];
+        for (el, ended) in [("ended", true), ("endless", false)] {
+            let s1 = Span::new(&a, (0.0, TAU));
+            let s1 = if ended { s1 } else { s1.endless() };
+            let s2 = Span::new(&b, (pj.min(pq) - 0.3, pj.max(pq) + 0.3));
+            let label = format!("t {t:e} rb {rb} δ {delta:e}: {el}");
+            none_missing(
+                &format!("{label}, rim first"),
+                &meet(&s1, &s2, band()),
+                &want,
+            );
+            none_missing(
+                &format!("{label}, flat first"),
+                &meet(&s2, &s1, band()),
+                &want,
+            );
+        }
+    }
+}

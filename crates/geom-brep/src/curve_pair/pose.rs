@@ -1001,7 +1001,6 @@ fn transverse<T: Decide>(
         .map(|c| window::Joint {
             point: c.point,
             ta: c.ta,
-            tb: c.tb,
         })
         .collect();
     let near = |theta: T| {
