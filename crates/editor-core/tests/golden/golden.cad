@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "cb0abe163907a6b83dd32e1eb5bc0d6b0f2b1c5a6ce81299fed3779ba720a48f",
+      "chain": "cd025bd7612ded14478317330bb173d650d12c12f75c7062bab326cffbcdebb0",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -474,28 +474,40 @@ id: 7ddec231df0049f879136a2f7624647d
           "var": "156:a77fbde1ef59c01d"
         },
         {
-          "node": "157:b4f9630fe7820e5f"
+          "node": "157:9e7f2dbab8fb287a"
         },
         {
-          "var": "158:66271e427f9c5e95"
+          "var": "158:689b3b2bc5290671"
         },
         {
-          "node": "159:5521724d03551615"
+          "constraint": "159:043d53731f4e3c96"
         },
         {
-          "var": "160:90575c20779eb9b1"
+          "node": "160:010a17294e008804"
         },
         {
-          "node": "161:c1b915fb841b4519"
+          "var": "161:d88bbf4b914fb9e9"
         },
         {
-          "var": "162:57b6006c7c44cca9"
+          "constraint": "162:3deb91222ca26a11"
         },
         {
-          "node": "163:c4c042ce97f8dcb8"
+          "node": "163:f28852c469899359"
         },
         {
-          "var": "164:cb0abe163907a6b8"
+          "var": "164:9c87161053e305c6"
+        },
+        {
+          "constraint": "165:f12c1b1b07619461"
+        },
+        {
+          "node": "166:b0caedf18c4feefe"
+        },
+        {
+          "var": "167:dc731c2d1d7f6f28"
+        },
+        {
+          "constraint": "168:cd025bd7612ded14"
         }
       ]
     },
@@ -935,36 +947,136 @@ id: 7ddec231df0049f879136a2f7624647d
           "open": "153:45372b2ee4a25576"
         }
       },
-      "157:b4f9630fe7820e5f": {
-        "PlaceInWorld": {
-          "body": "104:29cc5b9699919985",
-          "pose": {
-            "steps": []
-          }
+      "157:9e7f2dbab8fb287a": {
+        "Place": {
+          "shapes": [
+            "104:29cc5b9699919985"
+          ],
+          "constraints": [
+            {
+              "id": "159:043d53731f4e3c96",
+              "mate": {
+                "a": "world",
+                "b": "copy",
+                "class": "rest",
+                "alignment": {
+                  "a": {
+                    "base": "World",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "b": {
+                    "base": "Part",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "primitive": "frame_coincidence",
+                  "sense": "aligned"
+                }
+              }
+            }
+          ]
         }
       },
-      "159:5521724d03551615": {
-        "PlaceInWorld": {
-          "body": "127:2ca140c425f1bff8",
-          "pose": {
-            "steps": []
-          }
+      "160:010a17294e008804": {
+        "Place": {
+          "shapes": [
+            "127:2ca140c425f1bff8"
+          ],
+          "constraints": [
+            {
+              "id": "162:3deb91222ca26a11",
+              "mate": {
+                "a": "world",
+                "b": "copy",
+                "class": "rest",
+                "alignment": {
+                  "a": {
+                    "base": "World",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "b": {
+                    "base": "Part",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "primitive": "frame_coincidence",
+                  "sense": "aligned"
+                }
+              }
+            }
+          ]
         }
       },
-      "161:c1b915fb841b4519": {
-        "PlaceInWorld": {
-          "body": "134:be4267bdc0cb9ad7",
-          "pose": {
-            "steps": []
-          }
+      "163:f28852c469899359": {
+        "Place": {
+          "shapes": [
+            "134:be4267bdc0cb9ad7"
+          ],
+          "constraints": [
+            {
+              "id": "165:f12c1b1b07619461",
+              "mate": {
+                "a": "world",
+                "b": "copy",
+                "class": "rest",
+                "alignment": {
+                  "a": {
+                    "base": "World",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "b": {
+                    "base": "Part",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "primitive": "frame_coincidence",
+                  "sense": "aligned"
+                }
+              }
+            }
+          ]
         }
       },
-      "163:c4c042ce97f8dcb8": {
-        "PlaceInWorld": {
-          "body": "156:a77fbde1ef59c01d",
-          "pose": {
-            "steps": []
-          }
+      "166:b0caedf18c4feefe": {
+        "Place": {
+          "shapes": [
+            "156:a77fbde1ef59c01d"
+          ],
+          "constraints": [
+            {
+              "id": "168:cd025bd7612ded14",
+              "mate": {
+                "a": "world",
+                "b": "copy",
+                "class": "rest",
+                "alignment": {
+                  "a": {
+                    "base": "World",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "b": {
+                    "base": "Part",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "primitive": "frame_coincidence",
+                  "sense": "aligned"
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -2423,38 +2535,38 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "158:66271e427f9c5e95": {
+      "158:689b3b2bc5290671": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "157:b4f9630fe7820e5f",
+            "node": "157:9e7f2dbab8fb287a",
             "port": 0
           }
         }
       },
-      "160:90575c20779eb9b1": {
+      "161:d88bbf4b914fb9e9": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "159:5521724d03551615",
+            "node": "160:010a17294e008804",
             "port": 0
           }
         }
       },
-      "162:57b6006c7c44cca9": {
+      "164:9c87161053e305c6": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "161:c1b915fb841b4519",
+            "node": "163:f28852c469899359",
             "port": 0
           }
         }
       },
-      "164:cb0abe163907a6b8": {
+      "167:dc731c2d1d7f6f28": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "163:c4c042ce97f8dcb8",
+            "node": "166:b0caedf18c4feefe",
             "port": 0
           }
         }
