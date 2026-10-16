@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
-use core::f64::consts::{PI, TAU};
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use geom::{Curve3, CurveKind};
 use geom_core::{Band, Point3, Vec3};
@@ -1502,4 +1502,48 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
         ),
         "two meetings in one stretch escalate: {got:?}"
     );
+}
+
+/// **A fillet joint between two ellipses across their planes is read by
+/// its window.** A rod's rim cut at 45°, the quarter of its ellipse from
+/// `θ = 0.4636`, and a fillet's ellipse in a plane tilted `26.6°` ending
+/// tangent to it at `(0.4724, −0.0106, 0.9447)`, a swept fillet's joint.
+/// The window about the joint stays within the band of the other ellipse
+/// over a long arc; there both the height above the other's plane and the
+/// other's level grow away from the joint, so the window holds the joint
+/// alone, whichever span is read first. Red where a window whose height
+/// and level both recede is polished, which refuses
+/// (`Unsettled::Meter`).
+#[test]
+fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    let (c, s) = (0.894_427_190_999_916, 0.447_213_595_499_958);
+    let rim = Curve3::Ellipse {
+        center: Point3::new(0.561_803_398_874_989_5, -0.1, 0.9),
+        axis: Vec3::new(h, h, 0.0),
+        semi_u: 0.141_421_356_237_309_53,
+        semi_v: 0.1,
+        u_ref: Vec3::new(-h, h, 0.0),
+    };
+    let fillet = Curve3::Ellipse {
+        center: Point3::new(0.45, -0.1, 0.9),
+        axis: Vec3::new(c, 0.0, -s),
+        semi_u: 0.111_803_398_874_989_48,
+        semi_v: 0.1,
+        u_ref: Vec3::new(s, 0.0, c),
+    };
+    let (sr, sf) = (
+        (0.463_647_609_000_806_1, FRAC_PI_2),
+        (-FRAC_PI_2, -1.107_148_717_794_090_2),
+    );
+    for (order, got) in [
+        ("rim first", meets((&rim, sr), (&fillet, sf))),
+        ("fillet first", meets((&fillet, sf), (&rim, sr))),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
 }

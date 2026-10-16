@@ -26,28 +26,37 @@
 //!   the distance `d(θ)` from `b`'s carrier strictly grows away from `J`.
 //!
 //! **Why (ii) holds.** `b` lies in its plane, so `d² = H² + D²`, `D` the
-//! distance from `Q(θ)`, `a(θ)`'s image in that plane, to `b`. `|H|` grows
-//! away from `J` where `H` and `H′` keep one sign, their product's sign
-//! the direction away from `J`. For `D`, let `F(θ) = X²/A² + Y²/B² − 1` be
-//! `b`'s level at `Q` (`level_on`), `q*` a foot of `Q` on `b` and `ν` the
-//! unit vector from `q*` to `Q`, so `Q − q* = D·ν` and `(D²)′ = 2D·ν·Q′`.
-//! `F` is quadratic in the plane, its Hessian `2M`,
-//! `M = diag(1/A², 1/B²)`, so `∇F(Q) = ∇F(q*) + 2D·Mν`, and `∇F(q*)` is
+//! distance from `Q(θ)`, `a(θ)`'s image in that plane, to `b`. Let
+//! `F(θ) = X²/A² + Y²/B² − 1` be `b`'s level at `Q` (`level_on`), `s` and
+//! `L` `b`'s smaller and larger semi-axes, `q*` a foot of `Q` on `b` and
+//! `ν` the unit vector from `q*` to `Q`, so `Q − q* = D·ν` and
+//! `(D²)′ = 2D·ν·Q′`. `F` is quadratic in the plane, its Hessian `2M`,
+//! `M = diag(1/A², 1/B²)`, so `∇F(Q) = ∇F(q*) + 2D·Mν`; and `∇F(q*)` is
 //! normal to `b` at `q*`, along `ν` outside (`F > 0`) and against it
-//! inside. Hence `ν·Q′ = sign(F)·(F′ − 2D·Mν·Q′)/|∇F(q*)|`, and with
-//! `|2D·Mν·Q′| ≤ 2D·|Q′|/s²`, `s` and `L` `b`'s smaller and larger
-//! semi-axes: where `F` and `F′` keep one sign, their product's sign the
-//! direction away from `J`, and `|F′| > 2D·|Q′|/s²`, `D²` strictly grows
-//! away from `J` (for every foot, so the one-sided derivatives agree).
-//! `D ≤ L·|F|`: the point of `b` along `Q`'s unit-coordinate direction lies
-//! `|ρ − 1|·|Q − c|/ρ ≤ L·|ρ − 1|` from `Q`, `ρ = √(F + 1)`, and
-//! `|ρ − 1| = |F|/(ρ + 1) ≤ |F|`. So the test is `|F′| > 2L·|F|·|Q′|/s²`,
-//! `|Q′|` at most `a`'s greatest speed. Where `b`'s level is no more than
-//! its rounding, `D ≤ L·|F|` is as small, and so is its drift: on `b`,
-//! `|∇F| = 2√(X²/A⁴ + Y²/B⁴) ≥ 2/L`, so
-//! `|(D²)′| = 2D·|ν·Q′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`, and `d²` still grows
-//! where `(H²)′ = 2|H|·|H′|` exceeds that. An on piece's every point lies within
-//! `√(|H|² + (L·|F|)²)` of `b`, each at its most over the piece, where
+//! inside, of length between `2/L` and `2/s`. Hence
+//! `ν·Q′ = sign(F)·(F′ − 2D·Mν·Q′)/|∇F(q*)|`, `|2D·Mν·Q′| ≤ 2D·|Q′|/s²`,
+//! `|Q′|` at most `a`'s greatest speed. Two bounds on `D` close it:
+//! `D ≤ L·|F|`, since the point of `b` along `Q`'s unit-coordinate
+//! direction lies `|ρ − 1|·|Q − c|/ρ ≤ L·|ρ − 1|` from `Q`,
+//! `ρ = √(F + 1)`, and `|ρ − 1| = |F|/(ρ + 1) ≤ |F|`; and `D` at least
+//! `b`'s lower bound in the plane ([`geom::ellipse_level_clearance`]),
+//! so at least `min(s/4, |F|·s/4)` (the coplanar ellipse pair's ceiling,
+//! which a circle meets too). A piece recedes in any of three ways
+//! (for every foot, so the one-sided derivatives agree):
+//!
+//! - **the height and the level both grow**: `H` and `H′` keep one
+//!   sign, their product's the direction away from `J`, and so do `F` and
+//!   `F′`, with `|F′| > 2L·|F|·|Q′|/s² ≥ 2D·|Q′|/s²`, so `ν·Q′` has the
+//!   sign away from `J`;
+//! - **the height grows and the level's drift is less**: `H` and `H′`
+//!   as above, and `(H²)′ = 2|H|·|H′|` exceeds
+//!   `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`;
+//! - **the level grows faster than the height falls**: `F` and `F′` keep
+//!   one sign, their product's the direction away from `J`, and
+//!   `(D²)′ ≥ D·s·(|F′| − 2L·|F|·|Q′|/s²)` exceeds `|(H²)′|`.
+//!
+//! An on piece's every point lies within `√(|H|² + (L·|F|)²)` of `b`, each
+//! at its most over the piece, where
 //! that reads in the zero band. Each of `H`, `H′`, `F`, `F′` is
 //! bounded over the piece by Taylor's theorem about its middle with the
 //! harmonics' exact top-derivative bound, `Σ k⁴·A_k` for `F` and `A` for
@@ -55,18 +64,18 @@
 //! reading is decided exactly (the least band): these are signs of
 //! bounds, not distances the band resolves.
 //!
-//! **Why the three make the window the found meetings'.** Walk outward
-//! from a found meeting's ring, to the window's end or to the middle of
-//! the arc before the next ring: its pieces must read on first, then
-//! receding or off, never on again. A second meeting `P` there would be
-//! a point of `a` on `b` beyond a point `Q` that is not, both past the
-//! ring. `Q` lies in no on piece, so every piece from `Q` to `P` is
-//! receding or off. `P` in an off piece is not on, and past an off piece
-//! `d` only grows from past the zero band; with none, `d` grows from
-//! `Q`'s. Either way `P` is not on. So every point of the window on `b`'s
-//! carrier past a ring is connected to that ring through points on it;
-//! whether two found meetings so connected are one meeting is the
-//! stretch reading's to decide (`curve_pair::stretches`).
+//! **Why the three make the window the found meetings'.** Read every
+//! piece from a found meeting's ring outward, to the window's end or to
+//! the middle of the arc before the next ring. A second meeting `P` there
+//! would be a point of `a` on `b` beyond a point `Q` that is not, both
+//! past the ring. `Q` lies in no on piece, so its piece is receding or
+//! off, and `d` is past the zero band at its far end. Each piece after
+//! it keeps `d` past the zero band from its near end on: an off piece
+//! everywhere, a receding one by growing, and an on piece cannot follow,
+//! since its near end would be on. So `P` is not on, and every point of
+//! the window on `b`'s carrier past a ring is connected to that ring
+//! through points on it. Whether two found meetings so connected are one
+//! meeting is the stretch reading's to decide (`curve_pair::stretches`).
 //!
 //! **Those points are on `b`'s span or past its end together**: a point on
 //! `b`'s carrier moves its foot along `b` at `a′·b̂′` over a positive
@@ -217,19 +226,27 @@ impl<T: Decide> Window<'_, T> {
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
             && same_way(row, h.at, h.slope_at, away);
-        let level_recedes = positive(row, f.lo)
-            && positive(row, f.slope_lo)
-            && same_way(row, f.at, f.slope_at, away)
-            && positive(row, f.slope_lo - two * big * f.hi * speed / small.powi(2));
         // `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`, `D ≤ L·|F|`.
         let d_hi = big * f.hi;
         let level_drift = d_hi * big * (f.slope_hi + two * d_hi * speed / small.powi(2));
         let level_negligible = positive(row, two * h.lo * h.slope_lo - level_drift);
+        let level_recedes = positive(row, f.lo)
+            && positive(row, f.slope_lo)
+            && same_way(row, f.at, f.slope_at, away)
+            && positive(row, f.slope_lo - two * big * f.hi * speed / small.powi(2));
+        // `(D²)′ ≥ D·s·(|F′| − 2L·|F|·|Q′|/s²)`, `D ≥ min(s/4, |F|·s/4)`.
+        let level_way = positive(row, f.lo) && same_way(row, f.at, f.slope_at, away);
+        let four = T::from_f64(4.0);
+        let d_lo = (small / four).min(f.lo * small / four);
+        let level_growth = d_lo * small * (f.slope_lo - two * big * f.hi * speed / small.powi(2));
+        let level_dominates = level_way
+            && positive(row, f.slope_lo)
+            && positive(row, level_growth - two * h.hi * h.slope_hi);
         let z = T::from_f64(band.zero());
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
-        if height_recedes && (level_recedes || level_negligible) {
+        if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
         }
         let gap = self.carrier_b.foot(q, self.foot_seed(q)).gap() + reach;
@@ -252,9 +269,9 @@ impl<T: Decide> Window<'_, T> {
         y.atan2(x)
     }
 
-    /// **The pieces of `(l, r)` in order of `θ`, each read**, halved until
-    /// each reads or one is narrower than the band; `None` past the budget
-    /// or at a piece that cannot read.
+    /// **The pieces of `(l, r)`, each read**, halved until each reads or
+    /// one is narrower than the band; `None` past the budget or at a piece
+    /// that cannot read.
     fn pieces(&self, (l, r): (T, T), away: bool, band: Band) -> Option<Vec<Read>> {
         let level = level_on(self.a, self.b);
         let speed = self.a.speed_hi();
@@ -274,7 +291,6 @@ impl<T: Decide> Window<'_, T> {
                 return None;
             }
             let mid = (pl + pr) / T::from_f64(2.0);
-            // Left first: the stack pops the left half next.
             stack.push((mid, pr));
             stack.push((pl, mid));
         }
@@ -359,14 +375,6 @@ impl<T: Decide> Window<'_, T> {
                 return false;
             };
             near_joint |= reads.iter().any(|&x| x != Read::Off);
-            let ok = if away {
-                outward(reads.iter().copied())
-            } else {
-                outward(reads.iter().rev().copied())
-            };
-            if !ok {
-                return false;
-            }
         }
         !near_joint
             || rings
@@ -403,16 +411,198 @@ fn tangent<T: Decide>(k: &Conic<T>, t: T) -> Option<(Point3<T>, Vec3<T>)> {
     positive("curve_pair_window_feet", speed).then(|| (k.point(t), d * (T::one() / speed)))
 }
 
-/// Whether reads in order outward from a ring are on first, then
-/// receding or off, never on again.
-fn outward(reads: impl Iterator<Item = Read>) -> bool {
-    let mut left_on = false;
-    for read in reads {
-        match read {
-            Read::On if left_on => return false,
-            Read::On => {}
-            Read::Recedes | Read::Off => left_on = true,
-        }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod rows {
+    //! The window's readings, each on a pose only it certifies.
+
+    use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
+
+    use geom::Curve3;
+    use geom_core::{Band, Point3, Vec3};
+
+    use super::{Joint, Window};
+    use crate::Conic;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
     }
-    true
+
+    /// `a`'s window against `b` over `span_a`, its height and rounding
+    /// read as the pose reads them.
+    fn holds(
+        (a, span_a): (&Curve3<f64>, (f64, f64)),
+        b: &Curve3<f64>,
+        window: (f64, f64),
+        joint: (f64, f64),
+    ) -> bool {
+        let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+        let lever = ka.speed_hi().max(kb.speed_hi());
+        let o = Point3::origin();
+        let noise =
+            crate::rounding_charge((ka.center - o).norm() + (kb.center - o).norm() + lever + lever);
+        let w = Window {
+            a: &ka,
+            span_a,
+            b: &kb,
+            carrier_b: b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise,
+        };
+        let j = Joint {
+            point: a.eval(joint.0),
+            ta: joint.0,
+            tb: joint.1,
+        };
+        w.holds_only(window, &[j], band())
+    }
+
+    /// `v` turned by `t` about the unit `k`.
+    fn turn(v: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
+        let (s, c) = t.sin_cos();
+        v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c))
+    }
+
+    /// **(i) A window read off past the ring.** The pair of `crossing_at`
+    /// crossing square: `J` is a meeting. Over the window
+    /// `θ_r ± 10⁻⁴` the two part at their right angle, so every point
+    /// past the joint's ring is off the first circle. Toward `θ_r` the
+    /// height falls, so nothing there recedes: only the off reading
+    /// certifies it. Red where the off reading is dropped.
+    #[test]
+    fn a_window_read_off_past_the_ring_holds_the_joint_alone() {
+        let (a, b, root) = crossing_at(FRAC_PI_2);
+        assert!(
+            holds(
+                (&a, (-0.5, 0.5)),
+                &b,
+                (root - 1e-4, root + 1e-4),
+                (0.0, 0.0)
+            ),
+            "the window off past the ring holds the joint alone"
+        );
+    }
+
+    /// The unit circle about the origin in `z = 0`, and a unit circle
+    /// through `J = (1, 0, 0)` crossing it there at `ψ`, its plane turned
+    /// `10⁻⁴` about its radius at `θ_r = 5·10⁻⁶`, so that it crosses the
+    /// first's plane there and `J`, at `θ = 0`, lies `5·10⁻¹⁰` above it.
+    fn crossing_at(psi: f64) -> (Curve3<f64>, Curve3<f64>, f64) {
+        let b = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let u = Vec3::new(psi.cos(), psi.sin(), 0.0);
+        let v = Vec3::new(0.0, 0.0, 1.0).cross(u);
+        let c = Point3::new(1.0, 0.0, 0.0) - u;
+        let root = 5e-6_f64;
+        let k = u * root.cos() + v * root.sin();
+        let pivot = c + k;
+        let tilt = 1e-4;
+        let a = Curve3::Circle {
+            center: pivot + turn(c - pivot, k, tilt),
+            axis: turn(u.cross(v), k, tilt),
+            radius: 1.0,
+            u_ref: turn(u, k, tilt),
+        };
+        (a, b, root)
+    }
+
+    /// **(ii) A window read receding as the level outruns the height.**
+    /// The pair of `crossing_at` crossing at `ψ = 10⁻²`: within the zero
+    /// band of each other for about `10⁻⁷` past the joint, so the window
+    /// past the ring reads on first, then leaves the zero band. Toward
+    /// `θ_r` the height falls as the two part in the plane, so there the
+    /// distance is certified growing by the level's growth outrunning the
+    /// height's fall. Red where that reading is dropped.
+    #[test]
+    fn a_window_read_receding_by_the_level_holds_the_joint_alone() {
+        let (a, b, root) = crossing_at(1e-2);
+        assert!(
+            holds(
+                (&a, (-0.5, 0.5)),
+                &b,
+                (root - 1e-4, root + 1e-4),
+                (0.0, 0.0)
+            ),
+            "the window receding by the level holds the joint alone"
+        );
+    }
+
+    /// **(ii) A window read receding past the ring.** A rod of radius
+    /// `5` cut at 45°, its ellipse's quarter ending at `J`, and a
+    /// fillet's circle in the plane `y = 0` ending there tangent to it,
+    /// both far from the origin (a swept fillet at a hundred times the
+    /// unit). The ellipse touches the circle's plane at `J`, so the two
+    /// stay within the band over `6·10⁻⁵` rad. At about `2·10⁻⁵` the
+    /// height crosses the zero band's edge, where no piece the band
+    /// allows reads on or off; there the distance is certified growing,
+    /// the height's growth outrunning the level's drift. Red where the
+    /// receding reading is dropped.
+    #[test]
+    fn a_window_read_receding_past_the_ring_holds_the_joint_alone() {
+        let x = -178.819_660_112_501_03;
+        let h = FRAC_1_SQRT_2;
+        let a = Curve3::Ellipse {
+            center: Point3::new(x, -5.0, 95.0),
+            axis: Vec3::new(h, h, 0.0),
+            semi_u: 7.071_067_811_865_475_5,
+            semi_v: 5.0,
+            u_ref: Vec3::new(-h, h, 0.0),
+        };
+        let b = Curve3::Circle {
+            center: Point3::new(x, 0.0, 95.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: 5.0,
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        };
+        assert!(
+            holds(
+                (&a, (0.0, FRAC_PI_2)),
+                &b,
+                (-6.3e-5, 6.3e-5),
+                (0.0, -FRAC_PI_2)
+            ),
+            "the receding window holds the joint alone"
+        );
+    }
+
+    /// **A window holding a second meeting is not the joint's.** The
+    /// unit circle tilted `3·10⁻⁸` about `x̂`, and a circle of radius `0.5`
+    /// in `z = 0` about `(0.5001, 0, 0)`, crossing its image at
+    /// `y ≈ ±0.0141`, both within `4·10⁻¹⁰` of the first: two meetings in
+    /// the window about the plane root at `θ = 0`. With the first found,
+    /// the distance past its ring falls back to the second, and where it
+    /// re-enters the zero band no piece reads on, off or receding. Red
+    /// where a piece that cannot read is passed by, and a window is
+    /// certified with a meeting in it
+    /// (`plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root`
+    /// reads the same pose through `meet`).
+    #[test]
+    fn a_window_holding_a_second_meeting_is_not_the_joints() {
+        let t = 3e-8_f64;
+        let a = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, -t.sin(), t.cos()),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cb = 0.5 + 1e-4;
+        let b = Curve3::Circle {
+            center: Point3::new(cb, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
+        let th = -((1.0 - xp * xp).sqrt() / t.cos()).asin();
+        let p = a.eval(th);
+        let tb = (p.y).atan2(p.x - cb);
+        assert!(
+            !holds((&a, (th, 0.5)), &b, (th, 0.02), (th, tb)),
+            "a window with the second meeting in it is not the joint's"
+        );
+    }
 }
