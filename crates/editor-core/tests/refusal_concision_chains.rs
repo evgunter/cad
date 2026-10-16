@@ -2505,6 +2505,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         ("ArcWeightNotAPoint", E::ArcWeightNotAPoint { section: 1 }),
         (
             "IncompatibleAtEnclosure",

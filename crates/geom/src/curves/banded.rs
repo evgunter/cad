@@ -71,7 +71,7 @@
 //! (the skin's solve in its sections' scalar, `sweep::skin`). The
 //! band's shape is the `first` indices, which are structure, and a
 //! factor entry refuses when it is not finite
-//! ([`geom_core::is_finite_length`]), a pivot when it is not nonzero
+//! ([`Real::is_bounded`](geom_core::Real::is_bounded)), a pivot when it is not nonzero
 //! for every value it stands for ([`SpanLocate::structure_positive`]
 //! of it or its negation). At a point scalar those read the value
 //! channel; at an enclosure scalar an entry wider than a point solves,
@@ -165,7 +165,7 @@ pub(crate) fn factor<T: SpanLocate>(
             }
             let pivot = lu[q * width + q - first[q]];
             let l = s / pivot;
-            if !geom_core::is_finite_length(l) {
+            if !l.is_bounded() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: q,
                     pivot: pivot.value_channel(),
@@ -180,7 +180,7 @@ pub(crate) fn factor<T: SpanLocate>(
                     s = s - lu[row + t - f] * lu[t * width + j - first[t]];
                 }
             }
-            if !geom_core::is_finite_length(s) {
+            if !s.is_bounded() {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: i,
                     pivot: s.value_channel(),

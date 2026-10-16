@@ -92,8 +92,8 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
 /// `Interval`, under both lifts, and encloses the `f64` loft.** The
 /// section is its profile's value at this scalar, on the frame's landed
 /// value, which is an enclosure wider than a point; the loft skins it
-/// in `T`. Every vertex of the `f64` body lies in a vertex of the
-/// enclosing one.
+/// in `T`. Each vertex of the `f64` body lies in the enclosing body's
+/// vertex of the same index (one construction lists them in one order).
 #[test]
 fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
@@ -122,12 +122,15 @@ fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
             .points()
             .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
             .collect();
-        for v in &nominal {
+        assert_eq!(
+            brackets.len(),
+            nominal.len(),
+            "{lift:?}: the vertex counts agree"
+        );
+        for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
             assert!(
-                brackets
-                    .iter()
-                    .any(|b| b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi)),
-                "{lift:?}: the f64 vertex {v:?} lies in no vertex of the enclosing body"
+                b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
+                "{lift:?}: the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
             );
         }
     }

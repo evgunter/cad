@@ -281,8 +281,8 @@ fn under_the_pinned_lift_a_section_seed_reaches_no_wall() {
 /// pcurve residual encloses about 13 times the box's width and
 /// escalates at the band, which the drive bisects.) Every vertex of the
 /// `f64` loft at each end of the box and at its middle (the guided
-/// lift's degenerate box at that offset, [`boxed_at`]) lies in a vertex
-/// of the enclosing body. Were the nominal lofted over the box, the
+/// lift's degenerate box at that offset, [`boxed_at`]) lies in the
+/// enclosing body's vertex of the same index. Were the nominal lofted over the box, the
 /// ends would fall outside it.
 #[test]
 fn a_box_over_a_section_width_lofts_the_family_it_spans() {
@@ -322,13 +322,19 @@ fn a_box_over_a_section_width_lofts_the_family_it_spans() {
             },
             Tol::witness(),
         );
-        for (_, p) in crate::corpus::body_of(&member, loft).points() {
-            let v = [p.x, p.y, p.z];
+        let vertices: Vec<[f64; 3]> = crate::corpus::body_of(&member, loft)
+            .points()
+            .map(|(_, p)| [p.x, p.y, p.z])
+            .collect();
+        assert_eq!(
+            vertices.len(),
+            brackets.len(),
+            "offset {offset}: the vertex counts agree"
+        );
+        for (i, (b, v)) in brackets.iter().zip(&vertices).enumerate() {
             assert!(
-                brackets
-                    .iter()
-                    .any(|b| b.iter().zip(&v).all(|((lo, hi), x)| lo <= x && x <= hi)),
-                "offset {offset}: the member's vertex {v:?} lies in no vertex of the enclosing body"
+                b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
+                "offset {offset}: the member's vertex {i} at {v:?} lies outside its enclosure {b:?}"
             );
         }
     }

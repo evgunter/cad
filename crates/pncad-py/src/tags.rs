@@ -1718,6 +1718,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
+        SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcWeightNotAPoint { .. } => "arc_weight_not_a_point",
         SkinError::IncompatibleAtEnclosure { .. } => "incompatible_at_enclosure",
         SkinError::Fit(_) => "fit",

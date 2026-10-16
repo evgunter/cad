@@ -43,7 +43,10 @@
 //! empty, a parameter step that ascends) holds for every value it
 //! stands for ([`SpanLocate::structure_positive`]), so at an enclosure
 //! scalar a value wider than a point passes where its whole bracket
-//! does.
+//! does. Where the answer selects a branch rather than refusing (a
+//! control row that abstains from the parameterization), a value whose
+//! members would not all take one branch refuses
+//! ([`SkinError::RowMotionUndecided`]).
 //!
 //! # The values are computed in the sections' scalar
 //!
@@ -208,6 +211,17 @@ pub enum SkinError {
         /// The station where the frame failed.
         station: usize,
     },
+    /// Whether control row `row` moves between the sections is not
+    /// the same for every value they stand for: its chord-length total
+    /// is wider than a point and reaches zero. A row that never moves
+    /// abstains from the parameterization, so the members would not
+    /// share one, and the skin refuses rather than stand for those
+    /// whose row moves.
+    RowMotionUndecided {
+        /// The control row, counted down the rows the
+        /// parameterization reads.
+        row: usize,
+    },
     /// Section `section` has an arc whose sweep, or the weight
     /// `cos(Δ/2)` its sub-arcs carry, is no single point. That holds at
     /// an enclosure scalar, where outward rounding alone widens the
@@ -284,6 +298,12 @@ impl core::fmt::Display for SkinError {
                 f,
                 "the path's tangent reverses or vanishes at station {station}, so no rigid \
                  frame carries the profile through it. Recourse: smooth the path there"
+            ),
+            Self::RowMotionUndecided { row } => write!(
+                f,
+                "whether control row {row} moves between the sections is not decided over the \
+                 values they stand for, so the skin's parameterization is not one for them \
+                 all. Recourse: narrow the range, or evaluate the loft at a point scalar"
             ),
             Self::ArcWeightNotAPoint { section } => write!(
                 f,
@@ -399,6 +419,19 @@ pub fn segment_curve<T: SpanLocate>(
             if !sweep.is_finite() || sweep == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
+            // The weight is decided before any branch reads the arc's
+            // endpoints, so an arc whose weight is no point refuses by
+            // it whatever its endpoints' brackets.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let m = ((sweep.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
+            #[allow(clippy::cast_precision_loss)]
+            let steps = m as f64;
+            let delta = theta / T::from_f64(steps);
+            let half = T::from_f64(0.5);
+            let (_, half_w) = (delta * half).sin_cos();
+            if not_a_point(half_w) {
+                return Err(SkinError::ArcWeightNotAPoint { section });
+            }
             // An arc that ends where it starts lands there after whole
             // turns, and converts only as ONE (D1's full turn): its
             // sweep is nearer one turn than none or two. An arc between
@@ -414,20 +447,10 @@ pub fn segment_curve<T: SpanLocate>(
             }
             let spoke = a - centre;
             let rim = spoke.norm();
-            if !rim.structure_positive() || !geom_core::is_finite_length(rim) {
+            if !rim.structure_positive() || !rim.is_bounded() {
                 return Err(degenerate(
                     "arc start is not a finite, positive distance from its centre",
                 ));
-            }
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let m = ((sweep.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
-            #[allow(clippy::cast_precision_loss)]
-            let steps = m as f64;
-            let delta = theta / T::from_f64(steps);
-            let half = T::from_f64(0.5);
-            let (_, half_w) = (delta * half).sin_cos();
-            if not_a_point(half_w) {
-                return Err(SkinError::ArcWeightNotAPoint { section });
             }
             // The on-arc control points are the evaluation's own points
             // ([`Arc2::point_from`], `a` itself at the start); the
@@ -613,15 +636,20 @@ fn chord_length_parameters<T: SpanLocate>(
 ) -> Result<Vec<T>, SkinError> {
     let mut shares: Vec<Vec<T>> = vec![Vec::new(); k];
     let mut counted = 0usize;
-    for row in rows {
+    for (index, row) in rows.into_iter().enumerate() {
         let chords: Vec<T> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
         // Summed from `+0`: every chord is a length, `+0` or above, so
         // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
         let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
         // A row that never moves (a corner pinned across every
         // section) carries no parameterization information — it is not
-        // an error, it simply abstains from the average.
+        // an error, it simply abstains from the average. A row that
+        // moves for some values its bracket stands for and not others
+        // would abstain for some members only, so it refuses.
         if !total.structure_positive() {
+            if total.point_value().is_none() && !total.is_poison() {
+                return Err(SkinError::RowMotionUndecided { row: index });
+            }
             continue;
         }
         counted += 1;

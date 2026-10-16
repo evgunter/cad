@@ -6137,6 +6137,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "knot_algebra",
             "no_parameter_step",
             "path_tangent_reversal",
+            "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
             "structure",

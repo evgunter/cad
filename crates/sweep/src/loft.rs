@@ -63,9 +63,11 @@
 //! section or placement holding a value that is not finite refuses
 //! first, at every scalar. Structure — each section's canonical form,
 //! the skin's degrees, multiplicities and parameter order — is
-//! selected once, on the sections' value channel, so every lane builds
-//! the SAME body. The values then depend on which side of the
-//! projective partition `T` is on ([`fn@build`]):
+//! selected once, on the sections' value channel where every value is
+//! a point, so every lane builds the SAME body; over a family it is
+//! what every member shares, or a typed refusal. The values then
+//! depend on which side of the projective partition `T` is on
+//! ([`fn@build`]):
 //!
 //! - at `f64`, `Probe`, and `Dual` and `Sym` over them, the sections
 //!   are validated at `T` along the `f64` record and the walls are
@@ -96,7 +98,6 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
-    is_finite_length,
 };
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
 use topo::{
@@ -193,13 +194,15 @@ pub enum LoftError {
     /// rather than swallowed.
     SectionStructure,
     /// Section `section` holds a value that is not finite for every
-    /// value it stands for: poison, or an infinity.
+    /// value it stands for: poison, an infinity, or an enclosure
+    /// reaching one.
     SectionNotFinite {
         /// The section.
         section: usize,
     },
     /// Section `section`'s placement has an entry that is not finite
-    /// for every value it stands for: poison, or an infinity.
+    /// for every value it stands for: poison, an infinity, or an
+    /// enclosure reaching one.
     PlacementNotFinite {
         /// The section whose placement it is.
         section: usize,
@@ -524,8 +527,8 @@ fn stacking_fold<T: Decide>(
 }
 
 /// The shared engine of [`loft_body`], [`sweep_body`] and
-/// [`loft_profiles`]: refuse a section or placement with no finite
-/// value, then run the half of the projective partition `T` is on
+/// [`loft_profiles`]: refuse the counts, then a section or placement
+/// with no finite value, then run the half of the projective partition `T` is on
 /// ([`SpanLocate::split_projective`](geom_core::spline::SpanLocate::split_projective)),
 /// which [`LoftBuild`]'s two halves state.
 ///
@@ -541,16 +544,16 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
+    check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
     if let Some(section) = places
         .iter()
-        .position(|p| !p.components().iter().all(|c| is_finite_length(*c)))
+        .position(|p| !p.components().iter().all(|c| c.is_bounded()))
     {
         return Err(LoftError::PlacementNotFinite { section });
     }
     if let Some(section) = sections.first_not_finite() {
         return Err(LoftError::SectionNotFinite { section });
     }
-    check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
     T::split_projective(LoftBuild {
         sections,
         places,
@@ -578,8 +581,9 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
     }
 
     /// The first section holding a value that is not finite for every
-    /// value it stands for ([`is_finite_length`]): poison, or an
-    /// infinity. A value wider than a point is finite.
+    /// value it stands for ([`Real::is_bounded`]): poison, an
+    /// infinity, or an enclosure reaching one. A value wider than a
+    /// point is finite.
     fn first_not_finite(&self) -> Option<usize> {
         match self {
             Self::Loops(sections) => sections
@@ -1217,7 +1221,7 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
 }
 
 /// Whether every value of `lp` is finite for every value it stands for
-/// ([`is_finite_length`]).
+/// ([`Real::is_bounded`]).
 fn loop_is_finite<T: Real>(lp: &profile::ProfileLoop<T>) -> bool {
     lp.vertices().iter().all(point_is_finite)
         && lp.segments().iter().all(|s| match s {
@@ -1242,11 +1246,11 @@ fn profile_is_finite<T: Real>(profile: &ValidatedProfile<T>) -> bool {
 }
 
 fn point_is_finite<T: Real>(p: &Point2<T>) -> bool {
-    is_finite_length(p.x) && is_finite_length(p.y)
+    p.x.is_bounded() && p.y.is_bounded()
 }
 
 fn arc_is_finite<T: Real>(arc: &geom_core::Arc2<T>) -> bool {
-    point_is_finite(&arc.centre) && is_finite_length(arc.radius) && is_finite_length(arc.sweep)
+    point_is_finite(&arc.centre) && arc.radius.is_bounded() && arc.sweep.is_bounded()
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of

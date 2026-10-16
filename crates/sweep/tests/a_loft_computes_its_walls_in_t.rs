@@ -164,6 +164,25 @@ fn assert_encloses(what: &str, enclosing: &Lofted<geom_core::Interval>, sample: 
             "{what}: wall value {i} is {v}, outside its enclosure [{lo}, {hi}]"
         );
     }
+    // The vertices, the caps' corners among them, pairwise: one
+    // construction builds both bodies, so they list them in one order.
+    let corners: Vec<[(f64, f64); 3]> = enclosing
+        .body
+        .points()
+        .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
+        .collect();
+    let members: Vec<[f64; 3]> = sample.body.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
+    assert_eq!(
+        corners.len(),
+        members.len(),
+        "{what}: the vertex counts agree"
+    );
+    for (i, (b, v)) in corners.iter().zip(&members).enumerate() {
+        assert!(
+            b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
+            "{what}: vertex {i} at {v:?} lies outside its enclosure {b:?}"
+        );
+    }
 }
 
 /// The ends of a box `ε/256` either side of `c`, narrow enough for the
@@ -235,6 +254,115 @@ fn a_loft_over_a_wide_placement_encloses_its_family_at_interval() {
         )
         .expect("each member lofts at f64");
         assert_encloses(&format!("z = {z}"), &enclosing, &sample);
+    }
+}
+
+/// **A sweep from a start frame over a box encloses its family**: the
+/// start frame's offset along `x` in [`box_about`]`(0)`, three stations
+/// along the elbow at v-degree 2, and every member's `f64` sweep held.
+#[test]
+fn a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval() {
+    use geom_core::Interval;
+    use sweep::sweep_body;
+    use sweep::test_support::elbow_path;
+    let shift =
+        |x: Interval| Affine3::translation(Vec3::new(x, Interval::zero(), Interval::zero()));
+    let (lo, hi) = box_about(0.0);
+    let enclosing = sweep_body::<Interval>(
+        &quad(Interval::from_f64(1.2)),
+        shift(Interval::from_bounds(lo, hi)),
+        &elbow_path(),
+        3,
+        2,
+        Tol::witness(),
+    )
+    .expect("the quad sweeps from a wide start frame at Interval");
+    for x in [lo, 0.0, hi] {
+        let sample = sweep_body::<f64>(
+            &quad(1.2),
+            Affine3::translation(Vec3::new(x, 0.0, 0.0)),
+            &elbow_path(),
+            3,
+            2,
+            Tol::witness(),
+        )
+        .expect("each member sweeps at f64");
+        assert_encloses(&format!("x = {x}"), &enclosing, &sample);
+    }
+}
+
+/// **A control row whose motion is not decided over the box refuses.**
+/// Three lines whose start is pinned at the origin in the end sections
+/// and boxed about it in the middle one: whether that row moves is not
+/// the same for every member, and a member whose row moves counts it in
+/// the chord-length average where one whose row is pinned does not. The
+/// skin refuses rather than parameterize by the members that abstain.
+#[test]
+fn a_row_whose_motion_is_undecided_over_the_box_refuses() {
+    use core::num::NonZeroUsize;
+    use geom::NurbsCurve3;
+    use geom_core::spline::{Knots, SpanLocate};
+    use geom_core::{Interval, Point3};
+    use sweep::{SkinError, skin};
+    fn line<T: SpanLocate>(a: Point3<T>, b: Point3<T>) -> NurbsCurve3<T> {
+        let two = NonZeroUsize::new(2).expect("two");
+        NurbsCurve3::new(
+            Knots::new(vec![(T::zero(), two), (T::one(), two)], 1).expect("clamped line knots"),
+            vec![a, b],
+            vec![T::one(); 2],
+        )
+        .expect("a line")
+    }
+    fn sections<T: SpanLocate>(x: T) -> Vec<NurbsCurve3<T>> {
+        let p = |x: f64, z: f64| Point3::new(T::from_f64(x), T::zero(), T::from_f64(z));
+        vec![
+            line(p(0.0, 0.0), p(1.0, 0.0)),
+            line(Point3::new(x, T::zero(), T::zero()), p(1.0, 1.0)),
+            line(p(0.0, 0.0), p(1.0, 3.0)),
+        ]
+    }
+    skin::<f64>(&sections(1e-6), 2).expect("a member whose row moves skins");
+    match skin::<Interval>(&sections(Interval::from_bounds(-1e-6, 1e-6)), 2) {
+        Err(SkinError::RowMotionUndecided { row: 0 }) => {}
+        other => panic!("expected row 0's refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// **An enclosure reaching an infinity is not finite**: a corner in
+/// `[1.2, ∞]` refuses as the section, and a height in `[1, ∞]` as the
+/// placement, before any skin.
+#[test]
+fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
+    use geom_core::Interval;
+    use sweep::LoftError;
+    let corner = Interval::from_f64(1.2);
+    let points = [0.0, 1.0].map(|z| at_height(Interval::from_f64(z)));
+    match loft_body::<Interval>(
+        &[
+            quad(corner),
+            quad(Interval::from_bounds(1.2, f64::INFINITY)),
+        ],
+        &points,
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::SectionNotFinite { section: 1 }) => {}
+        other => panic!("expected section 1's refusal, got {:?}", other.map(|_| ())),
+    }
+    match loft_body::<Interval>(
+        &[quad(corner), quad(corner)],
+        &[
+            at_height(Interval::zero()),
+            at_height(Interval::from_bounds(1.0, f64::INFINITY)),
+        ],
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
+        other => panic!(
+            "expected section 1's placement refusal, got {:?}",
+            other.map(|_| ())
+        ),
     }
 }
 

@@ -410,7 +410,7 @@ pub fn interpolate_columns(
 /// function of the variables gives knots and control rows that are
 /// functions of them too. The refusals are [`interpolate_columns`]',
 /// decided for every value a datum or parameter stands for: a datum
-/// that is not finite ([`geom_core::is_finite_length`]), a step that
+/// that is not finite ([`Real::is_bounded`](geom_core::Real::is_bounded)), a step that
 /// does not ascend ([`SpanLocate::structure_positive`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
@@ -447,7 +447,7 @@ pub fn interpolate_columns_in<T: SpanLocate>(
                 found: row.len(),
             });
         }
-        if row.iter().any(|v| !geom_core::is_finite_length(*v)) {
+        if row.iter().any(|v| !v.is_bounded()) {
             return Err(FitError::NonFinitePoint { index });
         }
     }
