@@ -806,6 +806,10 @@ pub(crate) enum ConicHit {
     On(MarginDiag),
     /// On the conic within the band of one of the arc's ends.
     End,
+    /// Not placed: an ellipse's `Past` stands on the span walk
+    /// ([`geom::Curve3::clear_of`]), which ran past its budget, or the
+    /// carrier bounds no speed to walk by.
+    Unsettled,
 }
 
 impl<T: Decide> ConicArc<T> {
@@ -974,7 +978,8 @@ impl<T: Decide> ConicArc<T> {
     /// ellipse's Hessian-bounded root) with the span's reading of its ends
     /// ([`geom_brep::curve_pair::Span::place`]). A point past the arc is
     /// off the edge, on its carrier ([`ConicHit::Carrier`]) or not; the
-    /// ellipse's straddle stays a straddle.
+    /// ellipse's straddle stays a straddle, and a span walk that cannot
+    /// certify its `Past` is [`ConicHit::Unsettled`].
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
         use geom_brep::curve_pair::{Reading, Span};
         let carrier = self.carrier();
@@ -994,8 +999,10 @@ impl<T: Decide> ConicArc<T> {
                     diag,
                 });
             }
+            // An ellipse's `Past` stands on the span walk, which can run
+            // past its budget: not placed, typed.
             Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-                unreachable!("a conic's readings walk no spline")
+                ConicHit::Unsettled
             }
         })
     }
@@ -1228,6 +1235,7 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::Carrier => EdgeContact::Carrier,
                 ConicHit::On(on) => EdgeContact::On(on),
                 ConicHit::End => EdgeContact::End,
+                ConicHit::Unsettled => EdgeContact::Unread,
             },
             Self::Spiric(k) => match k.contact(q, rows.spiric, band) {
                 Ok(SpiricHit::Off) => EdgeContact::Off,

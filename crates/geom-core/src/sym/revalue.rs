@@ -6,16 +6,16 @@
 //! stayed in the scalar: a value read out to `f64` and re-entered
 //! through [`crate::Real::from_f64`] is a `Lit`, a constant, where the
 //! computation had a function of the parameters. This module makes that
-//! visible. [`record`] keeps every decision a `Sym` lane takes — its
+//! visible. [`record`](crate::sym::revalue::record) keeps every decision a `Sym` lane takes — its
 //! predicate, its margin's node and, at `Sym<f64>`, its value — and
-//! [`revalue`] evaluates a recorded node's DAG at another parameter
+//! [`revalue`](crate::sym::revalue::revalue) evaluates a recorded node's DAG at another parameter
 //! point, op by op as `f64` performs it. Built at `p0` and re-valued at
 //! `p1`, a margin equals the `p1` build's own margin bit for bit when
 //! the DAG is the computation; a `Lit` that should have moved stays
 //! where `p0` put it, and the two differ.
 //!
-//! An [`Opaque`](super::SymOp::Opaque) node has no value away from its
-//! own build, and neither has a [`Hull`](super::SymOp::Hull) (a
+//! An [`Opaque`](crate::sym::SymOp::Opaque) node has no value away from its
+//! own build, and neither has a [`Hull`](crate::sym::SymOp::Hull) (a
 //! function of enclosures, not of the reals they stand for), so a DAG
 //! reaching either re-values to `None`: no claim is made about it, and
 //! no identity is proved over it either.

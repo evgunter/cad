@@ -102,3 +102,12 @@ The re-pairing retires the refusals and these with them.
   cut the same slab and read a carried edge-edge record's lineage at a
   plate's pierce (`a_carried_edge_edge_record_split_at_a_pierce_names_its_inputs_cells`).
   It now pins the refusal; the lineage row comes back with the re-pairing.
+- `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`
+  `a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`
+  (slow set; TANG, PR 5196): the plate united with two pyramids standing
+  on `MEET` that share an edge ray, so two coincident edges lie along
+  it. A pyramid along the ray with its faces in the arches, less them
+  (`x − y`), reverts their kept part and refuses `Revert { source:
+  WedgesOverlap }`: two cells a pose, the pyramid "in the wedge between
+  them" and the one with "a face in each". `builds_where`'s `reverting`
+  lists pin them; they come back as bodies with the re-pairing.

@@ -817,6 +817,94 @@ fn two_lines_read_whole_or_in_pieces_meet_alike() {
         let m = meets((&x, span), (&beside, (1.0, 5.0))).unwrap();
         assert!(m.points.is_empty(), "{span:?}: {m:?}");
     }
+    // A pair whose tilt over the overlap is in the band's gap: `x̂` over
+    // `(0, 8)` against a line through `(100, 0, 0)` tilted `s` toward it
+    // over `(-99, -93)`, which projects on `x ∈ [1, 7]`, about `96·s` off
+    // it there, and meets it a hundred metres on. At `s = 10⁻⁹` the tilt
+    // over the overlap, `s·(6 + 2e)`, is in the gap, so a router that
+    // only goes parallel on a zero tilt escalated whole where the pieces
+    // read parallel. The parallel margin, `96·s − s·(L/2 + e)`, decides
+    // positive whole and in every piece. Red where the tilt routes first.
+    let pieces = |(t0, t1): (f64, f64), k: usize| {
+        (0..k)
+            .map(|i| {
+                let at = |j: usize| t0 + (t1 - t0) * j as f64 / k as f64;
+                (at(i), at(i + 1))
+            })
+            .collect::<Vec<_>>()
+    };
+    for s in [1e-9, 3e-9, 1e-8, 1e-7, 1e-6] {
+        let far = line([100.0, 0.0, 0.0], [1.0, s, 0.0]);
+        for k in [1, 2, 3, 10] {
+            for span in pieces((0.0, 8.0), k) {
+                let got = pose(
+                    &Span::new(&x, span),
+                    &Span::new(&far, (-99.0, -93.0)),
+                    band(),
+                );
+                assert!(
+                    matches!(got, Ok(Pose::Parallel)),
+                    "tilt {s:e}, {k} pieces, {span:?}: {got:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **A line and a circle read whole or in pieces get one verdict.** The
+/// circle of radius 3 about `(4, 0, 0)` in `z = 0`, and a line along `x̂`
+/// at `y = 5` over `(0, 8)`, `10⁻⁷` above the plane at `x = 4` and tilted
+/// `d̂·n̂ = s` out of it. Where they can meet is `x ∈ [1, 7]`, over which
+/// the height moves `3·s`: parallel, whole and in pieces. At `s = 10⁻⁹`
+/// the tilt over the overlap is in the band's gap, which escalated whole
+/// where a piece read parallel. Red where the tilt routes first.
+#[test]
+fn a_line_and_a_circle_read_whole_or_in_pieces_meet_alike() {
+    let c = circle([4.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0);
+    for s in [1e-9, 3e-9, 1e-8] {
+        let up = line([4.0, 5.0, 1e-7], [1.0, 0.0, s]);
+        for k in [1, 2, 3, 10] {
+            for i in 0..k {
+                let at = |j: usize| -4.0 + 8.0 * j as f64 / k as f64;
+                let span = (at(i), at(i + 1));
+                let got = pose(&Span::new(&up, span), &Span::new(&c, (0.0, TAU)), band());
+                assert!(
+                    matches!(got, Ok(Pose::Parallel)),
+                    "tilt {s:e}, {k} pieces, {span:?}: {got:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **Two lines end to end at a shallow corner are no one curve.** Two
+/// segments a metre long meeting at the origin at `0.5°`–`2.8°`: their
+/// projections overlap at one point, where their distance is zero, but
+/// each one's far end lies centimetres off the other. `Coincident` claims
+/// one curve over both spans, so the pair is the crossing at the corner,
+/// met at both ends.
+#[test]
+fn a_shallow_corner_is_no_one_curve() {
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    for deg in [0.5_f64, 1.0, 2.0, 2.8] {
+        let (sn, cs) = deg.to_radians().sin_cos();
+        let y = line([0.0, 0.0, 0.0], [cs, sn, 0.0]);
+        let got = pose(
+            &Span::new(&x, (-1.0, 0.0)),
+            &Span::new(&y, (0.0, 1.0)),
+            band(),
+        );
+        assert!(matches!(got, Ok(Pose::Generic(_))), "{deg}°: {got:?}");
+        let m = meets((&x, (-1.0, 0.0)), (&y, (0.0, 1.0))).unwrap();
+        assert!(
+            m.shared.is_none()
+                && !m.points.is_empty()
+                && m.points
+                    .iter()
+                    .all(|p| matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{deg}°: {m:?}"
+        );
+    }
 }
 
 /// **A near-parallel pair is read where it can meet.** A line along `x̂`
@@ -845,9 +933,16 @@ fn a_near_parallel_pair_is_read_over_its_overlap() {
         read(20.0 * ZERO)
     );
     assert!(read(5.0 * ZERO).is_err(), "{:?}", read(5.0 * ZERO));
-    assert!(
-        matches!(read(0.5 * ZERO), Ok(Pose::Coincident { .. })),
-        "{:?}",
-        read(0.5 * ZERO)
+    // `ε/2` beside at the first span, the second's far end lies
+    // `9.5·10⁻⁹` off the first line, in the band's gap: one curve over
+    // the overlap is no one curve over both spans, and the pose
+    // escalates. Over `(0, 5)` its far end stays within `ε` of the first
+    // line, and the pair is one curve.
+    assert!(read(0.5 * ZERO).is_err(), "{:?}", read(0.5 * ZERO));
+    let short = pose(
+        &Span::new(&x, (0.0, 1.0)),
+        &Span::new(&line([0.0, 0.5 * ZERO, 0.0], [1.0, -s, 0.0]), (0.0, 5.0)),
+        band(),
     );
+    assert!(matches!(short, Ok(Pose::Coincident { .. })), "{short:?}");
 }

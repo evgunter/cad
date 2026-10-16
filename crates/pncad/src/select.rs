@@ -110,7 +110,7 @@ pub use editor_core::{
 /// prelude-curated `ValidationError` down to that arm was binding a
 /// value whose type this list did not name — and it is what the flush
 /// detector's own vocabulary is built from, since a
-/// [`FlushFinding`] is a finding plus the pair it was found on.
+/// `FlushFinding` is a finding plus the pair it was found on.
 ///
 /// Its two fields are already here, which is what makes the stop
 /// under it a stop rather than a deferral: a finding is a

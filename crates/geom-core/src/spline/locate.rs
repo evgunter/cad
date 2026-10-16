@@ -137,7 +137,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// channel's `p + 1` coefficients on that span: coefficient `k` is
     /// the blossom at `a` taken `p − k` times and `b` taken `k` times.
     /// `held` is the curve's knot values in the scalar (its
-    /// [`Knots::values`]), and `held_ends` the ends `ends` in the scalar
+    /// [`Knots::values`](super::Knots::values)), and `held_ends` the ends `ends` in the scalar
     /// (a breakpoint's held value, any other end its constant).
     ///
     /// Per scalar, as the locator is. At `Interval` it is the window's

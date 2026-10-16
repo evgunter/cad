@@ -699,6 +699,15 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));
+            // The rim across the kept wall is re-anchored with the move
+            // and asked the rule again over its new extent: the two
+            // walls are one cylinder, which under-determines it at any
+            // length, so it keeps its image.
+            let label = format!("{op}, d = {d}");
+            assert!(
+                across_a_wall(&moved, &label).contains(&CurveKind::Circle),
+                "{label}: the rim still lies across the kept wall as an image"
+            );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();
             let m = topo::mass_properties(&moved, tol).unwrap();
             assert!(
@@ -741,7 +750,13 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
 /// the pierce is unread. There the three ops with the first rod first
 /// at 80 refuse `CurvedPierceUnsupported` too, before the sector
-/// reading. The rest of the table holds at every ε.
+/// reading, on the same meter: the seam ruling lies on the other rod's
+/// wall, the interior question reads its meetings with that wall's rim
+/// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
+/// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
+/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
+/// pierce refusals here is that meter. The rest of the table holds at
+/// every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();

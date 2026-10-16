@@ -1239,7 +1239,7 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame, through [`frame_value`].
+/// frame, through `frame_value`.
 pub(crate) fn frame_plane_lane<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -1974,7 +1974,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///    mid-evaluation.
 ///
 /// Rungs 2 and 3 are ordered by the DOOR. The one-table doors ask 1,
-/// 2, 3. The declare door ([`resolve_declarations`]) asks 1 and 3 of
+/// 2, 3. The declare door (`resolve_declarations`) asks 1 and 3 of
 /// BOTH names, then its pair's kind question, then 2: a name that names
 /// nothing says so before any question about the pair, and a pair the
 /// vocabulary has no step for is unsupported however many entities
@@ -2798,7 +2798,7 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// step between the accumulation's faces that descend from its first
 /// face (the fold's lineage, [`names::UnionFold`]) and its second face,
 /// and the step decides no carrier pair of its own
-/// ([`topo::Verdicts::Given`]). A refusal only a step raises names the
+/// (`topo::Verdicts::Given`). A refusal only a step raises names the
 /// member that step folds in ([`NodeErrorKind::UnionFoldStep`]). Two
 /// members are one pair: their one step is the judgement, run and
 /// logged once, its refusals the pair's own.
@@ -3287,7 +3287,7 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// carrying a declaration is run whatever its boxes: the declaration is
 /// a claim to verify, and verifying it here keeps the verdict
 /// independent of whether the fold fed the pair or consumed its face
-/// ([`drop_consumed`]), and tells a mistyped name from a consumed one.
+/// (`drop_consumed`), and tells a mistyped name from a consumed one.
 ///
 /// **Whether it refuses depends on the members, never on their
 /// order**: every pair that touches or carries a declaration is judged,

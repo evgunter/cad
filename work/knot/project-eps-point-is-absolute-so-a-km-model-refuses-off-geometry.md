@@ -45,3 +45,24 @@ meets.
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. KNOT collects the spline, net and fit doors in `geom-core` and `geom`: refinement inside an enclosure, the net-state reads, the NURBS derivative and projection doors, and the fit's refusals and solves. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## A model-scale witness (plane × spline rim fork, 2026-10-16)
+
+The plane × spline rim fork's designers met this at ordinary scale.
+They filed it here rather than as a new item, because the mechanism
+is this one.
+- With the loft door switched to `OnPair` or `Intersection`, f64 rows
+  refuse `PlaneNurbs(FootPointInconclusive { last_distance ≈ 1e-13 })`
+  through limb 1's certified feet (`crates/geom-brep/src/ssi/certify.rs:644`,
+  `NurbsSurface::project_from_seed`): the strip loft and the translated
+  arc prism (3 rows in the other designer's run; also listed in
+  `work/ssiedge/plane-nurbs-certificate-refuses-at-rest-rows-of-lofts-and-sweeps.md`).
+- A foot coincident to ~1e-13 m is four orders inside ε. The Newton
+  loop (`crates/geom/src/surfaces/projection.rs`) accepts it only at
+  `dist <= PROJECT_EPS_POINT` (1e-13, `crates/geom/src/projection_policy.rs:137`)
+  or on the cosine test. At that distance the residual direction is
+  rounding noise, so the cosine test cannot pass, and the 32-iteration
+  budget expires on a converged foot.
+- So the refusal is the stop criterion's, not a miss. A residual
+  already decided Zero against the band at that distance needs no
+  orthogonality.

@@ -1819,7 +1819,7 @@ fn name_boolean_edges<T: Decide>(
 /// What an edge the output stage's joins made lies along.
 enum JoinedCover {
     /// Along no operand edges that cover it: named from its two faces,
-    /// as a seam is ([`ChordKind`]).
+    /// as a seam is (`ChordKind`).
     Faces,
     /// Within one operand edge, a piece of it.
     One(OpSide<EdgeKey>),
@@ -2078,7 +2078,7 @@ fn name_boolean_vertices<T: Decide>(
         }
         // What the boolean classified here: the senses a crossing is
         // named by.
-        let at_v = senses_at(naming, &keys, a, b)?;
+        let at_v = senses_at(naming, v, &keys, a, b)?;
         // Seam vertex: parents from incident edges' names.
         let edges = inc
             .vertex_edges
@@ -2634,17 +2634,39 @@ struct EdgeSense {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where one side of the vertex holds pieces
-/// of one edge on both sides of the other operand, or holds no
-/// classified piece: a vertex that is not an operand's own holds the
-/// edge on both sides, so a row the boolean owed is missing.
+/// [`NamingError::PartnerUnread`] where a key is one the boolean read no
+/// partner of ([`topo::UnreadPartner`]), whose edges hold no class to
+/// read a sense from; [`NamingError::Emission`] where
+/// one side of the vertex holds pieces of one edge on both sides of the
+/// other operand, or holds no classified piece: a vertex that is not an
+/// operand's own holds the edge on both sides, so a row the boolean owed
+/// is missing.
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
+    v: VertexKey,
     keys: &BTreeSet<(topo::Operand, VertexKey)>,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
 ) -> Result<Vec<EdgeSense>, NamingError> {
     let bug = |what| NamingError::Emission { what };
+    // A key the boolean read no partner of holds no class, by the
+    // boolean's own account: its edges would drop out of the senses
+    // unseen, so the crossing refuses naming why instead. A listed key
+    // is an operand's own vertex, which the identity pass names first
+    // (`name_boolean_vertices`), so this is reached only where its
+    // operand's table names no vertex at any key the result vertex
+    // holds.
+    if let Some(u) = naming
+        .unread_partners
+        .iter()
+        .find(|u| keys.contains(&(u.operand, u.vertex)))
+    {
+        return Err(NamingError::PartnerUnread {
+            vertex: v,
+            partner: u.partner,
+            unread: *u,
+        });
+    }
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
@@ -4510,6 +4532,55 @@ mod tests {
             cs.iter().all(|c| t.lookup(c).is_none()),
             "a constituent is published: {cs:?}"
         );
+    }
+
+    /// **A crossing at a vertex the boolean read no partner of refuses
+    /// why** (`topo::UnreadPartner`): its edges hold no class, so their
+    /// senses would drop out of the name unseen. A crossing whose keys
+    /// the list does not hold reads its rows as before (here, none).
+    /// Constructed, since a crossing is not reached at a listed vertex
+    /// in a model (`a_mate_on_a_full_turn_bore_names` lists partners and
+    /// names cleanly): a listed key is an operand's own vertex, and
+    /// `name_boolean_vertices` names a result vertex by that identity
+    /// before it reads senses, so `senses_at` meets a listed key only
+    /// where the operand's table names no vertex at it.
+    #[test]
+    fn a_crossing_at_an_unread_partner_refuses_why() {
+        let built = unit_cube();
+        let mut corners = built.body.vertices().map(|(v, _)| v);
+        let (listed, partner, other) = (
+            corners.next().unwrap(),
+            corners.next().unwrap(),
+            corners.next().unwrap(),
+        );
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Direct,
+            unread_partners: vec![topo::UnreadPartner {
+                operand: topo::Operand::A,
+                vertex: listed,
+                partner,
+                neighbourhood: topo::UnreadNeighbourhood::OneFace,
+            }],
+            ..topo::BooleanNaming::default()
+        };
+        let table = NameTable::new();
+        let ctx = |read| OperandCtx {
+            node: RecipeNodeId::new(0, 1),
+            read,
+            table: &table,
+            body: &built.body,
+        };
+        let (a, b) = (ctx(crate::names::FOLD_A), ctx(crate::names::FOLD_B));
+        let keys = BTreeSet::from([(topo::Operand::B, partner), (topo::Operand::A, listed)]);
+        assert!(matches!(
+            senses_at(&naming, other, &keys, &a, &b),
+            Err(NamingError::PartnerUnread { vertex: at, partner: met, unread })
+                if at == other && met == partner && unread == naming.unread_partners[0]
+        ));
+        // The same vertex key read from the other operand is not listed.
+        let keys = BTreeSet::from([(topo::Operand::B, listed)]);
+        assert!(senses_at(&naming, other, &keys, &a, &b).unwrap().is_empty());
     }
 
     /// **A face a merge absorbed that the body still holds refuses.**
