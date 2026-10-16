@@ -708,6 +708,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **P3, guards and latent soundness:** corner on a circle's interior unseen; join re-mint refusing as a kernel defect (design); mirrored split that joins; split join killing a child; wrap-edge arm; chart singularity read by distance alone (design).
   - **P4:** the joined finisher minting twice.
 - 2026-10-09 — `fused-into-names-vertices-not-live-in-the-result` is dispatched to the step-3 lane on `fuse/fused-into-is-live`. It re-measures on main first, since the join is a new vertex remover, then fixes at the remover.
+- 2026-10-09 — The `fused-into-is-live` lane measures on main, then gets its ruling.
+  - **Corpus:** the rebuilt lattice probe (1000 bricks × 3 declared ops) gives 387 of 2721 bodies with a dead `fused_into` value.
+  - **Removers of the 768 dead values:**
+    - the join, 336;
+    - merge pruning, 420;
+    - the merge's `delete_lone_ring`, 12;
+    - nothing else.
+  - **Why the old type fails:** every dead survivor's point now lies inside a live edge or face, so a `VertexKey` value can never be total over live keys.
+  - **Ruled (orchestrator), as the step-4 rule applied (a name reads over live cells):** `fused_into` returns a typed live cell (`Vertex` | `InEdge` | `InFace`). The join and merge kill records are chased to it, and the corpus is pinned as a row.
+  - **What stays the same:** consumers' naming output does not move. A border inside a cell still settles to None. Naming it is filed as a separate design row.
 - 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
 - 2026-10-09 — (ENCL, PR 4366) Your ground: `merge_faces.rs` `KeptBoundaryUndecided` now ends through `DIHEDRAL_ARM`'s recourse. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4401, merged): `LeverEscalation::with_diag` is gone. The one re-quote door is `quoting_reading`; ask `re_quotes()` first. A decided arm keeps its verdict only onto a reading of the same rejected sign, and otherwise is returned unchanged. The dihedral arm clause is `geom_brep::DIHEDRAL_ARM_CLAUSE` / `dihedral_arm_clause!()`; compose it, never re-spell it. (ENCL orchestrator)
@@ -720,3 +730,183 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-11 — ZIP closed (`docs/doc-ledger/zip-leaves-the-tracker.md`); `a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` moved here because its fix site, `carry_rows`, is the same as `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`'s.
 - 2026-10-11 — Note to FUSE's orchestrator (Ev, in chat): wrap up the work in progress, then cut the slate into lower-priority successor programs. The P0 that the charter claims no longer holds. The two confident-wrong-answer rows it names have closed (`subtract-of-a-hollow-operand-files-the-island-under-one-solid`, #3891; `boolean-rebuild-folds-an-in-band-second-order-into-conventional`, #3889), and no live row is P0. The highest rows are 11 at P1, mostly breadth (the curved and spline joins, the census lanes) plus the record-dropping rows. The track is at 73.5 budget points against 30. The cut follows `work/README.md` Track size: on the priority seam, rows moved by `git mv` with their ids, and FUSE re-banded to match its spine. For the precedent, see TOPO's second cut (`work/topo/log.md`, 2026-10-11) and `docs/doc-ledger/zip-leaves-the-tracker.md`. (Posted from a tracker-review session, not FUSE's own.)
 - 2026-10-11 `a-record-on-a-curved-edge-resting-on-a-face-refuses` closed by CONTACTHOLD: PR 4604 merged (its closing note above).
+- 2026-10-12 — PR 4398 lands, and `fused-into-names-vertices-not-live-in-the-result` closes.
+  - **What it builds:**
+    - `BooleanNaming::settler(body)` settles a vertex on the live cell its point lies in: a vertex, an edge via `edge_join::joined_cell`, or a face via `merge_substitutions`, which carries `MergedGroup::substitutions`.
+    - The walk is shared with `Descendants::chained` (`chase_live`). It refuses typed: `SettleError::{Dead, Cyclic, DuplicateRow}`.
+    - `fused_into` is the fused vertices settled. The naming layer settles every bordered end and carries `NamingError::Settle`. Naming output does not move.
+  - **Rows:** the lattice corpus (2721 bodies) asserts that every settled cell holds its point, read off a pre-output-stage snapshot armed by the test.
+  - **Review:**
+    - Lane A (Opus) found no blockers. Its five minors were fixed, among them one chase rather than two, the error kept typed through naming, and unfused ends settled too.
+    - Lane B (Fable) died twice: once at a container restart, once at the usage limit. Its third run passed an independent geometry probe (0 bad of about 67,500 values). Mutants b2/c2 (a live but wrong cell) and (e) (a cycle passing) survived the committed rows, and round 2 killed them. Round 2 also built the settler's steps from `joined_cell` and `MergedGroup::substitutions`, so it has no private table.
+    - An Opus delta check confirmed all four items.
+  - **CI:** green except FLUSH's own red at 1e-12 on main (`a-ring-serving-two-pierces-*`). Main moved under the PR four times; the last merge of main was data-only and landed on local checks.
+  - **Filed:** `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (P3, design). `Cell` is added to `work/lib/payload-rungs-behind-struct-payloads.md` beside `OperandKeys`.
+- 2026-10-12 — `face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added` (P1) is dispatched to the same lane on `fuse/face-lineage-at-append`. It measures the writers' append order first; a writer that cannot hold the check is a fork.
+- 2026-10-12 — The `face-lineage-at-append` measurement comes in, and both of its calls are ruled.
+  - **Measurement:** each writer instrumented to panic where the append-time check would refuse, over ci plus the slow set (about 13.8k tests). No real violation.
+  - **The writers:**
+    - `chord_join`'s fragments: always fresh keys, and freshness implies no cycle;
+    - `absorb_merge`, for `Descendants.faces`;
+    - one DFS merge pass: disjoint groups, a kept face never absorbed;
+    - `Descendants.cells`, written in a fixed order: zip, merge, join.
+  - **Ruled (orchestrator, not a fork), (A):** one typed `BooleanError::LineageRow { rows, defect, key }`, which `Fusions` moves onto as well. The split lane maps the same lane-neutral defect.
+  - **Ruled (orchestrator, not a fork), (B):** the split lane's `face_fragments` is in scope, so editor-core's `FragmentLineage` retires whole.
+  - **What stays open:** `join-desync-is-the-catch-all-for-cyclic-lineage-records`, for its two edge `SplitLineageCycle` sites.
+- 2026-10-12 — PR 4868 lands, and `face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added` closes.
+  - **What it builds:**
+    - One checked core, `lineage::Substitutions<K>`, with `Fusions` as its vertex instance. It carries Descendants' cells and absorbed faces, and `BooleanNaming::substitutions` (merge rows, then join rows).
+    - `FaceDivisions`, with fresh keys and acyclic by construction, for both lanes' face fragments.
+    - One refusal, `BooleanError::LineageRow`, with `of_join` lifting the split lane's refusal into it.
+  - **What it retires:** the readers' cycle refusals, `SettleError::{Cyclic, DuplicateRow}`, `chase_live`, `lineage_root`, and editor-core `FragmentLineage`.
+  - **Review:**
+    - Lane A (Opus) found no blockers. Its ten minors included the Fusions/Substitutions rule written twice, a join-only cycle through the unchecked `edge_joins`, and the `merge_groups` bullet left open. All were fixed: the join rows are now checked, and `Cyclic` is deleted.
+    - Lane B (Fable): soundness probes found no cycle. Mutant M2 (`from_rows` unvalidated) survived, and a row now kills it.
+    - An Opus delta check passed all 7 items.
+  - **CI:** green, except FLUSH's 1e-12 ring row on main.
+  - **Filed:**
+    - `divisions-faces-is-a-second-unchecked-spelling-of-face-divisions`;
+    - `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`;
+    - `boolean-naming-carries-the-join-rows-twice` (design);
+    - `of-join-sites-are-held-by-grep-alone`.
+  - `join-desync-is-the-catch-all-for-cyclic-lineage-records` stays open for the edge split-lineage sites and the naming tables they mix in.
+- 2026-10-12 — Three rows of one class are dispatched together on `fuse/records-read-the-piece`: a carried record reads a divided face by key, not by the piece its contact lies on (edge-face and face-face P1; vertex whose vertex the join or merge took P2; the older pit-and-spike vertex-on-face P1). The lane measures first. Carrying a killed vertex's point in its lineage row is a fork if it turns out to be needed.
+- 2026-10-12 — The `records-read-the-piece` measurement comes in, and each row is ruled.
+  - **Measurement:**
+    - the lattice through 3′: 0 failures;
+    - two-stage carries: 4,536 runs, 0 refusals;
+    - a hand pose for row 1;
+    - `carry_rows` instrumented over 8,342 tests: 0 by-key reads of a divided face.
+  - **Rulings:**
+    - **Pit-and-spike vertex-on-face row:** fixed on main by `Descendants::holder` (PR 4650); it closes.
+    - **Edge-face/face-face row:** no path, since no carried record kind holds a face cell and `cell_rows` is edge-edge only. It closes, cross-referenced to WIRE's carried-kind row, which takes the obligation.
+    - **Joined/merge-killed vertex row:** the code path is real but unreached. Build it: `holder(face, q)` as the one door, with the dead vertex's point read from the operand body. No geometry goes on lineage rows, so it is not a fork. A witness or unit row plus a mutant is required.
+- 2026-10-13 — `records-read-the-piece` is superseded by CONTACTHOLD's PR 4820, "the one carry".
+  - **What 4820 did:** it rebuilt the same code. `Descendants::holder` is deleted. A divided face is read by the census's confirm, `place_found` and `records::landings`, and carried records go through `operand_fate`.
+  - **What PR 4893 was:** the point-based `holder(face, rest)` with an `at_rest` guard. It had been reviewed (both lanes plus a delta check) and was ready to merge when the conflict showed.
+  - **Ruled (orchestrator):** take main's carry wholesale and drop 4893's code, since a second, point-based door beside the confirm would be the defect the unit closes. 4893 shrinks to the tracker plus its dead-vertex rows ported onto main's carry. A ported row that fails on main is filed on CONTACTHOLD's slate as a witness.
+  - **Kept as a finding:** `share_points` classes are a transitive closure. A class of three or more keys can span past the zero band; there were 36 such classes per eps in the ci suites, though none reached it.
+- 2026-10-13 — PR 4893 lands, slimmed onto 4820's one carry.
+  - **What it lands:**
+    - one test: a taken vertex's row on a divided face lands on the piece its edge lies in, killed by a by-key mutant;
+    - the rows closed against 4820 and PR 4650.
+  - **Green on its first CI run.**
+- 2026-10-13 — Two things are dispatched.
+  - **`fuse/carry-rows-after-4820`, a tracker re-measure:** the lane re-runs every carry-class row (several were parked behind INTENT stage 4, now open) against main after 4820, then closes, re-scopes or moves each to CONTACTHOLD.
+  - **The sliver-arc fork:** `a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean` (P1, design) goes to an Opus and a Fable designer, concurrently, with the same problem statement and no candidates.
+- 2026-10-13 — The sliver-arc designer pair report, and both agree: **not a fork; the premise fails.**
+  - **Why:** a few-ε arc's own certification, with the same margin and band over its own extent, refuses it at mint, split and seam. Measured on three pose families: the join's in-band window is empty on certified input, and "main built the body" was never observed.
+  - **Ruled (orchestrator), as both recommend:**
+    - lever the vertex reading over the joined edge's extent (lower bound: the longer edge's, `min` → `max`);
+    - correct `EDGE_JOIN_SITE`'s comment;
+    - land the boundary as a ci row.
+  - **Rejected by both:** a curvature-only lever, and dropping the vertex reading, which guards a locus crossing.
+  - **Row:** re-priced P3 / E, `design: false`.
+  - **No fork-log row:** the population is `[ev]` forks only (protocol rule 1).
+- 2026-10-13 — The carry-class re-measure on main 0d2117d0 comes in.
+  - **Coverage:** a temporary probe ran tier 3′ on every boolean result in ci (about 18k results), plus the Lcvx and pinched-operand review batteries. It found 0 `StaleContactDeclaration`.
+  - **Closing, five rows:**
+    - kissing-corner (P1);
+    - subtract-through-pinch (P1);
+    - records-no-longer-confirm (P2);
+    - two-pinch-union (P2);
+    - dip-inside-rest (P3).
+  - **Re-scoped:** the carried-vf-at-a-pinch P3, to 4820's names.
+  - **New finding:** 229 results that carry records still ship an *undeclared* contact, in 7 tests. They are green only because none of those tests asserts 3′.
+  - **Ruled:** trace one pose so the row lands with its owner (CONTACTHOLD for the carry, FUSE for the mint). File it at P1, with a P3 for the missing 3′ assertions. The lane also adds a line to the stale-citation rows of other programs.
+  - **The trace overturns the P1 ruling.** All 229 come from tests that fold through bare kernel ops without `BooleanInputs` records. Their allowances are documented, or a carried sibling asserts 3′ and passes. Re-folding `standing_pyramids…` with the records carried passes strict 3′ on 60/60 steps. No defect, and no P1.
+  - **Filed instead, P3 with `design: true`:** a result's tier-3′ currency is relative to the records passed in, so the `BooleanBody` contract can overstate it. Fixes to weigh: say so in the doc, refuse or flag the input, or make the type carry the relativity.
+- 2026-10-13 — PR 4939 (the join lever) merges at a1900fc0, from head afbb1b1e on green CI.
+  - **What:** the join levers a vertex's reading over the larger of its two edges' extents (`min` → `max`), and `EDGE_JOIN_SITE`'s comment is corrected.
+  - **Test:** a ci row pins the refusal boundary, at `Kε` on a line edge and at `10ε` on a cap arc.
+  - **Closes:** the sliver-arc row. Reverting `max` → `min` keeps every test green: the change fixes what the reading means, not any outcome, as ruled.
+- 2026-10-13 — Dispatched: `census-curved-record-lanes-read-circles-only` (P1/H) to a fresh lane, on branch `fuse/census-reads-every-curved-edge`.
+  - **Why this one:** an ellipse or spiric edge can hold a record through the public API (a tilted cylinder section).
+  - **The two spline P1s** stay behind the operand gate.
+  - **Brief:** reproduce first; one reading over `Curve3` rather than per-kind copies of the circle's; no candidate missed silently.
+- 2026-10-13 — PR 4946 (the census reads a record on a curved edge of every carrier kind) merges at 49ff025b, from head c292934a8.
+  - **CI:** green except FLUSH's tolerated 1e-12 ring row.
+  - **Closes:** `census-curved-record-lanes-read-circles-only` (P1).
+  - **Review:** three rounds, Opus + Fable.
+    - Round 0: `interior_at` decided "at the end" on the lo speed; an ellipse `param_near` is not a foot; line/circle tangency regressed onto the budget; an undisclosed copy of carrier_touch's bisection.
+    - Round 1: on one shared `topo::bisect` core, with a second-order clear and a tangency floor. Opus then found the end check ignored the side, so a point 15ε outside an arc's start read interior.
+    - Round 2: the side is decided first, and a poison floor or sup refuses typed. Opus probed both ends, both sides and five carriers (ellipse aspect 20/50, spirics, a loose rational spline): 0 wrong reads.
+  - **Rows filed by the lane:**
+    - restread: `the-census-edge-face-cut-crosses-chords-and-conics-only`
+    - cleave: `the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier`
+    - fuse:
+      - `near-concentric-arcs-…-past-its-budget`
+      - `a-tangency-of-a-spline-edge-…`
+      - `two-curve-curve-meeting-finders`
+      - `the-census-spline-speed-floor-refuses-whole-arcs`
+      - `the-localization-core-is-half-unified`
+      - `a-tangency-at-an-edges-end-confirms-two-records` (design)
+  - **Filed by the orchestrator:** `the-census-curved-span-decision-escalates-near-a-fast-end` (P3).
+- 2026-10-13 — Two moves on the remaining P1s.
+  - **Parked:** `joining-a-spline-carrier-is-unbuilt` (P1 → P2), blocked on REACHHOLD's `nurbs-edge-crossing-rung-is-the-ring-composite`. The sweep refuses a spline edge typed before any join can see it, even with the operand gate gone, and the join's own refusal is typed too.
+  - **Dispatched:** `chart-arm-joins-no-spline-or-fitted-iso-image`, reproduce first. Its fitted-image and oblique-section arms are not gated on spline operands, so analytic operands may reach them. The spline-chart arm waits like the join if it cannot be reached.
+- 2026-10-13 — `chart-arm-joins-no-spline-or-fitted-iso-image` is probed and not reached, so it is parked (P1 → P2).
+  - **Blocked on:** cleave's germ roster (`a-tilted-plug-union-…`) and REACHHOLD's NURBS crossing rung.
+  - **Evidence:** 259k Chart readings across the ci suites and a widened tilted, curved∩curved and oblique-glue battery. Every reading was an analytic `Harmonic` image and every one was classified.
+  - **Design note for the un-park:** the oblique case needs carrier identity, not an iso family.
+  - **No FUSE P1 remains open.**
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
+- 2026-10-13 — Two P3 lanes were dispatched on clusters, now that no FUSE P1 remains open.
+  - **Sliver ruling for the near-concentric arcs (orchestrator, not a fork).** The circle×circle coaxial proxy is deferred to `two-curve-curve-meeting-finders`, where closed forms are decided once. The near-band window refuses loud, so nothing pushes for it sooner. The pin is band-relative.
+- 2026-10-13 — PR 4981 (join and merge refusal lifts held by their type; null-edge copies checked at append) merges at 37027528.
+  - **Rows closed:** `of-join-sites-are-held-by-grep-alone`, `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+  - **Review:** Fable found it mergeable. Its notes were folded into the PR: the territory line, the emit row's stale `JoinDesync` text plus an evidence line, a vertex slot-reuse test, and the split-rows row note.
+  - **Filed:** `topo/euler-driver-lift-is-held-by-convention`, `fuse/split-rows-are-chased-with-no-cycle-check`.
+  - **Next unit, dispatched to the same lane:** `fuse/lineage-rows-refuse-at-append`, covering the split rows and the `JoinDesync` catch-all.
+- 2026-10-13 — PR 4980 (one localization core) merges at 9868838d.
+  - **What it does:**
+    - `circle_roots` and `spiric_arc` move onto `topo::bisect`.
+    - One `reach`, one `tangency_floor` and one `curvature_hi`.
+    - `Step::Stop` carries a typed reason.
+    - A grey census span falls through to the side and chord checks.
+    - The `is_poison` gates become decisions.
+    - A non-finite floor stops nothing.
+  - **Review:** Opus and Fable both found it mergeable. Opus probed about 11k reads near the ends of edges and found 0 wrong. One cleanup round followed, folded in without a re-review: the remaining spellings and typed stops only lengthen a search.
+  - **Closed:** `the-census-curved-span-decision-escalates-near-a-fast-end`.
+  - **Left open:**
+    - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
+    - `near-concentric-arcs-…`, pinned with its analysis.
+  - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
+- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 134).
+  - **Converged after three rounds:** one reader with one point-on-span reading; a total kind-pair table; closed forms in one conic's angle; the walk used as an oracle; no runtime fallback.
+  - **Ev's fork:** the home, `geom-brep` or `geom`.
+  - **Measured on the way:** two silent `carrier_cross` defects, filed on cleave as P1 (#5024, #5026).
+  - **Disclosed slip:** the blinding byte was drawn at PR time, not at dispatch (`analysis/design-fork/curve-meeting-reader`).
+- 2026-10-14 — PR 5022 merges at 24bcccde: split rows are refused at append, and `JoinDesync` sheds its lineage-cycle arms (new `SplitLineage`). Opus found it mergeable, and seven fixes were folded in. Filed `lineage-lists-are-five-newtypes-over-one-core`, now dispatched to the same lane.
+- 2026-10-14 — PR 5030 merges at 1d777ace: the localization core's residue reads its one spelling.
+  - **Closed:** `the-localization-core-is-half-unified` and offset's `param-speeds-is-a-second-per-kind-speed-list`.
+  - **Review:** Fable found it mergeable and confirmed it bit-identical analytically. A fix round followed.
+  - **Merged over three main reds** that reproduce on pure main and are not this PR's: they were hidden from main's per-PR CI by the change filter. Filed P0 on nurbs (lily tessellation and saddle-wall fit, suspect 4984) and on flux (mass-props thread golden, suspect 4938) (#5045).
+- 2026-10-14: PR 5049 (one lineage list) merges at 0105b45a.
+  - **What it does:**
+    - `Minted<K>` over a `LineageRows` tag, so the tag lives on the list;
+    - the split's edge rows are checked at append;
+    - the pncad-py tag for `SplitLineage` changes to `split_lineage_cycle`.
+  - **Review:** Fable found a parallel `tag::*` vocabulary, which was folded into `LineageRows`.
+  - **Broke main:** a hand-written `Default` was missing PR 5039's `chart_cuts`. The text merged cleanly but did not build. The lane caught it within minutes and fixed it in PR 5060 (7a35f3b6). I checked the fix with `cargo check -p topo` against current main, then merged it ahead of its CI.
+  - **Rule from now on:** before merging, the PR's last green CI must be on a head that already includes current main. Otherwise, compile the PR merged with main first.
+- 2026-10-14: Ev ruled on PR 5027, which merges at 48a78aeb.
+  - **Ruling:** the curve-pair reader lives in `geom-brep`, and C5 governs curve pairs.
+  - **Follow-up:** Ev asked whether the principle generalizes. Filed `the-curve-pair-reader` (P1, dispatched to a new lane) and `every-pair-question-has-one-total-table` (P2) in #5063.
+  - **Fork-log:** the row became 134, because 133 had been taken.
+- 2026-10-14: PR 5051 (census pass 2′: a vertex on a curved edge's interior, unrecorded) merges at 98fe5e2e.
+  - **Review:** Opus and Fable both found it mergeable.
+  - **Fixes in the round:**
+    - one walk, `near_pieces`, shared with `feet`;
+    - a row for the skip;
+    - spline control-hull boxes;
+    - `ve_face_backed` shared;
+    - `at_end` now decides explicitly;
+    - pass 2′ traced.
+  - **CI:** red only on #5045's remaining lily row. Main fixed the other two.
+  - **Before merge:** compiled merged with main.
+  - **Filed:** `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime` (waits on the reader).
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 35 rows left are 1 at P1, 6 at P2, 25 at P3, 2 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)

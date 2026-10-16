@@ -277,7 +277,7 @@ fn revert_extruded_prism_posture() {
     let original = format!("{body:?}");
     let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
-    let reverted = body.revert();
+    let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
@@ -292,8 +292,11 @@ fn revert_extruded_prism_posture() {
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
-    assert_eq!(format!("{:?}", reverted.revert()), original);
-    assert_eq!(format!("{:?}", body.revert()), format!("{reverted:?}"));
+    assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
+    assert_eq!(
+        format!("{:?}", body.revert().unwrap()),
+        format!("{reverted:?}")
+    );
 }
 
 /// TARGET 4, FLIPPED TO A CONSTRUCTION ROW (M5 S12; was
@@ -335,7 +338,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         .collect();
     assert!(!curved.is_empty(), "the D-body has a cylinder wall");
 
-    let reverted = body.revert();
+    let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), before, "revert mutated its operand");
     // Exactly the curved faces flipped, and they flipped from their
     // OWN bit (not stamped to a constant).
@@ -359,8 +362,11 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
-    assert_eq!(format!("{:?}", reverted.revert()), before);
-    assert_eq!(format!("{:?}", body.revert()), format!("{reverted:?}"));
+    assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
+    assert_eq!(
+        format!("{:?}", body.revert().unwrap()),
+        format!("{reverted:?}")
+    );
 }
 
 /// TARGETS 2+3 on swept bodies: a split then a null strut on the

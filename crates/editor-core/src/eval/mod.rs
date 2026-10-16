@@ -29,7 +29,9 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
-pub(crate) use wire::decision_words;
+pub(crate) use wire::{
+    DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
+};
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
@@ -612,7 +614,7 @@ pub struct NodeValue<T: Decide> {
     /// relative to the shapes they copy, `None` for the bit-exact
     /// identity and for every value that is no placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
-    pub motion: Option<geom_core::Affine3<T>>,
+    pub motion: Option<geom_core::RigidMotion<T>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -967,8 +969,7 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
 /// of the same question, for the roads that never hold a value: a
 /// reference read straight out of the document (the mate solve's
-/// derived offset refusing a circular rule's `axis` operand, and the
-/// wire's `node_operand` door).
+/// derived offset refusing a circular rule's `axis` operand).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a
@@ -1486,6 +1487,10 @@ pub enum NodeErrorKind {
     Boolean(BooleanError),
     /// The rigid-transform op refused.
     Transform(TransformError),
+    /// A placement's rigid motion was not minted (a part of it is not
+    /// a finite number) or not admitted (a literal frame, or a map the
+    /// mate solve composed, that the decided door refuses).
+    Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,
     /// open/closed mixing, degenerate sections, an unusable v-degree,
@@ -1590,19 +1595,6 @@ pub enum NodeErrorKind {
     Seed {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
-    },
-    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
-    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
-    /// the skinned surface's structure must be lane-identical) — the
-    /// seed has no channel to ride there and would reach the surface
-    /// as a constant. Refused at the consuming node, naming the
-    /// section, rather than embedded as a finite wrong zero: the
-    /// profile gap, typed.
-    SeedPinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded variable the section reads.
-        param: crate::var::VarId,
     },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
@@ -1753,6 +1745,36 @@ pub enum NodeErrorKind {
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A measurement's parallelism read escalated** (D10's Measure
+    /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
+    /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
+    MeasureEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A placement frame's rotation axis escalated** (D10's placement
+    /// ground): the sentence `EditError::PlacementAxis` carries, which
+    /// [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PlacementAxisEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A pose's or datum's direction escalated** (D10's pose ground):
+    /// a datum's axis, normal or frame axis, or a pose construction's
+    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// which [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PoseDirectionEscalated {
         /// The named predicate.
         predicate: &'static str,
         /// The escalation, unaltered.
@@ -1932,34 +1954,14 @@ pub enum NodeErrorKind {
         /// The kernel-side refusal, unaltered.
         error: topo::readback::ReadbackError,
     },
-    /// A loft's or a sweep's SECTION is drawn on a derived frame
-    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
-    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
-    /// (the skinned surface's structure must be lane-identical), and a
-    /// derived frame has no `f64` elaboration off the `f64` lane — its
-    /// placement is the lane's own value — so the section refuses,
-    /// naming the profile and the frame, rather than placing itself
-    /// on a fabricated point of the frame's bracket.
-    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
-    DerivedFrameSection {
-        /// The section profile node.
-        profile: RecipeNodeId,
-        /// The derived frame node it is drawn on, `None` for a frame
-        /// pose definition, which no node defines.
-        frame: Option<RecipeNodeId>,
-    },
     /// A profile needed an AUTHORED frame's `f64` placement and the
     /// frame's own direction slots refused, so the refusal is raised
     /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
     ///
-    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
-    /// its ids, because this refusal reaches the same third node.**
-    /// `profile_plane_f64` is read from the profile node's own
-    /// evaluation, where the error lands on the profile and its id is
-    /// confirmation — and from `wire`'s section seam, where the error
-    /// lands on the LOFT or SWEEP and neither node in the sentence is
-    /// the one it is attached to. One id would leave that road naming
-    /// half of what it refused about.
+    /// **Both ids.** `profile_plane_f64` is read from the profile
+    /// node's own evaluation, where the error lands on the profile and
+    /// its id is confirmation, and the frame's id says which frame
+    /// refused.
     ///
     /// **The carried refusal is the fact, not a second one.** A frame
     /// slot that refuses reaches a human two ways — raised at the
@@ -2216,6 +2218,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
+            Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
@@ -2274,13 +2277,6 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
-            Self::SeedPinnedSection { section, param } => write!(
-                f,
-                "the seed on variable {param} reaches section {}, which stays f64 \
-                 in every lane (a loft's or a sweep's section is structure) — the tangent \
-                 cannot ride through it, so this node refuses rather than embed a zero",
-                by.node_as(*section, "profile node")
-            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -2402,6 +2398,16 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(what, crate::decision::ending(predicate, source))
+                )
+            }
+            Self::MeasureEscalated { predicate, source }
+            | Self::PlacementAxisEscalated { predicate, source }
+            | Self::PoseDirectionEscalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
@@ -2560,17 +2566,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "datum frame node"),
                 refusal.node_error()
-            ),
-            Self::DerivedFrameSection { profile, frame } => write!(
-                f,
-                "section {} is drawn on {}, and a loft's or a \
-                 sweep's section is placed only in the plain (f64) evaluation, so this \
-                 evaluation refuses rather than guess where the frame lies",
-                by.node_as(*profile, "profile node"),
-                frame.map_or_else(
-                    || "a frame pose definition".to_owned(),
-                    |frame| by.node_as(frame, "derived frame node").to_string()
-                )
             ),
             Self::MeasureRefUnreadable {
                 slot,
@@ -2904,7 +2899,6 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
-    + SectionScalar
     + crate::mate::SolveScalar
 {
 }
@@ -2919,7 +2913,6 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + SectionScalar
         + crate::mate::SolveScalar
 {
 }
@@ -3232,63 +3225,6 @@ pub enum ProfileLift {
     /// A decision this scalar cannot confirm refuses the node typed
     /// rather than quietly keeping the nominal structure.
     Guided,
-}
-
-/// **Which scalars carry a section's placement** — the lane door DM1c
-/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
-/// section drawn on a derived frame takes its placement from the
-/// frame's landed value, which is exact `f64` only where the
-/// evaluation scalar IS `f64`.
-///
-/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
-/// reason: which lane an evaluation runs in is a fact about the type,
-/// so the type answers it. `f64` hands its value across; `Probe` is
-/// `f64` wearing a counter and does the same; every analysis scalar
-/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
-/// tangent has no single `f64` that is not a fabricated choice. No
-/// number is inspected: the answer is decided by the impl, never by a
-/// comparison.
-pub trait SectionScalar: geom_core::Real {
-    /// The value as exact `f64` where this scalar is the `f64` lane;
-    /// `None` on every analysis scalar.
-    fn pinned_f64(self) -> Option<f64>;
-}
-
-impl SectionScalar for f64 {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self)
-    }
-}
-
-#[cfg(feature = "probe")]
-impl SectionScalar for geom_core::Probe {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self.0)
-    }
-}
-
-impl SectionScalar for geom_core::Interval {
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3753,7 +3689,6 @@ where
             lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
-            seed: opts.seed,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -4185,9 +4120,8 @@ where
     if let Some(&(a, b)) = op_env.across.get(&id) {
         return fail(bracket, NodeErrorKind::SpaceMismatch { a, b });
     }
-    // An instance's group frame, in this lane: read before the key,
-    // which it feeds, and again by the op (the profile program's
-    // precedent below says why twice is right).
+    // A placement's anchor frame, in this lane: read once, before the
+    // key, which it feeds, and handed to the op.
     let group_frame = op_env.poses.frame(id);
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
@@ -4407,6 +4341,7 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
+        group_frame,
         op_env,
         tol,
     );
@@ -5074,6 +5009,10 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         frame_bits(h, &pose.right);
         match frame {
             crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
+            crate::placement::Motion::Rigid(rigid) => {
+                h.write_tag(tag::presence::PRESENT);
+                frame_bits(h, &rigid.to_affine());
+            }
             crate::placement::Motion::Map(map) => {
                 h.write_tag(tag::presence::PRESENT);
                 frame_bits(h, &map);
@@ -6455,11 +6394,15 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
-fn sense_tag(sense: crate::names::Sense) -> u8 {
+/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
+fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
     use crate::names::Sense;
     match sense {
-        Sense::Enters => 1,
-        Sense::Leaves => 2,
+        None => 0,
+        Some(Sense::Enters) => 1,
+        Some(Sense::Leaves) => 2,
+        Some(Sense::Outside) => 3,
+        Some(Sense::Inside) => 4,
     }
 }
 
@@ -6711,18 +6654,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => {
-            h.name(a);
-            h.write_tag(sense_tag(*a_sense));
-            h.name(b);
-            h.write_tag(sense_tag(*b_sense));
+        RoleSeg::EdgeCrossing(run) => {
+            h.write_u64(run.len() as u64);
+            for l in run {
+                h.name(&l.line);
+                h.write_tag(sense_tag(l.sense));
+            }
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
@@ -6751,7 +6690,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

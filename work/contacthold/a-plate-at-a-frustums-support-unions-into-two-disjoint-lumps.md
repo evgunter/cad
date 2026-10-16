@@ -2,11 +2,12 @@
 id: a-plate-at-a-frustums-support-unions-into-two-disjoint-lumps
 kind: issue
 title: Main's sweep slow set: plates at the exact support of a frustum or torus union into two disjoint lumps (Assembly) since one of 4598/4604/4597/4573/4636/4667/4671
-status: open
+status: closed
 opened: 2026-10-11
 priority: P0
 cost: M
 refs: [main-reds-on-plates-at-the-exact-support-of-a-frustum-and-a-torus]
+closed: 2026-10-12
 ---
 
 

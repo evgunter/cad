@@ -7,8 +7,9 @@
 //! bodies the fold builds are sound. What is missing is a naming RULE
 //! for the construction the fold produced, and the row pins that the
 //! refusal says so rather than sending the author to file a bug against
-//! the kernel. The second row is a construction that once refused the
-//! same way and now has its rule. The last three run members whose
+//! the kernel. The next two rows are constructions that once refused
+//! and now name: a merged wall whose edges are pieces of member edges,
+//! and a rim in several pieces. The last three run members whose
 //! coincident faces overlap in area, under a covering block, in every
 //! member order: no fold step may refuse a contact the pairwise
 //! judgement passed.
@@ -36,64 +37,109 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// **A merged face no rule reads a seam chord through refuses as a
 /// missing rule.**
 ///
-/// `a` and `c` meet flush along x on all four families; `s` rises
-/// through `a`'s top cap across its depth, flush with `a`'s two
-/// y-walls. Fold `a` in last and `c` and `s` are an assembly of two
-/// bodies when it joins: the coincident y-walls glue a face of EACH into
-/// one merged wall together with `a`'s, and a seam chord bordering
-/// that wall reads through to its A-side constituent, of which there
-/// are two. Nothing picks the one the chord lies on.
+/// A plate and a cylinder boss sunk into it, its wall drawn as two
+/// semicircular pieces, joined by a pair union; a slab subtracted across
+/// the boss along y. The slab cuts each wall piece in two, and the
+/// subtract merges the two cosurface pieces on each side of the slot, so
+/// each merged wall face holds both boss pieces. The chord where a slab
+/// wall meets it is a join's own and reads through to its A-side
+/// constituent, of which there are two. Nothing picks the one the chord
+/// lies on.
 ///
-/// Nothing is wrong with this document, and the other four orders of
-/// the same three members are the proof: two of them fuse to a body
-/// with the volume the geometry says.
+/// Nothing is wrong with this document: the boss joins the plate, and
+/// the slot along x across the same boss names
+/// (`emit_union_borders::a_slot_along_x_across_a_sunk_boss_names`).
 #[test]
 fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() {
+    let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = crate::emit_union_borders::cylinder(
+        doc,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
+    let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let (doc, joined) = crate::fixture::insert(
+        doc,
+        editor_core::Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        },
+    );
+    let (doc, cut) = crate::fixture::insert(
+        doc,
+        editor_core::Node::Subtract {
+            from: joined.into(),
+            tool: slab.into(),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
+    // Rendered at the NODE boundary, which is the only route by which an
+    // emitter refusal reaches a human.
+    let shown = match failure(&ev, cut) {
+        Some(
+            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents { several: 2, .. }),
+        ) => e.to_string(),
+        other => panic!("wanted the merged-chord refusal, got {other:?}"),
+    };
+    assert!(
+        !shown.contains(BUG_FRAMING),
+        "a legal document was told the kernel is broken: {shown}"
+    );
+    assert!(
+        shown.contains("merged face"),
+        "the refusal must name the construction: {shown}"
+    );
+    assert!(
+        !shown.contains("  "),
+        "prose a human reads has no padded run in it: {shown}"
+    );
+}
+
+/// **A split piece the fold's kills cut off is a piece, not a chord.**
+///
+/// `a` and `c` meet flush along x on all four families; `s` rises
+/// through `a`'s top cap across its depth, flush with `a`'s two
+/// y-walls. Folding `a` in last glues a face of `c` and of `s` into one
+/// merged wall with `a`'s. The edges along that wall are pieces of
+/// `a`'s and `s`'s own edges whose split lineage runs through the
+/// stretches the fold killed, so they are named as those pieces, and
+/// every order fuses to the volume the geometry says with every member
+/// edge it names lying on its source. Folding `a` in last refused
+/// `MergedChordConstituents` while the lineage stopped at the killed
+/// stretches and the edges were read as chords through the merged wall.
+#[test]
+fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("wire_seam_vertex", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-
-    // The orders that fold `a` in last, and only those.
-    for order in [vec![c, s, a], vec![s, c, a]] {
-        let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
-        let ev = run(&docx);
-        let shown = match failure(&ev, union) {
-            // Rendered at the NODE boundary, which is the only route by
-            // which an emitter refusal reaches a human.
-            Some(
-                e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents {
-                    several: 2, ..
-                }),
-            ) => e.to_string(),
-            other => panic!("{order:?}: wanted the merged-chord refusal, got {other:?}"),
-        };
-        assert!(
-            !shown.contains(BUG_FRAMING),
-            "{order:?}: a legal document was told the kernel is broken: {shown}"
-        );
-        assert!(
-            shown.contains("merged face"),
-            "{order:?}: the refusal must name the construction: {shown}"
-        );
-        assert!(
-            !shown.contains("  "),
-            "{order:?}: prose a human reads has no padded run in it: {shown}"
-        );
-    }
-
-    // The same three members, folded the other way round, build a body.
-    // Without this the row above could be pinning a malformed recipe.
-    for order in [vec![a, c, s], vec![c, a, s]] {
+    for order in [
+        vec![a, c, s],
+        vec![a, s, c],
+        vec![c, a, s],
+        vec![c, s, a],
+        vec![s, a, c],
+        vec![s, c, a],
+    ] {
         let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
-            "{order:?}: this document fuses, so the refusal above is about \
-             the fold order and not about the recipe"
+            "{order:?}: the union fuses: {:?}",
+            failure(&ev, union)
         );
         let v = volume(body_of(&ev, union));
         assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
+        crate::emit_shared_rim_several::every_member_edge_lies_on_its_source(
+            &docx,
+            &ev,
+            union,
+            &order,
+            &format!("{order:?}"),
+        );
     }
 }
 
@@ -101,12 +147,14 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
 ///
 /// `a` and `b` meet flush along x, so the fold's first step merges
 /// their caps; `g` is a slab that rises through the
-/// merged top cap and out through both y-walls. At step 2 a seam chord
-/// descends into two faces of the A operand that share their common
-/// line in several pieces, and the chord lies within exactly one of
-/// them, which names it (`emit_topo`'s `rim_holding`). This document
-/// refused `SharedRim { found: Several }` until that rule existed; the
-/// refusal's sentence stays pinned in `display_contract`.
+/// merged top cap and out through both y-walls. At step 2 an edge along
+/// the merged cap's rim is a piece of one of the pieces step 1 left on
+/// that line, split off around a stretch `g` killed, and is named as
+/// that piece through its lineage. This document refused
+/// `SharedRim { found: Several }` while the lineage stopped at the
+/// killed stretch and the edge was read as a chord between two faces
+/// sharing several pieces; the refusal's sentence stays pinned in
+/// `display_contract`.
 ///
 /// The recipe is legal: the same two members fuse on their own, `g` is
 /// an ordinary overlapping solid, and the three together fuse to the
@@ -133,8 +181,6 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
 enum Seen {
     /// One body, at the volume the geometry says.
     Fused,
-    /// `NamingError::MergedChordConstituents`, the same row's chord rule.
-    MergedChord,
 }
 
 /// Every ordering of `0..n`.
@@ -187,9 +233,6 @@ fn every_order(
                         "[{label}]: volume {v}, want {fused_volume}"
                     );
                     Seen::Fused
-                }
-                Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
-                    Seen::MergedChord
                 }
                 Some(other) => panic!("[{label}]: a legal union refused {other:?}"),
             };
@@ -287,7 +330,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
 /// the same area overlap.
 #[test]
 fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, MergedChord};
+    use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s]) = split_fixture(doc);
     let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
@@ -305,13 +348,13 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
             ("a,big,s,c", Fused),
             ("c,a,s,big", Fused),
             ("c,a,big,s", Fused),
-            ("c,s,a,big", MergedChord),
+            ("c,s,a,big", Fused),
             ("c,s,big,a", Fused),
             ("c,big,a,s", Fused),
             ("c,big,s,a", Fused),
             ("s,a,c,big", Fused),
             ("s,a,big,c", Fused),
-            ("s,c,a,big", MergedChord),
+            ("s,c,a,big", Fused),
             ("s,c,big,a", Fused),
             ("s,big,a,c", Fused),
             ("s,big,c,a", Fused),

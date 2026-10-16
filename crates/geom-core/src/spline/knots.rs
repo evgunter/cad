@@ -172,6 +172,39 @@ impl core::fmt::Display for SplineError {
 
 impl core::error::Error for SplineError {}
 
+/// **The weight regime**: a rational net's weight is strictly positive
+/// and finite. The one spelling of that predicate: every constructor's
+/// check ([`check_weight_values`]), the knot-algebra plans' admission of
+/// what they write, and the hull bound's licence read it. Written in
+/// the positive form, so NaN (`NaN > 0` is false) is outside the regime.
+#[must_use]
+pub fn weight_in_regime(w: f64) -> bool {
+    w > 0.0 && w.is_finite()
+}
+
+/// Every weight in [`weight_in_regime`], or the first that is not, named:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN, then
+/// [`SplineError::NonFiniteWeight`] for `+∞`. Counts are the caller's
+/// check; this reads values only.
+///
+/// # Errors
+///
+/// As above, at the offending index.
+pub fn check_weight_values(weights: &[f64]) -> Result<(), SplineError> {
+    for (index, &weight) in weights.iter().enumerate() {
+        if weight_in_regime(weight) {
+            continue;
+        }
+        // Outside the regime and still `> 0` is `+∞`.
+        return Err(if weight > 0.0 {
+            SplineError::NonFiniteWeight { index, weight }
+        } else {
+            SplineError::NonPositiveWeight { index, weight }
+        });
+    }
+    Ok(())
+}
+
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -390,14 +423,10 @@ pub struct KnotVector {
 /// another one, it carries no borrow of its vector: a knot interior to
 /// vector A handed to vector B's raw list IS representable, so the type
 /// alone does not make the insertion guard unnecessary. What does is the type PLUS the
-/// privacy of its consumers, of which there are two, and they use it
-/// in opposite ways:
+/// privacy of its consumers:
 ///
-/// - `compose::insert_once_ring` is a private function whose only
-///   caller mints every `InteriorKnot` from the very `KnotVector` it
-///   read the raw list from, and mutates that list without touching
-///   either clamp run — so the domain the knot was minted against is
-///   the list's domain at every step. Here the type IS the guard.
+/// - [`super::algebra::insert_knot_plan`] and its siblings mint every
+///   `InteriorKnot` from the vector they plan against.
 /// - [`super::algebra::union_refinements`] reads several vectors' runs
 ///   and hands each vector the values it lacks from the OTHERS — the
 ///   one place a knot crosses vectors. It therefore returns plain
@@ -660,6 +689,20 @@ impl<'a> Span<'a> {
 }
 
 impl KnotVector {
+    /// The Bézier vector of degree `degree` on `[s0, s1]`: each end
+    /// `degree + 1` times and no interior knot — the vector a bare
+    /// Bernstein row on `[s0, s1]` is a proof about.
+    ///
+    /// # Errors
+    ///
+    /// As [`KnotVector::clamped`]: degree zero, or ends that are not
+    /// finite and ordered.
+    pub fn bezier(degree: usize, (s0, s1): (f64, f64)) -> Result<Self, SplineError> {
+        let mut knots = vec![s0; degree + 1];
+        knots.extend(core::iter::repeat_n(s1, degree + 1));
+        Self::clamped(knots, degree)
+    }
+
     /// Validates and wraps a clamped knot vector. See the type docs for
     /// the exact invariants.
     ///

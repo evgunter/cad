@@ -364,7 +364,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. } => (
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => (
             none(),
             none(),
             none(),
@@ -771,7 +772,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. } => (
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => (
             none(),
             none(),
             named(name),

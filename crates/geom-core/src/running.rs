@@ -57,6 +57,20 @@ impl<T: Real> Rounded<T> {
         Self::charged(self.value / d, self.error / d.abs())
     }
 
+    /// `self / d`, with `d`'s magnitude taken past its own bound: the
+    /// quotient's share of each operand's bound, over the room `d`
+    /// keeps from zero.
+    #[must_use]
+    pub fn quotient(self, d: Self) -> Self {
+        let value = self.value / d.value;
+        let room = d.value.abs() - d.error;
+        Self {
+            value,
+            error: (self.error + value.abs() * d.error) / room
+                + T::from_f64(UNIT_ROUNDOFF) * value.abs(),
+        }
+    }
+
     /// `self²`, as `self.value.powi(2)` (the tight square).
     #[must_use]
     pub fn square(self) -> Self {

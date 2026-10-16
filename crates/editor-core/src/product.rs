@@ -726,7 +726,7 @@ pub fn gathers_on_this_thread() -> u64 {
 /// Every arm of [`ProductError`]: an evaluation of another document
 /// ([`ProductError::EvaluationOfAnotherDocument`]); a root that
 /// failed, was poisoned, or is absent from this evaluation; a document
-/// whose roots denote no body ([`ProductError::NoBodyRoots`]); the
+/// whose roots denote no body (`ProductError::NoBodyRoots`); the
 /// kernel's graft and at-rest validity refusals.
 pub fn product<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
@@ -929,10 +929,10 @@ pub struct SolidOrigin {
 ///
 /// Every arm of [`ProductError`], including
 /// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
-/// not an evaluation of `doc`; [`ProductError::PlacedUnderTwoRoots`],
+/// not an evaluation of `doc`; `ProductError::PlacedUnderTwoRoots`,
 /// from the recipe before any root is read, when two roots place one
 /// body through transforms and part selections; and
-/// [`ProductError::Naming`] when two roots' rows would still name one
+/// `ProductError::Naming` when two roots' rows would still name one
 /// aggregate entity or collide on one name — never resolved silently.
 pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
@@ -1360,7 +1360,11 @@ fn carry_contacts<T: geom_core::Real>(
                 cell: Cell::Face(_),
                 ..
             } => "face",
-            topo::CarryRefusal::Pair { .. } | topo::CarryRefusal::Parted { .. } => "cell pair",
+            topo::CarryRefusal::Pair { .. }
+            | topo::CarryRefusal::Parted { .. }
+            | topo::CarryRefusal::Unread { .. }
+            | topo::CarryRefusal::Stale { .. }
+            | topo::CarryRefusal::MintedMeeting { .. } => "cell pair",
         })?;
     into.extend(moved.rows().iter().cloned());
     Ok(())

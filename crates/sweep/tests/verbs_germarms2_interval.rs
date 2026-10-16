@@ -4,13 +4,14 @@
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
 //! predicate only if the layers ahead of it admit the pose. The
-//! meeting-axes pose does reach the join and stops at the pinch door,
-//! and the skew pose reaches the frame dispatch's no-arm door.
+//! meeting-axes pose does reach the join and builds there, its nodes
+//! minted as rings, and the skew pose reaches the frame dispatch's
+//! no-arm door.
 //!
 //! The new predicate's two-arm pin is still not here. It is
 //! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
 //! `pair_section_frame` at `Interval` directly and reaches both arms —
-//! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
+//! meeting axes to `Zero`/the nodes, skew axes to a definite sign/`NoArm`.
 //! That is the certified-scalar statement about the frame's coplanarity
 //! row (`cc_axes_coplanar`, the section table's, which the frame asks);
 //! what this file adds is that the
@@ -41,7 +42,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v3};
-use geom_core::{Affine3, Interval, Tol, Vec3};
+use geom_core::{Affine3, Bounds, Interval, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -69,7 +70,10 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -91,7 +95,10 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
     let r = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(1.0, 2.0, 3.0).normalize(), iv(0.7));
     topo::transform_rigid(
         b,
-        &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
+        &geom_core::test_support::rigid(
+            &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -103,7 +110,7 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
         finished("operand A", a.clone(), tol),
         finished("operand B", b.clone(), tol),
     );
-    topo::union(&a, &b, tol).expect_err("this family has no join arm")
+    topo::union(&a, &b, tol).expect_err("this pose refuses")
 }
 
 /// **The re-posed twin's obligation at the CERTIFIED scalar**, which is
@@ -117,15 +124,16 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 /// the direct pose's door key for key — measured, so it is asserted as
 /// an equality rather than assumed away. At `eps = 1e-12` the
 /// enclosures are wider than the band itself, and the certified lane
-/// refuses the FIXTURE before the geometry is ever in question —
-/// measured, on the pinch-door pose:
+/// refuses the FIXTURE before the geometry is ever in question: an
+/// edge's certification escalates, at the crossing insertion or at the
+/// join's edge — measured, on the meeting-axes pose:
 ///
 /// ```text
-/// CrossingInsertion { operand: A, edge: EdgeKey(7v1), source: Certification {
-///   error: Escalated { check: MappedSource, sample: 7, cause: Indeterminate {
-///     margin: Enclosure { lo: 0.0, hi: 1.0970253705214178e-12 },
+/// Join(BooleanJoin(Euler(Certification { error: Escalated {
+///   check: EndpointStart, sample: 0, cause: Indeterminate {
+///     margin: Enclosure { lo: 0.0, hi: 1.5324803774465046e-12 },
 ///     band: Band { zero: 1e-12, escalate: 1e-11 },
-///     predicate: Some("carrier_matches_mapped_source") } } } }
+///     predicate: Some("carrier_endpoint_start") } } })))
 /// ```
 ///
 /// **Both narrowings matter, and neither is cosmetic.**
@@ -135,9 +143,9 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///   A blanket "or escalates" would have accepted an escalation where
 ///   the measurement says the door is answered exactly.
 /// - The escape matches the escalation's SHAPE, not a substring of its
-///   rendering. It admits the certification escalation above — a
-///   crossing-insertion refusal whose predicate is
-///   `carrier_matches_mapped_source` — and it explicitly refuses an
+///   rendering. It admits an edge certification escalation like the
+///   one above, at the crossing insertion or the join's edge, and it
+///   explicitly refuses an
 ///   escalation of either germ-frame predicate, because those are the
 ///   very predicates this unit's rows exist to pin: a substring test
 ///   would have greened a `cc_axes_coplanar` escalation,
@@ -146,7 +154,15 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     if crate::common::germ_pair::same_door(direct, reposed) {
         return;
     }
-    let (d, r) = (format!("{direct:?}"), format!("{reposed:?}"));
+    assert_the_fixture_escape(&format!("{direct:?}"), reposed, what);
+}
+
+/// The one escape [`same_door_or_escalated`] admits, against the direct
+/// pose's answer `d`: an edge certification escalation at the narrowest
+/// band, of no germ-frame predicate, at the crossing insertion or the
+/// join's edge.
+fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
+    let r = format!("{reposed:?}");
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
     assert!(
         band.zero() <= 1e-12,
@@ -154,8 +170,18 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
          pose's door key for key; direct {d}, re-posed {r}",
         band.zero()
     );
-    let BooleanError::CrossingInsertion { source, .. } = reposed else {
-        panic!("{what}: the only admitted escape is a crossing-insertion escalation; got {r}");
+    // Each site's own predicate, as measured: the crossing insertion's
+    // mapped source, the join edge's start.
+    let (source, site_predicate) = match reposed {
+        BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
+        BooleanError::Join(j) => match j.error() {
+            topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
+            _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
+        },
+        _ => panic!(
+            "{what}: the only admitted escape is a crossing-insertion or join edge's \
+             escalation; got {r}"
+        ),
     };
     let topo::EulerOpError::Certification { error } = source else {
         panic!("{what}: the only admitted escape is a certification refusal; got {r}");
@@ -174,48 +200,104 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
         "{what}: a germ-frame predicate going indeterminate is the defect this unit \
          pins, never an accepted escape; direct {d}, re-posed {r}"
     );
+    assert_eq!(
+        cause.predicate,
+        Some(site_predicate),
+        "{what}: the escape admits its site's measured predicate alone; direct {d}, re-posed {r}"
+    );
 }
 
-/// **The meeting-axes arm.** The pose whose seams sit off the pinch
-/// reaches the join at the certified scalar too, and stops at the door
-/// that names the pinch — the same door the `f64` lane reaches. An
-/// escalation on the DIRECT pose would say the enclosures decided the
-/// lane rather than the geometry, so that half is an equality; the
-/// re-posed twin's obligation is [`same_door_or_escalated`]'s, and the
-/// reason is written there.
+/// **The meeting-axes arm.** The pose whose seams sit off the nodes
+/// reaches the join at the certified scalar too, and builds there as
+/// the `f64` lane does: both nodes are minted as rings and the union
+/// comes out. A refusal on the DIRECT pose would say the enclosures
+/// decided the lane rather than the geometry, so that half is an
+/// equality; the re-posed twin builds too, or takes the fixture escape
+/// [`same_door_or_escalated`] writes the reason for.
 #[test]
-fn the_pinch_door_is_reached_at_the_certified_scalar() {
+fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),
         y_axis(),
         PI / 4.0,
     );
-    let err = union_err(&a, &b);
-    assert!(
-        matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
-        "{err:?}"
+    let tol = Tol::witness();
+    let union = |a: &Body<Interval>, b: &Body<Interval>| {
+        topo::union(
+            &finished("operand A", a.clone(), tol),
+            &finished("operand B", b.clone(), tol),
+            tol,
+        )
+    };
+    // Two walls of half-height 1.2 less the bicylinder `16/3`, whole
+    // inside both; each node `±x̂` (the re-pose moves them) one vertex
+    // where the union's four faces meet.
+    let want = 2.0 * PI * 2.4 - 16.0 / 3.0;
+    let assert_union = |out: &topo::BooleanBody<Interval>, nodes: [Point3<f64>; 2], what: &str| {
+        let m = topo::mass_properties(&out.body, tol).expect("interval props");
+        assert!(
+            m.volume.lo() - m.volume_pad <= want && want <= m.volume.hi() + m.volume_pad,
+            "{what}: volume {:?} ± {} brackets {want}",
+            m.volume,
+            m.volume_pad
+        );
+        for node in nodes {
+            let at: Vec<_> = out
+                .body
+                .vertex_points()
+                .filter(|(_, p)| {
+                    let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+                    (Point3::new(mid(p.x), mid(p.y), mid(p.z)) - node).norm() < 1e-9
+                })
+                .map(|(v, _)| out.body.half_edges().filter(|(_, h)| h.start == v).count())
+                .collect();
+            assert_eq!(
+                at,
+                vec![4],
+                "{what}: the node {node:?} is one vertex of valence 4"
+            );
+        }
+    };
+    let direct = union(&a, &b);
+    let Ok(topo::BooleanResult::Body(out)) = &direct else {
+        panic!("the meeting-axes pose builds: {direct:?}");
+    };
+    assert_union(
+        out,
+        [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
+        "direct",
     );
-    same_door_or_escalated(
-        &err,
-        &union_err(&repose(&a), &repose(&b)),
-        "the pinch-door pose",
-    );
+    match union(&repose(&a), &repose(&b)) {
+        Ok(topo::BooleanResult::Body(out)) => {
+            // [`repose`]'s motion, at `f64`.
+            let r = Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 2.0, 3.0).normalize(),
+                0.7,
+            );
+            let moved =
+                |x: f64| r.transform_point(Point3::new(x, 0.0, 0.0)) + Vec3::new(0.3, -0.45, 0.6);
+            assert_union(&out, [moved(1.0), moved(-1.0)], "re-posed");
+        }
+        Err(e) => assert_the_fixture_escape("a built body", &e, "the meeting-axes pose"),
+        Ok(other) => panic!("the re-posed meeting-axes pose: {other:?}"),
+    }
 }
 
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
 /// `0.375`: the crossings are found, the germ pair is minted, and the
-/// frame dispatch's skew arm answers it — no arm, not the pinch door.
+/// frame dispatch's skew arm answers it — no arm, not the nodes.
 /// The dispatch's verdict itself is pinned at the certified scalar in
 /// `topo::boolean::join`'s `frame_dispatch_interval_tests`; this row
 /// says a body reaches it there.
 #[test]
-fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
+fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
-        &Affine3::translation(v3(0.375, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(v3(0.375, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -229,7 +311,7 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
                 ..
             }
         ),
-        "a skew pair must reach the frame dispatch's no-arm door, never the pinch: {err:?}"
+        "a skew pair must reach the frame dispatch's no-arm door, never the nodes: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and

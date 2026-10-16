@@ -1135,7 +1135,7 @@ impl<'a> Speaker<'a> {
         self.selection_reference(slot, var, reference, name)
     }
 
-    /// [`Self::reference`] for name `reference` of the selection `var`
+    /// `Self::reference` for name `reference` of the selection `var`
     /// the subject reads at `slot`.
     pub(crate) fn selection_reference(
         self,

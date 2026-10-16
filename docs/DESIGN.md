@@ -265,21 +265,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately.
-   Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
-   sector classification) refuse typed at the consumer.
+   coincident-distinct-edges class, each edge classifying separately;
+   where no edge lies on the line, the two wedges are a touch between
+   faces, recorded like any touch, and no op cuts edges to make a
+   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   mesh sizing, sector classification), and none for a body's
+   curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
    construction that stopped half-way, `JoinableVertexAtRest`; a
    vertex whose regularity reading lands in the sliver band, so that
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
-   **positive-volume orientation invariant** (exact-B-rep signed volume
-   definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — at rest an orientation probe, not a thinness
-   gate, so ε-tightening never flips valid→invalid; a boolean's door
-   reads a solid's only shell certified in band as the in-band shell
-   it is, D10's Booleans clause). Laminae live here, not at
+   **orientation invariant** (a solid's faces leave infinity outside
+   it, read by the reader of a shell's role, D10's "Booleans": a ray
+   aimed at one of its faces, the certified signed volume only where no
+   face offers an aim; definitely inside-out ⇒ invalid, and a solid
+   whose side no reading decides refuses — an orientation probe, not a
+   thinness gate, at every door). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -344,11 +347,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
      is stale and refuses typed. Structural sharing (same surface or
-     point key) needs no record: an op that cuts one vertex into copies hands each copy the
-     original's point, as it hands a cut face's fragments one surface.
+     point key) needs no record. Vertices an op knows or decides to be
+     one point share one point key, whether they stay in one solid or
+     lie in two: an op that cuts one vertex into copies hands each copy
+     the original's point, as it hands a cut face's fragments one
+     surface; vertices whose gap an op decided Zero share the key it
+     keeps, and the op records that decision (a `VertexFusion` row,
+     cited by the pair's vertex-vertex record) for the lint, not for
+     the census. A Zero-gap vertex pair on two point keys in a finished
+     body is its producer's defect.
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
-     within one shell), whose interiors meet, plus its backing: a
+     within one shell, recorded as between shells), whose interiors meet, plus its backing: a
      coincidence an op decided Zero, recorded (D10). The record is
      that pair and nothing else: an unordered pair of the body's own
      cells, in canonical order, in one list a citation addresses by
@@ -367,11 +377,29 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
      inferred), a curved one as a curve touch; a crossing of two edge
-     interiors has no bound, and its edge-edge record backs it. An op that replaces a cell rewrites
-     every record naming it onto the replacement, by substitution; an
-     edge split moves a `(vertex, edge)` record onto the piece the
-     vertex rests on, and an `(edge, edge)` record onto every pair of
-     pieces whose interiors still meet, by the split's own lineage.
+     interiors has no bound, and its edge-edge record backs it. Every op carries the records through
+     one lineage, which states for each cell what the op made of it:
+     kept; substituted by a cell that holds its interior (a merge's
+     face, a join's edge, a seam); divided, into its pieces and the
+     cells the op minted between them, the division exhaustive or with
+     its remainder removed; or removed. One carry, for the boolean and
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
+     cells an op minted on a record's two cells and that meet at a point
+     meet where the record puts them when one cut made both, as the
+     split's one plane does, and the landing cites the record alone; an
+     op that cuts with many surfaces (the boolean's tool) decides every
+     such meeting at its door (D10), and the landing cites the decision
+     beside the record; any other op refuses one. A record
+     that lands on no pair, every pair read definitely, is consumed
+     where one of its cells was removed or divided with its remainder
+     removed, and is stale otherwise; a cell the lineage does not cover
+     refuses. A cell that replaces another without holding its interior
+     (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is
      certified at its jet samples plus hull bounds, a patch by
      definitely-positive region overlap in the shared chart, a
@@ -384,8 +412,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    decided by margined verdicts (D10) — a Zero margin is a coincidence,
    and a sliver-band one is an escalated typed error, never contact;
    (ii) result-side touching arises only from those coincidences
-   propagated through the op, or from an op's copies of one vertex at
-   such a coincidence, which share its point; the result carries
+   propagated through the op's lineage, from the op's own decision
+   where two cells it minted on one meet at a point, or from an op's
+   copies of one vertex at such a coincidence, which share its point; the result carries
    machine-checkable contact records (the ON-set survivors, carried
    across seam-zip/merge mints by a descendant map, never re-derived),
    each citing the coincidence (D10) that backs it, which the
@@ -417,11 +446,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   census participation, containment evidence — has exactly one home:
   `topo::insert_void`, the door the boolean owns, callable without the
   SSI pipeline for provably-no-crossing cases with caller-certified
-  containment. Three producers: boolean subtraction (its probe
+  containment. Four producers: boolean subtraction (its probe
   verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
-  O4); and the full revolve of a holed profile, DEFINED as
+  O4); the full revolve of a holed profile, DEFINED as
   `revolve(outer) − revolve(hole-as-outer)` and executed through the
-  degenerate no-crossing arm (the profile's validated 2-D margins).
+  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  a concave blend's fill sealing a blind hole's mouth, DEFINED by the
+  blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
+  mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
@@ -622,9 +654,11 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Villarceau circle and a cone's tilted section mint their exact image
   (`Pcurve::FocalSection`), and a circle within the band of a cone or
   torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
-  its class's route lands, covers the mirror-torus spiric and
-  no-fitted classes, on their PCERT row.
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
+  analytic chart can hold has a route, so C4's exemption excuses no
+  class; a face is left uncached only at a scalar with no fitted door.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -674,29 +708,58 @@ residual bound against the described locus (D4). The type is
 
 ```text
 EdgeDescription =
-  | Intersection        { pair, witness }    -- transverse surface–surface
-                                             -- intersection: the connected
-                                             -- component of S₁∩S₂ selected by
-                                             -- the witness (also the marching seed);
-                                             -- `pair` is the set {S₁, S₂}, unordered
-  | TangentIntersection { pair, witness }    -- tangential contact locus; same
-                                             -- shape, margin one order up
-  | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
+  | Intersection        { pair, selector }   -- a curve of S₁∩S₂, `pair` the set
+                                             -- {S₁, S₂}, unordered; the selector
+                                             -- picks which curve: a witness
+                                             -- (the branch through a point, also
+                                             -- the marching seed) or a structural
+                                             -- selector (a construction's
+                                             -- pushforward); whether the surfaces
+                                             -- cross (read `Intersection`) or touch
+                                             -- to order k (read `TangentIntersection`)
+                                             -- is what the certificate reads, never
+                                             -- a second stored record
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, user splits)
+                                             -- (iso-lines, seams, same-surface splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
 
-The intrinsic variants describe loci determined by their surfaces; the
-conventional form carries the defining data for loci the surfaces
-*under*-determine (parameterization seams — infinite-order contact, the
-seam's position pure convention; face splits at smooth profile joins,
-where at a G2 join even `TangentIntersection` fails its margin, and
-rightly; user splits). One (surface, `Pcurve`) form covers all of them
-(PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
-not variants. A `MappedCurve` survives as the `Scaffold` payload and as
-the `EdgeAuthority` record — one authoritative source, never two peer
+A two-surface edge is always a curve of the two surfaces' intersection,
+and its selector says which: no two-surface edge is conventional. The
+selector follows one question, asked of the geometry and never of where
+the body came from: **is the curve known in advance?** Where it is —
+the surfaces' contact or crossing has a closed form (a ruling where a
+plane meets a cylinder or a swept wall, a circle where coaxial surfaces
+of revolution meet, a row or column of a swept or skinned wall), or the
+curve was chosen to lie in a region where the two surfaces overlap in
+2-D — the selector is **structural**: that closed form, picking the
+curve exactly whatever the contact order, certified by its own meter and
+incidence on each surface, each read through that surface's own
+chart-image certificate (the one meter every pcurve carries). A
+construction that knows the curve (a profile vertex swept, a section
+placed, a section vertex skinned through a loft's sections) states that
+closed form directly, and an import recovers the same closed form from
+the same geometry, so a native body and its imported copy carry the same
+selector: the closed form is a property of the surfaces, not of the
+history. Where the curve must be derived numerically from the geometry
+— a crossing or tangency with no closed form — the selector is a
+**witness**, the branch through a point, admitted only where its margin
+certifies: transversality for a crossing, the order-k jet system's
+margin for a tangency of order k, each taken across the locus, over the
+faces, never along the edge. A construction therefore never classifies
+its own joins by measurement, and the sketch's joint class is the one
+reading of their kind. A curve no lane can yet select refuses typed,
+naming the lane, native or imported alike; a coincidence of two surfaces
+in band is refused at the structural act that made them adjacent. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface;
+two records that read as one carrier) is `Chart`: one (surface,
+`Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
+classes stay as certification lanes, not variants. A `MappedCurve`
+survives as the `Scaffold` payload, as a structural selector and as the
+`EdgeAuthority` record — one authoritative source, never two peer
 representations needing cross-reconciliation.
 
 **Deliberately omitted: an `Explicit` (extensional) variant.** Taken as
@@ -704,9 +767,9 @@ an unconditional challenge: every edge must have an intensional
 description — there is no escape hatch, so it cannot be reached for
 when not absolutely necessary. This holds for imported geometry (D7):
 the intrinsic variants are checkable properties of the geometry as it
-now stands, and the conventional form carries its own defining data, so
-extensional input is *adopted* by reconstructing the description it
-satisfies. What import pressure-tests is the completeness of the
+now stands, and a closed-form selector is a property of the surfaces,
+so extensional input is *adopted* by recovering the selector a native
+body would carry, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
 taxonomy (imported fillets force `TangentIntersection`), not the need
 for a fallback.
 
@@ -714,7 +777,12 @@ for a fallback.
 *transversality*: normals of S₁, S₂ linearly independent along the
 locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
-of every derived cache. `TangentIntersection`'s validity sits one
+of every derived cache. A branch may end at a *node*, a point where
+it crosses another branch of the same pair and the two surfaces are
+tangent (two equal cylinders with intersecting axes: their section is
+two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
+connected set, so the witness selects the branch, and transversality
+holds on the open edge, which is where certification samples it. A tangency's validity sits one
 differential order up: surfaces coincident within ε and normal-parallel
 within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
 r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
@@ -724,34 +792,39 @@ Reconstructing a tangency locus is well-conditioned *despite* the
 tangency because its defining system includes the first-order
 normal-alignment equations: the normal angle grows linearly with
 transverse distance, and the second-order margin is the
-implicit-function-theorem denominator for that jet system. (Order-k
+implicit-function-theorem denominator for that jet system. Order-k
 contact generalizes: defining equations from the k-jet, margin at order
-k+1.) In the intrinsic variants "the locus lies on both surfaces" holds
+k+1, so a curvature-continuous join (k = 3) is read as a tangency where
+its third-order separation certifies, not left under-determined. In the intrinsic variants "the locus lies on both surfaces" holds
 *by definition*; only the caches need certification. Vertices
 generalize the same way (three surfaces / endpoint of a locus, with a
 witness). A locus in the ambiguous band — a dihedral within a few
 derived angular thresholds of tangent, certifiable as neither — fails
 loudly at construction exactly as at import; a conventional description
-is not an escape hatch from ill-conditioned geometry.
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
 
-**Prefer-intrinsic rule, tier-3-enforced.** Wherever an intrinsic
-description is certifiable, it *is* the stored description — including
-for native constructions: a fillet we build stores its boundary edges
-as `TangentIntersection`, the rolling-ball construction demoted to
-supplying the witness and initial caches. Construction history lives in
-D5 provenance, never in the description, so native and imported bodies
-carry identical descriptions. At rest, every *definitely-transverse*
-edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
-jet-determinate tangency must carry `TangentIntersection`
+**Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
+intrinsic, and its selector is decided by the geometry alone: a closed
+form where one exists, a witness where the curve must be derived. A
+fillet we build carries its rolling ball's contact rail; a sweep carries
+the ruling its profile vertex sweeps out, whatever the joint's contact
+order; an imported copy of either recovers the same closed form. A
+closed form that selects the curve is description, not history; D5
+provenance stays the record of who built the edge, and native and
+imported bodies carry identical descriptions. At rest, a witness
+selector must certify its reading:
+a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
+otherwise), a jet-determinate tangency as `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
-admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check reads the edge's
-authority record, so a declared conventional description is exempt by
-its own declaration; escalated dihedrals, seam edges and
-NURBS/`Approx`-adjacent edges are exempt too, so ε-tightening can
-escalate but never flip a valid body to invalid. An unenforced
-preference drifts silently — exactly the failure shape this document
-exists to kill.
+admits the class). The rule needs two surfaces and a definite reading, so
+a wrap edge (one surface) and an edge whose dihedral is not read
+definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
+document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
 if the witness is *pinned*: the stored witness IS the carrier's
@@ -785,6 +858,69 @@ site. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
+
+**One reading per question.** Every decision the kernel takes about
+geometric carriers is a *reading*: of one carrier and a point (its
+residual, distance, foot and chart coordinates); of a carrier pair's
+*pose*, one classification per pair (apart, coincident ±, coaxial,
+parallel axes, point touch, line tangent, generic, in band), whose
+trileans are its parts and are decided once; or of a pair *outcome*
+(the section's carrier, C5; the section's components and their
+witnesses; two spans' meetings; a curve's crossings of a surface).
+**Total**: a reading is one exhaustive match over its kind or kind
+pair. An unlisted arm refuses typed, naming what it lacks; no arm
+answers a default value; one method is fixed per arm at write time, and
+a second method for the same question exists only as a test oracle. A
+stage may precede the method only if it is total in kind, decides the
+same question soundly at the same band, and cannot change the verdict
+by which stage decided (a box cull before exact roots); a method
+reached because another declined is a fallback, and is forbidden.
+**One**: each question has one reading, which every consumer reads,
+because two readings of one fact are two predicates that can decide it
+differently inside the band (D4). An outcome takes the pose reading's
+answer and decides no pose of its own. A consumer serving fewer pairs
+matches on the reading's answer and refuses the rest typed; it never
+matches on kinds to choose a method. Which pairs a reading serves is
+derived from the reading, never kept beside it: where a consumer asks
+at kind level before it holds the operands, the reading dispatches
+through its own kind-level description (kinds to arm, then the arm's
+method), so the description cannot disagree with what the reading
+does. A total evaluator's poison for a
+kind with no closed form is not a decision, and no reading reads it
+without first refusing on kind. Readings over bare carriers live in the
+lowest crate that can state them, `geom` for one carrier and a point
+and `geom-brep` for carrier pairs; readings over trimmed faces and
+solids live in `topo` and reach carrier facts only through those.
+Exempt: kind-agnostic methods (boxes, BVH, subdivision, clearance),
+identity of stored bits on which no topology decision depends, test
+oracles, and reading a record (a declaration, or an edge that already
+is the section). Import is not exempt: it reads the same readings with
+the file's own coincidence distance as the band. C5
+(`crates/geom-brep/README.md`) is this rule's instance for surface and
+curve pairs.
+
+**What a consumer does with the answer.** A reading of which special
+case a geometry is (a class, a pose's trilean) answers *shown* (Zero),
+*ruled out* (definite) or *in band*, and in band means only that the
+case is not shown. Its consumer is one of two kinds, and each owes the
+build and the `unproven-coincidence` lint exactly what it does with the
+answer. A **lane choice** picks a form for one certified statement the
+body has either way: a pcurve row's class, an edge's rest locus, a
+section curve's formula where both answers give the same cells, a
+carrier's recognised kind at import. Zero takes the closed form; in
+band and definite take the general lane, whose certificate does not
+rest on the answer, and every class a lane choice reads has one. A
+lane choice records nothing, never ends as a kernel defect at a build,
+and refuses only where its general lane is not yet written, with the
+closed form's pose as its lever and never a tolerance offer. A closed form before the general lane is a stage of the one
+reading, not a fallback: both state one certificate. A **structural
+act** changes which cells the result has on the answer: a boolean's
+glue, a vertex fusion, an edge join, a split's ON verdict, a section
+trilean that decides how many curves meet and where. Zero acts and is
+recorded (D10), in band refuses with the decision's own lever (D4 ¶1),
+at the reading or at the result's finished-body gate, and definite
+keeps apart. At rest, only a definite contradiction of what is stored
+is a defect.
 
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
@@ -934,10 +1070,16 @@ Five commitments:
    is for reporting only, never a value a decision reads.
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
+   A typed refusal is never read as a verdict: a consumer may only
+   take it down a path that decides the question itself.
 4. **Fixed internal units — meters and radians — with a documented
-   model size range**; geometry outside the range is rejected at
-   construction. User-facing units are typed newtypes at the API
-   boundary only (D6).
+   model size range**: the session box is 1 km, no coordinate larger
+   in magnitude; geometry outside the range is rejected at
+   construction. The box fixes the smallest admissible ε, ε_min =
+   1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
+   edge: a run's ε below ε_min is refused, and no refusal offers to
+   tighten the tolerance below it. User-facing units are typed
+   newtypes at the API boundary only (D6).
 5. **Strictness is enforced at the boundary, not relaxed inside**: STEP
    import is an adoption stage (D7) that brings external geometry up to
    kernel invariants *before* it becomes a kernel body; entities that
@@ -982,9 +1124,9 @@ library spelling of.
 Imported geometry is not second-class. Rather than an extensional escape
 hatch, import **reconstructs** the intensional description the
 extensional data satisfies — possible because the intrinsic variants
-are properties of the current geometry, and the conventional form
-carries its own defining data, so an imported seam curve *is* the
-convention, adopted directly. Pipeline:
+are properties of the current geometry: an imported edge recovers its
+selector (a boundary iso, the analytic contact catalogue, a swept net's
+structure) or refuses typed, naming the lane that would recover it. Pipeline:
 
 1. **Surface recognition**: an imported NURBS within ε of an analytic
    surface is promoted to it, restoring D3's exactness to imported
@@ -1040,6 +1182,22 @@ because `if width > 10.0` in user code would silently break interval
 replay; and structural parameters (hole *count*) are explicitly
 distinct from continuous ones (hole *diameter*), so parameter-driven
 topology change is stated, not emergent.
+
+**The recipe keeps the form that was written.** Where people state the
+same thing in more than one natural way, the recipe may hold a family
+of forms for it: one enum whose variants each keep exactly the numbers
+the person wrote, all lowering through one reading that every consumer
+goes through. A sketch arc is the pattern: `arc_to` takes a `Bulge`,
+`Via` (through a point), `Center`, `Sweep` or `ArcLen` spec, the
+program stores the spec as written, and each lowers to the one
+`Segment::Arc` (carrier and sweep) that every reader of a profile reads
+(PATHS-DESIGN). That is how an exact authored value and a single
+interface coexist. A family is not a second spelling, which is one fact
+held in two places that can disagree, or a derived number stored in
+place of the one written. A form joins a family only because it is how
+someone authors the value, never for the kernel's convenience. Where a
+form's numbers name no value it refuses typed, as `Via` does for three
+collinear points (`ArcViaCollinear`).
 
 ### D9 (agreed): Determinism policy and engineering charter
 
@@ -1260,16 +1418,16 @@ variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
 which are only defined: read off a body's geometry (a face's plane, a
-carrier's axis or centre, a vertex's point), by coordinates over scalar variables in a
-frame the definition reads, by a construction over other poses, as a
+carrier's axis or centre, a vertex's point), moved from another pose by a slide along, or a spin about, a direction
+or axis the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
 none is defined from nothing, and no construction reads one; the shapes
 (`Body`, `Bodies`, an ordered list of bodies whose length is a `Count`,
 and `Profile`), which only an operation defines, a `Profile` being 2-D
 shape whose numbers are read only against each other, and a sweep
-reading a profile and, at most, a direction in the profile's own axes
-(an extrude's slant, held to one side of the profile's plane) or a 2-D
-axis line (a revolve's), never a frame; and the selections of a shape:
+reading a profile and, at most, a heading and a tilt in the profile's
+own axes (an extrude's slant, held to one side of the profile's plane)
+or a point and a heading (a revolve's axis line), never a frame; and the selections of a shape:
 one cell of a body (`Face`, `Edge`, `Vertex`), or the set of them a
 reader takes (`Faces`, `Edges`; a set kind exists only for a slot that
 reads one). A variable is
@@ -1281,8 +1439,11 @@ rational fractions of a turn, and a lone `0`, which carries no unit and
 so stands at any dimension as the omission it marks (`0 mm` is a
 dimensioned literal, so typing it mints a variable); each is the shape
 of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
-offers an existing variable of equal value; declining the offer is what
-makes the two distinct. A variable without a name is read by exactly
+offers an existing variable of equal value that it is not already the
+same as (VR8); declining the offer is what makes the two distinct. A
+lone `0` is the one typed value that is a constant rather than a
+variable, so typing it draws no offer and a default `0` is never the
+one offered. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
 readers share has a name the person gave it; an output is spoken by
 its operation.
@@ -1291,11 +1452,18 @@ A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
 forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
 slot holds its own kind; a finer value is read through its projection,
+the role it is read through (a frame's x, y or z axis, origin or
+coordinate plane; a plane's normal; an axis's line or direction) being
+part of the read,
 and an incidence between poses (an axis in a plane, a point on an axis)
-is a construction over one variable, never a check between two. A face
+is a construction over one variable, never a check between two. No
+slot holds a component of a direction or of a frame's axis: every
+number a pose, a construction's axis or a placement holds is a `Length`
+along one freedom or an `Angle` about one, and a 2-D direction is an
+angle. A face
 reads as a plane and a vertex as a point; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
-holds its frame, as scalar slots, and is never a variable of a 2-D kind;
+holds its frame, as length and angle slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
 
 **Operations.** A node is an operation: it reads variables and defines
@@ -1398,8 +1566,9 @@ kind mismatch at the door, and a kernel bug anywhere else. A
 **placement** is the bundle of mates and values that pins one copy of a
 part relative to others: two placements of a part are two copies; a
 copy is pinned when its mates and values together leave nothing free,
-and a body's symmetry pins nothing (a value it makes unobservable is
-reported, never refused). Its mates and values are on equal footing,
+and a body's symmetry pins nothing (a written value it makes
+unobservable, a placement's or a pose move's, is reported, never
+refused). Its mates and values are on equal footing,
 and a constraint any of whose equations the others already fix refuses
 as an overconstraint, pinned or not, decided by subgroup algebra
 (A11 (1)) without measuring; where two copies meet beyond what their
@@ -1419,7 +1588,7 @@ measured from the target's along the freedom, a spin the angle between
 their reference directions about it, each a function of the relative
 pose alone, so no order of the values is chosen. Zero is always a valid
 value and says the two bodies' own coordinates agree as far as the
-mates allow; the façade writes it as a free variable for each freedom a
+mates allow; the façade writes the constant `0` for each freedom a
 gesture leaves unnamed. A rotation left by a lone point mate has no
 such chart and is lowered by a direction mate first. A placement is the
 only reader of a body's own coordinates, and reads them only through
@@ -1489,13 +1658,22 @@ deciding operation through and their names there, never by a stamp
 the kernel carries; a contact record a result carries cites the
 coincidence that backs it. A per-construction table of output forms is
 only ever a cache generated from the symbolic evaluation and checked
-against it, never written by hand.
+against it, never written by hand. A reading that only chooses a cell's
+form (D3's lane choice) infers no coincidence and records nothing; a
+door that makes cells one on a class it read (the boolean's edge join)
+records it.
 
 **Booleans.** A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band. Its result holds no in-band pair or shell: the door's
+sliver band. Its result holds no in-band pair, a pair of result cells
+whose one census number lies in band. A solid's only shell is its outer
+shell and poses no role question; a shell's role among several is read
+off a ray aimed from outside the shell at one of its faces, and off the
+certified sign of its volume only where none of its faces offers an
+aim. A ray's reading lies in band only where a pair does, so how thin a
+result is gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
@@ -1550,11 +1728,11 @@ Each layer depends only on the layers below it.
 | Crate | Contents |
 |---|---|
 | `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
-| `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
+| `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, the bisection walk the kernel's localizations share (`bisect`), spline hulls |
 | `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
-| `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
-| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
+| `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings (D3): a point's foot on a curve (`Curve3::foot`) and whether it lies on the carrier (`Curve3::on_carrier`), and a carrier's rate bounds (`carrier_speed`). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
+| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (the point-on-span reading, composing `geom`'s one-carrier readings with the span's reading of its ends; one total curve-kind-pair table) and the machinery under it (the half-angle ladder and its subdivision, `half_angle`; the depressed quartic's sign ladder, `quartic`), the carrier-pair pose and the curve×surface crossing (D3), certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |

@@ -532,6 +532,39 @@ fn cylinder_pairs_every_class() {
     );
 }
 
+/// **Two equal walls whose axes meet** cut each other in the two
+/// bisector-plane ellipses, which cross at the nodes `p ± r·n̂`: one
+/// component, essential on both walls, witnessed at a node, at a right
+/// angle and at a slant, the second axis through a point off the first
+/// wall's origin. A nest pinch at unequal radii — the thinner wall
+/// inside the fatter, touching — still refuses R-tan.
+#[test]
+fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
+    for (o2, d2) in [
+        (p(-2.0, 0.0, 0.4), Vec3::unit_x()),
+        (p(0.0, 0.0, 0.4) - v(0.0, 0.8, 0.6) * 3.0, v(0.0, 0.8, 0.6)),
+    ] {
+        let b = cylinder(o2, d2, 1.0);
+        let s = classify(&a, &b);
+        assert_eq!(
+            shape(&s),
+            (1, true, vec![true], vec![true], vec![false]),
+            "axis {d2:?}"
+        );
+        let w = witness(&s);
+        on_both(w, &a, &b);
+        let n = Vec3::unit_z().cross(d2).normalize();
+        let node = |sign: f64| p(0.0, 0.0, 0.4) + n * sign;
+        assert!(
+            (w - node(1.0)).norm() < 1e-12 || (w - node(-1.0)).norm() < 1e-12,
+            "axis {d2:?}: the witness {w:?} is a node"
+        );
+    }
+    let thin = cylinder(p(0.0, 0.5, 0.0), Vec3::unit_x(), 0.5);
+    assert_eq!(tangent(&classify(&a, &thin)), "section_cylinder_pair_nest");
+}
+
 /// **The `|d₁ × d₂|` decision**: two walls whose tilt, levered by the
 /// pair's extent, sits in the band's sliver — neither parallel nor
 /// definitely tilted, at whatever eps the run carries — offset so the
@@ -1261,7 +1294,12 @@ pub(super) fn scan(
 pub(super) fn tilted_slab() -> Body<f64> {
     let b = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
     let tilt = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, 0.0), Vec3::unit_y(), 0.2);
-    crate::transform::transform_rigid(&b, &tilt, Tol::witness()).unwrap()
+    crate::transform::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&tilt, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// **W2 reads `chart_boundary` per face, never the kind.** A seamless
@@ -1600,7 +1638,7 @@ fn a_glued_pair_exempts_itself_only() {
         pairs: vec![GluedPair {
             a: fa[0],
             b: fb[0],
-            class: crate::contact::GlueClass::REST,
+            class: crate::contact::GlueClass::Rest,
         }],
         ..Glue::default()
     };

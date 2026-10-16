@@ -2379,6 +2379,51 @@ fn mass_properties_impl<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_runs(body, faces, band, quad, tol).map(|(props, _)| props)
+}
+
+/// One face's flux term and its half-width, keyed by the face.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub type FaceTerm = (FaceKey, f64, f64);
+
+/// [`mass_properties`] together with every face's own flux term and
+/// its half-width, in the order the fold sums them (face-arena order).
+/// Test vocabulary: the same walk and the same fold as
+/// [`mass_properties`], so the properties are its bits, and the terms
+/// are what a caller compares face by face where two bodies store
+/// their faces in different orders (the fold's sum depends on the
+/// order, each face's term does not).
+///
+/// # Errors
+///
+/// As [`mass_properties`].
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn mass_properties_with_face_terms(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<(MassProperties<f64>, Vec<FaceTerm>), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(Some(QuadLane::certified()));
+    let (props, runs) = mass_properties_runs(body, &faces, band, &hook, tol)?;
+    let terms = runs
+        .iter()
+        .map(|run| (run.face, run.contribution.flux, run.contribution.flux_pad))
+        .collect();
+    Ok((props, terms))
+}
+
+/// The reporting walk: every face to the target, folded. The runs are
+/// handed back beside the sum for `mass_properties_with_face_terms`.
+fn mass_properties_runs<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    quad: &QuadHook<'_, T>,
+    tol: Tol,
+) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
     let runs = decide_faces(faces, |&face_key| {
         face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
     })?;
@@ -2392,7 +2437,7 @@ fn mass_properties_impl<T: Decide>(
     // no number.
     match fold_runs(&runs) {
         (_, Some((face, source))) => Err(MassPropsError::Face { face, source }),
-        (props, None) => Ok(props),
+        (props, None) => Ok((props, runs)),
     }
 }
 
@@ -2728,6 +2773,17 @@ pub fn loop_edges<T: Decide>(
     let Some(cycle) = body.loop_cycle(first) else {
         return Err(corrupt("broken half-edge cycle"));
     };
+    Ok((run_edges(body, &cycle)?, cycle))
+}
+
+/// [`loop_edges`]' flattening over any closed run of half-edges, in
+/// the order given: a loop's cycle, or a chain of half-edges from
+/// several faces that closes on itself.
+pub(crate) fn run_edges<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<Vec<LoopEdge<T>>, LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
     let mut tags: Vec<VertexKey> = Vec::new();
     let mut tag_of = |v: VertexKey| -> u32 {
         if let Some(i) = tags.iter().position(|&t| t == v) {
@@ -2738,9 +2794,7 @@ pub fn loop_edges<T: Decide>(
         }
     };
     let mut edges = Vec::with_capacity(cycle.len());
-    let mut hes = Vec::with_capacity(cycle.len());
-    for &he_key in &cycle {
-        hes.push(he_key);
+    for &he_key in cycle {
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
@@ -2775,7 +2829,7 @@ pub fn loop_edges<T: Decide>(
             end: tag_of(end),
         });
     }
-    Ok((edges, hes))
+    Ok(edges)
 }
 
 /// The derived outer/void designation of one shell. The shell list
@@ -2912,7 +2966,7 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What a [`ShellClassifyError`] found, without the shell's key or a
@@ -2928,7 +2982,7 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                "the sign of a shell's volume is too close to call: {}",
+                geom_core::undecided!("the sign of a shell's volume", payload),
                 source.payload()
             ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
@@ -3462,6 +3516,13 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     }
 }
 
+impl<T: Decide> QuadLane<T> {
+    /// A value of the walk's scalar as the interval holding it.
+    pub(crate) fn lift(self, x: T) -> Interval {
+        (self.lift)(x)
+    }
+}
+
 /// **The shell's op door**, as a value the passes take rather than a
 /// trait a scalar implements.
 ///
@@ -3591,6 +3652,35 @@ mod wiring_rows {
             return Err("open is not `shell_open`");
         }
         Ok(())
+    }
+
+    /// Each certifying scalar's region lane is the certified doors
+    /// ([`crate::RegionLane::certified`]); a dual's is absent
+    /// (`dual_gate_is_absent_not_a_verdict`).
+    #[test]
+    fn every_certifying_scalar_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <f64 as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "f64"
+        );
+        assert!(
+            <geom_core::Sym<f64> as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Sym<f64>"
+        );
+        assert!(
+            <geom_core::interval::Interval as AtRestPolicy>::region_lane()
+                .is_some_and(|l| l.is_certified()),
+            "Interval"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <geom_core::Probe as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Probe"
+        );
     }
 
     #[test]
@@ -3839,6 +3929,14 @@ pub trait AtRestPolicy: Decide {
     /// only.
     fn quad_lane() -> Option<QuadLane<Self>>;
 
+    /// **This scalar's chart-region doors, or `None` where they may not
+    /// certify** — what an op that confirms a record outside the
+    /// census's own doors reads a face–face pair through
+    /// ([`crate::census`]'s record confirm, run by the boolean's carry),
+    /// as `validate_pseudomanifold` hands the census at a certifying
+    /// scalar. `None` leaves a face–face pair unread.
+    fn region_lane() -> Option<crate::RegionLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -3944,6 +4042,10 @@ impl AtRestPolicy for f64 {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4016,6 +4118,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4082,6 +4188,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4163,6 +4273,10 @@ where
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4251,6 +4365,10 @@ where
     }
 
     fn quad_lane() -> Option<QuadLane<Self>> {
+        None
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
         None
     }
 
@@ -4513,6 +4631,10 @@ mod at_rest_policy_tests {
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
             "a dual may not certify, so it holds no plane x NURBS lane"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::region_lane().is_none(),
+            "a dual may not certify, so it holds no region lane"
         );
     }
 }

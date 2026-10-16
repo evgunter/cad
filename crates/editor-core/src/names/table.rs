@@ -113,7 +113,7 @@ pub enum Entry {
 
 impl Entry {
     /// The entities this entry names: one, or the tie's candidates.
-    fn entities(&self) -> &[EntityRef] {
+    pub(crate) fn entities(&self) -> &[EntityRef] {
         match self {
             Self::Unique(e) => core::slice::from_ref(e),
             Self::Tied(es) => es,

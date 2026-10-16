@@ -40,3 +40,14 @@ Owed:
 - The gating rows and the census run `Guided`, each row's move and
   floor re-pinned. A row that parts where it compared before is read
   as a finding, not dropped.
+
+## Lofts are now in this row's family (EDIT, 2026-10-11, PR 4741)
+
+A loft reads its sections' profile values, so under the pinned lift it
+launders the way an extrude does. A `Dual` seed on a parameter a
+section reads gives a zero derivative where main refused typed
+(`SeedPinnedSection`, retired), and a box over a section lofts the
+nominal. Under the guided lift both are correct: the seed rides to the
+walls, and the box refuses `SectionNotAPoint`
+(`crates/editor-core/tests/eval10_section_reads_the_nominal.rs`).
+

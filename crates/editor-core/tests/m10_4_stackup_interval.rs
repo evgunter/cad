@@ -490,32 +490,26 @@ fn the_two_hole_plate_stackup() {
         .expect("hole_r has a row")
         .sensitivity = SensitivityOutcome::Unliftable {
         node: distance,
-        refusal: LiftRefusal::PinnedSection {
-            section: assertion,
-            param: var(&doc, "hole_r"),
-        },
+        refusal: LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
     };
     let golden = unliftable.serialize();
     assert!(
         golden.contains(&format!(
-            "sensitivity=unliftable at node {}: variable {} feeds the section of node {}, \
-             which stays f64",
+            "sensitivity=unliftable at node {}: the guided elaboration could not re-confirm \
+             loop 0 step 1 at this pass's scalar",
             distance.full(),
-            hole_r.full(),
-            assertion.full()
         )),
         "{golden}"
     );
     assert!(!golden.contains("Measure "), "{golden}");
     assert!(!golden.contains("hole_r"), "{golden}");
-    // The human form SPEAKS the variable: by its name, where the
-    // content-keyed goldening form above holds its identity (so a
-    // rename moves no report key).
+    // The human form SPEAKS the node: by its spoken name, where the
+    // content-keyed goldening form above holds its identity.
     let human = unliftable.render(&doc, &analyzed);
     assert!(
         human.contains(&format!(
-            "hole_r feeds the section of {}, which stays f64",
-            doc.spoken(assertion)
+            "unliftable at {}: the guided elaboration could not re-confirm loop 0 step 1",
+            doc.spoken(distance)
         )),
         "{human}"
     );
@@ -1536,13 +1530,14 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     );
 }
 
-/// **MAJ-2's valve.** A loft's section stays `f64` in every lane
-/// (C6/D9), so a seed on the section's width has no channel to ride:
-/// the driver reports `Unliftable { PinnedSection }` naming the section
-/// and the parameter — never a finite zero — and the report forfeits
-/// that row's advisory columns to it while `worst_case` still gates.
+/// **A loft section carries its seed.** A loft reads its sections'
+/// profile values in the lane scalar, so a seed on a section's width
+/// rides through the skin to the walls (it was the typed valve
+/// `LiftRefusal::PinnedSection` while sections stayed `f64`): the
+/// distance from the loft's origin corner to its `x = w` corner moves
+/// one for one with `w`.
 #[test]
-fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
+fn a_loft_section_seed_rides_the_section_to_the_measure() {
     let half = eps() / 16.0;
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -1603,59 +1598,38 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let entries =
         sensitivities(&doc, measure_value, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&doc, &entries, "w") {
-        SensitivityOutcome::Unliftable { node, refusal } => {
-            assert_eq!(*node, loft, "the loft is where the seed stops");
-            assert_eq!(
-                *refusal,
-                editor_core::LiftRefusal::PinnedSection {
-                    section: p0,
-                    param: var(&doc, "w"),
-                }
+        SensitivityOutcome::Derivative { value, .. } => {
+            assert!(
+                (value - 1.0).abs() <= 1e-9,
+                "the corner distance moves one for one with the width: {value}"
             );
         }
-        other => panic!("a section seed must be the typed valve: {other:?}"),
+        other => panic!("a section seed must reach the measure: {other:?}"),
     }
 
+    // The drive is where the box meets the section, and at `Interval` a
+    // section with a width is no point: every leaf's loft refuses
+    // `SectionNotAPoint`, so nothing certifies and the driver bisects to
+    // its budget (that refusal is not one a smaller box can lift, and
+    // the drive has no terminal class for it). The `Interval` loft over
+    // a boxed section waits on
+    // `work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`;
+    // this pins where it stands, so the day it lands this row moves.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
-    if verdict.certified().is_empty() {
-        // EVIDENCE-ONLY: the loft's interval certification is not
-        // this row's subject; the valve above is.
-        println!("loft drive certified nothing: {:?}", verdict.receipt());
-        return;
-    }
-    let report = stackup(
-        &doc,
-        measure_value,
-        &analyzed,
-        &verdict,
-        None,
-        false,
-        None,
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("{e}"));
-    let row = &report.per_param[0];
-    assert!(matches!(
-        row.sensitivity,
-        SensitivityOutcome::Unliftable { .. }
-    ));
-    assert_eq!(
-        row.contribution,
-        Err(Unavailable::Unliftable {
-            var: spoken(&doc, "w")
-        })
+    assert!(
+        verdict.certified().is_empty(),
+        "a boxed section certifies nothing at Interval yet: {:?}",
+        verdict.receipt()
     );
-    assert!(row.chamber_span.is_none());
-    assert_eq!(
-        report.rss,
-        Rss::UnavailableBecause {
-            blockers: vec![Unavailable::Unliftable {
-                var: spoken(&doc, "w")
-            }]
-        }
+    assert!(
+        verdict
+            .refused()
+            .iter()
+            .all(|leaf| matches!(leaf.reason, editor_core::drive::RefusalReason::Budget(_))),
+        "every leaf is refused mass under the budget: {:?}",
+        verdict.refused().first().map(|l| &l.reason)
     );
-    assert!(report.worst_case.lo <= 2.0 && 2.0 <= report.worst_case.hi);
 }
 
 /// **DATUM — an untoleranced parameter is no axis, and blocks nothing.**

@@ -411,6 +411,255 @@ fn the_projection_is_the_nearest_point_on_every_chart() {
     }
 }
 
+/// The least of `g` over a turn of azimuth: the least sample of a grid,
+/// then a golden-section search on the two grid steps around it.
+fn least_over_a_turn(g: impl Fn(f64) -> f64) -> f64 {
+    const GRID: u32 = 720;
+    let step = TAU / f64::from(GRID);
+    let best = (0..GRID)
+        .map(|k| f64::from(k) * step)
+        .min_by(|a, b| g(*a).total_cmp(&g(*b)))
+        .expect("the grid is not empty");
+    let golden = (5f64.sqrt() - 1.0) / 2.0;
+    let (mut a, mut b) = (best - step, best + step);
+    for _ in 0..100 {
+        let (c, d) = (b - golden * (b - a), a + golden * (b - a));
+        if g(c) < g(d) {
+            b = d;
+        } else {
+            a = c;
+        }
+    }
+    g(0.5 * (a + b)).min(g(best))
+}
+
+/// The torus's three shapes: `r < R` (ring), `r = R` (horn), `r > R`
+/// (spindle). A stored torus may be any of them.
+fn torus_radii(s: &mut fuzz::Rng) -> (f64, f64) {
+    let major = s.range(1.0, 3.0);
+    let ratio = match s.below(3) {
+        0 => s.range(0.1, 0.9),
+        1 => 1.0,
+        _ => s.range(1.05, 2.0),
+    };
+    (major, major * ratio)
+}
+
+/// The torus's canonical form `(|p|² + R² − r²)² − 4R²ρ²` at `p`.
+fn torus_form(major: f64, minor: f64, p: Vec3<Interval>) -> Interval {
+    let iv = Interval::from_f64;
+    let q = p.x.powi(2) + p.y.powi(2) + p.z.powi(2) + iv(major).powi(2) - iv(minor).powi(2);
+    q.powi(2) - iv(4.0) * iv(major).powi(2) * (p.x.powi(2) + p.y.powi(2))
+}
+
+/// The distance of `p` from a torus, searched: the least over azimuth
+/// `θ` of its distance from the tube circle about `R·(cos θ, sin θ, 0)`.
+fn torus_distance(major: f64, minor: f64, p: Vec3<f64>) -> f64 {
+    least_over_a_turn(|t| {
+        let (e, tangent) = (
+            Vec3::new(t.cos(), t.sin(), 0.0),
+            Vec3::new(-t.sin(), t.cos(), 0.0),
+        );
+        let w = p - e * major;
+        w.dot(tangent).hypot(w.dot(e).hypot(w.z) - minor)
+    })
+}
+
+/// **A break's distance floor is a lower bound, and tight**: on every
+/// chart, in its canonical frame, [`distance_floor`] — the lane's own
+/// arithmetic — at a point never exceeds the point's distance from the
+/// chart's form's zero set, and meets it to the oracle's rounding, since
+/// each divisor is the exact factor. Points near the chart and far from
+/// it; tori ring, horn and spindle. The cone's and the torus's distances
+/// are searched over the azimuth of the surface's own lines and circles,
+/// not read off a closed form.
+///
+/// [`distance_floor`]: super::super::projected::distance_floor
+#[test]
+fn the_distance_floor_is_below_the_distance_and_meets_it() {
+    use super::super::projected::{Meters, distance_floor};
+    use crate::offset::Nappe;
+    type Form = Box<dyn Fn(Vec3<Interval>) -> Interval>;
+    type Distance = Box<dyn Fn(Vec3<f64>) -> f64>;
+    let mut s = fuzz::start("projected_distance_floor");
+    let iv = Interval::from_f64;
+    for _ in 0..fuzz::scaled(200) {
+        for chart in CHARTS {
+            let near = s.below(2) == 0;
+            let (meters, form, distance, on, size): (
+                Meters<Interval>,
+                Form,
+                Distance,
+                Vec3<f64>,
+                f64,
+            ) = {
+                let (a, b) = (s.range(0.0, TAU), s.range(-1.0, 1.0));
+                match chart {
+                    Chart::Plane => (
+                        Meters::Plane,
+                        Box::new(|p: Vec3<Interval>| p.z),
+                        Box::new(|p: Vec3<f64>| p.z.abs()),
+                        Vec3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), 0.0),
+                        1.0,
+                    ),
+                    Chart::Cylinder => {
+                        let r = s.range(0.3, 2.0);
+                        (
+                            Meters::Cylinder { radius: iv(r) },
+                            Box::new(move |p: Vec3<Interval>| {
+                                p.x.powi(2) + p.y.powi(2) - iv(r).powi(2)
+                            }),
+                            Box::new(move |p: Vec3<f64>| (p.x.hypot(p.y) - r).abs()),
+                            Vec3::new(r * a.cos(), r * a.sin(), 2.0 * b),
+                            r,
+                        )
+                    }
+                    Chart::Sphere => {
+                        let r = s.range(0.3, 2.0);
+                        let (c, z) = ((1.0 - b * b).sqrt(), b);
+                        (
+                            Meters::Sphere { radius: iv(r) },
+                            Box::new(move |p: Vec3<Interval>| {
+                                p.x.powi(2) + p.y.powi(2) + p.z.powi(2) - iv(r).powi(2)
+                            }),
+                            Box::new(move |p: Vec3<f64>| (p.norm() - r).abs()),
+                            Vec3::new(r * c * a.cos(), r * c * a.sin(), r * z),
+                            r,
+                        )
+                    }
+                    Chart::Cone => {
+                        let (sin, cos) = s.range(0.2, 1.3).sin_cos();
+                        let h = 2.0 * b;
+                        let rho = h.abs() * sin / cos;
+                        (
+                            Meters::Cone {
+                                sin: iv(sin),
+                                cos: iv(cos),
+                                nappe: Nappe::Opening,
+                            },
+                            Box::new(move |p: Vec3<Interval>| {
+                                iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
+                                    - iv(sin).powi(2) * p.z.powi(2)
+                            }),
+                            // The double cone is the lines through the
+                            // apex along `(sin α cos θ, sin α sin θ, cos α)`.
+                            Box::new(move |p: Vec3<f64>| {
+                                least_over_a_turn(|t| {
+                                    let d = Vec3::new(sin * t.cos(), sin * t.sin(), cos);
+                                    (p - d * p.dot(d)).norm()
+                                })
+                            }),
+                            Vec3::new(rho * a.cos(), rho * a.sin(), h),
+                            1.0,
+                        )
+                    }
+                    Chart::Torus => {
+                        let (major, minor) = torus_radii(&mut s);
+                        let phi = s.range(0.0, TAU);
+                        let rho = major + minor * phi.cos();
+                        (
+                            Meters::Torus {
+                                major: iv(major),
+                                minor: iv(minor),
+                            },
+                            Box::new(move |p| torus_form(major, minor, p)),
+                            Box::new(move |p| torus_distance(major, minor, p)),
+                            Vec3::new(rho * a.cos(), rho * a.sin(), minor * phi.sin()),
+                            major + minor,
+                        )
+                    }
+                }
+            };
+            let off = if near {
+                s.log_uniform(1e-9, 1e-2)
+            } else {
+                s.range(0.1, 1.0)
+            };
+            let p = on + unit(&mut s) * off;
+            let point = Vec3::new(iv(p.x), iv(p.y), iv(p.z));
+            let value = form(point);
+            let floor = distance_floor(meters, value, point);
+            let truth = distance(p);
+            // The oracle's rounding: a few ulps of the point's and the
+            // chart's size.
+            let rounding = 16.0 * f64::EPSILON * (p.norm() + size);
+            // The floor's own: the enclosure's width over the divisor.
+            let width = (value.hi() - value.lo()) / meters.divisor(point).abs().lo();
+            let what = format!(
+                "{chart:?} at {p:?}: floor {floor:e}, distance {truth:e} — {}",
+                fuzz::replay()
+            );
+            assert!(
+                floor <= truth + rounding,
+                "{what}: the floor is past the distance"
+            );
+            assert!(
+                floor >= truth - rounding - 2.0 * width,
+                "{what}: the floor is loose"
+            );
+        }
+    }
+}
+
+/// A spindle torus's form vanishes on its inner sheet as well, so the
+/// floor at a point nearer that sheet than the tube circle about its own
+/// azimuth reads the inner sheet's distance: at `ρ = ½` on `R = 1`,
+/// `r = 2` the tube circle is `1.5` away and the inner sheet `0.5`.
+#[test]
+fn a_spindle_toruss_floor_is_its_inner_sheets_distance() {
+    use super::super::projected::{Meters, distance_floor};
+    let iv = Interval::from_f64;
+    let (major, minor) = (1.0, 2.0);
+    let p = Vec3::new(0.5, 0.0, 0.0);
+    let point = Vec3::new(iv(p.x), iv(p.y), iv(p.z));
+    let floor = distance_floor(
+        Meters::Torus {
+            major: iv(major),
+            minor: iv(minor),
+        },
+        torus_form(major, minor, point),
+        point,
+    );
+    let truth = torus_distance(major, minor, p);
+    assert!(
+        (truth - 0.5).abs() < 1e-12,
+        "the searched distance is the inner sheet's: {truth:e}"
+    );
+    assert!(
+        floor <= truth && floor >= truth - 1e-12,
+        "the floor {floor:e} is the distance {truth:e}"
+    );
+}
+
+/// A spindle torus's incidence lever `(ρ + R)² − r²` goes negative near
+/// its axis, where the bound it divides by would read as no distance at
+/// all: [`Meters::over`] asks it positive first, as the cone's.
+///
+/// [`Meters::over`]: super::super::projected::Meters::over
+#[test]
+fn a_spindle_toruss_bound_asks_its_lever_positive() {
+    use super::super::projected::Meters;
+    let ask = |lever: f64| if lever > 0.0 { Ok(lever) } else { Err(lever) };
+    let spindle = Meters::Torus {
+        major: 1.0,
+        minor: 2.0,
+    };
+    assert_eq!(
+        spindle.over(1e-3, 0.5, (0.0, 0.0), ask),
+        Err(-1.75),
+        "the lever (ρ + R)² − r² = −1.75 at ρ = ½ is refused"
+    );
+    let ring = Meters::Torus {
+        major: 2.0,
+        minor: 1.0,
+    };
+    let bound = ring.over(1e-3, 0.5, (0.0, 0.0), ask);
+    assert!(
+        bound.is_ok_and(|m| m > 0.0),
+        "a ring torus's lever is positive and its bound is: {bound:?}"
+    );
+}
+
 /// One respect a dominance row moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Moved {
@@ -1150,6 +1399,8 @@ fn each_conversion_reads_its_stated_floors() {
             f_sup: f,
             rho_lo,
             z,
+            meters: f64::NAN,
+            floors: (0.0, 0.0),
         }],
     };
     let close = |got: f64, want: f64| (got - want).abs() <= 1e-12 * want.abs();
@@ -1625,7 +1876,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
         super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b)
@@ -1667,7 +1918,7 @@ fn an_uncertified_sector_bound_escalates() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     for (k, piece) in hull.pieces.iter().enumerate() {
         hull_sector(piece, k, &image.chart, b).expect("the clean hull's sectors hold");
     }
@@ -1712,7 +1963,7 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
         matches!(
@@ -1752,7 +2003,7 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
     assert!(hull.pieces[0].x_lo.is_nan(), "{:?}", hull.pieces[0]);
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(

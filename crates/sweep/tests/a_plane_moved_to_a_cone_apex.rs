@@ -25,7 +25,8 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, Body, BooleanError, FaceKey, SplitJoinError};
+use test_utils::cone_cut::ConeCut;
+use topo::{AtRestBody, Body, FaceKey};
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -193,13 +194,10 @@ fn cone_of(body: &Body<f64>) -> Surface<f64> {
         .expect("the body has a cone wall")
 }
 
-/// Where the section of the plane `(origin, normal)` starts on each
-/// nappe of `cone`, read off the surfaces: the real plane meets the line
-/// through a unit generator `g` at `−δ/(g·n)` from the apex (`δ` the
-/// apex gap), and `g·n` runs over `[−D, M]` (mirrored where `a·n < 0`),
-/// so one nappe's section starts `|δ|/M` from the apex and the other's
-/// `|δ|/D`. Returns `(on the +axis nappe, on the −axis nappe, |δ|/D)`.
-fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> (f64, f64, f64) {
+/// The oracle's cut of `cone` by the plane `(origin, normal)`, in
+/// double-double arithmetic off the stored `f64`s
+/// ([`test_utils::cone_cut`]); it never reads the arm's bound.
+fn cut(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> ConeCut {
     let Surface::Cone {
         apex,
         axis,
@@ -209,14 +207,34 @@ fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> 
     else {
         unreachable!("a cone")
     };
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    let (c, s) = (axis.dot(normal), axis.cross(normal).norm());
-    let (d, m) = (sin_a * s - cos_a * c.abs(), sin_a * s + cos_a * c.abs());
-    let gap = (apex - origin).dot(normal);
-    // On the +axis nappe `t > 0`, so `g·n` has the sign of `−δ`: the
-    // steep end `M` lies on the side of `c`.
-    let (plus, minus) = if -gap * c > 0.0 { (m, d) } else { (d, m) };
-    (gap.abs() / plus, gap.abs() / minus, gap.abs() / d)
+    let p3 = |q: Point3<f64>| [q.x, q.y, q.z];
+    let w3 = |v: Vec3<f64>| [v.x, v.y, v.z];
+    ConeCut::new(p3(apex), w3(axis), half_angle, (p3(origin), w3(normal)))
+}
+
+/// Where the section of the plane `(origin, normal)` starts on `cone`'s
+/// `+axis` and `−axis` nappes, and the farther of the two, by the oracle.
+fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> (f64, f64, f64) {
+    let cut = cut(cone, origin, normal);
+    let (plus, minus) = (cut.start(1.0), cut.start(-1.0));
+    (plus, minus, plus.max(minus))
+}
+
+/// How far the line pair through the apex parallel to the plane
+/// `(origin, normal)` stands from its section with `cone` over the
+/// points `(lo, hi)` along the axis from the apex, by the oracle: both
+/// ways round, each section point from the nearer line and each line
+/// point from the section.
+fn pair_miss(
+    cone: &Surface<f64>,
+    (origin, normal): (Point3<f64>, Vec3<f64>),
+    (lo, hi): (f64, f64),
+) -> f64 {
+    let Surface::Cone { half_angle, .. } = *cone else {
+        unreachable!("a cone")
+    };
+    let cos = half_angle.cos();
+    cut(cone, origin, normal).pair_miss((lo / cos, hi / cos))
 }
 
 /// What the plane×cone arm serves for a pair whose far branch starts
@@ -342,25 +360,150 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
     }
 }
 
+/// **A cap moved off a frustum wedge's apex plans its wall edge.** A cap
+/// of the quarter wedge of the `tan α = 1/64` frustum from `y = 1/256`
+/// to `y = 3/8` moved by `±0.9·ε` cuts the wall in a hyperbola whose
+/// branches start `≈ 58·ε` from the apex, past the band. The wall edge
+/// the cap shares stays `1/256` clear of the apex, and over that span
+/// the pair stands within ε of the hyperbola by the oracle
+/// ([`pair_miss`]), so the
+/// offset keeps the generator: every edge plans, and the offset door
+/// moves the cap.
+///
+/// The truth is read off the circles the wall is made of: at height
+/// `y` the moved plane, `d` off the axis, meets the wall's circle of
+/// radius `r = y·tan α` at the angle `asin(d/r)` past the cap's
+/// generator, so a point of the planned wall edge at that height
+/// stands `|x − x'|` off the section point `x'` there, which this row
+/// reads over the edge's span.
+///
+/// The moved body is right: its volume is `V + d·A` (`A` the cap's
+/// area) within `ε·A/4`, it passes tier 3, and `point_in_solid` agrees
+/// with the wedge's membership on a grid over its upper span.
+/// With the cap moved out, containment cannot read the wall's chart
+/// window, whose two rims now span different azimuths, and refuses
+/// `PartialConeFace` at up to 50 of the 216 grid points at the default
+/// ε and 60 at `1e-6`
+/// (`work/inside/a-cone-wall-whose-rims-span-different-azimuths-refuses-containment.md`).
+#[test]
+fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    let (y0, y1, t) = (1.0 / 256.0, 0.375, 1.0 / 64.0);
+    let body = frustum_wedge_body(y0, y1, t);
+    let cone = cone_of(&body);
+    let caps = axial_caps(&body);
+    let v = PI * t * t * (y1.powi(3) - y0.powi(3)) / 12.0;
+    let cap_area = t * (y1 * y1 - y0 * y0) / 2.0;
+    // The moved cap stands `0.9·ε` off the wedge's, well inside the
+    // truth's margin, so the wedge's own membership is the truth.
+    let truth = Solid::Revolved {
+        y0,
+        y1,
+        r0: y0 * t,
+        k: t,
+        window: Some(FRAC_PI_2),
+    };
+    let named = [p(0.0, 0.2, 0.5), p(0.5, 0.2, 0.0)];
+    let points = solid_truth::grid(p(-0.002, 0.17, -0.008), p(0.008, 0.41, 0.002), 6);
+    assert_eq!(caps.len(), 2, "the wedge has two caps");
+    for face in caps {
+        let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+            unreachable!("a cap is a plane")
+        };
+        for d in [0.9 * eps, -0.9 * eps] {
+            let moved = origin + normal * d;
+            let label = format!("{face:?} by {d:e}");
+            let (.., far) = nappe_starts(&cone, moved, normal);
+            assert!(
+                far > k * eps,
+                "{label}: the hyperbola starts {far:e} off the apex"
+            );
+            let bound = pair_miss(&cone, (moved, normal), (y0, y1));
+            assert_eq!(
+                start_class(bound),
+                Start::Served,
+                "{label}: the pair stands {bound:e} off the section over the wall edge"
+            );
+            for (edge, plan) in topo::offset_edge_plans_for_tests(&body, face, d, tol) {
+                assert!(matches!(plan, Ok(None)), "{label}, {edge:?}: got {plan:?}");
+            }
+            let mut walls = 0;
+            for (edge, spec) in topo::offset_edge_specs_for_tests(&body, face, d, tol) {
+                let spec = spec.unwrap_or_else(|e| panic!("{label}, {edge:?}: refused {e:?}"));
+                // The cap's other edges are against planes: its wall
+                // edge is a generator, a line at the half-angle off the
+                // axis, read here at every height of the wall's span.
+                let geom::Curve3::Line { origin: o, dir } = spec.carrier else {
+                    continue;
+                };
+                if (dir.x.hypot(dir.z) - t * dir.y.abs()).abs() > 1e-6 * dir.norm() {
+                    continue;
+                }
+                let at = |s: f64| {
+                    let y = y0 + (y1 - y0) * s;
+                    o + dir * ((y - o.y) / dir.y)
+                };
+                walls += 1;
+                let miss = (0..=64)
+                    .map(|i| at(f64::from(i) / 64.0))
+                    .fold(0.0_f64, |miss, x| {
+                        let off = Vec3::new(x.x, 0.0, x.z);
+                        let r = x.y * t;
+                        let along = off - normal * off.dot(normal);
+                        let across = (d / r).clamp(-1.0, 1.0);
+                        let truth = p(0.0, x.y, 0.0)
+                            + along.normalize() * (r * (1.0 - across * across).sqrt())
+                            + normal * (r * across);
+                        miss.max((x - truth).norm())
+                    });
+                assert!(
+                    miss <= eps,
+                    "{label}, {edge:?}: the planned wall edge stands {:.3}·ε off the section",
+                    miss / eps
+                );
+            }
+            assert_eq!(walls, 1, "{label}: the cap has one wall edge");
+            let mut offset = body.clone();
+            topo::replace_face_offset(&mut offset, face, d, tol)
+                .unwrap_or_else(|e| panic!("{label}: the offset refused {e:?}"));
+            solid_truth::assert_body_is(
+                &label,
+                &offset,
+                (v + d * cap_area, 1e-12 * v + 0.25 * eps * cap_area),
+                &|q| truth.depth(q),
+                &named,
+                &points,
+                60,
+            );
+        }
+    }
+}
+
 /// A quarter wedge of the frustum of half-angle `atan(t)`, apex at the
-/// origin and axis `+y`, from `y = y0` to `y = 1`: its caps are planes
+/// origin and axis `+y`, from `y = y0` to `y = y1`: its caps are planes
 /// containing the axis, and its wall stays `y0` clear of the apex.
-fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
+fn frustum_wedge_body(y0: f64, y1: f64, t: f64) -> Body<f64> {
     let meridian = ProfileLoop::polygon([
         Point2::new(0.0, y0),
         Point2::new(y0 * t, y0),
-        Point2::new(t, 1.0),
-        Point2::new(0.0, 1.0),
+        Point2::new(y1 * t, y1),
+        Point2::new(0.0, y1),
     ]);
-    let tol = Tol::witness();
-    let body = revolve(
+    revolve(
         &validated(vec![meridian]),
         axis_y(),
         Revolution::Partial(FRAC_PI_2),
-        tol,
+        Tol::witness(),
     )
     .expect("the meridian revolves")
-    .body;
+    .body
+}
+
+/// [`frustum_wedge_body`] to `y = 1`, finished, with its truth.
+fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
+    let tol = Tol::witness();
+    let body = frustum_wedge_body(y0, 1.0, t);
     (
         finished("the frustum wedge", body, tol),
         Solid::Revolved {
@@ -373,33 +516,27 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
     )
 }
 
-/// **A half-space flush with a frustum wedge's cap.** The brick
-/// `[−2, 2] × [−1, 2] × [−δ, 2]` overlaps the `z = 0` cap of
+/// **A half-space flush with a frustum wedge's cap builds the union.**
+/// The brick `[−2, 2] × [−1, 2] × [−δ, 2]` overlaps the `z = 0` cap of
 /// [`frustum_wedge`] by `δ ∈ {0.5·ε, 0.9·ε}`, for `y0 ∈ {1/4, 1/512}`
-/// and `tan α ∈ {1/64, 1/2, 1}`. Its face holds no generator: it meets
-/// the cone in a hyperbola whose branches start `δ/sin α` from the apex
-/// on both nappes (the plane is parallel to the axis, so `D = M`).
+/// and `tan α ∈ {1/64, 1/2, 1}`, in both orders. Its face holds no
+/// generator: it meets the cone in a hyperbola whose branches start
+/// `δ/sin α` from the apex on both nappes (the plane is parallel to the
+/// axis, so `D = M`), past the band at `tan α = 1/64` and in it at
+/// `1/2`.
 ///
-/// **The union is right at every pose here.** The wedge's wall stays
-/// `y0` clear of the apex. Over that span the hyperbola lies within
-/// `δ + δ²/(2·y0·tan α)` of the generator the pair serves, and both
-/// terms are within ε. Main builds the union in both orders.
-///
-/// The arm reads where the section starts at the apex, not over the
-/// span the join consumes:
-/// - within ε, it serves the pair and the union builds;
-/// - in the band, the join escalates naming `pn_apex_pair_reach`;
-/// - past it, the join refuses the hyperbola.
-///
-/// Each refusal becomes the union (`V_wedge + V_brick − overlap`, the
-/// `Want` this row checks the served poses against) once the arm reads
-/// the consumed span
-/// (`work/germ/pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span.md`).
+/// The wedge's wall, and the section the join reads on it, stay `y0`
+/// clear of the apex, on one nappe. Over that span the pair stands
+/// about `δ·(1 + δ/(y0·sin α))` off the hyperbola, within ε at every
+/// pose by the oracle ([`pair_miss`]), so the arm serves the pair
+/// and the union builds: `V_wedge + V_brick − overlap`, against the
+/// closed-form volume, tier 3 and `point_in_solid` on a grid. Read at
+/// the apex alone, 20 of the 24 refuse.
 #[test]
-fn a_half_space_flush_with_a_frustum_wedge_cap_builds_only_where_its_start_is_served() {
+fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let mut reached = std::collections::BTreeSet::new();
+    let mut past_the_apex_reading = 0;
     for y0 in [0.25, 1.0 / 512.0] {
         for t in [1.0 / 64.0, 0.5, 1.0] {
             for off in [0.5, 0.9] {
@@ -417,14 +554,23 @@ fn a_half_space_flush_with_a_frustum_wedge_cap_builds_only_where_its_start_is_se
                 let Surface::Plane { origin, normal, .. } = face else {
                     unreachable!("a plane")
                 };
-                let (plus, minus, far) = nappe_starts(&cone_of(&wedge), origin, normal);
+                let cone = cone_of(&wedge);
+                let (plus, minus, far) = nappe_starts(&cone, origin, normal);
                 assert!(
                     (plus - minus).abs() <= 1e-12 * far,
                     "{label}: the face parallel to the axis starts the hyperbola as far on both \
                      nappes, {plus:e} and {minus:e}"
                 );
-                let class = start_class(far);
-                reached.insert(format!("{class:?}"));
+                if start_class(far) != Start::Served {
+                    past_the_apex_reading += 1;
+                }
+                let bound = pair_miss(&cone, (origin, normal), (y0, 1.0));
+                assert_eq!(
+                    start_class(bound),
+                    Start::Served,
+                    "{label}: the pair stands {:.3}·ε off the section over the wall",
+                    bound / eps
+                );
                 let cap_area = t * (1.0 - y0 * y0) / 2.0;
                 let v =
                     PI * t * t * (1.0 - y0.powi(3)) / 12.0 + 4.0 * 3.0 * (2.0 + d) - d * cap_area;
@@ -434,47 +580,23 @@ fn a_half_space_flush_with_a_frustum_wedge_cap_builds_only_where_its_start_is_se
                     ("wedge ∪ half-space", topo::union(&wedge, &brick, tol)),
                     ("half-space ∪ wedge", topo::union(&brick, &wedge, tol)),
                 ] {
-                    let label = format!("{label}, {order} (start {:.3}·ε)", far / eps);
-                    match class {
-                        // The flush slab is decided within the band, so
-                        // the volume is good to ε over the cap.
-                        Start::Served => {
-                            solid_truth::assert_is(
-                                &label,
-                                &got,
-                                Want::Body(v, 1e-9 * v + 2.0 * eps * cap_area),
-                                &|q| Op::Union.depth(&sw, &sb, q),
-                                &named,
-                                &points,
-                            );
-                        }
-                        Start::InBand => {
-                            let Err(BooleanError::Join(SplitJoinError::Escalated { diag, .. })) =
-                                &got
-                            else {
-                                panic!("{label}: wanted the pair's escalation, got {got:?}");
-                            };
-                            assert_eq!(diag.predicate, Some("pn_apex_pair_reach"), "{label}");
-                        }
-                        Start::Past => {
-                            let Err(BooleanError::Join(SplitJoinError::Section {
-                                source: geom_brep::SectionError::RoutesToGeneralRung { why, .. },
-                                ..
-                            })) = &got
-                            else {
-                                panic!("{label}: wanted the hyperbola refusal, got {got:?}");
-                            };
-                            assert!(why.contains("HYPERBOLA"), "{label}: {why}");
-                        }
-                    }
+                    // The flush slab is decided within the band, so the
+                    // volume is good to ε over the cap.
+                    solid_truth::assert_is(
+                        &format!("{label}, {order} (start {:.3}·ε)", far / eps),
+                        &got,
+                        Want::Body(v, 1e-9 * v + 2.0 * eps * cap_area),
+                        &|q| Op::Union.depth(&sw, &sb, q),
+                        &named,
+                        &points,
+                    );
                 }
             }
         }
     }
     assert_eq!(
-        reached.len(),
-        3,
-        "the poses reach a served pair, the band and past it: {reached:?}"
+        past_the_apex_reading, 10,
+        "the poses the far start alone refuses: 20 of the 24 unions"
     );
 }
 
@@ -497,13 +619,19 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
         .expect("the meridian revolves")
         .body;
     frustum.merge_coplanar_faces(tol).unwrap();
-    let frustum = topo::transform_rigid(&frustum, pose, tol).unwrap();
+    let frustum =
+        topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol), tol).unwrap();
     let apex = Point3::new(0.0, apex_y, 0.0);
     let turn = *pose
         * Affine3::rotation_about_axis(apex, Vec3::new(0.0, 0.0, 1.0), 1e-6 - FRAC_PI_6)
         * Affine3::translation(apex - Point3::origin());
     let bx = [(0.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)];
-    let boxed = topo::transform_rigid(&brick(bx[0], bx[1], bx[2], tol), &turn, tol).unwrap();
+    let boxed = topo::transform_rigid(
+        &brick(bx[0], bx[1], bx[2], tol),
+        &geom_core::test_support::rigid(&turn, tol),
+        tol,
+    )
+    .unwrap();
     [
         (
             finished("the frustum", frustum, tol),
@@ -523,30 +651,22 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
     ]
 }
 
-/// **A box face built through a frustum's virtual apex.** The face is a
-/// plane through the apex of [`frustum_and_virtual_apex_box`] with
-/// `D = sin(1e-6)`, posed off the axes, so it stands only a rounding gap
-/// `|δ| ≈ 7e-17` off the apex. The far branch starts `|δ|/D ≈ 7e-11`
-/// from it:
-/// - within ε at the default ε, where every op builds against the
-///   closed-form truth;
-/// - past the band at 1e-12, where the boolean frame refuses naming the
-///   hyperbola.
+/// **A box face built through a frustum's virtual apex builds every
+/// op.** The face is a plane through the apex of
+/// [`frustum_and_virtual_apex_box`] with `D = sin(1e-6)`, posed off the
+/// axes, so it stands only a rounding gap `|δ| ≈ 7e-17` off the apex.
+/// The far branch starts `|δ|/D ≈ 7e-11` from it: within ε at the
+/// default ε, past the band at 1e-12.
+///
+/// The frustum stays `≈ 0.55/cos α` clear of the apex, and over that
+/// span the pair stands within ε of the section by the oracle
+/// ([`pair_miss`]), so every op builds, in both orders, at both ε, against the
+/// closed-form truth. The two apex heights put the frustum on the near
+/// nappe (start `|δ|/M ≈ 1e-16`) and on the far one.
 ///
 /// At 1e-6, `D` itself lies in the band, and the row skips loudly.
-///
-/// **What main built.** Main built the right body for every op in both
-/// orders at 1e-12 too. The frustum stays `≈ 0.55/cos α` clear of the
-/// apex, and over that span the section is within `|δ|·sin α/√(D·M)`
-/// (`≈ 4e-14`) of the pair.
-///
-/// The two apex heights put the frustum on the near nappe (start
-/// `|δ|/M ≈ 1e-16`) and on the far one. Both refuse, so the refusal is
-/// not mended by telling the arm which nappe the consumer's face lies
-/// on. Telling it the span is what mends it
-/// (`work/germ/pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span.md`).
 #[test]
-fn a_box_face_through_a_virtual_apex_builds_only_where_its_start_is_served() {
+fn a_box_face_through_a_virtual_apex_builds_every_op() {
     let tol = Tol::witness();
     let pose = Affine3::translation(Vec3::new(0.3, 0.1, 0.2))
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 2.0, 3.0).normalize(), 0.3);
@@ -575,11 +695,20 @@ fn a_box_face_through_a_virtual_apex_builds_only_where_its_start_is_served() {
         );
         let (plus, minus, far) = nappe_starts(&cone, origin, normal);
         let (eps, k) = (tol.eps(), tol.k());
-        if gap.abs() / far <= k * eps {
-            println!(
-                "SKIPPED at this ε: D = {:e} leaves the box face within the band of tangent to \
-                 the cone, which the boolean decides as a coincidence before the apex lane",
-                gap.abs() / far
+        let rims = [0.25, 1.0].map(|y| (pose.transform_point(p(0.0, y, 0.0)) - apex).dot(axis));
+        let Surface::Cone { half_angle, .. } = cone else {
+            unreachable!("a cone")
+        };
+        let d = half_angle.sin() * axis.cross(normal).norm()
+            - half_angle.cos() * axis.dot(normal).abs();
+        if d <= k * eps {
+            test_utils::vacuity::stood_down(
+                "a box face through a virtual apex",
+                &format!(
+                    "at ε = {eps:e}, D = {d:e} leaves the box face within the band of tangent \
+                     to the cone, which the boolean decides as a coincidence before the apex \
+                     lane: no op is built or checked"
+                ),
             );
             return;
         }
@@ -590,8 +719,17 @@ fn a_box_face_through_a_virtual_apex_builds_only_where_its_start_is_served() {
             minus
         };
         own.push((start, far));
-        let class = start_class(far);
         let label = format!("apex at {apex_y}, start {far:e} (its own nappe {start:e})");
+        let bound = pair_miss(
+            &cone,
+            (origin, normal),
+            (rims[0].min(rims[1]), rims[0].max(rims[1])),
+        );
+        assert_eq!(
+            start_class(bound),
+            Start::Served,
+            "{label}: the pair stands {bound:e} off the section over the frustum"
+        );
         // The sliver of the frustum past the box face: a circular
         // segment of depth `(y − apex_y)·(tan α − tan φ)` at height `y`,
         // `φ` the face's turn, integrated by midpoints.
@@ -663,35 +801,14 @@ fn a_box_face_through_a_virtual_apex_builds_only_where_its_start_is_served() {
             ),
         ];
         for (op, got, truth, a, b, v) in ops {
-            let label = format!("{label}, {op}");
-            match class {
-                Start::Served => {
-                    solid_truth::assert_is(
-                        &label,
-                        &got,
-                        Want::Body(v, 1e-9 * v.max(1.0)),
-                        &|q| truth.depth(a, b, q),
-                        &[],
-                        &points,
-                    );
-                }
-                Start::InBand => {
-                    let Err(BooleanError::Escalated { diag, .. }) = &got else {
-                        panic!("{label}: wanted the pair's escalation, got {got:?}");
-                    };
-                    assert_eq!(diag.predicate, Some("pn_apex_pair_reach"), "{label}");
-                }
-                Start::Past => assert!(
-                    matches!(
-                        &got,
-                        Err(BooleanError::GermSectionOutsideInventory {
-                            conic: geom_brep::OutsideConic::Hyperbola,
-                            ..
-                        })
-                    ),
-                    "{label}: wanted the hyperbola refusal, got {got:?}"
-                ),
-            }
+            solid_truth::assert_is(
+                &format!("{label}, {op}"),
+                &got,
+                Want::Body(v, 1e-9 * v.max(1.0)),
+                &|q| truth.depth(a, b, q),
+                &[],
+                &points,
+            );
         }
     }
     assert!(

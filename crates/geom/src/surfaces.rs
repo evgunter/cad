@@ -2017,7 +2017,7 @@ mod tests {
             .to_string();
         assert!(!spindle.contains("tighten"), "{spindle}");
         assert!(
-            spindle.contains("no smaller tolerance moves onto a side"),
+            spindle.contains("a reading with no size on the side this decision accepts"),
             "{spindle}"
         );
         let ring = require_ring_torus(1.0 + 5e-10, 1.0, band)

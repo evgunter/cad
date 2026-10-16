@@ -485,6 +485,21 @@ pub(super) fn plan_null_pairs<T: Decide>(
             ),
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
+    // Each germ's branch, decided once, at the A site.
+    let site = a_body.resolve_vertex_point(contact.a, Proven);
+    let branches = survivors
+        .iter()
+        .zip(&loci)
+        .map(|(r, &l)| {
+            super::join::germ_branch(
+                (a_body, a_sectors[r.a].face),
+                (b_body, b_sectors[r.b].face),
+                l,
+                site,
+                band,
+            )
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     // Each solid's walk order of the survivors ([`walk_order`]). Two
     // survivors pair with each other and run either way round, so only
     // more need one.
@@ -560,16 +575,16 @@ pub(super) fn plan_null_pairs<T: Decide>(
                 a_sectors,
                 a_body,
                 a_run,
-                (r0.a, r0.sa, g0_faces, dirs[i0]),
-                (r1.a, r1.sa, g1_faces, dirs[i1]),
+                (r0.a, r0.sa, g0_faces, dirs[i0], branches[i0]),
+                (r1.a, r1.sa, g1_faces, dirs[i1], branches[i1]),
                 &a_pos,
             )?,
             side(
                 b_sectors,
                 b_body,
                 b_run,
-                (r0.b, r0.sb, g0_faces, dirs[i0]),
-                (r1.b, r1.sb, g1_faces, dirs[i1]),
+                (r0.b, r0.sb, g0_faces, dirs[i0], branches[i0]),
+                (r1.b, r1.sb, g1_faces, dirs[i1], branches[i1]),
                 &b_pos,
             )?,
         ]);
@@ -1075,15 +1090,14 @@ fn holds_whole<T: Decide>(
 /// piece. Two crossing pairs that share both their
 /// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
-/// shared-entity wedge fan there. Returns the shared vertices where a
-/// run hangs at a copy of its own plan's ([`hang_at_shared`]).
+/// shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
     a_body: &Body<T>,
     b_body: &Body<T>,
     band: Band,
-) -> Result<Vec<Hang>, BooleanError> {
+) -> Result<(), BooleanError> {
     // Two crossing pairs that share both their vertices: each operand
     // holds two vertices at the point, and the result's would be one
     // vertex whose orbit passes the pinch line twice.
@@ -1113,16 +1127,6 @@ pub(super) fn reconcile_shared<T: Decide>(
     })
 }
 
-/// A shared vertex where [`hang_at_shared`] hung runs of a plan at a
-/// copy of its own, with the pairs that meet there: what a refusal
-/// at that point names (`zip::refuse_split_hung_points`).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Hang {
-    pub(crate) operand: Operand,
-    pub(crate) vertex: VertexKey,
-    pub(crate) partners: [VertexKey; 2],
-}
-
 /// **A run turned round a shared vertex holds what lay outside it.**
 /// [`reconcile_pass`] turns a run onto its complement to clear another
 /// pair's cuts, and the runs of its own pair that lay outside it then
@@ -1138,12 +1142,11 @@ pub(crate) struct Hang {
 /// vertex, among its struts ([`mint_plans`]). A turned run and a run of
 /// its plan that held it would cover the walk between them, and refuse
 /// [`BooleanError::SharedVertexCrossings`]: a backstop no known pose
-/// reaches. Returns each vertex where a run was hung.
+/// reaches.
 fn hang_at_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
-) -> Result<Vec<Hang>, BooleanError> {
-    let mut hangs = Vec::new();
+) -> Result<(), BooleanError> {
     for slot in 0..2 {
         for i in 0..plans.len() {
             let Some(at) = shared_at(plans, sectors, slot, i) else {
@@ -1154,34 +1157,27 @@ fn hang_at_shared<T: Decide>(
                 .iter()
                 .map(|r| is_strut(at.secs, r.from.0, r.to.0))
                 .collect::<Result<Vec<bool>, BooleanError>>()?;
-            let hang = Hang {
-                operand: at.operand,
-                vertex: at.vertex,
-                partners: [at.partner, ends(plans[at.others[0]].contact, slot).1],
-            };
+            let partners = [at.partner, ends(plans[at.others[0]].contact, slot).1];
             let arcs: Vec<[usize; 2]> = runs.iter().map(|r| r.walk).collect();
             debug_assert_eq!(plans[i].walk_len, 2 * runs.len(), "two germs per run");
             let holders =
                 arc_holders(plans[i].walk_len, &arcs).map_err(|refusal| match refusal {
                     ArcRefusal::Cover => BooleanError::SharedVertexCrossings {
-                        operand: hang.operand,
-                        vertex: hang.vertex,
-                        partners: hang.partners,
+                        operand: at.operand,
+                        vertex: at.vertex,
+                        partners,
                     },
                     ArcRefusal::Crossing => BooleanError::ClassificationInvariant {
                         what: "two runs of one plan cross in its walk after the reconcile",
                     },
                 })?;
             let held = held_by(&holders, &strut);
-            if held.iter().any(Option::is_some) {
-                hangs.push(hang);
-            }
             for (r, held) in plans[i].runs.iter_mut().zip(held) {
                 r[slot].held = held;
             }
         }
     }
-    Ok(hangs)
+    Ok(())
 }
 
 /// Contact `c`'s two vertices as solid `slot` reads it: its own, then
@@ -1550,9 +1546,9 @@ fn walks_after<T: Decide>(
     }
 }
 
-/// A germ in one solid: its sector entry, its codes there, its cells
-/// and its direction.
-type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
+/// A germ in one solid: its sector entry, its codes there, its cells,
+/// its direction and its branch.
+type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>, super::Branch);
 
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
 pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
@@ -1696,7 +1692,7 @@ fn mint_directed<T: Decide>(
     }
     // Germ facings as data (module docs): he_plus faces the from-germ,
     // he_minus the to-germ (the mev splice contract).
-    let meta = [(gf.2, gf.3), (gt.2, gt.3)];
+    let meta = [(gf.2, gf.3, gf.4), (gt.2, gt.3, gt.4)];
     // A nested strut hangs at its holder's tip, past the struts hung
     // there earlier at a lower germ; any other shared strut at the
     // vertex, past those hung in its corner.
@@ -2146,7 +2142,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(GlueClass::TANGENT) {
+    if read != DeclarationRead::Spent(GlueClass::Tangent) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
@@ -2331,7 +2327,7 @@ fn mint_run<T: Decide>(
     from: usize,
     to: usize,
     run_side: SideCode,
-    germ_meta: [(Cells, Vec3<T>); 2],
+    germ_meta: [(Cells, Vec3<T>, super::Branch); 2],
     spike_from_first: bool,
     anchor: Option<HalfEdgeKey>,
 ) -> Result<(BoolNullEdgeRecord<T>, (VertexKey, HalfEdgeKey)), BooleanError> {
@@ -2381,7 +2377,7 @@ fn mint_run<T: Decide>(
     let mint = body.mev_null_run(site, vertex, run_side, plus_faces_start)?;
     let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
     let germ = |i: usize, he: crate::entity::HalfEdgeKey| {
-        let (((a_face, b_face), (a_locus, b_locus)), dir) = germ_meta[i];
+        let (((a_face, b_face), (a_locus, b_locus)), dir, branch) = germ_meta[i];
         super::HalfGerm {
             he,
             a_face,
@@ -2389,6 +2385,7 @@ fn mint_run<T: Decide>(
             a_locus,
             b_locus,
             dir,
+            branch,
         }
     };
     let germs = [germ(0, start_he), germ(1, end_he)];

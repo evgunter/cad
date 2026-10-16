@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SplitLineageCycle, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
@@ -29,7 +29,7 @@ use crate::node::RecipeNodeId;
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
 ///    body. [`Self::Duplicate`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
-///    [`Self::SplitLineage`], [`Self::FragmentLineage`].
+///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the category below
@@ -38,7 +38,8 @@ use crate::node::RecipeNodeId;
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
 ///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`] and [`Self::ClosedCarrierUnread`],
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
+///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -116,37 +117,24 @@ pub enum NamingError {
     /// arrival), which maps an acyclic chain to an acyclic one. No
     /// caller can close it.
     SplitLineage(SplitLineageCycle),
-    /// A face's FRAGMENT lineage cycles, caught where an emitter
-    /// chased it to its root through a split's or a boolean's
-    /// `face_fragments` rows — the same category of kernel bug as
-    /// [`Self::Emission`] and the same category as
-    /// [`Self::SplitLineage`], carrying the one thing the repair needs
-    /// that a sentence cannot supply: WHICH face.
-    ///
-    /// A sibling word rather than one generalised over
-    /// [`super::table::EntityKey`]: the two cycles are corrupt records
-    /// of DIFFERENT families — a mint-time `face_fragments` row here,
-    /// a `SplitEdge` birth record for [`Self::SplitLineage`] — so one
-    /// word for the class would name the key's kind while hiding which
-    /// map to go and read.
-    ///
-    /// Guarded by `emit_topo`'s `a_cycling_fragment_map_refuses`.
-    FragmentLineage {
-        /// The face whose fragment chain cycles — the key the chase
-        /// was ASKED about, which is the one a repair starts from.
-        face: FaceKey,
-    },
-    /// A boolean's seam VERTEX left half-decided by the edges around
-    /// it: one operand-descended edge on one side, none on the other,
-    /// and nothing else naming the missing parent.
+    /// A Boolean's naming rows settle a result vertex on no live cell
+    /// (`topo::BooleanNaming::settler`) — the same category of kernel
+    /// bug as [`Self::Emission`], carrying the vertex the chase was asked
+    /// about and how it failed.
+    Settle(SettleError),
+    /// A pair boolean's seam VERTEX left half-decided by the edges
+    /// around it: every edge at it descends from one edge of operand A,
+    /// no edge of operand B and no seam reaches it, and nothing else
+    /// (an operand vertex, a contact row) names the missing B parent.
     ///
     /// **Not an emission inconsistency**, and the test is the same one
     /// [`Self::Band`] applies: nothing about the result body is wrong
-    /// here. Ordinary declared unions reach it — a member stacked on a
-    /// face that a second declared contact has merged puts a seam
-    /// vertex on a merged wall with mixed parentage — and what such an
-    /// author needs is that the emitter has no rule for this shape, not
-    /// an instruction to file a kernel bug.
+    /// here. A declared union reached it — a member stacked on a face
+    /// that a second declared contact had merged put such a vertex on
+    /// the merged wall — and what such an author needs is that the
+    /// emitter has no rule for this shape, not an instruction to file a
+    /// kernel bug. Maximal edges join that witness's vertex away, and no
+    /// document reaches it now.
     ///
     /// **It is raised from a NAMED shape, not from a catch-all.** The
     /// vertex pass's `_` arm is the preimage of every case nobody has
@@ -200,8 +188,7 @@ pub enum NamingError {
     /// it removes is inheriting one by saying nothing.
     ///
     /// A sibling word of [`Self::SeamVertexParentage`] rather than one
-    /// generalised over [`super::table::EntityKey`], by
-    /// [`Self::FragmentLineage`]'s test: the two name DIFFERENT
+    /// generalised over [`super::table::EntityKey`]: the two name DIFFERENT
     /// structures to go and read — face adjacency in an operand body
     /// here, a vertex's incident edge ROLES there — and their subjects
     /// differ in arity as well as kind, so one word for the class would
@@ -237,7 +224,7 @@ pub enum NamingError {
     /// reads the chord through to the side its own key descends to and
     /// names it as the rim that side's two constituents share — when
     /// the chord lies within that rim, which is checked geometrically
-    /// (`emit_topo`'s `chord_on_rim`). This is the refusal for a chord
+    /// (`emit_topo`'s `chord_within`). This is the refusal for a chord
     /// with no key side to read through to: a zip-listed edge, which
     /// the join minted. It does not say the body is wrong; what is
     /// missing is a rule for the chord.
@@ -304,16 +291,49 @@ pub enum NamingError {
         /// Its carrier's kind.
         carrier: geom::CurveKind,
     },
-    /// A union's member edge whose crossings cannot be ranked along it,
-    /// because a tie stands where one edge is needed: the member's own
-    /// table ties the edge's name to several edges, or the fold tied
-    /// two of the crossings under one name.
+    /// A **point the flush reading cannot place along a curved edge**:
+    /// whether edge `edge` holds a point is read at the point's
+    /// parameter on the edge's certified carrier (`names/README.md`,
+    /// "Flush edges"), and a carrier of this kind (a spline) gives no
+    /// parameter for a point. Answering "not on it" would drop the edge
+    /// from the reading, so it refuses.
+    CarrierUnplaced {
+        /// The edge, in the body the reading placed the point against.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// A **crossing at a vertex whose partner the boolean read nothing
+    /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
+    /// a vertex of the other operand whose neighbourhood no wedge or
+    /// corner reading classes its edges against, so the boolean holds no
+    /// class for them, and the crossing's senses cannot be read. The
+    /// boolean builds such a result soundly; what is missing is a rule
+    /// that reads the edges against the partner's neighbourhood
+    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
+    PartnerUnread {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The partner, `unread.partner`: the other operand's vertex, in
+        /// that operand's clone keys. A field of its own so the sentence
+        /// renders it as one (`pncad-py`'s prose census decides a
+        /// rendered binding only at a variant's own field).
+        partner: VertexKey,
+        /// The boolean's record: the operand vertex whose edges went
+        /// unclassed, the partner it met and why that read nothing.
+        unread: topo::UnreadPartner,
+    },
+    /// A union's member edge read where ONE edge is needed, where a tie
+    /// stands: the member's own table ties the edge's name (or the
+    /// least row on its line) to several edges, or the fold tied two of
+    /// its crossings under one name.
     ///
-    /// The union ranks the vertices where one face crosses a member
-    /// edge several times along that ONE edge's carrier (`emit_union`'s
-    /// `cite_member_edges`); a tie offers several edges or several
-    /// vertices and no rule picks one. Nothing about the result body is
-    /// wrong, so this is a missing rule and not an [`Self::Emission`].
+    /// The union needs one edge to rank the crossings of one face
+    /// along it (`emit_union`'s `cite_member_edges`), to place a
+    /// finished vertex or edge on it, and to read its two faces
+    /// (`Flush`); a tie offers several edges or several vertices and no
+    /// rule picks one. Nothing about the result body is wrong, so this
+    /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
         member: crate::VarId,
@@ -354,7 +374,7 @@ pub enum NamingError {
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
-/// record it caught, [`NamingError::FragmentLineage`] the face — and a
+/// record it caught, [`NamingError::Settle`] the vertex — and a
 /// reworded copy would let refusals of one category read as several.
 const EMISSION_FRAMING: &str =
     "name emission found a kernel bug — an invariant it relies on does not hold";
@@ -437,23 +457,14 @@ impl crate::spoken::Say for NamingError {
             // The category IS an emission inconsistency, so the framing
             // is the same one; what the caught record adds is the locator.
             Self::SplitLineage(cycle) => write!(f, "{EMISSION_FRAMING}: {cycle}"),
-            // The record family is in the sentence, not only the key:
-            // `fragment lineage` and `split lineage` are two different
-            // things to go and read, and a reader who gets the wrong
-            // one searches the wrong map.
-            Self::FragmentLineage { face } => write!(
-                f,
-                "{EMISSION_FRAMING}: fragment lineage of face {face:?} cycles: its \
-                 face-fragment rows never reach a root"
-            ),
+            Self::Settle(e) => write!(f, "{EMISSION_FRAMING}: {e}"),
             // The framing is the missing-rule one, not the emission
             // one: what this refusal reports is the absence of a rule,
             // and the vertex is where a rule would be applied.
             Self::SeamVertexParentage { vertex } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} has one operand-descended edge on \
-                 one side and none on the other, and nothing else names the missing parent, so \
-                 the edges around it leave its parentage half-decided"
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one edge of operand A and on \
+                 no edge or face of operand B, so its parentage is half-decided"
             ),
             // The node rides in the sentence, not only in the payload:
             // the two keys are an OPERAND body's, so a reader handed
@@ -493,6 +504,37 @@ impl crate::spoken::Say for NamingError {
                  no period to read the operand edges it lies along over",
                 carrier.name()
             ),
+            Self::CarrierUnplaced { edge, carrier } => write!(
+                f,
+                "{UNRULED_FRAMING}: edge {edge:?} runs on a {} carrier, which gives no \
+                 parameter for a point, so whether the edge holds a point it is read against \
+                 cannot be said",
+                carrier.name()
+            ),
+            Self::PartnerUnread {
+                vertex,
+                partner,
+                unread,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
+                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
+                 the boolean classed none of the vertex's edges and the crossing there has no \
+                 senses to name it by; reading them against the partner's neighbourhood is not \
+                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                match unread.operand {
+                    topo::Operand::A => "A",
+                    topo::Operand::B => "B",
+                },
+                match unread.neighbourhood {
+                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
+                    topo::UnreadNeighbourhood::NoBisector =>
+                        "on an edge of two faces, neither holding a bisector to read their wedge by",
+                    topo::UnreadNeighbourhood::ConeUnread =>
+                        "at an edge or corner read as a polygon cone, some edge of which no \
+                         reference decides",
+                }
+            ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
@@ -519,9 +561,10 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
-                 be ranked along it, because a tie stands where one edge is needed (the member \
-                 ties that name to several edges, or two of its crossings were tied)",
+                "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
+                 to rank crossings along it, place a vertex on it or read its faces, and a tie \
+                 stands there (the member ties that name to several edges, or two of its \
+                 crossings were tied)",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -534,7 +577,11 @@ impl crate::spoken::Say for NamingError {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
-                    "no name can be decided because {what} is too close to call: {source}"
+                    "{}",
+                    source.undecided(
+                        format_args!("{what}, which a name rests on,"),
+                        crate::decision::ending(predicate, source)
+                    )
                 )
             }
         }
@@ -563,6 +610,12 @@ impl From<BandError> for NamingError {
 impl From<SplitLineageCycle> for NamingError {
     fn from(e: SplitLineageCycle) -> Self {
         Self::SplitLineage(e)
+    }
+}
+
+impl From<SettleError> for NamingError {
+    fn from(e: SettleError) -> Self {
+        Self::Settle(e)
     }
 }
 
@@ -1208,7 +1261,7 @@ mod pattern_tests {
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
-    use geom_core::{Affine3, Vec3};
+    use geom_core::Vec3;
     use topo::Body;
 
     use super::*;
@@ -1220,7 +1273,7 @@ mod pattern_tests {
 
     /// A unit cube at `dx`, with its extrude's own name table.
     fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(dx, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(
@@ -1333,7 +1386,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         master,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * i as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * i as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()
@@ -1487,7 +1541,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         body,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * j as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * j as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()
@@ -1655,63 +1710,6 @@ mod display_tests {
         }
     }
 
-    /// **The cycling FACE survives to the node-level prose — and it is
-    /// THIS face.** The sibling of the row above, for the third
-    /// bounded lineage walk: `emit_topo`'s `chase` used to fall out of
-    /// its budget and return the cursor it was holding, which became a
-    /// group key and named faces after a stranger. It refuses now, and
-    /// what makes the refusal worth having rather than a sentence is
-    /// that the key reaches the human: two different faces must give
-    /// two different sentences.
-    #[test]
-    fn the_cycling_face_reaches_the_node_level_prose() {
-        let (a, b) = two_faces();
-        let carried =
-            |face| NodeErrorKind::Naming(NamingError::FragmentLineage { face }).to_string();
-
-        let sa = carried(a);
-        assert!(
-            sa.contains(&format!("{a:?}")),
-            "the cycling face is the only locator this failure has: {sa}"
-        );
-        let sb = carried(b);
-        assert!(sb.contains(&format!("{b:?}")), "{sb}");
-        assert_ne!(
-            sa, sb,
-            "a refusal that reads the same for two faces has no locator"
-        );
-        assert!(
-            !sa.contains(&format!("{b:?}")),
-            "the refusal names the face it caught, not another: {sa}"
-        );
-
-        // The category is the same as the edge cycle's — a corrupt
-        // mint-time record — and the record FAMILY is what separates
-        // the two sentences, which is the whole argument for a second
-        // word rather than one generalised over the key's kind.
-        assert!(sa.contains(EMISSION_FRAMING), "category kept: {sa}");
-        assert!(
-            sa.contains("name emission failed"),
-            "node category kept: {sa}"
-        );
-        assert!(
-            sa.contains("fragment lineage") && !sa.contains("split lineage"),
-            "the face cycle names the record family it caught, not the edge \
-             walk's: {sa}"
-        );
-
-        // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose` on
-        // every raise, live under release, and its fingerprint is the
-        // field brace.
-        for s in [&sa, &sb] {
-            assert!(
-                !s.contains(" { "),
-                "a braced payload panics the Python binding at the arm \
-                 meant to refuse gracefully: {s}"
-            );
-        }
-    }
-
     /// Every variant names WHICH entity/node/fact it refused on.
     ///
     /// **The enumeration is the compiler's claim, not prose**: the
@@ -1792,12 +1790,6 @@ mod display_tests {
                 vec!["split lineage of edge"],
             ),
             (
-                NamingError::FragmentLineage {
-                    face: two_faces().0,
-                },
-                vec!["fragment lineage of face"],
-            ),
-            (
                 NamingError::SeamVertexParentage { vertex: vtx },
                 vec![vtx_shown.as_str()],
             ),
@@ -1857,6 +1849,37 @@ mod display_tests {
                     carrier: geom::CurveKind::Nurbs,
                 },
                 vec!["closed on its", "no period"],
+            ),
+            (
+                NamingError::CarrierUnplaced {
+                    edge: EdgeKey::default(),
+                    carrier: geom::CurveKind::Nurbs,
+                },
+                vec!["gives no parameter for a point", "holds a point"],
+            ),
+            (
+                NamingError::PartnerUnread {
+                    vertex: two_vertices().0,
+                    partner: two_vertices().1,
+                    unread: topo::UnreadPartner {
+                        operand: topo::Operand::B,
+                        vertex: two_vertices().0,
+                        partner: two_vertices().1,
+                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    },
+                },
+                vec![
+                    "inside one smooth face",
+                    "classed none of the vertex's edges",
+                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                ],
+            ),
+            (
+                NamingError::Settle(topo::SettleError::Dead {
+                    vertex: two_vertices().0,
+                    reached: topo::Cell::Vertex(two_vertices().1),
+                }),
+                vec!["a vertex of a Boolean's result settles on a cell"],
             ),
             (
                 NamingError::ConventionalVertex {
@@ -1921,7 +1944,7 @@ mod display_tests {
                 | NamingError::MissingUpstream { .. }
                 | NamingError::Emission { .. }
                 | NamingError::SplitLineage(_)
-                | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
+                | NamingError::Settle(_) => Some(EMISSION_FRAMING),
                 NamingError::SeamVertexParentage { .. }
                 | NamingError::SeamVertexPartners { .. }
                 | NamingError::SharedRim { .. }
@@ -1930,7 +1953,9 @@ mod display_tests {
                 | NamingError::MergedChordConstituents { .. }
                 | NamingError::MemberEdgeTied { .. }
                 | NamingError::ConventionalVertex { .. }
-                | NamingError::ClosedCarrierUnread { .. } => Some(UNRULED_FRAMING),
+                | NamingError::ClosedCarrierUnread { .. }
+                | NamingError::CarrierUnplaced { .. }
+                | NamingError::PartnerUnread { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1942,17 +1967,19 @@ mod display_tests {
                 NamingError::Emission { .. } => 3,
                 NamingError::Escalated { .. } => 4,
                 NamingError::SplitLineage(_) => 5,
-                NamingError::FragmentLineage { .. } => 6,
-                NamingError::SeamVertexParentage { .. } => 7,
-                NamingError::SharedRim { .. } => 8,
-                NamingError::SeamVertexPartners { .. } => 9,
-                NamingError::MergedChord { .. } => 10,
-                NamingError::MergedChordOffRim { .. } => 11,
-                NamingError::Band(_) => 12,
-                NamingError::MemberEdgeTied { .. } => 13,
-                NamingError::MergedChordConstituents { .. } => 14,
-                NamingError::ConventionalVertex { .. } => 15,
-                NamingError::ClosedCarrierUnread { .. } => 16,
+                NamingError::SeamVertexParentage { .. } => 6,
+                NamingError::SharedRim { .. } => 7,
+                NamingError::SeamVertexPartners { .. } => 8,
+                NamingError::MergedChord { .. } => 9,
+                NamingError::MergedChordOffRim { .. } => 10,
+                NamingError::Band(_) => 11,
+                NamingError::MemberEdgeTied { .. } => 12,
+                NamingError::MergedChordConstituents { .. } => 13,
+                NamingError::ConventionalVertex { .. } => 14,
+                NamingError::ClosedCarrierUnread { .. } => 15,
+                NamingError::Settle(_) => 16,
+                NamingError::CarrierUnplaced { .. } => 17,
+                NamingError::PartnerUnread { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -2155,7 +2182,7 @@ mod walk_tests {
     pub(super) fn cube() -> sweep::Extruded<f64> {
         use geom_core::Point2;
         use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(

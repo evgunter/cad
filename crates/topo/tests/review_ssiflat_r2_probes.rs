@@ -217,50 +217,58 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     );
 }
 
-/// PROBE 5 (the `ssi_hull_sup` payload): at the interval scalar, limb
-/// 2's hull bound escalates with its margin as an ENCLOSURE, and the
-/// consumer-visible text renders it. The band sits between the two
-/// limbs' readings on the quarter turn: limb 1's worst sample reads
-/// about 4.77e-15 (its upper end; knots held in the scalar since
-/// PR 4608), under the band, and limb 2's first hull
-/// `[5.0e-15, 5.0e-15]`, inside it. Limb 2 subdivides its composite
-/// before it refuses, and its bound stays in the band (about 4.86e-15),
-/// so limb 2 is the one that escalates, carrying the subdivided bound:
-/// inside the band, and no higher than the first hull. Red if the margin
-/// is flattened to one `f64` (a value has one end, and renders as one)
-/// or the escalation moves to another predicate.
+/// PROBE 5 (the escalation payload at the interval scalar): at
+/// `Interval` the door's escalation carries its margin as an
+/// ENCLOSURE, and the consumer-visible text renders it.
+///
+/// **Which limb escalates is measured, not chosen.** On the quarter
+/// turn limb 2's hull bound reads about 3.13e-15, under limb 1's worst
+/// sample (about 4.77e-15, its upper end), because every Bézier row of
+/// the composite is restricted from its own span window through the
+/// monotone step (`Certification::between`). Under the convex step it
+/// read 5.0e-15, just over limb 1, and this row pinned limb 2's
+/// escalation there. Limb 2 stays under limb 1 over the arcs, tilts,
+/// radii and translations of this pair (hull/locus 0.06 to 0.88), so
+/// no band makes limb 2 the first limb in it, and the band here sits
+/// between the two: limb 1 escalates, limb 2 is under the band. Limb
+/// 2's own `Interval` payload is guarded where it can still be driven
+/// into the band, at `hull_limb` itself
+/// (`geom_brep`'s `the_hull_bound_escalates_with_an_enclosure_at_interval`).
+///
+/// Red if the margin is flattened to one `f64` (a value has one end,
+/// and renders as one), if the escalation moves off limb 1, or if limb
+/// 2's bound climbs back over limb 1's reading.
 #[test]
-fn the_interval_hull_bound_escalates_with_an_enclosure() {
+fn the_interval_escalation_carries_an_enclosure() {
     use geom_core::interval::Interval;
     use geom_core::{Bounds, ErrorTextReading, MarginDiag};
     let cert = certify_at::<Interval>(1.0, ARC, tight_band())
         .expect("the quarter turn certifies at a 1e-12 band");
     let (locus, hull) = (cert.on_locus_max.hi(), cert.hull_sup);
-    let band = Band::new(4.8e-15, 5.5e-15).unwrap();
+    let band = Band::new(4.0e-15, 5.5e-15).unwrap();
     assert!(
-        locus < band.zero() && band.zero() < hull.lo() && hull.hi() < band.escalate(),
-        "the band must sit between limb 1 ({locus:e}) and limb 2 ([{:e}, {:e}])",
+        hull.hi() < band.zero() && band.zero() < locus && locus < band.escalate(),
+        "the band must sit between limb 2 ([{:e}, {:e}]) and limb 1 ({locus:e})",
         hull.lo(),
         hull.hi()
     );
-    let err = certify_at::<Interval>(1.0, ARC, band).expect_err("limb 2 escalates in-band");
+    let err = certify_at::<Interval>(1.0, ARC, band).expect_err("limb 1 escalates in-band");
     let SsiError::CertificateEscalated { ref cause, .. } = err else {
         panic!("the door must refuse through its escalation arm: {err:?}");
     };
-    assert_eq!(cause.predicate, Some("ssi_hull_sup"));
+    assert_eq!(cause.predicate, Some("ssi_on_locus"));
     let ErrorTextReading::Enclosure { lo, hi } =
         MarginDiag::diagnostic_f64_for_error_text(cause.margin)
     else {
         panic!(
-            "limb 2's margin at Interval must read as an enclosure: {:?}",
+            "limb 1's margin at Interval must read as an enclosure: {:?}",
             cause.margin
         );
     };
     assert!(
-        band.zero() < lo && lo <= hi && hi <= hull.hi() && hi < band.escalate(),
-        "the escalation must carry limb 2's subdivided bound, in the band and under the first \
-         hull {:e}: [{lo:e}, {hi:e}]",
-        hull.hi()
+        lo <= hi && hi <= locus && hi > band.zero(),
+        "the escalation must carry an in-band sample's enclosure, no higher than limb 1's \
+         worst {locus:e}: [{lo:e}, {hi:e}]"
     );
     let shown = err.to_string();
     assert!(

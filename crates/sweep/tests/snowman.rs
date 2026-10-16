@@ -588,7 +588,12 @@ fn a_spun_snowman_builds_under_every_boolean() {
         );
         let b = finished(
             "the spun ball",
-            topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap(),
+            topo::transform_rigid(
+                &ball(R2, D),
+                &geom_core::test_support::rigid(&spin, Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap(),
             Tol::witness(),
         );
         for (label, op, x, y, expected) in [
@@ -886,8 +891,12 @@ fn tilted_slab_about(axis: geom_core::Vec3<f64>, tilt: f64, s: f64) -> AtRestBod
     let n = rot.transform_vec(Vec3::new(0.0, 1.0, 0.0));
     let slab: Body<f64> =
         sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
-    let slab =
-        topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap();
+    let slab = topo::transform_rigid(
+        &slab,
+        &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the tilted slab", slab, Tol::witness())
 }
 
@@ -947,7 +956,12 @@ fn brick_toward(n: geom_core::Vec3<f64>, s: f64, w: f64, t: f64) -> AtRestBody<f
         axis.norm().atan2(y.dot(n)),
     );
     let brick: Body<f64> = sweep::test_support::brick((-w, w), (0.0, t), (-w, w), tol);
-    let brick = topo::transform_rigid(&brick, &(Affine3::translation(n * s) * rot), tol).unwrap();
+    let brick = topo::transform_rigid(
+        &brick,
+        &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), tol),
+        tol,
+    )
+    .unwrap();
     finished("the brick", brick, tol)
 }
 
@@ -1164,7 +1178,12 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
         );
         let cube = finished(
             "the cube",
-            topo::transform_rigid(&cube, &spin, Tol::witness()).unwrap(),
+            topo::transform_rigid(
+                &cube,
+                &geom_core::test_support::rigid(&spin, Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap(),
             Tol::witness(),
         );
         assert_every_op(
@@ -1258,7 +1277,12 @@ fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
     let shift = geom_core::Affine3::translation(geom_core::Vec3::new(0.1 * k, k, -0.1 * k));
     let b = finished(
         "the shifted ball",
-        topo::transform_rigid(&ball(0.9 * k, 0.0), &shift, tol).unwrap(),
+        topo::transform_rigid(
+            &ball(0.9 * k, 0.0),
+            &geom_core::test_support::rigid(&shift, tol),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     let (v_lens, v_ball) = (lens_volume(R1 * k, R2 * k, D * k), ball_volume(0.9 * k));
@@ -1443,10 +1467,10 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// conventional vertex, and turned 40° along the circle from it, in
 /// both member orders: every union records the touch as the corner on
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
-/// alike, its curved cross-solid reach the only finding. The census
-/// still sweeps the vertex's point: stripped of its record, the corner
-/// at the vertex is an unrecorded contact, so the record is what backs
-/// it.
+/// alike, its curved cross-solid reach the only finding. Stripped of
+/// its record, the corner is an unrecorded contact either way: at the
+/// vertex, against the vertex the sweeps still read; off it, on the
+/// circle's interior (census pass 2′). The record is what backs it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
     use geom_core::{Affine3, Point3, Vec3};
@@ -1496,7 +1520,8 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         let place = Affine3::translation(p - Point3::origin()) * aim;
         let cube = finished(
             "the cube",
-            topo::transform_rigid(&cube, &place, tol).unwrap(),
+            topo::transform_rigid(&cube, &geom_core::test_support::rigid(&place, tol), tol)
+                .unwrap(),
             tol,
         );
         for (order, r) in [
@@ -1573,11 +1598,12 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                      {stripped:?}"
                 );
             } else {
-                // The gap, pinned: `work/fuse/a-corner-on-a-circles-interior-is-unseen-at-tier-three-prime`.
                 assert!(
-                    stripped.is_empty(),
-                    "{label}: off the vertex the touch is on a curved edge's interior, \
-                     outside the vertex sweeps: {stripped:?}"
+                    matches!(stripped.as_slice(), [e] if e.starts_with(
+                        "UnrecordedContact { contact: VertexOnEdge"
+                    )),
+                    "{label}: without its record the corner on the circle's interior is \
+                     undeclared: {stripped:?}"
                 );
             }
             seen.push((label, records, verdict.len()));

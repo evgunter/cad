@@ -31,6 +31,10 @@ use crate::loop_winding::{ConicFrame, chord_bulge};
 use crate::validate::AtRestBody;
 use geom_core::Tol;
 
+/// The lever every section refusal names: a section takes no
+/// declarations, and its plane is the caller's.
+const SECTION_PLANE_RECOURSE: &str = "move the section plane";
+
 /// One section polygon: the closed boundary the plane cuts, by its
 /// corners — as 3-D points and as in-plane `(u, v)` coordinates in the
 /// section's frame — and by the edge from each corner to the next, on
@@ -168,7 +172,8 @@ pub enum SectionError<T: Real> {
     KnifeEdge(KnifeEdge),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
-    /// unread because the polygon carries a spiric or NURBS edge.
+    /// unread because the polygon carries an edge the winding does not
+    /// read (`crate::loop_winding`).
     WindingUndecided {
         /// A corner of the polygon.
         corner: Point3<T>,
@@ -218,23 +223,25 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
                 diag: Some(diag), ..
             } => write!(
                 f,
-                "whether a polygon of the section is an outline or a hole is too close to \
-                 call ({}). Recourse: {}",
-                diag.payload(),
-                super::SPLIT_COINCIDENCE_RECOURSE
+                "{}",
+                diag.undecided(
+                    "whether a polygon of the section is an outline or a hole",
+                    diag.lever_ending(SECTION_PLANE_RECOURSE),
+                )
             ),
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,
                 "whether a polygon of the section is an outline or a hole cannot be read: it \
-                 encloses no area, or has a spiric or NURBS edge, whose winding the kernel \
-                 does not read. Recourse: move the section plane"
+                 encloses no area, or has an edge whose winding the kernel does not read (a \
+                 NURBS edge, or spiric edges pinched near a torus's inner equator). Recourse: \
+                 {SECTION_PLANE_RECOURSE}"
             ),
             Self::UnplacedHole { .. } => write!(
                 f,
                 "no outline of the section can be shown to enclose one of its holes: an \
                  outline edge the nesting cannot read (spiric or NURBS), a contact too close \
                  to call, or a sliver the section join mints across a curved face. Recourse: \
-                 move the section plane"
+                 {SECTION_PLANE_RECOURSE}"
             ),
             Self::NestingContradiction { .. } => write!(
                 f,
@@ -348,8 +355,8 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                         end,
                     }
                 }
-                // `loop_sense` has refused such a loop already: it does not
-                // wind a spiric or NURBS edge.
+                // The split's carrier gate admits no spiric or NURBS edge,
+                // and its nesting reads none.
                 HalfCarrier::Unread => {
                     return Err(SectionError::WindingUndecided { corner, diag: None });
                 }
@@ -492,4 +499,47 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
         });
     }
     Ok(halves)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod winding_ending {
+    use geom_core::{Band, Decide, Indeterminate, MarginDiag, Point3};
+
+    use super::SectionError;
+
+    /// **An undecided section winding ends in the section's lever
+    /// alone**, as its unreadable sibling does: no tolerance on a read
+    /// margin, the unreadable-margin note on poison.
+    #[test]
+    fn an_undecided_winding_ends_in_the_section_lever() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = 3e-9_f64.sign_within(band).unwrap_err();
+        let text = SectionError::<f64>::WindingUndecided {
+            corner: Point3::origin(),
+            diag: Some(read),
+        }
+        .to_string();
+        assert_eq!(
+            text,
+            format!(
+                "whether a polygon of the section is an outline or a hole is undecided: {}. \
+                 Recourse: move the section plane",
+                read.payload()
+            )
+        );
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..read
+        };
+        let text = SectionError::<f64>::WindingUndecided {
+            corner: Point3::origin(),
+            diag: Some(poisoned),
+        }
+        .to_string();
+        assert!(
+            text.contains(". Recourse: move the section plane; "),
+            "the lever and the note, got {text}"
+        );
+    }
 }

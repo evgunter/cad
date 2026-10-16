@@ -131,27 +131,30 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
     second_planar && !first_planar
 }
 
-/// The source keys the blend retired: edges and vertices — the only
-/// NAMED arenas in which a source key can die here.
+/// The source keys the blend retired: faces, edges and vertices — the
+/// NAMED arenas.
 ///
-/// **There is no face channel because the surgery cannot retire a
-/// source face** — enforced at `surgery`'s one face-destroying door,
-/// `SourceFaces::kef_minted`, which states the rule. So for faces the
-/// identity above holds in its stronger form, `source ⊆ output`, there
-/// being no set to subtract.
+/// A face dies only with a feature wholly inside a band's material,
+/// which goes with that material (`super::consume`): every other face
+/// the surgery kills is one it minted, enforced at `surgery`'s one
+/// face-destroying door, `SourceFaces::kef_minted`. A support shrinks;
+/// it does not die.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
+    /// Source faces that no longer exist: the faces of a feature wholly
+    /// inside a band's material, consumed with it.
+    pub faces: Vec<FaceKey>,
     /// Source edges that no longer exist: the requested chain edges
-    /// (excised across their strips) and, on the rim path, the
-    /// meridian remnants killed with their rim vertex that are the
-    /// SOURCE key. A remnant the carve itself minted dies unrecorded,
+    /// (excised across their strips), a consumed feature's and, on the
+    /// rim path, the meridian remnants killed with their rim vertex that
+    /// are the SOURCE key. A remnant the carve itself minted dies unrecorded,
     /// and owes no row: it reaches neither this set — which names what
     /// the blend took from the body the caller handed in — nor the
     /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
-    /// under their octants, the joints a band was fused across, and the
-    /// rim vertices.
+    /// under their octants, the joints a band was fused across, the rim
+    /// vertices, and those of a consumed feature.
     pub vertices: Vec<VertexKey>,
 }
 

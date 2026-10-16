@@ -26,7 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
@@ -63,7 +63,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-    topo::transform_rigid(&b, &Affine3::translation(c), tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
 }
 
 /// The edges of `body` on line carriers.
@@ -282,7 +282,7 @@ fn a_polygonal_ring_is_metered_edge_by_edge_clear_crossed_and_in_band() {
     );
     let diamond = topo::transform_rigid(
         &diamond,
-        &Affine3::translation(Vec3::new(0.0, 0.0, 0.8)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.8)).unwrap(),
         tol(),
     )
     .unwrap();
@@ -341,7 +341,7 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
     let hole = prism(vec![v(0.15, 0.5, 1.0), v(0.45, 0.5, 1.0)], 1.4, tol());
     let hole = topo::transform_rigid(
         &hole,
-        &Affine3::translation(Vec3::new(0.0, 0.0, -0.2)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.2)).unwrap(),
         tol(),
     )
     .unwrap();
@@ -360,7 +360,7 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
     );
     let pocket = topo::transform_rigid(
         &pocket,
-        &Affine3::translation(Vec3::new(0.0, 0.0, 0.8)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.8)).unwrap(),
         tol(),
     )
     .unwrap();
@@ -416,7 +416,12 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
 fn a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc() {
     let bore = |x: f64, y: f64, z: f64| {
         let b = prism(vec![v(x - 0.1, y, 1.0), v(x + 0.1, y, 1.0)], 0.5, tol());
-        topo::transform_rigid(&b, &Affine3::translation(Vec3::new(0.0, 0.0, z)), tol()).unwrap()
+        topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, z)).unwrap(),
+            tol(),
+        )
+        .unwrap()
     };
     for (first, second) in [((0.5, 0.5), (0.45, 0.35)), ((0.45, 0.35), (0.5, 0.5))] {
         // Different floors, so the two bores share no face.

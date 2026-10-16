@@ -37,64 +37,12 @@ require_hosted_render "demos/render-mc.sh"
 # cell: the tour names the file and this publishes it under the same
 # name, so a third cell is a third line here and nothing else.
 #
-# A HAND-WRITTEN CENSUS IS CHECKED IN BOTH DIRECTIONS, or it is only a
-# census of what someone remembered. A listed sheet the tour did not
-# write refuses below (a stale committed sheet is the failure mode the
-# render lanes' provenance work exists to prevent). The other direction
-# is the one that bites quietly: a sheet the tour DOES write and this
-# list does not name is simply never published, and nothing downstream
-# can tell — `render.yml`'s drift step runs `git status` over
-# `renders-mc/`, which sees files that were copied and cannot see a
-# file that never was. So the glob is read too, and an unlisted sheet
-# is an error with the line to add.
+# publish_lane.py checks this census against what the tour wrote, in
+# both directions, before it publishes anything.
 SHEETS=(plate-density.svg chain-density.svg)
 
-mkdir -p renders-mc
-
-shopt -s nullglob
-WROTE=(out/mc/*.svg)
-shopt -u nullglob
-for path in "${WROTE[@]}"; do
-    sheet=$(basename "$path")
-    listed=no
-    for known in "${SHEETS[@]}"; do
-        # `if` and not `[ … ] && listed=yes`: under `set -e` the latter
-        # is the loop body's last command, so a sheet that does not
-        # match the FIRST name would exit the script with 1.
-        if [ "$sheet" = "$known" ]; then
-            listed=yes
-        fi
-    done
-    if [ "$listed" = no ]; then
-        echo "render-mc.sh: the tour wrote $path and SHEETS does not name it, so it would" >&2
-        echo "  never be published and nothing downstream could tell. Add it:" >&2
-        echo "      SHEETS=(${SHEETS[*]} $sheet)" >&2
-        exit 2
-    fi
-done
-
-# REFUSE rather than leave the committed sheet standing. A stale sheet
-# that nothing regenerated is exactly the failure mode the render
-# lanes' provenance work exists to prevent, one lane over: the file
-# would still be there, still look current, and describe a tour that no
-# longer ran. Refusing on the FIRST missing sheet is deliberate — a run
-# that wrote one sheet and not the other did not half-succeed, it
-# failed partway through the tour.
-#
-# CHECKED BEFORE THE FIRST COPY, not as the loop reaches each one. When
-# the check rode the copy loop, a missing SECOND sheet exited 2 with
-# the first already overwritten — a partial publish, which is the state
-# this refusal exists to avoid, reached by the refusal itself.
+names=()
 for sheet in "${SHEETS[@]}"; do
-    if [ ! -f "out/mc/$sheet" ]; then
-        echo "render-mc.sh: out/mc/$sheet is missing — run the tour first:" >&2
-        echo "  cd demos/tour && cargo run --release -- ../out" >&2
-        echo "  (nothing was published: the sheets are checked before any is copied)" >&2
-        exit 2
-    fi
+    names+=("${sheet%.svg}")
 done
-
-for sheet in "${SHEETS[@]}"; do
-    cp "out/mc/$sheet" "renders-mc/$sheet"
-    echo "render-mc.sh: renders-mc/$sheet ($(wc -c < "renders-mc/$sheet") bytes)"
-done
+python3 publish_lane.py --frame=.svg --no-provenance out/mc renders-mc "${names[@]}"

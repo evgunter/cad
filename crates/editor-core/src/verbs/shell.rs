@@ -239,6 +239,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Pcurve { source } => E::Pcurve { source },
+        E::RimSeamMixed { edge, stations } => E::RimSeamMixed { edge, stations },
         E::Join { refusal } => E::Join { refusal },
         E::NotValid { errors } => E::NotValid { errors },
     }
@@ -348,6 +349,7 @@ fn fold_replace_face_error<T: Real>(
             verdict: fold_corner_verdict(verdict, end),
         },
         R::DeclaredEdgeTilted { edge } => R::DeclaredEdgeTilted { edge },
+        R::MixedEdge { edge, stations } => R::MixedEdge { edge, stations },
         R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
             edge,
             gap: end(gap, Supremum),
@@ -513,7 +515,7 @@ mod tests {
         use profile::RawLoop;
         // The keys are carried verbatim by the fold; any two faces of
         // any body serve, so a unit cube's first two are read.
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(

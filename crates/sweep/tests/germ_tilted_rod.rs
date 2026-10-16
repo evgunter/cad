@@ -21,7 +21,7 @@ use crate::revolve_common::{self, axis_y, validated};
 
 use core::f64::consts::FRAC_PI_2;
 use geom::SurfaceKind;
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::{AtRestBody, Body, BooleanError, BooleanOp as Op, BooleanResult, FaceKey};
@@ -51,8 +51,12 @@ fn rod(beta: f64, spin: f64) -> AtRestBody<f64> {
     let c = germ_pair::spin(&germ_pair::cyl(0.15, 0.85), Vec3::unit_z(), spin);
     let c = germ_pair::spin(&c, Vec3::unit_y(), beta);
     let centre = Vec3::new(1.8, 0.0, 0.0) + dir(beta) * 0.55;
-    let moved = topo::transform_rigid(&c, &Affine3::translation(centre), Tol::witness())
-        .expect("the rod moves");
+    let moved = topo::transform_rigid(
+        &c,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        Tol::witness(),
+    )
+    .expect("the rod moves");
     finished("the rod", moved, Tol::witness())
 }
 
@@ -200,18 +204,14 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 m.volume
             );
             // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
-            // their wall, which the at-infinity probe cannot measure in
-            // closed form: a ray from outside that misses them refuses
-            // `VolumeUncertified`
-            // (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
-            let trimmed = matches!((op, rod_first), (Op::Intersect, _) | (Op::Subtract, true));
+            // their wall, which the closed-form volume cannot measure: a
+            // ray from outside that misses them is sided by a ray aimed
+            // at a planar face.
             for (q, inside) in probes.into_iter().zip(inside) {
-                let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
-                let got = topo::point_in_solid(&b.body, q, band, Tol::witness());
-                let uncertified = matches!(got, Err(topo::PointInSolidError::VolumeUncertified));
-                assert!(
-                    in_solid(&b.body, q) == Some(inside) || (trimmed && !inside && uncertified),
-                    "{what} at {pose}, {q:?}: {got:?}"
+                assert_eq!(
+                    in_solid(&b.body, q),
+                    Some(inside),
+                    "{what} at {pose}, {q:?}"
                 );
             }
         }

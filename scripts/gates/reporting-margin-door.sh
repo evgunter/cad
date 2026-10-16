@@ -43,6 +43,17 @@
 # production call sites are a third list here: the sized-decision table
 # that owns the endings.
 #
+# THE DEFECT CHOICE IS A FOURTH LIST. A sized decision's caller may say
+# a decided refused sign contradicts the stored data its decision reads
+# (`RefusedReading::ContradictsStoredData`), which turns that reading's
+# ending into the kernel-or-file defect ending; and the sign-certain arm
+# asks the refused class's ending without a reading
+# (`SizedWords::sign_certain_recourse`). Both belong to the one table
+# that picks how a definite reading ends from its class and the
+# decision's kind, so the two routes there cannot drift: a spelling of
+# either anywhere else is a second table. The list counts the variant's
+# spellings and the method's calls, not what the site does with them.
+#
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
 # only the file and the count, so the list is where the argument lives:
 # a door site puts the numbers into error text or a payload another
@@ -62,6 +73,10 @@
 # production source text, so:
 #   * a call reached through a macro, or a re-export or `use … as`
 #     alias under another name, is invisible to it;
+#   * so is a glob import of the stored-contradiction choice:
+#     `use geom_core::RefusedReading::*;` followed by a bare
+#     `ContradictsStoredData` escapes the definite-ending count, which
+#     matches the variant only under its enum's name;
 #   * so is a path spelled with whitespace inside it —
 #     `MarginDiag :: value(`, or the path split across lines — since
 #     the matcher reads each record's text as written;
@@ -112,9 +127,16 @@ MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
 # definition home that asks the margin for a sized recourse sentence, or
 # for either of the import door's.
 SIZED_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
+  'crates/geom-brep/src/recourse.rs 3 the sized-decision table: a sized decision ends its Zero and Undecided arms in one sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
 )
 SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z0-9_]|$)'
+
+# `path count why` — production files outside the definition home that
+# spell the stored-contradiction choice or ask the sign-certain ending.
+DEFINITE_ALLOWLIST=(
+  'crates/geom-brep/src/recourse.rs 2 the sized-decision table: SizedDecision::words picks the stored-contradiction choice once for both routes, and the sign-certain arm asks the refused class ending through those words'
+)
+DEFINITE_RE='(RefusedReading::ContradictsStoredData|sign_certain_recourse)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -239,7 +261,14 @@ gate() {
     2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
   esac
-  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), and its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin ($((${#support[@]} / 2)) test-support mount(s) skipped)"
+  check_list "definite-ending choice" "$DEFINITE_RE" "${DEFINITE_ALLOWLIST[@]}" || rc=$?
+  case $rc in
+    1) gate_error "$(gate_name): $CHECK_LIST_FIRED spelled outside the allowlisted sites (this file's header says why). How a definite refused reading ends is chosen once, in geom_brep::recourse::SizedDecision, for both arms that route it; end a sized decision through it instead, or add the site here with its reason"
+       exit 1 ;;
+    2) gate_error "$(gate_name): an allowlisted definite-ending site's count moved. Move the pin in the change that carries the argument"
+       exit 1 ;;
+  esac
+  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), the definite-ending choice spelled only at the ${#DEFINITE_ALLOWLIST[@]} allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin ($((${#support[@]} / 2)) test-support mount(s) skipped)"
 }
 
 # The clean fixture: the definition home and every allowlisted file,
@@ -257,7 +286,7 @@ impl MarginDiag {
 }
 fn f(m: f64) -> MarginDiag { MarginDiag::value(m) }
 RS
-  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}" "${SIZED_ALLOWLIST[@]}"; do
+  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}" "${SIZED_ALLOWLIST[@]}" "${DEFINITE_ALLOWLIST[@]}"; do
     read -r path want why <<<"$entry"
     mkdir -p "$1/${path%/*}"
     : > "$1/$path"
@@ -266,6 +295,12 @@ RS
     read -r path want why <<<"$entry"
     for ((i = 0; i < want; i++)); do
       printf 'fn s%d(d: MarginDiag, b: Band, w: SizedWords) -> String { d.sized_recourse(b, w) }\n' "$i" >> "$1/$path"
+    done
+  done
+  for entry in "${DEFINITE_ALLOWLIST[@]}"; do
+    read -r path want why <<<"$entry"
+    for ((i = 0; i < want; i++)); do
+      printf 'fn c%d(w: SizedWords) -> String { w.sign_certain_recourse() }\n' "$i" >> "$1/$path"
     done
   done
   # A test-support mount, whose samples mint: skipped.
@@ -379,6 +414,20 @@ plant_sentence_oracle_outside() {
     > "$1/crates/topo/src/props.rs"
 }
 
+# The stored-contradiction choice made outside the sized-decision table.
+plant_definite_choice_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::ContradictsStoredData, ..w } }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
+# The sign-certain ending asked outside the sized-decision table.
+plant_sign_certain_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(w: SizedWords) -> String { w.sign_certain_recourse() }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
 # A forged curability verdict on an escalation minted outside the
 # classifier.
 plant_forged_sliver() {
@@ -404,9 +453,11 @@ gate_selftest() {
   gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
   gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
+  gate_selftest_case "RefusedReading::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
+  gate_selftest_case "sign_certain_recourse spelled outside the allowlisted sites" plant_sign_certain_outside
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, on the stored-contradiction choice or the sign-certain ending outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

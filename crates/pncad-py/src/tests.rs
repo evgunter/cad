@@ -2381,6 +2381,7 @@ fn node_error_tags_are_the_published_words() {
         Chamfer => "chamfer",
         Boolean => "boolean",
         Transform => "transform",
+        Motion => "motion",
         Skin => "skin",
         Loft => "loft",
         CurvedSolidFrontier => "curved_solid_frontier",
@@ -2388,7 +2389,6 @@ fn node_error_tags_are_the_published_words() {
         ToleranceConflict => "tolerance_conflict",
         ParamBox => "param_box",
         Seed => "seed",
-        SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
@@ -2428,7 +2428,6 @@ fn node_error_tags_are_the_published_words() {
         ShellLaneUnsupported => "shell_lane_unsupported",
         FaceFrameNotPlanar => "face_frame_not_planar",
         FaceFrameReadback => "face_frame_readback",
-        DerivedFrameSection => "derived_frame_section",
         FrameDirectionDegenerate => "degenerate_direction",
         FrameDirectionNonFiniteLength => "non_finite_direction",
         FrameDirectionUnderflowedLength => "underflowed_direction",
@@ -3509,7 +3508,9 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
-        BlendDecision::TurnIsosceles,
+        BlendDecision::TurnFeetGap,
+        BlendDecision::TurnOverrunChord,
+        BlendDecision::TurnFeet,
         BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
@@ -3756,8 +3757,10 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-            reason: "boxes refused".into()
+            refusal: pncad::topo::BooleanError::ClassificationInvariant {
+                what: "boxes refused"
+            }
+            .into()
         }),
         "separation_unavailable"
     );
@@ -3833,8 +3836,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["other_root", "other_output"],
     );
     let unavailable = E::SeparationUnavailable {
-        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-        reason: "boxes refused".into(),
+        refusal: pncad::topo::BooleanError::ClassificationInvariant {
+            what: "boxes refused",
+        }
+        .into(),
     };
     carries(&unavailable, &["reason", "boolean_variant"]);
 
@@ -3913,9 +3918,19 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
+    let E::SeparationUnavailable { refusal } = &unavailable else {
+        unreachable!("built as the separation arm above")
+    };
+    let words = check_payload(&unavailable);
     assert_eq!(
-        check_payload(&unavailable).reason.as_deref(),
-        Some("boxes refused")
+        words.reason.as_deref(),
+        Some(refusal.to_string().as_str()),
+        "the reason is the kernel's own sentence, whole"
+    );
+    assert_eq!(
+        words.boolean_variant,
+        Some("classification_invariant"),
+        "the class is the arm the refusal is"
     );
 }
 
@@ -4813,6 +4828,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_corner",
             "unsupported_geometry",
             "unsupported_run_out",
+            "wholly_inside",
         ],
         delegates: &["join_refusal_tag"],
     },
@@ -4821,6 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_loop_containment_unsupported",
             "band",
+            "carry_refused",
             "classification_invariant",
             "coincident_shell",
             "contact_contradicted",
@@ -4830,6 +4847,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
+            "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",
             "curved_pair_unsupported",
@@ -4842,41 +4860,46 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
-            "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
             "germ_section_spiric",
             "graft_recertify",
+            "held_pierce_unbuilt",
             "inside_out_operand",
             "invalid_input",
             "join",
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "lineage_row",
             "merge",
+            "mixed_seam",
+            "nesting_unread",
+            "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
             "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
+            "partner_along_face",
             "pcurves",
             "pieces",
-            "pinch_cones_on_separate_keys",
+            "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
             "rest_piece_unread",
             "result_invalid",
             "result_volume_implausible",
+            "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
-            "seam_contradicted",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
-            "tangent_slit_arm_unbuilt",
+            "split_lineage_cycle",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4966,16 +4989,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "axes_meet",
             "co_ruled",
             "coaxial",
+            "common_foot",
             "cusp",
-            "equal_angles",
             "on_carrier",
             "same_opposite",
             "same_oriented",
-            "seam",
+            "same_radius",
+            "surface_tangent",
             "tangent",
-            "tangent_contact",
         ],
         delegates: &[],
     },
@@ -5019,6 +5043,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
+            "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -5334,6 +5359,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_carries_metadata",
             "part_dead_gauge",
             "placement_pose_crosses",
+            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5403,6 +5429,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_not_a_point",
             "reversed_stacking",
             "seam_structure",
+            "section_not_a_point",
             "section_structure",
             "skin",
             "stacking_escalated",
@@ -5484,21 +5511,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "carrier_unplaced",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
             "emission",
             "escalated",
-            "fragment_lineage_cycle",
             "member_edge_tied",
             "merged_chord",
             "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
+            "partner_unread",
             "seam_vertex_parentage",
             "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
+            "unsettled_vertex",
         ],
         delegates: &["band_error_tag", "rim_share_tag"],
     },
@@ -5515,7 +5544,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_direction",
             "degenerate_spacing",
             "degenerate_step",
-            "derived_frame_section",
             "empty_half",
             "empty_operand",
             "empty_placement_list",
@@ -5556,6 +5584,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_unsupported",
             "missing_input",
             "missing_slot",
+            "motion",
             "naming",
             "negative_spacing",
             "non_finite_direction",
@@ -5586,7 +5615,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_replay",
             "revolve",
             "seed",
-            "seed_pinned_section",
             "select_kind",
             "select_resolve",
             "shell",
@@ -5637,6 +5665,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "replay_error_tag",
             "resolve_error_tag",
             "revolve_error_tag",
+            "rigid_motion_error_tag",
             "seed_error_tag",
             "shell_error_tag",
             "skin_error_tag",
@@ -5704,7 +5733,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "ortho_frame_error_tag",
+        function: "orthonormalize_error_tag",
         values: &[
             "degenerate_u_axis",
             "degenerate_v_axis",
@@ -5980,16 +6009,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
+            "placed_axis",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
             "sliver_rim",
             "smooth_join_refuted",
+            "turn",
             "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
             "void_insertion",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "rigid_motion_error_tag",
+        values: &["non_finite", "not_rigid", "undecided"],
         delegates: &[],
     },
     TagEntry {
@@ -6082,6 +6118,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partition",
             "pcurve",
             "rim",
+            "rim_seam_mixed",
             "roles",
             "thickness",
             "wall_clearance",
@@ -6221,6 +6258,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_id_collides",
             "part_name_reaches_remainder",
             "placing_mate_left",
+            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6240,7 +6278,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6291,6 +6329,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nothing_to_import",
             "pcurves",
             "placement",
+            "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
             "structure",
@@ -6377,8 +6416,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "certify",
             "corrupt",
-            "non_finite_map",
-            "not_rigid",
             "null_scaffold",
             "nurbs_lane_unsupported",
             "nurbs_placeholder",
@@ -6474,6 +6511,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
+            "mixed_dihedral",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
@@ -6510,6 +6548,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
+            "sliver_inside_out",
             "solid_outer_shells",
             "solid_without_shells",
             "split_vertex_orbit",
@@ -6681,7 +6720,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("no_such_body", 2),
     ("no_such_name", 2),
     ("node_failed", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
@@ -6719,6 +6758,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // A split's and an inline's refusal of a ranked run its re-minted
+    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
+    ("ranked_run_reordered", 2),
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),
@@ -6744,10 +6786,18 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    // One fact: one `SplitLineageCycle`, met by the Boolean
+    // (`BooleanErrorKind::SplitLineage`) or by naming
+    // (`NamingError::SplitLineage`);
+    // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
+    ("split_lineage_cycle", 2),
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
+    // A coincidence: a crossing side the band left undecided, and a
+    // rigidity margin the decided door left undecided.
+    ("undecided", 2),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
@@ -6796,6 +6846,22 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
 /// words `ring_contact_tag` names a ring meeting its outer loop, the
 /// other ring in the outer loop's place, so a caller reads one
 /// vocabulary for one shape. Red where either map re-spells a shape.
+/// **One split-lineage cycle, one word.** The Boolean and naming both
+/// refuse a `SplitLineageCycle` they meet, and a caller reading the tag
+/// reads one fact. Red if either map spells it apart.
+#[test]
+fn a_split_lineage_cycle_has_one_word_wherever_it_is_met() {
+    use crate::tags::{boolean_error_tag, naming_error_tag};
+    use pncad::topo::{BooleanErrorKind, SplitLineageCycle};
+    let cycle = SplitLineageCycle {
+        edge: Default::default(),
+    };
+    assert_eq!(
+        boolean_error_tag(BooleanErrorKind::SplitLineage),
+        naming_error_tag(&pncad::select::NamingError::SplitLineage(cycle))
+    );
+}
+
 #[test]
 fn ring_pair_words_are_the_outer_contact_words() {
     use crate::tags::{ring_contact_tag, ring_pair_contact_tag};

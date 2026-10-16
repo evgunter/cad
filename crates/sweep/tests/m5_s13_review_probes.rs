@@ -41,7 +41,12 @@ fn rot_x_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(0.0, -s, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world y-axis.
@@ -53,7 +58,12 @@ fn rot_y_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(s, 0.0, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn cap(r: f64, h: f64) -> f64 {

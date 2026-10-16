@@ -37,9 +37,9 @@ use sweep::test_support::finished;
 /// latitude ring — the only `Chart` images on the PLANE with a
 /// non-zero `v` channel, and the two edges that refused `ChartResidual`
 /// at sample 1 while the reversal left them unmirrored — carry the
-/// mirrored image now, so the void door, which re-runs the same meter
-/// on the graft, takes the cavity. The plane edges are four: the two
-/// radial lines and the ring's two halves.
+/// mirrored image now, and the void door, which carries each
+/// certificate through the graft verbatim, takes the cavity. The plane
+/// edges are four: the two radial lines and the ring's two halves.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     let t = 0.05;
@@ -49,7 +49,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
         graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -96,7 +96,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
@@ -132,7 +132,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
 fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, 0.05);
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut circles = 0;
     for (ek, e) in reverted.edges() {
@@ -168,6 +168,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
                 point(&reverted, start_v),
                 point(&reverted, end_v),
                 |sk| reverted.get_surface(sk).cloned(),
+                1.0,
                 band,
             )
         };

@@ -13,7 +13,7 @@ use super::join::{
     FrameError, FrameExtent, SectionLoop, SectionLoops, frame_refusal, germs_face_each_other,
     pair_section_frame_at,
 };
-use super::{BooleanError, HalfGerm, Locus, SpiricLoops};
+use super::{BooleanError, Branch, HalfGerm, Locus, SpiricLoops};
 use crate::entity::{FaceKey, HalfEdgeKey};
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -79,13 +79,11 @@ fn shape(got: &Loops) -> String {
     match got {
         Ok(Some(loops)) => format!("loops {loops:?}"),
         Ok(None) => "straight".into(),
-        Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
-        Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
     }
 }
 
@@ -96,11 +94,22 @@ fn served(got: Loops, what: &str) -> SectionLoops<f64> {
     }
 }
 
+/// The branch the site `p` lies on.
+fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> Branch {
+    match loops.branch_at(p, band()) {
+        Ok(Some(branch)) => branch,
+        other => panic!("{p:?} lies on a loop: {other:?}"),
+    }
+}
+
 /// The loop the site `p` picks, and its index.
 fn pick(loops: &SectionLoops<f64>, p: Point3<f64>) -> (usize, SectionLoop<f64>) {
-    loops
-        .at(p, band())
-        .unwrap_or_else(|e| panic!("{p:?} picks a loop: {e:?}"))
+    let b = branch(loops, p);
+    let index = usize::from(b == Branch::Negative);
+    let lp = loops
+        .pick(b)
+        .unwrap_or_else(|e| panic!("{p:?} picks a loop: {e:?}"));
+    (index, lp)
 }
 
 /// Two frames are one when their centres agree and their axes are
@@ -151,7 +160,7 @@ fn a_germ_on_a_meridian_circle_takes_that_circles_frame() {
     );
 }
 
-fn germ(dir: Vec3<f64>) -> HalfGerm<f64> {
+fn germ(dir: Vec3<f64>, branch: Branch) -> HalfGerm<f64> {
     HalfGerm {
         he: HalfEdgeKey::default(),
         a_face: FaceKey::default(),
@@ -159,6 +168,7 @@ fn germ(dir: Vec3<f64>) -> HalfGerm<f64> {
         a_locus: Locus::InFace(FaceKey::default()),
         b_locus: Locus::InFace(FaceKey::default()),
         dir,
+        branch,
     }
 }
 
@@ -173,11 +183,11 @@ fn germs_on_different_meridian_circles_never_face() {
     let loops = served(frame(&plane([0.0, 0.0, 0.0], Vec3::unit_x())), "M1");
     let top = |z: f64| Point3::new(0.0, SMALL_R, z);
     let bottom = |z: f64| Point3::new(0.0, -SMALL_R, z);
-    let (g1, g2) = (
-        germ(Vec3::new(0.0, 0.0, 1.0)),
-        germ(Vec3::new(0.0, 0.0, 1.0)),
-    );
-    let face = |p1, p2| germs_face_each_other(Some(&loops), &g1, &g2, p1, p2, band());
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let face = |p1, p2| {
+        let (g1, g2) = (germ(up, branch(&loops, p1)), germ(up, branch(&loops, p2)));
+        germs_face_each_other(Some(&loops), &g1, &g2, p1, p2, band())
+    };
     assert!(
         matches!(face(top(2.0), bottom(2.0)), Ok(true)),
         "one circle: the top and the bottom turn opposite ways and face"
@@ -303,9 +313,12 @@ fn a_site_on_the_axis_trace_is_a_desync_not_a_loop() {
     ] {
         let loops = served(frame(&p), pose);
         assert!(
-            matches!(loops.at(site, band()), Err(BooleanError::JoinDesync { .. })),
+            matches!(
+                loops.branch_at(site, band()),
+                Err(BooleanError::JoinDesync { .. })
+            ),
             "{pose}: got {:?}",
-            loops.at(site, band())
+            loops.branch_at(site, band())
         );
     }
 }
@@ -402,7 +415,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     let p = plane([0.0, 0.0, 0.0], n);
     let got = frame(&p);
     assert!(
-        matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("pt_axis_in_plane")),
+        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pt_axis_in_plane")),
         "in band at the reach: got {}",
         shape(&got)
     );
@@ -420,7 +433,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     );
     let torus = donut();
     for extent in [FrameExtent::Radii, FrameExtent::Span(REACH)] {
-        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent, b);
+        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×torus under {extent:?}: got {}",
@@ -574,7 +587,7 @@ fn a_general_pose_the_certificate_reads_touching_escalates() {
     ] {
         let got = frame(&p);
         assert!(
-            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some(want)),
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some(want)),
             "{pose}: want an escalation on {want}, got {}",
             shape(&got)
         );

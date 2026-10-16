@@ -43,8 +43,8 @@
 //! guessed number of ulps would be asserting a bound nobody derived;
 //! re-deriving the ratios in certification arithmetic makes the insertion widen like
 //! every other step of an enclosure. Interval arithmetic applier takes HOMOGENEOUS
-//! coefficients, where the combination is the plain convex one and no
-//! `λ` is needed.
+//! coefficients, where the combination is the plain two-point one
+//! ([`Certification::between`]) and no `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use super::projective::{ProjectivePoint, ProjectiveScalar};
@@ -91,11 +91,17 @@ pub enum KnotAlgebraError {
         /// The requested removal count.
         requested: usize,
     },
-    /// A removal chain produced a non-positive or non-finite weight —
-    /// the candidate polygon leaves the positive-weight regime, so the
-    /// removal is refused rather than returning an invalid curve.
+    /// A plan wrote a non-positive or non-finite weight: a removal
+    /// chain left the positive-weight regime, or an insertion's or
+    /// elevation's combination of two positive weights rounded to zero
+    /// (both terms underflowing, on a net of subnormal weights). The
+    /// operation is refused rather than returning an invalid curve.
     WeightCollapse {
-        /// New-polygon index of the collapsed weight.
+        /// New-polygon index of the collapsed weight: in the polygon the
+        /// writing pass builds. For a removal that is the removal's own
+        /// polygon, or, when the bound's reinsertion
+        /// ([`remove_knot_plan`] re-inserts `u` to measure the bound) is
+        /// the writer, the reinserted polygon's slot.
         index: usize,
     },
 }
@@ -137,9 +143,9 @@ impl core::fmt::Display for KnotAlgebraError {
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
-                "removing a knot collapsed weight {index} out of the positive regime. \
-                 Recourse: drop this removal — the curve the chain would leave is not a \
-                 valid rational one, so keep the knot"
+                "the knot operation wrote weight {index} out of the positive regime. \
+                 Recourse: drop this operation — the curve it would leave is not a \
+                 valid rational one, so keep the curve as it is"
             ),
         }
     }
@@ -157,8 +163,7 @@ enum Src {
 
 /// The knots one Boehm insertion's ratios are made of: `lo = U[j]` and
 /// `hi = U[j + p]` of the knot vector the step was planned against, and
-/// the value inserted. They give `α = (inserted − lo)/(hi − lo)` and
-/// its complement `β = (hi − inserted)/(hi − lo)`.
+/// the value inserted. They give `α = (inserted − lo)/(hi − lo)`.
 ///
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
@@ -426,56 +431,25 @@ impl CurvePlan {
     /// outward rounded, and every coefficient the caller handed in is
     /// widened by them rather than re-rounded to `f64`.
     ///
-    /// # The convex form, and why `β` comes from the knots
-    ///
-    /// **This section is the ONE home of that argument in this crate.**
-    /// `compose`'s `insert_once_ring` combines the same way and cites
-    /// this method rather than restating it — a change whose subject is
-    /// duplicated width has no business shipping a duplicated argument.
+    /// # The step: [`Certification::between`] at a ratio from the knots
     ///
     /// With `Δ = U_{j+p} − U_j`, positive by the insertion precondition
-    /// (`insert_once`'s band comment, so the quotients never refuse on a
-    /// valid plan):
+    /// (`insert_once`'s band comment, so the quotient never refuses on a
+    /// valid plan), each combination is
+    /// `Certification::between(C_{j−1}, C_j, (u − U_j)/Δ)`: the ratio is
+    /// a ring quotient of the knots it is made of, rounded outward, and
+    /// the true ratio is in `[0, 1]` because `U_j ≤ u ≤ U_{j+p}` — the
+    /// door's precondition. The door's docs are the one home of why the
+    /// monotone form is the step and why it is met with its sources'
+    /// hull; what is local here is only that the ratio is re-derived
+    /// from the knots, never taken from the projective `λ`.
     ///
-    /// ```text
-    /// α = (u − U_j)/Δ        β = (U_{j+p} − u)/Δ
-    /// ```
-    ///
-    /// **`β` is derived from the knots, NOT as `1 − α`, and the two are
-    /// not required to sum to exactly one.** Each encloses its own true
-    /// ratio by outward rounding, which is the whole of what the
-    /// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
-    /// `β ∋ 1 − λ`, and interval `*` and `+` are inclusion-monotone, so
-    /// the combination contains `(1 − λ)·x + λ·y` for every `x`, `y` in
-    /// the input enclosures. `1 − α` would inherit `α`'s rounding and
-    /// add its own, and route the argument through a subtraction rather
-    /// than through the knots.
-    ///
-    /// **The convex form reads each coefficient ONCE, and that is
-    /// WIDTH.** `x + (y − x)·α` reads `x` TWICE, so an interval `x`
-    /// enters the width with coefficient `1 + α` and a fold of
-    /// insertions multiplies its dust up step by step. Read once each,
-    /// the width grows only by the ratios' own rounding — measured at 16
-    /// ulps of the coefficient scale over 30 insertions against 355 for
-    /// the lerp form on this applier, and at 4.7 against 473.7 over 80
-    /// insertions on `insert_once_ring`'s fold
-    /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
-    ///
-    /// **The step is met with the hull of its two sources**, so a
-    /// constant column stays its point; why that meet is sound is
-    /// `convex_step`'s docs (private, so a name and not a link).
-    ///
-    /// **Two width allowances, one claim.** This module's
-    /// `the_ring_applier_stays_in_step_with_the_point_applier`
-    /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
-    /// `2 + 0.5·insertions` — a 16x difference in slope over the same
-    /// quantity. Neither is a derived bound; both are ceilings set so
-    /// that a form which multiplies its width per step cannot meet them
-    /// while the convex form can, and they were set against different
-    /// fixtures (equal-split plan chains here, full-multiplicity
-    /// decomposition there). The looser one is this module's, and it is
-    /// the one to tighten first if either is ever asked to catch a
-    /// small regression.
+    /// **One width allowance per fixture.** This module's
+    /// `the_ring_applier_stays_in_step_with_the_point_applier` allows
+    /// `8.0·(plans.len() + 1)` ulps over equal-split plan chains; neither
+    /// it nor the exact-rational rows in `compose`'s tests is a derived
+    /// bound. They are ceilings a form that multiplies its width per
+    /// step cannot meet.
     ///
     /// **Total, and NaI is the refusal** (D4): a plan step with no
     /// insertion ratio — degree elevation, knot removal — refuses its
@@ -484,7 +458,7 @@ impl CurvePlan {
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
         self.apply_ratios(old, Interval::refused(), |x, y, r, _| {
-            Some(convex_step(x, y, r.lo, r.hi, r.inserted))
+            Some(boehm_step(x, y, r.lo, r.hi, r.inserted))
         })
     }
 
@@ -535,51 +509,24 @@ impl CurvePlan {
     }
 }
 
-/// One Boehm combination in the certification ring, shared by
-/// [`CurvePlan::apply_certified`] and `compose`'s `insert_once_ring`:
-/// `β·x + α·y` with `Δ = hi − lo`, `α = (u − lo)/Δ` and
-/// `β = (hi − u)/Δ`, BOTH ring quotients of the knots (fixed
-/// association, D9), met with the hull of `x` and `y`. Why the convex
-/// form and why `β` comes from the knots is
-/// [`CurvePlan::apply_certified`]'s docs.
+/// One Boehm combination in the certification ring:
+/// [`Certification::between`] at the ratio `(u − lo)/(hi − lo)`, a ring
+/// quotient of the knots.
 ///
 /// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
 /// `lo ≤ u ≤ hi` and `lo < hi`.** The insertions place `u` strictly
 /// inside the span `[U_j, U_{j+p}]` of the vector they plan against
-/// (`insert_once`'s band, `insert_once_ring`'s window); `compose`'s
-/// `sub_segment` runs de Casteljau steps at a cut `u ∈ [lo, hi]` of a
-/// Bézier segment `[lo, hi]`. So `Δ > 0` and neither quotient refuses.
-///
-/// **Why the hull meet is sound.** `α` and `β` round outward
-/// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a
-/// little past both sources: a constant column, whose source hull is a
-/// point, would come out as a bracket around it. But the knots are
-/// exact, so the true ratio `λ = (u − lo)/(hi − lo)` is a real number
-/// in `[0, 1]` by the precondition, and `(1 − λ)·x + λ·y` lies between
-/// `x` and `y` for every `x ∈ X`, `y ∈ Y`. The hull of `X` and `Y` is
-/// therefore a second enclosure of the same value, by an argument that
-/// never reads `α` or `β`, and two sound enclosures of one value meet
-/// ([`Certification::meet`]). The result is variation-diminishing in
-/// the sense the reals give: a constant column stays its point, so an
-/// exactly-represented weight channel (a polynomial curve's `w ≡ 1`)
-/// stays exact through any fold. `the_convex_form_holds_a_constant_column_exactly`
-/// pins that; `compose`'s `the_ring_fold_encloses_the_exact_refined_net`
-/// pins containment against exact rationals (both `#[cfg(test)]`).
-pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
-    let (lo, hi) = (Interval::point(lo), Interval::point(hi));
-    let u = Interval::point(u);
-    let span = hi - lo;
-    let alpha = (u - lo) / span;
-    let beta = (hi - u) / span;
-    (x * beta + y * alpha).meet(Interval::hull(x, y))
+/// (`insert_once`'s band), so the quotient never refuses and the true
+/// ratio is in `[0, 1]`, which is the door's precondition.
+pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+    let lo_i = Interval::point(lo);
+    let ratio = (Interval::point(u) - lo_i) / (Interval::point(hi) - lo_i);
+    Interval::between(x, y, ratio)
 }
 
-/// Validates weights against a knot vector: count, positivity,
-/// finiteness (the shared precondition of every plan constructor).
-// `!(x > 0)`-shaped guards below are deliberate: the negated form is
-// NaN-catching (`NaN > 0` is false, so NaN refuses), where `x <= 0`
-// would silently pass NaN through — the fail-loud direction.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// Validates weights against a knot vector: count, then the weight
+/// regime ([`super::knots::check_weight_values`]) — the shared
+/// precondition of every plan constructor.
 fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraError> {
     if weights.len() != kv.control_count() {
         return Err(KnotAlgebraError::Structure(
@@ -589,20 +536,23 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
             },
         ));
     }
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(KnotAlgebraError::Structure(
-                SplineError::NonPositiveWeight { index, weight: *w },
-            ));
-        }
-        if !w.is_finite() {
-            return Err(KnotAlgebraError::Structure(SplineError::NonFiniteWeight {
-                index,
-                weight: *w,
-            }));
-        }
+    super::knots::check_weight_values(weights).map_err(KnotAlgebraError::Structure)
+}
+
+/// **The one admission of a weight a plan writes**: in the weight
+/// regime ([`super::knots::weight_in_regime`]), or
+/// [`KnotAlgebraError::WeightCollapse`] at its new-polygon `index`.
+/// [`check_weights`] holds a plan's INPUT to the same regime, but a
+/// combination of two admitted weights can still leave it (an
+/// insertion's convex blend rounds to zero when both terms underflow; a
+/// removal's unblend can go negative), so every writer — insertion,
+/// elevation, removal — passes what it writes through here.
+fn written_weight(index: usize, w: f64) -> Result<f64, KnotAlgebraError> {
+    if super::knots::weight_in_regime(w) {
+        Ok(w)
+    } else {
+        Err(KnotAlgebraError::WeightCollapse { index })
     }
-    Ok(())
 }
 
 /// Single knot insertion (Book §5.2, Boehm), `times`-fold: returns a
@@ -613,7 +563,9 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 /// # Errors
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
-/// multiplicity overflow. `times == 0` is a no-op (empty chain).
+/// multiplicity overflow, and [`KnotAlgebraError::WeightCollapse`] when
+/// an inserted weight rounds out of the positive regime ([`written_weight`]).
+/// `times == 0` is a no-op (empty chain).
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -636,7 +588,7 @@ pub fn insert_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = insert_once(&cur_kv, &cur_w, knot);
+        let plan = insert_once(&cur_kv, &cur_w, knot)?;
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
         plans.push(plan);
@@ -649,24 +601,11 @@ pub fn insert_knot_plan(
 /// validated). `u` was minted against the chain's first vector; an
 /// insertion leaves both clamp runs alone, so it is interior to every
 /// vector of the chain.
-///
-/// **The Boehm structure is shared with [`super::compose`]'s
-/// `insert_once_ring`, and the two are now a FILED duplication rather
-/// than an argued one.** That function's own docs still argue the split
-/// on the ground that it "folds `Interval` coefficients with an
-/// outward-rounding quotient and has no weights to form `λ` from" —
-/// which is a description of [`CurvePlan::apply_certified`], so the argument
-/// no longer separates them, and neither does the coefficient
-/// arithmetic any more: both combine in the convex form with `α` and
-/// `β` re-derived from their knots, and
-/// [`CurvePlan::apply_certified`]'s docs are the one home of that
-/// argument. What still separates them is the SHAPE of the schedule
-/// each needs: that one inserts to full interior multiplicity over a
-/// raw knot list, deliberately never rebuilding a [`KnotVector`] per
-/// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
-/// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
-/// here.
-fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
+fn insert_once(
+    kv: &KnotVector,
+    weights: &[f64],
+    knot: InteriorKnot,
+) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
     let k = find_span_in(knots, p, knot);
@@ -702,7 +641,7 @@ fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePla
     // docs.
     for j in (k - p + 1)..=(k - s) {
         let alpha = (u - knots[j]) / (knots[j + p] - knots[j]);
-        let wq = alpha * weights[j] + (1.0 - alpha) * weights[j - 1];
+        let wq = written_weight(j, alpha * weights[j] + (1.0 - alpha) * weights[j - 1])?;
         let lambda = alpha * weights[j] / wq;
         new_w[j] = wq;
         steps.push(Step::Combo {
@@ -730,11 +669,11 @@ fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePla
         });
         new_w[j] = weights[j - 1];
     }
-    CurvePlan {
+    Ok(CurvePlan {
         knots: new_kv,
         weights: new_w,
         steps,
-    }
+    })
 }
 
 /// Knot refinement (Book §5.3) as a fold of single insertions in
@@ -904,25 +843,18 @@ impl RingRefinement {
         &self.knots
     }
 
-    /// The source vector's control count: the length a channel must
-    /// have.
-    #[must_use]
-    pub fn source_count(&self) -> usize {
-        self.source
-    }
-
-    /// The insertion chain, one plan per inserted point: for an applier
-    /// at another scalar (`SpanLocate::refine_homogeneous`).
-    #[must_use]
-    pub fn plans(&self) -> &[CurvePlan] {
+    /// The insertion chain, one plan per inserted point: what the
+    /// refinement tests replay plan by plan.
+    #[cfg(test)]
+    pub(crate) fn plans(&self) -> &[CurvePlan] {
         &self.plans
     }
 
     /// `channel` through every plan in order, each by
     /// [`CurvePlan::apply_certified`], so the result encloses the refined
-    /// channel of the described net. A channel that is not
-    /// [`RingRefinement::source_count`] long refuses: every entry of the
-    /// refined length is refused.
+    /// channel of the described net. A channel that is not one entry per
+    /// source control point refuses: every entry of the refined length is
+    /// refused.
     #[must_use]
     pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
         if channel.len() != self.source {
@@ -1149,7 +1081,10 @@ pub struct RemovalStep {
 /// [`KnotAlgebraError::KnotNotPresent`] if `u` is not an interior knot
 /// (exact `f64` identity), [`KnotAlgebraError::RemovalExceedsMultiplicity`],
 /// [`KnotAlgebraError::WeightCollapse`] if a pass leaves the
-/// positive-weight regime, plus the shared structure refusals.
+/// positive-weight regime — the removal chain's written weights, or the
+/// reinsertion's ([`insert_knot_plan`] of `u` into the removed curve,
+/// which the bound is measured on), whose `index` is then the
+/// reinserted polygon's slot — plus the shared structure refusals.
 pub fn remove_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -1190,8 +1125,6 @@ pub fn remove_knot_plan(
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
@@ -1235,10 +1168,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         } else {
             (Src::New(i - 1), new_w[i - 1])
         };
-        let wq = (weights[i] - (1.0 - a) * prev_w) / a;
-        if !(wq > 0.0) || !wq.is_finite() {
-            return Err(KnotAlgebraError::WeightCollapse { index: i });
-        }
+        let wq = written_weight(i, (weights[i] - (1.0 - a) * prev_w) / a)?;
         // λ overflow note: wq passed the guard, but a subnormal-
         // positive wq can still overflow `…/wq` to +∞ here; the lifted
         // infinite λ then poisons the combined point (NaN through
@@ -1268,10 +1198,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         } else {
             (Src::New(i + 1), new_w[i + 1])
         };
-        let wq = (weights[i + 1] - a * next_w) / (1.0 - a);
-        if !(wq > 0.0) || !wq.is_finite() {
-            return Err(KnotAlgebraError::WeightCollapse { index: i });
-        }
+        let wq = written_weight(i, (weights[i + 1] - a * next_w) / (1.0 - a))?;
         // λ overflow note: as in the forward chain above.
         let lambda = (weights[i + 1] / (1.0 - a)) / wq;
         steps.push(Step::Combo {
@@ -1314,8 +1241,9 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
 /// # Errors
 ///
 /// The shared structure refusals; a [`KnotAlgebraError::WeightCollapse`]
-/// from step (3) is possible only through floating-point degeneracy and
-/// is surfaced honestly rather than clamped.
+/// from any step is possible only through floating-point degeneracy
+/// (an underflowing blend in (1) or (2), a removal leaving the regime
+/// in (3)) and is surfaced honestly rather than clamped.
 pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
     let p = kv.degree();
@@ -1337,7 +1265,7 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
         }
     }
     // (2) Per-segment elevation.
-    let stage = elevate_bezier_stage(&cur_kv, &cur_w);
+    let stage = elevate_bezier_stage(&cur_kv, &cur_w)?;
     cur_kv = stage.knots.clone();
     cur_w = stage.weights.clone();
     plans.push(stage);
@@ -1358,7 +1286,7 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
 
 /// The Bézier-segment elevation stage: every interior knot is at
 /// multiplicity `p` (established by [`elevate_plan`] step 1).
-fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
+fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
     // Distinct values in order (ends included).
@@ -1389,7 +1317,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
         let o2 = seg * (p + 1); // new segment offset
         for i in 1..=p {
             let c = i as f64 / (p + 1) as f64;
-            let wq = c * weights[o + i - 1] + (1.0 - c) * weights[o + i];
+            let wq = written_weight(o2 + i, c * weights[o + i - 1] + (1.0 - c) * weights[o + i])?;
             let lambda = c * weights[o + i - 1] / wq;
             steps.push(Step::Combo {
                 target: o2 + i,
@@ -1409,11 +1337,11 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
         });
         new_w[o2 + p + 1] = weights[o + p];
     }
-    CurvePlan {
+    Ok(CurvePlan {
         knots: new_kv,
         weights: new_w,
         steps,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -1705,11 +1633,11 @@ mod tests {
 
     /// **A constant column stays its point.** A refined coefficient is a
     /// convex combination of two described ones, so in ℝ it lies between
-    /// them, and with EQUAL adjacent coefficients it equals them. `α` and
-    /// `β` round outward independently, so `β·c + α·c` alone is a
-    /// bracket straddling `c`; the step's meet with its sources' hull is
-    /// what brings it back to `c`, and a constant column is the one
-    /// input where any width at all is visible as an excursion.
+    /// them, and with EQUAL adjacent coefficients it equals them. A form
+    /// that rounds the ratio into the value (`β·c + α·c` with `α`, `β`
+    /// rounded outward independently) brackets `c` instead; a constant
+    /// column is the one input where any width at all is visible as an
+    /// excursion.
     ///
     /// That exactness is load-bearing downstream: a polynomial curve's
     /// weight channel is `w ≡ 1`, and the tensor composite's residual
@@ -1722,7 +1650,7 @@ mod tests {
     /// shallow fold at three coefficient magnitudes, including a
     /// negative, where a sign error in either ratio would show instead.
     #[test]
-    fn the_convex_form_holds_a_constant_column_exactly() {
+    fn the_step_holds_a_constant_column_exactly() {
         // (degree, interior knots, splits, coefficient)
         let cases: &[(usize, &[f64], usize, f64)] = &[
             (1, &[], 16, 0.5),
@@ -2133,5 +2061,38 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// **A written weight that rounds out of the positive regime is
+    /// refused, at every writer.** On a net of the least subnormal
+    /// weight a half-and-half blend rounds each half to zero (a tie, to
+    /// even), so the written weight is `0`: insertion at a midpoint,
+    /// refinement (a fold of insertions) and degree-1 elevation (whose
+    /// one binomial coefficient is `½`) each meet it, and each answers
+    /// `WeightCollapse` at the slot it would have written.
+    #[test]
+    fn a_blend_that_rounds_a_weight_to_zero_is_refused() {
+        let w = f64::from_bits(1);
+        let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let collapse = KnotAlgebraError::WeightCollapse { index: 1 };
+        assert_eq!(
+            insert_knot_plan(&quad, &[w, w, w], 0.5, 1).map(|_| ()),
+            Err(collapse.clone()),
+            "insertion"
+        );
+        assert_eq!(
+            refine_plan(&quad, &[w, w, w], &[0.5]).map(|_| ()),
+            Err(collapse.clone()),
+            "refinement"
+        );
+        let line = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        assert_eq!(
+            elevate_plan(&line, &[w, w]).map(|_| ()),
+            Err(collapse),
+            "elevation"
+        );
+        // Weights a blend cannot underflow pass the same writers.
+        assert!(insert_knot_plan(&quad, &[1.0; 3], 0.5, 1).is_ok());
+        assert!(elevate_plan(&line, &[1.0; 2]).is_ok());
     }
 }

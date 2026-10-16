@@ -1445,3 +1445,194 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
         );
     }
 }
+
+/// A plate `[0,3] × [0,2] × [0,1]` with a V-notch cut into its far
+/// side, its apex at (1.5, 1.2).
+fn notched_plate() -> Mem {
+    Mem::Prism(
+        vec![vec![
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (1.8, 2.0),
+            (1.5, 1.2),
+            (1.2, 2.0),
+            (0.0, 2.0),
+        ]],
+        0.0,
+        1.0,
+    )
+}
+
+/// **Lost regions that meet only at a notch's apex** are read as one
+/// obstacle, in every member order. `m` covers the notched plate's far
+/// side up to the apex, so the top loses a region on each side of the
+/// notch, the two touching at the apex alone, and the top's edge along
+/// `m`'s wall runs through the apex, joined there. The kernel discards
+/// both as one face. The left region and `s`'s footprint divide the
+/// top, so the right piece, which borders the right region only, cites
+/// `m`'s end wall `x = 2` beside it. Whether a region that meets itself
+/// only at a point is one obstacle is N2's open question
+/// (`work/emit/a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex.md`).
+#[test]
+fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+    check(&u(
+        "notch_apex",
+        vec![
+            ("plate", notched_plate()),
+            ("m", b((-1.0, 2.0), (1.2, 3.0), (0.5, 1.5))),
+            ("s", b((0.6, 0.8), (-1.0, 1.3), (0.47, 1.53))),
+        ],
+        vec![
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m:x=2.00", "m:y=1.20", "s:x=0.80"]),
+                    w(&["m:y=1.20", "s:x=0.60"]),
+                ],
+            ),
+            (
+                "m:y=1.20",
+                vec![
+                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
+                    w(&["plate:z=1.00", "s:x=0.80"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **Two members' discards that meet only at a notch's apex** are one
+/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`]:
+/// `m` is two members abutting at the apex's `x`, so each region is its
+/// own member's discard, and what makes them one is the join at the
+/// apex, which makes one edge of both members' seams, and `s`'s later
+/// split of that edge, whose pieces lead back to it.
+#[test]
+fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+    check(&u(
+        "notch_apex_two",
+        vec![
+            ("plate", notched_plate()),
+            ("m1", b((-1.0, 1.5), (1.2, 3.0), (0.5, 1.5))),
+            ("m2", b((1.5, 2.0), (1.2, 3.0), (0.47, 1.53))),
+            ("s", b((0.6, 0.8), (-1.0, 1.3), (0.44, 1.56))),
+        ],
+        vec![
+            (
+                "m1:y=1.20+m2:y=1.20",
+                vec![
+                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
+                    w(&["plate:z=1.00", "s:x=0.80"]),
+                ],
+            ),
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m1:y=1.20+m2:y=1.20", "m2:x=2.00", "s:x=0.80"]),
+                    w(&["m1:y=1.20+m2:y=1.20", "s:x=0.60"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **An earlier seam split and joined away in one step** names alike in
+/// every order. `m1`'s wall meets the top along a seam that `m2`, an
+/// L whose leg crosses the plate and whose arm overlaps `m1` flush with
+/// its wall, cuts at the leg; the arm covers `m1`'s end wall, so the
+/// piece the cut minted is joined into the arm's seam in the same step.
+/// The right piece's edge along the walls reaches `m1`'s discard
+/// through that piece's lineage (`topo::BooleanNaming::killed_lineage`).
+#[test]
+fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
+    check(&u(
+        "split_join",
+        vec![
+            ("plate", plate()),
+            ("m1", b((1.5, 2.5), (1.2, 3.0), (0.5, 1.5))),
+            (
+                "m2",
+                Mem::Prism(
+                    vec![vec![
+                        (1.9, -1.0),
+                        (2.0, -1.0),
+                        (2.0, 3.0),
+                        (0.5, 3.0),
+                        (0.5, 1.2),
+                        (1.9, 1.2),
+                    ]],
+                    0.5,
+                    1.0,
+                ),
+            ),
+        ],
+        vec![
+            (
+                "m1:z=0.50+m2:z=0.50",
+                vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])],
+            ),
+            (
+                "m2:z=1.50",
+                vec![w(&["m1:x=1.50"]), w(&["m1:y=1.20+m2:y=1.20"])],
+            ),
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m1:x=2.50", "m1:y=1.20+m2:y=1.20", "m2:x=2.00"]),
+                    w(&["m1:y=1.20+m2:y=1.20", "m2:x=0.50", "m2:x=1.90"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **A held edge wholly inside a dropped face**: the plate less a
+/// pocket, its floor at z 0.5, unioned with a bar `b` whose top is
+/// flush with the floor and wider than it, so the floor's four edges lie
+/// inside `b`'s top with both ends at vertex-on-face contacts. Every
+/// run should publish one set of names; the pair union and the union
+/// `[a, b]` refuse that a piece borders no recorded discard, and the
+/// union `[b, a]` builds
+/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+#[test]
+#[ignore = "refuses by member order: cargo nextest run -p editor-core --run-ignored only -E 'test(pocket_floor)'"]
+fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
+    let doc = ProfileDoc::empty_derived("held-pocket", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, pocket) = block(doc, (1.0, 2.0), (0.8, 1.2), 0.5, 1.5);
+    let (doc, a) = insert(
+        doc,
+        Node::Subtract {
+            from: plate.into(),
+            tool: pocket.into(),
+        },
+    );
+    let (doc, bar) = block(doc, (0.5, 2.5), (-1.0, 3.0), 0.0, 0.5);
+    let labels: BTreeMap<RecipeNodeId, &str> =
+        [(plate, "plate"), (pocket, "pocket"), (a, "a"), (bar, "b")].into();
+    let mut runs = vec![(
+        "pair".to_owned(),
+        insert(
+            doc.clone(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), bar.into()]),
+            },
+        ),
+    )];
+    for order in permutations(&[0, 1]) {
+        runs.push((
+            format!("{order:?}"),
+            union_of(doc.clone(), &[a, bar], &order),
+        ));
+    }
+    let mut sets = Vec::new();
+    for (at, (d, n)) in runs {
+        let ev = run(&d);
+        assert!(failure(&ev, n).is_none(), "{at}: {:?}", failure(&ev, n));
+        sets.push((at, splits(&ev, &d, n, &labels)));
+    }
+    for (at, got) in &sets[1..] {
+        assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
+    }
+}

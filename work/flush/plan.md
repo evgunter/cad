@@ -18,29 +18,25 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap` | M | an apex edge in the partner's face plane fails tier 3′ on one `EdgeFaceOverlap` (the corner-pair row's six ARC lines, split out by PR 4650) |
-| P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | H | the pre-zip pinch weld stays as the repair of an operand's coincident pierces |
-| P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
-| P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
-| P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
-| P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P3 | `two-pinch-poses-escalate-at-eps-1e-6` | M | pose 1 at ε 1e-6: can a cross-germ tie between pairs that share no germ change the greedy matching (a proof task; pose 2 is honest) |
+| P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (Ev ruled on PR 4990; dispatched 2026-10-14, `flush/shell-role-reader`) |
 
 Parked, and not counted:
 
 | pri | item | cost | waits on |
 |---|---|---|---|
 | P0 | `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` | M | `boolean-door-runs-the-census-over-its-result` (REACHHOLD) |
+| P0 | `a-result-that-is-only-a-sliver-shell-passes-the-door` | M | `boolean-door-runs-the-census-over-its-result` (REACHHOLD): under pairs only (PR 4690), its residue is the door census; 11 needles at ε 1e-9 and 34 `rc_wide` lines at 1e-6 ship (PR 4783) |
 
 ## Order
 
 1. **The P0 wrong bodies** (done). The corner ruling, its corner-pair
    sibling and the L-prism closed with PR 4650: a record follows its
    divided face to the piece that holds it. The sliver-only result
-   closed with PR 4636; its gate's future waits on Ev's ruling in
-   `[ev]` PR 4690. Next, the P0 residue:
-   `an-apex-edge-in-the-partners-face-plane-…` (one `EdgeFaceOverlap`
-   on the six ARC lines).
+   closed with PR 4636; Ev ruled on its gate in PR 4690 (thinness is
+   judged by pairs alone), and PR 4783 retired the gate. Its residue is
+   parked on REACHHOLD's door census. The P0 residue,
+   `an-apex-edge-in-the-partners-face-plane-…`, closed with PR 4737:
+   a line edge in a plane face records its span.
 2. **Reader's closes** (done, PR 4635: all three closed with pins
    through the plain booleans; the residue,
    `a-wedge-flush-on-a-block-top-…`, closed with PR 4709 as D10's
@@ -56,11 +52,15 @@ Parked, and not counted:
 4. **The declared-flush and pinch rows**:
    `declared-flush-intersect-refuses-in-one-operand-order` (folded into
    step 2's measuring lane), then the pinch rows:
-   `the-pre-zip-pinch-weld-retires-…`, `a-pinch-the-seams-do-not-link-…`,
-   `a-hole-weld-cannot-tell-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
-   (the residue of the curved shared-pinch re-read, PR 4698).
+   `the-pre-zip-pinch-weld-retires-…` and `a-hole-weld-cannot-tell-…` (done,
+   PR 4728); `a-pinch-the-seams-do-not-link-…` (vertex-vertex pinches with
+   no pierce; ruling A, fork-log row 133: two parts' value-decided
+   coincident vertices share one point key; done, PR 4823),
+   `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
+   (done, PR 4777).
 5. **The E tail** (done, PR 4714: five rows closed; `two-pinch-poses-…`
-   stays open as a proof task about pose 1's matcher tie).
+   closed with PR 4769: among straight, mutual germs with K > 2 the
+   matcher's pair order cannot move the matching).
 
 ## The intent-refactor hold (Ev, `[ev]` PR 3990, 2026-10-03)
 

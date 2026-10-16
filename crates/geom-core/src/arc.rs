@@ -7,6 +7,13 @@
 //! the endpoints belong to whatever holds it (a loop's vertex table, a
 //! sketch segment's `a` and `b`), which is why its one evaluation,
 //! [`Arc2::point_from`], takes the start point as an argument.
+//!
+//! Two carriers in one plane, how they sit and where they cross, are
+//! [`Circles`] and [`CirclesAt`].
+
+mod pair;
+
+pub use pair::{Circles, Circles2, CirclesAt};
 
 use crate::linalg::{Point2, Vec2};
 use crate::real::SymRegistration;
@@ -537,6 +544,6 @@ mod tests {
             Some(Sign::Zero),
             "inside a larger expression: {counts:?}"
         );
-        assert!(counts.registered >= 2, "counted as registered: {counts:?}");
+        assert!(counts.symbolic >= 2, "proven by the tier: {counts:?}");
     }
 }

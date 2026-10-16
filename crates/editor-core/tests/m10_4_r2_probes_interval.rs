@@ -1306,14 +1306,12 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
 }
 
 /// **RED AT `fc8de0ac` — a loft section's parameter seeds to a SILENT
-/// ZERO.** The loft's sections stay f64 (`wire::section_of`: the lift's
-/// second pass runs there as a gate only, and the emitted section is
-/// `pre.profile_f64.loops`), so a seed on the section's width reaches
-/// the loft's vertices with tangent exactly 0 while the distance
-/// measured between them is `w` and ∂/∂w = 1. The spec's grounding:
-/// "the profile gap TYPED, never silent zeros"; the PR: "No typed valve
-/// was needed." The assertion is the spec's: a correct tangent, a
-/// typed refusal, or a forfeiture — never a finite wrong number.
+/// ZERO.** The loft's sections were f64 then (`wire::section_of`), so a
+/// seed on the section's width reached the loft's vertices with
+/// tangent exactly 0 while the distance measured between them is `w`
+/// and ∂/∂w = 1; the typed valve `LiftRefusal::PinnedSection` replaced
+/// the zero. A loft now reads its sections' profile values in the lane
+/// scalar, so the answer is the correct tangent itself.
 #[test]
 fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let (doc, m) = loft();
@@ -1323,19 +1321,12 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&lawed, &entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
-            assert_eq!(
-                *value, 1.0,
-                "∂distance/∂w through a loft section is a finite wrong number: {value}"
-            );
-        }
-        SensitivityOutcome::TangentDegraded { .. } | SensitivityOutcome::MeasureRefused { .. } => {}
-        // The fix pass's answer: the typed valve, naming the section.
-        SensitivityOutcome::Unliftable { refusal, .. } => {
             assert!(
-                matches!(refusal, editor_core::LiftRefusal::PinnedSection { .. }),
-                "{refusal:?}"
+                (value - 1.0).abs() <= 1e-12,
+                "∂distance/∂w through a loft section: {value}"
             );
         }
+        other => panic!("a loft section's seed must reach the measure: {other:?}"),
     }
 }
 

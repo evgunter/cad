@@ -2,9 +2,10 @@
 id: too-close-to-call-remainder
 kind: issue
 title: the 'too close to call' sentences outside the folded family still spell the undecided verdict their own way
-status: dispatched
-branch: encl/undecided-geom-brep
+status: closed
+branch: encl/undecided-sweep
 opened: 2026-10-09
+closed: 2026-10-13
 ---
 
 
@@ -58,14 +59,11 @@ these sources (at `origin/main` 9409cb5e43; doc comments omitted):
 
 Most `"{what} is too close to call: {source}"` sites render an
 `Indeterminate` whole. That render is `IndeterminateUnder`'s,
-`{payload} — {advice}; {ending}` (the bare `Indeterminate` Display is
-`under(COINCIDENCE_RECOURSE)`, or `under(NO_DECLARATION_RECOURSE)` on a
-margin decided past the band), and not the `Indeterminate::undecided`
-shape, `{payload}. {ending}`. The two differ in more than the joint:
-on an enclosure that straddles the band `under` puts "subdivide the
-parameter box for a tighter enclosure" in front of the door's levers,
-and on an unreadable margin "check the operation's inputs upstream";
-`Indeterminate::ending` carries neither.
+`{payload} — {reading}; {ending}` (the bare `Indeterminate` Display is
+`under(COINCIDENCE_RECOURSE)`), and not the `Indeterminate::undecided`
+shape, `{payload}. {ending}`. Both end in `Indeterminate::ending`,
+per-kind levers included, so they differ only in the joint and the
+reading clause.
 
 **Done: the geom-brep slice, in PR 4612.** Its seven sentences spell the
 verdict through `geom_core::undecided!`. Four Displays carry the payload
@@ -76,6 +74,106 @@ caller's, per `Reading`. Three render the whole escalation
 `IsoRowError::Escalated` and `OffsetError::Escalated` through
 `under(NO_DECLARATION_RECOURSE)`), so their tail is `IndeterminateUnder`'s
 ` — {advice}; {ending}`, per-kind levers included.
+
+**Done: the topo slice, in PR 4745** (fourteen sentences).
+
+- Skipped, contact ground under D10: `chart_region.rs` `Escalated`,
+  `validate.rs` `ContactRefusal::Escalated`.
+- Left: hand-spelled `is undecided` in `boolean/edge_join.rs`
+  (`JoinUndecided`, `JoinRefusal`), `validate.rs`
+  (`JoinUndecidedAtRest`) and `chord_join.rs` (`Section`'s carrier
+  arm); the decision-specific verdicts in `splitting/mod.rs`
+  `SectionGermsEscalated` ("too nearly in the split plane", "too close
+  to order"); `splitting/section.rs` `UnplacedHole`'s "a contact too
+  close to call", a cause in a list that still trips
+  `DECISION_PHRASES`; the payload joint spelled by hand in geom-brep
+  (`edge_nurbs.rs`, `offset_meters.rs`, `ssi.rs` ×2), which
+  `geom_core::undecided!(subject, payload)` now spells.
+- `SliverSector` shares the joint through that macro but not
+  `UndecidedRefusal`, which needs an `Indeterminate`: two of
+  `SectorReading`'s arms are decided disagreements carrying margins.
+
+**Done: the profile slice, in PR 4780** (four sentences: `path.rs`'s
+junction arm and both fall-through arms, `validate.rs`'s
+`ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
+Both doors end a name by its row in `validate::DECISION_ENDINGS`
+(geom-core's `EndingKind::Sized` or `Lever(lever)`), one row per decided
+name, held both ways against `src`; a name with no row names its hole at
+both. The ending is `Indeterminate::ending_by` (PR 5003).
+
+- Skipped: nothing on D10 ground in the slice.
+- Left: the hand-spelled decision-specific verdicts in `path.rs`'s
+  `Escalated` (`path_continuation_target_offset` and the seam arrival,
+  "neither … nor definitely off it"; `path_leg_length`, "could not be
+  told from zero"), each with a hand-written ending;
+  `FILLET_ENCLOSING_RECOURSE` restating the verdict ("too close to … to
+  tell whether") after "the fillet at this corner is undecided"; the
+  fillet and stored-form arms' `lever_recourse(.., None)`, which drops
+  the unreadable-margin note on poison; `structure.rs`'s
+  `StructureRefusal` bare `{source}` (owned by
+  `work/paths/paths-refusals-short-of-the-shape-guard.md`); the seam
+  arrival and continuation arms' "widen the input tolerance (K·ε)"
+  against their rows' kinds.
+
+**Done: the editor-core slice, in PR 4811.** `NodeErrorKind::Escalated`,
+`NamingError::Escalated` and `SelectRefusal::InBand` render through
+`Indeterminate::undecided`. Their ending comes from `decision::Decision`,
+a closed enum declared from one table of name and kind. The evaluation's
+escalations are built from a `Decision`, and a name with no row ends
+sized plus `geom_core::MissingRecourse`. Lever: `eval_direction_norm` (a
+gauge), the angles, and `name_frag_order_along` (a curve parameter).
+Sized: the pattern spacing, naming's three distances and
+`sel_datum_distance`. The ending is `Indeterminate::ending_by` over the
+decision's `geom_core::EndingKind` (PR 5003).
+
+- Skipped, held under D10. Each keeps its old sentence through a held
+  arm at its door, pinned through that door:
+  - measure: `NodeErrorKind::MeasureEscalated`, for distance and gap on
+    `bool_plane_parallel` and `carrier_cyl_axis_parallel`; also
+    `measure.rs`'s assertion verdict;
+  - placement: `NodeErrorKind::PlacementAxisEscalated`, which
+    `EditError::PlacementAxis` carries;
+  - pose and datum: `NodeErrorKind::PoseDirectionEscalated`, covering
+    `DirectionRefusal::node_error` (datum axes, normals and frames, and
+    the sketch `FrameDirection` that carries it) and `wire/pose.rs`'s
+    `degenerate`. Until the hold lifts, `datum_unit_norm` and
+    `eval_direction_norm`, the same arithmetic, end two ways: held at
+    the pose ground, the lever alone at the evaluation;
+  - `mate.rs`: `MateError::Indeterminate`, and `MateCheck`'s "could not
+    be decided".
+- Left:
+  - `checks.rs` `CheckEvidence::Escalated` ("the component count is
+    unknowable: {shell payload}"), a consequence ahead of the question;
+  - the placement route compares the user-facing role word
+    (`role == PLACEMENT_AXIS_ROLE` in `eval/wire.rs` `unit`), and becomes
+    a typed route from `placement.rs` when D10 lifts;
+  - the naming door is fed `&str` through `emit_topo`'s `Segment`
+    methods, so its census reads the naming word table: a new unworded
+    naming predicate renders the missing-recourse note, but nothing goes
+    red;
+  - `placement.rs`'s `# Errors` doc for `Frame::rotate_then_translate`
+    still names `NodeErrorKind::Escalated`, in a held file;
+  - `DECISION_PHRASES` keeps "too close to call" for the held sites.
+
+**Done: the sweep slice, in PR 4766** (eleven sentences: the ten
+above and `CapPlaneError::Orientation`, which keeps its defect
+ending). Each renders through `Indeterminate::undecided`, with the
+lever `COINCIDENCE_RECOURSE`.
+
+- `ending(..)`: extrude's normal and obliquity, loft's stacking, the
+  clearance's arc apex and arc clearance, the tube's wall, bore and gap.
+- `Indeterminate::lever_ending`: the revolve angle and headroom, the axis
+  direction's length (a gauge), both cosurface decisions, and the
+  clearance's line runs, arc centre and arc span.
+- `RevolveError::SliverAxisClearance` and `TubeError::Escalated` carry
+  closed decisions (`ClearanceDecision`, `TubeDecision`) that name
+  their predicate and their kind.
+- Skipped, carvetail's (`carve-refusals-short-of-the-shape-guard`):
+  `swept::sliver_text`'s `Lever` arm, and `RevolveError::SliverRadius`,
+  an escalation rendered as "sits a sliver away from the revolve axis:
+  {source}".
+- Left: a sized straddle reads as a subdividable enclosure through
+  `ending(..)`, as on the cleave row.
 
 ## Repair shape
 
@@ -88,10 +186,11 @@ rule for each site:
   `geom_core::undecided!`.
 - **A whole-escalation render** goes through `Indeterminate::undecided`
   with `ending(<recourse>)`, the recourse picked from the door's
-  callers (`NO_DECLARATION_RECOURSE` where none takes a declaration).
-  Where the site renders through `under(..)` today, `ending(..)` drops
-  the per-kind levers above, so it moves only with an ending that
-  carries them.
+  callers — or with the ending its decision's kind warrants: a
+  margin that is no size the user chose ends through `LeverOnly`, and
+  an escalation that carries its decision ends as that decision does
+  at that door. A sized decision another crate also renders keeps
+  `ending(..)`, so it has one ending (D4 ¶1).
 
 ## Also in this family (from the review of PR 4443)
 

@@ -134,15 +134,19 @@
 //! instance. Wall–wall seams adopt through the
 //! **IsoCurve rung** (the carrier bitwise-matched against the
 //! adjacent walls' `boundary_iso_u` columns, certified through the
-//! iso residual lane), cap rims through the conventional rung's
-//! Nurbs-adjacency exemption (`PlacedSegment` for line rims — the
+//! iso residual lane). A cap rim adopts at the `Intersection` rung
+//! where the plane × NURBS certificate takes its carrier — a straight
+//! rim, whose chart image on the wall is straight — and otherwise
+//! through the conventional rung's Nurbs-adjacency exemption
+//! (`PlacedSegment` for a line rim the certificate refuses — the
 //! native loft's own description class, which is what the NURBS
-//! chart's pcurve mint accepts; `RevolvedPoint` for arc rims on
-//! rational walls, which mint nothing — the native rational body's
-//! own state). Multi-ring NURBS faces keep refusing typed at the
-//! curved-face ring gate (no NURBS chart inversion — stage-1
-//! recognition territory, named there), as do spline sub-types the
-//! writer never emits (knots-implied `QUASI_UNIFORM_CURVE` and kin).
+//! chart's pcurve mint accepts; `RevolvedPoint` for arc rims, whose
+//! degree-1 chart image the certificate's hull refuses, on rational
+//! walls minting nothing — the native rational body's own state).
+//! Multi-ring NURBS faces keep refusing typed at the curved-face ring
+//! gate (no NURBS chart inversion — stage-1 recognition territory,
+//! named there), as do spline sub-types the writer never emits
+//! (knots-implied `QUASI_UNIFORM_CURVE` and kin).
 //!
 //! **Coverage is bounded by what the writer can emit** (#207): the
 //! loft/sweep skin's chord-length fit drifts unit weights on any
@@ -752,8 +756,8 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement door (M7-4 Leg D, unchanged): `transform_rigid`
-            // re-checks rigidity with decided predicates and
+            // placement doors (M7-4 Leg D): the map is decided rigid at
+            // `RigidMotion::check_rigid`, and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -787,8 +791,20 @@ pub fn import_step(
                         map: Some(map),
                         transform,
                         ..
-                    }) => topo::transform_rigid(&one, &map, tol)
-                        .map_err(|source| StepImportError::Placement { transform, source })?,
+                    }) => {
+                        let band = geom_core::Band::linear(tol).map_err(|source| {
+                            StepImportError::Placement {
+                                transform,
+                                source: topo::TransformError::Band(source),
+                            }
+                        })?;
+                        let motion =
+                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
+                                StepImportError::PlacementMap { transform, source }
+                            })?;
+                        topo::transform_rigid(&one, &motion, tol)
+                            .map_err(|source| StepImportError::Placement { transform, source })?
+                    }
                     _ => one,
                 };
                 // The per-solid subject of the shared gate (below),

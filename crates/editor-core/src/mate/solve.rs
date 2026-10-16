@@ -38,7 +38,7 @@ use std::sync::Mutex;
 
 use geom_core::k_stats::{Detached, detached, splice};
 use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
-use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 
@@ -62,8 +62,7 @@ use crate::placement::{Frame, Motion};
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
 /// never decides one; an interval definitely or by escalating).
 ///
-/// What a scalar answers here beyond deciding is per scalar, like
-/// `eval`'s `SectionScalar`. No pose value is derived from
+/// What a scalar answers here beyond deciding is per scalar. No pose value is derived from
 /// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
 /// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
 /// refusal branches — `LeverRefusal::OutOfRange` where the arm is
@@ -1055,7 +1054,7 @@ impl<T: SolveScalar> SideFrame<T> {
     }
 }
 
-/// **One side's frame**, resolved: its base ([`side_base`]) composed
+/// **One side's frame**, resolved: its base (`side_base`) composed
 /// with its offset ([`compose_offset`]). `reach` absent is replay's,
 /// and a face base is then DECLINED (`Ok(None)`), on the rule
 /// [`admit_mate`] states.
@@ -1067,7 +1066,7 @@ impl<T: SolveScalar> SideFrame<T> {
 ///
 /// # Errors
 ///
-/// [`side_base`]'s and [`compose_offset`]'s.
+/// `side_base`'s and [`compose_offset`]'s.
 #[allow(clippy::too_many_arguments)]
 fn resolve_side<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,
@@ -1120,7 +1119,7 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
     side: MateSide,
     read: &Side,
     tol: Tol,
-) -> Result<OrthoFrame<T>, Box<MateFault>> {
+) -> Result<RigidMotion<T>, Box<MateFault>> {
     let member = &read.member;
     let unresolved = |refusal| {
         Box::new(MateFault::FaceUnresolved {
@@ -1188,13 +1187,13 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
 fn compose_offset<T: SolveScalar>(
     mate: MateRef,
     side: MateSide,
-    base: Option<OrthoFrame<T>>,
+    base: Option<RigidMotion<T>>,
     offset: &crate::placement::Placement,
     env: &VarEnv<T>,
     band: Band,
 ) -> Result<SideFrame<T>, Box<MateFault>> {
     let (before, base) = match base {
-        None => (Motion::Identity, OrthoFrame::axes_xy(Point3::origin())),
+        None => (Motion::Identity, RigidMotion::axes_xy(Point3::origin())),
         Some(face) => (Motion::Map(face.to_affine()), face),
     };
     let refused = |error: crate::eval::NodeErrorKind| {

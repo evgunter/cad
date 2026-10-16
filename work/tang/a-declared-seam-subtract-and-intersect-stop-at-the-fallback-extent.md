@@ -2,10 +2,11 @@
 id: a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent
 kind: issue
 title: The sphere-capped tube declared a Seam builds its union, and its subtract and intersect stop at the fallback extent
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -52,3 +53,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: the no-crossings fa
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E glues the discs and the seam walls undeclared as the declared scene does (`crates/topo/src/boolean/glue.rs:40`). The tube's union is now the declared union bit for bit (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`, `a_dome_abutting_on_the_rim_undeclared_is_the_declared_union`). The no-crossings path is unchanged. `tube ∖ cap`, `cap ∖ tube` and `tube ∩ cap` still refuse `FallbackExtentUnsupported`, which the row pins (`pi_seam_and_kiss_through_the_boolean.rs:338`–`:349`). The defect stands: the fallback's containment read of the sphere's section lands on the disc's rim.
+
+## Parked on INTENT stage 4 (2026-10-12)
+
+This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).

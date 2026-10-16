@@ -107,15 +107,15 @@ impl Fnv {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => {
                 self.u64(42);
                 self.p3(center);
                 self.v3(axis);
-                self.s(*major);
-                self.s(*minor);
+                self.s(*semi_u);
+                self.s(*semi_v);
                 self.v3(u_ref);
             }
             Curve3::Spiric {

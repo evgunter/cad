@@ -236,7 +236,7 @@ pub fn spiric_export_spline(
         // A structure the hull cannot license is not a tolerance
         // question: it is a spline this lane should not have
         // built, and the search stops rather than doubling into it.
-        let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control())
+        let m_s = geom::nonrational_second_derivative_sup(&spline)
             .map_err(|_| StepExportError::UnsupportedCurve {
                 edge: edge_key,
                 kind: "spiric: the export-only cubic's second-derivative hull states                            no bound",
@@ -288,9 +288,9 @@ impl<'a> Writer<'a> {
         Ok(self.emit(&format!("CARTESIAN_POINT('', ({x}, {y}, {z}))")))
     }
 
-    /// `DIRECTION` from a kernel vector (unit by the conventions of
-    /// every stored normal/axis/dir — emitted as stored, never
-    /// renormalized: renormalization would move bits, D9).
+    /// `DIRECTION` from a kernel vector, emitted as stored. The writer
+    /// translates; it does not repair, so a direction is never
+    /// renormalized here.
     fn direction(&mut self, v: Vec3<f64>, context: &'static str) -> Result<u64, StepExportError> {
         let (x, y, z) = (
             fmt_real(v.x, context)?,
@@ -303,17 +303,15 @@ impl<'a> Writer<'a> {
     /// `AXIS2_PLACEMENT_3D` from a kernel frame `(origin, axis,
     /// ref_dir)` — the shared right-handed placement every elementary
     /// surface and conic carries. Emission order is location, axis,
-    /// ref_direction, placement (the order M4's inline plane arm used,
-    /// preserved so the planar goldens stay byte-identical).
+    /// ref_direction, placement.
     ///
-    /// The three kernel fields go in **verbatim**: every kernel frame
-    /// stores `axis` unit, `ref_dir` unit and ⊥ `axis`, and the derived
-    /// second in-plane direction is `axis × ref_dir` — which is exactly
-    /// ISO 10303-42's `axis2_placement_3d` convention (`z = axis`,
-    /// `x = ref_direction` after the standard's orthogonalization,
-    /// `y = z × x`). No renormalization, no orthogonalization, no
-    /// negation: the placement IS the kernel frame (D9 — any repair
-    /// here would move bits and export a different surface).
+    /// The three kernel fields go in **verbatim**. The derived second
+    /// in-plane direction is `axis × ref_dir`, which is ISO 10303-42's
+    /// `axis2_placement_3d` convention (`z = axis`, `x = ref_direction`
+    /// after the standard's orthogonalization, `y = z × x`), so the
+    /// placement IS the kernel frame. No renormalization, no
+    /// orthogonalization, no negation: the writer translates; it does
+    /// not repair.
     fn axis2_placement(
         &mut self,
         origin: Point3<f64>,
@@ -431,20 +429,22 @@ impl<'a> Writer<'a> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => {
+                // STEP's `semi_axis_1` lies along the placement's
+                // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
                     center,
                     axis,
                     u_ref,
                     "ellipse centre",
                     "ellipse axis",
-                    "ellipse u_ref (semi-major direction)",
+                    "ellipse u_ref (seam direction)",
                 )?;
-                let a = fmt_real(major, "ellipse semi-major axis")?;
-                let b = fmt_real(minor, "ellipse semi-minor axis")?;
+                let a = fmt_real(semi_u, "ellipse semi-axis along the seam")?;
+                let b = fmt_real(semi_v, "ellipse semi-axis across the seam")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             // A spiric has no STEP entity — a bicircular quartic of

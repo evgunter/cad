@@ -2,10 +2,12 @@
 id: lane-free-doors-skip-the-analytic-rung3-limbs
 kind: issue
 title: Lane-free certification doors admit an analytic rung-3 edge on its samples alone, opposite to the M7-8 class's NurbsLaneNotSupplied
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: M
+closed: 2026-10-12
+branch: pcert/lane-free-doors-refuse
 ---
 
 
@@ -50,3 +52,24 @@ the lane withheld). The graft's `Bridge::Recertify` is the door most
 worth deciding first: it re-certifies during a boolean, and a lane-free
 pass there is not followed by one with the lane until the body is
 validated at rest.
+
+## Closed
+
+Decided by C2 ("the proof is the same at every door"): an analytic
+rung-3 edge at a door holding no lane refuses, as the M7-8 class does.
+`run_checks` (`crates/geom-brep/src/certify.rs`) raises
+`CertifyError::NurbsLaneNotSupplied` for a `Nurbs` carrier between two
+analytic surfaces when no lane is in hand, at resolution, before any
+other check of the edge. So `EdgeCurve::certify`, `EdgeCurve::recertify`,
+a `_via` door handed `None`, and every scalar without certification
+rights (the dual) refuse the class typed. The `_structural` at-rest
+doors skip such an edge and make no claim about it, as they already
+did for M7-8.
+
+The graft's `Bridge::Recertify` now certifies through
+`EdgeCurve::certify_via` with `T::nurbs_lane()`. `graft_solid` is the
+one door that builds that bridge, and the disjoint grafts can no longer
+name it. The minting doors (mev, attach, transform) already took the
+policy's lane, so at a dual they now refuse the class naming the
+scalar. No production scene in the swept suites carried such an edge
+through a lane-free door.

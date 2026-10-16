@@ -48,7 +48,7 @@ off. Those three now re-mint a complete face they touch. The doors that
 still leave a face half-minted are the ones
 `PcurveMintError::MissingCache`'s docs list (`kfmrh`, `ring_move`,
 `kef`'s same-chart merge, the chart-change drops, `mev_null`,
-`split_edge`'s fitted frontier), and on those the switch-off stands. The body is still
+`split_edge`'s fitted frontier, since closed by PR 4410), and on those the switch-off stands. The body is still
 refused, so this is a wrong REASON rather than a vacuous green — but it
 means the module's safety claim is not the one the code makes.
 

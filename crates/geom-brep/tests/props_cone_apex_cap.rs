@@ -379,7 +379,7 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 
 /// **The apex cap's own verdicts at the flux lane, named.** The rim's
 /// incidence on the cone (`props_circle_axis_class`, `props_rim_fit`,
-/// `props_rim_axis_parallel`, `props_rim_center_on_axis`); one closure
+/// `props_cone_circle_tilt`, `props_cone_circle_off_axis`); one closure
 /// decide for the one joint (`props_loop_closed`); the nappe's two ends
 /// (`props_cone_nappe`); the side (`props_cone_area_side`); and the
 /// winding — the rim's two ends off the apex
@@ -397,12 +397,12 @@ fn the_apex_cap_records_its_named_decides() {
         ("props_circle_axis_class Positive", 1),
         ("props_cone_arc_sense Positive", 1),
         ("props_cone_area_side Negative", 1),
+        ("props_cone_circle_off_axis Zero", 1),
+        ("props_cone_circle_tilt Zero", 1),
         ("props_cone_loop_off_apex Positive", 2),
         ("props_cone_loop_winding Positive", 1),
         ("props_cone_nappe Positive", 2),
         ("props_loop_closed Zero", 1),
-        ("props_rim_axis_parallel Zero", 1),
-        ("props_rim_center_on_axis Zero", 1),
         ("props_rim_fit Zero", 1),
         ("props_rim_span_forward Positive", 1),
         ("props_rim_span_winding Zero", 1),

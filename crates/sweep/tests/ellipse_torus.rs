@@ -76,10 +76,19 @@ fn donut(big: f64, small: f64, c: Vec3<f64>, axis: Vec3<f64>) -> Body<f64> {
             y.cross(a).normalize(),
             y.dot(a).acos(),
         );
-        topo::transform_rigid(&at_origin, &turn, Tol::witness()).expect("a rotation is rigid")
+        topo::transform_rigid(
+            &at_origin,
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rotation is rigid")
     };
-    topo::transform_rigid(&turned, &Affine3::translation(c), Tol::witness())
-        .expect("a translation is rigid")
+    topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid")
 }
 
 /// The torus of `(big, small)` whose tube comes within `gap` of the rim at

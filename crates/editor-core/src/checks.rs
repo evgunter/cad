@@ -466,22 +466,13 @@ pub enum CheckEvidence {
     /// all — the box builder's typed refusal. The check has no verdict
     /// for ANY pair, which is a finding, never a silent pass (F6).
     SeparationUnavailable {
-        /// Which arm of the kernel's refusal fired — the typed half,
-        /// and the one a consumer branches on.
-        ///
-        /// `topo::BooleanError` itself is neither `Clone` nor
-        /// `PartialEq` and a report is both, so the error cannot ride
-        /// here; its class projection can, and does.
-        kind: topo::BooleanErrorKind,
-        /// The kernel's own refusal, rendered, for a reader — it
-        /// carries the arena keys and margins `kind` drops.
-        ///
-        /// The payload's own `Display` is the vocabulary this module
-        /// forwards (the one-story rule at `crate::finding`), so what
-        /// a caller READS is the kernel's own sentence; `kind` beside
-        /// it is what a caller MATCHES on, so neither half is a
-        /// substring hunt through the other.
-        reason: String,
+        /// The kernel's own refusal, shared whole: its class, which a
+        /// consumer matches on, is `refusal.get().kind()`, and its
+        /// sentence, which a reader reads, is its `Display`. It rides
+        /// in a [`crate::Refusal`] where `Escalated` and `Unsupported`
+        /// hold their shell refusal bare, because `topo::BooleanError`
+        /// is neither `Clone` nor `PartialEq` and a report is both.
+        refusal: crate::Refusal<topo::BooleanError>,
     },
     /// One chart-coherence measurement, carried whole
     /// ([`topo::CoherenceFinding`]: the condition, the gap in chart
@@ -535,21 +526,6 @@ pub enum CheckEvidence {
         /// What would make it structural.
         recourse: crate::coincide::Recourse,
     },
-}
-
-impl CheckEvidence {
-    /// [`CheckEvidence::SeparationUnavailable`] built from ONE refusal:
-    /// `kind` is the class a consumer matches, `reason` the kernel's
-    /// own sentence a reader reads. Both come off the same error, which
-    /// is the invariant the door holds and a hand-built literal does
-    /// not — so the door goes through here rather than writing the two
-    /// fields at the raise site.
-    fn separation_unavailable(source: &topo::BooleanError) -> Self {
-        Self::SeparationUnavailable {
-            kind: source.kind(),
-            reason: source.to_string(),
-        }
-    }
 }
 
 /// One finding of one check on one subject ([`FindingSubject`]).
@@ -673,8 +649,8 @@ impl crate::finding::Finding for SaidFinding<'_> {
                  share is gathered twice",
                 by.node_as(*other_root, "placement")
             ),
-            CheckEvidence::SeparationUnavailable { reason, .. } => {
-                write!(f, "separation could not be checked: {reason}")
+            CheckEvidence::SeparationUnavailable { refusal } => {
+                write!(f, "separation could not be checked: {refusal}")
             }
             CheckEvidence::ChartCoherence { finding } => {
                 let what = match finding.condition {
@@ -1731,7 +1707,9 @@ fn separation<T: Decide + CertifiedBounds>(
                     root: first.node,
                     output_ix: first.output,
                 },
-                evidence: CheckEvidence::separation_unavailable(&source),
+                evidence: CheckEvidence::SeparationUnavailable {
+                    refusal: source.into(),
+                },
             });
             return;
         }
@@ -2056,34 +2034,38 @@ mod tests {
         );
     }
 
-    /// INVARIANT: the separation door's evidence carries the class and
-    /// the prose OF ONE REFUSAL — `kind` is the arm the error actually
-    /// is, not a class written down beside it.
+    /// INVARIANT: the separation door's evidence reads the kernel's
+    /// refusal, which it holds whole, in the kernel's own sentence.
     ///
     /// The refusing branch itself cannot be reached from `run_checks`
     /// over a well-formed document: every refusal
     /// `topo::SolidSeparation::of` can raise needs either a corrupt
     /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
     /// zero-sized witness for the run's committed tolerance, so a test
-    /// cannot hand it one. This row therefore pins the door's
-    /// CONSTRUCTION, which is the part a caller can get wrong, and says
-    /// so rather than implying the branch was executed.
+    /// cannot hand it one. This row therefore pins the evidence's
+    /// reading, and says so rather than implying the branch was
+    /// executed.
     #[test]
-    fn the_separation_door_carries_the_class_of_the_error_it_saw() {
+    fn the_separation_door_reads_the_kernel_refusal_in_its_own_sentence() {
         let refusal = topo::BooleanError::ClassificationInvariant {
             what: "solid separation: the ambient tolerance band is unusable",
         };
-        let CheckEvidence::SeparationUnavailable { kind, reason } =
-            CheckEvidence::separation_unavailable(&refusal)
-        else {
-            panic!("the arm this row is about");
+        let finding = super::CheckFinding {
+            check: super::CheckId::Separation,
+            subject: super::FindingSubject::Output {
+                root: RecipeNodeId::new(0, 1),
+                output_ix: 0,
+            },
+            evidence: CheckEvidence::SeparationUnavailable {
+                refusal: refusal.into(),
+            },
         };
-        // The reader's half is the kernel's own sentence, whole.
-        assert_eq!(reason, refusal.to_string());
-        // The consumer's half is the arm the error IS — compared
-        // against the variant name `Debug` prints for the error, so a
-        // class hardcoded here would have to be the right one by
-        // accident to pass.
-        assert_eq!(format!("{kind:?}"), variant_of(&format!("{refusal:?}")));
+        assert_eq!(
+            finding.to_string(),
+            "check separation: placement 000000000000 output 0: separation could not be \
+             checked: classification invariant violated: solid separation: the ambient \
+             tolerance band is unusable",
+            "the story ends in the kernel's own sentence, whole"
+        );
     }
 }

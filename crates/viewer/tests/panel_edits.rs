@@ -612,10 +612,22 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let outcome = session.perform(SessionOp::BeginVariableGesture {
-        var: pncad::document::VarId::new(0, 0x6e6f_7375_6368),
-    });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));
+    let var = pncad::document::VarId::new(0, 0x6e6f_7375_6368);
+    let outcome = session.perform(SessionOp::BeginVariableGesture { var });
+    // The status line shows the refusal's `Display`: the fact the
+    // properties pane draws for this selection
+    // (`Refusal::undeclared_wording`), then the recourse the edit
+    // door's own refusal ends on.
+    let refusal = outcome.refusal.expect("the drag is refused");
+    assert!(matches!(refusal, Refusal::NoSuchVariable(_)));
+    assert_eq!(
+        refusal.to_string(),
+        format!(
+            "{} — {}",
+            Refusal::undeclared_wording(&pncad::document::SpokenVar::new(var, None)),
+            editor_core::edit::UNKNOWN_VAR_RECOURSE
+        )
+    );
     assert!(matches!(
         session
             .perform(SessionOp::PreviewVariableGesture {

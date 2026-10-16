@@ -19,7 +19,7 @@
 //! its own declaration — its loop programs are the document vocabulary
 //! and persist as themselves. Its `plane` does not: a document written
 //! before the sketch plane became a node carries a placement object
-//! there, and [`plane_ref`] is the visitor that refuses it in terms
+//! there, and `plane_ref` is the visitor that refuses it in terms
 //! naming what moved. What the derive still buys unchanged is the
 //! strict door at the program layer: deserialization can NEVER mint a
 //! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
