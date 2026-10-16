@@ -17,8 +17,9 @@
 //! vertex is conventional reads as a span with no ends. A meeting at an
 //! end of either edge is not one, and a refusal past the band's own
 //! escalation is pushed typed on both edges. Tier 3′'s pass 5′ sweeps
-//! with the same reading ([`interiors_meeting`]), keeping no point of
-//! the run about a meeting at an end: that meeting is a vertex event.
+//! with the same reading ([`interiors_meeting`]). A meeting at an end
+//! takes its whole stretch, so the in-band points about a vertex event
+//! are no meeting of their own.
 
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
@@ -278,7 +279,7 @@ fn reads_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    interior_meeting(body, ra, rb, band, |_| true, errors).map(|m| m.is_some())
+    interior_meeting(body, ra, rb, band, errors).map(|m| m.is_some())
 }
 
 /// A meeting on two edges' interiors, as pass 5′ reports it.
@@ -293,10 +294,8 @@ pub(super) struct Interior<T: Real> {
 }
 
 /// **The first meeting [`geom_brep::curve_pair::meet`] places on both
-/// of `a`'s and `b`'s interiors**, of those `keep` admits — pass 5′'s
-/// reading (`census::sweep_curved_edge_edge`), which keeps no point of
-/// a run: such a point stands beside a meeting at an end, the vertex
-/// event passes 1, 2 and 2′ answer. `Some(None)` where none is placed;
+/// of `a`'s and `b`'s interiors** — pass 5′'s reading
+/// (`census::sweep_curved_edge_edge`). `Some(None)` where none is placed;
 /// `None` where a decision escalated or an edge is not read (pushed).
 pub(super) fn interiors_meeting<T: Decide>(
     body: &Body<T>,
@@ -307,10 +306,10 @@ pub(super) fn interiors_meeting<T: Decide>(
 ) -> Option<Option<Interior<T>>> {
     let ra = read(body, a, band, errors)?;
     let rb = read(body, b, band, errors)?;
-    interior_meeting(body, &ra, &rb, band, |m| !m.run, errors)
+    interior_meeting(body, &ra, &rb, band, errors)
 }
 
-/// The first meeting `keep` admits that [`meet`] places on both
+/// The first meeting [`meet`] places on both
 /// interiors, a decided one standing whatever refusal followed it; a
 /// refusal with none such pushed typed on both edges.
 fn interior_meeting<T: Decide>(
@@ -318,21 +317,17 @@ fn interior_meeting<T: Decide>(
     ra: &Read<T>,
     rb: &Read<T>,
     band: Band,
-    keep: impl Fn(&Meeting<T>) -> bool,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Interior<T>>> {
     let interior = |points: &[Meeting<T>], shared: Option<_>| {
-        points
-            .iter()
-            .filter(|m| keep(m))
-            .find_map(|m| match (m.on_a, m.on_b) {
-                (Hit::On { margin, .. }, Hit::On { .. }) => Some(Interior {
-                    point: m.point,
-                    margin,
-                    overlap: shared.is_some(),
-                }),
-                _ => None,
-            })
+        points.iter().find_map(|m| match (m.on_a, m.on_b) {
+            (Hit::On { margin, .. }, Hit::On { .. }) => Some(Interior {
+                point: m.point,
+                margin,
+                overlap: shared.is_some(),
+            }),
+            _ => None,
+        })
     };
     let refusal = match meet(&span(body, ra), &span(body, rb), band) {
         Ok(met) => return Some(interior(&met.points, met.shared)),
@@ -557,11 +552,11 @@ mod tests {
     /// to a circle, two coplanar circles touching from outside, and a
     /// line crossing a circle at 0.01 rad each meet; the line moved
     /// `1e-4` off the circle does not. An arc ending where a circle
-    /// touches it from outside meets it too: the arc stays within ε of
-    /// the circle over its last few hundredths of a millimetre, so points
-    /// of its interior clear of the end lie within the band of the
-    /// circle. Red when a touch read at a span's end does not read the
-    /// run about it.
+    /// touches it from outside meets it at the arc's end alone: the arc
+    /// stays within ε of the circle over its last few hundredths of a
+    /// millimetre, but that stretch's one meeting is the touch at the end,
+    /// and it takes the whole stretch. Red when a point of that stretch is
+    /// read as an interior meeting of its own.
     #[test]
     fn a_tangency_and_a_shallow_crossing_are_decided() {
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -597,7 +592,7 @@ mod tests {
                 "a circle touching it from outside at the end of an arc of it",
                 to_top,
                 read(circle(Point3::new(0.0, 2.0, 0.0), 1.0), (-2.9, -0.3)),
-                Some(true),
+                Some(false),
             ),
             (
                 "a line 1e-4 off it",
@@ -820,21 +815,21 @@ mod tests {
     }
 
     /// **An arc ending tangent on a line's interior meets it at no
-    /// interior point pass 5′ keeps**, nor does a line leaving the arc's
-    /// end along its tangent (the slot's joint). Past the arc's end the
-    /// two stay within the band of each other a short way; that run's
-    /// points lie inside both, but stand beside the meeting at the arc's
-    /// end, a vertex on the line, which pass 2 answers by its own record.
-    /// A line crossing the arc nearby is a meeting all the same. Red when
-    /// pass 5′ keeps a run's point, which would owe an edge-edge record
-    /// beside the `(vertex, edge)` one.
+    /// interior point**, nor does a line leaving the arc's end along its
+    /// tangent (the slot's joint). Near the arc's end the two stay within
+    /// the band of each other a short way, inside both; that stretch's one
+    /// meeting is at the arc's end, a vertex on the line, which pass 2
+    /// answers by its own record. A line crossing the arc nearby is a
+    /// meeting all the same. Red when a point of that stretch is read as a
+    /// meeting of its own, which would owe an edge-edge record beside the
+    /// `(vertex, edge)` one.
     #[test]
     fn a_tangent_touch_at_an_arcs_end_holds_no_interior_meeting_for_pass_five_prime() {
         let half_pi = core::f64::consts::FRAC_PI_2;
         let arc = read(circle(Point3::new(0.0, 0.0, 0.0), 1.0), (0.0, half_pi));
         let pass = |other: &Read<f64>| {
             let mut errors = Vec::new();
-            let met = interior_meeting(&Body::new(), &arc, other, band(), |m| !m.run, &mut errors)
+            let met = interior_meeting(&Body::new(), &arc, other, band(), &mut errors)
                 .map(|m| m.map(|m| m.overlap));
             (met, errors)
         };

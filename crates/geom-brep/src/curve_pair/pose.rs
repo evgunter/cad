@@ -152,22 +152,34 @@
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
 //!   step moves the pair within the band's zero.
 //!
-//! # The spans' ends
+//! # The spans' ends, and deflation
 //!
 //! A touch or a crossing is one point, but two curves near it stay
-//! within the band over a run about it, long where they cross at a
+//! within the band over a stretch about it, long where they cross at a
 //! shallow angle or touch with little relative curvature. Where that
-//! point lies past a span and the run reaches into both, the spans meet
-//! in the band at an end of one of them, which no isolated candidate
-//! reads. So the outcome of a [`Pose::Tangent`] or [`Pose::Generic`]
-//! also reads each span's ends against the other ([`end_candidates`]): a
-//! span end within the band of the other span is a meeting, and one in
-//! the band's gap escalates. Where the point lies at a span's end and
-//! the run reaches into it, the meeting read at the end is not the only
-//! one: points of the span clear of its end lie within the band of the
-//! other too. So a meeting read at an end has its run read once more
-//! (`run_candidates`), midway between the escalation and the arc where
-//! the carriers part by half what the zero band leaves.
+//! point lies past a span and the stretch reaches into both, the spans
+//! meet in the band at an end of one of them, which no isolated
+//! candidate reads. So each span's ends are read against the other
+//! first ([`end_candidates`]): a span end within the band of the other
+//! span is a meeting, and one in the band's gap escalates.
+//!
+//! **A meeting so found is a root the pose already holds**, and the arm
+//! divides it out of its equation rather than solving for it again:
+//! re-derived near a tangent, a root comes from a square root whose
+//! rounding is about `√ulp` of the radius, and its gap from its twin
+//! escalates where the found meeting decides it exactly. The first
+//! harmonics above, `c₀ + A·cos(θ − θ_hi)`, have their two roots
+//! symmetric about `θ_hi`, so the other root is `2θ_hi − θ_J`, linear in
+//! the found one's angle `θ_J`: the line's second meeting with a circle
+//! or an ellipse in its plane (Vieta), the reflection of a meeting of
+//! two circles in one plane across their line of centres, and a conic's
+//! second crossing of the other's plane. A line has one crossing of a
+//! line or a plane, so a found meeting leaves it none. Two found
+//! meetings leave a first harmonic none. A deflated crossing of the
+//! other's plane nearer a found meeting than the band's escalation is
+//! not polished: it can only be that meeting again (C5's ring rule).
+//! The coplanar circle × ellipse subdivision divides nothing out: its
+//! roots nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
 //!
@@ -263,7 +275,6 @@ mod row {
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
-    pub(super) const RUN: &str = "curve_pair_pose_run";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -287,7 +298,7 @@ pub fn pose<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     let (ka, kb) = (a.carrier().kind(), b.carrier().kind());
     match super::method(ka, kb) {
-        Method::Closed(arm) => closed(arm, a, b, band).map_err(PoseRefusal::Closed),
+        Method::Closed(arm) => closed(arm, a, b, &[], band).map_err(PoseRefusal::Closed),
         Method::Walk => Err(PoseRefusal::Walked { a: ka, b: kb }),
     }
 }
@@ -297,29 +308,41 @@ pub(super) fn closed<T: Decide>(
     arm: Arm,
     a: &Span<'_, T>,
     b: &Span<'_, T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     // Where one side is a circle and the other an ellipse, the ellipse is
     // parametrized, so the reading against the circle is at its exact
     // foot.
+    let flipped: Vec<_> = known.iter().copied().map(flip).collect();
     match arm {
-        Arm::LineLine => line_line(a, b, band),
-        Arm::LineConic => line_conic(a, b, band),
-        Arm::ConicLine => Ok(swapped(line_conic(b, a, band)?)),
-        Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, band),
-        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, band),
-        Arm::CircleEllipse => Ok(swapped(conic_conic(b, a, Coplanar::EllipseCircle, band)?)),
-        Arm::EllipseEllipse => conic_conic(a, b, Coplanar::Ellipses, band),
+        Arm::LineLine => line_line(a, b, known, band),
+        Arm::LineConic => line_conic(a, b, known, band),
+        Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
+        Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
+        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, known, band),
+        Arm::CircleEllipse => Ok(swapped(conic_conic(
+            b,
+            a,
+            Coplanar::EllipseCircle,
+            &flipped,
+            band,
+        )?)),
+        Arm::EllipseEllipse => conic_conic(a, b, Coplanar::Ellipses, known, band),
+    }
+}
+
+/// A candidate with its two carriers' roles swapped.
+fn flip<T: geom_core::Real>(c: Candidate<T>) -> Candidate<T> {
+    Candidate {
+        point: c.point,
+        ta: c.tb,
+        tb: c.ta,
     }
 }
 
 /// A pose read with the spans' roles swapped, given back in their order.
 fn swapped<T: geom_core::Real>(pose: Pose<T>) -> Pose<T> {
-    let flip = |c: Candidate<T>| Candidate {
-        point: c.point,
-        ta: c.tb,
-        tb: c.ta,
-    };
     match pose {
         Pose::Coincident { sense, witnesses } => Pose::Coincident {
             sense,
@@ -402,70 +425,6 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             ta: foot(a, point),
             tb,
         });
-    }
-    out
-}
-
-/// **The run about a meeting read at a span's end** (module docs, "The
-/// spans' ends"): where the two carriers stay within the zero band of
-/// each other past the end, into the span. About `c`, whose points are
-/// `g` apart, they part by at most `sin φ·s + (κ₁ + κ₂)·s²/2` over an arc
-/// `s` either way, `φ` the angle between their tangents and `κ` each
-/// carrier's curvature bound. At the `s₂` where that reaches half of what
-/// the zero band leaves, `(z − g)/2`, the run ends as far as this bound
-/// can say. The meeting lies within the zero band `z` of the end, so a
-/// run that reaches past `e + 2z`, the escalation and that slack twice
-/// (`curve_pair_pose_run`, two of the bound's own lengths, read exactly),
-/// holds points clear of the end: each carrier's points midway between
-/// the two, `(s₂ + e + 2z)/2` either side of `c`, each with its foot on the
-/// other, past the escalation from the end and within half the zero band
-/// of the other carrier. None where the run is shorter.
-pub(super) fn run_candidates<T: Decide>(
-    a: &Span<'_, T>,
-    b: &Span<'_, T>,
-    c: &Candidate<T>,
-    band: Band,
-) -> Vec<Candidate<T>> {
-    let (Some(ka), Some(kb)) = (
-        geom::carrier_speed::curvature_hi(a.carrier()),
-        geom::carrier_speed::curvature_hi(b.carrier()),
-    ) else {
-        return Vec::new();
-    };
-    let ((pa, da), (pb, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
-    let two = T::from_f64(2.0);
-    let left = (T::from_f64(band.zero()) - (pa - pb).norm()) / two;
-    let sine = unit(da).cross(unit(db)).norm();
-    let bend = ka + kb;
-    // `sin φ·s + κ·s²/2 = left`, its positive root written so that it
-    // does not cancel where `κ` vanishes.
-    let s2 = left * two / (sine + (sine.powi(2) + bend * left * two).sqrt());
-    // Two of the bound's own lengths compared, not a distance the band
-    // resolves: read exactly (the least pair of positive `f64`s), and an
-    // enclosure that straddles is read on.
-    // The meeting is read within the zero band of the end, so a point the
-    // run puts `o` from it lies at least `o − z` from the end: clear of it
-    // past the escalation where `o > e + z`.
-    let e = T::from_f64(band.escalate()) + T::from_f64(band.zero()) * two;
-    if matches!(
-        decide(row::RUN, Margin::of(s2 - e), Band::least()),
-        Ok(Sign::Negative | Sign::Zero)
-    ) {
-        return Vec::new();
-    }
-    let s = (s2 + e) / two;
-    let mut out = Vec::with_capacity(4);
-    let dta = s / da.norm();
-    for ta in [c.ta - dta, c.ta + dta] {
-        let point = a.carrier().eval(ta);
-        let tb = b.carrier().foot(point, c.tb).t();
-        out.push(Candidate { point, ta, tb });
-    }
-    let dtb = s / db.norm();
-    for tb in [c.tb - dtb, c.tb + dtb] {
-        let point = b.carrier().eval(tb);
-        let ta = a.carrier().foot(point, c.ta).t();
-        out.push(Candidate { point, ta, tb });
     }
     out
 }
@@ -760,6 +719,7 @@ fn one_line<T: Decide>(
 fn line_line<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (la, lb) = (line_of(a.carrier())?, line_of(b.carrier())?);
@@ -772,7 +732,11 @@ fn line_line<T: Decide>(
     let w = o1 + u1 * mid - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
+    // A found meeting is the one crossing (module docs, "deflation").
     let crossing = || {
+        if !known.is_empty() {
+            return Pose::Generic(Vec::new());
+        }
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
         Pose::Generic(vec![Candidate {
@@ -792,6 +756,7 @@ fn line_line<T: Decide>(
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
         Route::Level if definite(row::TILT, Margin::levered(s, lever), band)? => Ok(crossing()),
+        Route::Level if !known.is_empty() => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
 }
@@ -800,6 +765,7 @@ fn line_line<T: Decide>(
 fn line_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let line = line_of(a.carrier())?;
@@ -820,6 +786,8 @@ fn line_conic<T: Decide>(
     let height = (o + u * mid - k.center).dot(n);
     match route(den, den.abs(), height.abs(), (length, lever), band)? {
         Route::Parallel => return Ok(Pose::Parallel),
+        // A found meeting is the line's one crossing of the plane.
+        Route::Crossing if !known.is_empty() => return Ok(Pose::Generic(Vec::new())),
         Route::Crossing => {
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so it is within the band's escalation `e/|d̂·n̂|` either side
@@ -858,10 +826,12 @@ fn line_conic<T: Decide>(
             tb: theta,
         }
     };
-    Ok(match harmonic_roots(&k, &range, band)? {
+    let found: Vec<T> = known.iter().map(|c| c.tb).collect();
+    Ok(match owed(&k, &range, &found, band)? {
         Found::Apart => Pose::Apart,
         Found::Touch(theta) => Pose::Tangent(place(theta)),
         Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+        Found::Rest(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -892,6 +862,7 @@ fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
     coplanar: Coplanar,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
@@ -919,7 +890,7 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse((&ka, &kb, b), ha, swing_a, noise, lever, band);
+        return transverse((&ka, &kb, b), ha, swing_a, (noise, lever), known, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
@@ -938,7 +909,7 @@ fn conic_conic<T: Decide>(
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, band),
+        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, known, band),
         Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => Err(MeetFault::Unsupported {
             pose: "two ellipses in one plane that are not one curve",
@@ -1006,13 +977,16 @@ fn transverse<T: Decide>(
     (ka, kb, b): (&Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
-    noise: T,
-    lever: T,
+    (noise, lever): (T, T),
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
     let near = |theta: T| {
         let q = ka.point(theta);
+        if super::ringed_by(known.iter().map(|c| c.point), q, band) {
+            return Ok(None);
+        }
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
@@ -1023,19 +997,22 @@ fn transverse<T: Decide>(
         }
         .closest(band)
     };
-    Ok(match harmonic_roots(ka, &range, band)? {
+    let polished = |thetas: Vec<T>| -> Result<Vec<Candidate<T>>, MeetFault> {
+        let mut out = Vec::with_capacity(2);
+        for theta in thetas {
+            out.extend(near(theta)?);
+        }
+        Ok(out)
+    };
+    let found: Vec<T> = known.iter().map(|c| c.ta).collect();
+    Ok(match owed(ka, &range, &found, band)? {
         Found::Apart => Pose::Apart,
         Found::Touch(theta) => match near(theta)? {
             Some(c) => Pose::Tangent(c),
             None => Pose::Apart,
         },
-        Found::Cross(thetas) => {
-            let mut out = Vec::with_capacity(2);
-            for theta in thetas {
-                out.extend(near(theta)?);
-            }
-            Pose::Generic(out)
-        }
+        Found::Cross(thetas) => Pose::Generic(polished(thetas.to_vec())?),
+        Found::Rest(thetas) => Pose::Generic(polished(thetas)?),
     })
 }
 
@@ -1067,6 +1044,7 @@ fn coplanar_circles<T: Decide>(
     kb: &Conic<T>,
     (noise, slant): (T, T),
     place: &impl Fn(T) -> Candidate<T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.semi_u.abs(), kb.semi_u.abs());
@@ -1101,10 +1079,12 @@ fn coplanar_circles<T: Decide>(
         cross_hi: hi * (far + rb) / swing,
         noise,
     };
-    Ok(match harmonic_roots(ka, &range, band)? {
+    let found: Vec<T> = known.iter().map(|c| c.ta).collect();
+    Ok(match owed(ka, &range, &found, band)? {
         Found::Apart => Pose::Apart,
         Found::Touch(theta) => Pose::Tangent(place(theta)),
         Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+        Found::Rest(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -1209,6 +1189,26 @@ enum Found<T> {
     Touch(T),
     /// Two crossings.
     Cross([T; 2]),
+    /// The roots left once the found meetings' are divided out
+    /// (module docs, "deflation").
+    Rest(Vec<T>),
+}
+
+/// **A first harmonic's roots along `k` still owed**, `found` the angles
+/// of the meetings already found (module docs, "deflation"): none
+/// found, every root ([`harmonic_roots`]); one, the other, `2θ_hi − θ_J`;
+/// two, none.
+fn owed<T: Decide>(
+    k: &Conic<T>,
+    r: &Range<T>,
+    found: &[T],
+    band: Band,
+) -> Result<Found<T>, MeetFault> {
+    Ok(match found {
+        [] => harmonic_roots(k, r, band)?,
+        [theta] => Found::Rest(vec![r.at_hi + r.at_hi - *theta]),
+        _ => Found::Rest(Vec::new()),
+    })
 }
 
 /// A first harmonic's roots along `k` (module docs).

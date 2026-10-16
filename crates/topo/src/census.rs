@@ -2927,11 +2927,9 @@ fn edge_crossings<T: Decide>(
     if met.shared.is_some() {
         return Ok(Vec::new());
     }
-    // A run's points stand beside a meeting at an end: no cut of their own.
     Ok(met
         .points
         .iter()
-        .filter(|m| !m.run)
         .filter_map(|m| match (m.on_a, m.on_b) {
             (Hit::On { t, .. }, Hit::On { .. }) => Some((t, at)),
             (Hit::On { .. } | Hit::End(_), Hit::End(_)) | (Hit::End(_), Hit::On { .. }) => None,
@@ -3004,9 +3002,9 @@ fn pair_edge_edge<T: Decide>(
 /// along one curve an `EdgeEdgeOverlap`, each an `UnrecordedContact`. An overlap's bounds are
 /// vertex events, ends of one edge resting on the other or on each
 /// other, which passes 1, 2 and 2′ answer at their own points. A meeting
-/// at an end of either edge is theirs too, and so is a point of the run
-/// about one. Edges sharing a vertex are read like any pair: their
-/// meeting there is at an end of both.
+/// at an end of either edge is theirs too, and it takes its whole
+/// stretch. Edges sharing a vertex are read like any pair: their meeting
+/// there is at an end of both.
 fn sweep_curved_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -11837,8 +11835,9 @@ mod tests {
         /// **A crossing within the band escalates.** A cap corner
         /// `3ε` above the shelf edge's line, reached by a side edge
         /// from well below it: whether that edge crosses the line is
-        /// not decidable, and the lane refuses, typed, on the meeting
-        /// reading's row.
+        /// not decidable, and the lane refuses, typed. The side edge's
+        /// end is read first, and its distance from the line is in the
+        /// band (`curve_carrier_gap`).
         #[test]
         fn a_crossing_within_the_band_escalates() {
             let lift = 0.3 + 3.0 * band().zero();
@@ -11852,9 +11851,7 @@ mod tests {
             let (cuts, errors) = crossings(&body, face, edge);
             assert!(cuts.is_none(), "{cuts:?}");
             assert!(
-                escalated(&errors)
-                    .iter()
-                    .any(|row| row.starts_with("curve_pair_")),
+                escalated(&errors).contains(&"curve_carrier_gap"),
                 "{errors:?}"
             );
         }
@@ -11863,8 +11860,9 @@ mod tests {
         /// crossing at the edge's own end (the cap side `x = 0.9`) is
         /// that end's cut, not a new one; a crossing past the end (a
         /// slanted side meeting the line at `x ≈ 0.917`) is none; a
-        /// crossing in the band of the end escalates on the point-on-span
-        /// reading's chord to that end and refuses the lane.
+        /// crossing in the band of the end refuses the lane: the edge's
+        /// end, read first, lies in the band of the side's line
+        /// (`curve_carrier_gap`).
         #[test]
         fn a_crossing_is_cut_only_strictly_inside_the_span() {
             let (body, face, edge) = lap(&[(0.9, 0.2), (1.1, 0.2), (1.1, 0.42), (0.9, 0.42)]);
@@ -11886,7 +11884,7 @@ mod tests {
             let (cuts, errors) = crossings(&body, face, edge);
             assert!(cuts.is_none(), "{cuts:?}");
             assert!(
-                escalated(&errors).contains(&"curve_pair_span_end_chord"),
+                escalated(&errors).contains(&"curve_carrier_gap"),
                 "{errors:?}"
             );
         }

@@ -269,9 +269,10 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
 /// pin).** The crossing layer placed the touch of `d = 1e-8`,
 /// `Δr = 0.9d` at `c₁ + e·(d² + r₁² − r₂²)/2d`, 0.1 m off both circles,
 /// and read the edges clear. Here, on that pose and a little either side
-/// of it, the reader never misplaces: a decided answer meets inside both
-/// spans with every meeting on both circles, a refusal is typed, and the
-/// walk agrees wherever both decide.
+/// of it, the reader never misplaces: a decided answer meets, with every
+/// meeting on both circles, a refusal is typed, and the walk agrees
+/// wherever both decide. The touch lies past the first span, so where
+/// its stretch reaches that span's ends the meetings are read there.
 #[test]
 fn a_near_tangent_coplanar_pair_is_placed_on_both_circles() {
     let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
@@ -286,7 +287,7 @@ fn a_near_tangent_coplanar_pair_is_placed_on_both_circles() {
         let got = meets((&a, sa), (&b, sb));
         let found = match &got {
             Ok(m) => {
-                assert!(interiors_meet(m), "{label}: decided no meeting: {m:?}");
+                assert!(!m.points.is_empty(), "{label}: decided no meeting: {m:?}");
                 &m.points
             }
             Err(r) => &r.found,
@@ -302,7 +303,7 @@ fn a_near_tangent_coplanar_pair_is_placed_on_both_circles() {
         );
         let walk = super::walk::meet(&Span::new(&a, sa), &Span::new(&b, sb), band());
         if let (Ok(_), Ok(w)) = (&got, walk) {
-            assert!(interiors_meet(&w), "{label}: the walk finds no meeting");
+            assert!(!w.points.is_empty(), "{label}: the walk finds no meeting");
         }
     }
 }
@@ -665,17 +666,18 @@ fn a_shallow_crossing_past_a_segment_meets_at_its_end() {
     on_both("past a segment", &m, &x, &y);
 }
 
-/// **A touch at a span's end whose run reaches into the span meets on
-/// both interiors.** The unit circle's arc from `0.3` to `π/2`, and a
-/// unit circle centred at `(0, 2)` touching it from outside at `(0, 1)`,
-/// the arc's end. The two stay within the zero band of each other over
-/// about `√z` of arc either side of the touch, so points of the arc's
-/// interior, clear of its end, lie within the band of the other circle.
-/// The touch itself reads at the end; the run about it reads inside.
-/// Two circles kissing a tenth of a metre inside the arc's end meet there
-/// alike, and pushed `0.1 m` apart meet nowhere.
+/// **A touch at a span's end is the one meeting of its stretch.** The
+/// unit circle's arc from `0.3` to `π/2`, and a unit circle centred at
+/// `(0, 2)` touching it from outside at `(0, 1)`, the arc's end. The two
+/// stay within the zero band of each other over about `√z` of arc either
+/// side of the touch, so points of the arc's interior clear of its end
+/// lie within the band of the other circle; but that stretch holds one
+/// meeting, at the end, and it takes the whole stretch. Two circles
+/// kissing a tenth of a metre inside the arc's end meet there on both
+/// interiors, and pushed `0.1 m` apart meet nowhere. Red where a point of
+/// the end's stretch is read as a meeting of its own.
 #[test]
-fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
+fn a_touch_at_a_spans_end_is_the_one_meeting_of_its_stretch() {
     let arc = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
     let span = (0.3, PI / 2.0);
     let touching = |c: [f64; 3]| circle(c, [0.0, 0.0, 1.0], 1.0);
@@ -683,7 +685,7 @@ fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
     let (end, inside, apart) = (at(PI / 2.0), at(PI / 2.0 - 0.1), at(PI / 2.0 - 0.1));
     let apart = [apart[0] * 1.05, apart[1] * 1.05, 0.0];
     for (what, c, want) in [
-        ("at the end", end, true),
+        ("at the end", end, false),
         ("inside", inside, true),
         ("apart", apart, false),
     ] {
@@ -692,17 +694,10 @@ fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
         assert_eq!(interiors_meet(&m), want, "{what}: {m:?}");
         on_both(what, &m, &arc, &other);
         if what == "at the end" {
-            // The pose's touch and the arc's end are one meeting, its run
-            // read once, and the run's points say so.
-            let touches = m.points.iter().filter(|p| !p.run).count();
-            assert_eq!(touches, 1, "one touch: {m:?}");
             assert!(
-                m.points
-                    .iter()
-                    .all(|p| p.run || matches!(p.on_a, Hit::End(_))),
-                "{m:?}"
+                matches!(m.points[..], [p] if matches!(p.on_a, Hit::End(_))),
+                "one meeting, at the arc's end: {m:?}"
             );
-            assert!(m.points.iter().filter(|p| p.run).count() <= 4, "{m:?}");
         }
     }
 }
@@ -734,15 +729,17 @@ fn a_tangent_whose_crossing_is_rounding_meets_at_the_end() {
     );
 }
 
-/// **A shallow crossing at a span's end meets inside it** where the run
-/// reaches past the escalation: the unit arc from `0.3` to `π/2`, and a
-/// line leaving its end `(0, 1)` at `φ` above the tangent. They part by
-/// about `φ·s` over an arc `s`, so the arc's interior lies within the
-/// zero band of the line for `z/φ`: `8·10⁻⁸` at `φ = 0.012`, past the
-/// escalation clear of the end. Where the run's reach reads in the band
-/// of the escalation, its candidates are read, not dropped.
+/// **A shallow crossing at both spans' ends is the one meeting of its
+/// stretch**: the unit arc from `0.3` to `π/2`, and a segment leaving its
+/// end `(0, 1)` at `φ` above the tangent. They part by about `φ·s` over
+/// an arc `s`, so the arc's interior lies within the zero band of the
+/// segment for `z/φ`: `8·10⁻⁸` at `φ = 0.012`, past the escalation clear
+/// of the end. That stretch's one meeting is the joint, read at both
+/// ends, and the line's other crossing of the circle, divided out of the
+/// line × circle form, lies past both spans. Red where the stretch's
+/// points are read again, or the joint's root re-derived.
 #[test]
-fn a_shallow_crossing_at_a_spans_end_meets_inside_it() {
+fn a_shallow_crossing_at_both_ends_is_the_one_meeting_of_its_stretch() {
     let arc = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
     for phi in [0.004_f64, 0.012, 0.016, 0.02] {
         let edge = line([0.0, 1.0, 0.0], [phi.cos(), phi.sin(), 0.0]);
@@ -757,7 +754,10 @@ fn a_shallow_crossing_at_a_spans_end_meets_inside_it() {
             ),
         ] {
             let m = m.unwrap();
-            assert!(interiors_meet(&m), "φ = {phi}, {order}: {m:?}");
+            assert!(
+                matches!(m.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+                "φ = {phi}, {order}: the joint alone: {m:?}"
+            );
             on_both(&format!("φ = {phi}"), &m, &arc, &edge);
         }
     }
@@ -945,4 +945,261 @@ fn a_near_parallel_pair_is_read_over_its_overlap() {
         band(),
     );
     assert!(matches!(short, Ok(Pose::Coincident { .. })), "{short:?}");
+}
+
+/// **The ring rule: a candidate nearer a found meeting than the band's
+/// escalation width is not read again.** Two segments joined square at
+/// the origin meet there, at the end of both. A candidate `5·10⁻⁹` along
+/// the first lies in the band's gap of the first span's end, so read on
+/// its own it escalates (the control); within the escalation of the
+/// joint it can only be the joint again, and it is not read, whether it
+/// comes before the joint or after. Red where the ring is the zero band.
+#[test]
+fn a_candidate_in_a_found_meetings_ring_is_not_read_again() {
+    let (x, y) = (
+        line([0.0; 3], [1.0, 0.0, 0.0]),
+        line([0.0; 3], [0.0, 1.0, 0.0]),
+    );
+    let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&y, (0.0, 1.0)));
+    let joint = super::Candidate {
+        point: Point3::origin(),
+        ta: 0.0,
+        tb: 0.0,
+    };
+    let ring = super::Candidate {
+        point: Point3::new(5e-9, 0.0, 0.0),
+        ta: 5e-9,
+        tb: 0.0,
+    };
+    let mut alone = super::Found::default();
+    alone.read(&a, &b, ring, band());
+    assert!(
+        matches!(
+            alone.finish(&a, &b, None, band()),
+            Err(super::MeetRefusal {
+                fault: MeetFault::Escalated(_),
+                ..
+            })
+        ),
+        "the ring's candidate read alone escalates"
+    );
+    for (order, cs) in [
+        ("joint first", [joint, ring]),
+        ("ring first", [ring, joint]),
+    ] {
+        let mut found = super::Found::default();
+        for c in cs {
+            found.read(&a, &b, c, band());
+        }
+        let m = found
+            .finish(&a, &b, None, band())
+            .unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(m.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {m:?}"
+        );
+    }
+}
+
+/// A line leaving the end `(0, R)` of an arc of radius `R = 10⁻²` from
+/// `0.3` to `π/2`, through the arc's point `δ` before its end: the arc
+/// span, the line's over a millimetre, and that second point.
+fn secant_from_the_end(delta: f64) -> ([(Curve3<f64>, (f64, f64)); 2], Point3<f64>) {
+    let r = 1e-2;
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let end = arc.eval(PI / 2.0);
+    let again = arc.eval(PI / 2.0 - delta);
+    let d = again - end;
+    let edge = line(end.to_array(), d.to_array());
+    ([(arc, (0.3, PI / 2.0)), (edge, (0.0, 1e-3))], again)
+}
+
+/// **Two meetings in one stretch escalate.** A line leaves an arc's end
+/// and meets the arc again `δ·R` further on, `20 µm` at `δ = 2·10⁻³`;
+/// between the two it stays `R·δ²/8 = 5·10⁻⁹` off the arc, in the band's
+/// gap, so the spans are nowhere definitely apart there, and whether the
+/// two are two crossings or one run is undecided: it escalates, carrying
+/// both meetings. At `δ = 2·10⁻²` the line is `5·10⁻⁷` off between them,
+/// two stretches, and both meetings are reported: the joint at the ends,
+/// and the second, divided out of the line × circle form, on both
+/// carriers at the arc's point. Red where a stretch's second meeting is
+/// reported beside its first.
+#[test]
+fn two_meetings_in_one_stretch_escalate() {
+    for (delta, one_stretch) in [(2e-3, true), (2e-2, false)] {
+        let ([arc, edge], again) = secant_from_the_end(delta);
+        for (order, got) in [
+            ("arc first", meets((&arc.0, arc.1), (&edge.0, edge.1))),
+            ("line first", meets((&edge.0, edge.1), (&arc.0, arc.1))),
+        ] {
+            let label = format!("δ = {delta:e}, {order}");
+            let points = match (&got, one_stretch) {
+                (Err(r), true) => {
+                    assert!(
+                        matches!(r.fault, MeetFault::Escalated(_)),
+                        "{label}: {got:?}"
+                    );
+                    &r.found
+                }
+                (Ok(m), false) => &m.points,
+                _ => panic!("{label}: {got:?}"),
+            };
+            assert_eq!(points.len(), 2, "{label}: both meetings: {got:?}");
+            assert!(
+                points
+                    .iter()
+                    .any(|p| matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+                "{label}: the joint: {got:?}"
+            );
+            let second = points
+                .iter()
+                .find(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::On { .. })))
+                .unwrap_or_else(|| panic!("{label}: the second meeting: {got:?}"));
+            assert!(
+                (second.point - again).norm() <= ZERO,
+                "{label}: the second meeting is the arc's point: {second:?}"
+            );
+            on_both(
+                &label,
+                &Meetings {
+                    shared: None,
+                    points: points.clone(),
+                },
+                &arc.0,
+                &edge.0,
+            );
+        }
+    }
+}
+
+/// **A closed form divides a found meeting's root out: a tangent joint
+/// decides.** A rod's rim of radius `0.1` about `(0.2, −0.3464)`, an arc
+/// of `π/3` ending tangent to the line `x = 0.3` at the line's start, in
+/// the enclosures a rotation leaves its frame (a swept rod's rim, read
+/// at interval). The ends find the joint, at
+/// the end of both; the line × circle form's other root, `2θ_hi − θ_J`,
+/// is the joint again, so the pair meets there alone, whichever span is
+/// read first. Re-derived instead, the double root's gap comes from a
+/// square root whose rounding is `√ulp` of the radius, and it escalates
+/// (`curve_pair_pose_root_gap`). Red where the pose re-derives the
+/// joint's root.
+#[test]
+fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
+    use geom_core::Interval;
+    let i = Interval::from_bounds;
+    let p = |x, y, z| Point3::new(x, y, z);
+    let v = |x, y, z| Vec3::new(x, y, z);
+    let rim = Curve3::Circle {
+        center: p(
+            i(0.199_999_999_999_999_76, 0.200_000_000_000_000_2),
+            i(-0.346_410_161_513_776_7, -0.346_410_161_513_774_13),
+            i(-1.615_374_500_829_602_8e-14, 1.604_272_270_583_351_2e-14),
+        ),
+        axis: v(
+            i(0.0, 0.0),
+            i(0.0, 0.0),
+            i(-1.000_000_000_000_032, -0.999_999_999_999_968_1),
+        ),
+        radius: i(0.1, 0.1),
+        u_ref: v(
+            i(0.499_999_999_999_959_2, 0.500_000_000_000_041),
+            i(-0.866_025_403_784_513_9, -0.866_025_403_784_363_2),
+            i(-3.236_300_116_782_472_7e-13, 3.236_300_116_782_472_7e-13),
+        ),
+    };
+    let rim_span = (
+        i(-1.047_197_551_196_718_9, -1.047_197_551_196_476),
+        i(-6.525_890_938_746_67e-13, 6.539_213_615_042_172e-13),
+    );
+    let edge = Curve3::Line {
+        origin: p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
+        dir: v(
+            i(0.0, 0.0),
+            i(0.999_999_999_999_999_7, 1.000_000_000_000_000_4),
+            i(0.0, 0.0),
+        ),
+    };
+    let edge_span = (
+        i(0.053_589_838_486_223_26, 0.053_589_838_486_225_98),
+        i(0.746_410_161_513_773_7, 0.746_410_161_513_777_4),
+    );
+    let (r, e) = (Span::new(&rim, rim_span), Span::new(&edge, edge_span));
+    for (order, got) in [
+        ("rim first", meet(&r, &e, band())),
+        ("line first", meet(&e, &r, band())),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}
+
+/// **A crossing of the other's plane at a found meeting is not
+/// polished.** A rod of radius `0.1` cut at 45°, its ellipse's quarter
+/// from `(−0.8586, 0, 0.9)`, and a fillet's circle in the plane `y = 0`
+/// ending there, tangent to it: the ellipse touches the circle's plane at
+/// the joint. The ends find the joint; the height harmonic's other root
+/// is the joint again, within the band's escalation of it, so it is not
+/// polished. Polished, the closest-pair meter's basin reads the two
+/// tangents parallel there and refuses (`Unsettled::Meter`). Red where a
+/// deflated candidate in a found meeting's ring is polished.
+#[test]
+fn a_crossing_of_the_others_plane_at_a_found_meeting_is_not_polished() {
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    let x = -0.758_578_643_762_690_5;
+    let rim = Curve3::Ellipse {
+        center: Point3::new(x, -0.1, 0.9),
+        axis: Vec3::new(h, h, 0.0),
+        semi_u: 0.141_421_356_237_309_53,
+        semi_v: 0.1,
+        u_ref: Vec3::new(-h, h, 0.0),
+    };
+    let fillet = Curve3::Circle {
+        center: Point3::new(x, 0.0, 0.9),
+        axis: Vec3::new(0.0, 1.0, 0.0),
+        radius: 0.1,
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (sr, sf) = ((0.0, PI / 2.0), (-3.0 * PI / 4.0, -PI / 2.0));
+    for (order, got) in [
+        ("rim first", meets((&rim, sr), (&fillet, sf))),
+        ("fillet first", meets((&fillet, sf), (&rim, sr))),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}
+
+/// **On a span with no ends, two meetings across the seam are next to
+/// each other.** A whole circle of radius `10⁻²` read with no ends, its
+/// seam at `(R, 0)`, and a segment crossing it at `±10⁻³` rad about the
+/// seam, `5·10⁻⁹` off it between the two: one stretch, across the seam,
+/// so it escalates. Read along the circle, the halfway point inside the
+/// span lies half a turn away and definitely off the segment. Red where
+/// the arc over the seam goes unread.
+#[test]
+fn two_meetings_across_an_endless_spans_seam_escalate() {
+    let r = 1e-2;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let (lo, hi) = (c.eval(-1e-3), c.eval(1e-3));
+    let edge = line(
+        (lo - (hi - lo) * 0.5).to_array(),
+        (hi - lo).to_array(),
+    );
+    let whole = Span::new(&c, (0.0, TAU)).endless();
+    let seg = Span::new(&edge, (0.0, 4.0 * (hi - lo).norm()));
+    for (order, got) in [
+        ("circle first", meet(&whole, &seg, band())),
+        ("segment first", meet(&seg, &whole, band())),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2),
+            "{order}: {got:?}"
+        );
+    }
 }

@@ -2,7 +2,7 @@
 //! point-on-span reading that composes it with the carrier's.**
 //!
 //! A [`Span`] is a carrier curve and a parameter interval on it, with no
-//! topology attached: the stretch of the carrier an edge covers.
+//! topology attached: the part of the carrier an edge covers.
 //!
 //! **Two readings, one composition.** Whether a point is on a span is two
 //! questions, each read at the point's foot on the carrier
@@ -169,6 +169,11 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
+    /// Whether the span has ends: `false` for [`Self::endless`].
+    pub fn ended(&self) -> bool {
+        self.ended
+    }
+
     /// The carrier.
     pub fn carrier(&self) -> &'a Curve3<T> {
         self.carrier
@@ -177,6 +182,23 @@ impl<'a, T: Decide> Span<'a, T> {
     /// The parameter interval.
     pub fn params(&self) -> (T, T) {
         (self.t0, self.t1)
+    }
+
+    /// The parameter of `which` end.
+    pub fn end(&self, which: SpanEnd) -> T {
+        match which {
+            SpanEnd::Start => self.t0,
+            SpanEnd::Stop => self.t1,
+        }
+    }
+
+    /// Where `hit` sits on the span's carrier: its parameter, or its
+    /// end's.
+    pub fn at(&self, hit: Hit<T>) -> T {
+        match hit {
+            Hit::On { t, .. } => t,
+            Hit::End(which) => self.end(which),
+        }
     }
 
     /// The carrier's least and greatest speed.
