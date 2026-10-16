@@ -96,9 +96,12 @@ pub struct StepId(pub MintId);
 )]
 pub struct ConstraintId(pub MintId);
 
+/// A constraint is spoken by its ordinal: the mint never draws one
+/// twice, and a sentence always names the placement it is of, so the
+/// digest would add length and no information.
 impl core::fmt::Display for ConstraintId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.ordinal())
     }
 }
 

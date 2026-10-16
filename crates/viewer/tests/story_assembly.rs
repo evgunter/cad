@@ -240,8 +240,8 @@ fn the_windmill_story() {
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     assert_eq!(
         session.doc().ids().len(),
-        2,
-        "the slip is off the path: the tower and its placement"
+        1,
+        "the slip is off the path: the tower, its own placement"
     );
     let abandoned = session
         .history()
@@ -272,7 +272,7 @@ fn the_windmill_story() {
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 2);
+    assert_eq!(session.doc().ids().len(), 1);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),

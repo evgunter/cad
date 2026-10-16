@@ -180,7 +180,7 @@ fn renamed(
             Some(ids)
         } else if head.ends_with(&format!("Step{OPEN}")) {
             Some(steps)
-        } else if head.ends_with(&format!("ConstraintId(MintId {{ ordinal: ")) {
+        } else if head.ends_with("ConstraintId(MintId { ordinal: ") {
             Some(constraints)
         } else if head.ends_with(&format!("Var{OPEN}")) {
             Some(vars)

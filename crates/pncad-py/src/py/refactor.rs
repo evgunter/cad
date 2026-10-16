@@ -188,14 +188,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::UnknownCutNode { id: n } | E::NoMaterial { node: n } => {
             (id(n), none(), none(), none(), none(), none())
         }
-        E::PartIdCollides { id: which } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            text(&which.hex()),
-        ),
+        E::PartIdCollides { id: which } => {
+            (none(), none(), none(), none(), none(), text(&which.hex()))
+        }
         E::SeveredEdge {
             consumer: c,
             input: i,
@@ -487,7 +482,10 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         // bundle does not carry it is in the message.
         E::UnknownNode { id: n }
         | E::NotAnInstance { node: n }
-        | E::UnplaceablePart { instance: n, why: _ }
+        | E::UnplaceablePart {
+            instance: n,
+            why: _,
+        }
         | E::ConstructionReadsCopy { node: n } => {
             (id(n), none(), none(), none(), none(), none(), none())
         }
@@ -540,9 +538,15 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         // The placement is the subject, and the constraint rides
         // `mate` (below); which side is in the message.
-        E::MateFrameCrosses { placement, .. } | E::SideLeavesAnInstance { placement, .. } => {
-            (id(placement), none(), none(), none(), none(), none(), none())
-        }
+        E::MateFrameCrosses { placement, .. } | E::SideLeavesAnInstance { placement, .. } => (
+            id(placement),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }

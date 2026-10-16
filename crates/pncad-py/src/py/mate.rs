@@ -562,7 +562,11 @@ impl MateRef {
     }
 
     fn __repr__(&self) -> String {
-        format!("MateRef(NodeId({}), {})", self.0.placement.full(), self.0.id)
+        format!(
+            "MateRef(NodeId({}), {})",
+            self.0.placement.full(),
+            self.0.id
+        )
     }
 }
 
@@ -692,7 +696,6 @@ fn side_word<R>(side: &d::SideRead<R>) -> &'static str {
         d::SideRead::World => "world",
     }
 }
-
 
 /// A residual subgroup: what a fold left free.
 ///

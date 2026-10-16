@@ -1444,11 +1444,11 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
 }
 
 /// **A constraint added to a bundle, admitted as a bundle member**
-/// (D10; FORK-S3O, its B half): the constraint's target agrees with the
-/// bundle's ([`MateFault::TargetsDiffer`], the stage's named interim),
-/// and the bundle does not already pin its copy
-/// ([`MateFault::Overconstrained`]: a mate beyond the pin is refused,
-/// never verified and kept). The bundle is folded from its definitions
+/// (D10; FORK-S3O, its B half): the bundle does not already pin its
+/// copy ([`MateFault::Overconstrained`]: a mate beyond the pin is
+/// refused, never verified and kept), asked first, and the constraint's
+/// target agrees with the bundle's ([`MateFault::TargetsDiffer`], the
+/// stage's named interim). The bundle is folded from its definitions
 /// at the door, at the document's own values.
 ///
 /// `reach` absent is replay's: a bundle whose fold needs the parts is
@@ -1468,29 +1468,33 @@ pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     tol: Tol,
 ) -> Result<(), Box<MateFault>> {
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
-    let mut all: Vec<&super::Constraint> = bundle.iter().collect();
+    let held: Vec<&super::Constraint> = bundle.iter().collect();
+    // A bundle that already pins its copy refuses whatever is added,
+    // so the pin is asked first: a mate beyond it is overconstrained,
+    // whichever copy it reads.
+    if let Some(reach) = reach
+        && !bundle.is_empty()
+    {
+        let read = read_bundle(doc, env, placement, &held).map_err(Box::new)?;
+        let s = Solve {
+            doc,
+            env,
+            reach,
+            band,
+            tol,
+            record: Record::Caller,
+        };
+        if fold_bundle(&s, &read)?.subgroup.is_determined() {
+            return Err(Box::new(MateFault::Overconstrained {
+                placement,
+                constraints: vec![added.id],
+                held: Subgroup::Trivial,
+            }));
+        }
+    }
+    let mut all = held;
     all.push(added);
-    let read = read_bundle(doc, env, placement, &all).map_err(Box::new)?;
-    let Some(reach) = reach else { return Ok(()) };
-    if bundle.is_empty() {
-        return Ok(());
-    }
-    let s = Solve {
-        doc,
-        env,
-        reach,
-        band,
-        tol,
-        record: Record::Caller,
-    };
-    let held = fold_bundle(&s, &read[..read.len() - 1])?;
-    if held.subgroup.is_determined() {
-        return Err(Box::new(MateFault::Overconstrained {
-            placement,
-            constraints: vec![added.id],
-            held: Subgroup::Trivial,
-        }));
-    }
+    read_bundle(doc, env, placement, &all).map_err(Box::new)?;
     Ok(())
 }
 

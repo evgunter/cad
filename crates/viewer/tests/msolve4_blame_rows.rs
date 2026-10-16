@@ -20,8 +20,7 @@ use crate::common;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, Evaluation, MateFault, MateRef, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId,
+    Doc, Evaluation, MateFault, MateRef, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -220,6 +219,9 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
     session.pump();
     let (_, ev) = check(&session, tol, "repaired");
     placement_ok(&ev, bench.shelf_i);
-    assert!(ev.recomputed >= 1, "prior was Failed, so the placement re-ran");
+    assert!(
+        ev.recomputed >= 1,
+        "prior was Failed, so the placement re-ran"
+    );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }

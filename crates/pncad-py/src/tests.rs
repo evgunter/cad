@@ -1144,7 +1144,10 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::TargetsDiffer {
             placement: id(1),
-            constraints: vec![ConstraintId(MintId::new(2, 2)), ConstraintId(MintId::new(3, 3))],
+            constraints: vec![
+                ConstraintId(MintId::new(2, 2)),
+                ConstraintId(MintId::new(3, 3)),
+            ],
         },
         &["placement", "constraints"],
     );
@@ -1197,14 +1200,22 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // first id repeated: the roles are what a caller acts on.
     let over = F::Overconstrained {
         placement: id(4),
-        constraints: vec![ConstraintId(MintId::new(9, 9)), ConstraintId(MintId::new(16, 16))],
+        constraints: vec![
+            ConstraintId(MintId::new(9, 9)),
+            ConstraintId(MintId::new(16, 16)),
+        ],
         held: Subgroup::Trivial,
     };
     let payload = mate_payload(&over);
     assert_eq!(payload.placement, Some(id(4)));
     assert_eq!(
         payload.constraints,
-        Some(&[ConstraintId(MintId::new(9, 9)), ConstraintId(MintId::new(16, 16))][..])
+        Some(
+            &[
+                ConstraintId(MintId::new(9, 9)),
+                ConstraintId(MintId::new(16, 16))
+            ][..]
+        )
     );
     assert_eq!(payload.residual, Some(Subgroup::Trivial));
     let contradictory = F::Contradictory {
@@ -2925,7 +2936,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.node, Some(id(4)));
     assert_eq!(
         payload.constraint,
-        Some(pncad::document::ConstraintId(pncad::document::MintId::new(9, 9)))
+        Some(pncad::document::ConstraintId(pncad::document::MintId::new(
+            9, 9
+        )))
     );
 
     // ---- slots and dimensions ----

@@ -787,10 +787,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         );
         assert_eq!(
-            session
-                .display_view()
-                .moved_placements
-                .get(&bench.post_a),
+            session.display_view().moved_placements.get(&bench.post_a),
             Some(&probe),
             "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
