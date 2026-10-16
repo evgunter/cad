@@ -125,3 +125,53 @@ fn probe_seam_inside_a_narrow_window() {
     }
     assert!(bad.is_empty(), "{bad:#?}");
 }
+
+/// A closed rim whose seam vertex is the joint (both of its ends at `J`,
+/// on the other's plane), and a second meeting `δ` before the seam, in
+/// the plane root's window: the shape of a closed edge whose one vertex
+/// is a fillet joint.
+#[test]
+fn probe_seam_vertex_at_the_joint() {
+    let mut bad = Vec::new();
+    for &(t, rb, delta) in &[(1e-7_f64, 0.9_f64, 4e-3_f64), (1e-7, 1.2, 4e-3), (2e-7, 0.9, 2e-3)] {
+        let (s, c) = t.sin_cos();
+        let a = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, -s, c),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let j = Point3::new(1.0, 0.0, 0.0);
+        let pp = Point3::new(delta.cos(), -c * delta.sin(), 0.0);
+        let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
+        let chord = pp - j;
+        let half = 0.5 * chord.norm();
+        let n = Vec3::new(chord.y, -chord.x, 0.0).normalize();
+        let n = if n.dot(Point3::origin() - m) > 0.0 { n } else { n * -1.0 };
+        let centre = m + n * (rb * rb - half * half).sqrt();
+        let b = Curve3::Circle {
+            center: centre,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: rb,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let ang = |q: Point3<f64>| (q.y - centre.y).atan2(q.x - centre.x);
+        let (pj, pq) = (ang(j), ang(pp));
+        let want = [j, a.eval(TAU - delta)];
+        for (el, ended) in [("ended", true), ("endless", false)] {
+            let s1 = Span::new(&a, (0.0, TAU));
+            let s1 = if ended { s1 } else { s1.endless() };
+            let s2 = Span::new(&b, (pj.min(pq) - 0.3, pj.max(pq) + 0.3));
+            for (order, got) in [
+                ("a first", meet(&s1, &s2, band())),
+                ("b first", meet(&s2, &s1, band())),
+            ] {
+                let l = format!("t {t:e} rb {rb} delta {delta:e}: {el}, {order}");
+                if let Err(e) = verdict(&l, &got, &want) {
+                    bad.push(e);
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
