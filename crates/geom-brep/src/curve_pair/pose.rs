@@ -857,7 +857,7 @@ enum Coplanar {
 
 /// The conic `k`'s height above the plane through `on` with unit normal
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
-fn height<T: Decide>(k: &Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
+pub(super) fn height<T: Decide>(k: &Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     (
         (k.center - on).dot(n),
         k.semi_u * k.u_ref.dot(n),
@@ -1216,7 +1216,10 @@ fn coplanar_ellipses<T: Decide>(
 /// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
 /// first harmonic); and the term bound its rounding is charged on. The
 /// height of `a(θ)` above `b`'s plane plays no part.
-fn level_on<T: Decide>(ka: &Conic<T>, kb: &Conic<T>) -> (crate::half_angle::TrigPoly<T>, T) {
+pub(super) fn level_on<T: Decide>(
+    ka: &Conic<T>,
+    kb: &Conic<T>,
+) -> (crate::half_angle::TrigPoly<T>, T) {
     let (big_a, big_b) = (kb.semi_u, kb.semi_v);
     let (ub, vb) = (kb.u_ref, kb.v_ref());
     let (ua, va) = (ka.u_ref * ka.semi_u, ka.v_ref() * ka.semi_v);

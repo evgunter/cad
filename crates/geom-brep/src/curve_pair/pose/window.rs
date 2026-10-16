@@ -89,6 +89,9 @@
 //! the points of the window on `b`'s span past the ring, if any, adjoin
 //! the ring. Read only where a piece reads on or receding.
 
+#[cfg(test)]
+mod oracle;
+
 use geom::Curve3;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
@@ -117,9 +120,9 @@ pub(super) struct Joint<T: geom_core::Real> {
 /// How a piece reads (module docs).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Read {
-    Off,
-    On,
-    Recedes,
+    Off = 0,
+    On = 1,
+    Recedes = 2,
 }
 
 /// `p` and its first three derivatives at `t`, and the bound on its
