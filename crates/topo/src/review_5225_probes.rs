@@ -205,6 +205,13 @@ fn p2_sphere_patch_below_the_cut_latitude() {
                 &body, f, &body, f, crate::contact::ContactVerdict::Definite, band());
             eprintln!("  {f:?} self-overlap {o:?}");
         }
+        for (f, _) in body.faces() {
+            let o = crate::declared_pair_overlap(
+                &body, f, &body, f, crate::contact::ContactVerdict::Definite, band());
+            eprintln!("  {f:?} self-overlap {o:?}");
+            // The merge base reads PositiveArea on every band here.
+            assert!(matches!(o, Ok(crate::ChartOverlap::PositiveArea)), "[{va}, {vb}] {f:?}: {o:?}");
+        }
         assert!(v.is_empty(), "[{va}, {vb}]: validate {v:?}");
     }
 }
