@@ -6,6 +6,12 @@
 //! the piece (Eberly's point-to-ellipse distance, exact to its bisection):
 //! an off piece is past the zero band throughout, an on piece within it,
 //! a receding piece's distance never falls away from the joint.
+//!
+//! The rounding charged at a reading's call sites (the level's
+//! `rounding_charge`, the height's `noise`) is not checked here: it covers
+//! the f64 harmonics' distance from the true polynomials, below the
+//! resolution of an f64 distance. Its guarantee rests on the shared
+//! `rounding_charge` estimate, and the Interval lane reads enclosures.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
 
@@ -16,11 +22,13 @@ test_utils::gated_to![
     "crates/geom/src/curves/on_carrier.rs",
 ];
 
+use core::f64::consts::TAU;
+
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 use test_utils::fuzz;
 
-use super::{Read, Window};
+use super::{Joint, Read, Window};
 use crate::Conic;
 use crate::curve_pair::pose::{height, level_on};
 
@@ -367,4 +375,150 @@ fn a_level_growing_while_its_distance_falls_is_not_receding() {
     let piece = (-0.003_251_514_695_164_516, -0.000_699_372_809_647_522);
     let got = check(&a, &b, (axes, 10.0), piece, false, band);
     assert!(got.is_ok(), "{got:?}");
+}
+
+/// One pose of the seam family: `a` the unit circle tilted `t` about `x̂`,
+/// its plane root at `θ = 0`; `b` a circle of radius `rb` in `z = 0`
+/// through `J = a(0)` and through `a(δ)`'s image, so `J` and `P = a(δ)` are
+/// two meetings; `a` read over `span`, the window `window`, and the found
+/// meetings at `joints` (`P` never among them). Whether the window is
+/// certified, and whether `P` is a meeting of the span in a stretch of its
+/// own, which a certified window would have missed.
+fn seam_pose(
+    (t, rb, delta): (f64, f64, f64),
+    span: (f64, f64),
+    window_at: (f64, f64),
+    joints: &[f64],
+    band: Band,
+) -> (bool, bool) {
+    let (s, c) = t.sin_cos();
+    let a = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, -s, c),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let j = Point3::new(1.0, 0.0, 0.0);
+    let pp = Point3::new(delta.cos(), c * delta.sin(), 0.0);
+    let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
+    let chord = pp - j;
+    let half = 0.5 * chord.norm();
+    let n = Vec3::new(chord.y, -chord.x, 0.0).normalize();
+    let inside = n.dot(Point3::origin() - m) > 0.0;
+    let n = if inside == (rb < 1.0) { n } else { n * -1.0 };
+    let centre = m + n * (rb * rb - half * half).sqrt();
+    let b = Curve3::Circle {
+        center: centre,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: rb,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let in_span = |th: f64| {
+        (-16..=16).any(|q| {
+            let v = th + f64::from(q) * TAU;
+            v >= span.0 && v <= span.1
+        })
+    };
+    let dist = |th: f64| {
+        let q = a.eval(th);
+        let r = (q.x - centre.x).hypot(q.y - centre.y);
+        (r - rb).hypot(q.z)
+    };
+    let parted = (1..400).any(|i| dist(delta * f64::from(i) / 400.0) > 1.2 * band.zero());
+    let p_on = in_span(delta) && parted && dist(delta) < 0.9 * band.zero();
+    let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+    let mut w = window(&ka, &kb, &b);
+    w.span_a = span;
+    let js: Vec<_> = joints
+        .iter()
+        .map(|&ta| Joint {
+            point: a.eval(ta),
+            ta,
+        })
+        .collect();
+    (w.holds_only(window_at, &js, band), p_on)
+}
+
+/// **A window holding a second meeting is never certified, wherever the
+/// span's seam and parameters lie**: the seam family (`seam_pose`), the
+/// tilt from `10⁻⁷·⁵` to `10⁻⁶`, the second meeting within the window,
+/// the span a whole turn cut anywhere near the root, an open arc ending
+/// near it on either side, or longer than a turn, moved by up to four
+/// turns either way; the window about the root at up to two turns, the
+/// found meetings at every turn of the root inside the span, or at one
+/// turn anywhere.
+#[test]
+fn a_window_holding_a_second_meeting_is_never_certified_at_any_seam() {
+    let mut rng = fuzz::start("curve_pair::pose::window::oracle::seam");
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let (mut bad, mut with_p) = (Vec::new(), 0);
+    for draw in 0..fuzz::scaled(800) {
+        let t = 10f64.powf(-7.5 + rng.unit() * 1.5);
+        let rb = 10f64.powf(-0.3 + rng.unit() * 0.8);
+        let sign = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
+        let delta = (0.1 + 0.4 * rng.unit()) * band.zero() / t * sign;
+        let w = (band.escalate() / t).asin() * 1.05;
+        let turn = (rng.unit() * 9.0).floor().mul_add(TAU, -4.0 * TAU);
+        let cut = (rng.unit() - 0.5) * 2.5 * w;
+        let span = match rng.below(4) {
+            0 => (turn + cut, turn + cut + TAU),
+            1 => (turn + cut, turn + cut + TAU * (0.5 + 0.49 * rng.unit())),
+            2 => (turn + cut - TAU * (0.5 + 0.49 * rng.unit()), turn + cut),
+            _ => (turn + cut, turn + cut + TAU * (1.0 + 0.5 * rng.unit())),
+        };
+        let window_turn = (rng.unit() * 5.0).floor().mul_add(TAU, -2.0 * TAU);
+        let mut joints: Vec<f64> = (-16..=16)
+            .map(|q| f64::from(q) * TAU)
+            .filter(|&v| v >= span.0 && v <= span.1)
+            .collect();
+        if joints.is_empty() {
+            continue;
+        }
+        if rng.unit() < 0.3 {
+            joints = vec![(rng.unit() * 9.0).floor().mul_add(TAU, -4.0 * TAU)];
+        }
+        let window_at = (window_turn - w, window_turn + w);
+        let (certified, p_on) = seam_pose((t, rb, delta), span, window_at, &joints, band);
+        with_p += usize::from(p_on);
+        if certified && p_on {
+            bad.push(format!(
+                "draw {draw}: t {t:e} rb {rb} δ {delta:e} span {span:?} window {window_at:?} joints {joints:?}"
+            ));
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} windows certified with a second meeting in them ({}): {:#?}",
+        bad.len(),
+        fuzz::replay(),
+        &bad[..bad.len().min(6)]
+    );
+    assert!(with_p > 0, "a second meeting drawn ({})", fuzz::replay());
+}
+
+/// **A span four turns out, longer than a turn, is read at every turn
+/// of the window** (the reviewer's seam search, draw 2611): `a` over
+/// `(4π − 3·10⁻⁶, 4π + 6.97)`, the window about `0`, the found meetings
+/// at `4π` and `6π`, and the second meeting `6.8·10⁻⁴` before `6π`, in the
+/// window's turn past `4π`. Red where the window's turns are fixed about
+/// zero.
+#[test]
+fn a_span_four_turns_out_is_read_at_every_turn_of_the_window() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let (certified, p_on) = seam_pose(
+        (
+            6.779_247_211_679_095e-7,
+            2.660_088_953_543_723,
+            -6.757_519_401_964_614e-4,
+        ),
+        (12.566_367_735_830_912, 19.533_509_403_541_615),
+        (-0.015_489_007_098_097_46, 0.015_489_007_098_097_46),
+        &[12.566_370_614_359_172, 18.849_555_921_538_76],
+        band,
+    );
+    assert!(p_on, "the second meeting is on the span");
+    assert!(
+        !certified,
+        "a window with the second meeting in it is not the joints'"
+    );
 }

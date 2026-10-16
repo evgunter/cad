@@ -265,6 +265,25 @@ fn two_meetings_across_a_whole_turns_seam_in_a_narrow_window_are_both_read() {
 /// on one side of it.
 #[test]
 fn a_seam_vertex_at_the_joint_leaves_the_meeting_before_the_seam() {
+    seam_vertex(&[0.0]);
+}
+
+/// **The seam vertex at a far turn.** `seam_vertex` with the rim's turn
+/// starting at `2πk`, and `0.002` past it, for `k` from `−4` to `3`: the
+/// window's turns are counted from the span, wherever its parameters lie.
+/// Red where they are fixed about zero.
+#[test]
+fn a_seam_vertex_at_a_far_turn_leaves_the_meeting_before_the_seam() {
+    let starts: Vec<f64> = (-4..=3)
+        .flat_map(|k| [0.0, 0.002].map(|shift| f64::from(k) * TAU + shift))
+        .collect();
+    seam_vertex(&starts);
+}
+
+/// The rim and flat circle of
+/// `a_seam_vertex_at_the_joint_leaves_the_meeting_before_the_seam`, the rim
+/// read as the whole turn from each of `starts`.
+fn seam_vertex(starts: &[f64]) {
     for &(t, rb, delta) in &[
         (1e-7_f64, 0.9_f64, 4e-3_f64),
         (1e-7, 1.2, 4e-3),
@@ -288,11 +307,14 @@ fn a_seam_vertex_at_the_joint_leaves_the_meeting_before_the_seam() {
         let ang = |q: Point3<f64>| (q.y - centre.y).atan2(q.x - centre.x);
         let (pj, pq) = (ang(j), ang(pp));
         let want = [j, a.eval(TAU - delta)];
-        for (el, ended) in [("ended", true), ("endless", false)] {
-            let s1 = Span::new(&a, (0.0, TAU));
+        for (el, ended, &t0) in [("ended", true), ("endless", false)]
+            .into_iter()
+            .flat_map(|(el, ended)| starts.iter().map(move |t0| (el, ended, t0)))
+        {
+            let s1 = Span::new(&a, (t0, t0 + TAU));
             let s1 = if ended { s1 } else { s1.endless() };
             let s2 = Span::new(&b, (pj.min(pq) - 0.3, pj.max(pq) + 0.3));
-            let label = format!("t {t:e} rb {rb} δ {delta:e}: {el}");
+            let label = format!("t {t:e} rb {rb} δ {delta:e}: from {t0}, {el}");
             none_missing(
                 &format!("{label}, rim first"),
                 &meet(&s1, &s2, band()),
