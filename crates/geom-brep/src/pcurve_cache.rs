@@ -7897,11 +7897,6 @@ fn derive_class<T: Decide>(
             // near-band-radius cylinder as a meridian, which then
             // failed the residual schedule loudly (the 100ε washer).
             let moving = radial_amplitude(&form, axis);
-            let alpha_const = place.phase(
-                Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
-                |_| T::zero(),
-                band,
-            );
             match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
                 // Zero — AND the in-band arm (Err): a sub-escalation
                 // radial amplitude takes the meridian form as a D9
@@ -7913,9 +7908,19 @@ fn derive_class<T: Decide>(
                 // refuses there in metres. (The executed case: a wild
                 // NIST import whose near-meridian line carries a
                 // few-nanometre radial tilt.)
+                // The meridian's constant azimuth is read here only: a
+                // moving carrier's centre may sit on the axis, where its
+                // radial part names no direction to place.
                 Ok(Sign::Zero) | Err(_) => Ok((
                     Pcurve::Harmonic {
-                        p0: Point2::new(alpha_const, w.dot(axis)),
+                        p0: Point2::new(
+                            place.phase(
+                                Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
+                                |_| T::zero(),
+                                band,
+                            ),
+                            w.dot(axis),
+                        ),
                         pa: Vec2::new(T::zero(), form.a.dot(axis)),
                         pb: Vec2::new(T::zero(), form.b.dot(axis)),
                         pl: Vec2::new(T::zero(), form.l.dot(axis)),

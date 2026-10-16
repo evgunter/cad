@@ -592,12 +592,22 @@ const PLATE_MAX_TERMS: usize = 28;
 /// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
 /// forms each, and the `Plain/Assertion` digest; every call and freeze
 /// holds.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, each
+/// decided numerically, so each is checked against the tier: 36
+/// placements, `Plain/Assertion` and `Early/Assertion` 654 → 726 calls
+/// and `Door/Decision` 396 → 468, `Plain/Assertion` frozen 405 → 417.
+/// A cylinder's meridian azimuth is read only on a meridian, so the
+/// rim circles centred on the axis no longer take the frame read of
+/// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
+/// and digests move on every line; the largest form holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 16062 frozen 324 digest 715619d65a643a83cc5e70b84b682d55\n\
-     Plain/Assertion calls 654 forms 4542 frozen 405 digest f63af9fca1a4ea01e1f6315ee03c04fd\n\
-     Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
-     Early/Assertion calls 654 forms 5519 frozen 0 digest 68250ff348585275fa8c8d419067c7fe\n\
-     Door/Decision calls 396 forms 7391 frozen 0 digest d5224bf3c464a7398f599a5455143cb7";
+     Plain/Decision calls 1032 forms 15912 frozen 324 digest 88364aa057b0d497e2bb24dce6439e74\n\
+     Plain/Assertion calls 726 forms 4870 frozen 417 digest 893eaaabbf1a3856d7beef3ba911eefe\n\
+     Early/Decision calls 352 forms 8940 frozen 0 digest 34ae2c431ac12a43705a8dbd2b2846bc\n\
+     Early/Assertion calls 726 forms 5791 frozen 0 digest ae586774ba4a2c927e7a337c24f6325d\n\
+     Door/Decision calls 468 forms 7635 frozen 0 digest f9c3a497d34ad9013e727c0428b01675";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

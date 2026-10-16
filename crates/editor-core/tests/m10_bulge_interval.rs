@@ -98,6 +98,18 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
+///
+/// **PCERT's placement unit (C4: a row is its image placed over the
+/// edge's span in the chart's principal window) moved two rows**, on
+/// every spelling:
+///
+/// - `pcurve_chart_azimuth_frame` 12/0/0/26 -> 0/0/0/26: a cylinder's
+///   meridian azimuth is read only on a meridian, so a rim circle
+///   centred on the axis no longer reads the frame of its zero radial
+///   offset (the 12 the tier proved zero).
+/// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
+///   azimuths reads its two half-period marks about the window's
+///   centre ([`geom_brep::Period::decide`]), each decided numerically.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -175,8 +187,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("path_junction_turn", [0, 4]),
     ("pcurve_azimuth_period", [0, 12]),
     ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
+    ("pcurve_chart_azimuth_frame", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
@@ -300,8 +313,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("path_junction_turn", [0, 2]),
             ("pcurve_azimuth_period", [0, 12]),
             ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [12, 26]),
+            ("pcurve_chart_azimuth_frame", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),
