@@ -1102,3 +1102,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - M02/M03/M04(jet)/M12/M17 are killed (M12 and M17 by pinned oracle counterexamples). The call-site rounding charges stay unpinned below f64 resolution, resting on `rounding_charge`.
   - The oracle is kept on the fuzz harness (slow set). The non-total sort and the unit mix are fixed.
   - Delta reviewer re-dispatched to confirm by execution.
+- 2026-10-16: PR 5227 confirmation (delta reviewer at 776d30e): every fix confirmed by execution except one remaining MAJOR in the seam class. The window's turns are hard-coded k ∈ {−2…2}, so a span at or past ±4π, or longer than a turn, loses the window's far side; one random draw in 4000 certified wrongly. Fix pass 3 dispatched (turns derived from the span, with a sweep for other fixed-turn assumptions).
