@@ -105,10 +105,9 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     #[must_use]
     pub fn reach(&self, faces: [FaceKey; 2], carrier: &Curve3<T>, (t0, t1): (T, T)) -> T {
         let at: Point3<T> = carrier.mid_point(t0, t1);
-        let square = |p: Point3<T>| {
-            let d = p - at;
-            d.dot(d)
-        };
+        // `norm_squared` squares each coordinate (`powi(2)`), which an
+        // enclosure never reads below zero, where `d.dot(d)` would.
+        let square = |p: Point3<T>| (p - at).norm_squared();
         // The edge's own ends: a door minting the edge reads a face it
         // does not bound yet. Its middle is `at`.
         let mut far = square(carrier.eval(t0)).max(square(carrier.eval(t1)));
