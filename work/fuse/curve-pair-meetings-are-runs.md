@@ -54,8 +54,8 @@ Ev approved the C5 sentence on PR 5214 (2026-10-16) in Ev's own terms: a *stretc
 
 The code does not yet use the ruled terms. Each of these is the code this unit changes anyway:
 - `curve_pair::Meeting` is documented as "A point on both spans" (`crates/geom-brep/src/curve_pair.rs:94`), while a meeting can be a shared run, which the code carries separately as `Meetings::shared`. Document `Meeting`/`Meetings` in the ruled terms (a meeting is a point or a run; `shared` is a run meeting).
-- `Meeting::run` (`curve_pair.rs:103`) and `pose::run_candidates` call a meeting's fringe its "run". Both go (above).
-- `Meetings::points` states the old ring rule ("a point the zero band puts at a meeting already read is not one again", `curve_pair.rs:116`). Restate it as the stretch rule.
+- `Meeting::run` (`curve_pair.rs:106`) and `pose::run_candidates` call a meeting's fringe its "run". Both go (above).
+- `Meetings::points` states the old ring rule ("a point the zero band puts at a meeting already read is not one again", `curve_pair.rs:117`). Restate it as the stretch rule.
 - `curve_pair/span.rs:5` calls a span "the stretch of the carrier an edge covers". Reword it ("the part of the carrier") so *stretch* names only the ruled term in the curve-pair reader.
 
 ## Status
