@@ -20,7 +20,7 @@
 //! # The two documents, and why there are two
 //!
 //! `bench-stand` is the assembled object: two posts and a shelf, the
-//! shelf seated on the posts by mates, the root post pinned to the world
+//! shelf seated on the posts by mates, the near post pinned to the world
 //! through a turntable whose swing is the document's `swing` parameter,
 //! and a crate resting
 //! on the shelf's top face. `bench-layout` is the post
@@ -2310,13 +2310,13 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// NURBS carrier — takes; the crate's shelf side is the shelf's top
 /// face with an offset inside it, so the crate follows the shelf.
 ///
-/// # A gauge places the group, and a parameter drives the gauge
+/// # A world pin places the stand, and a parameter drives the pin
 ///
-/// The stand's group stands on the turntable gauge, so its world pose
-/// is the turntable's frame composed onto the solve (A11 (5)), and
-/// the turntable's swing is a document parameter: one value edit
-/// moves every part on it, the crate included, and re-runs the
-/// turntable and those four instances alone.
+/// The near post's world pin holds the turntable's chain, so every
+/// copy the mates place onto it has its world pose composed through
+/// that chain, and the turntable's swing is a document parameter: one
+/// value edit moves every part on it, the crate included, and re-runs
+/// those four instances alone.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(
@@ -2363,28 +2363,30 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     // ONE cell for both framings, at the first swing. The assembled
     // bench and the flat-pack are the same part documents answering
-    // two questions — what the mates and the gauges place, and what
-    // ships — and two independently-scaled panels make them look like
-    // two subjects. The flat-pack's offset is AUTHORED into its
-    // placements (see `layout_doc`), where a layout's placements are
-    // its subject. The other two swings render on their own.
-    let bench_ops = "post.pncad + shelf.pncad + crate.pncad -> turntable Gauge(swing) -> \
-                     InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
-                     -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
-                     bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     PlaceInWorld x4 -> A10 product gather -> SetVarValue(swing)";
+    // two questions — what the mates and the world pins place, and
+    // what ships — and two independently-scaled panels make them look
+    // like two subjects. The flat-pack's translation is AUTHORED into
+    // its world pins (see `layout_doc`), where a layout's placements
+    // are its subject. The other two swings render on their own.
+    let bench_ops = "post.pncad + shelf.pncad + crate.pncad -> \
+                     InstantiatePart (world pin through a turntable turn by swing) + \
+                     InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, frame-coincidence, \
+                     each in the bundle of the copy it places) -> constructive solve; \
+                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
+                     face + offset, in the crate's bundle) -> A10 product gather -> \
+                     SetVarValue(swing)";
     let bench_story = "an ASSEMBLY document: two instances of a post document and one of a \
-                       shelf document, the shelf SEATED on both by mates — only the root post \
-                       carries an authored offset, the other two poses are solved — and the \
-                       three stand on a TURNTABLE gauge whose swing is a document parameter. \
+                       shelf document, the shelf SEATED on both by mates — only the near post \
+                       is pinned to the world, the other two poses are solved — and the near \
+                       post's pin turns on a TURNTABLE whose swing is a document parameter. \
                        A crate rests on the shelf's top face, offset in that face's frame, by \
-                       a mate that places it on the turntable with the stand, so it follows \
-                       any edit of the shelf. One SetVarValue on the swing moves all four \
+                       a mate that places it on the shelf, so it swings with the stand and \
+                       follows any edit of the shelf. One SetVarValue on the swing moves all four \
                        parts";
     let assembled = |counters: &str| {
         format!(
             "{counters}. ASSEMBLED: 4 solids, V = {BENCH_VOLUME:.6} m^3 at every swing; every \
-             vertex is where the gauge chain composed by hand puts it, the shelf's centroid \
+             vertex is where the turntable's chain composed by hand puts it, the shelf's centroid \
              stays on the pivot, and the A5 at-rest gate CERTIFIES the posts' flush seats and \
              the crate's rest"
         )
@@ -2415,18 +2417,20 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      plus the shelf, nothing touching, which is A5's disjoint half where the \
                      at-rest gate passes outright. The bench: an ASSEMBLY document — two \
                      instances of a post document and one of a shelf document, the shelf \
-                     SEATED on both by mates, only the root post carrying an authored offset — \
-                     the three on a TURNTABLE gauge whose swing is a document parameter, and a \
+                     SEATED on both by mates, only the near post pinned to the world — its \
+                     pin turning on a TURNTABLE whose swing is a document parameter — and a \
                      crate resting on the shelf's top face, offset in that face's frame and \
-                     placed on the turntable with the stand",
-                    "post.pncad + shelf.pncad + crate.pncad -> turntable Gauge(swing) -> \
-                     InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
-                     -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
-                     bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     PlaceInWorld x4 -> A10 product gather -> SetVarValue(swing); and \
-                     InstantiatePart (explicit rotated frame) -> LinearPattern(2) -> Part x2 + \
-                     InstantiatePart (explicit frame) -> PlaceInWorld x3 -> A10 product \
-                     gather -> assemble",
+                     placed on the shelf",
+                    "post.pncad + shelf.pncad + crate.pncad -> \
+                     InstantiatePart (world pin through a turntable turn by swing) + \
+                     InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, frame-coincidence, \
+                     each in the bundle of the copy it places) -> constructive solve; \
+                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
+                     face + offset, in the crate's bundle) -> A10 product gather -> \
+                     SetVarValue(swing); and \
+                     InstantiatePart (empty bundle) -> LinearPattern(2) -> Part x2 -> Place x2 \
+                     (world pin, explicit rotated frame) + InstantiatePart (world pin, \
+                     explicit frame) -> A10 product gather -> assemble",
                     format!(
                         "{}. FLAT-PACKED: 3 solids, V = {:.6} m^3; every product entity \
                          answers to an instance-qualified name (the pattern's Instance(i) over \

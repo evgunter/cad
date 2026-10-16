@@ -326,7 +326,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.is_empty()
+            Some(ProductError::EmptyProduct { unplaced, loose }) if unplaced.is_empty() && loose.is_empty()
         ),
         "the gather's own answer: {:?}",
         session.product_fault()
@@ -361,7 +361,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("body-less-assembly", tol);
     let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
-    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
@@ -383,9 +383,10 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.len() == 1
+            Some(ProductError::EmptyProduct { unplaced, loose })
+                if unplaced.is_empty() && loose == &vec![post]
         ),
-        "the premise: nothing places the instance, and the gather names its body: {:?}",
+        "the premise: nothing pins the instance, and the gather names it loose: {:?}",
         session.product_fault()
     );
     assert!(
@@ -395,7 +396,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge agrees: an unplaced assembly is not a refusal"
+        "and the A5 badge agrees: a loose assembly is not a refusal"
     );
 }
 
@@ -418,7 +419,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
     let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
-    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {

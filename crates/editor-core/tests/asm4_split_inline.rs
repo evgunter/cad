@@ -64,10 +64,10 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// A two-group assembly: two instances of `doc_ref`, the first pinned
+/// A two-instance assembly: two instances of `doc_ref`, the first pinned
 /// to the world at the identity, the second at x = +5 — the flagship
 /// acceptance shape (row 1).
-fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>) {
+fn two_instance_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -120,6 +120,17 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
     }
 }
 
+/// **The key of the one copy a [`part`] document delivers**: its one
+/// placement on its world, and the read that placement copies the body
+/// through ([`editor_core::CopyKey`]).
+fn plain_copy_key(part_doc: &ProfileDoc) -> editor_core::CopyKey {
+    let placement = part_doc.placements()[0];
+    let Some(Node::Place { shapes, .. }) = part_doc.node(placement) else {
+        panic!("the part places its body")
+    };
+    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(shapes[0].read))
+}
+
 /// What `doc` places, in its placements' document order — the order
 /// the product gathers its copies in: an instance itself, since it is
 /// its own placement, and the body a one-shape `Place` copies.
@@ -150,16 +161,16 @@ fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -
     doc
 }
 
-// ---- Row 1: split one group out, A4 identity ----
+// ---- Row 1: split one instance out, A4 identity ----
 
-/// Row 1 — splitting a two-group assembly's second group out
+/// Row 1 — splitting a two-instance assembly's second instance out
 /// leaves a remainder that instantiates the new document, and the A4
 /// identity holds: censuses equal, volumes bit-equal, and every
 /// probed name resolves to the corresponding entity (the split side
 /// through the instance qualifier).
 #[test]
-fn row1_split_one_group_preserves_structure_and_names() {
-    let (store, doc, ids) = two_group_assembly("asm4-r1");
+fn row1_split_one_instance_preserves_structure_and_names() {
+    let (store, doc, ids) = two_instance_assembly("asm4-r1");
     let part_ref = match doc.node(ids[0]) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         _ => panic!("fixture shape"),
@@ -264,7 +275,7 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, a PLAIN subtree — cutting one (no group)
+/// Row 1, a PLAIN subtree — cutting one (no instance)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]
@@ -301,7 +312,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     assert_eq!(
         fixture::offset_of(&out.remainder, out.instance),
         Some(editor_core::Placement::IDENTITY),
-        "a plain cut leaves the remainder instance at the empty offset"
+        "a plain cut leaves the remainder instance at the identity"
     );
 
     let mut store = PartStore::default();
@@ -320,7 +331,7 @@ fn row1_split_plain_subtree_preserves_structure() {
 /// replay to exactly the returned values).
 #[test]
 fn row2_inline_inverts_split_and_undo_restores() {
-    let (store, doc, ids) = two_group_assembly("asm4-r2");
+    let (store, doc, ids) = two_instance_assembly("asm4-r2");
     let snapshot = doc.clone();
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
@@ -397,7 +408,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the restored offset is the original, bit for bit.
+    // And the restored world pin is the original, bit for bit.
     assert!(
         fixture::same_offset(&inlined.doc, back, &doc, ids[1]),
         "the round trip restores the instance's world pin exactly"
@@ -411,7 +422,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
 /// form.
 #[test]
 fn row2_appearance_rides_the_bridge_both_ways() {
-    let (store, doc, ids) = two_group_assembly("asm4-r2a");
+    let (store, doc, ids) = two_instance_assembly("asm4-r2a");
     let opts = with_resolver(store);
     let ev = run(&doc, &opts);
     // A face name minted at the SECOND instance, keyed with an
@@ -649,11 +660,11 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
 }
 
 /// Row 3 (this unit's own found refusals) — the empty cut, the
-/// colliding part id, a consumed instance, and the frame no local
-/// recipe can express.
+/// colliding part id and the unknown cut node refuse; a consumed
+/// instance, and an instance of plain geometry at a pose, inline.
 #[test]
 fn row3_further_typed_refusals() {
-    let (_, doc, ids) = two_group_assembly("asm4-r3f");
+    let (_, doc, ids) = two_instance_assembly("asm4-r3f");
     assert!(matches!(
         split(
             &doc,
@@ -685,37 +696,52 @@ fn row3_further_typed_refusals() {
         Err(SplitError::UnknownCutNode { .. })
     ));
 
-    // A consumed instance cannot inline (the recipe cannot rewire the
-    // consumer onto a spliced product).
+    // A consumed instance inlines: a reader of one of its copies reads
+    // the spliced copy, beside a block of the host's own.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r3f-part", 0.0, 1.0), Tol::witness());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, block) = insert(host, xy_frame());
+    let (host, block_profile) = insert(
+        host,
+        Node::Profile(desc(block, vec![square(5.0, 0.0, 0.5)])),
+    );
+    let (host, block) = insert(
+        host,
+        Node::Extrude {
+            profile: block_profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
     let (host, consumer) = insert(
         host,
-        Node::transform(
-            inst,
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        ),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::keyed(
+                    editor_core::Operand::Node(inst),
+                    plain_copy_key(&part("asm4-r3f-part", 0.0, 1.0)),
+                ),
+                block.into(),
+            ]),
+        },
     );
-    // A reader of the instance is re-pointed to the inlined body
-    // (InstanceConsumed retired with the world).
     let inlined = inline(&host, inst, &resolver, Tol::witness())
-        .expect("an instance its reader reads inlines");
-    let Some(Node::Transform { input, .. }) = inlined.doc.node(consumer) else {
+        .expect("an instance its reader reads one copy of inlines");
+    let Some(Node::Union {
+        members: editor_core::Bodies::Spelled(members),
+    }) = inlined.doc.node(consumer)
+    else {
         panic!("the reader stays")
     };
     assert!(
         inlined
             .doc
-            .operation_of(*input)
+            .operation_of(members[0].read)
             .is_some_and(|at| at != inst),
-        "the reader reads the inlined body"
+        "the reader reads the spliced copy"
     );
 
     // An instance of a PLAIN-geometry part pinned at a pose inlines:
@@ -741,15 +767,15 @@ fn row3_further_typed_refusals() {
         .expect("an identity-placed plain part inlines");
 }
 
-// ---- Row 4: roots and placements, both sides ----
+// ---- Row 4: placements and world pins, both sides ----
 
 /// Row 4 — the A10 maintenance and A4's placement rules, through the
 /// recorded edits, produce the expected placements and world pins on
 /// both sides, each its own assertion.
 #[test]
 fn row4_placements_and_pins_land_as_the_rules_say() {
-    // A single-group cut moves as selected.
-    let (_, doc, ids) = two_group_assembly("asm4-r4");
+    // A one-instance cut moves as selected.
+    let (_, doc, ids) = two_instance_assembly("asm4-r4");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
@@ -779,7 +805,7 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
         "the cut instance keeps its world pin in the part"
     );
 
-    // The multi-group cut: both world pins MOVE, the remainder
+    // The several-instance cut: both world pins MOVE, the remainder
     // instance sits at the identity, and the part keeps the cut
     // placements' order.
     let mut store = PartStore::default();
@@ -809,7 +835,7 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
     assert_eq!(
         fixture::offset_of(&out2.remainder, out2.instance),
         Some(editor_core::Placement::IDENTITY),
-        "a multi-group cut leaves the remainder instance at the identity"
+        "a several-instance cut leaves the remainder instance at the identity"
     );
     assert!(
         fixture::same_offset(&out2.part, out2.node_map[&i2], &doc2, i2),
@@ -829,7 +855,7 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
 /// bytes while empty (so no pin moves until R2 populates it).
 #[test]
 fn row5_interface_record_exists_and_round_trips() {
-    let (_, doc, ids) = two_group_assembly("asm4-r5");
+    let (_, doc, ids) = two_instance_assembly("asm4-r5");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
@@ -865,7 +891,7 @@ fn row5_interface_record_exists_and_round_trips() {
 /// save/load, and the loaded pair still evaluates to the A4 identity.
 #[test]
 fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
-    let (store, doc, ids) = two_group_assembly("asm4-per");
+    let (store, doc, ids) = two_instance_assembly("asm4-per");
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
@@ -907,7 +933,7 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
 
 // ---- A cut a kept placement separates ----
 
-/// A non-adjacent multi-group cut's placements leave together and come
+/// A non-adjacent several-instance cut's placements leave together and come
 /// back together, after the kept ones, so the round trip returns the
 /// document up to node ids and that one regrouping: the placed set and
 /// the cut's own order are kept, the interleaving with the kept
@@ -1025,9 +1051,9 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
 fn split_name_refusals_fire_typed_and_name_their_subjects() {
     use editor_core::EntityKind;
     // BodyNameCrossesCut: appearance keyed by a cut instance's BODY
-    // name (product tables carry no root body rows, so the wrapped
+    // name (product tables carry no body rows, so the wrapped
     // rewrite could never resolve).
-    let (_, doc, ids) = two_group_assembly("asm4-min2-body");
+    let (_, doc, ids) = two_instance_assembly("asm4-min2-body");
     let body_name = StableName {
         kind: EntityKind::Body,
         node: ids[1],

@@ -26,7 +26,7 @@ use editor_core::{
     Evaluation, Mate, MateFault, MateFrame, MatePrimitive, MateRef, Node, NodeErrorKind,
     NodeResult, ProfileDoc, RecipeNodeId, SitedFace, Space, evaluate,
 };
-use fixture::{constrain, insert, len, on_frame, solve, step};
+use fixture::{insert, len, on_frame, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -174,7 +174,8 @@ impl Scene {
     /// Adds `mate` to the bundle of the copy it places, answering its
     /// address.
     fn add(&mut self, mate: Mate<Formula>) -> MateRef {
-        let (doc, id) = constrain(self.doc.clone(), mate);
+        let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
+        let (doc, id) = fixture::constrain_with(self.doc.clone(), &reach, mate);
         self.doc = doc;
         id
     }

@@ -38,8 +38,8 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-`Node.gauge` and `DocEdit.set_offset` place it, `Node.mate` says how two
-instances meet, `solve_document` poses them, `product` gathers what
+a placement's bundle of `Mate`s places each copy (`Doc.place`,
+`Doc.constrain`, `Mate.world_pin`), `solve_document` poses them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
 `update_references` moves a pin at its sites.
@@ -515,23 +515,18 @@ class PersistError(PncadError):
 class ExportError(PncadError):
     """The document-layer export door refused.
     `through` (poisoning ancestor), `kind` (the wrong-kind value's
-    tag) and `parts` are always present, `None` where inapplicable.
+    tag) and `copies` are always present, `None` where inapplicable.
 
-    `unplaced` is the refusal to write a part that lives in an
-    unplaced group's own space, since STEP writes one world: `parts`
-    lists each as `(node, root, cause)` — the part, its group's root,
-    and `no_offset` or `dead_gauge` — and the message says how to
-    place it. `unplaced_below` is the same refusal for a group in a
-    part below, which the part's world leaves out: `parts` lists each
-    as `(instance, root, cause)` — the instance it arrived through,
-    its root in the part's own ids, and the cause — and the message
-    names the whole route."""
+    `loose` is the refusal to write a copy that lives in a loose
+    space of its own, since STEP writes one world: `copies` lists
+    every loose copy the export would have to write, by its placement,
+    and the message says how to pin each."""
 
     variant: str
     node: NodeId
     through: Optional[NodeId]
     kind: Optional[str]
-    parts: Optional[list[tuple[NodeId, NodeId, str]]]
+    copies: Optional[list[NodeId]]
 
 class TessellateError(PncadError):
     """The tessellator refused a body.
@@ -659,14 +654,14 @@ class SelectRefusal(PncadError):
     dim: Optional[str]
 
 class MateError(PncadError):
-    """The mate solve could not place an instance.
+    """The mate solve could not place a copy.
 
     `variant` is the refusing arm's stable tag; `fault` is the
     `MateFault` VALUE carrying the arm's payload.
 
-    The solve itself is TOTAL and never raises — a refusing group
+    The solve itself is TOTAL and never raises — a refusing bundle
     must not fail an unrelated one, so `solve_document` records the
-    fault per node and `SolvedPoses.fault` hands back the same value
+    fault per placement and `SolvedPoses.fault` hands back the same value
     this exception carries. Raised only where an answer is a pose or
     nothing: `SolvedPoses.placement`."""
 
@@ -698,7 +693,7 @@ class AssemblyError(PncadError):
     mates of documents BELOW this one — an outer assembly is not at
     rest over a part whose contact nothing verified — and `refusals`
     is then a `CarriedRefusal` per mate, each carrying the route it
-    arrived by, because its `mate` is a node of `of` and not of the
+    arrived by, because its `mate` is a constraint of `of` and not of the
     document that was gathered."""
 
     variant: str
@@ -723,8 +718,8 @@ class ProductError(PncadError):
     `empty_product` is the world holding no placement; `unplaced_bodies`
     is then the bodies nothing places, each its output variable — the
     handle `Doc.place` takes — in document order, and `None` on every
-    other arm. (The `unplaced` arm is a different fact: placed material
-    living in an unplaced group's own space.)"""
+    other arm. An empty world beside loose copies names them in the
+    message: they are placed, but in spaces of their own."""
 
     variant: str
     node: Optional[NodeId]
@@ -738,19 +733,13 @@ class SplitError(PncadError):
     node: Optional[NodeId]
     consumer: Optional[NodeId]
     input: Optional[NodeId]
-    root: Optional[NodeId]
-    instance: Optional[NodeId]
     param: Optional[str]
     name: Optional[str]
     id: Optional[str]
-    gauge: Optional[NodeId]
-    """`severed_gauge`: the cut gauge, `node` the kept node on it.
-    `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
-    instance whose chain names it. `no_material`: `node` is the cut's
-    first node. `unplaceable_root`: `node` is the cut root that sits on
-    no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
-    `node` is the mate, and `root` the cut root a promote would land at
-    the empty chain, where that is the recourse."""
+    mate: Optional[MateRef]
+    """`mate_frame_crosses`: the constraint whose frame crosses the
+    cut, `node` its placement. `no_material`: `node` is the cut's first
+    node."""
     moving: Optional[str]
     staying: Optional[str]
     """`definition_straddles_cut`: `param` is the tied variable, `moving`
@@ -772,21 +761,14 @@ class InlineError(PncadError):
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
-    root: Optional[NodeId]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
-    host_root: Optional[NodeId]
-    """`mate_placed`: the root of the instance's group in the host
-    (`node` is the instance)."""
-    part_root: Optional[NodeId]
-    """`mate_placed`: the part's root, in the referenced document's ids,
-    when the part is one group and only that root's offset, or the
-    gauges in `part_gauges`, keep it from being one group at the empty
-    chain on its world; `None` otherwise."""
-    part_gauges: Optional[list[NodeId]]
-    """`mate_placed`: the part's gauges on its root's chain, innermost
-    first, which the remedy deletes (empty when only the offset is
-    wrong). `moved_member_offset` names the moved member in `node`."""
+    mate: Optional[MateRef]
+    """`mate_frame_crosses` and `side_leaves_an_instance`: the
+    constraint at issue, `node` its placement. `unplaceable_part`:
+    `node` is the instance whose bundle does not carry its part;
+    `construction_reads_copy`: `node` is the construction reading the
+    instance's copy."""
 
 class UpdateError(PncadError):
     """A whole-document pin update produced no edit list.
@@ -2440,11 +2422,19 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
-    def place_in_world(body: _BodyArg, pose: Optional[Placement] = None) -> Node:
-        """One copy of `body` in the world at `pose`, the identity when
-        `None`: the operation whose output is a product copy. Inserting
-        it is `Doc.place`. The pose is a `Placement` chain, checked as
-        `Node.transform_by`'s is."""
+    def place(
+        shapes: _BodyArg | Sequence[_BodyArg], constraints: Sequence[Mate] = ()
+    ) -> Node:
+        """One copy of `shapes`, placed by `constraints`: the operation
+        whose output is a copy. Inserting it is `Doc.place`.
+
+        `shapes` is one body argument or a sequence of them: over one,
+        the copy has that shape's kind (a body over a body); over
+        several, its output is a keyed enumeration of copies.
+        `constraints` is the bundle; empty, the copy is loose, in a
+        space of its own until a constraint pins it. Each rigid step of
+        each constraint's frame offsets is checked against its slot, as
+        `Node.transform_by`'s are."""
 
     @staticmethod
     def union(members: Sequence[_BodyArg] | _Operand) -> Node:
@@ -2560,7 +2550,9 @@ class Node:
         insert."""
 
     @staticmethod
-    def instantiate_part(reference: DocRef) -> Node:
+    def instantiate_part(
+        reference: DocRef, constraints: Optional[Sequence[Mate]] = None
+    ) -> Node:
         """An instance of another document's product: a LEAF whose
         material crosses the document seam.
 
@@ -2570,12 +2562,12 @@ class Node:
         (`DocEdit.update_reference`, or `update_references` for every
         site at once).
 
-        Placed at the world origin: the instance sits on the world at
-        the empty offset. `DocEdit.set_offset` moves it,
-        `DocEdit.set_gauge` puts it on a gauge, and a mate places it
-        on another instance's group — the first operand's group on the
-        second's, clearing every offset the first's group held. No
-        interface record
+        Placed by `constraints`: an instance IS a placement, its part's
+        world moved by its bundle. `None` pins it to the world at the
+        identity, where its part's world stands; a sequence of `Mate`s
+        is that bundle, and `[]` a loose copy, in a space of its own
+        until a constraint (`Doc.constrain`) pins it. No interface
+        record
         either: an AUTHORED instance crosses nothing, and a non-empty
         record is mintable only by the `split` that observed
         declarations crossing its cut.
@@ -2584,71 +2576,6 @@ class Node:
         resolver=workspace)`. Without one it refuses typed
         (`part_no_resolver`) rather than pretending the part is
         empty."""
-
-    @staticmethod
-    def gauge(placement: Placement, parent: Optional[NodeId] = None) -> Node:
-        """A GAUGE: a frame other placements stand on. It holds a
-        `Placement` — rigid steps a document parameter can drive,
-        literal frames, or both — and denotes no body, so as a product
-        root it contributes nothing. `parent` is the gauge it sits on,
-        `None` for the world; its frame is the parent's composed with
-        `placement`. Instances name a gauge through
-        `DocEdit.set_gauge`, and every instance on it moves with it.
-        Every rigid step's components are checked against the slot they
-        land in, as `Node.transform_by` checks them."""
-
-    @staticmethod
-    def mate(
-        a_at: NodeId,
-        a: str,
-        b_at: NodeId,
-        b: str,
-        class_: ContactClass,
-        alignment: Alignment,
-    ) -> Node:
-        """A mate between two instances: ONE node carrying both the
-        placement constraint and the contact declaration.
-
-        Each side is a node and a name, mirroring the kernel type.
-        `a_at` / `b_at` is the OPERAND — the node the reference is
-        read at, whose geometry the mate speaks about — and `a` / `b`
-        is the instance-qualified name text of an entity of that
-        node's product, what `Evaluation.select` answers with. They
-        coincide for a mate authored on an instance directly and
-        diverge the moment a transform places it; there is no
-        default, because a transform mints no name and the operand is
-        the only thing that tells the two apart. Neither half is a
-        recipe edge: inserting a mate transfers no root.
-
-        A mate PLACES when its two instances sit on one gauge, and
-        declares otherwise. A placing mate that joins two groups
-        places the first operand's group on the second's: "mate `a`
-        to `b`" moves `a`, and the insert clears every offset `a`'s
-        group held (`Doc.last_maintenance`, `offset_cleared`). Which side
-        moves is independent of which side's frame states the datum.
-        `Doc.regauge_then_mate` copies `b`'s gauge to `a`'s group first.
-
-        `class_` is the declared contact class; ask `class_admission`
-        BEFORE authoring, because a class the solve folds may still
-        mint nothing at the at-rest gate. `alignment` is AUTHORED
-        data — nothing checks it against the faces `a` and `b` name,
-        so a mate can solve cleanly and still be refuted at the gate.
-
-        A head must name a FACE, and that IS refused here: a mate
-        declares a face-pair contact, the kernel says so in the type of
-        a head, and this door calls that type's constructor — so `a` or
-        `b` naming an edge raises `EditError` with `variant ==
-        "mate_head_not_a_face"` at this call rather than reaching a
-        document.
-
-        A dangling reference is not refused here: the solve refuses
-        typed naming its head (`mate_dangling_head`), or the side's
-        read when it is no face of a live body
-        (`mate_side_unresolved`) — or, where the
-        head resolves and a pattern or transform placing it could not
-        derive a pose, naming that placer and carrying the
-        evaluation's own cause (`mate_placer_refused`, whose `error`
-        is the node-failure tag)."""
 
     @staticmethod
     def measure(primitive: MeasurePrimitive) -> Node:
@@ -2666,8 +2593,8 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike `Node.mate`'s names:
-        each is a selection of the named
+        These references ARE recipe edges: each is a selection of the
+        named
         node's body (or, for a whole body, a read of it), so deleting a
         referenced node is accepted and reported on the measure
         (`stranded_read` and `stranded_selection`), like any other
@@ -3587,53 +3514,21 @@ class DocEdit:
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
-    def set_offset(instance: NodeId, offset: Optional[Placement]) -> DocEdit:
-        """Set an instance's OFFSET in its gauge, or clear it with
-        `None`.
-
-        On its group's root the offset places the group; on any other
-        member it is a statement the solve checks (a disagreement
-        faults that instance, `mate_offset_disagrees`). Clearing the
-        root's offset unplaces the group unless another member carries
-        one. Refuses typed on `EditError`: `offset_on_non_instance`,
-        and the placement's own refusals (`non_finite_placement`,
-        `improper_placement`, `non_rigid_placement`,
-        `placement_axis`) naming the step."""
+    def add_constraint(placement: NodeId, mate: Mate) -> DocEdit:
+        """Add `mate` to `placement`'s bundle; the constraint's id is
+        minted by the edit (`Doc.constrain` answers its address).
+        Refuses typed on `EditError`: `constraint_on_non_placement` (the
+        node holds no bundle), and `mate_refused` with the solve's fault
+        where the solve refuses the datum — `mate_overconstrained` where
+        the rest of the bundle already pins the copy."""
 
     @staticmethod
-    def set_gauge(node: NodeId, gauge: Optional[NodeId]) -> DocEdit:
-        """Set the GAUGE a node sits on: an instance's gauge, or a
-        gauge's parent, `None` for the world.
-
-        A mate places only between instances on one gauge; across
-        gauges it declares. `Doc.regauge_then_mate` copies a gauge and
-        mates in one action. Refuses typed on `EditError`:
-        `gauge_on_non_placed` (neither an instance nor a gauge),
-        `gauge_not_live`, `not_a_gauge`, and `gauge_cycle` (a gauge
-        would sit on itself)."""
-
-    @staticmethod
-    def promote(instance: NodeId) -> DocEdit:
-        """PROMOTE an instance's offset to a gauge: a new gauge under
-        the instance's gauge holds the offset, and the instance sits on
-        it at the empty chain, with the other members of its group.
-        `DocEdit.fold` is the inverse; promoting, then splitting the
-        group out with the new gauge left behind, makes a part at that
-        frame. Refuses typed on `EditError`: `promote_on_non_instance`,
-        `promote_without_offset`, `promote_non_root` (the offset is a
-        check; `input` is the group's root), and
-        `promote_member_offset` (`input` is a member carrying an
-        offset)."""
-
-    @staticmethod
-    def fold(gauge: NodeId) -> DocEdit:
-        """FOLD a gauge away: every node on it hangs from its parent,
-        each one's own chain with the gauge's steps in front. An
-        instance with no offset keeps none; a lone unlabelled dependent
-        takes the gauge's label, and otherwise the label goes, reported
-        as `label_dropped` maintenance. Refuses typed on `EditError`:
-        `fold_on_non_gauge` and `fold_would_start_placing` (`input` is
-        the mate that would start placing)."""
+    def remove_constraint(mate: MateRef) -> DocEdit:
+        """Remove the constraint `mate` addresses from its placement's
+        bundle. What it pinned is recomputed from what remains: a copy
+        its bundle no longer pins is a loose copy, never a refusal.
+        Refuses typed on `EditError`: `constraint_on_non_placement` and
+        `unknown_constraint` (the bundle holds no such id)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -3832,21 +3727,16 @@ class Doc:
         rider `inner_variant == "mate_unleverable"`; no other edit
         consults it, because no edit records a frame.
 
-        Inserting a mate that places — both instances on one gauge —
-        and joins two groups places the first operand's group on the
-        second's: every offset the first's group held is cleared in the
-        same edit, and `last_maintenance` reports each as
-        `offset_cleared`.
-
         A mate the solve refuses on its own datum — no member at its
         head, one member named twice, a class outside the vocabulary,
         a frame with no definite direction, a primitive-and-rider pair
         the coset table has no row for, a rider that contradicts the
         coincidence it rides — raises `EditError` with variant
         `mate_refused` at this insert; `fault` is the solve's own
-        `MateFault`. The doors decide edits and the solve decides
-        states: a verdict about a PAIR (under-determined, contradicting
-        another mate), and a per-mate fault a mate comes to carry after
+        `MateFault`; a constraint the rest of its bundle already pins
+        raises it with `mate_overconstrained`. The doors decide edits
+        and the solve decides states: a verdict about a PAIR
+        (contradicting another mate), and a per-mate fault a mate comes to carry after
         insert (a stranded head, a re-pointed `Part`, a loaded
         snapshot), are the solve's at evaluation."""
 
@@ -3895,26 +3785,12 @@ class Doc:
         program does not replay and validate under the current
         values."""
 
-    def regauge_then_mate(self, mate: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
-        """"Copy `b`'s gauge to `a`, then mate `a` to `b`" — one action.
-        `mate` is a `Node.mate`: every member of the group its `a` side
-        reads is put on the gauge its `b` side's instance sits on, then
-        the mate is inserted, which places — the first operand's group
-        on the second's, every offset it held cleared. A plain insert
-        when the sides already share a gauge. Atomic: a refusal at any
-        step raises that step's `EditError` and leaves the document
-        untouched, and the action refuses whole (`would_start_placing`,
-        naming the mate) when the re-gauge would make a mate already in
-        the document start placing. Returns the mate's id;
-        `last_maintenance` reads the whole action's record."""
-
     @property
     def last_maintenance(self) -> list[Maintenance]:
-        """The maintenance the LAST accepted edit performed: the offset
-        a mate insert cleared (`offset_cleared`) and the names its delete
-        or reshaping stranded — read `variant`, never a position.
-        Empty after an edit that joined no groups and stranded no
-        name, and on a document that has
+        """The maintenance the LAST accepted edit performed: the names
+        its delete or reshaping stranded — read `variant`, never a
+        position. Empty after an edit that stranded no name, and on a
+        document that has
         applied none; a REFUSED edit leaves it untouched, as it
         leaves the document untouched.
 
@@ -3925,30 +3801,39 @@ class Doc:
         accepted through this object."""
 
     def placements(self) -> list[NodeId]:
-        """The world placements, in document order: the nodes whose
-        copies are the product — what `product` and `assemble` gather,
-        in this order. Written through `place` (or an inserted
-        `Node.place_in_world`) and nothing else: no edit places or
-        unplaces as a side effect, so a body is in the product exactly
-        when a placement reads it."""
+        """The placements, in document order: every `Place` and
+        `InstantiatePart` node, the nodes whose copies a bundle of
+        constraints places. Those whose bundles pin them, transitively,
+        to the world are the product (`product` and `assemble` gather
+        them in this order); the rest are loose copies, each in a space
+        of its own (`Evaluation.loose`). Written through `place` and
+        `Node.instantiate_part`, and nothing else: no edit places as a
+        side effect."""
 
-    def offset(self, node: NodeId) -> Optional[Placement]:
-        """An instance's OFFSET in its gauge, or `None` when it carries
-        none. On its group's root the offset places the group; on any
-        other member it is a statement the solve checks. An instance
-        with no offset sits where its mates put it, and a group none of
-        whose members carries one is unplaced. This is the AUTHORED
-        offset; an instance's world pose is `SolvedPoses.placement`.
-        Raises `ValueError` for a node that does not instantiate a
-        part."""
+    @property
+    def world(self) -> NodeId:
+        """The world: the node every document holds from its creation,
+        which no edit deletes or writes (`world_is_undeletable`). A
+        constraint side that reads the world (`Mate.world_pin`) pins its
+        copy to it; it is not among the document's nodes (`order`)."""
 
-    def gauge(self, node: NodeId) -> Optional[NodeId]:
-        """The GAUGE an instance or a gauge sits on, or `None` for the
-        world. A reference to a deleted gauge is kept, dangling, and
-        reads back as the id it names: the group it reaches is unplaced
-        (`dead_gauge`) until `DocEdit.set_gauge` names a live one.
-        Raises `ValueError` for a node that is neither an instance nor
-        a gauge."""
+    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate]]:
+        """A placement's bundle: each constraint by its address, with
+        its mate as written, in the bundle's order. Raises `EditError`
+        (`constraint_on_non_placement`) for a node that holds no bundle,
+        and (`unknown_node`) for one this document does not hold."""
+
+    def constrain(
+        self, placement: NodeId, mate: Mate, *, resolver: Optional[Workspace] = None
+    ) -> MateRef:
+        """Add `mate` to `placement`'s bundle and answer the
+        constraint's address: `apply` of `DocEdit.add_constraint`, the
+        id minted by the edit. Refuses typed on `EditError`:
+        `constraint_on_non_placement`, `mate_refused` (the solve's own
+        admission of the datum — `mate_overconstrained` where the
+        bundle already pins the copy), and the slot doors' refusals.
+        `resolver` is the seam the admission reads the parts through, as
+        `apply`'s."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3966,8 +3851,8 @@ class Doc:
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
         `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
-        `transform`, `place_in_world`, `pattern`, `part`, `placed_union`,
-        `instantiate_part`, `mate`, `gauge`, `measure`, `assertion`.
+        `transform`, `place`, `world`, `pattern`, `part`, `placed_union`,
+        `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         transform and a placed union all evaluate to a value whose
@@ -4038,22 +3923,28 @@ class Doc:
 
     def place(
         self,
-        body: _BodyArg,
-        pose: Optional[Placement] = None,
+        shapes: _BodyArg | Sequence[_BodyArg],
+        constraints: Optional[Sequence[Mate]] = None,
         *,
         label: Optional[str] = None,
     ) -> NodeId:
-        """Place one copy of `body` in the world at `pose`, the identity
-        when `None`, and return the placement's id.
+        """Place one copy of `shapes`, placed by `constraints`, and
+        return the placement's id: the Rust façade's `DocEdit::place`,
+        the insert of `Node.place(shapes, constraints)`.
+
+        `shapes` is one body argument or a sequence of them; over
+        several the copy is a keyed enumeration. `constraints` is the
+        bundle: `None` pins the copy to the world at the identity
+        (`[Mate.world_pin()]`), a copy at a world pose is
+        `[Mate.world_pin(pose)]`, and `[]` a loose copy, in a space of
+        its own until a constraint pins it.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
-        placed and the boolean unplaced until it is placed here. The
-        edit is the Rust façade's `DocEdit::place`, the insert of
-        `Node.place_in_world(body, pose)`. A split's half is placed by
-        its output, `place(doc.output(split, 1))`. Two placements of one
-        body are two copies. `label=` labels the placement in the same
-        call, as `insert`'s does."""
+        placed and the boolean unplaced until it is placed here. A
+        split's half is placed by its output, `place(doc.output(split,
+        1))`. Two placements of one body are two copies. `label=`
+        labels the placement in the same call, as `insert`'s does."""
 
     @property
     def node_count(self) -> int: ...
@@ -5558,13 +5449,16 @@ class Evaluation:
         neither, so on a refusal path the sum undershoots
         `len(order())` by exactly the number of poisonings. A node that
         ran and FAILED counts here: it ran."""
-    def unplaced(self, node: NodeId) -> Optional[tuple[NodeId, str]]:
-        """Whether `node`'s value lives in an UNPLACED group's own
-        space: `(root, cause)` — the group, by its root, and
-        `no_offset` or `dead_gauge` — or `None` for a node in the
-        world. An unplaced group evaluates in its own frame; the
-        product gathers only the world, and nothing outside the group
-        is compared with it."""
+    @property
+    def loose(self) -> list[NodeId]:
+        """Every loose copy, by its placement, in id order: a placement
+        whose bundle pins less than its copy needs, so it lives in a
+        space of its own. The product gathers only the world's space,
+        and nothing in one space is compared with another's."""
+    def space(self, node: NodeId) -> Literal["world"] | NodeId:
+        """The space `node`'s value lives in: `"world"`, or the loose
+        copy whose space it is, by its placement. A node that denotes
+        no geometry answers `"world"`."""
     @property
     def reused(self) -> int:
         """How many nodes came from `evaluate`'s `prior=` memo without
@@ -5689,21 +5583,21 @@ def evaluate(
 # Two part documents in a store, instances of them in a third, mates
 # saying how the instances meet, and one gate that says whether the
 # result is valid at rest. Authoring is `Node.instantiate_part` +
-# `Node.gauge` + `DocEdit.set_offset` / `DocEdit.set_gauge` +
-# `Node.mate`; reading is `solve_document`, `product` and `assemble`;
-# refactoring is `split` / `inline`.
+# `Doc.place` + `Mate` / `Mate.world_pin` + `Doc.constrain`; reading
+# is `solve_document`, `product` and `assemble`; refactoring is
+# `split` / `inline`.
 #
-# Placement lives on a GAUGE: each instance names its gauge (the
-# world by default) and may carry an offset in it. Mates place
-# instances relative to one another only within one gauge, and the
-# instances they join form a GROUP whose ROOT is its earliest member
-# carrying an offset: the group's frame is its gauge chain composed
-# with that offset, and every other member's world pose is SOLVED
-# from the mates and composed outward. That is why `Doc.offset` and
-# `SolvedPoses.placement` are two different questions. A group
-# nothing places — its gauge, its placed member or its placing mate
-# deleted — is UNPLACED: it evaluates in its own frame and nothing
-# outside it is compared with it (`SolvedPoses.unplaced`).
+# A copy is made by a PLACEMENT — a `Place` over shapes, or an
+# instance, which is its part's world, moved — and placed by its
+# BUNDLE: the constraints (`Mate`s) it holds, each addressed by a
+# `MateRef`, never a node. One side of each constraint is on the copy;
+# the other reads the world (`Mate.world_pin`) or another copy. A
+# bundle that pins the copy fully puts it in its target's space, and
+# pinned, transitively, to the world it is in the product. A bundle
+# that pins less is a LOOSE copy: it lives in a space of its own, not
+# in the product, and nothing outside it is compared with it
+# (`Evaluation.loose`). `SolvedPoses.pose` is a placement's pose in
+# its target's space; `SolvedPoses.placement` its world pose.
 
 class MateFrame:
     """One side's mate frame: a base composed with an offset, a
@@ -5773,9 +5667,16 @@ class MateFrame:
         the face's frame: origin on the face, +Z along its chart axis,
         +Y along its reference direction."""
 
+    @staticmethod
+    def on_world(offset: Placement) -> MateFrame:
+        """The world's frame composed with `offset`, in world
+        coordinates: the frame of a side that reads the world
+        (`Mate.world_pin`'s `a` side)."""
+
     @property
-    def base(self) -> Literal["part", "face"]:
-        """What the offset is written in: `"part"` or `"face"`."""
+    def base(self) -> Literal["part", "face", "world"]:
+        """What the offset is written in: `"part"`, `"face"` or
+        `"world"`."""
 
     @property
     def offset(self) -> Placement:
@@ -5904,8 +5805,9 @@ CLASS_DEFERRAL: Final[str]
 """The v1 class restriction, named: what a class outside the admitted
 vocabulary refuses with."""
 
-UNDER_RECOURSE: Final[str]
-"""The recourse an under-determined tree mate's refusal ends on."""
+OVERCONSTRAINED_RECOURSE: Final[str]
+"""The recourse an over-constrained bundle's refusal ends on: delete
+one of the named constraints."""
 
 CONTRADICTORY_RECOURSE: Final[str]
 """The recourse a mate contradiction's refusal ends on — one sentence
@@ -5916,22 +5818,102 @@ NO_AT_REST_RECORD_RECOURSE: Final[str]
 """The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
 `Rest` is the one class v1 mints and verifies at rest."""
 
-OFFSET_RECOURSE: Final[str]
-"""The recourse a checked offset's refusal (`mate_offset_disagrees`)
-ends on: clear the offset, or change the mate."""
+class ConstraintId:
+    """A constraint's id: minted by the edit that adds it to a
+    placement, never reused and never positional. Opaque — read off a
+    `MateRef` and handed back, compared, ordered and hashed, never
+    built."""
 
-UNPLACED_RECOURSE: Final[str]
-"""The recourse an unplaced group's refusals end on: how to place it —
-an offset, a live gauge, or a mate to a placed instance on its gauge."""
+    def __eq__(self, other: object) -> bool: ...
+    def __lt__(self, other: ConstraintId) -> bool: ...
+    def __le__(self, other: ConstraintId) -> bool: ...
+    def __gt__(self, other: ConstraintId) -> bool: ...
+    def __ge__(self, other: ConstraintId) -> bool: ...
+    def __hash__(self) -> int: ...
 
-class MateRole:
-    """What a mate did in the solve: `Determining` (a tree mate — it
-    placed its child), `Declaring` (it solved nothing and is carried
-    to evaluation as a pure contact declaration), `Refused`."""
+class MateRef:
+    """A constraint's address: the placement that holds it and the id
+    minted with it. What every fault about one mate names, what
+    `Doc.constrain` answers and `DocEdit.remove_constraint` takes.
+    Hashable, and ordered by placement, then id."""
 
-    Determining: Final[MateRole]
-    Declaring: Final[MateRole]
-    Refused: Final[MateRole]
+    def __init__(self, placement: NodeId, constraint: ConstraintId) -> None: ...
+    @property
+    def placement(self) -> NodeId:
+        """The placement holding the constraint."""
+    @property
+    def constraint(self) -> ConstraintId:
+        """The constraint's id."""
+    def __eq__(self, other: object) -> bool: ...
+    def __lt__(self, other: MateRef) -> bool: ...
+    def __le__(self, other: MateRef) -> bool: ...
+    def __gt__(self, other: MateRef) -> bool: ...
+    def __ge__(self, other: MateRef) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Mate:
+    """A mate: two sides and the alignment datum relating them, with
+    the contact class it declares — ONE value carrying both the
+    placement constraint and the contact declaration. A mate is a
+    constraint of the placement that holds it (`Doc.constrain`,
+    `Doc.place(shapes, constraints)`), never a node.
+
+    Each face side is a node and a name: `a_at` / `b_at` is the node
+    the face is read at — whose geometry the mate speaks about — and
+    `a` / `b` the name text of a face of that node's output, what
+    `Evaluation.select` answers with. One side must be on the
+    placement's own copy (a face of one of its shapes, or of the
+    instance itself), else the solve refuses `mate_not_on_the_copy`;
+    the other reads a pose outside the copy.
+
+    `class_` is the declared contact class; ask `class_admission`
+    BEFORE authoring, because a class the solve folds may still mint
+    nothing at the at-rest gate. `alignment` is AUTHORED data —
+    nothing checks it against the faces `a` and `b` name, so a mate
+    can solve cleanly and still be refuted at the gate.
+
+    A head must name a FACE, and that IS refused here: `a` or `b`
+    naming an edge raises `EditError` with `variant ==
+    "mate_head_not_a_face"` at this call. A dangling reference is not
+    refused here: the solve refuses typed naming its head
+    (`mate_dangling_head`), or the side's read when it is no face of a
+    live body (`mate_side_unresolved`) — or, where the head resolves
+    and a pattern or transform placing it could not derive a pose,
+    naming that placer (`mate_placer_refused`)."""
+
+    def __init__(
+        self,
+        a_at: NodeId,
+        a: str,
+        b_at: NodeId,
+        b: str,
+        class_: ContactClass,
+        alignment: Alignment,
+    ) -> None: ...
+    @staticmethod
+    def world_pin(pose: Optional[Placement] = None) -> Mate:
+        """A copy pinned to the world at `pose`, the identity when
+        `None`: one coincidence of the world's frame, moved by `pose`,
+        with the placement's own copy's frame. The world is the `a`
+        side, so the copy sits at `pose` bit for bit. Each rigid step's
+        components are checked against their slot, as
+        `Node.transform_by`'s are."""
+    @property
+    def class_(self) -> ContactClass:
+        """The declared contact class."""
+    @property
+    def alignment(self) -> Alignment:
+        """The alignment datum."""
+    @property
+    def a(self) -> Literal["face", "copy", "world"]:
+        """What the `a` side reads: a face, the placement's own copy
+        (by its part frame), or the world."""
+    @property
+    def b(self) -> Literal["face", "copy", "world"]:
+        """What the `b` side reads, in `a`'s words."""
+    def __eq__(self, other: object) -> bool:
+        """BIT-exact: the same sides and class, and alignments equal by
+        `Alignment.__eq__`'s rule."""
 
 class Subgroup:
     """A residual subgroup: what a fold left free.
@@ -5956,9 +5938,9 @@ class Subgroup:
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
 class MateFault:
-    """Why the solve refused for one node — a VALUE, because the solve
-    is total and records a refusal per node rather than failing the
-    document. `str(fault)` is the kernel's own prose.
+    """Why the solve refused for one placement — a VALUE, because the
+    solve is total and records a refusal per placement rather than
+    failing the document. `str(fault)` is the kernel's own prose.
 
     Every attribute is present on every arm and `None` where the arm
     does not carry it, so `getattr` never raises and a caller need not
@@ -5977,18 +5959,20 @@ class MateFault:
     fails in its own right, whose own failure states it. A raised
     `MateError` carries the same as its `__cause__`.
 
-    A checked offset's two faults name no mate: `mate_offset_disagrees`
-    carries `instance`, `root`, `predicate` and the measured `clash`
-    (with its lever, when levered); `mate_offset_unchecked` carries
-    `instance` and, on `inner_variant`, why the check could not run —
-    `placement_refused` (with `placer` and `error`, as a placer's
-    refusal), `unleverable`, or `indeterminate` (with the classifier's
-    words)."""
+    Every field that names a mate answers its address, a `MateRef`.
+    A bundle's two faults name the placement and its constraints:
+    `mate_overconstrained` carries `placement`, `constraints` (each
+    whose removal leaves the bundle's codimension unchanged) and
+    `residual` (what the rest of the bundle holds the copy to);
+    `mate_targets_differ` carries `placement` and the `constraints`
+    whose targets differ. `mate_not_on_the_copy` names the `mate` with
+    no side on its own copy, and `mate_side_base` the `mate`, the
+    `side` and the frame `base` its read does not admit."""
 
     @property
     def variant(self) -> str: ...
     @property
-    def mate(self) -> Optional[NodeId]: ...
+    def mate(self) -> Optional[MateRef]: ...
     @property
     def side(self) -> Optional[MateSide]: ...
     @property
@@ -6002,7 +5986,11 @@ class MateFault:
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property
-    def root(self) -> Optional[NodeId]: ...
+    def placement(self) -> Optional[NodeId]: ...
+    @property
+    def constraints(self) -> Optional[list[MateRef]]: ...
+    @property
+    def base(self) -> Optional[Literal["part", "face", "world"]]: ...
     @property
     def face(self) -> Optional[str]:
         """The face a `from_face` side read — its head's face, as its
@@ -6011,15 +5999,11 @@ class MateFault:
         (`mate_face_unresolved`)."""
 
     @property
-    def parent(self) -> Optional[NodeId]: ...
-    @property
-    def child(self) -> Optional[NodeId]: ...
-    @property
     def residual(self) -> Optional[Subgroup]: ...
     @property
-    def held(self) -> Optional[NodeId]: ...
+    def held(self) -> Optional[MateRef]: ...
     @property
-    def added(self) -> Optional[NodeId]: ...
+    def added(self) -> Optional[MateRef]: ...
     @property
     def predicate(self) -> Optional[str]: ...
     @property
@@ -6132,42 +6116,32 @@ class MateFault:
 
 
 class SolvedPoses:
-    """The document's solved poses: each instance's pose relative to
-    its group root, each mate's role, and the per-node refusals."""
+    """The document's solved poses: each placement's pose in its
+    target's space, and the per-placement refusals."""
 
-    def fault(self, node: NodeId) -> Optional[MateFault]:
-        """The node's recorded fault. Recorded against the refusing
-        MATE and against every instance in its group that
-        consequently has no pose — and no further.
+    def fault(self, placement: NodeId) -> Optional[MateFault]:
+        """The placement's recorded fault. Recorded against the
+        placement whose bundle it is about, and against every placement
+        pinned to it that consequently has no pose — and no further.
 
         Its words speak each node from the document as it was SOLVED:
         the fault is the solve's, recorded over that version, so a
         label set on the document afterwards does not reach it. Solve
         again to speak the current labels."""
 
-    def role(self, mate: NodeId) -> Optional[MateRole]: ...
-    def root(self, instance: NodeId) -> Optional[NodeId]:
-        """The instance's group root. A singleton is its own."""
+    def pose(self, placement: NodeId) -> Optional[Frame]:
+        """The placement's solved pose in its target's space: where its
+        bundle puts its copy relative to the copy it is pinned to (the
+        world, or another placement's copy), and in a loose copy's own
+        space the pose it is evaluated at. `None` for a node that is no
+        placement, or one whose bundle refused."""
 
-    def relative(self, instance: NodeId) -> Optional[Frame]:
-        """Its pose in its group's own space: where it sits when the
-        group's frame is the identity — relative to its root when no
-        placer stands on the path from the root, and in an unplaced
-        group the pose the group is evaluated at."""
-
-    def unplaced(self, instance: NodeId) -> Optional[str]:
-        """Why the instance's group is UNPLACED — `no_offset` (no
-        member carries an offset) or `dead_gauge` (its gauge chain
-        names a deleted gauge) — or `None` when it is placed or the
-        node is not a live instance. An unplaced group evaluates in its
-        own frame, and nothing outside it is compared with it."""
-
-    def placement(self, doc: Doc, instance: NodeId) -> Frame:
-        """The instance's WORLD placement, at the document's own
-        parameters: its group's frame — the gauge chain composed with
-        the root's offset — composed into the solved pose. A lone
-        instance returns its offset's frame on its gauge bit for bit,
-        and on the world at the empty offset the identity.
+    def placement(self, doc: Doc, placement: NodeId) -> Frame:
+        """The placement's WORLD pose, at the document's own
+        parameters: its solved pose composed into the world pose of the
+        copy it is pinned to. A copy pinned to the world at `pose`
+        returns that pose's frame bit for bit, and at the identity the
+        identity.
 
         `doc` must be the document this solve is OF. Passing another
         would compose this document's poses onto that one's
@@ -6175,20 +6149,20 @@ class SolvedPoses:
         first: a `SolvedPoses` carries the id of the document
         `solve_document` solved, and a mismatch raises MateError with
         tag `mate_poses_of_another_document` before any frame is
-        read. Raises MateError when the group did not solve, and
-        EvaluationError — kind `unplaced`, or `placement_refused` with
-        the placement's own refusal as the cause — when nothing places
-        its group or a placement on its frame does not evaluate.
+        read. Raises MateError when the bundle did not solve, and
+        EvaluationError — kind `space_mismatch` — when the copy is
+        loose, or pinned to a loose copy: it lives in a space of its
+        own and has no world pose.
 
         A MateError's words are the solve's fault, spoken from the
         document as it was solved; an EvaluationError's are read off
         `doc`, and spoken from it."""
 
 def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
-    """Solve the document's mates: the per-pair coset fold along a
-    deterministic spanning tree.
+    """Solve the document's bundles: each placement's constraints
+    folded into the coset they pin its copy to.
 
-    TOTAL — this never raises. A refusing group must not fail an
+    TOTAL — this never raises. A refusing bundle must not fail an
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
@@ -6206,35 +6180,20 @@ def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedP
     a document authored so can solve cleanly and still refuse at the
     gate."""
 
-def groups(doc: Doc) -> list[list[NodeId]]:
-    """The placement groups: instances coupled by PLACING mates (both
-    instances on one gauge), members in document order."""
-
-def root_of(doc: Doc, instance: NodeId) -> NodeId:
-    """An instance's group ROOT — the earliest member, in document
-    order, that carries an offset, whose offset on the group's gauge
-    places the whole group; the earliest instance when none does or its
-    gauge chain names a deleted gauge (the group is then unplaced). Answers the node itself when it is not a
-    live instance."""
-
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
-    """The relative-freedom partition: components over reads and
-    gauge references, so mates couple what they constrain. Coarser
-    than `groups`, which partitions instances alone."""
+    """The relative-freedom partition: the recipe's components over
+    its reads, each in document order. A constraint couples its copy
+    to its target because the placement holding it reads the target,
+    and two copies pinned against the world share the world."""
 
 class Maintenance:
     """One act of automatic maintenance an accepted edit performed:
-    the offset the mate door cleared, or a reference a delete stranded.
+    a reference a delete stranded, or an anonymous variable it removed.
 
     It rides the accepted edit rather than being an edit of its own —
     deterministic from the edit, so a replay reproduces it and undo
-    restores it exactly. What the record adds is VISIBILITY: a cleared
-    offset is said with the offset it held, and a stranded name is
-    said at the delete rather than at the next evaluation.
-
-    An `offset_cleared` names, on `node`, the root of the group a
-    placing mate's FIRST operand read: the mate placed that group on
-    its second operand's, so the root gave up its `offset`.
+    restores it exactly. What the record adds is VISIBILITY: a stranded
+    name is said at the delete rather than at the next evaluation.
 
     A `strand` names a node that survived the edit carrying a name
     whose referent the edit removed — its minting node, under a
@@ -6258,24 +6217,17 @@ class Maintenance:
     output the delete removed with its operation: the delete is legal,
     and the node refuses `unresolved_read` at evaluation until the
     operand is re-pointed (`DocEdit.set_members` for a list) or the
-    delete undone.
-
-    A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
-    of the document whose label went with it: no single unlabelled
-    node stood in for it. The label is in the row's message."""
+    delete undone."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, `stranded_read`,
-        `stranded_selection`, `stranded_appearance`, or
-        `label_dropped`."""
+        """`strand`, `stranded_read`, `stranded_selection`,
+        `stranded_appearance`, or `anonymous_var_removed`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
     @property
     def name(self) -> Optional[str]: ...
-    @property
-    def offset(self) -> Optional[Placement]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 
@@ -6285,7 +6237,7 @@ def product(doc: Doc, evaluation: Evaluation) -> Body:
     body.
 
     What a document IS — and for an assembly the only useful reading,
-    because an assembly's nodes are instances and mates and no single
+    because an assembly's nodes are placements and no single
     node's value is the assembly. A pure function of the placements
     and the evaluation; nothing is in it that `Doc.place` did not put
     there.
@@ -6333,7 +6285,7 @@ class MintedDeclaration:
     stable names, the alphabet the mate was authored in."""
 
     @property
-    def mate(self) -> NodeId: ...
+    def mate(self) -> MateRef: ...
     @property
     def a(self) -> str: ...
     @property
@@ -6364,7 +6316,7 @@ class Attribution:
     @property
     def declaration(self) -> MintedDeclaration:
         """The declaration named. Under a `carried_*` relation its
-        `mate` is a node of `of`."""
+        `mate` is a constraint of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6381,7 +6333,7 @@ class CarriedDeclaration:
     """One declaration a document BELOW this one authored, certified
     here with everything else the gate was given.
 
-    Same rule as every other foreign-mate value: the mate is a node of
+    Same rule as every other foreign-mate value: the mate is a constraint of
     `of`, so `of` and `via` travel with it."""
 
     @property
@@ -6415,8 +6367,9 @@ class MintRefusal:
         it declares nothing; `str(refusal)` says why)."""
 
     @property
-    def mate(self) -> NodeId:
-        """The mate that did not mint. Every arm carries one."""
+    def mate(self) -> MateRef:
+        """The mate that did not mint, by its address. Every arm
+        carries one."""
 
     @property
     def side(self) -> Optional[MateSide]:
@@ -6443,7 +6396,7 @@ class CarriedRefusal:
     """One mate a document BELOW this one could not mint — a row of
     `AssemblyError.refusals` under `carried_mint_refusal`.
 
-    `refusal.mate` is a node of `of`, not of the document that was
+    `refusal.mate` is a constraint of `of`, not of the document that was
     gathered, so the route travels with it."""
 
     @property
@@ -6650,44 +6603,34 @@ def split(
     never defaulted, and a fresh one is what lets both documents live
     in one store.
 
-    The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement groups. A part delivers only its world: the cut's world
-    placements are the part's, the remainder places one copy of the
-    instance left behind, and a remainder read of a cut body the cut
-    does not place refuses (`severed_edge`), as does a name reaching a
-    cut body no one cut placement places (`name_outside_part_world`).
-    Pure — `doc` is untouched. Raises SplitError, typed, naming the
-    offending edge, group, parameter or name.
+    The cut must be ancestor- and consumer-closed, and takes whole
+    placements: a placement's constraints are its own, so a cut
+    placement whose bundle reads a kept copy severs that read
+    (`severed_edge`). A part delivers only its world: the cut's world
+    placements are the part's, and the remainder holds ONE instance of
+    the part pinned to the world at the identity, so its copies stand
+    where the cut's did. A remainder read of the cut crosses only where
+    the instance's copies carry what it reads, re-pointed to that copy
+    of the instance; any other is severed (`severed_edge`,
+    `remainder_read_uncarried`), as is a name reaching material the
+    part's world does not hold once (`name_outside_part_world`). Pure —
+    `doc` is untouched. Raises SplitError, typed, naming the offending
+    edge, constraint, parameter or name.
 
-    `resolver` is the document seam the part's mate inserts lever
+    `resolver` is the document seam the part's constraint inserts lever
     through where one carries a clocking rider, decided over the mated
     parts' own extent. The part being minted answers its own
     reference; `resolver` answers every other. Absent, such a rider
     raises `SplitError` carrying an `EditError` with variant
     `mate_refused`; a cut with none is unaffected.
 
-    The gauge rules (A4): every reference leaving the cut lands on ONE
-    anchor — a kept gauge or the world — which the instance left
-    behind names (`two_anchors`, its `instance` the cut node that
-    disagrees): a cut instance votes its gauge and a cut gauge its
-    parent, unless that reference stays inside the cut, and a cut root
-    that is no instance votes the world. A kept instance or gauge on a
-    cut gauge refuses (`severed_gauge`, its `node` the kept node
-    and its `gauge` the gauge). A placing mate never crosses: a cut that leaves behind the
-    mate placing its group refuses (`placing_mate_left`). The cut moves
-    as selected: every cut node is carried as it is, a cut gauge whose
-    parent leaves the cut on the part's world, every root keeps its
-    offset, and the instance left behind sits at the empty chain. A
-    part at a frame of its own is `DocEdit.promote` before the split,
-    with the promoted gauge left out of the cut. A dead gauge reference
-    refuses (`dead_gauge_reference`), as do a cut that holds no body
-    (`no_material`), a cut of unplaced material alone
-    (`unplaced_alone`), and a kept mate that would start
-    placing (`would_start_placing`), or whose cut side would change
-    coordinates (`mate_frame_crosses`): an authored side reading an
-    instance that is not, in the part, its group's root at the empty
-    chain, or a `MateFrame.from_face` side reading one in its group's
-    own space. A face side otherwise crosses with its head."""
+    A kept constraint reading a cut copy reads it in the instance: a
+    face frame rides its face; a frame on the copy's own part stands in
+    that copy's coordinates, which are the instance's only where the
+    copy is pinned to the world at the identity — otherwise the split
+    refuses `mate_frame_crosses` (`mate` the constraint, `node` its
+    placement). A cut holding no body refuses (`no_material`), and a
+    cut naming the world `cuts_the_world`."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the
@@ -6714,23 +6657,22 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     version on disk. Pure — `doc` is untouched. Raises InlineError,
     typed.
 
-    Where the content lands (A4): with the instance at the empty chain, on
-    its gauge as it is; at any other offset, on a gauge minted under
-    the instance's gauge holding that offset (a `DocEdit.promote` of the
-    instance), onto which the members the instance placed move (one
-    carrying a further offset refuses `moved_member_offset`). A
-    mate-placed instance inlines only over a part that is one group
-    rooted at the empty chain on its world, holding no gauge and no
-    other member carrying an offset, whose root takes its place;
-    otherwise it refuses `mate_placed`.
+    Where the content lands (A4): an instance pinned to the world at a
+    pose splices its part's placements with every constraint on the
+    part's world moved by that pose (at the identity, verbatim). An
+    instance placed by other constraints is inlined only over a part
+    whose one placement on its world is an instance pinned there at the
+    identity, which takes the instance's bundle in place of its pin;
+    otherwise it refuses `unplaceable_part` (`node` the instance). A
+    host constraint side reading the instance crosses the seam only
+    where its coordinates do not change (`mate_frame_crosses`,
+    `side_leaves_an_instance`; `mate` the constraint).
 
-    The host's identity placements of the instance are deleted — the
-    part's own placements arrive with its nodes — and a host node that
-    read the instance reads the inlined body: the body the part's one placement places. A part
-    whose world is not one body for that reader refuses
-    `instance_read_uncarried` (`by` the reader), and a host placement
-    with a pose of its own over a part whose world is not one identity
-    placement refuses `placement_pose_crosses` (`node` the placement)."""
+    A host node that read the instance reads the inlined copy the part's
+    one placement makes. A part whose world is not one body for that
+    reader refuses `instance_read_uncarried` (`by` the reader), and a
+    construction reading the instance's copy refuses
+    `construction_reads_copy`."""
 
 # --- the pin-update door ----------------------------------------------
 

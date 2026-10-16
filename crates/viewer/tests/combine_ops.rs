@@ -2615,7 +2615,7 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
         "the copy is the pattern's second instance, projected"
     );
     assert!(
-        matches!(doc.node(placement), Some(Node::PlaceInWorld { .. })),
+        matches!(doc.node(placement), Some(Node::Place { .. })),
         "and the copy is placed"
     );
     assert_eq!(
@@ -2864,7 +2864,7 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
     let applied = pncad::document::apply(
         session.committed_doc(),
-        &pncad::document::DocEdit::place(below.clone(), None),
+        &pncad::document::DocEdit::place_in_world(below.clone(), None),
         tol,
         &pncad::document::RefusingReach,
     )
@@ -3345,7 +3345,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     for port in [0, 1] {
         common::edit_into(
             &mut doc,
-            DocEdit::place(pncad::document::Operand::output(split, port), None),
+            DocEdit::place_in_world(pncad::document::Operand::output(split, port), None),
             tol,
         );
     }

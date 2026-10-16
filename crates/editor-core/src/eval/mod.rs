@@ -4066,10 +4066,17 @@ where
     // class: two outputs of one operation are two inputs, and a key
     // that saw only the operation would serve one half's body for the
     // other); a selection's read is its body's. Every operation here
-    // has its result (above).
+    // has its result (above). A placement's constraint side reading its
+    // own copy is no upstream read (`Doc::upstream_of`'s one exemption,
+    // the same predicate): the node's own key is what is being formed,
+    // and the side's selection names still key it.
     let reads: Vec<(RecipeNodeId, u8)> = node
         .operand_rows()
         .into_iter()
+        .filter(|&(seat, var)| {
+            !(matches!(seat, crate::OperandSlot::Side { .. })
+                && crate::mate::solve::reads_own_copy(doc, id, var))
+        })
         .flat_map(|(_, var)| doc.read_ports(var))
         .collect();
     let key_of = |at: &RecipeNodeId| {
@@ -4302,23 +4309,10 @@ where
         // dozen verdicts per hit, beside a precompute that just
         // replayed and validated the profile.
         let fresh = bracket.finish();
-        // A mate's log is the solve's recording for it and nothing
-        // else (its op decides nothing), and the solve runs afresh
-        // every evaluation: what it decides about a mate reads the
-        // mates folded before it, which the mate's key does not. So a
-        // reused mate carries this run's recording, the log a fresh
-        // evaluation of it would carry.
-        if let Some(spliced) = &spliced {
-            mate_log_is_the_solves(id, &fresh, spliced);
-            return NodeStep {
-                result: NodeResult::Ok(NodeValue {
-                    verdicts: Arc::new(fresh.verdicts),
-                    escalations: Arc::new(fresh.escalations),
-                    ..v.clone()
-                }),
-                reused: true,
-            };
-        }
+        // A placement's frame opens with the solve's decisions about its
+        // bundle, which read only what its key fixes (its constraints,
+        // their reads, its anchor's frame), so D9 makes them the reused
+        // log's opening too: the prefix assert below covers them.
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),
@@ -4366,7 +4360,7 @@ where
     };
     let recorded = bracket.finish();
     if let Some(spliced) = &spliced {
-        mate_log_is_the_solves(id, &recorded, spliced);
+        placement_log_opens_with_the_solves(id, &recorded, spliced);
     }
     let escalations = Arc::new(recorded.escalations);
     match (op, placement) {
@@ -4411,14 +4405,12 @@ where
     }
 }
 
-/// **A mate's frame holds exactly what the solve recorded for it.** A
-/// mate's key and its op decide nothing, which is what lets a reused
-/// mate carry this run's recording in place of its prior log (the memo
-/// hit's mate arm, which bypasses the prefix assert). A mate op or key
-/// that comes to decide anything breaks that, and trips here. The
+/// **A placement's frame opens with exactly what the solve recorded
+/// for its bundle**, spliced in before any of its own decisions; its
+/// op's decisions (placing its copies, an instance's part) follow. The
 /// escalations compare by predicate, since a margin that is no number
 /// compares unequal to itself.
-fn mate_log_is_the_solves(
+fn placement_log_opens_with_the_solves(
     id: RecipeNodeId,
     frame: &geom_core::k_stats::Recorded,
     spliced: &geom_core::k_stats::Recorded,
@@ -4427,8 +4419,9 @@ fn mate_log_is_the_solves(
         r.escalations.iter().map(|e| e.predicate()).collect()
     };
     assert!(
-        frame.verdicts == spliced.verdicts && named(frame) == named(spliced),
-        "mate {id}'s frame holds decisions the solve did not record for it"
+        frame.verdicts.starts_with(&spliced.verdicts)
+            && named(frame).starts_with(&named(spliced)),
+        "placement {id}'s frame does not open with the solve's decisions about its bundle"
     );
 }
 

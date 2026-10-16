@@ -177,8 +177,12 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     assert!(
         matches!(
             doc.node(placement),
-            Some(Node::PlaceInWorld { body, pose })
-                if Some(body.read) == doc.output(extrude, 0) && pose.steps.is_empty()
+            Some(Node::Place { shapes, constraints })
+                if matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0))
+                    && matches!(constraints.as_slice(), [pin]
+                        if pin.mate.bit_eq(&pncad::document::Mate::world_pin(
+                            pncad::document::Placement::IDENTITY,
+                        )))
         ),
         "the extrude's identity placement"
     );

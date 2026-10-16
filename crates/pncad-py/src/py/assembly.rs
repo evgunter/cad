@@ -3,8 +3,8 @@
 //! `product` is the gather of the document's world: every copy a
 //! placement defines, in the placements' document order, as one body.
 //! It answers "what IS this document", which for an assembly is the
-//! only useful question — an assembly's nodes are instances and mates,
-//! and no single node's value is the assembly.
+//! only useful question — an assembly's nodes are placements, and no
+//! single node's value is the assembly.
 //!
 //! `assemble` is the gather PLUS the check: it mints every solved
 //! mate's declaration into the product's contact-record set and runs
@@ -154,8 +154,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// defines, in the placements' document order, gathered into one body.
 ///
 /// This is what a document IS, and for an assembly it is the only
-/// useful reading: an assembly's nodes are instances and mates, and no
-/// single node's value is the assembly. What is gathered is what the
+/// useful reading: an assembly's nodes are placements, and no single
+/// node's value is the assembly. What is gathered is what the
 /// document places — read through `Doc.placements`, written through
 /// `Doc.place` — and nothing places as a side effect of another edit.
 ///
@@ -388,7 +388,7 @@ impl Attribution {
     }
 
     /// The declaration named. Under a `carried_*` relation its `mate`
-    /// is a node of `of`, not of the document that was gathered.
+    /// is a constraint of `of`, not of the document that was gathered.
     #[getter]
     fn declaration(&self) -> MintedDeclaration {
         MintedDeclaration(self.0.declaration().clone())
@@ -549,7 +549,7 @@ impl MintRefusal {
 /// One mate a document BELOW this one could not mint, with the route
 /// this document reached it by.
 ///
-/// The mate is a node of `of`, not of the document that was gathered
+/// The mate is a constraint of `of`, not of the document that was gathered
 /// — the same rule every foreign-mate row follows — so `of` is the
 /// file to open and `via` the instances in between, nearest first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -769,8 +769,8 @@ impl InterferenceFinding {
 /// One declaration a document BELOW this one authored, certified here
 /// with everything else the gate was given.
 ///
-/// The same rule as the foreign-mate arms above: the mate is a node of
-/// `of`, so `of` and `via` travel with it.
+/// The same rule as the foreign-mate arms above: the mate is a
+/// constraint of `of`, so `of` and `via` travel with it.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CarriedDeclaration(d::CarriedDeclaration);

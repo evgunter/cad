@@ -1779,17 +1779,24 @@ impl Evaluation {
             .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
-    /// Whether `node`'s value lives in an **unplaced group's own
-    /// space** (A11 (2)): `(root, cause)` — the group, by its root, and
-    /// `no_offset` or `dead_gauge` — or `None` for a node in the world.
-    /// An unplaced group evaluates in its own frame; the product gathers
-    /// only the world, and nothing outside the group is compared with
-    /// it.
-    fn unplaced(&self, node: &NodeId) -> Option<(NodeId, &'static str)> {
-        self.inner
-            .unplaced
-            .get(&node.0)
-            .map(|(root, cause)| (NodeId(*root), crate::tags::unplaced_tag(cause)))
+    /// **Every loose copy**, by its placement, in id order: a
+    /// placement whose bundle pins less than its copy needs, so it
+    /// lives in a space of its own. The product gathers only the
+    /// world's space, and nothing in one space is compared with
+    /// another's.
+    #[getter]
+    fn loose(&self) -> Vec<NodeId> {
+        self.inner.loose_roots().into_iter().map(NodeId).collect()
+    }
+
+    /// **The space `node`'s value lives in**: `"world"`, or the loose
+    /// copy whose space it is, by its placement. A node that denotes no
+    /// geometry answers `"world"`.
+    fn space(&self, py: Python<'_>, node: &NodeId) -> PyResult<Py<PyAny>> {
+        match self.inner.space(node.0) {
+            d::Space::World => Ok(PyString::new(py, "world").unbind().into_any()),
+            d::Space::Loose { root } => Ok(Py::new(py, NodeId(root))?.into_any()),
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -1799,11 +1806,9 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through`, a wrong-kind value adds `kind`, and an unplaced export
-/// adds `parts` — each unplaced part as `(node, root, cause)`, the
-/// cause [`crate::tags::unplaced_tag`]'s word, and a group in a part
-/// below as `(instance, root, cause)`, the instance it arrived through
-/// and its root in the part's own ids. The message is the door's own
+/// `through`, a wrong-kind value adds `kind`, and a loose export adds
+/// `copies` — every loose copy the export would have to write, by its
+/// placement. The message is the door's own
 /// sentence, its nodes spoken from the evaluated document.
 fn export_err(
     py: Python<'_>,
@@ -1826,7 +1831,7 @@ fn export_err(
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
-        ("parts", py.None().into_any()),
+        ("copies", py.None().into_any()),
     ];
     match err {
         E::Standing(standing) => {
@@ -1841,38 +1846,10 @@ fn export_err(
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
-        // A group below: the instance it arrived through, its root in
-        // the part's own id space, and its cause; the whole route is in
-        // the message.
-        E::UnplacedBelow { groups } => {
-            let listed: Vec<(NodeId, NodeId, &'static str)> = groups
-                .iter()
-                .map(|row| {
-                    (
-                        NodeId(row.route.through),
-                        NodeId(row.group),
-                        crate::tags::unplaced_tag(&row.cause),
-                    )
-                })
-                .collect();
+        E::Loose { copies } => {
+            let listed: Vec<NodeId> = copies.iter().copied().map(NodeId).collect();
             match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
-                Err(failed) => return failed,
-            }
-        }
-        E::Unplaced { parts } => {
-            let listed: Vec<(NodeId, NodeId, &'static str)> = parts
-                .iter()
-                .map(|(part, root, cause)| {
-                    (
-                        NodeId(*part),
-                        NodeId(*root),
-                        crate::tags::unplaced_tag(cause),
-                    )
-                })
-                .collect();
-            match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
+                Ok(bound) => fields[4] = ("copies", bound.unbind().into_any()),
                 Err(failed) => return failed,
             }
         }

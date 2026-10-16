@@ -77,7 +77,7 @@ pub use reach::{
 pub(crate) use solve::solve_with_env;
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, relative_freedom_components, solve_document,
-    solve_document_at,
+    solve_document_at, solve_document_by_placement,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,

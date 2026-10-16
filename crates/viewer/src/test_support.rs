@@ -223,7 +223,12 @@ pub fn placed(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    inserted(doc, Node::place_in_world(body, Placement::IDENTITY), tol)
+    let DocEdit::InsertNode { node, .. } =
+        DocEdit::<ProfileProgram>::place_in_world(body, Some(Placement::IDENTITY))
+    else {
+        unreachable!("`DocEdit::place_in_world` is an insert")
+    };
+    inserted(doc, *node, tol)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and

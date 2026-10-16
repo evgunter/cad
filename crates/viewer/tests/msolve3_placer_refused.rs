@@ -18,8 +18,8 @@ use pncad::document::ExtrudeSide;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
     Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, evaluate,
+    Mate, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SideRead, SlotId, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -67,15 +67,17 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         },
         tol,
     );
-    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
+    let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
     let frame = |origin: [f64; 3], axis: [f64; 3]| {
         MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
             .expect("a definite frame")
     };
-    let (doc, mate) = common::inserted(
+    let (doc, _) = common::edited(
         &doc,
-        Node::Mate {
-            a: (common::head(StableName {
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(Mate {
+                a: SideRead::Face((common::head(StableName {
                 kind: EntityKind::Face,
                 node: pattern,
                 path: vec![RoleSeg::Instance {
@@ -83,19 +85,23 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                     of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
             }))
-            .into(),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+            .into()),
+                b: SideRead::Face(common::head(in_part(cap, top_body, CapEnd::Start)).into()),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
         },
         tol,
     );
+    // The mate's row is the row of the placement it places.
+    let mate = cap;
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
@@ -222,7 +228,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         }
         None => (doc, None),
     };
-    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
+    let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
     let named = StableName {
         kind: EntityKind::Face,
         node: pattern,
@@ -242,22 +248,28 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
-    let (doc, mate) = common::inserted(
+    let (doc, _) = common::edited(
         &doc,
-        Node::Mate {
-            a: a.into(),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(Mate {
+                a: SideRead::Face(a.into()),
+                b: SideRead::Face(common::head(in_part(cap, top_body, CapEnd::Start)).into()),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
         },
         tol,
     );
+    // The mate's row is the row of the placement it places.
+    let mate = cap;
     Copies {
         doc,
         opts: with_resolver(store),

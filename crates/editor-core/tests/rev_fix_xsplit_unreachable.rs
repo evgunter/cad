@@ -23,8 +23,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, Formula, Mate, MateFrame,
-    MateRef, MatePrimitive, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
-    StableName, derivation_nodes, split,
+    MatePrimitive, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId, SideRead, StableName,
+    derivation_nodes, split,
 };
 use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -268,10 +268,10 @@ fn three_shapes() -> ProfileDoc {
     // two-level nest, which is the name such a table never mints:
     // NOT an edge, welds nothing. The constraint door refuses such a
     // head, so it is authored the way one arises after the add
-    // (`insert_mate_with_stranded_head`), on an instance of its own.
+    // (`constrain_with_dangling_side`), on an instance of its own.
     let (e_ref, e_body) = block_ref("rev-xs-e");
     let (doc, e) = insert(doc, fixture::mated_instance(e_ref));
-    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+    let (doc, _) = crate::fix_pattern_mate_crossing::constrain_with_dangling_side(
         doc,
         seat(
             in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
@@ -310,7 +310,7 @@ fn foreign_master() -> ProfileDoc {
     // The head resolves to no member (the walk reaches `a` under a
     // name whose master is `c`), which the insert door refuses: it is
     // authored the way such a head arises after insert.
-    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+    let (doc, _) = crate::fix_pattern_mate_crossing::constrain_with_dangling_side(
         doc,
         seat(
             in_copy(pa, 2, in_part(c, c_body, CapEnd::End)),
@@ -348,7 +348,10 @@ fn every_cut_mints_exactly_its_straddling_member_edges() {
 fn a_pattern_head_whose_master_names_a_foreign_instance_still_cannot_cross() {
     let seen = sweep_every_cut(&foreign_master(), "foreign");
     assert!(seen.accepted > 0, "the sweep accepted nothing: vacuous");
-    assert_eq!(seen.crossings, 0, "the dangling head welds nothing, so nothing crosses");
+    assert_eq!(
+        seen.crossings, 0,
+        "the dangling head welds nothing, so nothing crosses"
+    );
     eprintln!(
         "foreign: {} accepted, {} refused, {} straddling remainder constraints, {} crossings",
         seen.accepted, seen.refused, seen.straddling_mates, seen.crossings

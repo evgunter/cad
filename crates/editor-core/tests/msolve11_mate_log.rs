@@ -23,7 +23,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, Mate, MateFrame, MateRef, MatePrimitive, Node, NodeResult, PatternKind,
+    Evaluation, Formula, Mate, MateFrame, MatePrimitive, MateRef, Node, NodeResult, PatternKind,
     ProfileDoc, RecipeNodeId, SitedFace, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -418,25 +418,28 @@ fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
 /// splits over that lever: a sine levered by `1e300` is a vector whose
 /// squared length overflows unless the sine is exactly zero. The fold
 /// forms each constraint's lever through `Arm::of`, which refuses it
-/// typed — at the rest, the first constraint whose lever is formed,
+/// typed — at the rest, the constraint whose lever leaves the range,
 /// carrying both halves and the range recourse — so no predicate is
 /// handed it, and no escalation names the parallelism predicate.
 #[test]
 fn a_lever_out_of_range_refuses_typed_through_the_solve() {
     let mut s = scene("msolve11-range-solve");
-    let rest = s.add(seat(
-        s.base_top(),
-        s.other_bottom(),
-        on_base((2.0, 2.0)),
-        MatePrimitive::PlanarRest { offset: 1e300 },
-        None,
-    ));
+    // The pin first: the door folds the bundle as it stands without
+    // the constraint being added, so the rest is admitted, and the
+    // lever out of range is met where the solve folds the two.
     s.add(seat(
         s.base_top(),
         s.other_bottom(),
         on_base((2.0, 2.0)),
         MatePrimitive::Coaxial,
         Some(0.0),
+    ));
+    let rest = s.add(seat(
+        s.base_top(),
+        s.other_bottom(),
+        on_base((2.0, 2.0)),
+        MatePrimitive::PlanarRest { offset: 1e300 },
+        None,
     ));
     let ev = fixture::run(&s.doc, &s.opts);
     let fault = match ev.result(s.other) {
@@ -448,7 +451,7 @@ fn a_lever_out_of_range_refuses_typed_through_the_solve() {
     };
     assert!(
         matches!(fault, editor_core::MateFault::Unleverable { mate, .. } if mate == rest),
-        "the rest is the first constraint whose lever is formed: {fault:?}"
+        "the rest is the constraint whose lever leaves the range: {fault:?}"
     );
     let editor_core::LeverRefusal::OutOfRange { parts, datum } = *unleverable(&fault) else {
         panic!("expected the range refusal, got {fault:?}");

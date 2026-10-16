@@ -33,8 +33,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
     FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, MateFrame,
-    MatePrimitive, Node, Operand, Placement, ProfileDoc, RecipeNodeId, RoleSeg, SideRead,
-    SplitError, StableName, apply, inline, split,
+    MatePrimitive, Node, Placement, ProfileDoc, RecipeNodeId, RoleSeg, SideRead, SplitError,
+    StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step, step_with};
@@ -581,15 +581,16 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
 /// document being non-empty.
 ///
 /// The document holds a neighbour instance that `inline` never
-/// removes, so `!order().is_empty()` would hold however little the
-/// splice contributed; the order's GROWTH by the part's node count is
-/// what only the splice can produce.
+/// removes, so a non-empty document would hold however little the
+/// splice contributed; the document's GROWTH by the part's node count
+/// (the world, which every document holds, aside) is what only the
+/// splice can produce.
 #[test]
 fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(part_doc("crossnames-inline-part"), Tol::witness());
     // The part as stored: its recipe and the placement of its body.
-    let part_nodes = store.doc(doc_ref.id).ids().len();
+    let part_nodes = store.doc(doc_ref.id).len();
     let (doc, neighbour) = insert(
         ProfileDoc::empty(DocumentId::derive("crossnames-inline"), Tol::witness()),
         Node::instantiate_part(doc_ref),
@@ -599,7 +600,7 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
         crossings: vec![crossing(outer, part_side(body, CapEnd::End))],
     };
     let (doc, instance) = with_record(doc, doc_ref, record);
-    let before = doc.ids().len();
+    let before = doc.len();
 
     let back = inline(
         &doc,
@@ -613,7 +614,7 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
         "the instance is gone, and its record with it"
     );
     assert_eq!(
-        back.doc.ids().len(),
+        back.doc.len(),
         before - 1 + part_nodes,
         "the instance went and the part's own nodes came in its place — a count the \
          untouched neighbour cannot supply"

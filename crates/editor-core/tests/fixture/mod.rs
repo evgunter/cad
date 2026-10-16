@@ -244,24 +244,21 @@ pub fn constrain_with(
 }
 
 /// **Every decision the mate solve makes is on exactly one placement's
-/// log, and on no frame outside the evaluation's nodes.**
+/// log, opening it, and on no frame outside the evaluation's nodes.**
 ///
-/// The reference is the same solve through the ordinary door
-/// ([`solve`]), which records into the caller's frame in decision
-/// order — what a frame around the evaluation received while the
-/// solve recorded nowhere else. Against it, over the evaluation `ev`
-/// of `doc` and what it recorded outside its nodes (`outside`):
+/// The reference is the same solve with each placement's decisions kept
+/// apart ([`editor_core::solve_document_by_placement`]), levered as
+/// [`solve`] levers it. Against it, over the evaluation `ev` of `doc`
+/// and what it recorded outside its nodes (`outside`):
 ///
 /// - `outside` holds nothing;
-/// - every mate's escalation log is the reference's escalations taken
-///   in order (a subsequence), and the mates' logs together are the
-///   reference's, element for element, unless a mate was poisoned
-///   through a body it reads, which leaves it no log;
-/// - the same of the verdicts, over the mates that evaluate `Ok`, and
-///   exactly the reference's only when every mate does. A failed node
-///   carries no verdict log, so for a document with a failing mate the
-///   verdicts are checked only as far as the `Ok` mates go, and the
-///   escalations are the one channel compared whole.
+/// - every placement the solve decided anything about has a log that
+///   OPENS with its share: the escalations whether it evaluates `Ok`
+///   or fails, the verdicts when it is `Ok` (a failed node carries no
+///   verdict log), and nothing when it was poisoned through a body it
+///   reads, which leaves it no log;
+/// - the solve decided nothing about a placement it kept no share for,
+///   so such a placement's log holds its op's decisions alone.
 ///
 /// Entries compare by their `Debug` spelling, which a margin that is
 /// no number compares equal under.
@@ -272,97 +269,37 @@ pub fn solve_decisions_have_one_home(
     outside: &geom_core::k_stats::Recorded,
 ) {
     let label = doc.id();
-    let reference = {
-        let bracket = geom_core::k_stats::Bracket::open();
-        drop(solve(doc, o, Tol::witness()));
-        bracket.finish()
-    };
+    let reach = mate_reach::<f64>(o, Tol::witness());
+    let (_, shares) = editor_core::solve_document_by_placement(doc, &reach, Tol::witness());
     assert!(
         outside.escalations.is_empty() && outside.verdicts.is_empty(),
         "document {label}: the evaluation recorded outside its nodes: {outside:?}"
     );
     let spell = |xs: &[_]| -> Vec<String> { xs.iter().map(|x| format!("{x:?}")).collect() };
-    let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
-    let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
-    let mut every_mate_ok = true;
-    let mut every_mate_ran = true;
-    for id in constrained(doc) {
-        match ev.result(id) {
+    let opens = |what: &str, id: RecipeNodeId, log: Vec<String>, share: Vec<String>| {
+        assert!(
+            log.starts_with(&share),
+            "document {label}: placement {}'s {what} log does not open with the solve's \
+             share: {log:?} against {share:?}",
+            id.0
+        );
+    };
+    for (id, share) in &shares {
+        match ev.result(*id) {
             Some(editor_core::NodeResult::Ok(v)) => {
-                escalations.push((id, spell(&v.escalations)));
-                verdicts.push((id, v.verdicts.iter().map(|x| format!("{x:?}")).collect()));
+                opens("escalation", *id, spell(&v.escalations), spell(&share.escalations));
+                opens("verdict", *id, spell(&v.verdicts), spell(&share.verdicts));
             }
             Some(editor_core::NodeResult::Failed(e)) => {
-                escalations.push((id, spell(&e.escalations)));
-                every_mate_ok = false;
+                opens("escalation", *id, spell(&e.escalations), spell(&share.escalations));
             }
-            // A mate poisoned through a body it reads never ran, so it
-            // has no log to hold the solve's decisions about it: the
-            // logs together are then a part of the solve's, not all.
-            Some(editor_core::NodeResult::Poisoned { .. }) => {
-                every_mate_ran = false;
-                every_mate_ok = false;
-            }
-            other => panic!("document {label}: mate {} has no log: {other:?}", id.0),
+            Some(editor_core::NodeResult::Poisoned { .. }) => {}
+            other => panic!(
+                "document {label}: placement {} the solve decided about has no log: {other:?}",
+                id.0
+            ),
         }
     }
-    let reference_escalations = spell(&reference.escalations);
-    let reference_verdicts: Vec<String> = reference
-        .verdicts
-        .iter()
-        .map(|x| format!("{x:?}"))
-        .collect();
-    one_home(
-        label,
-        "escalation",
-        &reference_escalations,
-        &escalations,
-        every_mate_ran,
-    );
-    one_home(
-        label,
-        "verdict",
-        &reference_verdicts,
-        &verdicts,
-        every_mate_ok,
-    );
-}
-
-/// `parts` are each an in-order subsequence of `whole`, and together
-/// a sub-multiset of it — all of it when `complete`.
-fn one_home(
-    label: editor_core::DocumentId,
-    what: &str,
-    whole: &[String],
-    parts: &[(RecipeNodeId, Vec<String>)],
-    complete: bool,
-) {
-    for (mate, part) in parts {
-        let mut rest = whole.iter();
-        assert!(
-            part.iter().all(|x| rest.any(|y| y == x)),
-            "document {label}: mate {}'s {what} log is not the solve's in decision order: \
-             {part:?} against {whole:?}",
-            mate.0
-        );
-    }
-    let mut unclaimed: Vec<&String> = whole.iter().collect();
-    for (mate, part) in parts {
-        for x in part {
-            let Some(at) = unclaimed.iter().position(|y| *y == x) else {
-                panic!(
-                    "document {label}: mate {}'s {what} {x} is not the solve's, or is on a \
-                     second log",
-                    mate.0
-                );
-            };
-            unclaimed.remove(at);
-        }
-    }
-    assert!(
-        !complete || unclaimed.is_empty(),
-        "document {label}: the solve's {what}s on no mate's log: {unclaimed:?}"
-    );
 }
 
 /// **The mate solve, through the ordinary door** — levered by the

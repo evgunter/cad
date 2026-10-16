@@ -30,8 +30,7 @@ use pncad::document::{
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
-use pncad::select::{PieceRole, StepId};
+use pncad::prelude::{EntityKind, RoleSeg, StableName};
 use viewer::frame::{self, RankedVerdict};
 use viewer::session::{DocSession, OpOutcome, SessionOp};
 
@@ -553,39 +552,6 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
         ),
         RankedVerdict::Clear,
         "an accepted edit with nothing to report clears the line"
-    );
-}
-
-/// **The mate door's offset clear rides the outcome and is not worded
-/// on the line** — the one arm `frame::maintenance_notice` holds
-/// silent, and the reason is on that function. Every other arm is its
-/// own sentence.
-#[test]
-fn an_offset_clear_is_carried_but_not_worded() {
-    let minter = RecipeNodeId::new(0, tagged(7));
-    let act = Maintenance::OffsetCleared {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
-        offset: pncad::document::Placement::IDENTITY,
-    };
-    assert_eq!(frame::maintenance_notice(&act), None);
-    let strand = Maintenance::Strand {
-        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-        name: SpokenName::absent(StableName {
-            kind: EntityKind::Face,
-            node: minter,
-            path: vec![RoleSeg::Lateral(
-                ProfileEdgeRef::Piece {
-                    step: StepId::new(0, tagged(1)),
-                    role: PieceRole::Leg,
-                }
-                .into(),
-            )],
-        }),
-        took: pncad::document::Took::Node,
-    };
-    assert_eq!(
-        frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),
-        Some(strand.to_string())
     );
 }
 

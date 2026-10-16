@@ -876,12 +876,12 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let doc_with_both = {
         let (with_first, first) = common::edited(
             &doc,
-            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 0), None),
+            pncad::document::DocEdit::place_in_world(pncad::document::Operand::output(split, 0), None),
             tol,
         );
         let (with_both, second) = common::edited(
             &with_first,
-            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 1), None),
+            pncad::document::DocEdit::place_in_world(pncad::document::Operand::output(split, 1), None),
             tol,
         );
         (with_both, [first, second])

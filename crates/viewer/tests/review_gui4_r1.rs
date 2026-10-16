@@ -41,7 +41,7 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
+    ClassAdmission, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
     RecipeNodeId, assemble, class_admission, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
@@ -82,9 +82,9 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     //
     // It is authored here rather than driven through the session
     // because **the viewer has no `SessionOp` that sets a placement**:
-    // an instance's pose is either what the file already said or what
-    // a mate solves, so a rotated instance can only be arranged from
-    // outside. (A finding in its own right; here it is just why this
+    // an instance's pose is either the world pin the file already holds
+    // or what a mate solves, so a rotated instance can only be arranged
+    // from outside. (A finding in its own right; here it is just why this
     // fixture exists.)
     let rotated = Frame::rotate_then_translate(
         [0.0, 0.0, 1.0],
@@ -95,29 +95,8 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
-    let rot_post = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
-    common::edit_into(
-        &mut doc,
-        DocEdit::SetOffset {
-            instance: rot_post,
-            offset: Some(Placement::literal(&rotated)),
-            fresh: Vec::new(),
-        },
-        tol,
-    );
-    let rot_shelf = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
-    common::edit_into(
-        &mut doc,
-        DocEdit::SetOffset {
-            instance: rot_shelf,
-            offset: Some(Placement::literal(&Frame::translation(asm::SHELF_AT))),
-            fresh: Vec::new(),
-        },
-        tol,
-    );
-    for instance in [rot_post, rot_shelf] {
-        doc = common::placed(&doc, instance, tol).0;
-    }
+    let rot_post = asm::instance_posed(&mut doc, bench.post, Placement::literal(&rotated), tol);
+    let rot_shelf = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, tol);
     let path = ws.create(&doc, tol).expect("the rotated assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -279,7 +258,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         .pick_for(eval, &ray, &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the ray");
-    assert_eq!(hit.node, bench.post_b_copy, "the probed instance answers");
+    assert_eq!(hit.node, bench.post_b, "the probed instance answers");
     assert!(
         (hit.point.z - drawn.z).abs() < 1e-9
             && (hit.point.x - drawn.x).abs() < 1e-9
@@ -834,8 +813,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
         &index,
         &asm::up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
-    assert_eq!(top.node, bench.post_b_copy);
-    assert_eq!(bottom.node, bench.post_b_copy);
+    assert_eq!(top.node, bench.post_b);
+    assert_eq!(bottom.node, bench.post_b);
     assert_ne!(top.name, bottom.name, "two DIFFERENT faces of one instance");
 
     let mut tool = MateTool::new();
@@ -844,7 +823,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head.id(), bench.post_b_copy, "said as the picked copy");
+            assert_eq!(head.id(), bench.post_b, "said as the picked copy");
         }
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }

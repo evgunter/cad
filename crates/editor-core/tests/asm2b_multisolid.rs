@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Mate, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Mate, Node,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -158,7 +158,10 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
             [b] => b.solids().count(),
-            other => panic!("an instance's copies are one product body, got {}", other.len()),
+            other => panic!(
+                "an instance's copies are one product body, got {}",
+                other.len()
+            ),
         },
         other => panic!("an instance's value is its copies, got {other:?}"),
     };
@@ -186,8 +189,9 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
 // ---- Row 3: names across all N solids, doubly wrapped ----
 
 /// Row 3 — every name of a doubly-nested instance is
-/// `InPart(Placed(InPart(Placed(part-local))))` minted at the OUTER
-/// instantiate node, each level's copy named under its placement (A10);
+/// `InPart(InPart(Placed(part-local)))` minted at the OUTER
+/// instantiate node, each instance its own placement and the part's
+/// body named under the part's placement of it (A10);
 /// the four copies' name sets are pairwise disjoint; and each name
 /// resolves to its own copy (the cross-wiring probe).
 #[test]
@@ -205,8 +209,9 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     }
 
     // Shape: the body name is the instance's own output; every other
-    // name wraps the sub-assembly's copy of a name that itself wraps a
-    // part-local one — the sub-assembly's placements mint its copies.
+    // name wraps the sub-assembly's name for it, which an inner
+    // instance — one of the sub-assembly's placements — minted over the
+    // part's own placed name.
     let mut inner_nodes = std::collections::BTreeSet::new();
     for (names, node) in [(&a, a_ids[0]), (&b, a_ids[1])] {
         for name in names {
@@ -214,8 +219,7 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
             match &name.path[..] {
                 [RoleSeg::InPart { of }] => {
                     assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                    let (_, copied) = of.copy_of().expect("the sub-assembly's copy");
-                    match &copied.path[..] {
+                    match &of.path[..] {
                         [RoleSeg::InPart { of: inner }] => {
                             assert_eq!(inner.kind, name.kind);
                             assert!(inner.copy_of().is_some(), "the part's copy: {inner:?}");
@@ -246,9 +250,8 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
         (**of).clone()
     };
     let part_local = |inner: &StableName| -> StableName {
-        let (_, copied) = inner.copy_of().expect("a copy");
-        let [RoleSeg::InPart { of }] = &copied.path[..] else {
-            panic!("wrapped: {copied:?}");
+        let [RoleSeg::InPart { of }] = &inner.path[..] else {
+            panic!("wrapped: {inner:?}");
         };
         (**of).clone()
     };
@@ -424,8 +427,10 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// holding variable ids — and only it. INTENT stage 2 C moved it again
 /// (the world placements are nodes of their own, and a part's names
 /// reach an instance under its placement's copy) with the volume bits
-/// and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_284_647_170_726_297_371;
+/// and the solid count held. INTENT stage 3 B moved it once more — an
+/// instance is its own placement, so a part's names reach it with no
+/// copy wrapper of the assembly's — again holding both.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 1_948_008_702_300_591_060;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

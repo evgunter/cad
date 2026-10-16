@@ -36,6 +36,17 @@ use geom_core::Tol;
 
 // ---- the scene ----
 
+/// **The copy of `body` a node over an instance carries** — `node`'s
+/// copies keyed as the instance keys the copy of its part's `body`
+/// ([`fixture::resolver::copy_key`]): what a seat reading one body
+/// reads of a transform over the instance.
+fn one_copy(node: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::keyed(
+        editor_core::Operand::Node(node),
+        fixture::resolver::copy_key(body),
+    )
+}
+
 /// A `w x w x h` box as a whole part document, and its body.
 fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -243,7 +254,11 @@ fn seat(a: SitedFace, b: SitedFace) -> editor_core::Mate<Formula> {
 /// `mate` added to the bundle of `top`, the block it seats — the copy
 /// its `b` side reads through whatever placer stands between — and
 /// answered by its address.
-fn mated(doc: ProfileDoc, top: RecipeNodeId, mate: editor_core::Mate<Formula>) -> (ProfileDoc, MateRef) {
+fn mated(
+    doc: ProfileDoc,
+    top: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+) -> (ProfileDoc, MateRef) {
     fixture::constrain_at(doc, top, mate)
 }
 
@@ -297,7 +312,11 @@ fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let doc = world(s.doc, &[], &[(s.pattern, 2)]);
     let (doc, mate) = mated(doc, s.top, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(poses.fault(mate.placement).is_none(), "{:?}", poses.fault(mate.placement));
+    assert!(
+        poses.fault(mate.placement).is_none(),
+        "{:?}",
+        poses.fault(mate.placement)
+    );
     let ev = run(&doc, &s.opts);
     assert!(
         gate(&doc, &ev).is_ok(),
@@ -330,7 +349,11 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
     );
     let (doc, mate) = mated(doc, s.top, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(poses.fault(mate.placement).is_none(), "{:?}", poses.fault(mate.placement));
+    assert!(
+        poses.fault(mate.placement).is_none(),
+        "{:?}",
+        poses.fault(mate.placement)
+    );
     let ev = run(&doc, &s.opts);
     assert!(
         gate(&doc, &ev).is_ok(),
@@ -476,7 +499,7 @@ fn an_operand_under_an_empty_boolean_placement_mints_nothing() {
     let (doc, empty) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![s.xf.into(), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![one_copy(s.xf, s.top_body), far.into()]),
         },
     );
     let doc = world(doc, &[empty], &[]);
@@ -497,10 +520,11 @@ fn an_operand_under_an_empty_boolean_placement_mints_nothing() {
 /// The top part cannot be resolved, so `top`, `T` and `P` are failed
 /// or poisoned — and the SOLVE, whose lever is the mated parts' own
 /// extent, faults the mate with the part (`Unleverable`, carrying the
-/// resolver's fault), so the mate is a failed node too. What keeps the
-/// gate from reading a table that does not exist is still not the solve:
-/// every live node sits under some root, so the gather's first pass
-/// refuses the document at that root before any mate is read.
+/// resolver's fault), so the block's placement fails in the mate's
+/// words. What keeps the gate from reading a table that does not exist
+/// is still not the solve: every live node sits under some placement,
+/// so the gather's first pass refuses the document at that placement
+/// before any mate is read.
 #[test]
 fn a_poisoned_operand_never_reaches_the_gate() {
     let mut store = PartStore::new();
@@ -537,7 +561,11 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     // The mate has no lever without its part: it faults in the
     // resolver's own voice, on the block's placement.
     let poses = solve(&doc, &opts, Tol::witness());
-    assert_eq!(poses.space(mate.placement), None, "the refused block has no space");
+    assert_eq!(
+        poses.space(mate.placement),
+        None,
+        "the refused block has no space"
+    );
     let fault = poses
         .fault(mate.placement)
         .cloned()
@@ -572,19 +600,15 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         "the mate carries the same fault: {:?}",
         ev.result(mate.placement)
     );
-    // The mate fault reached the base instance — the group's other
-    // member, which the document's first placement reads — so the
-    // gather refuses at THAT placement, poisoned through the failed
-    // instance, before the poisoned pattern copies and before any
-    // reference is read.
+    // The block is itself a placement of the product, failed in the
+    // solve's words, so the gather refuses at THAT placement, before
+    // the poisoned pattern copies and before any reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
-    let first = doc.placements()[0];
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { node, through })
-                    if (node, through) == (first, base))
+                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == top)
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );

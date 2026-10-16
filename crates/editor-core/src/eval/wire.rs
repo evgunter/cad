@@ -388,6 +388,7 @@ where
             wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
         Node::Place { shapes, .. } => {
+            select_sides(doc, results, id, node)?;
             if let Some(fault) = env.poses.fault(id) {
                 return Err(placement_fault(fault, results));
             }
@@ -465,13 +466,59 @@ where
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
+            select_sides(doc, results, id, node)?;
             if let Some(fault) = env.poses.fault(id) {
                 return Err(placement_fault(fault, results));
             }
             let map = placement_map(id, frame, env.poses, tol)?;
-            wire_instantiate_part(id, doc_ref, interface, map, env, tol).map(|out| out.moved(map))
+            let out = wire_instantiate_part(id, doc_ref, interface, map, env, tol)?;
+            select_own_sides(doc, id, node, &out.names)?;
+            Ok(out.moved(map))
         }
     }
+}
+
+/// **A placement's constraint sides, read first**: each face side
+/// that reads another copy resolves in that copy's table, so a side
+/// whose name no longer answers refuses in the selection's own words
+/// before the solve's fault speaks, as every reader of a selection
+/// refuses. A side on the placement's own copy resolves once the copy
+/// exists ([`select_own_sides`]).
+fn select_sides<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    id: RecipeNodeId,
+    node: &Node<ProfileProgram>,
+) -> Result<(), NodeErrorKind> {
+    for (slot, var) in node.operand_rows() {
+        if matches!(slot, crate::OperandSlot::Side { .. })
+            && !crate::mate::solve::reads_own_copy(doc, id, var)
+        {
+            select(doc, results, slot, var)?;
+        }
+    }
+    Ok(())
+}
+
+/// **A placement's constraint sides on its own copy**, resolved in the
+/// copy's own `table` ([`select_sides`]'s other half).
+fn select_own_sides(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    node: &Node<ProfileProgram>,
+    table: &names::NameTable,
+) -> Result<(), NodeErrorKind> {
+    for (slot, var) in node.operand_rows() {
+        if matches!(slot, crate::OperandSlot::Side { .. })
+            && crate::mate::solve::reads_own_copy(doc, id, var)
+        {
+            let Some((entity, _)) = doc.var(var).and_then(|held| held.kind().selection()) else {
+                return Err(NodeErrorKind::UnresolvedRead { slot, var });
+            };
+            resolve_selection(doc, table, slot, var, entity, id)?;
+        }
+    }
+    Ok(())
 }
 
 /// **A placement's solve fault, as its row reports it.** A placer
@@ -2182,6 +2229,22 @@ fn select<T: Decide>(
     };
     let at = super::read_at(doc, slot, selection.body)?;
     let table = &value_of(results, at)?.name_table;
+    resolve_selection(doc, table, slot, var, entity, at)
+}
+
+/// **A selection's names resolved in `table`**, the value read `at`:
+/// [`select`]'s ladder walk, for a table already in hand.
+fn resolve_selection(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    table: &names::NameTable,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    entity: names::EntityKind,
+    at: RecipeNodeId,
+) -> Result<Selected, NodeErrorKind> {
+    let Some(selection) = doc.selection(var) else {
+        return Err(NodeErrorKind::UnresolvedRead { slot, var });
+    };
     let mut ents = Vec::with_capacity(selection.names.len());
     for (reference, name) in selection.names.iter().enumerate() {
         let ent = ladder::resolve_in(name, doc, table, |error| NodeErrorKind::SelectResolve {

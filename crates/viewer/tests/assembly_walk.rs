@@ -151,12 +151,12 @@ fn the_exit_demo_walk() {
         ),
     );
     assert_eq!(
-        post_top.node, bench.post_b_copy,
+        post_top.node, bench.post_b,
         "the probed post is picked where it is drawn"
     );
     tool.pick(session.doc(), post_top.clone());
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
-    assert_eq!(shelf_bottom.node, bench.shelf_copy);
+    assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 

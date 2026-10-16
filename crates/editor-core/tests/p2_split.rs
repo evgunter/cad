@@ -24,8 +24,8 @@ use std::sync::Arc;
 
 use crate::fixture;
 use crate::p2_gauges::{
-    Parts, TOP_HEIGHT, body_of, cut, literal, min_corner, parts, pinned, placed_pair, points,
-    seat, seat_on, set_pin,
+    Parts, TOP_HEIGHT, body_of, cut, literal, min_corner, parts, pinned, placed_pair, points, seat,
+    seat_on, set_pin,
 };
 
 use editor_core::{
@@ -207,9 +207,7 @@ fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
         );
     }
     assert_eq!(
-        out.part
-            .label(out.node_map[&low])
-            .map(ToString::to_string),
+        out.part.label(out.node_map[&low]).map(ToString::to_string),
         Some("bench".to_owned()),
         "the label follows its node"
     );
@@ -351,7 +349,7 @@ fn s5_a_kept_constraint_reading_a_cut_copy_off_the_identity_refuses_the_frame_ru
 
 /// A part of two lone bases, the second pinned at `[16, 0, 0]`, and its
 /// first base, pinned at the identity.
-fn two_groups(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
+fn two_pinned(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let sub = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (sub, first) = instance(sub, p.base);
     let (sub, _) = pinned(sub, p.base, literal([16.0, 0.0, 0.0]));
@@ -390,8 +388,8 @@ fn i1_inline_at_a_pose_composes_it_into_the_parts_world_pins() {
     };
     let shifted = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-shifted"), Tol::witness());
-        let (sub, root) = pinned(sub, p.base, literal([1.0, 0.0, 0.0]));
-        (sub, vec![(root, [3.0, 8.0, 4.0])])
+        let (sub, shifted) = pinned(sub, p.base, literal([1.0, 0.0, 0.0]));
+        (sub, vec![(shifted, [3.0, 8.0, 4.0])])
     };
     let raised = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-raised"), Tol::witness());
@@ -429,18 +427,15 @@ fn i1_inline_at_a_pose_composes_it_into_the_parts_world_pins() {
     }
 }
 
-/// A host whose instance of a two-group part, pinned at a pose, has a
+/// A host whose instance of a two-instance part, pinned at a pose, has a
 /// top mated onto the part's first base: `[h, top, first]`.
 fn member_through_a_mate(p: &Parts, label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 3]) {
-    let (sub, first) = two_groups(p, &format!("{label}-sub"));
+    let (sub, first) = two_pinned(p, &format!("{label}-sub"));
     let inner = in_world_of(&sub, p.base_cap(first));
     let (doc, store, h) = host_of(p, sub, label);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        top,
-        seat(head(p.top_cap(top)), head(wrap(h, inner))),
-    );
+    let (doc, _) =
+        fixture::constrain_at(doc, top, seat(head(p.top_cap(top)), head(wrap(h, inner))));
     (doc, store, [h, top, first])
 }
 
@@ -476,12 +471,17 @@ fn i2_a_host_constraint_reading_the_instance_crosses_onto_the_spliced_copy() {
 
 // ---- I4–I5: the mate-placed inline ----
 
-/// **A part whose one placement on its world is a base at `base_at`**,
+/// **A part whose one placement on its world is a base at `base_at`**
+/// (at the identity, an instance pinned there with no pose of its own),
 /// with a top mated onto it, under the document id `label`: the part,
 /// its base and its top.
 fn pair_part(p: &Parts, label: &str, base_at: [f64; 3]) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = pinned(doc, p.base, literal(base_at));
+    let (doc, base) = if base_at == [0.0; 3] {
+        instance(doc, p.base)
+    } else {
+        pinned(doc, p.base, literal(base_at))
+    };
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     (doc, [base, top])
@@ -544,12 +544,12 @@ fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
     let (p, store, host, [ht, i, part_base, part_top], m) = mate_placed("i4-mate-placed");
     let o = with_resolver(store.clone());
     let out = inline(&host, i, &store);
-    let root = out.node_map[&part_base];
-    assert_eq!(offset_of(&out.doc, root), None, "the pin gives way");
-    let taken = only_constraint(&out.doc, root);
+    let spliced = out.node_map[&part_base];
+    assert_eq!(offset_of(&out.doc, spliced), None, "the pin gives way");
+    let taken = only_constraint(&out.doc, spliced);
     assert_eq!(
         read_name(&out.doc, &taken.mate.a),
-        base_bottom(&p, root),
+        base_bottom(&p, spliced),
         "the host constraint reads the spliced base"
     );
     same_extent(extent(&host, &o), extent(&out.doc, &o), "no material moves");
@@ -608,7 +608,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
         "{said}"
     );
 
-    let (two, first) = two_groups(&p, "i5-mate-placed-part");
+    let (two, first) = two_pinned(&p, "i5-mate-placed-part");
     let first_bottom = in_world_of(&two, base_bottom(&p, first));
     let mut two_store = p.store.clone();
     let two_ref = two_store.insert(two, Tol::witness());
@@ -998,4 +998,3 @@ fn r1_a_cut_whose_placements_a_kept_one_separates_round_trips() {
     same_up_to_ids(&doc, &back.doc, &map, &steps).expect("the round trip is the document");
     round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
 }
-

@@ -3459,6 +3459,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3614,6 +3615,21 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
+    /// A constraint numbered `n`, held by placement `n + 100`, as a
+    /// [`AdmissionFault::MateConstrained`] lists it.
+    fn constraint_of(n: u64) -> (pncad::document::SpokenNode, pncad::document::ConstraintId) {
+        (
+            crate::test_support::spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(n + 100)),
+                Some("Place"),
+            ),
+            pncad::document::ConstraintId(pncad::document::MintId::new(
+                0,
+                test_utils::refusal::tagged(n),
+            )),
+        )
+    }
+
     /// A withdrawal on `instance`, mate-constrained by `mates` — the
     /// commonest arm, and the one whose `Display` carries a remedy.
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
@@ -3624,15 +3640,7 @@ mod tests {
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                mates: mates
-                    .iter()
-                    .map(|&mate| {
-                        crate::test_support::spoken(
-                            RecipeNodeId::new(0, test_utils::refusal::tagged(mate)),
-                            Some("Mate"),
-                        )
-                    })
-                    .collect(),
+                mates: mates.iter().map(|&mate| constraint_of(mate)).collect(),
             },
         }
     }
@@ -3688,10 +3696,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
-            mates: vec![crate::test_support::spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
-                Some("Mate"),
-            )],
+            mates: vec![constraint_of(5)],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -4034,6 +4039,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into(),
             },

@@ -25,8 +25,8 @@ use crate::fixture;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, ExtrudeSide, LeverRefusal,
-    MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, ExtrudeSide, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square};
@@ -553,19 +553,25 @@ fn out_of_range_through_the_doors() {
     let (doc, i1) = insert(doc, fixture::mated_instance(doc_ref));
     let o = with_resolver(store);
     // The second instance sits where its mates put it: both rests are
-    // its bundle's, against the first, pinned to the world.
-    let (doc, first) = fixture::constrain_at(
-        doc,
-        i1,
+    // its bundle's, against the first, pinned to the world. The door
+    // levers each over the parts, so it reaches them through the store.
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let admit = |doc: &ProfileDoc, mate| {
+        fixture::at_the_door_of(doc, &reach, i1, mate)
+            .unwrap_or_else(|(at, fault)| panic!("the door admits the rest, got {at:?}: {fault}"))
+    };
+    let (doc, first) = admit(
+        &doc,
         rest(body, [i0, i1], [0.0, 0.0, 1e152], [0.0, 0.0, 1e152]),
     );
-    let (doc, second) = fixture::constrain_at(
-        doc,
-        i1,
+    let (doc, second) = admit(
+        &doc,
         rest(body, [i0, i1], [0.0, 0.0, 0.0], [100.0, 0.0, 1e152]),
     );
     let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(i1).expect("the second instance's bundle refuses");
+    let fault = poses
+        .fault(i1)
+        .expect("the second instance's bundle refuses");
     assert_eq!(
         fault,
         &MateFault::PoseOutOfRange {

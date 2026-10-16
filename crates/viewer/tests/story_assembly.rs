@@ -491,9 +491,7 @@ fn the_windmill_story() {
     );
     assert!(session.display().free_move_of(hub_i).is_none());
     session.pump();
-    let seat_mate = *session
-        .committed_doc()
-        .ids()
+    let seat_mate = *common::mates_in(session.committed_doc())
         .last()
         .expect("the mate landed");
 
@@ -546,7 +544,9 @@ fn the_windmill_story() {
         }))) => {
             assert_eq!(instance.id(), hub_i);
             assert!(
-                mates.iter().any(|mate| mate.id() == seat_mate),
+                mates
+                    .iter()
+                    .any(|(placement, id)| (placement.id(), *id) == (seat_mate.placement, seat_mate.id)),
                 "the refusal names the mate"
             );
         }
@@ -558,7 +558,7 @@ fn the_windmill_story() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(
-        session.doc().node(seat_mate).is_none(),
+        !common::mates_in(session.doc()).contains(&seat_mate),
         "undo removes the mate"
     );
     assert_eq!(
@@ -569,7 +569,7 @@ fn the_windmill_story() {
     session.perform(SessionOp::Redo);
     session.pump();
     assert!(
-        session.doc().node(seat_mate).is_some(),
+        common::mates_in(session.doc()).contains(&seat_mate),
         "redo restores the mate"
     );
     for row in session.tree_rows() {

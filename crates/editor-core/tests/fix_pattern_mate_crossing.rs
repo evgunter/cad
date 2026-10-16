@@ -70,6 +70,70 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
     fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
 }
 
+/// **A constraint one of whose face sides resolves to NO member**,
+/// authored the way such a side arises: the constraint door asks the
+/// solve's own admission, so a side that resolves to no member when
+/// added is refused there, and one stops resolving only through a
+/// LATER edit (N5). The constraint enters `anchor`'s bundle with that
+/// side on a scratch instance of `anchor`'s own part — another member
+/// than `anchor` — then the side's slot door (`SetParam` at
+/// `OperandSlot::Side`, which re-points a read and asks no admission)
+/// writes the side `mate` spells, and the scratch instance is deleted.
+///
+/// `side` is the side that resolves to nothing, spelled in `mate` as
+/// it is meant to read; `anchor_body` is the body node of `anchor`'s
+/// part document.
+pub(crate) fn constrain_with_dangling_side(
+    doc: ProfileDoc,
+    mate: Mate<Formula>,
+    side: editor_core::MateSide,
+    anchor: RecipeNodeId,
+    anchor_body: RecipeNodeId,
+) -> (ProfileDoc, MateRef) {
+    let Some(&Node::InstantiatePart { doc_ref, .. }) = doc.node(anchor) else {
+        panic!("the anchor is an instance");
+    };
+    let (doc, scratch) = insert(doc, Node::instantiate_part(doc_ref));
+    let stand_in = SideRead::Face(fixture::head(in_part(scratch, anchor_body, CapEnd::End)).into());
+    let Mate {
+        a,
+        b,
+        class,
+        alignment,
+    } = mate;
+    let (dangling, a, b) = match side {
+        editor_core::MateSide::A => (a, stand_in, b),
+        editor_core::MateSide::B => (b, a, stand_in),
+    };
+    let SideRead::Face(dangling) = dangling else {
+        panic!("the dangling side is a face read")
+    };
+    let (doc, mate) = fixture::constrain_at(
+        doc,
+        anchor,
+        Mate {
+            a,
+            b,
+            class,
+            alignment,
+        },
+    );
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: mate.placement,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
+                constraint: mate.id,
+                side,
+            }),
+            value: editor_core::SlotValue::Read(dangling),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, _) = fixture::step(doc, editor_core::DocEdit::DeleteNode { id: scratch });
+    (doc, mate)
+}
+
 /// The reach a cut of the four-legs document evaluates through: a store
 /// holding both blocks.
 fn legs_reach() -> EvalOptions {
@@ -322,7 +386,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     );
 
     // The pattern WITHOUT its input is a severed recipe edge, refused
-    // before the group rule is ever reached — D-2 closure, and the
+    // before any placement rule is reached — D-2 closure, and the
     // premise that keeps a pattern head's derivation nodes on the same
     // side as the member it resolves to.
     let severed = editor_core::split(
@@ -371,7 +435,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
 /// moves verbatim and copy `i` denotes the same copy on both sides.
 #[test]
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
-    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-remap");
+    let (doc, leg, pattern, top, _, leg_body) = four_legs("fix-xs-remap");
     let o = legs_reach();
     let out = editor_core::split(
         &doc,
@@ -389,10 +453,9 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     );
     assert_ne!(new_pattern, pattern, "the part mints its own id space");
 
-    let [moved] = fixture::bundle(&out.part, new_top).try_into().unwrap_or_else(|b| {
-        panic!("the top's one constraint moved into the part with it: {b:?}")
-    });
-    assert_eq!(moved.id, mate.id, "a constraint keeps its id in its placement");
+    let [moved] = fixture::bundle(&out.part, new_top)
+        .try_into()
+        .unwrap_or_else(|b| panic!("the top's one constraint moved into the part with it: {b:?}"));
     let SideRead::Face(a) = moved.mate.a else {
         panic!("the seat's a-side reads a face");
     };
@@ -457,8 +520,8 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     let doc = place_copies(doc, outer, 2);
     // The constraint door refuses a head that resolves to no member, so
     // the constraint is authored the way such a head arises after the
-    // add (`insert_mate_with_stranded_head`).
-    let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
+    // add ([`constrain_with_dangling_side`]).
+    let (doc, mate) = constrain_with_dangling_side(
         doc,
         seat(
             in_copy(outer, 1, in_part(leg, leg_body, CapEnd::End)),
@@ -527,8 +590,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
         panic!("a seat reads faces");
     };
     *a = crate::fixture::head_at(stranger, (*crate::fixture::authored_head(a).name).clone()).into();
-    let Err((_, fault)) =
-        fixture::at_the_door_of(&doc, &editor_core::RefusingReach, top, mate)
+    let Err((_, fault)) = fixture::at_the_door_of(&doc, &editor_core::RefusingReach, top, mate)
     else {
         panic!("the a-side resolves to no member");
     };

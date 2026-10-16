@@ -163,7 +163,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .expect("the pick answers")
         .expect("something hangs under the shelf");
     assert_eq!(
-        under.node, bench.post_b_copy,
+        under.node, bench.post_b,
         "the post seated under the shelf"
     );
     assert!(
@@ -178,7 +178,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
         .expect("the pick answers")
         .expect("the shelf is still there");
-    assert_eq!(over.node, bench.shelf_copy);
+    assert_eq!(over.node, bench.shelf_i);
     assert!(
         (over.point.z - asm::SHELF_THICKNESS).abs() < 1e-9,
         "the shelf's top face is untouched: z = {}",
@@ -233,7 +233,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         .pick_for(eval, &asm::down_at(0.11, 0.07), &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the drawn-position ray");
-    assert_eq!(hit.node, bench.post_b_copy);
+    assert_eq!(hit.node, bench.post_b);
     assert!(
         (hit.point.x - 0.11).abs() < 1e-9
             && (hit.point.y - 0.07).abs() < 1e-9
@@ -264,7 +264,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0, 0.025),
     );
-    assert_eq!(side.node, bench.post_b_copy, "the side ray hit post_b");
+    assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
     assert_ne!(side.name, top.name, "two different faces");
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
@@ -274,7 +274,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         matches!(
             tool.proposal(doc, eval, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
-                if head.id() == bench.post_b_copy
+                if head.id() == bench.post_b
         ),
         "a mate needs a PAIR of instances"
     );
@@ -496,7 +496,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     // upward ray finds the SHELF's underside, not the seated post.
     let under = asm::shelf_underside(&session);
     assert_eq!(
-        under.node, bench.shelf_copy,
+        under.node, bench.shelf_i,
         "the seated post stays hidden at its new placement"
     );
 }

@@ -33,9 +33,9 @@ use test_utils::refusal::tagged;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
-    EntityKind, EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, MateFrame,
-    Mate, MatePrimitive, MateRef, MintRefusal, Node, NodeErrorClass, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SideRead, StableName, assemble, content_pin, inline, product_recorded,
+    EntityKind, EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFrame,
+    MatePrimitive, MateRef, MintRefusal, Node, NodeErrorClass, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SideRead, StableName, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, split_world as split, step};
@@ -151,7 +151,13 @@ fn rest_mate_at(
 fn stacked(
     label: &str,
     seat: f64,
-) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef, PartStore, RecipeNodeId) {
+) -> (
+    ProfileDoc,
+    Vec<RecipeNodeId>,
+    MateRef,
+    PartStore,
+    RecipeNodeId,
+) {
     stacked_as(label, seat, |_| {})
 }
 
@@ -161,7 +167,13 @@ fn stacked_as(
     label: &str,
     seat: f64,
     edit: impl FnOnce(&mut Mate<Formula>),
-) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef, PartStore, RecipeNodeId) {
+) -> (
+    ProfileDoc,
+    Vec<RecipeNodeId>,
+    MateRef,
+    PartStore,
+    RecipeNodeId,
+) {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(cube_part(&format!("{label}-part")), Tol::witness());
     let (doc, ids) = seated_pair(label, doc_ref);
@@ -252,15 +264,12 @@ fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName
 }
 
 /// Unwraps one seam: the assembly's product name for a part entity is
-/// the instance's placement's copy ([`StableName::copy_of`]) of the
-/// part's own product name, wrapped at the instance.
+/// the part's own product name, wrapped at the instance — itself the
+/// placement that copies it.
 fn unwrap_in_part(name: &StableName) -> StableName {
-    let (_, copied) = name
-        .copy_of()
-        .unwrap_or_else(|| panic!("a product name is a placement's copy: {name:?}"));
-    match &copied.path[..] {
+    match &name.path[..] {
         [RoleSeg::InPart { of }] => (**of).clone(),
-        _ => panic!("an instance's name is InPart-wrapped: {copied:?}"),
+        _ => panic!("an instance's name is InPart-wrapped: {name:?}"),
     }
 }
 
@@ -580,7 +589,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     let msg = err.to_string();
     assert!(
         msg.contains(&format!(
-            "constraint {} of instance {}",
+            "constraint {} of node {}",
             mate.id,
             test_utils::refusal::tag(mate.placement.0.digest())
         )),
@@ -813,10 +822,11 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     // What the SPLICE contributed, not what survived it: this
     // document also holds the two ends of the crossing mate, which
     // `inline` never touches, so `!order().is_empty()` would hold
-    // however little came in. The count can only come from the part.
+    // however little came in. The count can only come from the part,
+    // less the part's world: every document has its own.
     assert_eq!(
         back.doc.ids().len(),
-        before - 1 + part_nodes,
+        before - 1 + part_nodes - 1,
         "the instance went and the part's own recipe came in its place"
     );
 }
@@ -1337,8 +1347,7 @@ fn every_admitted_class_has_a_wire_spelling() {
 fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, mate, store) = {
         let mut store = PartStore::default();
-        let (doc_ref, body) =
-            store.insert_part(cube_part("asm-r2b-vanish-part"), Tol::witness());
+        let (doc_ref, body) = store.insert_part(cube_part("asm-r2b-vanish-part"), Tol::witness());
         let (doc, ids) = seated_pair("asm-r2b-vanish", doc_ref);
         let mut node = rest_mate(body, ids[0], ids[1], 1.0);
         let SideRead::Face(a) = &mut node.a else {
@@ -1643,11 +1652,15 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains("mate 000000000004's declared Rest contact, refuted:"),
+        msg.contains(
+            "constraint 0:0000000000060000 of node 000000000004's declared Rest contact, refuted:"
+        ),
         "{msg}"
     );
     assert!(
-        msg.contains("mate 000000000004's declared Rest contact, declined:"),
+        msg.contains(
+            "constraint 0:0000000000060000 of node 000000000004's declared Rest contact, declined:"
+        ),
         "{msg}"
     );
     assert!(msg.contains("no declaration:"), "{msg}");

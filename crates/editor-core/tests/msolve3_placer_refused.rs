@@ -4,9 +4,9 @@
 //! can fail to derive its pose in many ways — a slot that does not
 //! evaluate, a direction of no definite length, an explicit rule —
 //! about a head that resolves and a placer that exists. Refusing
-//! `DanglingHead` for all of them would leave the cause to the placer
-//! node's own voice, which cannot speak: the mate fault POISONS the
-//! document and that node evaluates to `Poisoned` instead.
+//! `DanglingHead` for all of them would hide the cause from the
+//! placement whose bundle holds the mate: the placer node states it in
+//! its own row, and the mate's fault says what that row says.
 //!
 //! These rows measure what the solve says. `MateFault::PlacerRefused`
 //! carries the evaluation layer's own typed refusal UNALTERED, and
@@ -27,8 +27,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Formula, Frame, Mate, MateFault, MateRef, MateFrame, MatePrimitive, Node, NodeErrorClass,
-    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead, SlotId, StableName,
+    EvalOptions, Formula, Frame, Mate, MateFault, MateFrame, MatePrimitive, MateRef, Node,
+    NodeErrorClass, NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
+    SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
@@ -123,13 +124,6 @@ impl Scene {
     /// The refusal the placer itself raises on the twin.
     fn own_refusal(&self) -> String {
         self.own_refusal_of(self.placer)
-    }
-
-    /// The mated document's own row for the placer — `Poisoned`, by
-    /// the mate fault, which is why the cause cannot be read there.
-    fn placer_row(&self) -> String {
-        let ev = run(&self.doc, &self.opts());
-        format!("{:?}", ev.result(self.placer))
     }
 
     /// What `node`'s row in the MATED document fails with, when it
@@ -229,9 +223,10 @@ fn carried_class(fault: &MateFault) -> NodeErrorClass {
 /// a LENGTH that overflows to infinity. The mate names copy 1; the
 /// solve refuses `PlacerRefused` naming the pattern and carrying
 /// `NonFiniteDirection { role: "pattern direction" }` — the SAME kind
-/// the pattern's own evaluation raises on the unpoisoned twin — while
-/// the pattern's row in the mated document reads `Poisoned`, so the
-/// mate's fault is the only place the cause appears.
+/// the pattern's own evaluation raises on the unpoisoned twin, and the
+/// pattern's own row in the mated document states too: the mate is a
+/// constraint of the capping instance, downstream of the pattern, so
+/// its fault poisons nothing the pattern reads.
 #[test]
 fn a1_a_non_finite_pattern_direction_names_the_direction() {
     let scene = patterned(
@@ -256,8 +251,8 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
             && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
     );
-    // The fold path: the placer is poisoned, so the fault carries its
-    // refusal, one level, in the mate's own document.
+    // The fold path: the placer is on the side's chain, so the fault
+    // carries its refusal, one level, in the mate's own document.
     let levels: Vec<_> = f
         .carried_chain()
         .map(|level| (level.document, level.node, level.line()))
@@ -275,10 +270,10 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         "the carried line says which vector, and the mate's own sentence points at it: \
          {line} / {f}"
     );
-    assert!(
-        scene.placer_row().contains("Poisoned"),
-        "the placer's own row cannot state it: {}",
-        scene.placer_row()
+    assert_eq!(
+        scene.mated_refusal_of(placer).as_deref(),
+        Some(kind.as_str()),
+        "the placer's own row in the mated document states it"
     );
 }
 

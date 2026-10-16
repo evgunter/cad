@@ -28,7 +28,9 @@ use editor_core::{
     RecipeNodeId, Space, StableName, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, constrain, constrain_at, in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{
+    ang, constrain, constrain_at, in_copy, insert, len, on_frame, run, scl, solve, step,
+};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -100,7 +102,11 @@ fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -
 
 /// **An instance pinned to the world at `pose`**: a bundle of one world
 /// pin.
-fn instance_at(doc: ProfileDoc, part: editor_core::DocRef, pose: Frame) -> (ProfileDoc, RecipeNodeId) {
+fn instance_at(
+    doc: ProfileDoc,
+    part: editor_core::DocRef,
+    pose: Frame,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, inst) = insert(doc, fixture::mated_instance(part));
     let (doc, _) = constrain_at(doc, inst, Mate::world_pin(Placement::literal(&pose)));
     (doc, inst)
@@ -309,9 +315,10 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
 /// against the EVALUATION's geometry, so a solve-side conjugation error
 /// (either direction, or a skipped conjugation) would put the top in
 /// the wrong place and the gate would refute — an oracle independent of
-/// this reviewer's own algebra. A second seat on the sibling copy is
-/// one constraint more than the top's bundle can hold: the door refuses
-/// it as overconstrained.
+/// this reviewer's own algebra. A second seat on the sibling copy
+/// relates the top to a second target copy, which the door refuses
+/// (`TargetsDiffer`, the stage's named interim: a bundle reads one
+/// target copy).
 #[test]
 fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let mut store = PartStore::default();
@@ -364,9 +371,10 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     assert!(
         matches!(
             &sibling,
-            editor_core::MateFault::Overconstrained { placement, .. } if *placement == top
+            editor_core::MateFault::TargetsDiffer { placement, constraints }
+                if *placement == top && constraints.contains(&m0.id)
         ),
-        "the sibling seat is one constraint past what pins the top: {sibling:?}"
+        "the sibling seat relates the top to a second target copy: {sibling:?}"
     );
 
     let o = with_resolver(store);

@@ -1847,6 +1847,51 @@ pub fn solve_document<P: crate::ProfilePayload>(
     solve(doc, &env, reach, tol, Record::Caller)
 }
 
+/// **[`solve_document`] with each placement's decisions kept apart**:
+/// the solve, and what it decided about each placement's bundle in
+/// decision order — the share an evaluation opens that placement's log
+/// with, ahead of the placement's own op. For a caller that checks the
+/// split.
+pub fn solve_document_by_placement<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    tol: Tol,
+) -> (
+    SolvedPoses,
+    BTreeMap<RecipeNodeId, geom_core::k_stats::Recorded>,
+) {
+    let env = doc.var_env::<f64>();
+    let poses = solve(
+        doc,
+        &env,
+        reach,
+        tol,
+        Record::PerMate(RefCell::new(BTreeMap::new())),
+    );
+    let kept = std::mem::take(
+        &mut *poses
+            .recordings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    );
+    let shares = kept
+        .into_iter()
+        .map(|(placement, recordings)| {
+            let mut share = geom_core::k_stats::Recorded::default();
+            for recording in &recordings {
+                share
+                    .verdicts
+                    .extend_from_slice(&recording.recorded().verdicts);
+                share
+                    .escalations
+                    .extend_from_slice(&recording.recorded().escalations);
+            }
+            (placement, share)
+        })
+        .collect();
+    (poses, shares)
+}
+
 /// **[`solve_document`] at a run's own scalar**, for a caller outside
 /// an evaluation that holds the run's environment and a reach at that
 /// scalar: the answer an evaluation in that lane solves to, its

@@ -38,9 +38,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocRef,
-    DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Mate, MateFrame, MatePrimitive,
-    MateRef, Node, NodeResult, ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift,
-    RecipeNodeId, SitedFace, StableName, Step, VarName, all_vertices, evaluate, vertex_position,
+    DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Mate, MateFrame, MatePrimitive, MateRef,
+    Node, NodeResult, ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, RecipeNodeId,
+    SitedFace, StableName, Step, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, in_copy, insert, len, on_frame, scl, solve, step};

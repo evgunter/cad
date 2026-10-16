@@ -976,7 +976,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let admission = counting.0.get();
     assert_eq!(admission, 2, "the rider is decided over its two parts");
     let doc = applied.doc;
-    let [pin] = fixture::bundle(&doc, a)[..] else {
+    let [pin] = &fixture::bundle(&doc, a)[..] else {
         panic!("the first instance is pinned to the world by one constraint");
     };
     let doc = doc

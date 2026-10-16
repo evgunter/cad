@@ -167,7 +167,7 @@ pub use mate::{
     OVERCONSTRAINED_RECOURSE, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SideRead, SolvedPoses, Space, Subgroup, SubgroupFamily, class_admission,
     head_face, head_of, member_of, member_reading, relative_freedom_components, solve_document,
-    table_gap,
+    solve_document_by_placement, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

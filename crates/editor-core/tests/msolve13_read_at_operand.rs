@@ -26,10 +26,23 @@ use editor_core::{
     Space, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve, xform};
+use fixture::{
+    gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve, xform,
+};
 use geom_core::Tol;
 
 // ---- the scene ----
+
+/// **The copy of `body` a node over an instance carries** — `node`'s
+/// copies keyed as the instance keys the copy of its part's `body`
+/// ([`fixture::resolver::copy_key`]): what a seat reading one body
+/// reads of a transform over the instance.
+fn one_copy(node: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::keyed(
+        editor_core::Operand::Node(node),
+        fixture::resolver::copy_key(body),
+    )
+}
 
 const BASE_WIDTH: f64 = 3.0;
 const BASE_HEIGHT: f64 = 1.0;
@@ -160,14 +173,22 @@ fn seat(a: SitedFace, b: SitedFace) -> editor_core::Mate<Formula> {
 }
 
 /// `mate` added to `placement`'s bundle — the copy it seats, which a
-/// side may read through a transform or a union — and answered by its
+/// side may read through a transform or a union — through the store's
+/// reach, which levers the bundle it joins, and answered by its
 /// address.
 fn mated(
+    opts: &EvalOptions,
     doc: ProfileDoc,
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
 ) -> (ProfileDoc, MateRef) {
-    fixture::constrain_at(doc, placement, mate)
+    fixture::at_the_door_of(
+        &doc,
+        &editor_core::mate_reach::<f64>(opts, Tol::witness()),
+        placement,
+        mate,
+    )
+    .unwrap_or_else(|(at, fault)| panic!("the constraint is admitted, got {at:?}: {fault}"))
 }
 
 /// `top` lifted by `t1` (z + 10) and `t2` (z + 20), and the two
@@ -194,13 +215,16 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                one_copy(t1, s.top_body),
+                one_copy(t2, s.top_body),
+            ]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let (at1, at2) = (at_t1(&doc, t1, union), at_t1(&doc, t2, union));
-    let (doc, m1) = mated(doc, s.top, seat(s.base_cap(s.base1), at1));
-    let (doc, m2) = mated(doc, s.base2, seat(s.base_cap(s.base2), at2));
+    let (doc, m1) = mated(&s.opts, doc, s.top, seat(s.base_cap(s.base1), at1));
+    let (doc, m2) = mated(&s.opts, doc, s.base2, seat(s.base_cap(s.base2), at2));
     Fused {
         doc,
         t1,
@@ -269,6 +293,7 @@ fn a1b_a_transform_above_the_operand_mints_nothing() {
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, _) = crate::fixture::place(doc, t3);
     let (doc, mate) = mated(
+        &s.opts,
         doc,
         s.top,
         seat(s.base_cap(s.base1), head_at(t1, s.top_cap())),
@@ -327,17 +352,22 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                one_copy(t1, s.top_body),
+                one_copy(t2, s.top_body),
+            ]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let through_t2 = member_name(&doc, union, t2, s.top_cap());
     let (doc, m2) = mated(
+        &s.opts,
         doc,
         s.base2,
         seat(s.base_cap(s.base2), head_at(union, through_t2)),
     );
     let (doc, coax) = mated(
+        &s.opts,
         doc,
         s.top,
         seat_with(
@@ -349,6 +379,7 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     );
     let through_union = member_name(&doc, union, t1, s.top_cap());
     let (doc, plane) = mated(
+        &s.opts,
         doc,
         s.top,
         seat_with(
@@ -373,7 +404,11 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
             poses.fault(mate.placement)
         );
     }
-    assert_eq!(poses.space(s.top), Some(Space::World), "A2: the block is pinned");
+    assert_eq!(
+        poses.space(s.top),
+        Some(Space::World),
+        "A2: the block is pinned"
+    );
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "A2: the gate holds: {gated:?}");
@@ -408,6 +443,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, _) = crate::fixture::place(doc, part);
     let copy1 = in_copy(pattern, 1, s.top_cap());
     let (doc, coax) = mated(
+        &s.opts,
         doc,
         s.top,
         seat_with(
@@ -418,6 +454,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         ),
     );
     let (doc, plane) = mated(
+        &s.opts,
         doc,
         s.top,
         seat_with(
@@ -435,7 +472,11 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
             poses.fault(mate.placement)
         );
     }
-    assert_eq!(poses.space(s.top), Some(Space::World), "A2: the block is pinned");
+    assert_eq!(
+        poses.space(s.top),
+        Some(Space::World),
+        "A2: the block is pinned"
+    );
     assert_eq!(
         member_of(&doc, &head_at(part, copy1.clone())),
         member_of(&doc, &head_at(pattern, copy1)),
@@ -480,6 +521,7 @@ fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, MateRef) {
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
     let (doc, mate) = mated(
+        &s.opts,
         doc,
         s.top,
         seat(s.base_cap(s.base1), head_at(t1, s.top_cap())),
@@ -503,7 +545,7 @@ fn a_mate_read_below_a_placed_consumer_mints_nothing() {
     let (doc, fused) = insert(
         with_far,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![one_copy(t1, s.top_body), far.into()]),
         },
     );
     let boolean = crate::fixture::place(doc, fused).0;
@@ -529,7 +571,8 @@ fn a_mate_read_below_a_placed_consumer_mints_nothing() {
     ] {
         let ev = run(&doc, &s.opts);
         assert!(
-            ev.result(mate.placement).is_some_and(|r| r.value().is_some()),
+            ev.result(mate.placement)
+                .is_some_and(|r| r.value().is_some()),
             "{what}: the mate's placement evaluates"
         );
         crate::fixture::assert_mints_nothing(&doc, &ev, mate);
@@ -560,7 +603,7 @@ fn a_part_above_a_union_is_refused_at_the_door() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![one_copy(t1, s.top_body), far.into()]),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -703,12 +746,16 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![s.top.into(), t1.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                fixture::copy(s.top, s.top_body),
+                one_copy(t1, s.top_body),
+            ]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let through_top = member_name(&doc, union, s.top, s.top_cap());
     let (doc, _) = mated(
+        &s.opts,
         doc,
         s.top,
         seat(s.base_cap(s.base1), head_at(union, through_top)),

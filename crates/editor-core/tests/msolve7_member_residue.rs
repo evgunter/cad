@@ -25,9 +25,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, Datum, Dimension, Distribution,
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, Mate, MateFault,
-    MateFrame, MateRef, MatePrimitive, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedFace, StableName, VarName, apply, load, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, Mate,
+    MateFault, MateFrame, MatePrimitive, MateRef, Node, PatternKind, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, StableName, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
@@ -66,10 +66,9 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
 /// makes, `solve_with_env` — the entry the evaluation uses — holds
 /// none, and `member.rs`, every reader of that environment, holds
 /// none. A reader that rebuilt its own would put a second build in
-/// one of these files, which is what this row counts. The one other
-/// build in `solve.rs` is `SolvedPoses::placement`'s: the nominal
-/// world-pose door evaluates a placement's world pose after the solve,
-/// and that door is no reader of the solve's environment.
+/// one of these files, which is what this row counts.
+/// `SolvedPoses::placement`, the nominal world-pose door, builds none
+/// either: it composes the frames the solve recorded.
 ///
 /// What it cannot see: an environment reached through another door
 /// (`VarEnv { .. }` written by hand, `var_env_over`, `seed_env`),
@@ -95,15 +94,11 @@ fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
         };
         body
     };
-    let builds: Vec<usize> = solve
-        .match_indices(NEEDLE)
-        .map(|(at, _)| at)
-        .filter(|at| !door.contains(at))
-        .collect();
+    let builds: Vec<usize> = solve.match_indices(NEEDLE).map(|(at, _)| at).collect();
     assert_eq!(
-        solve[door.clone()].matches(NEEDLE).count(),
-        1,
-        "the world-pose door builds its own nominal environment once"
+        solve[door].matches(NEEDLE).count(),
+        0,
+        "the world-pose door builds no environment"
     );
     assert_eq!(
         builds.len(),
@@ -628,8 +623,9 @@ fn a4_the_same_alignment_without_the_key_loads() {
     let (doc, text) = saved_with_a_planar_rest("msolve7-a4-clean");
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the planar rest round-trips bit for bit");
-    let primitives: Vec<MatePrimitive> = back
-        .placements()
+    // The first instance's world pin is a constraint too; the mate is
+    // the one that reads faces.
+    let primitives: Vec<MatePrimitive> = fixture::constrained(&back)
         .into_iter()
         .flat_map(|p| fixture::bundle(&back, p))
         .map(|c| c.mate.alignment.primitive)
