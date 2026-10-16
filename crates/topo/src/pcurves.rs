@@ -7288,10 +7288,11 @@ pub(crate) mod pole_slit_tests {
     /// it.** A generic cut makes an image on it rare, not impossible: a
     /// half-turn cylinder patch and a half-turn cone patch on charts
     /// turned so the left meridian sits at `u = −1`, the principal
-    /// window's start, within an ulp either way and `1e-7` either way.
+    /// window's start, within an ulp either way and a hundred band
+    /// widths either way (radius 1, so the band is in radians).
     /// Within an ulp the placement's mark is in band and its tie-break
     /// names one copy whichever side the rounding fell (the first
-    /// premise); `1e-7` off it is decided, and names `−1` on one side and
+    /// premise); a hundred band widths off it is decided, and names `−1` on one side and
     /// `τ − 1` on the other (the second, both read off the stored rows).
     /// Nothing downstream tells the copies apart: each body validates,
     /// bounds its faces, reads the same polygon modulo a turn, and
@@ -7301,12 +7302,15 @@ pub(crate) mod pole_slit_tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let tau = core::f64::consts::TAU;
         let turn = -geom_brep::ANGLE_WINDOW_START;
+        // Far enough off the cut that the placement's mark is decided at
+        // every ε row: past the escalation band, which is ten band zeros.
+        let far = 100.0 * band.zero();
         let turns = [
             turn.next_down(),
             turn,
             turn.next_up(),
-            turn - 1e-7,
-            turn + 1e-7,
+            turn - far,
+            turn + far,
         ];
         type Build = fn(f64) -> Body<f64>;
         let builds: [(&str, Build); 2] = [
@@ -7335,7 +7339,7 @@ pub(crate) mod pole_slit_tests {
                         body.pcurve(he).map(|c| c.pcurve())
                     {
                         let off = (p0.x + 1.0).rem_euclid(tau);
-                        if pl.x == 0.0 && (off < 1e-6 || tau - off < 1e-6) {
+                        if pl.x == 0.0 && (off < 2.0 * far || tau - off < 2.0 * far) {
                             here.push(p0.x);
                         }
                     }
@@ -7353,8 +7357,8 @@ pub(crate) mod pole_slit_tests {
             );
             let all = copies.concat();
             assert!(
-                all.iter().any(|u| (u + 1.0).abs() < 1e-6)
-                    && all.iter().any(|u| (u - (tau - 1.0)).abs() < 1e-6),
+                all.iter().any(|u| (u + 1.0).abs() < 2.0 * far)
+                    && all.iter().any(|u| (u - (tau - 1.0)).abs() < 2.0 * far),
                 "{name}: the second premise, the meridian named on both sides of the cut: {copies:?}"
             );
             let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
@@ -7391,7 +7395,7 @@ pub(crate) mod pole_slit_tests {
                     for p in &first {
                         let near = |q: &(f64, f64)| {
                             let du = (p.0 - q.0).abs();
-                            du.min(tau - du) < 1e-6 && (p.1 - q.1).abs() < 1e-6
+                            du.min(tau - du) < 2.0 * far && (p.1 - q.1).abs() < 2.0 * far
                         };
                         assert!(
                             other.iter().any(near),
