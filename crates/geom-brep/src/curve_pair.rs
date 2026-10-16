@@ -37,8 +37,10 @@
 //! and a refusal held at such a point is no refusal of the answer
 //! (`ringed`). A stretch holding one meeting is reported as that
 //! meeting; two meetings in one stretch escalate (`stretches`). A
-//! closed form divides the roots of the meetings its ends found out of
-//! its equation ([`mod@pose`]'s docs, "deflation"). The reader is given
+//! closed form whose equation is the meeting's own divides the roots of
+//! the meetings its ends found out of it; one across a plane, whose roots
+//! are crossings of the plane and not meetings, divides nothing out
+//! ([`mod@pose`]'s docs, "deflation"). The reader is given
 //! no topology: two edges joined at a vertex meet there because their
 //! ends meet.
 //!
@@ -488,5 +490,7 @@ mod meet_oracle;
 mod meet_rows;
 #[cfg(test)]
 mod one_curve_rows;
+#[cfg(test)]
+mod plane_rows;
 #[cfg(test)]
 mod span_rows;

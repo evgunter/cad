@@ -1304,17 +1304,20 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
     }
 }
 
-/// **A crossing of the other's plane at a found meeting is not
-/// polished.** A rod of radius `0.1` cut at 45°, its ellipse's quarter
+/// **A crossing of the other's plane at a found meeting is still
+/// metered.** A rod of radius `0.1` cut at 45°, its ellipse's quarter
 /// from `(−0.8586, 0, 0.9)`, and a fillet's circle in the plane `y = 0`
 /// ending there, tangent to it: the ellipse touches the circle's plane at
-/// the joint. The ends find the joint; the height harmonic's other root
-/// is the joint again, within the band's escalation of it, so it is not
-/// polished. Polished, the closest-pair meter's basin reads the two
-/// tangents parallel there and refuses (`Unsettled::Meter`). Red where a
-/// deflated candidate in a found meeting's ring is polished.
+/// the joint. The ends find the joint. The height harmonic's root there
+/// is a crossing of the plane, not the joint's own equation, and its
+/// window may hold another meeting, so it is polished as with no meeting
+/// found; the closest-pair meter's basin reads the two tangents parallel
+/// there and refuses (`Unsettled::Meter`), carrying the joint
+/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`). Red
+/// where the plane root in the joint's ring is skipped, which decides the
+/// pair on a window nothing read.
 #[test]
-fn a_crossing_of_the_others_plane_at_a_found_meeting_is_not_polished() {
+fn a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let x = -0.758_578_643_762_690_5;
     let rim = Curve3::Ellipse {
@@ -1335,10 +1338,11 @@ fn a_crossing_of_the_others_plane_at_a_found_meeting_is_not_polished() {
         ("rim first", meets((&rim, sr), (&fillet, sf))),
         ("fillet first", meets((&fillet, sf), (&rim, sr))),
     ] {
-        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        let refusal = got.expect_err(order);
         assert!(
-            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
-            "{order}: the joint alone: {got:?}"
+            matches!(refusal.fault, MeetFault::Unsettled(Unsettled::Meter))
+                && matches!(refusal.found[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the meter refuses, carrying the joint: {refusal:?}"
         );
     }
 }

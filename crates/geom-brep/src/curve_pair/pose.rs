@@ -166,23 +166,34 @@
 //! first ([`end_candidates`]): a span end within the band of the other
 //! span is a meeting, and one in the band's gap escalates.
 //!
-//! **A meeting so found is a root the pose already holds**, and the arm
-//! divides it out of its equation rather than solving for it again:
-//! re-derived near a tangent, a root comes from a square root whose
-//! rounding is about `√ulp` of the radius, and its gap from its twin
-//! escalates where the found meeting decides it exactly. The first
-//! harmonics above, `c₀ + A·cos(θ − θ_hi)`, have their two roots
-//! symmetric about `θ_hi`, so the other root is `2θ_hi − θ_J`, linear in
-//! the found one's angle `θ_J`: the line's second meeting with a circle
-//! or an ellipse in its plane (Vieta), the reflection of a meeting of
-//! two circles in one plane across their line of centres, and a conic's
-//! second crossing of the other's plane. A line has one crossing of a
-//! line or a plane, so a found meeting leaves it none. Two found
-//! meetings leave a first harmonic none. A deflated crossing of the
-//! other's plane nearer a found meeting than the band's escalation is
-//! not polished: it can only be that meeting again (C5's ring rule).
-//! The coplanar circle × ellipse subdivision divides nothing out: its
-//! roots nearer a found meeting than the escalation are not read again.
+//! **A meeting so found is a root the pose already holds where the
+//! arm's equation is the meeting's own**, and there the arm divides it
+//! out rather than solving for it again: re-derived near a tangent, a
+//! root comes from a square root whose rounding is about `√ulp` of the
+//! radius, and its gap from its twin escalates where the found meeting
+//! decides it exactly. The arms whose equation is the meeting's are the
+//! in-plane ones: a line's signed distance from a line, a circle's or an
+//! ellipse's signed distance from a line in its plane, and a circle's
+//! distance from a circle in its plane. Their first harmonics,
+//! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
+//! so the other root is `2θ_hi − θ_J`, linear in the found one's angle
+//! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
+//! and the reflection of a meeting of two circles in one plane across
+//! their line of centres. Two found meetings leave a first harmonic
+//! none, and two lines, whose distance is convex along either, meet in
+//! at most one stretch, so a found meeting leaves them none.
+//!
+//! **A crossing of the other's plane is not a meeting**, so the arms
+//! across a plane divide nothing out. A conic's or a line's root on the
+//! other's plane marks a window, about `e/|d̂·n̂|` of arc either side,
+//! where it lies within the band's escalation of that plane, and that
+//! window can hold more than one meeting, each in a stretch of its own.
+//! Each plane root is polished and metered as it would be with no meeting
+//! found; a candidate it gives nearer a found meeting than the
+//! escalation is that meeting again (C5's ring rule), and a meter that
+//! cannot place one refuses. The coplanar subdivisions divide nothing
+//! out: their roots nearer a found meeting than the escalation are not
+//! read again.
 //!
 //! # The band
 //!
@@ -789,8 +800,6 @@ fn line_conic<T: Decide>(
     let height = (o + u * mid - k.center).dot(n);
     match route(den, den.abs(), height.abs(), (length, lever), band)? {
         Route::Parallel => return Ok(Pose::Parallel),
-        // A found meeting is the line's one crossing of the plane.
-        Route::Crossing if !known.is_empty() => return Ok(Pose::Generic(Vec::new())),
         Route::Crossing => {
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so it is within the band's escalation `e/|d̂·n̂|` either side
@@ -831,10 +840,9 @@ fn line_conic<T: Decide>(
     };
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
     Ok(match owed(&k, &range, &found, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => Pose::Tangent(place(theta)),
-        Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
-        Found::Rest(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -893,7 +901,7 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse((&ka, &kb, b), ha, swing_a, (noise, lever), known, band);
+        return transverse((&ka, &kb, b), ha, swing_a, (noise, lever), band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
@@ -979,15 +987,11 @@ fn transverse<T: Decide>(
     (c0, cp, sp): (T, T, T),
     swing: T,
     (noise, lever): (T, T),
-    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
     let near = |theta: T| {
         let q = ka.point(theta);
-        if super::ringed_by(known.iter().map(|c| c.point), q, band) {
-            return Ok(None);
-        }
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
@@ -998,22 +1002,19 @@ fn transverse<T: Decide>(
         }
         .closest(band)
     };
-    let polished = |thetas: Vec<T>| -> Result<Vec<Candidate<T>>, MeetFault> {
-        let mut out = Vec::with_capacity(2);
-        for theta in thetas {
-            out.extend(near(theta)?);
-        }
-        Ok(out)
-    };
-    let found: Vec<T> = known.iter().map(|c| c.ta).collect();
-    Ok(match owed(ka, &range, &found, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => match near(theta)? {
+    Ok(match harmonic_roots(ka, &range, band)? {
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => match near(theta)? {
             Some(c) => Pose::Tangent(c),
             None => Pose::Apart,
         },
-        Found::Cross(thetas) => Pose::Generic(polished(thetas.to_vec())?),
-        Found::Rest(thetas) => Pose::Generic(polished(thetas)?),
+        Harmonic::Cross(thetas) => {
+            let mut out = Vec::with_capacity(2);
+            for theta in thetas {
+                out.extend(near(theta)?);
+            }
+            Pose::Generic(out)
+        }
     })
 }
 
@@ -1082,10 +1083,9 @@ fn coplanar_circles<T: Decide>(
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => Pose::Tangent(place(theta)),
-        Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
-        Found::Rest(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -1251,17 +1251,15 @@ impl<T: Decide> Range<T> {
 }
 
 /// What a first harmonic's extremes and root gap decide.
-enum Found<T> {
+enum Harmonic<T> {
     /// No root: the extremes definitely one-signed.
     Apart,
     /// A touch at this angle: a double root, or an extreme in the zero
     /// band that has not crossed.
     Touch(T),
-    /// Two crossings.
-    Cross([T; 2]),
-    /// The roots left once the found meetings' are divided out
-    /// (module docs, "deflation").
-    Rest(Vec<T>),
+    /// Crossings: two, or those left once the found meetings' roots are
+    /// divided out (module docs, "deflation").
+    Cross(Vec<T>),
 }
 
 /// **A first harmonic's roots along `k` still owed**, `found` the angles
@@ -1273,11 +1271,11 @@ fn owed<T: Decide>(
     r: &Range<T>,
     found: &[T],
     band: Band,
-) -> Result<Found<T>, MeetFault> {
+) -> Result<Harmonic<T>, MeetFault> {
     Ok(match found {
         [] => harmonic_roots(k, r, band)?,
-        [theta] => Found::Rest(vec![r.at_hi + r.at_hi - *theta]),
-        _ => Found::Rest(Vec::new()),
+        [theta] => Harmonic::Cross(vec![r.at_hi + r.at_hi - *theta]),
+        _ => Harmonic::Cross(Vec::new()),
     })
 }
 
@@ -1286,7 +1284,7 @@ fn harmonic_roots<T: Decide>(
     k: &Conic<T>,
     r: &Range<T>,
     band: Band,
-) -> Result<Found<T>, MeetFault> {
+) -> Result<Harmonic<T>, MeetFault> {
     let lo = extreme_sign(row::EXTREME, r.lo, r.noise, band)?;
     let hi = extreme_sign(row::EXTREME, r.hi, r.noise, band)?;
     // The angle from `hi` of the roots read from each extreme: none
@@ -1304,7 +1302,7 @@ fn harmonic_roots<T: Decide>(
         cross * ((size - r.noise).max(T::zero()) / size.max(r.noise))
     };
     let (psi, gap_psi, at_near) = match (lo, hi) {
-        (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Found::Apart),
+        (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
         (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
         (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
@@ -1319,8 +1317,8 @@ fn harmonic_roots<T: Decide>(
     let roots = [r.at_hi + psi, r.at_hi - psi];
     let gap = Margin::norm3(k.point(r.at_hi + gap_psi) - k.point(r.at_hi - gap_psi));
     Ok(match decide(row::ROOT_GAP, gap, band)? {
-        Sign::Zero => Found::Touch(at_near),
-        Sign::Positive | Sign::Negative => Found::Cross(roots),
+        Sign::Zero => Harmonic::Touch(at_near),
+        Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),
     })
 }
 
