@@ -265,7 +265,8 @@ pub(super) fn partner_side<T: Decide>(
 pub(super) struct PairRead<T: geom_core::Real> {
     pub partner: VertexKey,
     pub side: Option<SideCode>,
-    pub read: Option<super::sectors::WedgeRead>,
+    /// The partner's reading, or why it read nothing.
+    pub read: Result<super::sectors::WedgeRead, super::UnreadNeighbourhood>,
     pub sectors: Vec<BoolSector<T>>,
 }
 
@@ -297,7 +298,7 @@ fn layered<'a, T: geom_core::Real>(
 ) -> Option<SideCode> {
     let (mut holding, mut on) = (0usize, 0usize);
     for p in partners {
-        let read = p.read.as_ref()?;
+        let read = p.read.as_ref().ok()?;
         let &(_, class) = read.rows.iter().find(|&&(h, _)| h == he)?;
         if class == SideCode::On {
             on += 1;
@@ -366,7 +367,7 @@ pub(super) fn touch_classes<T: Decide>(
         .iter()
         .map(|&(he, own_side)| {
             let side = || pairs.iter().filter(move |p| p.side == Some(own_side));
-            if let Some(p) = side().find(|p| !p.read.as_ref().is_some_and(|r| r.pointed)) {
+            if let Some(p) = side().find(|p| !p.read.as_ref().is_ok_and(|r| r.pointed)) {
                 return Err(TouchUndecided::Beside(Some(p.partner)));
             }
             let class = partners_class(own, he, side(), shape, band, || {
@@ -385,7 +386,8 @@ pub(super) fn touch_classes<T: Decide>(
 /// naming the partner and one beside it, where a partner's cone reads
 /// nothing beside another's: against the vertex's edges, or against
 /// the other's in reading which cone holds which. One pair alone keeps
-/// its rows, none where its partner reads nothing.
+/// its rows; where its partner reads nothing it has none, and names the
+/// partner and its neighbourhood instead ([`super::UnreadPartner`]).
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
@@ -407,12 +409,13 @@ pub(super) fn touch_classes<T: Decide>(
 /// rows miss (every pair reads the vertex's one orbit) each break that
 /// and refuse as an invariant.
 ///
-/// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
-/// sectors lie on fewer than two faces; where they lie on two with no
-/// bisector to read the wedge by; or where its corner is read as a
-/// polygon cone and some edge has no reference whose every reading is
-/// decided, with none escalating (`sectors::cone_side`'s `None`). A
-/// nesting read in band refuses.
+/// A partner reads nothing (`sectors::wedge_read`'s
+/// [`super::UnreadNeighbourhood`]) where its sectors lie on fewer than
+/// two faces; where they lie on two with no bisector to read the wedge
+/// by; or where its edge or corner is read as a polygon cone and some
+/// edge has no reference whose every reading is decided, with none
+/// escalating (`sectors::cone_side`'s `None`). A nesting read in band
+/// refuses.
 pub(super) fn pair_classes<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
@@ -420,7 +423,7 @@ pub(super) fn pair_classes<T: Decide>(
     pairs: &[PairRead<T>],
     shape: ShapeOf<'_>,
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
+) -> Result<PairClasses, BooleanError> {
     let refuse = |unread: usize, beside: usize| BooleanError::VertexReadTwice {
         operand,
         vertex,
@@ -430,24 +433,34 @@ pub(super) fn pair_classes<T: Decide>(
         ],
     };
     if let [one] = pairs {
-        return Ok(one
-            .read
-            .as_ref()
-            .map(|r| r.rows.clone())
-            .unwrap_or_default());
+        return Ok(match &one.read {
+            Ok(read) => (read.rows.clone(), None),
+            Err(why) => (Vec::new(), Some((one.partner, *why))),
+        });
     }
-    if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
+    if let Some(unread) = pairs.iter().position(|p| p.read.is_err()) {
         return Err(refuse(unread, usize::from(unread == 0)));
     }
     // Every partner reads, so this keeps one read per pair.
-    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
+    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref().ok()).collect();
     let unwitnessed = |inner: usize, outer: usize| BooleanError::NestingUnread {
         operand,
         vertex,
         partners: [pairs[inner].partner, pairs[outer].partner],
     };
-    layered_alone(own, pairs, &reads, shape, band, refuse, unwitnessed)
+    Ok((
+        layered_alone(own, pairs, &reads, shape, band, refuse, unwitnessed)?,
+        None,
+    ))
 }
+
+/// [`pair_classes`]' answer: the vertex's edge classes, and the lone
+/// partner it read nothing of, with that partner's neighbourhood
+/// ([`super::UnreadPartner`]), where there is one.
+pub(super) type PairClasses = (
+    Vec<(HalfEdgeKey, SideCode)>,
+    Option<(VertexKey, super::UnreadNeighbourhood)>,
+);
 
 /// [`pair_classes`]' layering of partners that each read (`reads`, one
 /// per pair); `refuse(j, i)` where partner `j`'s cone reads nothing
@@ -536,7 +549,7 @@ fn partners_class<'a, T: Decide + 'a>(
         .filter(|p| {
             p.read
                 .as_ref()
-                .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
+                .is_ok_and(|r| r.rows.contains(&(he, SideCode::On)))
         })
         .collect();
     if let [_, _, ..] = on.as_slice() {
@@ -3038,7 +3051,7 @@ mod tests {
         let read = |partner, side, met: bool, rows: &[(HalfEdgeKey, SideCode)]| PairRead::<f64> {
             partner,
             side,
-            read: Some(WedgeRead {
+            read: Ok(WedgeRead {
                 pointed: true,
                 met,
                 rows: rows.to_vec(),
@@ -3048,7 +3061,7 @@ mod tests {
         let unread = |partner, side| PairRead::<f64> {
             partner,
             side,
-            read: None,
+            read: Err(crate::boolean::UnreadNeighbourhood::OneFace),
             sectors: Vec::new(),
         };
         let three = [(e, In), (f, Out), (g, On)];
@@ -3110,7 +3123,7 @@ mod tests {
                 vec![
                     read(w, Some(Out), true, &three),
                     PairRead {
-                        read: Some(WedgeRead {
+                        read: Ok(WedgeRead {
                             pointed: false,
                             met: true,
                             rows: vec![(e, On), (f, Out)],
@@ -3136,17 +3149,20 @@ mod tests {
             (
                 "one arch",
                 vec![read(w, None, true, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
                 "one void's apex",
                 vec![read(w, None, false, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
-                "one partner that reads nothing",
+                "one partner that reads nothing names it and why",
                 vec![unread(w, None)],
-                Ok(Vec::new()),
+                Ok((
+                    Vec::new(),
+                    Some((w, crate::boolean::UnreadNeighbourhood::OneFace)),
+                )),
             ),
             (
                 "an arch beside a partner that reads nothing",
@@ -3235,7 +3251,7 @@ mod tests {
         let partner_of = |partner| PairRead {
             partner,
             side: Some(SideCode::Out),
-            read: Some(WedgeRead {
+            read: Ok(WedgeRead {
                 pointed: true,
                 met: true,
                 rows: vec![(he, SideCode::On)],
@@ -3245,7 +3261,7 @@ mod tests {
         let partner = |partner, pointed, end| PairRead {
             partner,
             side: Some(SideCode::Out),
-            read: Some(WedgeRead {
+            read: Ok(WedgeRead {
                 pointed,
                 met: true,
                 rows: vec![(he, SideCode::On)],

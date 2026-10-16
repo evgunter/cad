@@ -25,7 +25,7 @@ records the op made at the crossing.
 ## Why it is P4
 
 The census refuses every such configuration already: pass 4 cuts the
-overlap at the conic crossing (`CutAt::ConicCrossing`) and backs that
+overlap at the conic crossing (`CutAt::CurvedCrossing`, named `ConicCrossing` before stage (c) of `work/fuse/the-curve-pair-reader.md` gave the cut every carrier kind) and backs that
 bound with nothing, and CONTACTHOLD measured the same seat refusing
 (`contacthold/census-edge-pass-reads-no-line-conic-crossing`, closed;
 CHART's `a-planar-face-with-a-conic-trim-has-no-region-door` is the

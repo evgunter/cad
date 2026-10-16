@@ -1385,7 +1385,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
     let partner = |end| PairRead {
         partner: VertexKey::default(),
         side: None,
-        read: None,
+        read: Err(crate::boolean::UnreadNeighbourhood::OneFace),
         sectors: vec![sector(end)],
     };
     let flat = partner(Vec3::new(0.0, 1.0, 0.0));
@@ -2930,13 +2930,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
-        1,
+        3,
     ),
     (
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCurvedFace",
-        1,
+        3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
