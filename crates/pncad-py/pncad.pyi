@@ -4372,7 +4372,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
-    PlaceInWorld: Final[OpGroup]
+    Place: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:

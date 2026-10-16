@@ -237,7 +237,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
-    PlaceInWorld,
+    Place,
     Shell,
 }
 
@@ -252,7 +252,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
-            Self::PlaceInWorld => s::OpGroup::PlaceInWorld,
+            Self::Place => s::OpGroup::Place,
             Self::Shell => s::OpGroup::Shell,
         }
     }
@@ -981,7 +981,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
-            s::OpGroup::PlaceInWorld => OpGroup::PlaceInWorld,
+            s::OpGroup::Place => OpGroup::Place,
             s::OpGroup::Shell => OpGroup::Shell,
         }
     }

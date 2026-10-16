@@ -4458,9 +4458,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 
 /// **A remap that reorders ids republishes the canonical form.**
 ///
-/// A map need not keep two ids in their order (a split carries a
-/// gauge ahead of the nodes that sit on it), so two ids can come out
-/// in the other order. Every name-ordered position then has to be put back in
+/// A map need not keep two ids in their order (it sends each to the id
+/// another document's insert door mints for it), so two ids can come
+/// out in the other order. Every name-ordered position then has to be put back in
 /// order, and a crossing ranked along a union seam whose sides swap
 /// reads its rank from the other end — the form the emitters would mint
 /// for the same entity under the new ids.

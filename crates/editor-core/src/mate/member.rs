@@ -37,20 +37,18 @@ use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 /// A member is its instance and the PLACEMENT the walk passed on the
 /// way down: two references that reach one instance through different
 /// placings relate the same pair of instances through different static
-/// offsets, so they are different members, and a second such mate
-/// closes a LOOP (non-tree, declaring) instead of folding into the
-/// first mate's pair. Two references through ONE placement spelled two
+/// offsets, so they are different members, and a bundle holding a
+/// mate on each refuses ([`MateFault::TargetsDiffer`]) instead of
+/// folding them as one pair. Two references through ONE placement spelled two
 /// ways — read at a transform, and at a union above it naming that
 /// member; read at a `Part` selecting a copy, and at the pattern naming
 /// that copy — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
-    /// The group-graph vertex this member stands on: the head
-    /// instance itself, or — for a pattern-placed member — the
-    /// innermost pattern's INPUT instance, whose pose every copy at
-    /// every level is derived from. This is the edge end A9/A11's
-    /// partitions see, and why a mate to `Instance(i)` joins the other
-    /// member into the pattern's group.
+    /// The instance this member stands on: the head instance itself,
+    /// or — for a pattern-placed member — the innermost pattern's
+    /// INPUT instance, whose pose every copy at every level is derived
+    /// from.
     pub instance: RecipeNodeId,
     /// **The placing nodes the walk passed**, OUTERMOST first: each
     /// pattern with the copy the name says, and each transform. Empty
@@ -209,8 +207,8 @@ impl Walk {
 /// the single traversal admission and the static offset share.
 ///
 /// Structural only: no expression is evaluated here (the vocabulary
-/// is decided on node kinds and name segments alone), so the group
-/// partition never depends on a slot value.
+/// is decided on node kinds and name segments alone), so the member a
+/// reference resolves to never depends on a slot value.
 ///
 /// # Errors
 ///
@@ -353,8 +351,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// a member like any other; its identity carries the whole chain of
 /// placings ([`Member::chain`]).
 ///
-/// Structural only — no expression is evaluated here, so the group
-/// partition never depends on a slot value. That includes a `Part`'s
+/// Structural only — no expression is evaluated here, so the member
+/// never depends on a slot value. That includes a `Part`'s
 /// own index, which is an expression in a structural slot: admission
 /// reads the NAME, and the offset checks the node against it.
 ///
@@ -367,8 +365,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// live one-face selection ([`head_of`]).
 ///
 /// [`crate::refactor::split`]'s interface-crossing collector is one of
-/// those gates: a collector admitting a reference the group graph
-/// does not weld would mint a record for a mate that never solved,
+/// those gates: a collector admitting a reference the member walk
+/// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
 pub fn member_of<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<Member> {
@@ -460,8 +458,8 @@ pub(super) fn walk_of<P>(
 /// **The per-reference checks that need a number** — run once per
 /// reference of every live mate, at the site the solve walks it.
 ///
-/// The walk is structural and evaluates nothing, so the group
-/// partition never depends on a slot value. Two questions about a
+/// The walk is structural and evaluates nothing, so the member never
+/// depends on a slot value. Two questions about a
 /// reference are not structural, and both compare the NAME against an
 /// evaluated count:
 ///

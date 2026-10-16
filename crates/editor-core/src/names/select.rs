@@ -90,8 +90,9 @@ pub enum OpGroup {
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
-    /// A world placement's copy.
-    PlaceInWorld,
+    /// A placement's copy ([`RoleSeg::Placed`], minted by a
+    /// [`crate::Node::Place`]).
+    Place,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::From`], which groups under
     /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
@@ -330,7 +331,7 @@ impl SegTag {
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
-            Self::Placed => OpGroup::PlaceInWorld,
+            Self::Placed => OpGroup::Place,
         }
     }
 }

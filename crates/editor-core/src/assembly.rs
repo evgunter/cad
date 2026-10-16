@@ -8,10 +8,10 @@
 //! - **Minting (D-2)**: every solved mate's declaration becomes a
 //!   kernel contact record in the gathered product's record set. Same
 //!   type as the boolean wrapper's records, no adapter — A3's ratified
-//!   sentence, and C4's second home landing. A DECLARING (non-tree)
-//!   mate mints IDENTICALLY to a determining one: minting is
-//!   declaration, not verification, and a mate that placed nothing
-//!   still says what touches what.
+//!   sentence, and C4's second home landing. A mate mints whatever
+//!   its bundle's fold made of it: minting is declaration, not
+//!   verification, and a mate says what touches what however much of
+//!   its copy's pin it supplied.
 //!
 //!   [`mint`] lives here because minting speaks the mate vocabulary,
 //!   but the door that CALLS it is the product gather
@@ -403,7 +403,7 @@ pub struct Assembly<T: Decide> {
     /// could not say which inner mates its verdict answered for.
     pub carried: Vec<CarriedDeclaration>,
     /// Every overlap between two copies' material, in the world and in
-    /// each unplaced group's own space, in the census's order (D10):
+    /// each loose copy's own space, in the census's order (D10):
     /// reported, quiet or loud, and never a refusal
     /// ([`crate::checks::at_rest`]).
     pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
@@ -1047,8 +1047,8 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
     match product_recorded(doc, evaluation, tol) {
         Ok(product) => assemble_gathered(product, tol),
         // A world with no body is no verdict on the spaces beside it: a
-        // document whose material is all unplaced still checks its
-        // groups inside their own spaces before the gather's refusal is
+        // document whose copies are all loose still checks each one
+        // inside its own space before the gather's refusal is
         // raised. A world that refused for a fault of its own is
         // answered first, as its verdict is when it gathers.
         Err(refusal) => {
@@ -1090,7 +1090,7 @@ fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
 
 /// **The A5 gate over a product the caller already gathered** — the
 /// canonical door, and everything [`assemble`] is once its gather is
-/// done. It gates the world, then every unplaced group's own space the
+/// done. It gates the world, then every loose copy's own space the
 /// product carries ([`crate::Product::spaces`]), so a caller holding a
 /// product cannot check one space and skip the others.
 ///
@@ -1141,7 +1141,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
 }
 
 /// **The gate's verdict over one gathered space** — the world, or one
-/// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
+/// loose copy's own ([`gate_spaces`]): the one copy of the gate's
 /// checks, their attributions and their refusal order.
 fn verdict<T: crate::checks::at_rest::LocalizeLane>(
     product: &Product<T>,
@@ -1219,11 +1219,11 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
 /// DOCUMENT ORDER, appended to `contacts` as the kernel's own record
 /// type and keyed to the faces of its members' WORLD COPIES.
 ///
-/// INVARIANT: a mate's ROLE does not enter. A determining mate and a
-/// declaring one mint the same record, because minting is the act of
-/// DECLARING and a mate that solved nothing still states a contact.
-/// (Verification is the caller's next line, and it too is
-/// role-blind.)
+/// INVARIANT: what the bundle's fold made of a mate does not enter.
+/// Every mate of a bundle mints the same kind of record, whatever
+/// share of the pin it supplied, because minting is the act of
+/// DECLARING. (Verification is the caller's next line, and it too
+/// reads no fold.)
 ///
 /// A mate that is not a live value of this evaluation mints nothing and
 /// yields a [`MintRefusal::Unevaluated`] row: a side whose selection

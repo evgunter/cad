@@ -3659,10 +3659,10 @@ where
     )
     .with_symbols(opts.symbols);
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
-    // (A11): one spanning tree per group, folded once, read by every
-    // instance and every mate below. Running it here rather than per
+    // (A11): each placement's bundle folded once, in schedule order,
+    // read by every placement below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this group sit". It runs at this
+    // answer to "where does this copy sit". It runs at this
     // evaluation's scalar over the lane environment (A11 (5)), so a
     // seed or a box that binds what a mate reads moves the poses with
     // it. Its two geometric reads — each mated part's extent (the lever)
@@ -4125,7 +4125,7 @@ where
     }
     // A placement's anchor frame, in this lane: read once, before the
     // key, which it feeds, and handed to the op.
-    let group_frame = op_env.poses.frame(id);
+    let anchor_frame = op_env.poses.frame(id);
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
     // resolve at f64 because they feed C6 structure selection, which
@@ -4267,7 +4267,7 @@ where
         lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        SolveAnswer::of(op_env.poses, doc, id, group_frame),
+        SolveAnswer::of(op_env.poses, doc, id, anchor_frame),
         tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
@@ -4331,7 +4331,7 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
-        group_frame,
+        anchor_frame,
         op_env,
         tol,
     );
@@ -4464,8 +4464,7 @@ fn placement_log_opens_with_the_solves(
 ///
 /// **Disposition of the inline matches.** A few small vocabularies are
 /// written as an exhaustive `match` that maps an enum's variants to
-/// literals at the site — a mate's role (`MateRole`), an alignment's
-/// primitive and sense (`MatePrimitive`, `AxisSense`), a name's entity
+/// literals at the site — an alignment's primitive and sense (`MatePrimitive`, `AxisSense`), a name's entity
 /// kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
 /// assertion's relation and a measure primitive (`measure.rs`), a
@@ -4859,41 +4858,40 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 /// **The solve's answer for one node**, as the content key reads it.
 ///
 /// **Why the key reads it at all** — the one home for this argument,
-/// which the mate arm and [`crate::node::Node::Mate`] point at rather
-/// than restate. The solve runs once per evaluation, BEFORE the
-/// schedule, and two node kinds denote what it decided: an instance
-/// evaluates at its solved `placement`, and a mate evaluates to its
-/// `role` or to a typed refusal. So the answer is one of those nodes'
-/// inputs and belongs in their keys, exactly as a slot value does.
-/// A mate is additionally a DAG leaf whose payload does not move when
-/// an edit elsewhere joins or splits its pair, so a key without the
-/// answer would serve last evaluation's `Ok` into the run that
-/// refuses it.
+/// which the placement arms point at rather than restate. The solve
+/// runs once per evaluation, BEFORE the schedule, and a placement (a
+/// `Place` or an instance) denotes what it decided: its copy evaluates
+/// at its solved pose, or to a typed refusal. So the answer is one of
+/// the placement's inputs and belongs in its key, exactly as a slot
+/// value does. Where the copy sits is read off other nodes — the
+/// targets its constraints read, the parameters their offsets read —
+/// so a key without the answer would serve last evaluation's `Ok` into
+/// the run that moves or refuses it.
 ///
 /// It travels as ONE argument read off [`crate::mate::SolvedPoses`] at
 /// the single `content_key` call site, so the key stays a pure
 /// function of what it is handed and each node's arm feeds the half
 /// that is its own input.
 ///
-/// **The fault's CONTENT is deliberately absent, and both bits are
-/// kept.** The answer for a mate IS the pair (role, fault presence),
-/// and the key states it as that pair rather than reading `Refused`
-/// as a proxy for "faulted": that the solve writes `Refused` against
-/// every mate it faults is the SOLVE's invariant, and a key that
-/// depended on it would go quietly wrong the day it changed. What the
-/// key does not need is WHICH fault: a faulted mate evaluates to
-/// `Err` and the memo serves only `NodeResult::Ok` priors, so two
-/// different faults on one mate can never be confused through reuse.
+/// **The fault's CONTENT is deliberately absent, and its presence is
+/// kept.** The key states the fault's presence beside the pose rather
+/// than reading an absent pose as a proxy for "faulted": that the solve
+/// poses no placement it faults is the SOLVE's invariant, and a key
+/// that depended on it would go quietly wrong the day it changed. What
+/// the key does not need is WHICH fault: a faulted placement evaluates
+/// to `Err` and the memo serves only `NodeResult::Ok` priors, so two
+/// different faults on one placement can never be confused through
+/// reuse.
 #[derive(Debug, Clone)]
 struct SolveAnswer<T: geom_core::Real> {
-    /// The instance's pose around its group's frame, at this
-    /// evaluation's scalar, `None` when the node is not an instance the
-    /// solve posed — which includes an instance whose group refused.
+    /// The copy's pose around its anchor's frame, at this evaluation's
+    /// scalar, `None` when the node is not a placement the solve posed
+    /// — which includes a placement whose bundle, or whose target's,
+    /// refused.
     pose: Option<crate::mate::solve::Pose<T>>,
-    /// The group's frame in this lane: its gauge chain composed with
-    /// its root's offset, the identity in an unplaced group's own
-    /// space. `None` beside a `None` pose, and for a frame that did not
-    /// evaluate, which refuses the node before its key is read.
+    /// The anchor's frame in this lane: the world pose its bundle pins,
+    /// the identity in a loose copy's own space. `None` beside a `None`
+    /// pose.
     frame: Option<crate::placement::Motion<T>>,
     /// Whether the solve recorded a fault against the node.
     faulted: bool,
@@ -4911,8 +4909,8 @@ struct SolveAnswer<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
-    /// What `poses` answers for `id`, with the group's frame the node
-    /// evaluated in this lane.
+    /// What `poses` answers for `id`, with its anchor's frame in this
+    /// lane.
     fn of<P>(
         poses: &crate::mate::SolvedPoses<T>,
         doc: &crate::doc::Doc<P>,
@@ -4968,9 +4966,9 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         }
     }
 
-    /// The placement's tags: one for "no pose" so a refusing group
+    /// The placement's tags: one for "no pose" so a refusing bundle
     /// keys distinctly from any pose, else the pose's two factors and
-    /// the group's frame, each by its lane's exact representation
+    /// the anchor's frame, each by its lane's exact representation
     /// ([`ContentBits`]): a dual's two channels, value then tangent, so
     /// a seeded pass's pose never meets an unseeded prior's entry.
     fn feed_placement(&self, h: &mut KeyHasher) {
@@ -5379,10 +5377,11 @@ where
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
         // referenced content, so nothing about the part needs hashing
         // here) and WHERE it sits. Where it sits is read off other
-        // nodes — its gauge chain, its group's root, the mates — which
-        // is exactly why it must feed the key: a `SetOffset` on the
-        // root, or a parameter driving a gauge, moves this node's value
-        // and nothing else about the node changes. The INTERFACE RECORD feeds the
+        // nodes — its constraints' targets, the parameters its
+        // constraints read — which is exactly why it must feed the key
+        // (`SolveAnswer` says why): a parameter driving a target moves
+        // this node's value and nothing else about the node changes.
+        // The INTERFACE RECORD feeds the
         // key too (ASM-R2b D-4 discharging ASM-4's hook obligation):
         // it is inhabited now, it is on-wire data, and evaluation
         // re-verifies the crossings it holds — so a crossing edit

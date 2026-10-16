@@ -182,7 +182,7 @@ impl FrameBase {
 /// **No frame the doors admit is improper.** A rigid step is proper by
 /// construction, and a literal step is held to A6
 /// ([`crate::placement::Frame`]'s admission rule) at every door that
-/// writes a mate and at load, as a gauge's are.
+/// writes a mate and at load, as a transform's are.
 ///
 /// On the wire the frame is `{"base": "Part" | "Face", "offset":
 /// <Placement>}`, closed over its two keys.
@@ -1238,8 +1238,8 @@ impl Clash {
 /// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`, and
 /// the two arms that name no mate are not the same case**: [`Self::Band`]
 /// names no mate and reaches EVERY row of the document —
-/// [`solve_document`] records the one fault against every `Node::Mate`
-/// and every `Node::InstantiatePart` before it reads a mate — while
+/// [`solve_document`] records the one fault against every placement
+/// before it reads a mate — while
 /// [`Self::PosesOfAnotherDocument`] names no mate and reaches NO row,
 /// being raised by [`SolvedPoses::placement`] and never inserted in a
 /// fault map. There is deliberately no `subject()` here: an
@@ -1446,7 +1446,7 @@ pub enum MateFault {
     /// CARRIES it, as a line of its own under the mate's
     /// ([`crate::NodeErrorKind::carried_chain`]), is `placer_row`'s:
     ///
-    /// - **Raised while a group's fold derives an offset**, at a
+    /// - **Raised while a bundle's fold derives an offset**, at a
     ///   placer on the reference's chain: the fault reaches the
     ///   instance under that placer, so the placer is POISONED, never
     ///   evaluates and never states its own cause. This fault is the
@@ -1493,7 +1493,8 @@ pub enum MateFault {
     /// report both indices in the `Part`'s index space.
     ///
     /// Raised per REFERENCE, where the solve reads each one, so it
-    /// reaches a declaring mate as surely as a tree edge's.
+    /// reaches every mate of a bundle, not only the first, whose sides
+    /// the offset is derived from.
     PartSelectsAnotherCopy {
         /// The mate.
         mate: MateRef,
@@ -1562,8 +1563,8 @@ pub enum MateFault {
     /// ([`crate::SlotId::MateFrameStep`]). Raised where the solve reads
     /// the side's frame: at the edit doors that write a mate's datum
     /// (the insert, and a slot edit at a frame step), and at
-    /// evaluation, where it is what the solve records against the mate
-    /// and its group. An expression that does not evaluate at the
+    /// evaluation, where it is what the solve records against the
+    /// placement holding the mate. An expression that does not evaluate at the
     /// document's parameters also fails the mate's own slot
     /// evaluation, so the mate's row states it as its own
     /// [`crate::NodeErrorKind::Expr`]; an axis of no direction

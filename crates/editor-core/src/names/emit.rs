@@ -902,7 +902,7 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
-/// **A world placement's copy, named** (D10, A10): every row of the
+/// **A placement's copy, named** (D10, A10): every row of the
 /// body placed (`body`'s table, already projected to that one body) is
 /// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
 /// of one body name their copies apart, as an instance names its

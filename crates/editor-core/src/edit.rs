@@ -2792,7 +2792,7 @@ pub enum EditError {
     /// one instance — is refused on the datum alone all the same.
     /// What is NOT this: a verdict about a PAIR — under-determined,
     /// contradicting ANOTHER mate, an escalation on a fold — which
-    /// needs the group and stays the solve's; and a STATE a mate
+    /// needs the bundle and stays the solve's; and a STATE a mate
     /// comes to hold after insert (a head a rebind or a shrunk pattern
     /// strands, a `Part` re-pointed, a doctored or older snapshot),
     /// which the doors do not re-decide and the solve refuses at
@@ -4764,7 +4764,8 @@ pub struct Applied<P> {
     pub record: EditRecord,
     /// **What the edit did that the caller did not ask for**: the
     /// references it stranded (DM7) — the payload names, then the
-    /// appearance keys — and the offset the mate door cleared. See [`Maintenance`].
+    /// appearance keys — and the anonymous variables it removed (VR7).
+    /// See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
@@ -7483,8 +7484,8 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// The answer is the document, not the maintenance its edits
     /// performed: [`Applied::maintenance`] is a fact about ONE
     /// application, reported to the caller who made it, and what it
-    /// did is already in the document it produced — a cleared offset
-    /// is cleared, and a stranded
+    /// did is already in the document it produced — a removed
+    /// variable is gone, and a stranded
     /// name (DM7) resolves to nothing until rebound, which the next
     /// evaluation reports typed (N5). The replayed document is the
     /// state, the same boundary the load door draws

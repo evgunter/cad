@@ -277,7 +277,7 @@ pub enum Placed {
     Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
-    /// A world placement's copy.
+    /// A placement's copy (a [`crate::Node::Place`]'s).
     World(RecipeNodeId),
 }
 

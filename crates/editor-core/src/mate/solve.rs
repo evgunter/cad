@@ -1616,7 +1616,7 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
     // reaches are asked ONCE per bundle, lazily, at the first mate
     // that forms a lever.
     let mut arm: Option<Arm> = None;
-    let mut parts_reach: Option<Result<f64, super::LeverRefusal>> = None;
+    let parts_reach: std::cell::OnceCell<Result<f64, super::LeverRefusal>> = std::cell::OnceCell::new();
     for m in mates {
         let mate = m.mate;
         let alignment = &m.data.alignment;
@@ -1629,29 +1629,32 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
             };
             let a = side(MateSide::A, &m.a, &alignment.a)?;
             let b = side(MateSide::B, &m.b, &alignment.b)?;
-            let parts = parts_reach
-                .get_or_insert_with(|| pair_reach(doc, reach, target, copy))
-                .clone();
             let unleverable = |refusal| {
                 Box::new(MateFault::Unleverable {
                     mate,
                     refusal: Box::new(refusal),
                 })
             };
+            // The parts' reach is asked once per bundle, and only where
+            // a lever is formed: it evaluates the parts, so a bundle no
+            // decision levers (a world pin) crosses no seam.
+            let formed = || -> Result<Arm, Box<MateFault>> {
+                match parts_reach.get_or_init(|| pair_reach(doc, reach, target, copy)) {
+                    Ok(parts) => lever(mate, *parts, alignment, &a, &b),
+                    Err(refusal) => Err(unleverable(refusal.clone())),
+                }
+            };
             // A pair of instances forms its lever for every mate, as
             // the fold has always formed it; any other pair forms one
             // only where a decision asks.
-            let mate_arm: Result<Arm, super::LeverRefusal> = match &parts {
-                Ok(parts) => Ok(lever(mate, *parts, alignment, &a, &b)?),
-                Err(refusal) if pair_of_instances(doc, target, copy) => {
-                    return Err(unleverable(refusal.clone()));
-                }
-                Err(refusal) => Err(refusal.clone()),
-            };
-            if let Ok(mate_arm) = mate_arm {
+            let eager: Option<Arm> = if pair_of_instances(doc, target, copy) {
+                let mate_arm = formed()?;
                 arm = Some(arm.map_or(mate_arm, |held| held.max(mate_arm)));
-            }
-            let form = || mate_arm.clone().map_err(unleverable);
+                Some(mate_arm)
+            } else {
+                None
+            };
+            let form = || eager.map_or_else(formed, Ok);
             let mut coset = mate_coset(mate, alignment, &a, &b, form, band)?;
             // The authored order is `a`'s coordinates from `b`'s; the
             // fold reads the target from the copy, so a mate authored
@@ -1673,12 +1676,15 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
                 held = coset;
                 return Ok(());
             }
-            // No arm held means this mate formed none either: its
-            // refusal is the fold's.
-            let fold_arm = match (arm, form()) {
-                (Some(arm), _) => arm,
-                (None, Err(refusal)) => return Err(refusal),
-                (None, Ok(_)) => unreachable!("an arm this mate formed is held in the fold's"),
+            // The fold's arm: the largest formed so far, or this mate's,
+            // formed now that the intersection asks.
+            let fold_arm = match arm {
+                Some(arm) => arm,
+                None => {
+                    let mate_arm = form()?;
+                    arm = Some(mate_arm);
+                    mate_arm
+                }
             };
             held = match super::coset::intersect(held, coset, band, fold_arm) {
                 Ok(next) => next,

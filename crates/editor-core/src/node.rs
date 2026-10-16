@@ -1758,7 +1758,7 @@ pub enum PlacementRuleFault {
     },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for a group placement.
+    /// exactly as for every other literal placement frame.
     ImproperFrame {
         /// Its index in the placement list.
         index: usize,
