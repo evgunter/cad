@@ -237,6 +237,13 @@ What still **fails** loudly: a wedged pass, and the matplotlib-fallback
 assertion. The re-baseline is only reached when the render itself
 succeeded, so a wedge is reported as a wedge and never as drift.
 
+**A re-baseline never deletes a cell.** Every lane publishes its whole
+pass, so a committed file the pass did not draw is a deletion, and the
+re-baseline fails with `lost cells`, lists those files one per line and
+commits nothing. If a file was meant to go (its cell was renamed or
+retired), delete it in a commit and push again with `[render]`.
+Otherwise the render dropped a scene, which is a failure to fix.
+
 ### Off-box: the hosted lanes
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
@@ -396,7 +403,12 @@ inputs are `demos/out/mc/*.svg` (untracked), written by the tour
 itself.
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
-published to the lane directory only once it is complete. The staging
+published to the lane directory only once it is complete, by
+`publish_lane.py`, which every lane but uv calls: it refuses a stage that
+is not exactly the cells the pass was asked for, replaces the lane's
+committed cells with the stage's wholesale (a `.fail.txt` displacing its
+frame, a `.note.txt` beside it), and runs the provenance guard over the
+result. The staging
 tree mirrors the lane directory's *name* and each scene process runs with
 the staging root as its working directory, so a staged frame's path reads
 the same as its published one.
