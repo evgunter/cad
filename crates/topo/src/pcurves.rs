@@ -7465,7 +7465,11 @@ pub(crate) mod pole_slit_tests {
 
     /// **A sphere patch anywhere in latitude reads in the chart's
     /// region.** A patch between two meridians and two parallels, below
-    /// latitude −1 rad, across the equator's south and north, is minted,
+    /// latitude −1 rad, south and north of the equator and across it, its
+    /// meridians' carriers started on the near half of their great circles
+    /// and on the far half (the frame negated, the span moved by `π`: PR
+    /// 5225's delta review, `d3`, where the far start stored the twin), is
+    /// minted,
     /// validates, stores every latitude in `[−π/2, π/2]` (the sphere's
     /// latitude window, `geom_brep`'s `Window::Latitude`), and overlaps
     /// itself with positive area. Placed in the angular window instead, a
@@ -7485,7 +7489,12 @@ pub(crate) mod pole_slit_tests {
             };
         let p = |u: f64, v: f64| Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
         let rhat = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
-        for (va, vb) in [(-1.4_f64, -1.1_f64), (-0.9, -0.3), (0.3, 1.3)] {
+        let bands = [(-1.4_f64, -1.1_f64), (-0.9, -0.3), (0.3, 1.3), (-0.2, 0.4)];
+        for (far, (va, vb)) in [false, true]
+            .into_iter()
+            .flat_map(|far| bands.map(|b| (far, b)))
+        {
+            let (flip, sh) = if far { (-1.0, PI) } else { (1.0, 0.0) };
             let (u0, u1) = (0.0_f64, 1.0_f64);
             let mut body = Body::<f64>::new();
             let seed = body.mvfs(p(u0, va), true).unwrap();
@@ -7518,9 +7527,12 @@ pub(crate) mod pole_slit_tests {
                     tol,
                 )
                 .unwrap();
-            let right =
-                EdgeCurveSpec::arc_of_circle(circle(o, rhat(u1).cross(z), 1.0, rhat(u1)), va, vb)
-                    .unwrap();
+            let right = EdgeCurveSpec::arc_of_circle(
+                circle(o, rhat(u1).cross(z), 1.0, rhat(u1) * flip),
+                va + sh,
+                vb + sh,
+            )
+            .unwrap();
             let r = body
                 .mev(
                     MevSite::Fan {
@@ -7549,9 +7561,12 @@ pub(crate) mod pole_slit_tests {
                     tol,
                 )
                 .unwrap();
-            let left =
-                EdgeCurveSpec::arc_of_circle(circle(o, z.cross(rhat(u0)), 1.0, rhat(u0)), -vb, -va)
-                    .unwrap();
+            let left = EdgeCurveSpec::arc_of_circle(
+                circle(o, z.cross(rhat(u0)), 1.0, rhat(u0) * flip),
+                -vb + sh,
+                -va + sh,
+            )
+            .unwrap();
             body.mef(
                 MefSite::Chords {
                     he1: tp.he_minus,
@@ -7563,7 +7578,7 @@ pub(crate) mod pole_slit_tests {
             )
             .unwrap();
             super::mint_pcurves(&mut body, tol).unwrap();
-            let label = format!("[{va}, {vb}]");
+            let label = format!("far {far} [{va}, {vb}]");
             assert_eq!(super::validate_pcurves(&body, band), vec![], "{label}");
             for (he, c) in body.pcurves() {
                 let (a, b) = c.params();
