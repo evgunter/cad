@@ -1107,3 +1107,10 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - Main merged clean (93b8ca5); clippy, gates and work lint clean.
   - The dual-review row is the last commit (ebdf082): concurrent H pair, one bilateral MAJOR, 0 tallied, fair (R2's ps-aux glimpse flagged). The blinded coder agreed with the pre-note; a blinding defect in the orchestrator's label substitution is disclosed.
   - PR body rewritten to the final state. Merging on green CI.
+- 2026-10-16: merged PR 5227 (c3) at 37edb54 on green CI (ebdf082, `gate ok`). The curve-pair reader's stage (c) is complete:
+  - pass 5′ reads every curved edge pair;
+  - C5's stretch rule is in the reader;
+  - two coplanar ellipses get a meeting method;
+  - fillet joints are decided by the certified window reading.
+
+  Open follow-ons: the coplanar touch (`two-coplanar-ellipses-have-no-meeting-method`, P2), the polish-meter windows (P2), the second-span stretch row (P3). The review worktree is retired.
