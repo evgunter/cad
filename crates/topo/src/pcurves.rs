@@ -7412,7 +7412,8 @@ pub(crate) mod pole_slit_tests {
             turn - 1e-7,
             turn + 1e-7,
         ];
-        let builds: [(&str, fn(f64) -> Body<f64>); 2] = [
+        type Build = fn(f64) -> Body<f64>;
+        let builds: [(&str, Build); 2] = [
             ("cylinder", |t| cylinder_patch_turned(0.0, t).unwrap()),
             ("cone", |t| cone_patch_turned(t).unwrap()),
         ];

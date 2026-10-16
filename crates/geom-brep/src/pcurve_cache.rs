@@ -4738,6 +4738,12 @@ pub struct WalkStop {
 ///
 /// No whole-period integer is read off a value: [`Period::decide`]
 /// decides it through the marks, and every other integer is structure.
+///
+/// **The principal window** an angular channel's images are placed in
+/// is `(−1, τ − 1]` ([`ANGLE_WINDOW_START`], whose doc has the census
+/// that chose it): a row's angle at its span's midpoint is taken there
+/// by deciding the turns off it through these marks, about the window's
+/// centre `π − 1`. A net's channels keep their knot domain.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Period<T> {
     length: T,
@@ -4783,7 +4789,11 @@ impl<T: Real> Period<T> {
 /// | `(−1, τ − 1]` | 0.8% | 0 |
 ///
 /// A body can still put a midpoint on the cut (a cone rotated so its
-/// seam sits at `−1`); no reader may tell the two copies apart there.
+/// seam sits at `−1`). Within the band of the cut the placement's mark
+/// is undecided and takes its lower branch (the D9 tie-break), so
+/// either rounding names one copy; and no reader tells the two copies
+/// apart where a midpoint is decided on either side of it
+/// (`topo::pcurves`' `a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it`).
 pub const ANGLE_WINDOW_START: f64 = -1.0;
 
 /// **An angle read off the geometry**: the two frame components of a
@@ -4807,7 +4817,7 @@ impl<T: Real> Azimuth<T> {
 
     /// The direction's length: the radius its angle is read at.
     pub fn length(self) -> T {
-        (self.x * self.x + self.y * self.y).sqrt()
+        (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 
     /// The angle of the direction in `(anchor − π, anchor + π]`: the
@@ -4822,7 +4832,7 @@ impl<T: Real> Azimuth<T> {
 
 impl<T: Decide> Azimuth<T> {
     /// The principal angle: `atan2`'s, read on whichever of two frames
-    /// keeps its cut off the direction ([`stable_azimuth`]): a rounding
+    /// keeps its cut off the direction (the chart's frame read): a rounding
     /// choice between two formulas equal modulo a turn, so the angle is
     /// one of the direction's names, in `(−π/2, 3π/2]`.
     pub fn principal(self, band: Band) -> T {

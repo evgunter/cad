@@ -22,8 +22,11 @@ fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -
     }
 }
 
+/// A named arm: its chart, its carrier, and an edge's span on it.
+type Arm = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64));
+
 /// One carrier per periodic arm of the derivation, with an edge's span.
-fn arms() -> Vec<(&'static str, Surface<f64>, Curve3<f64>, (f64, f64))> {
+fn arms() -> Vec<Arm> {
     let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
     let o = Point3::new(0.0, 0.0, 0.0);
     let cylinder = Surface::Cylinder {
