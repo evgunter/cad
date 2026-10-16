@@ -1103,3 +1103,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - The oracle is kept on the fuzz harness (slow set). The non-total sort and the unit mix are fixed.
   - Delta reviewer re-dispatched to confirm by execution.
 - 2026-10-16: PR 5227 confirmation (delta reviewer at 776d30e): every fix confirmed by execution except one remaining MAJOR in the seam class. The window's turns are hard-coded k ∈ {−2…2}, so a span at or past ±4π, or longer than a turn, loses the window's far side; one random draw in 4000 certified wrongly. Fix pass 3 dispatched (turns derived from the span, with a sweep for other fixed-turn assumptions).
+- 2026-10-16: PR 5227 fix pass 3 (turns counted from the span) confirmed: APPROVE. The widened seam oracle ran 20000 draws over ±20 turns and the span-end edges with 0 bad. Its NIT (the fuzz row's turn range) was taken by the orchestrator (29e3413).
+  - Main merged clean (93b8ca5); clippy, gates and work lint clean.
+  - The dual-review row is the last commit (ebdf082): concurrent H pair, one bilateral MAJOR, 0 tallied, fair (R2's ps-aux glimpse flagged). The blinded coder agreed with the pre-note; a blinding defect in the orchestrator's label substitution is disclosed.
+  - PR body rewritten to the final state. Merging on green CI.
