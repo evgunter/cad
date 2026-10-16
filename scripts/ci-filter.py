@@ -1230,22 +1230,31 @@ def classify(files: list[str], root: str) -> dict[str, str]:
     dir_of, deps = _members(root)
     seeds: set[str] = set()
     aux: list[str] = []
+    render_only: frozenset[str] | None = None
     for f in files:
         if _is_docs(f, consumed):
             continue
         # AUX PATHS build no workspace crate: the excluded demo and tool
-        # workspaces, the grep gates, and the tracker. Their own jobs key on
-        # the diff directly (ci.yml's `filter` job), and the nightly re-takes
-        # everything, so they do not force the whole-workspace tier.
+        # workspaces, the grep gates, the tracker, and the render-only
+        # workflow files. Their own jobs key on the diff directly (ci.yml's
+        # `filter` job), and the nightly re-takes everything, so they do not
+        # force the whole-workspace tier.
         if f.startswith(AUX_PREFIXES):
             aux.append(f)
             continue
+        if f.startswith(".github/"):
+            if render_only is None:
+                render_only = _render_only_units(root)
+            if _workflow_unit(f) in render_only:
+                aux.append(f)
+                continue
         member = _own_member(f, dir_of)
         # ALLOWLIST: only a file inside a member's directory is scopable.
         # Everything else is workspace-level and forces TIER=all:
         #   root Cargo.toml / Cargo.lock / rust-toolchain.toml — resolution
         #     and toolchain move every crate;
-        #   .cargo/**, .github/**, scripts/** — how everything is built/run;
+        #   .cargo/**, .github/** (but the render-only units above),
+        #     scripts/** — how everything is built/run;
         #   demos/**, tools/**, interval-transcendentals/** — the EXCLUDED
         #     workspaces; interval-transcendentals is a path dependency of
         #     geom-core, and demos/tour path-depends on nine members;
@@ -1373,6 +1382,89 @@ AUX_PREFIXES: tuple[str, ...] = (
     "docs/tess-budget-data/",
     "docs/perf-data/",
 )
+
+
+# THE RENDER-ONLY WORKFLOW FILES are aux paths too. Nothing the PR gate runs
+# reads them, so an edit to one cannot move a result the gate reports; the
+# render workflow they belong to runs nightly, and on a branch whose commit
+# subject carries `[render]` (ci.yml's `render tag` step, which reads the
+# commit and not the tier).
+#
+# DERIVED FROM THE TREE. A UNIT is a workflow file or an action directory
+# under `.github/`. `RENDER_WORKFLOW` is render-only unless the gate workflow
+# reaches it; any other unit is render-only when it is referenced at all and
+# every unit referring to it is render-only. A reference is the unit's path
+# written anywhere in a file under `_REFERENCE_TREES` — a `uses:`, a
+# `source`, a comment alike, which errs toward more referrers and so toward
+# TIER=all. A file under `scripts/` or `crates/` that names a unit is a
+# referrer that is never render-only. This script is not a referrer: it reads
+# no unit, and it names them to classify them.
+#
+# BLIND SPOT: a reader that never spells a unit's path (a walk over
+# `.github/` as a tree) is not seen. The one such reader today is a lint gate,
+# and the lint job runs on every tier.
+RENDER_WORKFLOW = ".github/workflows/render.yml"
+GATE_WORKFLOW = ".github/workflows/ci.yml"
+_REFERENCE_TREES = (".github", "scripts", "crates")
+_UNIT_RE = re.compile(rb"\.github/(actions/[A-Za-z0-9_.-]+|workflows/[A-Za-z0-9_.-]+\.ya?ml)")
+_SELF = "scripts/ci-filter.py"
+
+
+def _workflow_unit(path: str) -> str | None:
+    parts = path.split("/")
+    if len(parts) >= 3 and parts[0] == ".github" and parts[1] == "actions":
+        return "/".join(parts[:3])
+    if len(parts) == 3 and parts[:2] == [".github", "workflows"]:
+        return path
+    return None
+
+
+def _render_only_units(root: str) -> frozenset[str]:
+    """The units only the render workflow reads. See RENDER-ONLY above."""
+    units: set[str] = set()
+    referrers: dict[str, set[str]] = {}
+    for tree in _REFERENCE_TREES:
+        for base, dirs, names in os.walk(os.path.join(root, tree)):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for name in names:
+                path = os.path.join(base, name)
+                rel = os.path.relpath(path, root).replace(os.sep, "/")
+                if rel == _SELF:
+                    continue
+                try:
+                    with open(path, "rb") as fh:
+                        data = fh.read()
+                except OSError as exc:
+                    raise Bail(f"cannot read {rel}: {exc}") from exc
+                own = _workflow_unit(rel)
+                if own is not None:
+                    units.add(own)
+                for m in _UNIT_RE.finditer(data):
+                    unit = ".github/" + m.group(1).decode()
+                    if unit != own:
+                        referrers.setdefault(unit, set()).add(own or rel)
+    if RENDER_WORKFLOW not in units:
+        return frozenset()
+    reached = {GATE_WORKFLOW}
+    stack = [GATE_WORKFLOW]
+    while stack:
+        cur = stack.pop()
+        for unit, by in referrers.items():
+            if cur in by and unit not in reached:
+                reached.add(unit)
+                stack.append(unit)
+    if RENDER_WORKFLOW in reached:
+        return frozenset()
+    render = {RENDER_WORKFLOW}
+    grew = True
+    while grew:
+        grew = False
+        for unit in sorted(units - render):
+            by = referrers.get(unit, set())
+            if by and by <= render:
+                render.add(unit)
+                grew = True
+    return frozenset(render)
 
 
 JOB_ROOTS = {
@@ -2999,6 +3091,42 @@ def _plant_reach(t: str) -> None:
     )
 
 
+# The render-only derivation's fixture. Every unit is named unlike the real
+# ones, so the derivation is what classifies them and no name can.
+_FIXTURE_WORKFLOWS = {
+    ".github/workflows/ci.yml": "steps:\n  - uses: ./.github/actions/setup-tool\n",
+    ".github/workflows/nightly.yml": (
+        "jobs:\n  render:\n    uses: ./.github/workflows/render.yml\n"
+        "  probe:\n    steps:\n      - uses: ./.github/actions/shared-step\n"
+    ),
+    ".github/workflows/render.yml": (
+        "steps:\n  - uses: ./.github/actions/redo-lane\n"
+        "  - uses: ./.github/actions/setup-tool\n"
+        "  - uses: ./.github/actions/shared-step\n"
+        "  - uses: ./.github/actions/script-read\n"
+    ),
+    # Self-references, as the real lane's `lib.sh` makes: not a referrer.
+    ".github/actions/redo-lane/action.yml": (
+        "runs:\n  steps:\n    - uses: ./.github/actions/nested-step\n"
+        "    - run: source .github/actions/redo-lane/lib.sh\n"
+    ),
+    ".github/actions/redo-lane/lib.sh": "# sourced from .github/actions/redo-lane/action.yml\n",
+    ".github/actions/nested-step/action.yml": "runs: {}\n",
+    ".github/actions/setup-tool/action.yml": "runs: {}\n",
+    ".github/actions/shared-step/action.yml": "runs: {}\n",
+    ".github/actions/script-read/action.yml": "runs: {}\n",
+    ".github/actions/orphan/action.yml": "runs: {}\n",
+    "scripts/reads-action.sh": "cat .github/actions/script-read/action.yml\n",
+}
+
+
+def _plant_workflows(t: str) -> None:
+    for rel, text in _FIXTURE_WORKFLOWS.items():
+        os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
+        with open(os.path.join(t, rel), "w") as fh:
+            fh.write(text)
+
+
 def _plant_fixture(t: str) -> str:
     import shutil
 
@@ -3036,6 +3164,7 @@ def _plant_fixture(t: str) -> str:
     with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
         fh.write('PAGE = ROOT / "docs" / "guide" / "PYPAGE.md"\n')
     _plant_reach(t)
+    _plant_workflows(t)
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
@@ -3227,6 +3356,41 @@ def selftest() -> None:
         _files_case(t, "an aux path beside a crate source scopes to the crate",
                     ["demos/tour/src/main.rs", "crates/stl/src/lib.rs"],
                     TIER="closure", PKGS="stl")
+
+        # --- RENDER-ONLY WORKFLOW FILES are aux; anything the gate can reach
+        # is not. The fixture is `_FIXTURE_WORKFLOWS`.
+        for what, files, tier in (
+            ("the render workflow alone", [".github/workflows/render.yml"], "aux"),
+            ("a render-only action", [".github/actions/redo-lane/lib.sh",
+                                      ".github/actions/redo-lane/action.yml"], "aux"),
+            ("an action only a render-only action uses",
+             [".github/actions/nested-step/action.yml"], "aux"),
+            ("the render workflow beside the gate workflow",
+             [".github/workflows/render.yml", ".github/workflows/ci.yml"], "all"),
+            ("an action the gate workflow uses", [".github/actions/setup-tool/action.yml"], "all"),
+            ("an action the nightly uses too", [".github/actions/shared-step/action.yml"], "all"),
+            ("an action a script reads", [".github/actions/script-read/action.yml"], "all"),
+            ("an action nothing uses", [".github/actions/orphan/action.yml"], "all"),
+            ("the nightly, which calls the render workflow", [".github/workflows/nightly.yml"], "all"),
+            ("an unrecognised file under .github", [".github/CODEOWNERS"], "all"),
+        ):
+            _files_case(t, f"{what} must classify {tier}", files,
+                        TIER=tier, RUN_BUILD="false" if tier == "aux" else "true")
+        _files_case(t, "the render workflow beside a crate source scopes to the crate",
+                    [".github/workflows/render.yml", "crates/stl/src/lib.rs"],
+                    TIER="closure", PKGS="stl")
+        # The gate reaching the render workflow makes none of it render-only.
+        gate = os.path.join(t, GATE_WORKFLOW)
+        with open(gate, "a") as fh:
+            fh.write("  - uses: ./.github/workflows/render.yml\n")
+        for what, files in (
+            ("the render workflow, once the gate calls it", [".github/workflows/render.yml"]),
+            ("a render-only action, once the gate calls its workflow",
+             [".github/actions/redo-lane/action.yml"]),
+        ):
+            _files_case(t, f"{what} must classify all", files, TIER="all")
+        with open(gate, "w") as fh:
+            fh.write(_FIXTURE_WORKFLOWS[GATE_WORKFLOW])
 
         # --- SEEDS ON THE `all` TIER name the members whose own files moved,
         # as they do on `closure`. ci.yml runs the slow set of exactly these,
@@ -3504,7 +3668,7 @@ def selftest() -> None:
     _selftest_gated()
     _selftest_eps_rows()
     print("ci-filter selftest OK: docs/aux/closure/all tiers, the dependent closure, "
-          "the python and viewer axes, the oracle signal, requests, the per-file test gate and the extra eps rows")
+          "the render-only workflow files, the python and viewer axes, the oracle signal, requests, the per-file test gate and the extra eps rows")
 
 
 # A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
