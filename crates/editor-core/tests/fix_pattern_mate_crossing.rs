@@ -198,7 +198,9 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
         .into_iter()
         .find(|&id| {
             matches!(doc.node(id), Some(Node::Part { of, select: editor_core::PartSelect::Instance(n) })
-                if doc.operation_of(*of) == Some(pattern) && *n == Formula::count(i64::from(i)))
+                if doc.operation_of(*of) == Some(pattern)
+                    && doc.written(&editor_core::Expr::var(*n, editor_core::Dimension::Count))
+                        == Formula::count(i64::from(i)))
         })
         .expect("the copy is selected");
     doc.placements()

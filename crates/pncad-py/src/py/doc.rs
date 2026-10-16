@@ -49,7 +49,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 25] {
+) -> [(&'static str, Py<PyAny>); 26] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -115,6 +115,12 @@ fn edit_fields(
             num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
         ),
         ("side", word(payload.side)),
+        (
+            "mate",
+            opt(payload.node.zip(payload.constraint).map(|(placement, id)| {
+                Py::new(py, super::mate::MateRef(d::MateRef::new(placement, id))).map(Py::into_any)
+            })),
+        ),
         (
             "path",
             opt(payload.path.map(|p| {

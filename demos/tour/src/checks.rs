@@ -118,7 +118,7 @@ fn boolean_doc(
         },
         tol,
     );
-    let placed = apply(&doc, &DocEdit::place(boolean, None), tol, &RefusingReach)
+    let placed = apply(&doc, &DocEdit::place_in_world(boolean, None), tol, &RefusingReach)
         .expect("the boolean places");
     doc = placed.doc;
     let placement = placed.record.minted.expect("a placement mints an id");

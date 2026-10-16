@@ -1,15 +1,14 @@
 //! **The mate solve reports the evaluation's own refusal.**
 //!
 //! A mate whose reference is placed by a pattern copy or a transform
-//! used to refuse `DanglingHead` for every way the pose failed to
-//! derive — a slot that does not evaluate, a direction of no definite
-//! length, an explicit rule — about a head that resolves and a placer
-//! that exists. The doc's justification was that the placer node
-//! names the cause in its own voice; it cannot, because the mate
-//! fault POISONS the document and that node evaluates to `Poisoned`
-//! instead.
+//! can fail to derive its pose in many ways — a slot that does not
+//! evaluate, a direction of no definite length, an explicit rule —
+//! about a head that resolves and a placer that exists. Refusing
+//! `DanglingHead` for all of them would leave the cause to the placer
+//! node's own voice, which cannot speak: the mate fault POISONS the
+//! document and that node evaluates to `Poisoned` instead.
 //!
-//! These rows measure the replacement. `MateFault::PlacerRefused`
+//! These rows measure what the solve says. `MateFault::PlacerRefused`
 //! carries the evaluation layer's own typed refusal UNALTERED, and
 //! the headline rows compare it against what the same node's own
 //! evaluation raises on the TWIN document — the same recipe with the
@@ -22,15 +21,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Formula, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
-    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
+    EvalOptions, Formula, Frame, Mate, MateFault, MateRef, MateFrame, MatePrimitive, Node, NodeErrorClass,
+    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
@@ -59,27 +57,28 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The seat every row's mate declares.
-fn seat(a: StableName, b: StableName) -> AuthoredNode {
+fn seat(a: StableName, b: StableName) -> Mate<Formula> {
     let frame = |origin: [f64; 3], axis: [f64; 3]| {
         MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
             .expect("a definite frame")
     };
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+    fixture::mate(
+        fixture::head(a),
+        fixture::head(b),
+        ContactClass::Rest,
+        Alignment {
             a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
             b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
 }
 
-/// What every row builds: a part instance, whatever places it, a
-/// second instance, and a mate onto the placed body.
+/// What every row builds: a part instance pinned to the world, whatever
+/// places a copy of it, a second instance, and a mate in the second
+/// instance's bundle onto the placed body.
 ///
 /// `twin` is the same document with the mate left OUT, and its node
 /// ids are the mated document's because the mate is inserted last —
@@ -88,7 +87,7 @@ struct Scene {
     doc: ProfileDoc,
     twin: ProfileDoc,
     placer: RecipeNodeId,
-    mate: RecipeNodeId,
+    mate: MateRef,
     store: Arc<PartStore>,
 }
 
@@ -104,7 +103,7 @@ impl Scene {
     /// The fault the solve records for the mate.
     fn fault(&self) -> MateFault {
         solve(&self.doc, &self.opts(), Tol::witness())
-            .fault(self.mate)
+            .fault(self.mate.placement)
             .cloned()
             .expect("the placer refuses")
     }
@@ -187,28 +186,21 @@ where
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, legs) = insert(doc, Node::instantiate_part(leg));
     let (doc, placer, name, extra) = place(doc, legs, leg_body);
-    let (doc, cap) = insert(doc, Node::instantiate_part(top));
+    let (doc, cap) = insert(doc, fixture::mated_instance(top));
     let twin = doc.clone();
-    let mut node = seat(name, in_part(cap, top_body, CapEnd::Start));
-    if let Node::Mate { a, .. } = &mut node {
+    let mut mate = seat(name, in_part(cap, top_body, CapEnd::Start));
+    if let SideRead::Face(a) = &mut mate.a {
         // The reference is read AT the placer: that operand is what
         // puts the placer on the walk's chain.
-        *a = crate::fixture::head_at(placer, (*crate::fixture::authored_head(a).name).clone())
-            .into();
+        *a = fixture::head_at(placer, (*fixture::authored_head(a).name).clone()).into();
     }
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
-    );
+    let (doc, mate) = fixture::constrain_at(doc, cap, mate);
     (
         Scene {
             doc,
             twin,
             placer,
-            mate: mate.expect("the mate mints"),
+            mate,
             store: Arc::new(store),
         },
         extra,
@@ -663,7 +655,7 @@ fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
         let master = kind.scene(&format!("{label}-copy-0"), 0);
         assert!(
             solve(&master.doc, &master.opts(), Tol::witness())
-                .fault(master.mate)
+                .fault(master.mate.placement)
                 .is_none(),
             "{label}: a mate onto copy 0 reads no step"
         );
@@ -804,12 +796,12 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         1,
     );
     let o = scene.opts();
-    // Deleting the placer strands the mate's operand and splits the
-    // group: the edit levers through the store's reach.
+    // Deleting the placer strands the mate's operand: the edit levers
+    // through the store's reach.
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
     let f = solve(&doc, &o, Tol::witness())
-        .fault(scene.mate)
+        .fault(scene.mate.placement)
         .cloned()
         .expect("the stranded mate refuses");
     assert!(
@@ -829,16 +821,17 @@ fn the_placement_axis_refuses_in_its_own_voice() {
     let mut store = PartStore::new();
     let part = store.insert(block("msolve3-rider-part").0, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve3-rider"), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(part));
+    let (doc, instance) = insert(doc, fixture::mated_instance(part));
 
-    // The natural spelling: build the frame, set it, one error type.
+    // The natural spelling: build the frame, pin the instance to the
+    // world at it, one error type.
     let set = |axis: [f64; 3]| -> Result<ProfileDoc, EditError> {
         let frame = Frame::rotate_then_translate(axis, 0.5, [1.0, 2.0, 3.0], fixture::band())?;
         Ok(editor_core::apply(
             &doc,
-            &DocEdit::SetOffset {
-                instance,
-                offset: Some(editor_core::Placement::literal(&frame)),
+            &DocEdit::AddConstraint {
+                placement: instance,
+                mate: Box::new(Mate::world_pin(editor_core::Placement::literal(&frame))),
                 fresh: Vec::new(),
             },
             Tol::witness(),

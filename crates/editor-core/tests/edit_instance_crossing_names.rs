@@ -144,12 +144,12 @@ fn with_record(
     (doc, instance)
 }
 
-/// The one name a face side selects.
-fn side_name(side: &SideRead<Operand>) -> StableName {
-    let SideRead::Face(Operand::Select { names, .. }) = side else {
-        panic!("a face side is a selection, got {side:?}")
+/// The one name a stored constraint's face side selects.
+fn side_name(doc: &ProfileDoc, side: &SideRead<editor_core::VarId>) -> StableName {
+    let SideRead::Face(var) = side else {
+        panic!("a face side, got {side:?}")
     };
-    names[0].clone()
+    fixture::side_name(doc, *var)
 }
 
 /// The record of the instance at `id`, cloned — the subject of every
@@ -307,7 +307,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
         "the record's `outer` followed the rebind"
     );
     assert_eq!(
-        side_name(&fixture::constraint(&rebound, crossing_mate).a),
+        side_name(&rebound, &fixture::constraint(&rebound, crossing_mate).a),
         to,
         "the constraint's selection of the same face followed its own repair"
     );
@@ -391,11 +391,9 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
-            Maintenance::OffsetCleared { .. }
-            | Maintenance::StrandedSelection { .. }
+            Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
-            | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect();

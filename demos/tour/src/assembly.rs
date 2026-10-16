@@ -1,17 +1,17 @@
 //! **The assembly stop** (ASSEMBLY-DESIGN A2–A13, the ASM program's
 //! v1 scope): three part documents, a workspace on disk, and two
 //! assembly documents built out of them — one a flat-pack layout that
-//! patterns a part, one a mated bench standing on a turntable gauge,
-//! whose placements are solved constructively from its mates and
-//! composed onto the gauge a document parameter turns.
+//! patterns a part, one a mated bench standing on a turntable, whose
+//! placements are solved constructively from their mates onto the one
+//! copy pinned to the world through a turn a document parameter drives.
 //!
 //! Written the way a user writes an assembly, through the public
-//! doors: `Workspace` to hold the documents, `InstantiatePart` +
-//! `SetOffset` to reference and place them, `Node::Gauge` +
-//! `SetGauge` to give a group a frame to stand on, `Node::Pattern` to
-//! replicate one, `Node::Mate` to seat one part on another (through
-//! `regauge_then_mate` where the mover stands on another gauge),
-//! `SetVarValue` to turn the gauge, `assemble` for the at-rest
+//! doors: `Workspace` to hold the documents, `InstantiatePart` to
+//! reference a part (an instance IS a placement, and its bundle of
+//! constraints says where it sits), `Mate::world_pin` to pin one to the
+//! world at a pose, `Node::Pattern` to replicate one, `AddConstraint`
+//! to seat one part on another by a mate in the mover's bundle,
+//! `SetVarValue` to turn the turntable, `assemble` for the at-rest
 //! gate, `split`/`inline` to refactor, `update_to_store` to accept a
 //! new version of a part, and `save` / `load` to round-trip. What
 //! this stop reports it MEASURED on this run; what refuses, refuses
@@ -20,8 +20,9 @@
 //! # The two documents, and why there are two
 //!
 //! `bench-stand` is the assembled object: two posts and a shelf, the
-//! shelf seated on the posts by mates, the three on a turntable gauge
-//! whose swing is the document's `swing` parameter, and a crate resting
+//! shelf seated on the posts by mates, the root post pinned to the world
+//! through a turntable whose swing is the document's `swing` parameter,
+//! and a crate resting
 //! on the shelf's top face. `bench-layout` is the post
 //! and the shelf laid out flat for shipping — two posts on their side
 //! (one instance, patterned) and the shelf beside them, nothing
@@ -31,7 +32,7 @@
 //! gate CERTIFIES, its two flush seats and the crate's rest included
 //! (see [`stand_scene`]). Three `SetVarValue`
 //! edits on `swing` render three poses, each re-running only the
-//! turntable and the instances its chain places (see [`poses`]).
+//! instances the turntable's chain places (see [`poses`]).
 //!
 //! Every door this file uses is `pncad::…`, the tour's standing
 //! invariant: the demos are the façade's acceptance corpus, so a scene
@@ -60,8 +61,7 @@
 //!   and the seat still certifies, where a frame of authored numbers
 //!   stayed behind and was refuted.
 //! - **#945** — mates and patterns do not compose at all, which is
-//!   why this file has two assembly documents rather than one; it
-//!   also records the A11 rule-4 drift, and wants Ev's ruling.
+//!   why this file has two assembly documents rather than one.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
 //! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
@@ -75,11 +75,11 @@
 //!   (`work/wire/a-placement-cannot-turn-about-a-point-or-an-axis.md`):
 //!   the turntable's turn about the bench's centre is a three-step
 //!   chain, and no step reads a `Datum::Axis` (`turntable`).
-//! - **A part resting on a gauge could not follow a part edit — CLOSED.**
-//!   A mate frame is a base and an offset: the crate's shelf side is the
-//!   shelf's top FACE offset in that face's frame, and its mate places
-//!   it on the stand's turntable, so a thicker shelf lifts it and
-//!   shorter posts lower it, and the gate certifies both (`update_door`).
+//! - **A part resting on another follows a part edit.** A mate frame is
+//!   a base and an offset: the crate's shelf side is the shelf's top FACE
+//!   offset in that face's frame, and its mate places it on the shelf,
+//!   so a thicker shelf lifts it and shorter posts lower it, and the gate
+//!   certifies both (`update_door`).
 //! - **A face base's in-plane axes put the carrier's reference on local
 //!   +Y** (`work/msolve/a-face-base-puts-its-reference-on-local-y.md`):
 //!   the frame is the witness ladder's `point_at` frame, so the crate's
@@ -104,11 +104,11 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, AxisSense, BodyRead, CONTRADICTORY_RECOURSE, CancelToken,
     Datum, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach,
-    MateRole, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PartSelect,
-    PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
-    Step, UNDER_RECOURSE, ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline,
-    load, mixed_pins, parse_formula, product_named, regauge_then_mate, save, solve_document, split,
+    FreeValue, FreeVar, InlineError, LoopProgram, Mate, MateFault, MateFrame, MatePrimitive,
+    MateReach, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver,
+    PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
+    SideRead, SitedFace, Space, Step, ValuePayload, VarName, apply, assemble, content_pin,
+    evaluate, inline, load, mixed_pins, parse_formula, product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -207,7 +207,8 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// A mate head, read at the instance the name is qualified by.
 ///
 /// A mate declares a contact between two FACES, and the kernel says so
-/// in the type: `Node::Mate` takes `SitedFace`s, whose names are
+/// in the type: a mate's face side is read through a `SitedFace`, whose
+/// names are
 /// `pncad::document::FaceName`s. A caller holding a `StableName` from
 /// a selection door asks for one and handles the refusal — which for
 /// this tour is the same loud panic every other authoring helper here
@@ -230,39 +231,19 @@ fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     SitedFace::at_mint(name.in_part(instance))
 }
 
-/// Inserts a node that is not a mate and returns its minted id.
+/// A mate side that reads the face `local` of `instance`'s part.
+fn face(instance: RecipeNodeId, local: &StableName) -> SideRead<pncad::document::Operand> {
+    SideRead::Face(head(instance, local).into())
+}
+
+/// Inserts a node and returns its minted id.
 ///
-/// Every node the scenes insert through here — an instance, a pattern,
-/// a sketch — is admitted on its own datum, and an insert never moves a
-/// group's root (a new mate JOINS groups; the survivor keeps its
-/// root), so neither the door nor the maintenance asks the reach and
-/// the refusing one is the honest value. A mate goes through
-/// [`insert_mate`]; the edits that move a root — the split and the
-/// inline below — take the workspace's own reach.
+/// Every node the scenes insert through here — an instance with an
+/// empty bundle or a world pin, a pattern, a sketch — is admitted on its
+/// own datum and reads no part's faces, so the door asks nothing of the
+/// reach and the refusing one is the honest value. A mate goes through
+/// [`constrain`].
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
-    insert_through(doc, node, tol, &RefusingReach)
-}
-
-/// Inserts a mate through `reach` — the workspace's — and returns its
-/// minted id. The door admits a mate by reading its parts: it resolves
-/// a side framed on its head face (`MateFrame::from_face()`) from the part's own face,
-/// as it levers a coincidence's rider over the parts' extent, so the
-/// insert takes the reach an evaluation would use.
-fn insert_mate(
-    doc: &mut ProfileDoc,
-    node: AuthoredNode,
-    tol: Tol,
-    reach: &dyn MateReach,
-) -> RecipeNodeId {
-    insert_through(doc, node, tol, reach)
-}
-
-fn insert_through(
-    doc: &mut ProfileDoc,
-    node: AuthoredNode,
-    tol: Tol,
-    reach: &dyn MateReach,
-) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -270,26 +251,78 @@ fn insert_through(
             fresh: Vec::new(),
         },
         tol,
-        reach,
+        &RefusingReach,
     )
     .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
+/// A reference to `part`, as an instance whose bundle is one world pin
+/// at `pose` — or, for `None`, an empty bundle: a loose copy until a
+/// mate added to its bundle pins it.
+fn instance(part: DocRef, pose: Option<Placement<Formula>>) -> AuthoredNode {
+    let mut node = Node::instantiate_part(part);
+    if let Node::InstantiatePart { constraints, .. } = &mut node {
+        match pose {
+            Some(pose) => {
+                for constraint in constraints.iter_mut() {
+                    constraint.mate = Mate::world_pin(pose.clone());
+                }
+            }
+            None => constraints.clear(),
+        }
+    }
+    node
+}
+
+/// Adds `mate` to `placement`'s bundle through `reach` — the
+/// workspace's — and returns the constraint's address. The door admits
+/// a mate by reading its parts: it resolves a side framed on its head
+/// face (`MateFrame::from_face()`) from the part's own face, as it
+/// levers a coincidence's rider over the parts' extent, so the edit
+/// takes the reach an evaluation would use.
+fn constrain(
+    doc: &mut ProfileDoc,
+    placement: RecipeNodeId,
+    mate: Mate<Formula>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> MateRef {
+    let applied = apply(doc, &add_constraint(placement, mate), tol, reach)
+        .unwrap_or_else(|err| panic!("the bundle admits the mate: {err:?}"));
+    *doc = applied.doc;
+    let [id] = applied.record.minted_constraints[..] else {
+        panic!(
+            "adding a constraint mints one id: {:?}",
+            applied.record.minted_constraints
+        )
+    };
+    MateRef::new(placement, id)
+}
+
+/// The edit adding `mate` to `placement`'s bundle.
+fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<ProfileProgram> {
+    DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(mate),
+        fresh: Vec::new(),
+    }
+}
+
 /// Places one copy of `body` in the world at the identity, and returns
 /// the placement's id.
 fn place(doc: &mut ProfileDoc, body: impl Into<BodyRead<Formula>>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::place(body, None), tol, &RefusingReach)
+    let applied = apply(doc, &DocEdit::place_in_world(body, None), tol, &RefusingReach)
         .unwrap_or_else(|err| panic!("the placement applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("a placement mints an id")
 }
 
 /// Applies an edit that mints nothing, through `reach` — the scene
-/// builders pass the refusing one for a placement (see [`insert`]);
-/// the update door passes the workspace's, because a pin move on a
-/// mated document re-keys groups through the parts' own extent.
+/// builders pass the refusing one where nothing reads a part (see
+/// [`insert`]); the walks over a mated document pass the workspace's,
+/// because its mates re-admit through the parts' own extent.
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn MateReach) {
     let applied = apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
@@ -508,35 +541,77 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         .in_copy(placement)
 }
 
-/// The one world placement reading `body`'s output.
+/// The node a `Place` over one shape copies.
+fn placed_shape(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<RecipeNodeId> {
+    match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => match &shapes[..] {
+            [shape] => doc.operation_of(shape.read),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The one `Place` copying `body`'s output.
 fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
     let reading: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .filter(|&p| {
-            matches!(doc.node(p), Some(Node::PlaceInWorld { body: read, .. })
-                if doc.operation_of(read.read) == Some(body))
-        })
+        .filter(|&p| placed_shape(doc, p) == Some(body))
         .collect();
     let [one] = reading[..] else {
-        panic!("node {body} has one world placement, got {reading:?}")
+        panic!("node {body} has one placement, got {reading:?}")
     };
     one
 }
 
-/// A part document's one world placement, and the node whose body it
-/// places.
+/// A part document's one placement, and the node whose body it places.
 fn placed_body(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId) {
     let [placement] = doc.placements()[..] else {
         panic!("a part places one body, got {:?}", doc.placements())
     };
-    let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
-        unreachable!("a placement is a world placement")
-    };
-    let node = doc
-        .operation_of(body.read)
-        .expect("the placed body is live");
+    let node = placed_shape(doc, placement).expect("the placement copies one live body");
     (placement, node)
+}
+
+/// The pose `placement`'s bundle pins it to the world at, when its
+/// bundle is one world pin.
+fn world_pose(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<Placement<Formula>> {
+    let constraints = match doc.node(placement) {
+        Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
+            constraints
+        }
+        _ => return None,
+    };
+    match &constraints[..] {
+        [pin] if matches!(pin.mate.a, SideRead::World) => {
+            Some(pin.mate.alignment.a.offset.clone())
+        }
+        _ => None,
+    }
+}
+
+/// The ids of `placement`'s bundle, in bundle order.
+fn bundle_ids(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<pncad::document::ConstraintId> {
+    match doc.node(placement) {
+        Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
+            constraints.iter().map(|c| c.id).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The one body an instance's copies gather into: its part's product.
+fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Arc<Body<f64>> {
+    match &ev.value(instance).expect("the instance evaluates").payload {
+        ValuePayload::Copies(copies) => {
+            let [body] = &copies.bodies[..] else {
+                panic!("{what}'s part gathers into one body")
+            };
+            Arc::clone(body)
+        }
+        other => panic!("{what} is a {}, not an instance's copies", other.kind_name()),
+    }
 }
 
 // ---- The assembly documents ----

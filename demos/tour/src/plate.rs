@@ -304,7 +304,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         (blank, [(hole_a, face()), (hole_b, face())])
     };
     let placement =
-        apply(&doc, &DocEdit::place(placed, None), tol, &RefusingReach).expect("the plate places");
+        apply(&doc, &DocEdit::place_in_world(placed, None), tol, &RefusingReach).expect("the plate places");
     doc = placement.doc;
 
     // The wall names come from the SELECTION door, the way a user gets

@@ -134,11 +134,10 @@ use pncad::document::{
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
     Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
-    NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
+    NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, Unplaced,
-    UpdateError,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
@@ -566,6 +565,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Open => "open",
         S::Face => "face",
         S::Side { .. } => "side",
+        S::Shape(_) => "shape",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::From => "from",
@@ -1920,34 +1920,6 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for why a group is unplaced (A11 (2)): no member
-/// carries an offset, or its gauge chain names a deleted gauge. The
-/// words are the kernel's own ([`Unplaced::word`], which the clearance
-/// goldening form prints); they are spelled here as literals because
-/// the tag inventory reads this file, and a test holds the two equal.
-pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
-    match cause {
-        Unplaced::NoOffset => "no_offset",
-        Unplaced::DeadGauge { .. } => "dead_gauge",
-    }
-}
-
-/// The stable tag for why a checked offset could not be checked — the
-/// inner arm of [`mate_fault_tag`]'s `mate_offset_unchecked`: a
-/// placement the check reads did not evaluate, the member's part reach
-/// is not in hand, the check landed in the ambiguity band, a refused
-/// mate leaves the member with no pose, or the member and its pose are
-/// further apart than a distance can be measured.
-pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
-    match cause {
-        OffsetCheck::Placement { .. } => "placement_refused",
-        OffsetCheck::Unleverable(_) => "unleverable",
-        OffsetCheck::Indeterminate(_) => "indeterminate",
-        OffsetCheck::Unreached { .. } => "unreached",
-        OffsetCheck::OutOfRange => "unmeasurable",
-    }
-}
-
 /// The stable tag for a document-seam resolution failure — the
 /// vocabulary EVERY door that crosses the seam speaks.
 ///
@@ -2227,8 +2199,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
-        E::Unplaced { .. } => "unplaced",
-        E::UnplacedBelow { .. } => "unplaced_below",
+        E::Loose { .. } => "loose",
     }
 }
 
@@ -2243,7 +2214,6 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootPoisoned => "root_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedPlacement => "stranded_placement",
-        K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2565,15 +2535,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
-        SplitError::TornGroup { .. } => "torn_group",
-        SplitError::SeveredGauge { .. } => "severed_gauge",
-        SplitError::TwoAnchors { .. } => "two_anchors",
-        SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
         SplitError::NoMaterial { .. } => "no_material",
-        SplitError::UnplaceableRoot { .. } => "unplaceable_root",
-        SplitError::UnplacedAlone { .. } => "unplaced_alone",
-        SplitError::WouldStartPlacing { .. } => "would_start_placing",
-        SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
@@ -2601,7 +2563,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
     match err {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
-        InlineError::PlacementPoseCrosses { .. } => "placement_pose_crosses",
+        InlineError::UnplaceablePart { .. } => "unplaceable_part",
         InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
@@ -2609,13 +2571,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
-        InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
-        InlineError::MatePlaced { .. } => "mate_placed",
-        InlineError::Unplaced { .. } => "unplaced",
-        InlineError::MovedMemberOffset { .. } => "moved_member_offset",
-        InlineError::PartDeadGauge { .. } => "part_dead_gauge",
+        InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        InlineError::MatePairSplits { .. } => "mate_pair_splits",
+        InlineError::SideLeavesAnInstance { .. } => "side_leaves_an_instance",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -3403,24 +3361,19 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 }
 
 /// The stable tag for one act of maintenance an accepted edit
-/// performed — the offset the mate door cleared, or a reference the
-/// edit stranded.
+/// performed — a reference the edit stranded, or an anonymous variable
+/// it removed.
 ///
-/// The word decides which payload attributes carry: an
-/// `offset_cleared` names the instance whose offset the mate door
-/// cleared — a member of the mate's first operand's group, now placed
-/// on the second's — and carries that offset, a `strand` the
+/// The word decides which payload attributes carry: a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
 /// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
-        Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
-        Maintenance::LabelDropped { .. } => "label_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }
@@ -3486,6 +3439,7 @@ pub fn pose_fault_tag(fault: &pncad::document::pose::PoseFault) -> &'static str 
         F::ScalarKind { .. } => "scalar_kind",
         F::Kind { .. } => "kind",
         F::Cycle => "cycle",
+        F::NotACopy { .. } => "not_a_copy",
     }
 }
 

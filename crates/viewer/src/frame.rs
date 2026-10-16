@@ -3498,7 +3498,6 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3555,7 +3554,6 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedPlacement,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,

@@ -22,12 +22,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, Datum, Dimension, Distribution,
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateFault,
-    MateFrame, MatePrimitive, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, Mate, MateFault,
+    MateFrame, MateRef, MatePrimitive, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
     SitedFace, StableName, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -69,9 +68,8 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
 /// none. A reader that rebuilt its own would put a second build in
 /// one of these files, which is what this row counts. The one other
 /// build in `solve.rs` is `SolvedPoses::placement`'s: the nominal
-/// world-pose door evaluates a group's frame after the solve, which
-/// reads no gauge frame, and that door is no reader of the solve's
-/// environment.
+/// world-pose door evaluates a placement's world pose after the solve,
+/// and that door is no reader of the solve's environment.
 ///
 /// What it cannot see: an environment reached through another door
 /// (`VarEnv { .. }` written by hand, `var_env_over`, `seed_env`),
@@ -174,12 +172,12 @@ const BASE_WIDTH: f64 = 3.0;
 const TOP_HEIGHT: f64 = 3.0;
 
 /// The seat every parameter row's mate declares: `b` rests on `a`.
-fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+fn seat(a: SitedFace, b: SitedFace) -> Mate<Formula> {
+    fixture::mate(
+        a,
+        b,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 [1.0, 1.0, BASE_HEIGHT],
                 [0.0, 0.0, 1.0],
@@ -198,18 +196,19 @@ fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
 }
 
-/// A base and a top, the top optionally under a pattern, the mate to
-/// copy `copy` of it read at the pattern.
+/// A base pinned to the world and a top, the top optionally under a
+/// pattern, the mate in the top's bundle onto copy `copy` of it read at
+/// the pattern.
 #[derive(Clone)]
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
     top: RecipeNodeId,
     pattern: Option<RecipeNodeId>,
-    mate: RecipeNodeId,
+    mate: MateRef,
 }
 
 /// A pattern rule over the axis datum the scene inserts, and its count.
@@ -268,7 +267,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
             (doc, Some(pattern), b)
         }
     };
-    let (doc, mate) = insert(doc, seat(a, b));
+    let (doc, mate) = fixture::constrain_at(doc, top, seat(a, b));
     Scene {
         doc,
         opts,
@@ -307,10 +306,9 @@ fn circular_by_th(axis: RecipeNodeId) -> PatternKind<Formula> {
 fn top_pose(s: &Scene, what: &str) -> editor_core::Frame {
     let poses = solve(&s.doc, &s.opts, Tol::witness());
     assert!(
-        poses.fault(s.mate).is_none() && poses.fault(s.top).is_none(),
-        "{what}: {:?} / {:?}",
-        poses.fault(s.mate),
-        poses.fault(s.top)
+        poses.fault(s.mate.placement).is_none(),
+        "{what}: {:?}",
+        poses.fault(s.mate.placement)
     );
     poses.relative(s.top).expect("the top solves")
 }
@@ -407,7 +405,7 @@ fn a1_the_count_is_read_at_the_documents_own_bindings() {
     top_pose(&s, "n=3 copy 2");
     let shrunk = set_value(s.doc.clone(), "n", FreeValue::Count(2));
     let poses = solve(&shrunk, &s.opts, Tol::witness());
-    match poses.fault(s.mate).cloned() {
+    match poses.fault(s.mate.placement).cloned() {
         Some(MateFault::DanglingHead { head, .. }) => assert_eq!(head, s.pattern.unwrap()),
         other => panic!("expected DanglingHead at the pattern, got {other:?}"),
     }
@@ -457,8 +455,8 @@ fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
 
 // ---- A4: the mate wire's attribute ----
 
-/// A document with two instances and one planar-rest mate between
-/// them, saved: the text a stray key is injected into.
+/// A document with two instances, the second placed by one planar-rest
+/// mate onto the first, saved: the text a stray key is injected into.
 fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
     let doc_ref = DocRef {
         id: DocumentId::derive("msolve7-part"),
@@ -466,11 +464,14 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
     };
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..2 {
+    for node in [
+        Node::instantiate_part(doc_ref),
+        fixture::mated_instance(doc_ref),
+    ] {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(Node::instantiate_part(doc_ref)),
+                node: Box::new(node),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -501,19 +502,20 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
     .expect("a definite frame");
     let doc = apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: crate::fixture::head(name(ids[0])).into(),
-                b: crate::fixture::head(name(ids[1])).into(),
-                class: ContactClass::Rest,
-                alignment: Alignment {
+        &DocEdit::AddConstraint {
+            placement: ids[1],
+            mate: Box::new(fixture::mate(
+                fixture::head(name(ids[0])),
+                fixture::head(name(ids[1])),
+                ContactClass::Rest,
+                Alignment {
                     a: f.clone(),
                     b: f,
                     primitive: MatePrimitive::PlanarRest { offset: 0.5 },
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            }),
+            )),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -612,13 +614,10 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
-        let mates = loaded
-            .doc
-            .ids()
-            .iter()
-            .filter(|&&id| matches!(loaded.doc.node(id), Some(Node::Mate { .. })))
-            .count();
-        assert_eq!(mates, 0, "{path}: the corpus carries no mate");
+        // A world pin is a constraint too, and reads no face: a mate
+        // is a constraint that does.
+        let mated = fixture::constrained(&loaded.doc);
+        assert!(mated.is_empty(), "{path}: the corpus carries no mate");
     }
 }
 
@@ -630,12 +629,10 @@ fn a4_the_same_alignment_without_the_key_loads() {
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the planar rest round-trips bit for bit");
     let primitives: Vec<MatePrimitive> = back
-        .ids()
-        .iter()
-        .filter_map(|&id| match back.node(id) {
-            Some(Node::Mate { alignment, .. }) => Some(alignment.primitive),
-            _ => None,
-        })
+        .placements()
+        .into_iter()
+        .flat_map(|p| fixture::bundle(&back, p))
+        .map(|c| c.mate.alignment.primitive)
         .collect();
     assert_eq!(primitives, [MatePrimitive::PlanarRest { offset: 0.5 }]);
 }

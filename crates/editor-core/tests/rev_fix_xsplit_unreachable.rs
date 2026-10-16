@@ -120,14 +120,6 @@ fn seat(a: StableName, b: StableName) -> Mate<Formula> {
     )
 }
 
-/// The one name a face side selects.
-fn side_name(side: &Operand) -> StableName {
-    let Operand::Select { names, .. } = side else {
-        panic!("a face side is a selection, got {side:?}")
-    };
-    names[0].clone()
-}
-
 fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -204,7 +196,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                     continue;
                 };
                 let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-                if inside(&side_name(a)) != inside(&side_name(b)) {
+                if inside(&fixture::side_name(doc, *a)) != inside(&fixture::side_name(doc, *b)) {
                     seen.straddling_mates += 1;
                     if edge_count(MateRef::new(placement, c.id)) == 2 {
                         welding += 1;

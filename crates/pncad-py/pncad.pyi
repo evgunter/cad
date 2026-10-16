@@ -147,6 +147,11 @@ class EditError(PncadError):
       and `value_path` where inside a metadata value an offending
       float sits — different addresses in different trees, so they are
       two attributes.
+    - `mate` is a constraint's address (`MateRef`): the placement
+      `node` names with the constraint the refusal is about — an id
+      the bundle does not hold (`unknown_constraint`), a non-finite
+      alignment, or the frame offset a refused step sits in, with
+      `side` and `index`.
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
       keyword.
@@ -185,6 +190,7 @@ class EditError(PncadError):
     determinant: Optional[float]
     index: Optional[int]
     side: Optional[str]
+    mate: Optional[MateRef]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]

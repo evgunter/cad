@@ -151,7 +151,7 @@ fn stand(
     DocRef,
     DocumentId,
     Vec<RecipeNodeId>,
-    RecipeNodeId,
+    MateRef,
     RecipeNodeId,
 ) {
     let (cube, cube_body) = store.insert_part(cube_part(&format!("{label}-cube")), Tol::witness());
@@ -185,7 +185,7 @@ fn resting(
     DocRef,
     DocumentId,
     Vec<RecipeNodeId>,
-    RecipeNodeId,
+    MateRef,
     RecipeNodeId,
 ) {
     stand(
@@ -208,7 +208,7 @@ fn broken_part(
 ) -> (
     DocRef,
     DocumentId,
-    RecipeNodeId,
+    MateRef,
     Vec<RecipeNodeId>,
     RecipeNodeId,
 ) {
@@ -336,7 +336,7 @@ fn assert_rows_match_names(gathered: &editor_core::Product<f64>) {
 /// One row's identity as the acceptance rows compare it.
 fn rows(
     gathered: &editor_core::Product<f64>,
-) -> Vec<(RecipeNodeId, DocumentId, Vec<RecipeNodeId>, RecipeNodeId)> {
+) -> Vec<(RecipeNodeId, DocumentId, Vec<RecipeNodeId>, MateRef)> {
     gathered
         .carried
         .iter()
@@ -723,8 +723,9 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     // the stand's own two cube caps, each seen through this instance.
     let err = doc
         .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(mate_node(
+            &DocEdit::AddConstraint {
+                placement: instance,
+                mate: Box::new(mate_node(
                     wrap(
                         instance,
                         in_stand(&store, inner_ref, 0, cube_body, CapEnd::End),
@@ -797,9 +798,10 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     assert!(
         rendered.contains(&inner_id.to_string())
             && rendered.contains(&format!(
-                "Mate {}",
-                test_utils::refusal::tag(inner_mate.0.digest())
-            )),
+                "constraint {} of",
+                inner_mate.id
+            ))
+            && rendered.contains(&test_utils::refusal::tag(inner_mate.placement.0.digest())),
         "the badge names the document and the mate, as that document holds it: {rendered}"
     );
 }
@@ -1361,8 +1363,9 @@ fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
 
 // ---- A carried row says a part's ids as the part holds them ----
 
-/// A stand over a shared cube part: two instances of it and one mate,
-/// labelled `label`, between their caps, in a document named `id`.
+/// A stand over a shared cube part: two instances of it and one mate
+/// between their caps, in the second instance's bundle, that instance
+/// labelled `label`, in a document named `id`.
 fn stand_over(
     cube: DocRef,
     cube_body: RecipeNodeId,
@@ -1370,7 +1373,7 @@ fn stand_over(
     class: ContactClass,
     seat: [f64; 3],
     label: &str,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, MateRef) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
     let (doc, c0) = insert(doc, Node::instantiate_part(cube));
     let (doc, c1) = insert(doc, fixture::mated_instance(cube));
@@ -1386,7 +1389,7 @@ fn stand_over(
     let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
-            node: mate,
+            node: mate.placement,
             label: Some(editor_core::Label::new(label).expect("a valid label")),
         },
     );
@@ -1411,7 +1414,7 @@ fn outer_over_twin(
     PartStore,
     ProfileDoc,
     ProfileDoc,
-    RecipeNodeId,
+    MateRef,
     RecipeNodeId,
 ) {
     let mut store = PartStore::default();
@@ -1448,7 +1451,7 @@ fn left_bracket(instance: RecipeNodeId) -> String {
 fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let (store, inner, outer, mate, instance) =
         outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
-    let t = test_utils::refusal::tag(mate.0.digest());
+    let t = test_utils::refusal::tag(mate.placement.0.digest());
 
     let inner_ev = run(&inner, &with_resolver(store.clone()));
     let own = assemble(&inner, &inner_ev, Tol::witness()).expect_err("a tangent mints nothing");
@@ -1516,7 +1519,7 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
 #[test]
 fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken() {
     let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
-    let t = test_utils::refusal::tag(mate.0.digest());
+    let t = test_utils::refusal::tag(mate.placement.0.digest());
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let findings = findings_of(&result);
@@ -1560,28 +1563,34 @@ fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken()
 
 // ---- A carried level is spoken from the part only where the part is held ----
 
-/// A stand whose second mate contradicts its first (its seat gaps the
-/// first's by half a unit), in a document named `id`, the two mates
-/// labelled `held` and `added`. Every document's mint starts at the zero
-/// chain, so two such stands mint the same ids.
+/// A stand whose second constraint contradicts its first: the top
+/// cube rests on the base's top cap at height 1, and a frame
+/// coincidence then seats it half a unit higher. Both are the top
+/// cube's bundle, in a document named `id`, the top cube labelled
+/// `label`. A rest leaves the cube free in its plane, so the door
+/// admits the second; the solve finds the pair holds nowhere. Every
+/// document's mint starts at the zero chain, so two such stands mint
+/// the same ids. Answers the document and its two constraints.
 fn contradicted(
     cube: DocRef,
     cube_body: RecipeNodeId,
     id: &str,
-    held: &str,
-    added: &str,
-) -> ProfileDoc {
-    let (doc, _) = stand_over(
-        cube,
-        cube_body,
-        id,
+    label: &str,
+) -> (ProfileDoc, [MateRef; 2]) {
+    let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
+    let (doc, c0) = insert(doc, Node::instantiate_part(cube));
+    let (doc, c1) = insert(doc, fixture::mated_instance(cube));
+    let mut rest = mate_node(
+        in_part(c0, cube_body, CapEnd::End),
+        in_part(c1, cube_body, CapEnd::Start),
         ContactClass::Rest,
-        [0.0, 0.0, 1.0],
-        held,
+        frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
     );
-    let (c0, c1) = (doc.ids()[0], doc.ids()[1]);
-    let (doc, second) = fixture::constrain(
+    rest.alignment.primitive = MatePrimitive::PlanarRest { offset: 0.0 };
+    let (doc, held) = fixture::constrain_at(doc, c1, rest);
+    let (doc, added) = fixture::constrain_at(
         doc,
+        c1,
         mate_node(
             in_part(c0, cube_body, CapEnd::End),
             in_part(c1, cube_body, CapEnd::Start),
@@ -1589,14 +1598,14 @@ fn contradicted(
             frame([0.0, 0.0, 1.5], [0.0, 0.0, 1.0]),
         ),
     );
-    step(
+    let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
-            node: second,
-            label: Some(editor_core::Label::new(added).expect("a valid label")),
+            node: c1,
+            label: Some(editor_core::Label::new(label).expect("a valid label")),
         },
-    )
-    .0
+    );
+    (doc, [held, added])
 }
 
 /// **A part's nodes are said as the pinned part holds them, never as
@@ -1611,59 +1620,46 @@ fn contradicted(
 fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids() {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
-    let inner = contradicted(
-        cube,
-        cube_body,
-        "speak-c-inner",
-        "inner held",
-        "inner added",
-    );
+    let (inner, _) = contradicted(cube, cube_body, "speak-c-inner", "inner top");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
-    let outer = contradicted(
-        cube,
-        cube_body,
-        "speak-c-outer",
-        "outer held",
-        "outer added",
-    );
+    let (outer, [held, added]) = contradicted(cube, cube_body, "speak-c-outer", "outer top");
     assert_eq!(
         inner.ids(),
         outer.ids(),
         "both stands mint from the zero chain"
     );
-    // The two cubes, their two placements, then the two mates.
-    let (held, added) = (outer.ids()[4], outer.ids()[5]);
+    let top = held.placement;
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, instance, [10.0, 0.0, 0.0]);
-    let (th, ta) = (
-        test_utils::refusal::tag(held.0.digest()),
-        test_utils::refusal::tag(added.0.digest()),
-    );
+    let tt = test_utils::refusal::tag(top.0.digest());
 
     let ev = run(&outer, &with_resolver(store.clone()));
-    let own = ev.node_error(added).expect("the second mate is refused");
+    let own = ev.node_error(top).expect("the top cube's bundle is refused");
     assert_eq!(
         own.spoken(&outer, &ev),
         format!(
-            "Mate \"outer added\" ({ta}) failed: the mate solve refused: Mate \"outer held\" \
-             ({th}) and this mate cannot both hold: {}",
+            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: constraint {} \
+             of this instance and constraint {} of this instance cannot both hold: {}",
+            held.id,
+            added.id,
             own.to_string()
                 .split_once(" cannot both hold: ")
                 .expect("the pair's sentence")
                 .1
         ),
-        "the outer mate's own failure speaks the mate it contradicts, and names itself once"
+        "the outer placement's own failure speaks the constraints it holds, and names itself \
+         once"
     );
     let (renamed, _) = step(
         outer.clone(),
         DocEdit::SetLabel {
-            node: held,
+            node: top,
             label: Some(editor_core::Label::new("outer renamed").expect("a valid label")),
         },
     );
     assert!(
         own.spoken(&renamed, &ev)
-            .contains(&format!("Mate \"outer renamed\" ({th}) and this mate")),
+            .starts_with(&format!("InstantiatePart \"outer renamed\" ({tt}) failed")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
         own.spoken(&renamed, &ev)
     );
@@ -1687,7 +1683,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         "a frame holding only the outer document draws the level as the part's own tree does"
     );
     assert!(
-        in_outer.contains("\"inner held\"") && !in_outer.contains("outer"),
+        in_outer.contains("\"inner top\"") && !in_outer.contains("outer"),
         "the level says the part's labels and never the outer document's for the same ids: \
          {in_outer}"
     );
@@ -1715,17 +1711,11 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
 fn a_part_fault_says_the_labels_its_pin_fixes() {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-d-cube"), Tol::witness());
-    let inner = contradicted(
-        cube,
-        cube_body,
-        "speak-d-inner",
-        "inner held",
-        "inner added",
-    );
+    let (inner, [held, _]) = contradicted(cube, cube_body, "speak-d-inner", "inner top");
     let (relabelled, _) = step(
         inner.clone(),
         DocEdit::SetLabel {
-            node: inner.ids()[4],
+            node: held.placement,
             label: Some(editor_core::Label::new("inner moved").expect("a valid label")),
         },
     );
@@ -1749,11 +1739,11 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
     let (moved_ref, at_moved, moved_line) = instance_of(relabelled);
     assert_ne!(inner_ref.pin, moved_ref.pin, "a label is in the pin");
     assert!(
-        inner_line.contains("\"inner held\"") && !inner_line.contains("inner moved"),
+        inner_line.contains("\"inner top\"") && !inner_line.contains("inner moved"),
         "{inner_line}"
     );
     assert!(
-        moved_line.contains("\"inner moved\"") && !moved_line.contains("inner held"),
+        moved_line.contains("\"inner moved\"") && !moved_line.contains("inner top"),
         "{moved_line}"
     );
     assert_ne!(
@@ -1820,7 +1810,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!(
-            "PlaceInWorld \"inner block\" ({t}) reads a body that is gone"
+            "Place \"inner block\" ({t}) reads a body that is gone"
         )) && !in_outer.contains("outer block"),
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"
@@ -1855,8 +1845,9 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     );
     let err = editor_core::apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(mate_node(
+        &DocEdit::AddConstraint {
+            placement: leg,
+            mate: Box::new(mate_node(
                 in_part(leg, cube_body, CapEnd::End),
                 in_part(leg, cube_body, CapEnd::Start),
                 ContactClass::Rest,

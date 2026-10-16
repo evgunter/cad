@@ -70,7 +70,7 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
 }
 
 /// A world pin at a translation.
-fn pin_at(translation: [f64; 3]) -> Mate {
+fn pin_at(translation: [f64; 3]) -> Mate<editor_core::Formula> {
     Mate::world_pin(editor_core::Placement::literal(&Frame::translation(
         translation,
     )))
