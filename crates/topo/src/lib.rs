@@ -860,6 +860,8 @@ pub mod test_support {
 mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
+#[cfg(test)]
+mod review_5225_probes;
 pub mod transform;
 pub mod validate;
 pub(crate) mod vertex_section;
