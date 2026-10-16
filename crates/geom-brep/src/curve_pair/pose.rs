@@ -201,6 +201,8 @@
 //! Every decision above that falls in the band's gap escalates
 //! ([`MeetFault::Escalated`]); none prunes a candidate.
 
+mod window;
+
 use geom::{Curve3, CurveKind};
 use geom_core::k_stats::{decide, straddle};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
@@ -896,7 +898,7 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse((&ka, &kb, b), ha, swing_a, (noise, lever), band);
+        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, lever), known, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
@@ -978,20 +980,41 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// definite (module docs): its crossings and touch, each polished to the
 /// closest pair.
 fn transverse<T: Decide>(
-    (ka, kb, b): (&Conic<T>, &Conic<T>, &Span<'_, T>),
+    (a, ka, kb, b): (&Span<'_, T>, &Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
     (noise, lever): (T, T),
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let window = window::Window {
+        a: ka,
+        span_a: a.params(),
+        b: kb,
+        carrier_b: b.carrier(),
+        height: (c0, cp, sp),
+        noise,
+    };
+    let joints: Vec<_> = known
+        .iter()
+        .map(|c| window::Joint {
+            point: c.point,
+            ta: c.ta,
+            tb: c.tb,
+        })
+        .collect();
     let near = |theta: T| {
+        let arc = range.band_arc(theta, band);
+        if !joints.is_empty() && window.holds_only((theta - arc, theta + arc), &joints, band) {
+            return Ok(None);
+        }
         let q = ka.point(theta);
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
             start: (theta, foot(b, q)),
-            reach: ka.speed_hi() * range.band_arc(theta, band),
+            reach: ka.speed_hi() * arc,
             clear: clearance(b.carrier(), q),
             lever,
         }

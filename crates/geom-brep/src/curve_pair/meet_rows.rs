@@ -1304,20 +1304,20 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
     }
 }
 
-/// **A crossing of the other's plane at a found meeting is still
-/// metered.** A rod of radius `0.1` cut at 45°, its ellipse's quarter
+/// **A crossing of the other's plane at a found meeting is read by its
+/// window.** A rod of radius `0.1` cut at 45°, its ellipse's quarter
 /// from `(−0.8586, 0, 0.9)`, and a fillet's circle in the plane `y = 0`
 /// ending there, tangent to it: the ellipse touches the circle's plane at
-/// the joint. The ends find the joint. The height harmonic's root there
-/// is a crossing of the plane, not the joint's own equation, and its
-/// window may hold another meeting, so it is polished as with no meeting
-/// found; the closest-pair meter's basin reads the two tangents parallel
-/// there and refuses (`Unsettled::Meter`), carrying the joint
-/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`). Red
-/// where the plane root in the joint's ring is skipped, which decides the
-/// pair on a window nothing read.
+/// the joint. The ends find the joint. The height harmonic's root there is
+/// a crossing of the plane, not the joint's own equation, and its window
+/// stays within the band of the circle over `4·10⁻⁴` rad, far past the
+/// joint's ring. Polished, the closest-pair meter's basin reads the two
+/// tangents parallel and refuses (`Unsettled::Meter`). Read instead
+/// (`pose::window`), the window is on the circle next to the ring, then
+/// off it past the zero band, so it holds the joint alone, whichever
+/// span is read first. Red where the window is polished.
 #[test]
-fn a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered() {
+fn a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let x = -0.758_578_643_762_690_5;
     let rim = Curve3::Ellipse {
@@ -1338,13 +1338,10 @@ fn a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered() {
         ("rim first", meets((&rim, sr), (&fillet, sf))),
         ("fillet first", meets((&fillet, sf), (&rim, sr))),
     ] {
-        let Err(refusal) = got else {
-            panic!("{order}: decided on a window nothing read: {got:?}");
-        };
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
         assert!(
-            matches!(refusal.fault, MeetFault::Unsettled(Unsettled::Meter))
-                && matches!(refusal.found[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
-            "{order}: the meter refuses, carrying the joint: {refusal:?}"
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
         );
     }
 }
