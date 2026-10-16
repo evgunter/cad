@@ -372,11 +372,14 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// insert, so a refusal raised while a later node is
 /// carried speaks the carried ones with their labels.
 ///
-/// **A placement is carried bare, then its bundle constraint by
-/// constraint** ([`DocEdit::AddConstraint`], in bundle order): a
+/// **A placement is carried bare, and its bundle constraint by
+/// constraint once every node is in** ([`DocEdit::AddConstraint`],
+/// placements in document order, each bundle in its order): a
 /// constraint reads the copy's side through the placement's own output
-/// (`Doc::upstream`'s one exemption), which exists only once the
-/// placement is in. Each constraint, authored, passes `settle` with its
+/// (`Doc::upstream`'s one exemption), and may read a copy inserted after
+/// its placement, so it waits for both. A constraint changes no output,
+/// so no node inserted meanwhile reads it. Each constraint, authored,
+/// passes `settle` with its
 /// placement's old id, which may rewrite it or drop it (`false`): the
 /// one rewrite inline makes, a world pin moved by the instance's pose,
 /// or the part's root taking the instance's bundle in place of its own.
@@ -405,6 +408,7 @@ fn carry<E>(
     // minted at the same ports: what a carried read reads.
     let mut out_map = ReadMap::new();
     let mut step_map = StepMap::new();
+    let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
     for (k, &old) in olds.iter().enumerate() {
         let Some(node) = source.node(old) else {
             continue;
@@ -429,8 +433,8 @@ fn carry<E>(
             }
             other => miss(old, other),
         };
-        // A placement's bundle is carried after it, constraint by
-        // constraint (the function's docs).
+        // A placement's bundle is carried once every node is in (the
+        // function's docs).
         let bundle: Vec<crate::mate::Constraint> = crate::mate::solve::bundle_of(node)
             .map(<[_]>::to_vec)
             .unwrap_or_default();
@@ -523,7 +527,12 @@ fn carry<E>(
                     .zip(images.into_iter().flatten()),
             );
         }
-        // The bundle, now the placement's output is in.
+        if !bundle.is_empty() {
+            bundles.push((old, new, bundle));
+        }
+    }
+    // The bundles, now every node is in.
+    for (old, new, bundle) in bundles {
         for constraint in bundle {
             let one = Node::Place {
                 shapes: Vec::new(),
@@ -531,7 +540,7 @@ fn carry<E>(
             };
             let (carried, selects) =
                 remap_with_selects(source, &one, vars, (&node_map, &step_map, &out_map))
-                    .map_err(&refuse)?;
+                    .map_err(|error| miss(old, error))?;
             let (authored, fresh) = vars.author(&carried, &selects);
             let Node::Place {
                 constraints: mut authored,
@@ -4149,12 +4158,31 @@ pub fn inline(
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],
             };
+            // A side on the instance's copies is reselected on the
+            // root's; an anonymous selection of another copy is authored
+            // afresh, since it has one reader and the instance still
+            // reads it until it goes; a named one is read by its name.
             let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
             for (_, read) in constraint.mate.sides() {
-                if let crate::mate::SideRead::Face(var) = read
-                    && doc.selection(*var).map(|s| s.body) == Some(copies)
-                {
+                let crate::mate::SideRead::Face(var) = read else {
+                    continue;
+                };
+                let Some(select) = doc.selection(*var) else {
+                    continue;
+                };
+                if select.body == copies {
                     selects.insert(*var, reselect(current.doc(), *var)?);
+                } else if doc.var_name(*var).is_none() {
+                    selects.insert(
+                        *var,
+                        crate::Operand::select(
+                            crate::Operand::Var(select.body),
+                            crate::var::Select::canonical(
+                                selection_kind(doc, *var),
+                                select.names.clone(),
+                            ),
+                        ),
+                    );
                 }
             }
             let (authored, fresh) = host_vars.author(&one, &selects);

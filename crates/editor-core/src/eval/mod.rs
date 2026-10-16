@@ -4036,7 +4036,7 @@ where
     // is about its bundle, so poisoning it through them would lose the
     // one sentence that names it.
     if is_placement && let Some(fault) = op_env.poses.fault(id) {
-        return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
+        return fail(bracket, wire::placement_fault(fault, results));
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
     for input in doc.upstream_of(id, node) {

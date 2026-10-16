@@ -30,9 +30,7 @@ use editor_core::{
     relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{
-    FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step,
-};
+use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 /// A one-metre lever, through the one door a lever is formed by.
@@ -1196,10 +1194,9 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     // fixture or field-order change breaks the probe instead of
     // silently moving it onto an unrelated id.
     let corrupt = doctored(&text, |wire| {
-        eprintln!("WIREDUMP {}", wire["snapshot"]["nodes"][mate_ref.placement.0.to_string()]);
         let read: editor_core::VarId = serde_json::from_value(
             wire["snapshot"]["nodes"][mate_ref.placement.0.to_string()]["InstantiatePart"]
-                ["constraints"][0]["mate"]["a"]["Face"]
+                ["constraints"][0]["mate"]["a"]["face"]
                 .clone(),
         )
         .expect("a constraint's face side is a variable id");

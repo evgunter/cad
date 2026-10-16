@@ -389,9 +389,6 @@ where
         }
         Node::Place { shapes, .. } => {
             select_sides(doc, results, id, node)?;
-            if let Some(fault) = env.poses.fault(id) {
-                return Err(placement_fault(fault, results));
-            }
             // Each shape projected by itself: two halves of one split
             // are two bodies, which one map keyed by the split cannot
             // hold.
@@ -467,9 +464,6 @@ where
             doc_ref, interface, ..
         } => {
             select_sides(doc, results, id, node)?;
-            if let Some(fault) = env.poses.fault(id) {
-                return Err(placement_fault(fault, results));
-            }
             let map = placement_map(id, frame, env.poses, tol)?;
             let out = wire_instantiate_part(id, doc_ref, interface, map, env, tol)?;
             select_own_sides(doc, id, node, &out.names)?;
@@ -480,9 +474,9 @@ where
 
 /// **A placement's constraint sides, read first**: each face side
 /// that reads another copy resolves in that copy's table, so a side
-/// whose name no longer answers refuses in the selection's own words
-/// before the solve's fault speaks, as every reader of a selection
-/// refuses. A side on the placement's own copy resolves once the copy
+/// whose name no longer answers refuses in the selection's own words,
+/// as every reader of a selection refuses. (A placement the solve
+/// faulted has already refused in the fault's words, `eval_node`.) A side on the placement's own copy resolves once the copy
 /// exists ([`select_own_sides`]).
 fn select_sides<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -528,7 +522,7 @@ fn select_own_sides(
 /// cause, and the fault carries the refusal instead
 /// ([`crate::mate::PlacerRow::Silent`]). The solve holds no evaluation,
 /// so the standing is read here, where it is known.
-fn placement_fault<T: Decide>(
+pub(super) fn placement_fault<T: Decide>(
     fault: &crate::mate::MateFault,
     results: &Results<T>,
 ) -> NodeErrorKind {

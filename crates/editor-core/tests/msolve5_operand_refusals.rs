@@ -27,8 +27,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateRef,
-    MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, Space, StableName, product,
+    Node, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, Space, StableName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, xform};
@@ -365,8 +365,8 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
 // ---- A2: the order of the two questions ----
 
 /// A mate read at `T` naming a face `top` does not have refuses: the
-/// side's selection resolves nothing in the body it reads, so the mate
-/// refuses with it.
+/// side's selection resolves nothing in the body it reads, so the
+/// block whose bundle holds the mate refuses with it.
 #[test]
 fn a_name_the_operand_does_not_spell_stays_vanished() {
     let s = scene("msolve5-vanished");
@@ -400,27 +400,32 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
         "the side's selection refuses: {:?}",
         ev.node_error(mate.placement)
     );
-    // `T` is read by no placement — the pattern's copies are the world —
-    // so the mate is no statement about the product, live or not: the
-    // gate asks it nothing, and the seat it would have declared is rows
-    // of the two copies.
-    assert_unmated(&doc, &ev);
+    // The constraint is the block's, and the block is a placement of
+    // the product: its side's refusal is the block's, and the gather
+    // refuses there before any mate is read.
+    assert_refused_at_the_block(&doc, &ev, s.top);
 }
 
-/// No mate speaks for the product: the gate passes, and the seat is
-/// rows of the two copies, none of them a mate's.
-fn assert_unmated(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
-    assert!(gate(doc, ev).is_ok(), "{:?}", gate(doc, ev));
-    crate::fixture::assert_copies_rows_alone(doc, ev);
+/// The side's refusal is the block's: the gather refuses at the
+/// block's placement, failed, before any mate is read.
+fn assert_refused_at_the_block(doc: &ProfileDoc, ev: &Evaluation<f64>, top: RecipeNodeId) {
+    let err = gate(doc, ev).expect_err("the block's refusal refuses the product");
+    assert!(
+        matches!(
+            &err,
+            AssemblyError::Product(e)
+                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == top)
+        ),
+        "{err:?}"
+    );
 }
 
 // ---- ties: the product decides its own ----
 
 /// A TIED face is the side's selection's to refuse, wherever it is
 /// read: at `T` below the pattern, and AT the pattern with the instance
-/// spelling. The mate refuses with it. Read at the pattern, whose
-/// copies are placed, the gate names the mate; read at `T`, which
-/// nothing places, the mate is no statement about the product.
+/// spelling. The mate refuses with it, and the refusal is the block's,
+/// whose bundle holds the mate: the gather refuses at the block.
 #[test]
 fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
@@ -430,47 +435,25 @@ fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
     assert_eq!(width, 2);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let placed = world(s.doc, &[], &[(s.pattern, 2)]);
-
-    let b = crate::fixture::head_at(s.xf, tied.clone());
-    let (doc, mate) = mated(placed.clone(), s.top, seat(a.clone(), b));
-    let ev = run(&doc, &s.opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "the product gathers"
-    );
-    let tied_refusal = |doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, mate: MateRef| {
+    for (at, b) in [
+        ("T", crate::fixture::head_at(s.xf, tied.clone())),
+        (
+            "the pattern",
+            crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied.clone())),
+        ),
+    ] {
+        let (doc, mate) = mated(placed.clone(), s.top, seat(a.clone(), b));
+        let ev = run(&doc, &s.opts);
         assert!(
             matches!(
                 ev.node_error(mate.placement).map(|e| &e.kind),
                 Some(editor_core::NodeErrorKind::SelectResolve { .. })
             ),
-            "a tie is never broken by picking: {:?}",
+            "read at {at}: a tie is never broken by picking: {:?}",
             ev.node_error(mate.placement)
         );
-        let err = gate(doc, ev).expect_err("a tied side refuses");
-        assert!(
-            matches!(&err, AssemblyError::Mint { refusals }
-                if matches!(refusals.as_slice(), [MintRefusal::Unevaluated { mate: m, .. }] if *m == mate)),
-            "{err:?}"
-        );
-    };
-    // Read at `T`, which nothing places: the side's own refusal is the
-    // evaluation's, and the gate asks the mate nothing.
-    assert!(
-        matches!(
-            ev.node_error(mate.placement).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::SelectResolve { .. })
-        ),
-        "a tie is never broken by picking: {:?}",
-        ev.node_error(mate.placement)
-    );
-    assert_unmated(&doc, &ev);
-    let _ = width;
-
-    let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(placed, s.top, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    tied_refusal(&doc, &ev, mate);
+        assert_refused_at_the_block(&doc, &ev, s.top);
+    }
 }
 
 // ---- a consumer that drops the face names itself ----

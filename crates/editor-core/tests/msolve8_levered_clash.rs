@@ -1156,15 +1156,16 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     assert!(
         doc.ids()
             .iter()
+            .filter(|&&id| id != RecipeNodeId::WORLD)
             .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
-        "the document holds its five instances and nothing else"
+        "the document holds its world, its five instances and nothing else"
     );
     // And the solve of what the document does hold: `Band` reaches
     // EVERY instance and nothing else, since no band means no verdict
     // for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;
-    for id in doc.ids() {
+    for id in doc.placements() {
         assert!(
             matches!(poses.fault(id), Some(MateFault::Band { .. })),
             "{id:?}: {:?}",

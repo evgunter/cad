@@ -376,7 +376,19 @@ const BORES: Bores = (
     [[4.0, 4.0, SLAB_HEIGHT], [4.0, 4.0, -1.0]],
 );
 
-fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
+fn shaft(label: &str, shape: ShaftShape, bores: Bores) -> Shaft {
+    try_shaft(label, shape, bores)
+        .unwrap_or_else(|fault| panic!("{label}: the door admits the shaft's bundle: {fault}"))
+}
+
+/// [`shaft`], or the fault the constraint door refused its bundle with:
+/// the door folds the bundle a constraint joins, so a bundle whose fold
+/// cannot settle refuses there.
+fn try_shaft(
+    label: &str,
+    shape: ShaftShape,
+    (bolt_at, slab_at): Bores,
+) -> Result<Shaft, editor_core::MateFault> {
     let p = parts(label);
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let bolt = bolts[0];
@@ -431,16 +443,18 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
     .into_iter()
     .chain(then)
     {
-        let (next, mate) = constrain_through(doc, bolt, mate, &opts);
+        let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+        let (next, mate) =
+            fixture::at_the_door_of(&doc, &reach, bolt, mate).map_err(|(_, fault)| fault)?;
         doc = next;
         mates.push(mate);
     }
-    Shaft {
+    Ok(Shaft {
         doc,
         opts,
         bolt,
         mates,
-    }
+    })
 }
 
 // ---- The mate corpus ----
@@ -1515,20 +1529,62 @@ fn a2_a_box_on_a_mate_frames_offset_encloses_the_mated_part() {
 
 // ---- C2: a clocking with no radius to turn ----
 
-/// **A shaft in two coaxial bores solves in every lane** ([`shaft`]),
-/// clocked either way. At `f64` the bundle pins the bolt. At `Dual64`,
-/// seeded on `rise`, the shaft rides the rest one for one in `z`, and
-/// seeded on `idle`, which nothing reads, it holds still — each tangent
-/// finite and the `f64` builds' central difference. At `Interval`,
-/// over a box on `rise` a fraction of ε wide, the solve encloses the
-/// shaft's `f64` pose at both corners and the nominal and the evaluation
-/// encloses every vertex; at an ε where the corpus's identically-zero
-/// membership margins escalate unboxed ([`INTERVAL_ESCALATIONS`]), the
-/// shaft's fault is that escalation instead. A wider box escalates the
-/// rest's own membership, which the candidate meets by construction and
-/// the lane re-measures box-wide (§5 (b)).
+/// **`placement` is refused as overconstrained, naming both of the
+/// shaft's bores, or escalates**: the bundle pins the bolt with the two
+/// coaxial bores on one line, either of which the rest already fix, so
+/// the solve refuses it naming each ([`MateFault::Overconstrained`]);
+/// where a decision on the way could not settle, the fault is
+/// `Indeterminate` over a margin of `kind` (a point at `f64` and
+/// `Dual64`, an enclosure at `Interval` — never a poisoned one), on the
+/// placement's own log. Answers whether it escalated.
+///
+/// [`MateFault::Overconstrained`]: editor_core::MateFault::Overconstrained
+fn overconstrained_or_escalates<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    s: &Shaft,
+    kind: geom_core::MarginKind,
+    what: &str,
+) -> bool {
+    let error = ev
+        .node_error(s.bolt)
+        .unwrap_or_else(|| panic!("{what}: the shaft's bundle is refused"));
+    if let Some(diag) = escalation(ev, s.bolt) {
+        assert_eq!(diag.margin.kind(), kind, "{what}: {diag:?}");
+        assert!(
+            !error.escalations.is_empty(),
+            "{what}: the escalation is on the placement's log"
+        );
+        return true;
+    }
+    assert!(
+        matches!(
+            &error.kind,
+            editor_core::NodeErrorKind::Mate(fault)
+                if matches!(
+                    &**fault,
+                    editor_core::MateFault::Overconstrained { placement, constraints, .. }
+                        if *placement == s.bolt
+                            && constraints.contains(&s.mates[0].id)
+                            && constraints.contains(&s.mates[1].id)
+                )
+        ),
+        "{what}: the bundle is refused overconstrained, naming both bores: {error:?}"
+    );
+    false
+}
+
+/// **A shaft in two coaxial bores is overconstrained in every lane**
+/// ([`shaft`]), clocked either way: the fold meets the clocking with no
+/// radius to turn, and the bundle then pins the bolt with two bores
+/// either of which the rest already fix, so the solve refuses it naming
+/// both — at `f64`, at `Dual64` seeded on `rise` and on `idle`, and at
+/// `Interval` over a box on `rise` a fraction of ε wide, save where the
+/// corpus's identically-zero membership margins escalate unboxed
+/// ([`INTERVAL_ESCALATIONS`]), where the bolt's fault is that
+/// escalation instead.
 #[test]
-fn c2_a_shaft_in_two_coaxial_bores_solves_in_every_lane() {
+fn c2_a_shaft_in_two_coaxial_bores_is_overconstrained_in_every_lane() {
+    use geom_core::MarginKind;
     let eps = Tol::witness().eps();
     for (label, shape) in [
         ("shaft-clocked-rider", ShaftShape::ClockedRider),
@@ -1537,92 +1593,49 @@ fn c2_a_shaft_in_two_coaxial_bores_solves_in_every_lane() {
         let s = shaft(&format!("msolve14-c2-{label}"), shape, BORES);
         let f = run_at::<f64>(&s.doc, &s.opts, None);
         assert!(
-            matches!(f.result(s.bolt), Some(NodeResult::Ok(_)))
-                && f.space(s.bolt) == editor_core::Space::World,
-            "{label}: at f64 the bundle {:?} pins the bolt: {:?}",
-            s.mates,
-            f.node_error(s.bolt)
+            !overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{label}, f64")),
+            "{label}: f64 decides"
         );
-        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, rise()), None);
-        for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, rise(), RISE, label) {
-            assert_eq!(t, [0.0, 0.0, 1.0], "{label}: ∂/∂rise at {name:?}");
-        }
-        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, idle()), None);
-        for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, idle(), IDLE, label) {
-            assert_eq!(t, [0.0; 3], "{label}: ∂/∂idle at {name:?}");
+        for param in [rise(), idle()] {
+            let d = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, param.clone()), None);
+            assert!(
+                !overconstrained_or_escalates(
+                    &d,
+                    &s,
+                    MarginKind::Value,
+                    &format!("{label}, Dual64 seeded on {param:?}")
+                ),
+                "{label}: Dual64 decides"
+            );
         }
         let escalates = INTERVAL_ESCALATIONS
             .iter()
             .any(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label);
         let (lo, hi) = narrow(0.05);
         let i = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, rise(), lo, hi), None);
-        if escalates {
-            let diag = escalation(&i, s.bolt).unwrap_or_else(|| {
-                panic!(
-                    "{label}: at ε = {eps:e} the shaft escalates: {:?}",
-                    i.node_error(s.bolt)
-                )
-            });
-            assert_eq!(
-                diag.margin.kind(),
-                geom_core::MarginKind::Enclosure,
-                "{label}: {diag:?}"
-            );
-            continue;
-        }
-        let width =
-            assert_pose_encloses_corners(&s.doc, &s.opts, s.bolt, rise(), RISE, (lo, hi), label);
-        assert!(
-            width >= hi - lo,
-            "{label}: the rise widens the pose: {width}"
+        assert_eq!(
+            overconstrained_or_escalates(
+                &i,
+                &s,
+                MarginKind::Enclosure,
+                &format!("{label}, Interval")
+            ),
+            escalates,
+            "{label}: Interval escalates exactly where the corpus's escalations say"
         );
-        assert_encloses_corners(&s.doc, &s.opts, &i, s.bolt, (rise(), RISE), (lo, hi), label);
     }
-}
-
-/// **Each of `placements` decides or escalates, and an escalation is on
-/// a placement's log**: a failed placement's fault is `Indeterminate`
-/// over a margin of `kind` (a point at `f64` and `Dual64`, an enclosure
-/// at `Interval` — never a poisoned one), and some placement's log
-/// carries it.
-fn assert_decides_or_escalates<T: geom_core::Decide>(
-    ev: &Evaluation<T>,
-    mates: &[RecipeNodeId],
-    kind: geom_core::MarginKind,
-    what: &str,
-) {
-    let mut escalated = false;
-    for &mate in mates {
-        let Some(error) = ev.node_error(mate) else {
-            continue;
-        };
-        let diag = escalation(ev, mate).unwrap_or_else(|| {
-            panic!("{what}: the mate {mate:?} determines or escalates: {error:?}")
-        });
-        assert_eq!(diag.margin.kind(), kind, "{what}: {diag:?}");
-        escalated = true;
-    }
-    let logged = mates.iter().any(|&m| match ev.result(m) {
-        Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
-        _ => ev.node_error(m).is_some_and(|e| !e.escalations.is_empty()),
-    });
-    assert!(
-        !escalated || logged,
-        "{what}: the escalation is on a mate's log"
-    );
 }
 
 /// **A near-degenerate shaft decides or escalates, and never reads a
 /// NaN**: its bores a rounding apart (non-dyadic points on one line), or
-/// three ε apart, inside the band. In every lane — `f64`, `Dual64`
-/// unseeded and seeded on `rise`, `Interval` unboxed — the bolt's
-/// bundle decides or escalates on its own log, over a point margin or an
-/// enclosure and never a poisoned one, and where the shaft is posed
-/// every coordinate of every vertex, value and tangent, is finite. The
-/// rounding pair decides at `f64` and `Dual64` (its radius is far below
-/// every ε row's band); the in-band pair escalates there — on the
-/// table's own point-on-line predicate, which measures the radius the
-/// clocking would turn before the clocking is asked.
+/// three ε apart, inside the band. The in-band pair escalates at the
+/// constraint door, which folds the bundle a constraint joins: the
+/// fault is `Indeterminate` over a point margin. The rounding pair is
+/// admitted, and in every lane — `f64`, `Dual64` unseeded and seeded on
+/// `rise`, `Interval` unboxed — the bolt's bundle is refused
+/// overconstrained or escalates on its own log, over a point margin or
+/// an enclosure and never a poisoned one, the same way at `f64` and
+/// `Dual64`.
 #[test]
 fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
     use geom_core::MarginKind;
@@ -1639,77 +1652,44 @@ fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
     for (variant, bores) in [("rounding", rounding), ("in-band", in_band)] {
         for shape in [ShaftShape::ClockedRider, ShaftShape::ParallelPin] {
             let label = format!("{variant} {shape:?}");
-            let s = shaft(
+            let s = match try_shaft(
                 &format!("msolve14-c2-near-{variant}-{shape:?}"),
                 shape,
                 bores,
-            );
-            let f = run_at::<f64>(&s.doc, &s.opts, None);
-            assert_decides_or_escalates(&f, &[s.bolt], MarginKind::Value, &format!("{label}, f64"));
-            let decided = f.node_error(s.bolt).is_none();
-            match variant {
-                "rounding" => assert!(
-                    decided,
-                    "{label}: decides at f64: {:?}",
-                    f.node_error(s.bolt)
-                ),
-                _ => assert!(
-                    escalation(&f, s.bolt).is_some(),
-                    "{label}: escalates at f64: {:?}",
-                    f.node_error(s.bolt)
-                ),
-            }
-            if decided {
-                for (name, p) in vertices(&f, s.bolt) {
-                    assert!(
-                        [p.x, p.y, p.z].iter().all(|x| x.is_finite()),
-                        "{label}, f64: {name:?} is finite"
-                    );
+            ) {
+                Ok(s) => s,
+                Err(fault) => {
+                    assert_eq!(variant, "in-band", "{label}: the door refused: {fault:?}");
+                    let editor_core::MateFault::Indeterminate { diag, .. } = &fault else {
+                        panic!("{label}: the door escalates: {fault:?}");
+                    };
+                    assert_eq!(diag.margin.kind(), MarginKind::Value, "{label}: {diag:?}");
+                    continue;
                 }
-            }
+            };
+            let f = run_at::<f64>(&s.doc, &s.opts, None);
+            let escalated =
+                overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{label}, f64"));
             for opts in [s.opts.clone(), seeded(&s.doc, &s.opts, rise())] {
                 let d = run_at::<Dual64>(&s.doc, &opts, None);
-                assert_decides_or_escalates(
-                    &d,
-                    &[s.bolt],
-                    MarginKind::Value,
-                    &format!("{label}, Dual64 {:?}", opts.seed),
-                );
                 assert_eq!(
-                    d.node_error(s.bolt).is_none(),
-                    decided,
+                    overconstrained_or_escalates(
+                        &d,
+                        &s,
+                        MarginKind::Value,
+                        &format!("{label}, Dual64 {:?}", opts.seed),
+                    ),
+                    escalated,
                     "{label}: Dual64 decides where f64 does"
                 );
-                if decided {
-                    for (name, p) in vertices(&d, s.bolt) {
-                        assert!(
-                            [p.x, p.y, p.z]
-                                .iter()
-                                .all(|x| x.value.is_finite() && x.deriv.is_finite()),
-                            "{label}, Dual64 {:?}: {name:?} is finite: {p:?}",
-                            opts.seed
-                        );
-                    }
-                }
             }
             let i = run_at::<Interval>(&s.doc, &s.opts, None);
-            assert_decides_or_escalates(
+            overconstrained_or_escalates(
                 &i,
-                &[s.bolt],
+                &s,
                 MarginKind::Enclosure,
                 &format!("{label}, Interval"),
             );
-            if i.node_error(s.bolt).is_none() {
-                use geom_core::Bounds;
-                for (name, p) in vertices(&i, s.bolt) {
-                    assert!(
-                        [p.x, p.y, p.z]
-                            .iter()
-                            .all(|x| x.lo().is_finite() && x.hi().is_finite()),
-                        "{label}, Interval: {name:?} is finite"
-                    );
-                }
-            }
         }
     }
 }

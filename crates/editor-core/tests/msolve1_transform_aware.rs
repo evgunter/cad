@@ -192,8 +192,10 @@ fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i6
 
 /// **`name`'s world copy**: the one name in the gathered product's
 /// table that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a member's face by, under the placement that put it
-/// in the world.
+/// product names a face by under the `Place` that put a transformed or
+/// patterned body in the world — or, where no `Place` copies it, `name`
+/// itself, which is how the product names a face of an instance (an
+/// instance is a placement, its face names already its copy's).
 fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
     let (_, names) =
         editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
@@ -202,10 +204,11 @@ fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableN
         .map(|(n, _)| n.clone())
         .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
         .collect();
-    let [copy] = copies.as_slice() else {
-        panic!("{name:?} has one world copy, not {copies:?}");
-    };
-    copy.clone()
+    match copies.as_slice() {
+        [copy] => copy.clone(),
+        [] if names.iter().any(|(n, _)| n == name) => name.clone(),
+        _ => panic!("{name:?} has one world copy, not {copies:?}"),
+    }
 }
 
 /// [`fixture::seat::assert_seated`] over the world copies of `a` and
@@ -815,13 +818,13 @@ fn two_operands(
 }
 
 /// **A5.** A seat read through one transform of an instance pins the
-/// instance fully, so a second seat through another transform of the
-/// same instance is one constraint past what its bundle can hold: the
-/// door refuses it as overconstrained, consistent with the first or
-/// not, naming the first seat as what already holds the copy. The
-/// first seat alone solves, and its copy seats in the product.
+/// instance, and a second seat through another transform of the same
+/// instance reads the copy through a second reading of it, which the
+/// door refuses, consistent with the first or not (`TargetsDiffer`, the
+/// stage's named interim: a bundle reads its copy through one reading).
+/// The first seat alone solves, and the product gathers.
 #[test]
-fn a5_a_second_seat_through_another_operand_is_overconstrained() {
+fn a5_a_second_seat_through_another_operand_is_refused() {
     for (what, label, extra_lift) in [
         ("consistent", "msolve1-a5-consistent", 0.0),
         ("inconsistent", "msolve1-a5-inconsistent", 3.0),
@@ -841,10 +844,10 @@ fn a5_a_second_seat_through_another_operand_is_overconstrained() {
         assert!(
             matches!(
                 &refused,
-                MateFault::Overconstrained { placement, constraints, .. }
+                MateFault::TargetsDiffer { placement, constraints }
                     if *placement == top && constraints.contains(&m1.id)
             ),
-            "A5 {what}: the second seat is refused as overconstrained: {refused:?}"
+            "A5 {what}: the second seat is refused: {refused:?}"
         );
         let ev = run(&doc, &opts);
         assert!(

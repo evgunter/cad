@@ -395,7 +395,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
 /// **Two siblings are two members.** A bundle relates its copy to ONE
 /// target member, so a second constraint whose target is a sibling of
 /// the first's refuses at the door as a second target
-/// (`MateFault::TargetsDiffer`), naming the bundle the first holds. A
+/// (`MateFault::TargetsDiffer`), naming the bundle it would make. A
 /// sibling the member key confused with the first would instead meet
 /// the fold, which already pins the cap, and refuse
 /// `Overconstrained` — the refusal A3(b) reads for one copy spelled
@@ -417,9 +417,9 @@ fn assert_siblings_distinct(
         )) => {
             assert_eq!((at, placement), (cap, cap), "{what}: the cap's bundle");
             assert_eq!(
-                constraints,
-                vec![first.id],
-                "{what}: the bundle as it stands"
+                (constraints.len(), constraints.first()),
+                (2, Some(&first.id)),
+                "{what}: the bundle with the constraint being added"
             );
         }
         other => panic!("{what}: a sibling is a second target, not {other:?}"),

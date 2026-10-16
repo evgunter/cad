@@ -1843,8 +1843,19 @@ pub fn solve_document<P: crate::ProfilePayload>(
     reach: &dyn MateReach,
     tol: Tol,
 ) -> SolvedPoses {
+    nominal(doc, reach, tol, Record::Caller)
+}
+
+/// The nominal solve, one environment built for it: the document's own
+/// at `f64`.
+fn nominal<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    tol: Tol,
+    record: Record,
+) -> SolvedPoses {
     let env = doc.var_env::<f64>();
-    solve(doc, &env, reach, tol, Record::Caller)
+    solve(doc, &env, reach, tol, record)
 }
 
 /// **[`solve_document`] with each placement's decisions kept apart**:
@@ -1860,10 +1871,8 @@ pub fn solve_document_by_placement<P: crate::ProfilePayload>(
     SolvedPoses,
     BTreeMap<RecipeNodeId, geom_core::k_stats::Recorded>,
 ) {
-    let env = doc.var_env::<f64>();
-    let poses = solve(
+    let poses = nominal(
         doc,
-        &env,
         reach,
         tol,
         Record::PerMate(RefCell::new(BTreeMap::new())),

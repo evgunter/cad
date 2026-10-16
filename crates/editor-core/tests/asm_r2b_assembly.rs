@@ -1379,19 +1379,17 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         "the side's selection refuses: {:?}",
         ev.node_error(mate.placement)
     );
+    // The constraint's placement is the copy it would place, so the
+    // gather meets the failed placement first and refuses it typed.
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
-            [MintRefusal::Unevaluated { mate: m, standing }] => {
-                assert_eq!(*m, mate);
-                assert_eq!(
-                    *standing,
-                    editor_core::NodeStanding::Failed {
-                        node: mate.placement
-                    }
-                );
-            }
-            rows => panic!("one mate refused, so one row: {rows:?}"),
-        },
+        Err(AssemblyError::Product(refusal)) => assert!(
+            matches!(
+                *refusal,
+                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
+                    if node == mate.placement
+            ),
+            "the failed placement is the gather's refusal: {refusal:?}"
+        ),
         other => panic!("an unresolvable reference must refuse typed: {other:?}"),
     }
 }

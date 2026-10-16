@@ -275,7 +275,9 @@ pub fn solve_decisions_have_one_home(
         outside.escalations.is_empty() && outside.verdicts.is_empty(),
         "document {label}: the evaluation recorded outside its nodes: {outside:?}"
     );
-    let spell = |xs: &[_]| -> Vec<String> { xs.iter().map(|x| format!("{x:?}")).collect() };
+    fn spell<X: std::fmt::Debug>(xs: &[X]) -> Vec<String> {
+        xs.iter().map(|x| format!("{x:?}")).collect()
+    }
     let opens = |what: &str, id: RecipeNodeId, log: Vec<String>, share: Vec<String>| {
         assert!(
             log.starts_with(&share),

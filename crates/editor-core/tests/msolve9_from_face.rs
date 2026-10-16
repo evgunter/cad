@@ -38,10 +38,10 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, EvalOptions, Evaluation, FaceName, FacePoseRefusal, FaceRefusal, Formula, Frame,
-    LoopProgram, Mate, MateFault, MateFrame, MatePrimitive, MateRef, MateSide, Node,
-    NodeErrorKind, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RefusingReach, RoleSeg, SideRead, SitedFace, SlotId, StableName, all_faces,
-    face_carrier_kind, face_frame, load, mate_reach, save,
+    LoopProgram, Mate, MateFault, MateFrame, MatePrimitive, MateRef, MateSide, Node, NodeErrorKind,
+    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
+    RefusingReach, RoleSeg, SideRead, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
+    face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, in_world, with_resolver};
 use fixture::{at_the_door, gate, insert, len, on_frame, run, solve, square, step, step_with};
@@ -271,7 +271,11 @@ fn bits(frame: &Frame) -> Vec<u64> {
 
 /// The mate's fault as the evaluation records it, on its placement.
 fn mate_fault(ev: &Evaluation<f64>, mate: MateRef) -> MateFault {
-    match &ev.node_error(mate.placement).expect("the mate faulted").kind {
+    match &ev
+        .node_error(mate.placement)
+        .expect("the mate faulted")
+        .kind
+    {
         NodeErrorKind::Mate(fault) => (**fault).clone(),
         other => panic!("a mate's own refusal: {other}"),
     }

@@ -11,28 +11,19 @@
 //!   by field off the node's derived rendering (`Debug`),
 //!   independently of the remapping the refactorings carry nodes with:
 //!   every `RecipeNodeId(n)` the map holds must read as its image, every
-//!   `StepId(n)` the step map holds as its image, and every other field
-//!   is equal. Gauge references, offsets, gauge placements, mate
-//!   alignments and heads, and a profile's step ids are all fields;
-//! - **the root lists agree** through the map, in order — the order is
-//!   the product's solid order, semantic and in the content pin
-//!   (`roots.rs`) — and the named variables, labels and ε agree, a
-//!   named variable matched by its name and a definition read with the
-//!   ids it reads as their images (a named variable's by its name, an
-//!   anonymous one's by its place in the definition that reads it). By A10's
-//!   replacement rule split's instance goes where the first cut root
-//!   was and inline splices the part's roots there, so a round trip
-//!   agrees in order exactly when the cut's roots are adjacent in the
-//!   list; a cut a kept root separates comes back regrouped, and this
-//!   check reports that regrouping as a `roots` line;
-//! - **each placement group keeps its document order.** Order is
-//!   semantic within a group (its root is its earliest member carrying
-//!   an offset), so the images of each group's members read in the
-//!   second document's order must follow the first's. Order across
-//!   groups and across node kinds is not compared: a split collapses
-//!   its cut into a part and inline appends what it splices, and the
-//!   carry moves a gauge ahead of what sits on it; none of those moves
-//!   a member within its group.
+//!   `StepId(n)` the step map holds as its image, every `ConstraintId(n)`
+//!   of a mapped placement's bundle as the id at its place in its
+//!   image's bundle, and every other field is equal. A placement's
+//!   constraints, their alignments and sides, and a profile's step ids
+//!   are all fields;
+//! - **the named variables, labels and ε agree**, a named variable
+//!   matched by its name and a definition read with the ids it reads as
+//!   their images (a named variable's by its name, an anonymous one's
+//!   by its place in the definition that reads it);
+//! - **the placements keep their document order**: the product's copies
+//!   are gathered in it. Order across other node kinds is not compared:
+//!   a split collapses its cut into a part and inline appends what it
+//!   splices.
 //!
 //! **What it does not undo**: a name whose canonical form orders its
 //! parts by id (a union's sides) is re-sorted by the remapping, and
@@ -155,12 +146,28 @@ fn var_images(a: &ProfileDoc, b: &ProfileDoc, map: &NodeMap) -> BTreeMap<MintId,
     }
 }
 
+/// **Each constraint of a mapped placement onto the one at its place
+/// in its image's bundle**: the carry adds a bundle constraint by
+/// constraint, in order, and mints each id afresh.
+fn constraint_images(a: &ProfileDoc, b: &ProfileDoc, map: &NodeMap) -> BTreeMap<MintId, MintId> {
+    let bundle = |d: &ProfileDoc, id: RecipeNodeId| match d.node(id) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            constraints.iter().map(|c| c.id.0).collect()
+        }
+        _ => Vec::new(),
+    };
+    map.iter()
+        .flat_map(|(&from, &to)| bundle(a, from).into_iter().zip(bundle(b, to)))
+        .collect()
+}
+
 /// `text` with every `RecipeNodeId(id)` the map holds read as its image,
-/// every `StepId(id)` the step map holds as its image, and every
+/// every `StepId(id)` the step map holds as its image, every
+/// `ConstraintId(id)` the constraint map holds as its image, and every
 /// `VarId(id)` the variable map holds as its image.
 fn renamed(
     text: &str,
-    ids: &BTreeMap<MintId, MintId>,
+    (ids, constraints): (&BTreeMap<MintId, MintId>, &BTreeMap<MintId, MintId>),
     steps: &BTreeMap<MintId, MintId>,
     vars: &BTreeMap<MintId, MintId>,
 ) -> String {
@@ -173,6 +180,8 @@ fn renamed(
             Some(ids)
         } else if head.ends_with(&format!("Step{OPEN}")) {
             Some(steps)
+        } else if head.ends_with(&format!("ConstraintId(MintId {{ ordinal: ")) {
+            Some(constraints)
         } else if head.ends_with(&format!("Var{OPEN}")) {
             Some(vars)
         } else {
@@ -203,17 +212,17 @@ fn renamed(
     out
 }
 
-/// Field by field: `b` is `a` with its node, step and named-variable ids
-/// read as their images, read off the node's derived rendering as
-/// written ([`Node::written`]: each anonymous variable its value or
-/// definition, so the two documents' own minted ids do not enter),
-/// which spells every field (gauge references, offsets, placements,
-/// alignments, heads, a profile's step ids); the first disagreement is
-/// reported in context.
+/// Field by field: `b` is `a` with its node, constraint, step and
+/// named-variable ids read as their images, read off the node's derived
+/// rendering as written ([`Node::written`]: each anonymous variable its
+/// value or definition, so the two documents' own minted ids do not
+/// enter), which spells every field (a placement's constraints, their
+/// alignments and sides, a profile's step ids); the first disagreement
+/// is reported in context.
 fn same_payload(
     a: &editor_core::AuthoredNode,
     b: &editor_core::AuthoredNode,
-    ids: &BTreeMap<MintId, MintId>,
+    ids: (&BTreeMap<MintId, MintId>, &BTreeMap<MintId, MintId>),
     steps: &BTreeMap<MintId, MintId>,
     vars: &BTreeMap<MintId, MintId>,
     out: &mut Vec<String>,
@@ -277,6 +286,7 @@ pub fn same_up_to_ids(
     let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
     let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
     let var_ids = var_images(a, b, map);
+    let constraint_ids = constraint_images(a, b, map);
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {
@@ -292,7 +302,7 @@ pub fn same_up_to_ids(
         same_payload(
             &x.written(a),
             &y.written(b),
-            &ids,
+            (&ids, &constraint_ids),
             &step_ids,
             &var_ids,
             &mut out,
@@ -342,7 +352,7 @@ pub fn same_up_to_ids(
                     None => format!("{held:?}"),
                 };
                 let shown = match through {
-                    Some(vars) => renamed(&shown, &ids, &step_ids, vars),
+                    Some(vars) => renamed(&shown, (&ids, &constraint_ids), &step_ids, vars),
                     None => shown,
                 };
                 Some((name.clone(), shown))

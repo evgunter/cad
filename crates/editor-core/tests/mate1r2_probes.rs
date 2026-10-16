@@ -64,11 +64,13 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-/// **Each of `pattern`'s `count` copies placed in the world**, in
-/// instance order: a `Part` per copy, each placed at the identity —
-/// the world a pattern's copies are in the product by (A10).
-fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
-    (0..count).fold(doc, |doc, i| {
+/// **Each of `pattern`'s `copies` placed in the world**: a `Part` per
+/// copy, each placed at the identity — the world a pattern's copies are
+/// in the product by (A10). Copy 0 of a pattern over an instance is the
+/// instance itself, already in the product, so a caller places it only
+/// to have it twice.
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, copies: &[i64]) -> ProfileDoc {
+    copies.iter().fold(doc, |doc, &i| {
         let (doc, copy) = insert(
             doc,
             Node::Part {
@@ -310,8 +312,9 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
 
 // ---- P1b: the gate as the oracle at F ≠ identity ----
 
-/// PROBE (claims 1+3): the top seated on a pattern copy, with the leg's
-/// world pose rotated AND translated. The seat is verified by the gate
+/// PROBE (claims 1+3): the top seated on pattern copy 1, with the leg's
+/// world pose rotated AND translated; the top is as wide as one leg, so
+/// it touches no other copy. The seat is verified by the gate
 /// against the EVALUATION's geometry, so a solve-side conjugation error
 /// (either direction, or a skipped conjugation) would put the top in
 /// the wrong place and the gate would refute — an oracle independent of
@@ -323,10 +326,7 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
 fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-loopf-leg"), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(
-        block_part("r2-loopf-top", (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
-        Tol::witness(),
-    );
+    let (top_ref, top_body) = store.insert_part(leg_part("r2-loopf-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-loopf"), Tol::witness());
     let (doc, leg) = instance_at(doc, leg_ref, leg_frame());
     let (doc, pattern) = insert(
@@ -335,24 +335,19 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
             input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
-                // Document ŷ: the leg's world pose turns the leg
-                // and top a quarter turn about z, so the top's long
-                // local-x side lies along WORLD ŷ — the copies must
-                // march there for the loop to be consistent. (A first
-                // draft marched along x̂ and the gate correctly refuted
-                // it — the pattern offset is a document-coordinate map,
-                // exactly as the PR states.)
+                // Document ŷ: the pattern offset is a document-coordinate
+                // map, applied outside the leg's world pose.
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(1.5),
             },
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, pattern, 2);
+    let doc = place_copies(doc, pattern, &[1]);
     let (doc, m0) = constrain(
         doc,
         seat_mate(
-            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
             in_part(top, top_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
@@ -362,7 +357,7 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let sibling = fixture::door_refusal(
         &doc,
         seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
             in_part(top, top_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
@@ -383,8 +378,9 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     assert_eq!(poses.space(top), Some(Space::World));
 
     // NOTE: the pattern direction is a DOCUMENT-coordinate map applied
-    // outside the placement, so the copies march along document ŷ even
-    // though the leg is rotated; the top must land so the seat holds.
+    // outside the leg's world pose, so the copies march along document
+    // ŷ even though the leg is rotated; the top must land so the seat
+    // holds.
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     match &result {

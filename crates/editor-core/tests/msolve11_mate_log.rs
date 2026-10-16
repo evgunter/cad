@@ -291,8 +291,8 @@ const OWN_FRAMES: [&str; 16] = [
 ///   membership checks): the cap's, and on no other log.
 /// - The bundle's left factor — the pattern's direction and the sign
 ///   of its spacing, derived once the bundle is folded
-///   (`eval_direction_norm`, `pattern_spacing`) — closes the cap's log
-///   and is on no other.
+///   (`eval_direction_norm`, `pattern_spacing`) — follows the fold on
+///   the cap's log and is on no other.
 /// - The rider on the coincidence (`mate_clocking_redundant`) is the
 ///   other block's.
 #[test]
@@ -330,8 +330,14 @@ fn each_decision_is_on_the_log_of_the_placement_whose_bundle_it_decided() {
         "the other block's log holds no intersection: {other_log:?}"
     );
     const LEFT_FACTOR: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
+    let after_fold = cap_log
+        .iter()
+        .rposition(|p| p.starts_with("mate_member_"))
+        .expect("the fold decided on the cap's log");
     assert!(
-        cap_log.ends_with(&LEFT_FACTOR),
+        cap_log[after_fold..]
+            .windows(LEFT_FACTOR.len())
+            .any(|w| w == LEFT_FACTOR),
         "the bundle's left factor is the cap's, decided after the fold: {cap_log:?}"
     );
     for p in LEFT_FACTOR {
@@ -340,9 +346,11 @@ fn each_decision_is_on_the_log_of_the_placement_whose_bundle_it_decided() {
             "the left factor's {p} is on no other placement's log: {other_log:?}"
         );
     }
+    // The placement's own evaluation follows the solve's decisions on
+    // its log; the rider is the first decision after its frames.
     assert_eq!(
-        other_log[OWN_FRAMES.len()..],
-        ["mate_clocking_redundant"],
+        other_log.get(OWN_FRAMES.len()).copied(),
+        Some("mate_clocking_redundant"),
         "the rider is its own placement's"
     );
 }
