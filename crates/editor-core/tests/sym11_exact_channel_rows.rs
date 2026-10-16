@@ -83,12 +83,25 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
 /// products (`geom::square_frame`) moves only the frozen counts: bracket
 /// 1975 → 1969, pad 2985 → 2976.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (PCERT unit B1, C4) moves decisions, and each is attributed:
+/// every placed azimuth reads its two half-period marks numerically
+/// (`pcurve_chart_placement`), and a cylinder's meridian azimuth is
+/// read only on a meridian, so a rim circle centred on the axis no
+/// longer takes the frame read the tier proved zero. `symbolic` falls
+/// by those frame reads and `numeric` rises by the marks; `frozen` takes
+/// the marks' contradiction checks. Plate `[1048, 654, 729]` →
+/// `[1032, 726, 741]`, annulus `[566, 399, 904]` → `[550, 471, 920]`,
+/// link `[356, 259, 542]` → `[348, 295, 548]`, bracket
+/// `[1453, 1008, 1969]` → `[1433, 1096, 1984]`, pad `[1317, 1159, 2976]`
+/// → `[1305, 1211, 2997]`. No dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1048, 654, 729]),
-    ("r1_annulus", [566, 399, 904]),
-    ("r2_link", [356, 259, 542]),
-    ("r2_filleted_bracket", [1453, 1008, 1969]),
-    ("r2_rounded_pad", [1317, 1159, 2976]),
+    ("two_hole_plate", [1032, 726, 741]),
+    ("r1_annulus", [550, 471, 920]),
+    ("r2_link", [348, 295, 548]),
+    ("r2_filleted_bracket", [1433, 1096, 1984]),
+    ("r2_rounded_pad", [1305, 1211, 2997]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
