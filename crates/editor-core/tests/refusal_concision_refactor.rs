@@ -237,13 +237,27 @@ fn split_refusals() -> Vec<SplitError> {
 
 /// Every `InlineError` arm, on a representative payload.
 fn inline_refusals() -> Vec<InlineError> {
-    vec![
+    let mut out = vec![
         InlineError::UnknownNode {
             id: SpokenNode::absent(n(9)),
         },
         InlineError::NotAnInstance {
             node: s(5, "Extrude"),
         },
+    ];
+    out.extend(uncarried().into_iter().flat_map(|why| {
+        [
+            InlineError::UnplaceablePart {
+                instance: s(4, "InstantiatePart"),
+                why: why.clone(),
+            },
+            InlineError::InstanceReadUncarried {
+                reader: s(5, "Union"),
+                why,
+            },
+        ]
+    }));
+    out.extend([
         InlineError::Unresolved {
             failure: ResolveFailure::new(
                 ResolveFault::EpsilonSeam,
