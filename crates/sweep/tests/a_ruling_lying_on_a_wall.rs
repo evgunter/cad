@@ -730,33 +730,36 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// and 0.9 the rims are one curve within the band, and every op
 /// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
 /// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated` on the point-on-span
-/// reading's chord to that end (`curve_pair_span_end_chord`). At 30 and
+/// ruling's end, and every op refuses `Escalated`: the ruling's end,
+/// read against the rim first, lies in the band's gap of its carrier
+/// (`curve_carrier_gap`). At 30 and
 /// 80 the rims are definitely two curves, which no closed form here
 /// places, and every op refuses `CurvedPierceUnsupported`, but for the
 /// three with the first rod first at 80, which escalate on the sector
 /// reading's `conic_bend` before reaching that frontier. None reads the
 /// rims' crossings away.
 ///
-/// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
-/// first.** A seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`,
-/// so it stays within the band's escalation `e = 10ε` of the plane for
-/// `e/0.01` metres either side. It meets the rim at the ellipse's tip,
-/// whose radius of curvature is `b²/a = 10⁻⁴` m. The meeting reader's
-/// basin meter needs the sine between the two (here one) to clear the
-/// turn of the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`,
-/// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
-/// reading refuses `Unsettled::Meter`
-/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
-/// the pierce is unread. There the three ops with the first rod first
-/// at 80 refuse `CurvedPierceUnsupported` too, before the sector
-/// reading, on the same meter: the seam ruling lies on the other rod's
-/// wall, the interior question reads its meetings with that wall's rim
-/// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
-/// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
-/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
-/// pierce refusals here is that meter. The rest of the table holds at
-/// every ε.
+/// **At a coarse ε the first rod's seam ruling refuses
+/// `CurvedPierceUnsupported` before the sector reading at 80.** A seam
+/// ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`, so it stays within
+/// the band's escalation `e = 10ε` of the plane for `e/0.01` metres
+/// either side. It meets the rim at the ellipse's tip, whose radius of
+/// curvature is `b²/a = 10⁻⁴` m. The meeting reader's basin meter needs
+/// the sine between the two (here one) to clear the turn of the
+/// curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`, which fails
+/// once `ε` passes about `2.5·10⁻⁸`
+/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`). At
+/// 80 the ruling's end lies `80ε` from the other rim, past the band, so
+/// the crossing is the pose's to place: the seam ruling lies on the other
+/// rod's wall, the interior question reads its meetings with that wall's
+/// rim (`boolean::carrier_cross`), the line × ellipse pose's basin meter
+/// (`curve_pair_pose_basin`) decides negative, and the three ops with the
+/// first rod first refuse `CurvedPierceUnsupported` on it. Below one the
+/// ruling's end lies within the zero band of the other rim, so it is
+/// read first as the meeting, the crossing of the plane is divided out
+/// of the pose, and nothing is metered: those poses refuse
+/// `FallbackExtentUnsupported` at every ε. The rest of the table holds at
+/// every ε too.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
@@ -771,12 +774,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
         );
         for (op, res) in six(&a, &b) {
             let label = format!("k = {k}: {op}");
-            if meter_refuses && k < 1.0 {
-                assert!(
-                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{label}: the basin meter refuses at this ε: {res:?}"
-                );
-            } else if k < 1.0 {
+            if k < 1.0 {
                 assert!(
                     matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
                     "{label}: one curve, refused past it: {res:?}"
@@ -787,8 +785,8 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                 };
                 assert_eq!(
                     diag.predicate,
-                    Some("curve_pair_span_end_chord"),
-                    "{label}: on the span row"
+                    Some("curve_carrier_gap"),
+                    "{label}: on the end's reading"
                 );
             } else {
                 // Exactly the ops with the first rod first, at 80, reach the

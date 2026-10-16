@@ -42,7 +42,7 @@ Stage (c3) of `the-curve-pair-reader` adds pass 5′: the census sweeps every cu
 
 ## Left open
 
-- The 6 coplanar-ellipse refusals: `two-coplanar-ellipses-have-no-meeting-method`. They are the only refusals of the 31 rows left, on 3 rows of `sweep`: `split_across_a_revolve_seam::a_tube_cut_across_its_axis_splits_into_two_annular_halves`, `split_across_a_revolve_seam::a_counterbore_and_a_cone_socket_split_across_their_axes` and `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`, each refusing tier 3′ typed `NotCertifiable { what: "two ellipses in one plane that are not one curve" }`.
+- The 6 coplanar-ellipse refusals: `two-coplanar-ellipses-have-no-meeting-method`. They are the only refusals of the 31 rows left, on 3 rows of `sweep`: `split_across_a_revolve_seam::a_tube_cut_across_its_axis_splits_into_two_annular_halves`, `split_across_a_revolve_seam::a_counterbore_and_a_cone_socket_split_across_their_axes` and `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`, each refusing tier 3′ typed `NotCertifiable { what: "two ellipses in one plane that are not one curve" }`. Two more `sweep` rows refuse on that pose alone on the c3 head after main's merge (`planar_ring_arc_closure::a_prism_with_a_station_on_its_arc_rims_through_a_slab_builds_every_op` and `planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`). That unit carries the evidence, and is now P1.
 - `sweep` writes no edge-edge record of its own, and `topo` and `sweep` pass with the census confirm reading `meet` under the stretch rule, so no record written at a tangent joint now reads stale. A touch at an edge's end now confirms its vertex-on-edge record alone, which closes `a-tangency-at-an-edges-end-confirms-two-records`.
 - The walk reads each span's end as a candidate of its own, first, so that finding needs no row.
 
@@ -76,4 +76,4 @@ The rows that pin each mechanism, each red under the bug it names:
 
 ## Status
 
-Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. Of the 31 rows, 28 pass. The 3 left are the coplanar-ellipse frontier (above).
+Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. Of the 31 rows, 28 pass. The 3 left, and 2 rows new since main's merge, refuse only on the coplanar-ellipse frontier (above). Reading ends first moved two escalation rows to the end's own reading (`curve_carrier_gap`): `census::tests::crossing_cuts` and `sweep`'s `a_ruling_lying_on_a_wall::two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`. In the latter, the coarse-ε one-curve poses no longer reach the basin meter.
