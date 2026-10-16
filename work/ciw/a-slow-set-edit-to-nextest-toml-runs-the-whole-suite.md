@@ -37,6 +37,13 @@ in its crate's slow-set step. A dropped name runs in its crate's default
 step. `check-slow-set-names.py` checks both, because the seeded packages are
 in the listing.
 
+One parser reads the filter: `scripts/slow_set.py`. ci-filter,
+`check-slow-set-names.py` and ci.yml's slow-set step all go through it. It
+follows nextest's semantics: whitespace is allowed between tokens but not
+inside a matcher's text. A name or binary id with whitespace inside it is
+refused, which makes the edit TIER=all and the name check red. It is never
+trimmed into a different, unchanged entry.
+
 Replayed through the new filter. The first set is the 268 merges that
 /home/user/cad's shallow clone reaches, 2026-10-13 to 2026-10-15. The
 "7-day" figures above came from that set, since the clone does not reach
