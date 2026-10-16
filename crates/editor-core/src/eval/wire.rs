@@ -389,7 +389,7 @@ where
         }
         Node::Place { shapes, .. } => {
             if let Some(fault) = env.poses.fault(id) {
-                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
+                return Err(placement_fault(fault, results));
             }
             // Each shape projected by itself: two halves of one split
             // are two bodies, which one map keyed by the split cannot
@@ -466,12 +466,35 @@ where
             doc_ref, interface, ..
         } => {
             if let Some(fault) = env.poses.fault(id) {
-                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
+                return Err(placement_fault(fault, results));
             }
             let map = placement_map(id, frame, env.poses, tol)?;
             wire_instantiate_part(id, doc_ref, interface, map, env, tol).map(|out| out.moved(map))
         }
     }
+}
+
+/// **A placement's solve fault, as its row reports it.** A placer
+/// the solve says states its own refusal ([`crate::mate::PlacerRow::States`])
+/// states it only where it failed in its own right: a placer poisoned
+/// by a failure upstream of it never ran, so its row names another
+/// cause, and the fault carries the refusal instead
+/// ([`crate::mate::PlacerRow::Silent`]). The solve holds no evaluation,
+/// so the standing is read here, where it is known.
+fn placement_fault<T: Decide>(
+    fault: &crate::mate::MateFault,
+    results: &Results<T>,
+) -> NodeErrorKind {
+    let mut fault = fault.clone();
+    if let crate::mate::MateFault::PlacerRefused {
+        placer, placer_row, ..
+    } = &mut fault
+        && *placer_row == crate::mate::PlacerRow::States
+        && !matches!(results.get(placer), Some(NodeResult::Failed(_)))
+    {
+        *placer_row = crate::mate::PlacerRow::Silent;
+    }
+    NodeErrorKind::Mate(Box::new(fault))
 }
 
 /// **The motion a placement's copies sit at, in this lane**: its pose

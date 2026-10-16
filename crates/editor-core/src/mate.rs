@@ -1457,7 +1457,10 @@ pub enum MateFault {
     ///   way to it): the fault reaches the mate alone, and the placer
     ///   evaluates and fails in its own right with the same refusal.
     ///   Its own row states it, and the mate's sentence points there
-    ///   ([`PlacerRow::States`]).
+    ///   ([`PlacerRow::States`]) — unless the placer is poisoned by a
+    ///   failure upstream of it, which the placement reporting the
+    ///   fault reads off the evaluation and carries the refusal
+    ///   ([`PlacerRow::Silent`]).
     PlacerRefused {
         /// The mate.
         mate: MateRef,
@@ -1676,8 +1679,9 @@ impl MateFault {
 
 /// **Whether a [`MateFault::PlacerRefused`]'s placer states the
 /// refusal on its own row**, which decides whether the fault carries
-/// it. Read at the site that raises the fault, which is the one place
-/// that knows whether the placer is poisoned by it.
+/// it. Read at the site that raises the fault, which knows whether the
+/// placer is poisoned by it, and again where the placement reports the
+/// fault, which knows whether the placer is poisoned by anything else.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacerRow {
     /// The placer evaluates and fails with this refusal in its own
