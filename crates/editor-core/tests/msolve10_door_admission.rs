@@ -295,7 +295,9 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     let t = test_utils::refusal::tag(named.0.digest());
-    let own = format!("constraint {} of this node contradicts itself", held.id);
+    // The door speaks with the document at hand: the constraint by its
+    // place in the bundle; the fault alone, by its ordinal.
+    let own = "constraint 1 of this node contradicts itself";
     assert!(
         sentence.contains(&format!(
             "InstantiatePart {t} is refused by the solve on its own datum: {own}"

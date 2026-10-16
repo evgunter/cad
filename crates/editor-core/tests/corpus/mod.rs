@@ -396,10 +396,13 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
+/// - `World`: the world defines no variable and is scheduled nowhere
+///   (`eval::schedule`); a constraint reads it as a side, never as a
+///   value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -417,7 +420,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -474,8 +477,11 @@ pub const NODE_KINDS: [&str; 22] = [
     // direction.
     "Measure",
     "Assertion",
-    // The world placement: every document's product is its copies.
-    "PlaceInWorld",
+    // The placement: every document's product is its copies.
+    "Place",
+    // The world: in every document, authored by none, so it reads zero
+    // here and is exempt through `NEVER_EVALUATES`.
+    "World",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage

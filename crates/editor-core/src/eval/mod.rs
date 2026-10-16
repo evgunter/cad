@@ -5007,7 +5007,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
             }
             None => h.write_tag(tag::presence::ABSENT),
         }
-        frame_bits(h, &pose.right);
+        frame_bits(h, &pose.right.affine());
         match frame {
             crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
             crate::placement::Motion::Rigid(rigid) => {

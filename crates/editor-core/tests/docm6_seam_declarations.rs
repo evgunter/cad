@@ -775,7 +775,7 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let rendered = result.unwrap_err().to_string();
     assert!(
         rendered.contains(&inner_id.to_string())
-            && rendered.contains(&format!("constraint {} of", inner_mate.id))
+            && rendered.contains("constraint 1 of")
             && rendered.contains(&test_utils::refusal::tag(inner_mate.placement.0.digest())),
         "the badge names the document and the mate, as that document holds it: {rendered}"
     );

@@ -106,7 +106,7 @@ test_utils::f6_variants! {
 /// their tables are empty and the equivalence holds of them vacuously.
 /// Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 5] = ["Datum", "Profile", "World", "Measure", "Assertion"];
+const ROW_FREE: [&str; 4] = ["Datum", "Profile", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {

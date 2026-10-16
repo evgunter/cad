@@ -409,8 +409,8 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
         .as_object_mut()
         .unwrap()
         .values_mut()
-        .filter_map(|node| node.get_mut("PlaceInWorld"))
-        .map(|placement| &mut placement["body"])
+        .filter_map(|node| node.get_mut("Place"))
+        .map(|placement| &mut placement["shapes"][0])
         .collect();
     *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");

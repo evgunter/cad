@@ -268,8 +268,10 @@ impl Space {
 pub(crate) struct Pose<T: Real> {
     /// The composed placer offsets, outside the anchor's frame.
     pub(crate) left: Option<Affine3<T>>,
-    /// The composed representatives, inside it.
-    pub(crate) right: Affine3<T>,
+    /// The composed representatives, inside it, the identity kept
+    /// marked ([`Motion`]) so a copy pinned straight to its anchor is
+    /// placed by no map at every scalar.
+    pub(crate) right: Motion<T>,
 }
 
 /// The document's solved poses: one pose per placement (D10: an
@@ -458,7 +460,7 @@ impl SolvedPoses {
     pub fn relative(&self, placement: RecipeNodeId) -> Option<Frame> {
         let pose = self.pose.get(&placement)?;
         let left = pose.left.map_or(Motion::Identity, marked);
-        Some(Frame::from_motion(left.compose(marked(pose.right))))
+        Some(Frame::from_motion(left.compose(pose.right)))
     }
 
     /// **The copy's world placement, at the document's own parameters**:
@@ -510,7 +512,7 @@ impl<T: SolveScalar> SolvedPoses<T> {
     pub fn relative_map(&self, placement: RecipeNodeId) -> Option<Affine3<T>> {
         let pose = self.pose.get(&placement)?;
         let left = pose.left.map_or(Motion::Identity, marked);
-        Some(left.compose(marked(pose.right)).affine())
+        Some(left.compose(pose.right).affine())
     }
 }
 
@@ -529,7 +531,7 @@ impl<T: Real> Pose<T> {
     pub(crate) fn identity() -> Self {
         Self {
             left: None,
-            right: Affine3::identity(),
+            right: Motion::Identity,
         }
     }
 }
@@ -540,7 +542,7 @@ impl<T: SolveScalar> Pose<T> {
     /// lane as the pose.
     pub(crate) fn compose_around(self, frame: Motion<T>) -> Motion<T> {
         let left = self.left.map_or(Motion::Identity, marked);
-        left.compose(frame).compose(marked(self.right))
+        left.compose(frame).compose(self.right)
     }
 }
 
@@ -1989,7 +1991,7 @@ fn solve<P: crate::ProfilePayload, T: SolveScalar>(
                     id,
                     Pose {
                         left,
-                        right: Affine3::identity(),
+                        right: Motion::Identity,
                     },
                 );
             }
@@ -2013,7 +2015,7 @@ fn solve<P: crate::ProfilePayload, T: SolveScalar>(
                     id,
                     Pose {
                         left,
-                        right: target_right * rep,
+                        right: target_right.compose(marked(rep)),
                     },
                 );
             }

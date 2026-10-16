@@ -489,11 +489,12 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         cases.len()
     );
     assert!(formulas > 0 && programs > 0 && offsets == 3 * 7);
-    // Every node kind is in the sweep: a kind added to the vocabulary
+    // Every node kind is in the sweep but the world, which no edit
+    // inserts and no document writes: a kind added to the vocabulary
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        25,
+        23,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }
