@@ -4,7 +4,7 @@ kind: unit
 title: The curve-pair reader refuses two coplanar ellipses that are not one curve, and refuses a near-tangent coplanar circle and ellipse instead of placing the touch
 status: open
 opened: 2026-10-14
-priority: P1
+priority: P2
 cost: M
 refs: [the-curve-pair-reader]
 ---
@@ -34,3 +34,25 @@ Tier 3′'s pass 5′ (`census::sweep_curved_edge_edge`) reads every pair of cur
 - `planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`.
 
 The first three are among the 31 rows pass 5′ first turned red (`curve-pair-meetings-are-runs`). The last two are new on the c3 head, after main was merged in. So **Why P2**'s premise, that no body door is known to reach this pose, no longer holds. The row is P1: c3 does not land green until this unit does.
+
+## The first bullet, done (2026-10-16, on `fuse/curve-pair-reader-c3`)
+
+Route 2. Two coplanar ellipses that are not one curve go to the certified subdivision (`pose::coplanar_ellipses`):
+- **The equation.** The first ellipse's level on the second, `F = X²/A² + Y²/B² − 1`, is of degree two in the first's angle.
+- **Its metres.** They are those of geom's lower bound on a point's distance from an ellipse: `geom::ellipse_level_clearance`, which is `Curve3::clearance`'s ellipse bound, signed as `F`.
+- **The ceiling.** The ceiling on `|F|` per metre of that bound is `4/s` within `s/4` of the ellipse, `s` the second's smaller semi-axis. The argument is in the function's docs.
+- **The stretch rule** then decides the meetings.
+
+The census row `census::curved::tests::the_reading_answers_a_meeting_on_every_kind` reads "meets" again. The five sweep rows in the evidence above pass. The geom-brep rows that pin it:
+- `meet_rows::two_coplanar_ellipses_cross_where_the_level_changes_sign`;
+- `meet_rows::two_coplanar_ellipses_apart_meet_nowhere`;
+- `meet_rows::two_coplanar_ellipses_that_touch_are_never_read_apart`.
+
+Route 1, a certified per-metre residual, was not needed: the subdivision reads only the ceiling, never a floor.
+
+## Left open: the touch
+
+The second bullet stays open, and is now the unit's whole scope.
+- **Where it refuses.** A near-tangent coplanar circle and ellipse refuse `Unsettled::Tangency`, and two coplanar ellipses that touch refuse alike. At a touch, the level stays within the band over an arc much wider than the band (about `10⁻⁴` rad for the `(2, 1)` pair). So the subdivision either finds no definite sign to split at (`SignInBand`) or narrows a piece to the band (`Tangency`).
+- **The fix is not natural to this route.** It would hand the in-band piece back as a candidate for the stretch rule to read. That changes `half_angle::certified_subdivision`'s contract, which topo's ellipse × torus, circle × torus, conic × quadric and ruling doors share.
+- **Priority.** The row is back to P2: no known body row reaches it.

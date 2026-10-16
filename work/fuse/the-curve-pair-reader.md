@@ -75,7 +75,7 @@ These four readings decided the point-on-span question themselves, and move onto
 - the census line lane's `on_edge_interior`;
 - `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.
 
-**Follow-on, its own unit:** `two-coplanar-ellipses-have-no-meeting-method`, the coplanar ellipse pair's method. The census confirm refuses that pose typed since it reads `meet`.
+**Follow-on, its own unit:** `two-coplanar-ellipses-have-no-meeting-method`, the coplanar ellipse pair's method. It is built on `-c3`; its touch is left open.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`
@@ -92,6 +92,6 @@ Stage (c) landed over three branches, `fuse/curve-pair-reader-c` (PR 5154), `-c2
 - **The four readings moved**: `carrier_cross`, the census curved and line lanes and `LoopEdge::contact`'s conic rows read `Span::contact` (or `Span::read`, its whole reading); the spiric row's refusal is typed.
 - **The callers**: `carrier_cross`, the census confirm (`census::curved`), the census edge-face cut and tier 3′'s pass 5′ (`census::sweep_curved_edge_edge`) read `meet`.
 - **The near-concentric census row** reads the decided answer.
-- **Pass 5′ over the workspace** turned 31 rows red until the reader read C5's stretch rule (`curve-pair-meetings-are-runs`, ratified on PR 5214): ends first, one meeting per stretch, the ring of a found meeting not read again, a found root divided out of the closed forms, and the walk's witnesses on polished feet. On `-c3` 28 of the 31 pass; the 3 left refuse typed on the coplanar ellipse pair (`two-coplanar-ellipses-have-no-meeting-method`).
+- **Pass 5′ over the workspace** turned 31 rows red until the reader read C5's stretch rule (`curve-pair-meetings-are-runs`, ratified on PR 5214): ends first, one meeting per stretch, the ring of a found meeting not read again, a found root divided out of the closed forms, and the walk's witnesses on polished feet. On `-c3` all 31 pass. The coplanar ellipse pair is read there through the certified subdivision, in the metres of geom's lower bound on a point's distance from an ellipse (`two-coplanar-ellipses-have-no-meeting-method`, its first bullet). Its touch, like the coplanar circle and ellipse's, still refuses typed (that unit's open bullet).
 
-Closed with it: `two-curve-curve-meeting-finders`, `near-concentric-arcs-run-the-census-meeting-search-past-its-budget`, `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime`, and cleave's `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`. Carried to their own rows: `roots-unsettled-mixes-three-kinds`, `two-coplanar-ellipses-have-no-meeting-method`, `the-polish-basin-meter-levers-by-the-lines-own-span`.
+Closed with it: `two-curve-curve-meeting-finders`, `near-concentric-arcs-run-the-census-meeting-search-past-its-budget`, `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime`, and cleave's `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`. Carried to their own rows: `roots-unsettled-mixes-three-kinds`, `two-coplanar-ellipses-have-no-meeting-method` (its touch), `the-polish-basin-meter-levers-by-the-lines-own-span`.
