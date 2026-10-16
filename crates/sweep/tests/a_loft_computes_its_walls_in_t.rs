@@ -302,7 +302,7 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
             .map(|lp| lp.map_scalar(Interval::from_f64))
             .collect()
     };
-    let cases: [(&str, Vec<Vec<ProfileLoop<f64>>>, Vec<f64>); 2] = [
+    let cases = [
         (
             "an arc section",
             vec![section(0.2), section(0.2)],
