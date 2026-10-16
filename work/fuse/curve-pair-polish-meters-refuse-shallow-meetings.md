@@ -4,7 +4,7 @@ kind: issue
 title: The curve-pair reader's polish meters refuse curves crossing in nearly parallel planes and curves crossing below the basin floor
 status: open
 opened: 2026-10-14
-priority: P2
+priority: P1
 cost: M
 refs: [the-curve-pair-reader]
 ---
@@ -32,5 +32,10 @@ The floor these rows meet is the basin meter's, as computed: `sin φ > 2(κ₁ +
 
 `sweep/tests/a_ruling_lying_on_a_wall.rs` `two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`: a seam ruling crosses a rim's plane at `|d̂·n̂| ≈ 0.01` and meets the rim at its tip, where the radius of curvature is `b²/a = 10⁻⁴` m. The basin meter (`Polish::closest`, `crates/geom-brep/src/curve_pair/pose.rs`) charges the curvature bound over the line's whole band stretch, `e/|d̂·n̂|`, to the conic as well, though the line runs across the conic there (sine 1). At `ε = 10⁻⁶` the turn reads `≈ 40` against a sine of `1`, so every op refuses `CurvedPierceUnsupported` where main's own carrier reading refused `FallbackExtentUnsupported` further on. At `10⁻⁹` and `10⁻¹²` it decides. The row states the threshold (`ε` past about `2.5·10⁻⁸`). A per-side region (the conic's stretch near the foot, not the line's) would decide it, once its bound is argued.
 
-Since C5's stretch rule (`curve-pair-meetings-are-runs`, 2026-10-16), the poses at `k` below one no longer reach the meter. There the ruling's end lies within the zero band of the other rim, so the end is read first as the meeting, and its crossing of the plane is divided out of the pose. They refuse `FallbackExtentUnsupported` at every ε. The meter still refuses at `k = 80` at `ε = 10⁻⁶`, where the ruling's end lies past the band from the other rim: the three ops with the first rod first refuse `CurvedPierceUnsupported` there rather than escalating on the sector reading.
+## Evidence: fillet joints across a plane (2026-10-16, PR 5227)
 
+Tier 3′'s pass 5′ reads every pair of curved edges through `meet`. At a fillet joint, a rod's rim ellipse meets the fillet's circle, or another rim, at a shared vertex where the ellipse touches the other conic's plane. Each span's end is read first and the joint is found, but the height harmonic's root there is a crossing of the plane, not a meeting. Its window may hold another meeting, so it is polished and metered as with no meeting found (C5 licenses dividing out only a root of the meeting's own equation; the reviewers' probes on PR 5227 showed the window losing real meetings when it was skipped). The basin meter reads the two tangents parallel there and refuses `Unsettled::Meter`, and the census pushes `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }` on both edges. Seven `sweep` rows fail tier 3′ on that refusal alone:
+- `band_turn_overrun_fillet::{a_concave_overrun_fills_at_the_oracles_volume, a_later_fillet_of_l_refuses_at_the_far_bands_curved_face, a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too, the_needle_builds_then_refuses_at_the_turn_as_it_flattens, the_witnesses_build_at_the_oracles_volumes}`;
+- `band_turn_overrun_fillet_model::{the_interval_overrun_arc_runs_the_f64_way, the_concave_skewed_box_fills_the_model}`.
+
+The geom-brep row `curve_pair::meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered` pins the pose: a rod's 45° rim and a fillet circle ending tangent at `(−0.8586, 0, 0.9)`. What would decide it soundly is a reading of the plane root's window against the joint's stretch: the window decided within the joint's stretch, or decided off past it. That is this row's lever.
