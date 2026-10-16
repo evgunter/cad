@@ -2926,13 +2926,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
-        1,
+        3,
     ),
     (
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCurvedFace",
-        1,
+        3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
