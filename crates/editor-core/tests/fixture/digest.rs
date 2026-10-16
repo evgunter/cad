@@ -103,7 +103,6 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             ValuePayload::Datum(_)
             | ValuePayload::Profile(_)
             | ValuePayload::Instances(_)
-            | ValuePayload::World
             | ValuePayload::Measure { .. }
             | ValuePayload::MeasureUnavailable { .. }
             | ValuePayload::Assertion(_) => {}

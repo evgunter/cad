@@ -266,7 +266,7 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::World,
+            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
             name_table: Arc::new(t),
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),

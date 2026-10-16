@@ -258,8 +258,7 @@ where
                         }
                     }
                     // 20 and 25 were a mate's and a gauge's, retired.
-                    ValuePayload::World => d.u64(27),
-                    ValuePayload::Copies(copies) => {
+                                        ValuePayload::Copies(copies) => {
                         d.u64(28);
                         d.u64(copies.bodies.len() as u64);
                         for b in &copies.bodies {

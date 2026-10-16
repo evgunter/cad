@@ -10,7 +10,7 @@
 //! pose.
 //!
 //! Structural throughout: no expression is evaluated in the walk, so
-//! the group partition never depends on a slot value. The offset —
+//! the member a side resolves to never depends on a slot value. The offset —
 //! which is arithmetic, not admission — does evaluate, in the solve's
 //! one environment at its scalar ([`super::solve::solve_document`]).
 
@@ -100,11 +100,10 @@ impl Member {
     }
 }
 
-/// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on, and its order, every node
-/// compared by id (which is document order: an id's mint ordinal leads
-/// it), is the order the spanning tree picks its edges by; so the ordering is stated rather than
-/// derived: `(instance, copy, chain)` — the instance, then the copy
+/// **The member key, written out.** Its order, every node compared by
+/// id (which is document order: an id's mint ordinal leads it), is
+/// stated rather than derived, so whatever orders members orders them
+/// by recipe structure: `(instance, copy, chain)` — the instance, then the copy
 /// chain (patterns only, outermost first), then the whole placing
 /// chain, each compared lexicographically. The copies lead so that a
 /// copy chain alone decides between two members whenever it differs.
@@ -482,11 +481,11 @@ pub(super) fn walk_of<P>(
 ///   `Part`, so the solve refuses rather than choosing.
 ///
 /// **They live here, per reference, and not in the offset.** The
-/// offset is derived only for a pair the spanning tree takes as an
-/// edge, and only for that pair's first mate — so a check sited there
-/// runs on some references and not others, and a DECLARING mate whose
-/// `Part` names another copy would be silently green with its body
-/// somewhere else. Every mate the solve reads gets both checks, and a
+/// offset is derived only from a bundle's first mate (every mate of a
+/// bundle relates one member pair) — so a check sited there runs on
+/// some references and not others, and a later mate of the bundle
+/// whose `Part` names another copy would be silently green with its
+/// body somewhere else. Every mate the solve reads gets both checks, and a
 /// reference that fails either refuses typed at that reading, exactly
 /// as a dangling head does.
 ///
@@ -698,8 +697,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
 /// named copy exists, are [`check_reference`]'s: they are facts about
-/// a REFERENCE, and this door sees only the references of the pairs
-/// the spanning tree took. Arithmetic here, admission and agreement
+/// a REFERENCE, and this door sees only the references of each
+/// bundle's first mate. Arithmetic here, admission and agreement
 /// there.
 ///
 /// Both are document-coordinate maps and both are LEFT-composed, for

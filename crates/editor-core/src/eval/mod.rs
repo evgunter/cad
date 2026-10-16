@@ -740,9 +740,6 @@ pub enum ValuePayload<T: Decide> {
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
-    /// **The world** ([`crate::node::Node::World`]): it DENOTES NO
-    /// BODY and defines no variable; its node's value says so.
-    World,
     /// **A placement's copies, keyed** ([`Copies`]): a `Place`'s over
     /// several shapes, keyed by read, and an instance's, the part's
     /// world copies keyed by their identity in the part. A `Place` of
@@ -945,7 +942,6 @@ impl<T: Decide> ValuePayload<T> {
             Self::Boolean(_) => family::BOOLEAN,
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
-            Self::World => family::WORLD,
             Self::Copies(_) => family::COPIES,
             Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the

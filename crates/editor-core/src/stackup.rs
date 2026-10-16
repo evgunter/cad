@@ -957,7 +957,6 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             }
         }
         // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::World => d.u64(28),
         // The material the table indexes; its copies are the same
         // material read copy by copy.
         ValuePayload::Copies(copies) => {

@@ -24,8 +24,9 @@ Everything below runs. The Python blocks are executed by
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
 in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
-it stands the stand on a turntable gauge a `swing` parameter turns,
-and sets a crate on the shelf through a gauge nested on it.
+it stands the stand on a turntable — the near post's world pin, whose
+placement chain carries a step that reads a `swing` parameter — and
+sets a crate on the shelf by a mate in the crate's own bundle.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a

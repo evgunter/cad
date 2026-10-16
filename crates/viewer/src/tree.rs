@@ -950,8 +950,7 @@ fn readout_of(
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
-        | ValuePayload::Copies(_)
-        | ValuePayload::World => None,
+        | ValuePayload::Copies(_) => None,
     }
 }
 

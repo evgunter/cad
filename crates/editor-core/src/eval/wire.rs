@@ -409,7 +409,7 @@ where
             wire_place(id, &reads, map.as_ref(), tol).map(|out| out.moved(map))
         }
         // The world DENOTES NO BODY and defines no variable.
-        Node::World => Ok(OpOut::plain(ValuePayload::World, names::empty())),
+        Node::World => unreachable!("the world is scheduled nowhere (`eval::schedule`)"),
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             let rule = RuleEnv {

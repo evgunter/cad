@@ -1503,8 +1503,8 @@ impl SitedRef {
 ///
 /// ```
 /// use editor_core::{
-///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, MateFrame, MatePrimitive,
-///     Node, RecipeNodeId, SitedFace, StableName,
+///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, Formula, Mate, MateFrame,
+///     MatePrimitive, RecipeNodeId, SideRead, SitedFace, StableName,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1513,9 +1513,9 @@ impl SitedRef {
 /// })
 /// .expect("a face name is a face");
 /// let frame = MateFrame::from_face();
-/// let _: editor_core::AuthoredNode = Node::Mate {
-///     a: SitedFace::at_mint(face.clone()).into(),
-///     b: SitedFace::at_mint(face).into(),
+/// let _: Mate<Formula> = Mate {
+///     a: SideRead::Face(SitedFace::at_mint(face.clone()).into()),
+///     b: SideRead::Face(SitedFace::at_mint(face).into()),
 ///     class: ContactClass::Rest,
 ///     alignment: Alignment {
 ///         a: frame.clone(),
@@ -3208,9 +3208,9 @@ impl<P> Node<P> {
     /// admission rule refuses at `tol`, with where it sits
     /// ([`crate::Placement::frame_fault`]) — the one question the edit
     /// door and the load door ask of a node's literal steps: a
-    /// transform's, a gauge's, an instance's offset, and each of a
-    /// mate's two frame offsets, side `a` first. `None` for every node
-    /// without a placement.
+    /// transform's, and each of a placement's constraints' two frame
+    /// offsets, in bundle order, side `a` first. `None` for every node
+    /// without one.
     pub fn placement_frame_fault(
         &self,
         tol: geom_core::Tol,

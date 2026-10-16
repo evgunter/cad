@@ -1,5 +1,5 @@
-//! **The mate solve** — partitions, groups, and the constructive
-//! placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A11).
+//! **The mate solve** — partitions, bundles, spaces, and the
+//! constructive placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A11).
 //!
 //! Everything here is recipe data plus decided predicates over the
 //! sides' RESOLVED frames — the two reads `ASSEMBLY.md` A11 rule 5
@@ -9,28 +9,29 @@
 //! stored beside the DAG. The entry points, in the order the layers
 //! use them:
 //!
-//! - [`relative_freedom_components`] — A9's partition, over reads and
-//!   gauge references (so mates couple components).
-//! - [`groups`] — A11's placement groups, the finer partition over
-//!   instances alone, each with its document-order-first ROOT.
-//! - [`solve_document`] — the per-pair coset fold along a deterministic
-//!   spanning tree, yielding every instance's pose around its group's
-//!   frame, every group's space, and every mate's role, at `f64`.
-//! - `solve_with_env` — that fold at an evaluation's own scalar and
-//!   environment, asked once per run, its decisions kept per mate.
-//! - [`solve_document_at`] — that fold at a run's scalar for a caller
+//! - [`relative_freedom_components`] — A9's partition, over reads (so
+//!   a placement's constraints couple its copy to their target).
+//! - [`solve_document`] — each placement's bundle folded by itself by
+//!   coset intersection, in schedule order, yielding every copy's pose
+//!   against its target, every placement's space ([`Space`]), and what
+//!   each constraint decides, at `f64`.
+//! - `solve_with_env` — that solve at an evaluation's own scalar and
+//!   environment, asked once per run, its decisions kept per placement.
+//! - [`solve_document_at`] — that solve at a run's scalar for a caller
 //!   outside an evaluation that holds the run's environment.
-//! - [`admit_mate`] — one mate's own admission, the per-mate prefix
-//!   of the solve asked by the edit door of a mate being inserted.
+//! - [`admit_mate`] and `admit_constraint` — one constraint's own
+//!   admission, the per-constraint prefix of the solve asked by the
+//!   edit door of a constraint being added.
 //!
-//! # Why the failure surface is per node, not per document
+//! # Why the failure surface is per placement, not per document
 //!
-//! A refusing group must not fail an unrelated one: GQ2/W5 make a
-//! node's failure poison its descendants and nothing else, and a
-//! second group has no dependence on the first. So [`solve_document`]
-//! is TOTAL — it returns per-node faults rather than one document-wide
-//! `Err`, and every node the fault actually reaches (the refusing mate
-//! and its group's instances, which now have no pose) carries it.
+//! A refusing bundle must not fail an unrelated placement: GQ2/W5 make
+//! a node's failure poison its descendants and nothing else, and a
+//! second placement whose bundle does not read the first has no
+//! dependence on it. So [`solve_document`] is TOTAL — it returns
+//! per-placement faults rather than one document-wide `Err`
+//! ([`SolvedPoses::fault`]), and the refusing placement, whose copy
+//! now has no pose, carries its own fault.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -918,7 +919,8 @@ fn mate_coset<T: SolveScalar>(
 /// The coset of the INVERSE relation: `{ x⁻¹ : x ∈ c }`, written as a
 /// left coset again by conjugating the subgroup.
 ///
-/// A mate is authored on an ordered pair; the spanning tree may want it
+/// A mate is authored on an ordered pair; the bundle's fold reads the
+/// target from the copy, which wants a mate whose copy is its `a` side
 /// the other way round. Inverting the relation rather than re-reading
 /// the alignment keeps ONE construction of a mate's meaning.
 ///

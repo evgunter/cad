@@ -1,7 +1,7 @@
 //! **The whole-document product** (ASSEMBLY-DESIGN A10): the
-//! deterministic gather, in the document order of the world
-//! placements, of every copy a [`crate::Node::PlaceInWorld`] defines
-//! into ONE aggregate [`Body`].
+//! deterministic gather, in the document order of the placements,
+//! of every copy a placement ([`crate::Node::Place`], or an instance)
+//! defines whose space reaches the world, into ONE aggregate [`Body`].
 //!
 //! This is what A2's "an assembly's evaluation is a body" means for a
 //! part document. The product is the world: a body appears only if a
@@ -670,7 +670,6 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // had without one.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::World
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
@@ -710,12 +709,11 @@ pub fn gathers_on_this_thread() -> u64 {
 /// The document's product: every world placement's copy gathered, in
 /// the placements' document order, into one [`Body`] (module docs).
 ///
-/// **One carve-out (A11 (2), stage 3's to retire):** a placement whose
-/// copy lives in an unplaced group's own space is not part of it, and
-/// the gather stands without it rather than refusing. Export refuses
-/// such a copy (`pncad::export`'s `UnplacedBelow`), and
-/// [`Product::spaces`] carries it to the at-rest gate, so leaving it
-/// out is never silent.
+/// A loose copy (A11 (2)) is in its own space, not the world's, so it
+/// is not part of the product, and the gather stands without it rather
+/// than refusing. Export refuses such a copy (`pncad::export`'s
+/// `ExportError::Loose`), and [`Product::spaces`] carries it to the
+/// at-rest gate, so leaving it out is never silent.
 ///
 /// The result is a pure function of (`doc.placements()`, `evaluation`)
 /// — no ambient state, so two evaluations of an edit that moves no
@@ -847,8 +845,8 @@ pub struct Product<T: Decide> {
     /// A11 (2)), in document order: what the world leaves out, kept beside
     /// it so the at-rest gate checks every space of the document from
     /// the one product it is handed ([`crate::assemble_gathered`]).
-    /// Empty on a space's own gather, and on a document every group of
-    /// which is placed.
+    /// Empty on a space's own gather, and on a document with no loose
+    /// copy.
     pub spaces: Vec<LooseSpace<T>>,
 }
 
@@ -974,12 +972,11 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 }
 
 /// **The gather of one space** (A9, A11 (2)): the world's — the
-/// document's product — or the own space of an unplaced group, which
-/// the at-rest gate checks by itself ([`crate::assemble_gathered`]). A
-/// root gathers into the space its value lives in
-/// ([`Evaluation::space`]), and only the mates whose
-/// two members both live in this space are minted: nothing outside an
-/// unplaced group is compared with it.
+/// document's product — or a loose copy's own, which the at-rest gate
+/// checks by itself ([`crate::assemble_gathered`]). A placement
+/// gathers into the space its value lives in ([`Evaluation::space`]),
+/// and only the mates whose two members both live in this space are
+/// minted: nothing outside a loose space is compared with it.
 ///
 /// # Errors
 ///

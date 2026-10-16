@@ -675,7 +675,7 @@ fn hand_eval(
 ) -> Evaluation<f64> {
     let value = |table: NameTable, log: Vec<Verdict>| {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::World,
+            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
             name_table: Arc::new(table),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),

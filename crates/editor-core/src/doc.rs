@@ -2608,12 +2608,12 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
 // ---------------------------------------------------------------
 // What a node id held in the document may name.
 //
-// A gauge reference names a gauge, and a witness names a sketch. Both
-// rules are asked twice, by the edit door that writes the reference
-// and by the save/load validator that re-reads it, so both live here,
-// where a `Doc` is in scope. A predicate that needs only the node is a
-// `Node` method instead (`Node::input_fault` and its siblings); these
-// need the document to resolve the id at all.
+// A witness names a sketch. The rule is asked twice, by the edit door
+// that writes the witness and by the save/load validator that re-reads
+// it, so it lives here, where a `Doc` is in scope. A predicate that
+// needs only the node is a `Node` method instead (`Node::input_fault`
+// and its siblings); this one needs the document to resolve the id at
+// all.
 // ---------------------------------------------------------------
 
 

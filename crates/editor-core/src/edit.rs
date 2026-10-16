@@ -71,10 +71,10 @@ impl From<crate::Operand> for SlotValue {
 /// a document value, every arm plain data, applied by the pure
 /// [`apply`] (spec D2), which answers a new document and leaves its
 /// input untouched. The set has three shapes. Structural edits over
-/// nodes, their slots and where instances sit
+/// nodes, their slots and the bundles that pin placements
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
-/// `SetParam`, `SetStructuralParam`, `SetExpression`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
+/// `SetParam`, `SetStructuralParam`, `SetExtrudeSide`, `SetExpression`,
+/// `AddConstraint`, `RemoveConstraint`, `UpdateReference`). The
 /// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
 /// which replaces its definition, the carry-forward doors, each
 /// moving ONE field of a free variable and keeping the rest
@@ -2005,7 +2005,7 @@ pub enum EditError {
         ports: Vec<&'static str>,
     },
     /// A read names a node that defines nothing to read: an
-    /// assertion, a mate or a gauge.
+    /// assertion or the world.
     DefinesNothing {
         /// The node named.
         input: SpokenNode,
@@ -2889,7 +2889,7 @@ impl From<crate::ident::Mispaired> for EditError {
 // rather than "slot Origin(X)".
 /// The AXIS's refusal, in the authoring vocabulary — what makes
 /// `Frame::rotate_then_translate(..)?` compose with
-/// `apply(.., DocEdit::SetOffset { .. })?` in one function.
+/// `apply(.., DocEdit::AddConstraint { .. })?` in one function.
 ///
 /// It converts from [`crate::AxisRefusal`] and from nothing else. A
 /// blanket `From<NodeErrorKind>` would make every node refusal in the
@@ -6039,9 +6039,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 });
             }
         }
-        // A placement's literal steps — a transform's, a gauge's, an
-        // instance's offset, a mate's frame offsets — meet the same
-        // bar, by the same predicate.
+        // Literal placement steps — a transform's, and a constraint's
+        // frame offsets — meet the same bar, by the same predicate.
         if let Some((at, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }

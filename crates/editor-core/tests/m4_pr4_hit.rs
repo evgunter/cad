@@ -60,7 +60,6 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .collect(),
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::World
         // Neither sink denotes a body, so neither offers an entity to
         // invert.
         | ValuePayload::Measure { .. }

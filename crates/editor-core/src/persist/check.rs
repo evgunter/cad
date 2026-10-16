@@ -1114,9 +1114,10 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         //
         // - Most `InsertNode` node kinds hold their floats in `Expr`
         //   literals, finite by the construction door.
-        // - `Node::Mate`'s `alignment` and a placement's literal steps
-        //   (an inserted transform's or gauge's, an instance's offset,
-        //   `SetOffset`'s) are RAW `f64`, not `Expr`s. They are refused
+        // - A constraint's `alignment` and literal placement steps (an
+        //   inserted transform's, a constraint's frame offsets, on an
+        //   inserted placement or through `AddConstraint`) are RAW
+        //   `f64`, not `Expr`s. They are refused
         //   on replay by `apply` (`EditError::NonFiniteAlignment`,
         //   `NonFinitePlacement`), which `persist::load` runs the log
         //   through — so they are guarded, but by a door this function
@@ -1412,9 +1413,9 @@ pub enum SnapshotError {
         constraint: crate::node::ConstraintId,
     },
     /// A placement frame carrying a non-finite coordinate — a literal
-    /// step of a transform's or a gauge's placement, or of an
-    /// instance's offset. The edit door refuses it, so a file holding
-    /// one is corrupt — refused, never repaired.
+    /// step of a transform's placement, or of a constraint's frame
+    /// offset. The edit door refuses it, so a file holding one is
+    /// corrupt — refused, never repaired.
     PlacementNonFinite {
         /// The node holding the placement.
         node: SpokenNode,
@@ -2011,8 +2012,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // A placement's literal frames — a transform's, a gauge's, an
-        // instance's offset — held by the predicate the edit door asks,
+        // Literal placement frames — a transform's, a constraint's
+        // frame offsets — held by the predicate the edit door asks,
         // for the rule's reason: the snapshot is the one road
         // to a document that does not pass `apply`.
         if let Some((at, fault)) = node.placement_frame_fault(tol) {

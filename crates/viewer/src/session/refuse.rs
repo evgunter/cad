@@ -1209,7 +1209,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
         | ValuePayload::Copies(_)
-        | ValuePayload::World
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
