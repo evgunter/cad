@@ -63,7 +63,7 @@ fn certify_pose(r: f64, s: f64, reversed: bool) -> (SurfaceKey, Result<(), Certi
         param_start: 0.0,
         param_end: len,
     };
-    let verdict = EdgeCurve::certify(spec, start, end, &lookup, band()).map(|_| ());
+    let verdict = EdgeCurve::certify(spec, start, end, &lookup, 1.0, band()).map(|_| ());
     (keys[0], verdict)
 }
 

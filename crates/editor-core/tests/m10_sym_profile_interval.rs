@@ -291,22 +291,27 @@ fn eps_row(eps: f64) -> usize {
 /// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
 /// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
 /// the anonymous definition a slot's formula lowers to.
+///
+/// The faces' extent levering the wedge moves the `*/Assertion` lines
+/// as it moves [`PLATE_LEDGER`]'s: `Plain/Assertion` 1186 → 2690 and
+/// `Early/Assertion` 2229 → 4121 forms, and their digests, at every
+/// row; calls and the `*/Decision` lines hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
+     Plain/Assertion calls 514 forms 2690 frozen 0 digest 80b737bceb9a4872fbea8255b9055340\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 78f9da753bcbf13302396be314a2326a",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
+     Plain/Assertion calls 514 forms 2690 frozen 0 digest 8bd598498af0bdacbe74a0fcf7ba06b0\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest a46526317b8db75f798dfec4841a3faf",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
+     Plain/Assertion calls 514 forms 2690 frozen 0 digest b1ab6975915064a74b64f5cb5df7566b\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 319b9bb461d5031e9da6c0bbc966174c",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -592,6 +597,15 @@ const PLATE_MAX_TERMS: usize = 28;
 /// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
 /// forms each, and the `Plain/Assertion` digest; every call and freeze
 /// holds.
+///
+/// The wedge between an edge's faces levered at the faces' extent
+/// (`topo::wedge_reach`) rather than the edge's: each certification and
+/// each check-4 read folds the squared distances of the faces' boundary
+/// vertices and their maximum, so `Plain/Assertion` 4542 → 5753 forms
+/// (its 405 frozen held), `Early/Assertion` 5519 → 6972 and
+/// `Door/Decision` 7391 → 7987; `Early/Decision` 8970 → 8955, the arm
+/// the edge's chord no longer builds; every call, every decision tally
+/// and the largest form hold.
 ///
 /// Placing each row over its edge's span in the chart's principal
 /// window (C4) reads two half-period marks per placed azimuth, each

@@ -585,6 +585,11 @@ fn m10_9_what_the_registry_buys() {
 /// holds. The pcurve envelope's orthonormal chart squaring its frame by
 /// cross products (`geom::square_frame`) builds its frame terms in
 /// another form: frozen 3453 → 3426, every decision column held.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord reads each certified
+/// edge's two faces' boundary vertices: frozen 3426 → 3972, every
+/// decision column held, and both dials still read one receipt.
+///
 /// Placing each row in the chart's principal window (PCERT B1): the
 /// frame reads on rims centred on the axis gone and two numeric marks
 /// per placed azimuth, (1372, 1284, 3426) → (1348, 1384, 3444), at both

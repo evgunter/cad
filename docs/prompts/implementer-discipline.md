@@ -18,10 +18,11 @@ hardware not shared with any other lane and its result is a durable artifact.
 **The per-PR gate is sized for latency, and the nightly holds the rest.**
 `.github/workflows/ci.yml` runs the default-eps suite minus the slow set (the
 `ci` profile in `.config/nextest.toml`), the slow tests of the crates your diff
-touches, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches,
-lint (fmt, clippy `--all-features`, `scripts/gates/`), and the rows whose own
-subject you touched (viewer, python, demos, tools, mesh budget, topo release,
-step import, interval). `.github/workflows/nightly.yml` runs everything else:
+touches, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches
+and of every test file it adds or edits, lint (fmt, clippy `--all-features`,
+`scripts/gates/`), and the rows whose own subject you touched (viewer, python,
+demos, tools, mesh budget, topo release, step import, interval).
+`.github/workflows/nightly.yml` runs everything else:
 the whole suite at every eps row, the k-lint rows, the render lanes, rustdoc,
 wasm32. The `change filter` job's log prints what this run selected, and
 `gate ok` is the one check to read.

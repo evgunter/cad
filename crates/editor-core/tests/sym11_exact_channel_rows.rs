@@ -83,6 +83,12 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
 /// products (`geom::square_frame`) moves only the frozen counts: bracket
 /// 1975 → 1969, pad 2985 → 2976.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord moves only `frozen`,
+/// and no decision column: each certified edge's lever reads its two
+/// faces' boundary vertices. The plate, the annulus and the link hold;
+/// bracket 1969 → 2044, pad 2976 → 3522, whose fillets' edges bound
+/// more faces than a planar wall's.
 ///
 /// Placing each row over its edge's span in the chart's principal
 /// window (PCERT unit B1, C4) moves decisions, and each is attributed:

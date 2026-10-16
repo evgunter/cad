@@ -47,20 +47,22 @@
 //! classification escalates) and `r` is the honest lever arm — the
 //! smallest scale over which the angular defect accumulates into a gap:
 //!
-//! `r = min(curvature arm of s₁, curvature arm of s₂, extent)`
+//! `r = min(curvature arm of s₁, curvature arm of s₂, reach)`
 //!
 //! The curvature arms ([`crate::curvature_lever_arm`]) are the D4/D2
 //! `1/κ_rel` reasoning in conservative per-surface form (min over the
 //! two surfaces bounds 1/(κ₁ + κ₂) within a factor 2 — inside the
 //! K-band's policy noise); planes contribute `+∞` (no curvature scale).
-//! `extent` is the caller-named feature extent for the curvature-free
-//! case (D4 ¶1's "face extent for parallelism decisions"): callers pass
-//! the local feature scale the decision turns on — this crate's
-//! certification and `topo`'s tier-3 validator pass the **edge's honest
-//! spatial extent** ([`crate::edge_extent`]: the chord for open edges,
-//! the carrier-derived point-set diameter for closed/near-closed circle
-//! carriers, whose chord dishonestly collapses — see that function's
-//! derivation). `sin θ` is used rather
+//! `reach` is the **faces' extent** (D4 ¶1's "face extent for
+//! parallelism decisions"): how far the farther of the edge's two faces
+//! runs from the edge, which `topo` derives from the body
+//! (`topo::wedge_reach`) and every reader of an edge's wedge passes —
+//! certification, tier 3's check 4 and the must-carry rule. A dihedral
+//! is how far the two faces separate as they leave the edge, so it is
+//! bounded by how far the faces run and how they curve, never by how
+//! long the edge is: an edge's own extent would read a short arc
+//! between large faces at dihedral δ as δ², a wedge the faces open
+//! at δ. `sin θ` is used rather
 //! than θ itself: identical to first order where the band lives, exact
 //! at the π-coincidence case (antiparallel normals also classify
 //! Smooth — tangent *planes*, not oriented normals, are compared), and
@@ -74,7 +76,7 @@
 //!
 //! The margin `sin θ · r` decides the *wedge* only when the arm `r` is
 //! itself definitely positive. A collapsed arm (`r` coincident with
-//! zero — a zero/sub-ε extent, the cone-apex limit ρ → 0) maps **every**
+//! zero — a zero/sub-ε reach, the cone-apex limit ρ → 0) maps **every**
 //! angle into the coincidence band, so classifying there would return a
 //! *definite* `Smooth` at what may be a true 90° corner — a definite
 //! wrong answer, worse than no answer. The classifier therefore decides
@@ -98,7 +100,7 @@ use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
-/// shorter of the edge's extent and its faces' radii of curvature. It
+/// shorter of the faces' extent and their radii of curvature. It
 /// passes only on a definitely positive arm; a zero-band one is a size
 /// a smaller tolerance decides. Every door that reads the dihedral's
 /// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
@@ -107,18 +109,19 @@ use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
 /// arm and the wedge both. Its note names every reading that shows no
-/// size: both ways the arm reaches no length, the edge's extent (an edge
+/// size: both ways the arm reaches no length, the faces' extent (faces
 /// of none) and a face's radius (a cone's point), and the one way the
 /// wedge goes below zero, a stored radius below zero, which breaks the
 /// stored convention and so is a defect.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge is clearly longer and no face curves tightly there",
+    lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
+            there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
     no_size: Some(NoSize::same(
-        "an edge of no length or a cone's point leaves no angle to measure; a radius below zero \
-         is a defect",
+        "faces of no extent or a cone's point leave no angle to measure; a radius below zero is \
+         a defect",
     )),
 };
 
@@ -133,7 +136,7 @@ pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
 #[macro_export]
 macro_rules! dihedral_arm_clause {
     () => {
-        "long enough, for how its faces curve, to measure their angle"
+        "between faces wide enough, for how they curve, to measure their angle"
     };
 }
 
@@ -281,13 +284,11 @@ pub(crate) fn decide_nonzero_reported<T: Decide>(
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
 /// the on-locus point `p` (module docs). Margin: `sin θ · r` in meters,
 /// θ the tangent-plane angle from implicit gradients, `r` the folded
-/// lever arm `min(curvature arms, extent)`; classified against the
+/// lever arm `min(curvature arms, reach)`; classified against the
 /// run's linear band.
 ///
-/// `extent` is the caller-named arm for the curvature-free case —
-/// certification and the tier-3 validator pass the edge's honest
-/// extent from [`crate::edge_extent`] (chord for open edges, carrier
-/// diameter at closure for circle carriers).
+/// `reach` is the faces' extent (module docs): how far the farther of
+/// the edge's two faces runs from it, never the edge's own extent.
 ///
 /// # Errors
 ///
@@ -303,10 +304,10 @@ pub fn classify_dihedral<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
-    wedge_decided(s1, s2, p, extent, band)
+    wedge_decided(s1, s2, p, reach, band)
         .map(|(class, _)| class)
         .map_err(WedgeEscalation::into_lever)
 }
@@ -347,14 +348,14 @@ pub(crate) fn wedge_decided<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
     let magnitudes = n1.norm() * n2.norm();
     let sin_theta = n1.cross(n2).norm() / magnitudes;
-    let arm = folded_lever_arm(s1, s2, p, extent);
+    let arm = folded_lever_arm(s1, s2, p, reach);
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
@@ -454,7 +455,7 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 }
 
 /// **The folded lever arm** of a surface pair at `p` (module docs):
-/// `min(curvature arm of s1, curvature arm of s2, extent)` — the
+/// `min(curvature arm of s1, curvature arm of s2, reach)` — the
 /// smallest scale over which an angular or curvature defect between
 /// the two accumulates into a gap. One home for the fold, because
 /// three sites must lever against the SAME arm or their margins are
@@ -473,12 +474,12 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// between bodies rather than within one, issue 1439's work.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
-pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
-    pair_lever_arm(s1, s2, p).min(extent)
+pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, reach: T) -> T {
+    pair_lever_arm(s1, s2, p).min(reach)
 }
 
 /// The two curvature arms of [`folded_lever_arm`] folded without the
-/// extent. An arm [`curvature_lever_arm`] cannot state (a NURBS or
+/// faces' extent. An arm [`curvature_lever_arm`] cannot state (a NURBS or
 /// approximated carrier) makes the pair's arm poison.
 fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
     curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
@@ -533,11 +534,11 @@ pub fn tangent_second_order<T: Decide>(
     s2: &Surface<T>,
     p: Point3<T>,
     tangent: geom_core::Vec3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> SecondOrder<T> {
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
-    let arm = folded_lever_arm(s1, s2, p, extent);
+    let arm = folded_lever_arm(s1, s2, p, reach);
     let verdict = second_order_verdict(&jet, arm, band);
     SecondOrder { jet, arm, verdict }
 }
@@ -651,7 +652,7 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     stations: impl IntoIterator<Item = (Point3<T>, geom_core::Vec3<T>)>,
-    extent: T,
+    reach: T,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
@@ -659,7 +660,7 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
         let station = Station {
             p,
             jet: crate::tangent::tangent_jet(s1, s2, p, tau),
-            arm: folded_lever_arm(s1, s2, p, extent),
+            arm: folded_lever_arm(s1, s2, p, reach),
         };
         if let ControlFlow::Break(b) = hook.before_decision(&station) {
             return SecondOrderWalk::Stopped(b);
@@ -738,7 +739,7 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// order. Each station therefore asks [`classify_dihedral`] first —
 /// symmetric in its two surfaces, levered against the same
 /// [`folded_lever_arm`] — and only a `Smooth` station reaches the jet.
-/// The arm is classified before any angle, so over an extent inside
+/// The arm is classified before any angle, so over a reach inside
 /// the band's escalation threshold a genuine tangency answers `InBand`
 /// under `"dihedral_arm"`, not `UnderDetermined`.
 ///
@@ -818,12 +819,12 @@ pub fn must_carry_over_edge<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> MustCarryVerdict {
     let mut transverse = Vec::with_capacity(crate::CERT_SAMPLES as usize - 2);
     for (p, _) in interior_stations(carrier, t0, t1) {
-        match classify_dihedral(s1, s2, p, extent, band) {
+        match classify_dihedral(s1, s2, p, reach, band) {
             Ok(DihedralClass::Smooth) => transverse.push(false),
             Ok(DihedralClass::Transverse) => transverse.push(true),
             Err(escalation) => {
@@ -838,7 +839,7 @@ pub fn must_carry_over_edge<T: Decide>(
         s1,
         s2,
         interior_stations(carrier, t0, t1),
-        extent,
+        reach,
         band,
         &mut (),
     ) {
@@ -987,8 +988,8 @@ impl RestLocus {
 /// A join entered as definitely smooth, as the must-carry rule is asked
 /// about it ([`must_carry_description`]): its two surfaces with their
 /// keys, in either order, and the edge between them — its carrier, its
-/// parameter interval, the chord between its ends (the extent is
-/// [`crate::edge_extent`]'s over these) and its witness.
+/// parameter interval and its witness — with the faces' extent the
+/// wedge is levered at ([`folded_lever_arm`]).
 #[derive(Clone, Copy)]
 pub struct SmoothJoin<'a, T: Real> {
     /// The two surfaces, each with its key.
@@ -997,15 +998,16 @@ pub struct SmoothJoin<'a, T: Real> {
     pub carrier: &'a geom::Curve3<T>,
     /// The edge's parameter interval on the carrier.
     pub interval: (T, T),
-    /// The distance between the edge's two ends.
-    pub chord: T,
+    /// How far the farther of the edge's two faces runs from it
+    /// (`topo::wedge_reach`), never the edge's own extent.
+    pub reach: T,
     /// The witness an intrinsic description stores.
     pub witness: Point3<T>,
 }
 
 /// **What a definitely-smooth join stores**, or the caller's typed
 /// refusal: the surfaces put in their pair's key order
-/// ([`crate::SurfacePair::sorted`]), the rule over the edge's extent
+/// ([`crate::SurfacePair::sorted`]), the rule over the edge
 /// ([`must_carry_over_edge`]), and its verdict mapped to a description
 /// ([`MustCarryVerdict::description`]): the conventional one is the
 /// pair itself ([`crate::EdgeDescriptionSpec::OnPair`]), so no caller
@@ -1033,8 +1035,7 @@ pub fn must_carry_description<T: Decide, E>(
     let [(ka, a), (kb, b)] = join.surfaces;
     let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
     let (t0, t1) = join.interval;
-    let extent = crate::edge_extent(join.carrier, t0, t1, join.chord);
-    match must_carry_over_edge(sa, sb, join.carrier, t0, t1, extent, band)
+    match must_carry_over_edge(sa, sb, join.carrier, t0, t1, join.reach, band)
         .description(pair, join.witness)
     {
         Ok(description) => Ok(description),
@@ -1061,10 +1062,11 @@ pub enum PairRefusal {
 }
 
 /// **A conventional pair re-asked the must-carry rule** after a door
-/// changed its edge: its extent (a split, a join, a re-anchored end) or
-/// its surfaces (an offset). The verdict reads the edge's extent as well
-/// as its pair, so an `OnPair` stays one only where the rule still reads
-/// the join under-determined over the edge as it now stands. A corner
+/// changed its edge: its span (a split, a join, a re-anchored end), its
+/// faces' extent `reach`, or its surfaces (an offset). The verdict reads
+/// the stations over the span and the wedge at `reach` as well as the
+/// pair, so an `OnPair` stays one only where the rule still reads the
+/// join under-determined over the edge as it now stands. A corner
 /// is the pair's `Intersection` and a determinate tangency its
 /// `TangentIntersection`, each witnessed at the carrier's middle and
 /// derived, so a declaration does not ride either; under-determined
@@ -1077,17 +1079,14 @@ pub fn reask_pair<T: Decide>(
     surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
+    reach: T,
     declared: Option<crate::mapped::MappedCurve<T>>,
     band: Band,
 ) -> Result<crate::EdgeDescriptionSpec<T>, PairRefusal> {
     let [(ka, a), (kb, b)] = surfaces;
     let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
     let witness = carrier.mid_point(t0, t1);
-    // The chord between the carrier's own ends over the interval: the
-    // one spelling every door's re-ask shares.
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let extent = crate::edge_extent(carrier, t0, t1, chord);
-    match must_carry_over_edge(sa, sb, carrier, t0, t1, extent, band) {
+    match must_carry_over_edge(sa, sb, carrier, t0, t1, reach, band) {
         MustCarryVerdict::Transverse => {
             Ok(crate::EdgeDescriptionSpec::Intersection { pair, witness })
         }
@@ -1105,11 +1104,12 @@ pub fn reask_pair<T: Decide>(
 /// **A chart image a door kept, re-asked the must-carry rule** over
 /// the edge as the door leaves it: its extent (a split, a join, a
 /// re-anchored end) or its surfaces (an offset). `surfaces` are the
-/// edge's two sides after the door, each with its key.
+/// edge's two sides after the door, each with its key, and `reach` the
+/// wedge's lever ([`folded_lever_arm`]: the faces' extent).
 ///
 /// A chart image is a conventional form: it claims the two surfaces
-/// under-determine the locus, which the rule reads over the edge's
-/// extent as well as its pair. So the door asks again, as it does an
+/// under-determine the locus, which the rule reads over the edge and
+/// its faces' reach as well as its pair. So the door asks again, as it does an
 /// `OnPair` ([`reask_pair`]): `Some` is the intrinsic description the
 /// rule now demands — the pair's `Intersection` at a corner, its
 /// `TangentIntersection` at a determinate tangency, each derived, so a
@@ -1125,16 +1125,19 @@ pub fn reask_chart<T: Decide>(
     surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     interval: (T, T),
+    reach: T,
     band: Band,
 ) -> Result<Option<crate::EdgeDescriptionSpec<T>>, PairRefusal> {
     let [(ka, a), (kb, b)] = surfaces;
     if ka == kb || a.spline_chart().is_some() || b.spline_chart().is_some() {
         return Ok(None);
     }
-    Ok(match reask_pair(surfaces, carrier, interval, None, band)? {
-        crate::EdgeDescriptionSpec::OnPair { .. } => None,
-        intrinsic => Some(intrinsic),
-    })
+    Ok(
+        match reask_pair(surfaces, carrier, interval, reach, None, band)? {
+            crate::EdgeDescriptionSpec::OnPair { .. } => None,
+            intrinsic => Some(intrinsic),
+        },
+    )
 }
 
 /// Why a join entered as definitely smooth gets no description:
@@ -1660,10 +1663,10 @@ mod tests {
         let negative = reject(Margin::of(-1e-3));
         assert_eq!(negative.margin.rejected_sign(), Some(Sign::Negative));
 
-        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+        let lever = "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there";
         let noted = format!(
-            "{lever}; an edge of no length or a cone's point leaves no angle to measure; a \
+            "{lever}; faces of no extent or a cone's point leave no angle to measure; a \
              radius below zero is a defect"
         );
         let untold = "This length or the gap its faces open is within the file's declared \
@@ -2008,7 +2011,8 @@ mod tests {
                         surfaces,
                         carrier,
                         interval,
-                        chord: carrier.eval(t0).distance(carrier.eval(t1)),
+                        // Faces that reach no farther than the edge.
+                        reach: carrier.eval(t0).distance(carrier.eval(t1)),
                         witness: carrier.mid_point(t0, t1),
                     },
                     band(),
@@ -2479,8 +2483,8 @@ mod tests {
             "the apex arm reads exactly +0.0"
         );
         let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
-        let note = "a cone's point leaves no angle to measure; a radius below zero is a defect";
-        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+        let note = "a cone's point leave no angle to measure; a radius below zero is a defect";
+        let lever = "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there";
         let file = FileCoincidence::new(1e-6);
         for arm in [RefusedArm::Undecided(&diag), collapsed.arm()] {
@@ -2765,7 +2769,7 @@ mod tests {
             dir: Vec3::unit_x(),
         };
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
-            reask_chart([a, b], &edge, (0.0, 1.0), band).unwrap()
+            reask_chart([a, b], &edge, (0.0, 1.0), 1.0, band).unwrap()
         };
         assert!(
             matches!(

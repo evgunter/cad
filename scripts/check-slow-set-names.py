@@ -23,23 +23,24 @@ The listing is the default-feature build both gating `--profile ci` runs over
 the kernel use; a name that exists only under a feature would read as dead
 here, and belongs in no default-feature exclusion list anyway.
 
-The filter's grammar is checked too: a predicate other than `binary_id(...)`
-and `test(=...)` fails the run, because this script could not say what it
+The filter is read by `scripts/slow_set.py`, the one parser ci-filter and
+ci.yml's slow-set step read it through too; anything it cannot read (a
+predicate other than `binary_id(...)` and `test(=...)`, whitespace inside a
+matcher's text) fails the run, because this script could not say what it
 matches. A name listed twice under one binary fails as well.
 """
 
 from __future__ import annotations
 
 import json
-import re
+import os
 import sys
-import tomllib
 from collections import Counter
 from typing import NoReturn
 
-CONFIG = ".config/nextest.toml"
-PREDICATE_RE = re.compile(r"([a-z_]+)\(")
-NAME_RE = re.compile(r"test\(=([^)]*)\)")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from slow_set import CONFIG, SlowSetError, ci_filter
+from slow_set import entries as read_entries
 
 
 def die(msg: str) -> NoReturn:
@@ -48,26 +49,10 @@ def die(msg: str) -> NoReturn:
 
 def entries(filter_text: str) -> list[tuple[str, str]]:
     """The filter's (binary-id, exact test name) pairs, in file order."""
-    kinds = set(PREDICATE_RE.findall(filter_text)) - {"binary_id", "test"}
-    if kinds:
-        die(
-            f"the ci filter uses {sorted(kinds)}, which this check cannot read; "
-            "no slow-set entry was checked"
-        )
-    if re.search(r"test\([^=]", filter_text):
-        die(
-            "the ci filter holds a `test(...)` that is not an exact `test(=...)`; "
-            "no slow-set entry was checked"
-        )
-    pairs = []
-    for chunk in filter_text.split("binary_id(")[1:]:
-        binary = chunk[: chunk.index(")")]
-        pairs += [(binary, name) for name in NAME_RE.findall(chunk)]
-    if not pairs:
-        die(
-            "the ci filter holds no `binary_id(...) & test(=...)` entry; nothing was checked"
-        )
-    return pairs
+    try:
+        return read_entries(filter_text)
+    except SlowSetError as exc:
+        die(f"the ci filter cannot be read ({exc}); no slow-set entry was checked")
 
 
 def check(
@@ -133,6 +118,12 @@ def selftest() -> int:
         check(pairs, {"a::all": {"m::x", "m::y"}, "b::all": set()}, complete=False) == 1
     ), "package in scope, binary gone"
     assert check([*pairs, ("b", "n::z")], live, complete=True) == 1, "duplicate"
+    try:
+        entries(text.replace("test(=m::x)", "test(=m::x )"))
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("a space inside a name was read as a name")
     print("check-slow-set-names: selftest ok")
     return 0
 
@@ -145,11 +136,11 @@ def main(argv: list[str]) -> int:
             f"unknown arguments {argv}; usage: check-slow-set-names.py [--complete] [--selftest]"
         )
     complete = "--complete" in argv
-    with open(CONFIG, "rb") as fh:
-        try:
-            text = tomllib.load(fh)["profile"]["ci"]["default-filter"]
-        except KeyError:
-            die(f"{CONFIG} has no [profile.ci] default-filter")
+    try:
+        with open(CONFIG, encoding="utf-8") as fh:
+            text = ci_filter(fh.read())
+    except (OSError, SlowSetError) as exc:
+        die(f"{CONFIG}: {exc}")
     try:
         listing = json.load(sys.stdin)
     except json.JSONDecodeError as exc:

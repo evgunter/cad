@@ -2270,7 +2270,9 @@ fn chord_spec<T: Decide>(
                     surfaces: [(wall_key, &wall), (plane_key, plane)],
                     carrier: &carrier,
                     interval: (s1, s2),
-                    chord: p1.distance(p2),
+                    // The section face is not minted yet, so the wedge
+                    // reads the face the ruling divides.
+                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2)),
                     witness,
                 },
                 band,

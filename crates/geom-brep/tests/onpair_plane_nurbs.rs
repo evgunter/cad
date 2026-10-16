@@ -71,6 +71,7 @@ fn on_pair(
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
+        1.0,
         band(),
         lane,
     )
@@ -371,6 +372,7 @@ fn arc_on_pair(
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
         stated.as_ref(),
@@ -537,16 +539,17 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         ends.0,
         ends.1,
         surfaces,
+        1.0,
         band(),
         lane(),
         Some(&stated),
     )
     .expect("the child certifies through its parent's image");
     assert!(
-        EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, band(), lane()).is_err(),
+        EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane()).is_err(),
         "no image picked for the child alone certifies it"
     );
     child
-        .recertify_via_stated(ends.0, ends.1, surfaces, band(), lane(), Some(&stated))
+        .recertify_via_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))
         .expect("the child re-certifies through the stored image");
 }

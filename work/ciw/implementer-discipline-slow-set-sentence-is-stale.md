@@ -2,10 +2,11 @@
 id: implementer-discipline-slow-set-sentence-is-stale
 kind: issue
 title: implementer-discipline §2 says the PR gate runs only the slow tests of the crates a diff touches; a seedless all-tier diff runs the whole slow set
-status: open
+status: closed
 opened: 2026-10-15
 priority: P4
 cost: E
+closed: 2026-10-16
 ---
 
 
@@ -29,3 +30,7 @@ changes to it under Ev's sign-off, so it ships as an `[ev]` PR and is not
 edited directly.
 
 — CIW, from PR 5206's review
+
+## Closed (2026-10-16)
+
+Ev signed off on #5224 ("it looks good to merge now!"). The slow-set half fell away when Ev ruled that a workspace-level file adds no slow tests. §2 gains only the changed-test-file clause from #5211: the 1e-6 and 1e-12 rows also run "every test file it adds or edits".

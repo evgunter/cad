@@ -1,10 +1,10 @@
 //! Blinded-review probe, deviation 10: the IN-BAND-AT-REST escalation
-//! row the implementation report left unauthored. A filleted block
-//! scaled so the fillet's curvature margin at the strut's lever arm
-//! lands INSIDE the band (zero < kappa_rel/2 * arm^2 < escalate):
-//! the C7/C12.2 contract says an in-band second-order tie ESCALATES
-//! (F6) — at construction or at the tier-3 walk — and is never
-//! silently classified definite.
+//! row. A tangent line–arc join whose second-order margin, levered at
+//! the strut's faces' extent (`topo::wedge_reach`), lands INSIDE the
+//! band (zero < kappa_rel/2 * arm^2 < escalate): the C7/C12.2 contract
+//! says an in-band second-order tie ESCALATES (F6) — at the profile, at
+//! construction or at the tier-3 walk — and is never silently
+//! classified definite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -18,22 +18,24 @@ use crate::common::contact_edges::intrinsic_edges;
 
 #[test]
 fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
-    // Scale the PR's own filleted-block shape by S: fillet radius
-    // R = 0.25 * S, strut extent = extrude height 1, arm = min(R, 1)
-    // = 1, margin = 1/(2R). Choose S from the RESOLVED band so the
-    // margin is mid-band: margin = sqrt(zero * escalate) (geometric
-    // mean), R = 1/(2*margin).
+    // A line `free/3` long tangentially into an arc of radius 0.25
+    // whose far end stands `free` from the strut's middle, extruded
+    // `free/4`: the strut's farther wall reaches `free`, so the margin
+    // is `free²/(2·0.25)`, set to the band's geometric mean. The profile
+    // door reads the same sagitta between the arc and the line.
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let margin = (band.zero() * band.escalate()).sqrt();
-    let r_fillet = 1.0 / (2.0 * margin);
-    let s = r_fillet / 0.25;
-    let b = (std::f64::consts::PI / 8.0).tan();
+    let r = 0.25;
+    let free = (2.0 * r * margin).sqrt();
+    let (h, l) = (free / 4.0, free / 3.0);
+    let phi = 2.0 * ((free * free - h * h / 4.0).sqrt() / (2.0 * r)).asin();
+    let end = Point2::new(l + r * phi.sin(), r * (1.0 - phi.cos()));
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(s, 0.0), 0.0),
-        (Point2::new(s, 0.75 * s), b),
-        (Point2::new(0.75 * s, s), 0.0),
-        (Point2::new(0.0, s), 0.0),
+        (Point2::new(l, 0.0), (phi / 4.0).tan()),
+        (end, 0.0),
+        (Point2::new(end.x, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Ok(p) => p,
@@ -46,7 +48,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     match extrude(
         &profile,
         Extrusion::Distance {
-            depth: 1.0,
+            depth: h,
             side: ExtrudeSide::Along,
         },
         Tol::witness(),
