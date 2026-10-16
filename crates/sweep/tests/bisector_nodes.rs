@@ -439,14 +439,16 @@ fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
 /// 1e-4}` off a node, and both operands capped, every operation, both
 /// operand orders and both poses.
 ///
-/// - Each cap alone, and both caps from 1e-6, build at their closed forms.
+/// - Each cap alone, and both caps from 1e-6, build at their closed forms
+///   (both caps: `2X − 2X³/3 − 2δ·acos δ`, `X = √(1 − δ²)`).
 /// - A seam at 1e-6 builds `∪` and `∩`; its `∖` keeps arcs `2δ` long at a
 ///   dihedral of `δ`, a lamina at rest until U-lever. At 1e-4 its seam's
 ///   wedge escalates (`SeamWedge`), U-lever's too.
 /// - 1e-8 is the witness band's escalation edge (K·ε). The node stands
 ///   1e-8 off the seam, so its placement escalates (margin 9.99e-9); both
 ///   caps' sectors stand about a band apart (margins 1e-9 to 4e-9) and
-///   escalate; a single cap builds at its closed form, or escalates where
+///   escalate, or their rims' placement does; a single cap builds at its
+///   closed form, or its rim's placement escalates where
 ///   its margin of about `δ` rounds inside the edge (9.999999995e-9 in one
 ///   re-posed order). D4's ε < δ < K·ε.
 #[test]
@@ -466,6 +468,13 @@ fn the_near_node_poses_at_the_witness_band() {
     let beyond = |d: f64| {
         let s = (1.0 - d * d).sqrt();
         2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    // Both caps: `x² + y² ≤ 1`, `x² + z² ≤ 1`, `y ≥ d`, `z ≥ d`. At each
+    // `x` the section is the square `[d, s]²`, `s = √(1 − x²)`, so the
+    // piece is `∫ (s − d)² dx` over `|x| ≤ X = √(1 − d²)`.
+    let both = |d: f64| {
+        let x = (1.0 - d * d).sqrt();
+        2.0 * x - 2.0 * x.powi(3) / 3.0 - 2.0 * d * d.acos()
     };
     for d in [1e-8, 1e-6, 1e-4] {
         let poses = [
@@ -507,16 +516,16 @@ fn the_near_node_poses_at_the_witness_band() {
                 across(&rod(d, 2.0)),
                 v(d),
                 v(d),
-                f64::NAN,
+                both(d),
             ),
         ];
+        let mut single_cap_builds = 0;
         for (what, a, b, va, vb, cap) in poses {
             for (pose, a, b) in [
                 ("direct", a.clone(), b.clone()),
                 ("re-posed", repose(&a), repose(&b)),
             ] {
                 let (a, b) = (finished("A", a, tol), finished("B", b, tol));
-                let mut vols = Vec::new();
                 for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
                     for (op, r, closed) in [
                         ("∪", topo::union(x, y, tol), vx + vy - cap),
@@ -525,15 +534,59 @@ fn the_near_node_poses_at_the_witness_band() {
                     ] {
                         let cut = format!("{what} δ = {d:e}, {pose} ({order}), {op}");
                         let seam = what.ends_with("seam");
-                        // 1e-8 is the witness band's escalation edge: a
-                        // margin of about `δ` there lands either side of it
-                        // by its rounding, so a pose builds or escalates.
-                        if d == 1e-8 && (seam || what == "both caps" || r.is_err()) {
-                            assert!(
-                                matches!(r, Err(topo::BooleanError::Escalated { .. })),
-                                "{cut}: at the band's edge, a build or an escalation, got {r:?}"
-                            );
-                            continue;
+                        if d == 1e-8 {
+                            // The witness band's escalation edge.
+                            let decision = match &r {
+                                Err(topo::BooleanError::Escalated { decision, .. }) => {
+                                    Some(*decision)
+                                }
+                                _ => None,
+                            };
+                            if seam {
+                                // The node stands `δ` off the seam: its
+                                // placement in the seam's face.
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(topo::BooleanDecision::Containment { .. })
+                                    ),
+                                    "{cut}: the node's placement in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            if what == "both caps" {
+                                // A rim's placement `δ` off its boundary, or
+                                // the two caps' sectors a band apart.
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(
+                                            topo::BooleanDecision::Containment { .. }
+                                                | topo::BooleanDecision::Coincidence(
+                                                    topo::Coincide::Sectors
+                                                        | topo::Coincide::SectorSide,
+                                                    _
+                                                )
+                                        )
+                                    ),
+                                    "{cut}: a rim or the caps' sectors in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            // A single cap: its rim's placement in the
+                            // partner's face, `δ` off its boundary, lands
+                            // either side of the edge by its rounding.
+                            if r.is_err() {
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(topo::BooleanDecision::Containment { .. })
+                                    ),
+                                    "{cut}: the rim's placement in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            single_cap_builds += 1;
                         }
                         if seam && d == 1e-4 {
                             assert!(
@@ -566,41 +619,55 @@ fn the_near_node_poses_at_the_witness_band() {
                             panic!("{cut}: builds, got {r:?}");
                         };
                         let m = topo::mass_properties(&out.body, tol).unwrap();
-                        if what == "both caps" {
-                            vols.push((op, m.volume, m.volume_pad));
-                        } else {
-                            assert!(
-                                (m.volume - closed).abs() <= m.volume_pad + 1e-9,
-                                "{cut}: volume {} ± {}, want {closed}",
-                                m.volume,
-                                m.volume_pad
-                            );
-                        }
-                    }
-                }
-                // Both caps: by inclusion–exclusion within the brackets.
-                if what == "both caps" && !vols.is_empty() {
-                    let get = |op: &str| vols.iter().find(|(o, ..)| *o == op).copied();
-                    if let (Some((_, u, pu)), Some((_, i, pi)), Some((_, s, ps))) =
-                        (get("∪"), get("∩"), get("∖"))
-                    {
-                        let cut = format!("{what} δ = {d:e}, {pose}");
                         assert!(
-                            (u + i - va - vb).abs() <= pu + pi + 1e-9,
-                            "{cut}: ∪ + ∩ = {} against {}",
-                            u + i,
-                            va + vb
-                        );
-                        assert!(
-                            (s + i - va).abs() <= ps + pi + 1e-9,
-                            "{cut}: ∖ + ∩ = {} against {va}",
-                            s + i
+                            (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                            "{cut}: volume {} ± {}, want {closed}",
+                            m.volume,
+                            m.volume_pad
                         );
                     }
                 }
             }
         }
+        if d == 1e-8 {
+            assert!(
+                single_cap_builds > 0,
+                "a single cap 1e-8 off builds in at least one pose and order"
+            );
+        }
     }
+}
+
+/// **A pierce whose branch the sweep did not record keeps the tangent
+/// plane.** With every recorded branch forgotten
+/// ([`topo::forget_branches`]), A's cap `30·escalate` off the station
+/// reads its pierces' sides as before the record, on the pierced wall's
+/// tangent plane, where the sagitta charge refuses
+/// `CurvedSectorSideUnsupported`; with the record it builds.
+#[test]
+fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
+    let tol = Tol::witness();
+    let d = 30.0 * geom_core::Band::linear(tol).unwrap().escalate();
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let (a, b) = (
+        finished("A", rod(d, 2.0), tol),
+        finished("B", across(&rod(-2.0, 2.0)), tol),
+    );
+    topo::forget_branches(true);
+    let forgotten = topo::intersect(&a, &b, tol);
+    topo::forget_branches(false);
+    assert!(
+        matches!(
+            forgotten,
+            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+        ),
+        "no record: the tangent plane's sagitta, got {forgotten:?}"
+    );
+    let recorded = topo::intersect(&a, &b, tol);
+    assert!(
+        matches!(recorded, Ok(BooleanResult::Body(_))),
+        "the record: builds, got {recorded:?}"
+    );
 }
 
 /// **A rim vertex on a node refuses as a node on the boundary.** A branch

@@ -755,11 +755,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // would read backwards off a chart normal on a reversed face,
     // which is why the primitive takes the typed one.
     //
-    // A conic tied with a plane face whose bend reads no side
-    // (`BooleanDecision::ConicBend`) is held as its first-order `On`
-    // until the lumps have run: a tangent sector's lump reads its whole
-    // sector off the two carriers and overwrites the bound's reading,
-    // so the bend's refusal stands only for a bound no lump took.
     // **The pierced wall through the bisector plane the sweep found the
     // pierce on** (`branch`), for a sector of a wall that crosses the
     // pierced wall as an equal pair ([`super::node::bisector_datum`]).
@@ -767,25 +762,40 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // apart, and the plane's signed normal stands in for the pierced
     // face's tangent plane: a bound on that wall reads its side across
     // the plane, with no curvature charge, and the sector's germ rides
-    // the plane's ellipse.
-    let on_wall: Vec<Option<OutwardNormal<T>>> = sectors
-        .iter()
-        .map(|s| {
-            let planes = super::node::bisectors(
-                (&*piercing_body, piercing, s.face),
-                (pierced_body, contact.face),
-                band,
-            )?;
-            super::node::bisector_datum(
-                planes,
-                branch?,
-                piercing,
-                p,
-                (pierced_surface, n_pierced),
-                band,
-            )
-        })
-        .collect();
+    // the plane's ellipse. A pierce the sweep recorded no branch for
+    // reads nothing here.
+    let on_wall: Vec<Option<OutwardNormal<T>>> = match branch {
+        None => vec![None; n],
+        Some(branch) => sectors
+            .iter()
+            .map(|s| {
+                let Some(planes) = super::node::bisectors(
+                    (&*piercing_body, piercing, s.face),
+                    (pierced_body, contact.face),
+                    band,
+                ) else {
+                    return Ok(None);
+                };
+                let faces = match piercing {
+                    Operand::A => (s.face, contact.face),
+                    Operand::B => (contact.face, s.face),
+                };
+                super::node::bisector_datum(
+                    planes,
+                    branch,
+                    (piercing, faces),
+                    p,
+                    (pierced_surface, n_pierced),
+                    band,
+                )
+            })
+            .collect::<Result<_, BooleanError>>()?,
+    };
+    // A conic tied with a plane face whose bend reads no side
+    // (`BooleanDecision::ConicBend`) is held as its first-order `On`
+    // until the lumps have run: a tangent sector's lump reads its whole
+    // sector off the two carriers and overwrites the bound's reading,
+    // so the bend's refusal stands only for a bound no lump took.
     let mut entries = Vec::with_capacity(n);
     let mut unread_bends = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
@@ -1761,23 +1771,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // the radial `node − p`, which the walls, tangent at the node, are
     // both square to: `±r`.
     let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
-        let n = outward(operand, body, face)?;
-        match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
-            Ok(Sign::Positive) => Ok(true),
-            Ok(Sign::Negative) => Ok(false),
-            // The normal of a wall of radius `r` read against its own
-            // radius at the node is `±r`, which the section table decided
-            // definite on this band before the ellipses were returned
-            // (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`).
-            Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
-                what: "a node's wall reads its outward normal square to its radius",
-            }),
-            Err(diag) => Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            )),
-        }
+        super::node::wall_sense(outward(operand, body, face)?, radial, band)
     };
     let (a_rod, b_rod) = (
         sense(Operand::A, a, faces.0)?,

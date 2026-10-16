@@ -248,7 +248,6 @@ impl ContactAcc {
             }
         }
     }
-    /// The records, each citing rows of the decisions alongside them.
     /// The branches the sweep recorded ([`Self::branches`]), taken out.
     pub(super) fn take_branches(
         &mut self,
@@ -256,6 +255,7 @@ impl ContactAcc {
         core::mem::take(&mut self.branches)
     }
 
+    /// The records, each citing rows of the decisions alongside them.
     pub(super) fn finish(self) -> (ReductionContacts, Vec<PendingRow>) {
         (self.records, self.pending)
     }

@@ -48,9 +48,9 @@ stand `2δ` apart, a first-order margin, so the sweep's ring is one
 band wide. In band their distance escalates `VertexOnVertex`; in the
 zero band the edge keeps the quadric's door.
 
-## What still refuses: the pierce vertex, at second order
+## The pierce vertex, at second order (closed by U2p, PR 5203)
 
-Past the sweep the ring keeps its √band width, one layer in. At a
+Before U2p, past the sweep the ring kept its √band width, one layer in. At a
 pierce of wall B by an edge on wall A, the walls' normals stand about
 `δ` apart, and the pierce's sector-side reading
 (`crates/topo/src/boolean/sectors.rs`, `read_side`'s
@@ -89,9 +89,27 @@ At the witness band:
 - δ = 1e-4: `SeamWedge` escalates (margin about `δ²`); the caps at
   1e-4 still escalate `PierceCurvature`.
 
-So closing the ring reaches the pierce classification (`vtxfac`,
-`sectors`) and at least one at-rest wedge predicate; the decision
-below settles both.
+The experiment mapped bound `k` to sectors `k` and `k + 1`; entry `k`
+is sector `k`'s end and sector `k − 1`'s start, and that misread is
+what left the caps on the sagitta.
+
+**U2p (PR 5203)** carries the experiment as the decision below states
+it. The sweep records each pierce's plane (`ContactAcc::branches`), and
+the pierce reads its wall bounds and germ through that record, with the
+off-by-one fixed. At the witness band, on main with U2p:
+
+- every cap pose at 1e-6 and 1e-4, and both caps, builds at its closed
+  form;
+- a seam at 1e-6 builds ∪ and ∩. Its ∖ (`LaminaWedge`) and the seam
+  at 1e-4 (`SeamWedge`) are U-lever's (PR 5204); with U-lever merged
+  locally every one of them builds;
+- 1e-8 is the witness band's escalation edge: poses there escalate in
+  band (`Containment`, or the caps' `Coincidence(Sectors | SectorSide)`),
+  and a single cap builds in some poses;
+- at ε 1e-12 the near-node caps refuse at a short ruling's pcurve
+  (`work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`).
+
+What remains open here is that last pcert row and U-lever's merge.
 
 ## The ring at oblique angles reaches further (PR 5192)
 

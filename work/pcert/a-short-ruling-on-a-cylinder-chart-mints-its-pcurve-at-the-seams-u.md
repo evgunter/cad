@@ -29,8 +29,12 @@ along a ruling `2h` long. Every op:
 
 | ε | h = 1e-8 | h = 1e-6 | h = 1e-3 |
 |---|---|---|---|
-| 1e-9 | direct: `MapResidual`; re-posed: `SelfCheck(RingWinding)` escalates | builds | builds |
-| 1e-12 | direct: `MapResidual`; re-posed: `JoinDesync` "ring-run winding is degenerate" | same as h = 1e-8 | builds |
+| 1e-9 | `MapResidual` | builds | builds |
+| 1e-12 | `MapResidual` | `MapResidual` | builds |
+
+These are the direct poses. Re-posed, the same cut fails first at the
+ring run's winding, which is not a pcurve mint and is filed separately
+(`work/hone/a-short-ruling-ring-run-refuses-joindesync-at-a-fine-eps.md`).
 
 ## Where U2p meets it
 
