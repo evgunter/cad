@@ -490,3 +490,5 @@ mod meet_rows;
 mod one_curve_rows;
 #[cfg(test)]
 mod span_rows;
+#[cfg(test)]
+mod probe_rows;
