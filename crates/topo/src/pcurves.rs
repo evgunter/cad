@@ -2473,6 +2473,25 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             let plus = is_plus(body, half_edge);
             let (fed, entry) = if plus { (&first, t0) } else { (&second, t1) };
             let (out, exit) = if plus { (&second, t1) } else { (&first, t0) };
+            // A one-edge loop is its own neighbour: the split makes its
+            // closing joint, out of the child whose exit is the parent's
+            // into the one the parent's entry fed, and it is decided
+            // between the two children. On a plus half that joint lands
+            // on the parent half (`next(hp)` is `hp`), so it is both the
+            // element into the fed child and the one out of the other; on
+            // a minus half it lands on the new half alone, and `hm`'s old
+            // `next` is `hm`, whose element is the children's own joint.
+            if record.next == half_edge {
+                let closing = pin(fed, entry, out.eval(exit))?;
+                rows[slot] = Some(CarriedRows {
+                    parent_half: certify(t0, t, first)?,
+                    new_half: certify(t, t1, second)?,
+                    joint,
+                    entering: Some(closing),
+                    leaving: plus.then_some(closing),
+                });
+                continue;
+            }
             let entering = match neighbour(record.prev) {
                 Some((before, _, before_exit)) => Some(pin(fed, entry, before.eval(before_exit))?),
                 None => None,
@@ -7424,6 +7443,116 @@ pub(crate) mod pole_slit_tests {
                         turns[0]
                     );
                 }
+            }
+        }
+    }
+
+    /// **A one-edge loop's split closes on its own children.** A sheet
+    /// bounded by one whole-turn circle (a cylinder's rim, a sphere's
+    /// parallel, a torus's parallel) is split at `t ∈ {1, 3, 5, 5.5, 6}`.
+    /// Past about `t = 4.28` the second child's midpoint is past the
+    /// window's cut, so it is placed a turn below the first and the
+    /// loop's closing joint, from the second child back into the first,
+    /// changes; the edge is its own neighbour, so the split decides that
+    /// joint between its children. Each split body validates and its rows
+    /// and elements are byte for byte a fresh mint's (PR 5225's first
+    /// review, P1).
+    #[test]
+    fn a_one_edge_loops_split_closes_on_its_children() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (o, z, x) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+        let circle = |center: Point3<f64>, radius: f64| Curve3::Circle {
+            center,
+            axis: z,
+            radius,
+            u_ref: x,
+        };
+        let lat: f64 = 0.5;
+        let cases = [
+            (
+                "cylinder rim",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, 0.5), 1.0),
+            ),
+            (
+                "sphere parallel",
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, lat.sin()), lat.cos()),
+            ),
+            (
+                "torus parallel",
+                Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, 0.5), 2.0),
+            ),
+        ];
+        let rows = |body: &Body<f64>| {
+            let mut out: Vec<String> = body
+                .pcurves()
+                .map(|(he, c)| {
+                    format!(
+                        "{he:?} {:?} {:?} {:?} {:?}",
+                        c.params(),
+                        c.pcurve(),
+                        c.certificate(),
+                        body.joint(he)
+                    )
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        for (name, surface, carrier) in cases {
+            for t in [1.0, 3.0, 5.0, 5.5, 6.0] {
+                let mut body = Body::<f64>::new();
+                let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+                body.set_face_surface(
+                    seed.face,
+                    FaceSurface::New {
+                        surface: surface.clone(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+                let spec = EdgeCurveSpec::arc_of_circle(carrier.clone(), 0.0, 2.0 * PI).unwrap();
+                let made = body
+                    .mef(
+                        MefSite::Lone {
+                            r#loop: seed.r#loop,
+                        },
+                        spec,
+                        FaceSurface::Inherit,
+                        tol,
+                    )
+                    .unwrap();
+                super::mint_pcurves(&mut body, tol).unwrap();
+                let edge = body.get_half_edge(made.he_plus).unwrap().edge;
+                body.split_edge(edge, t, tol)
+                    .unwrap_or_else(|e| panic!("{name} at {t}: splits: {e:?}"));
+                assert_eq!(
+                    super::validate_pcurves(&body, band),
+                    vec![],
+                    "{name} at {t}: validates"
+                );
+                let mut fresh = body.clone();
+                super::mint_pcurves(&mut fresh, tol).unwrap();
+                assert_eq!(rows(&body), rows(&fresh), "{name} at {t}: the mint's rows");
             }
         }
     }
