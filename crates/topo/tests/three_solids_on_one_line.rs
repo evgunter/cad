@@ -843,29 +843,34 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
 }
 
 /// **The edges along the line of every body `x` and `y` make are
-/// recorded where they touch**: tier 3′ over the result's records
-/// refuses no overlap of two edges, in any op or slot. The 0° prism's
+/// recorded where they touch**: every op, either operand first, builds,
+/// and tier 3′ over the result's records refuses no overlap of two
+/// edges, nor any record it reads stale or contradicted. The 0° prism's
 /// edge runs along the line body's, which holds the third's face beside
 /// it: in a subtraction both lie on the result, and each end of their
 /// shared stretch reads the face with the line body's edge
-/// (`recl::HeldFace`).
+/// (`recl::HeldFace`, `recl::Folded`).
 fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) {
     for (name, op, _) in OPS {
         for (first, a, b) in [(true, x, y), (false, y, x)] {
-            let Ok(BooleanResult::Body(r)) = op(a, b, t()) else {
-                continue;
+            let what = format!("{name} of {what}, the line body first: {first}");
+            let r = match op(a, b, t()) {
+                Ok(BooleanResult::Body(r)) => r,
+                Ok(BooleanResult::Empty) => continue,
+                Err(e) => panic!("{what}: builds, got {e:?}"),
             };
             if let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) {
-                assert!(
-                    !errors.iter().any(|e| matches!(
+                let wrong = errors.iter().find(|e| {
+                    matches!(
                         e,
                         topo::ValidationError::UnrecordedContact {
                             contact: topo::CensusContact::EdgeEdgeOverlap { .. },
                             ..
-                        }
-                    )),
-                    "{name} of {what}, the line body first: {first}: {errors:?}"
-                );
+                        } | topo::ValidationError::StaleContactDeclaration { .. }
+                            | topo::ValidationError::ContactContradicted { .. }
+                    )
+                });
+                assert!(wrong.is_none(), "{what}: {wrong:?} among {errors:?}");
             }
         }
     }
