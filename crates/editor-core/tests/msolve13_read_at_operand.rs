@@ -717,10 +717,13 @@ fn a3c_a_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
 }
 
 /// **A3(d).** A whole assembly with its mate read at a union — the
-/// slab, the block whose bundle holds the mate, a transform of it,
-/// their union and its placement — cuts into a part and inlines back:
-/// `inline(split(d))` is `d` up to node ids, the mate still reading the
-/// union naming the block's face, and the gate holds on the result.
+/// slab, the block whose bundle holds the mate, a transform of it and
+/// their union — cuts into a part and inlines back: `inline(split(d))`
+/// is `d` up to node ids, the mate still reading the union naming the
+/// block's face, and the gate holds on the result. The union is read,
+/// not placed: the block is its own placement, so a placement of a
+/// union over its copy would be a second copy of the block where it
+/// stands.
 #[test]
 fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let s = scene_with("msolve13-a3d", false);
@@ -737,7 +740,6 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
             ]),
         },
     );
-    let (doc, _) = crate::fixture::place(doc, union);
     let through_top = member_name(&doc, union, s.top, s.top_cap());
     let (doc, _) = mated(
         &s.opts,

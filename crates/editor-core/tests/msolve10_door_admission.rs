@@ -947,33 +947,29 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-chain", doc, opts)
     });
     rows.push({
-        // A head stranded onto local geometry, after insert.
+        // A head stranded past a pattern's count, after insert: the
+        // copy the name says does not exist.
         let (doc, ids, opts, body) = instances("msolve10-corpus-stranded", 2);
-        let (doc, profile) = on_frame(
+        let (doc, pattern) = insert(
             doc,
-            [5.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![fixture::square(0.0, 0.0, 0.5)],
-        );
-        let (doc, local) = insert(
-            doc,
-            Node::Extrude {
-                profile: profile.into(),
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
+            Node::Pattern {
+                input: ids[0].into(),
+                count: editor_core::Formula::count(2),
+                kind: editor_core::PatternKind::Linear {
+                    direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+                    spacing: len(3.0),
+                },
             },
         );
-        let local_cap = editor_core::StableName {
-            kind: editor_core::EntityKind::Face,
-            node: local,
-            path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-        };
         let (doc, _) = fixture::insert_mate_with_stranded_head(
             doc,
             with_b(
                 mate(body, ids[1], ids[0], seat(None)),
-                fixture::head(local_cap),
+                fixture::head(fixture::in_copy(
+                    pattern,
+                    5,
+                    in_part(ids[0], body, CapEnd::Start),
+                )),
             ),
             MateSide::B,
             ids[0],

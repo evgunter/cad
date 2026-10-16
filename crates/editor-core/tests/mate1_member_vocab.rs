@@ -379,7 +379,8 @@ fn mates_never_solve_pattern_parameters() {
 /// pattern-member pair — two mates on the SAME copy whose cosets
 /// cannot meet (a coaxial about the copy's seat axis, then a seat half
 /// a unit off it) die in the bundle's fold with the measured clash,
-/// exactly as a plain pair's would. The derived offset is a static
+/// exactly as a plain pair's would: the door folds the bundle with the
+/// second added and refuses it there. The derived offset is a static
 /// left factor OUTSIDE the fold, so it cannot absorb the clash.
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
@@ -409,21 +410,30 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             primitive,
         )
     };
-    let (doc, m0) = constrain(doc, seat([0.0, 0.0, 1.0], MatePrimitive::Coaxial));
-    let (doc, m1) = constrain(doc, seat([0.5, 0.0, 1.0], MatePrimitive::FrameCoincidence));
-
     let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(top).expect("the bundle's fold refuses");
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, m0) = fixture::constrain_through(
+        doc,
+        &reach,
+        top,
+        seat([0.0, 0.0, 1.0], MatePrimitive::Coaxial),
+    );
+    let (named, fault) = at_the_door_of(
+        &doc,
+        &reach,
+        top,
+        seat([0.5, 0.0, 1.0], MatePrimitive::FrameCoincidence),
+    )
+    .expect_err("the bundle's fold refuses");
+    assert_eq!(named, top, "the door names the copy's placement");
     assert!(
         matches!(
             fault,
             editor_core::MateFault::Contradictory { held, added, .. }
-                if *held == m0 && *added == m1
+                if held == m0 && added.placement == top && added != m0
         ),
         "two seats on one copy that cannot both hold die in the fold: {fault:?}"
     );
-    let _ = store;
 }
 
 // ---- The fence: what the vocabulary still refuses ----

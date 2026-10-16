@@ -43,7 +43,8 @@
 //! face frame rides its face; a frame on the copy's own part stands in
 //! that copy's coordinates, which are the instance's only where the
 //! side reads the copy through nothing that moves it and the copy is
-//! pinned to the world at the identity ([`SplitError::MateFrameCrosses`]). Neither door computes a frame.
+//! pinned to the world at the identity ([`SplitError::MateFrameCrosses`]).
+//! Neither door computes a frame.
 //!
 //! [`inline`] is the inverse. An instance pinned to the world at a pose
 //! splices its part's placements with every constraint on the part's
@@ -71,8 +72,10 @@
 //! one because their values agree (VR1).
 //!
 //! So `inline(split(d))` is `d` up to minted ids — node, step,
-//! variable and constraint — and that one regrouping, on every cut
-//! split admits (A4). `split(inline(h))` is not promised: an unread
+//! variable and constraint — and order, on every cut split admits
+//! (A4): split appends its instance to the remainder and inline appends
+//! what it splices, so a cut whose placements a kept one separates
+//! comes back after it. `split(inline(h))` is not promised: an unread
 //! free named variable the part held has no reader to follow back, and
 //! stays in the host.
 //!
@@ -3539,6 +3542,33 @@ enum Landing {
     Root(RecipeNodeId),
 }
 
+/// **Whether a face read on the part copy `at` lands on an instance or a
+/// copy of one** once spliced — the copies the solve reads a face of
+/// (the B4 interim, `work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
+/// A copy that stands where its body did (`raw`) lands on that body, so
+/// it is followed down the placers that copy one instance — a `Part`, a
+/// `Pattern`, a `Transform` — to the instance or to something else.
+fn lands_on_an_instance(part: &ProfileDoc, at: RecipeNodeId, raw: bool) -> bool {
+    let mut node = match part.node(at) {
+        Some(Node::InstantiatePart { .. }) => return true,
+        Some(Node::Place { shapes, .. }) if raw => {
+            shapes.first().and_then(|s| part.operation_of(s.read))
+        }
+        _ => None,
+    };
+    while let Some(id) = node {
+        node = match part.node(id) {
+            Some(Node::InstantiatePart { .. }) => return true,
+            Some(Node::Part { of, .. }) => part.operation_of(*of),
+            Some(Node::Pattern { input, .. } | Node::Transform { input, .. }) => {
+                part.operation_of(*input)
+            }
+            _ => None,
+        };
+    }
+    false
+}
+
 /// Splices the document `instance` references into `doc` and deletes
 /// the instance — the inverse of [`split`] (D-3). The pin resolves
 /// through `resolver` (a stale pin is the resolver's typed
@@ -3830,7 +3860,7 @@ pub fn inline(
                 {
                     return Err(crosses());
                 }
-                if !matches!(part.node(at), Some(Node::InstantiatePart { .. })) {
+                if !lands_on_an_instance(&part, at, raw(at)) {
                     return Err(InlineError::SideLeavesAnInstance {
                         placement: doc.spoken(placement),
                         constraint: constraint.id,

@@ -638,15 +638,43 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
     doc: &Doc<P>,
 ) -> Vec<Vec<RecipeNodeId>> {
     let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
+    let mut couple = |x: RecipeNodeId, y: RecipeNodeId| {
+        adjacency.entry(x).or_default().insert(y);
+        adjacency.entry(y).or_default().insert(x);
+    };
     for id in doc.ids() {
-        adjacency.entry(id).or_default();
         let Some(node) = doc.node(id) else { continue };
         for input in doc.upstream_of(id, node) {
-            adjacency.entry(id).or_default().insert(input);
-            adjacency.entry(input).or_default().insert(id);
+            couple(id, input);
+        }
+        // A world side reads no variable, so the world is coupled here.
+        let pinned = bundle_of(node).is_some_and(|bundle| {
+            bundle.iter().any(|c| {
+                c.mate
+                    .sides()
+                    .into_iter()
+                    .any(|(_, read)| matches!(read, SideRead::World))
+            })
+        });
+        if pinned {
+            couple(id, RecipeNodeId::WORLD);
         }
     }
-    components(&doc.ids(), &adjacency)
+    // The world seeds first and couples, but is no member: no edit
+    // authored it.
+    let order: Vec<RecipeNodeId> = std::iter::once(RecipeNodeId::WORLD)
+        .chain(doc.ids())
+        .collect();
+    components(&order, &adjacency)
+        .into_iter()
+        .map(|members| {
+            members
+                .into_iter()
+                .filter(|&id| id != RecipeNodeId::WORLD)
+                .collect::<Vec<_>>()
+        })
+        .filter(|members| !members.is_empty())
+        .collect()
 }
 
 /// Connected components over `adjacency`, seeded in `order` so both the

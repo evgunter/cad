@@ -94,15 +94,31 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The cap `end` of a [`leaf_labelled`] part's `block`, as the part's
-/// product names it: under its one placement's copy (A10).
+/// product names it: the union carries it from its member read of the
+/// block, under its one placement's copy (A10).
 fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core::FaceName {
     let [copy] = leaf.placements()[..] else {
         panic!("a leaf places its union once");
     };
+    let Some(Node::Place { shapes, .. }) = leaf.node(copy) else {
+        panic!("the leaf's placement is a `Place`");
+    };
+    let union = leaf
+        .operation_of(shapes[0].read)
+        .expect("the placement reads the union");
+    let read = leaf.output(block, 0).expect("the block defines its output");
     let cap = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
-        node: block,
-        path: vec![editor_core::RoleSeg::Cap(end)],
+        node: union,
+        path: vec![editor_core::RoleSeg::From {
+            read,
+            of: editor_core::StableName {
+                kind: editor_core::EntityKind::Face,
+                node: block,
+                path: vec![editor_core::RoleSeg::Cap(end)],
+            }
+            .into(),
+        }],
     };
     editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
 }
@@ -501,8 +517,8 @@ fn placed_on_copy(
         },
     };
     let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) = fixture::at_the_door_of(&doc, &reach, placed, mate)
-        .unwrap_or_else(|(_, f)| panic!("{f}"));
+    let (doc, _) =
+        fixture::at_the_door_of(&doc, &reach, placed, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
     (doc, ids)
 }
 
@@ -528,12 +544,6 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
     let opts = with_resolver(store);
 
     let own = run(&assembly, &opts);
-    let dbg_v = own.value(ids[0]);
-    if let Some(v) = dbg_v.as_ref() {
-        for (n, _) in v.name_table.iter() {
-            eprintln!("DBG {n:?}");
-        }
-    }
     for id in &ids {
         assert!(
             matches!(own.result(*id), Some(NodeResult::Ok(_))),

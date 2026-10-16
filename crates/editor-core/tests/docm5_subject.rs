@@ -33,8 +33,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,
-    DocumentId, Evaluation, Node, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
-    assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
+    DocumentId, Evaluation, Node, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Severity,
+    Subject, assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -47,8 +47,8 @@ use topo::Body;
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, RecipeNodeId) {
     use editor_core::{
-        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive,
-        RoleSeg, StableName,
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive, RoleSeg,
+        StableName,
     };
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
@@ -226,8 +226,14 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     );
     // And through the door, handed the same fact directly.
     carries_the_gathers_refusal(
-        run_checks_on(&doc, &ev, Subject::refused(gathered()), &subject_free_off, tol)
-            .expect_err("the door refuses"),
+        run_checks_on(
+            &doc,
+            &ev,
+            Subject::refused(gathered()),
+            &subject_free_off,
+            tol,
+        )
+        .expect_err("the door refuses"),
     );
 
     // Where connectedness runs, it reads the evaluation and answers

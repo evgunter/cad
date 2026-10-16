@@ -621,8 +621,8 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
     use editor_core::{
-        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive,
-        RoleSeg, StableName,
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive, RoleSeg,
+        StableName,
     };
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());

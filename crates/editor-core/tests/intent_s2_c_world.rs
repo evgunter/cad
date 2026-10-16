@@ -704,11 +704,10 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         let Some(NodeResult::Ok(value)) = run.result(fused) else {
             panic!("the boolean evaluates: {:?}", run.result(fused))
         };
-        let editor_core::ValuePayload::Body(body) = &value.payload else {
-            panic!(
-                "the boolean is a body: {:.300}",
-                format!("{:?}", value.payload)
-            )
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
+            &value.payload
+        else {
+            panic!("the boolean is a body")
         };
         body_digest(body)
     };

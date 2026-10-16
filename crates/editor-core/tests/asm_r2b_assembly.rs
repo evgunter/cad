@@ -1651,15 +1651,11 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains(
-            "constraint 0 of node 000000000004's Rest contact, refuted:"
-        ),
+        msg.contains("constraint #0 of node 000000000004's Rest contact, refuted:"),
         "{msg}"
     );
     assert!(
-        msg.contains(
-            "constraint 0 of node 000000000004's Rest contact, declined:"
-        ),
+        msg.contains("constraint #0 of node 000000000004's Rest contact, declined:"),
         "{msg}"
     );
     assert!(msg.contains("no declaration:"), "{msg}");

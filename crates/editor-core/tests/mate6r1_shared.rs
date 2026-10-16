@@ -84,7 +84,12 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 /// A frame-coincidence mate seating `b`'s copy at height `seat` on
 /// `a`'s, declaring `class`.
-fn mate_of(a: StableName, b: StableName, seat: f64, class: ContactClass) -> editor_core::Mate<Formula> {
+fn mate_of(
+    a: StableName,
+    b: StableName,
+    seat: f64,
+    class: ContactClass,
+) -> editor_core::Mate<Formula> {
     fixture::mate(
         fixture::head(a),
         fixture::head(b),
@@ -209,28 +214,27 @@ fn r1_two_bad_mates_noatrest_then_reference() {
     let (doc, m1) = constrain(
         doc,
         mate_of(
-        in_part(ids[0], body, CapEnd::End),
-        in_part(ids[1], body, CapEnd::Start),
-        1.0,
-        ContactClass::Tangent,
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            1.0,
+            ContactClass::Tangent,
         ),
     );
     // mate #2 (later): a dangling reference -> Reference.
     let (doc, m2) = constrain(
         doc,
         mate_of(
-        dangling(ids[1]),
-        in_part(ids[2], body, CapEnd::Start),
-        1.0,
-        ContactClass::Rest,
+            dangling(ids[1]),
+            in_part(ids[2], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
         ),
     );
     let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_noatrest_then_reference m1={:?} m2={:?} => {v}",
-        m1,
-        m2
+        m1, m2
     );
 }
 
@@ -243,10 +247,10 @@ fn r1_two_bad_mates_reference_then_noatrest() {
     let (doc, m1) = constrain(
         doc,
         mate_of(
-        dangling(ids[0]),
-        in_part(ids[1], body, CapEnd::Start),
-        1.0,
-        ContactClass::Rest,
+            dangling(ids[0]),
+            in_part(ids[1], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
         ),
     );
     // Seated on the base, not on the copy the bad mate places, which
@@ -264,8 +268,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_reference_then_noatrest m1={:?} m2={:?} => {v}",
-        m1,
-        m2
+        m1, m2
     );
 }
 
@@ -283,10 +286,10 @@ fn r1_a_good_mate_after_a_bad_one() {
     let (doc, bad) = constrain(
         doc,
         mate_of(
-        dangling(ids[0]),
-        in_part(ids[1], body, CapEnd::Start),
-        1.0,
-        ContactClass::Rest,
+            dangling(ids[0]),
+            in_part(ids[1], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
         ),
     );
     // Seated on the base, not on the copy the bad mate places, which
@@ -304,8 +307,7 @@ fn r1_a_good_mate_after_a_bad_one() {
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE good_mate_after_bad bad={:?} good={:?} => {v}",
-        bad,
-        good
+        bad, good
     );
 }
 
@@ -330,10 +332,10 @@ fn r1_mint_refusal_precedes_the_census() {
     let (doc, m) = constrain(
         doc,
         mate_of(
-        in_part(ids[0], body, CapEnd::End),
-        in_part(ids[1], body, CapEnd::Start),
-        1.0,
-        ContactClass::Tangent,
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            1.0,
+            ContactClass::Tangent,
         ),
     );
     let ev = run(&doc, &with_resolver(store));
@@ -446,8 +448,13 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
         ),
     );
     let ev = run(&doc, &with_resolver(store));
-    let report =
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the registry runs");
+    // Connectedness reads every placement's value, loose ones included,
+    // and would refuse the failed one before separation runs.
+    let cfg = ChecksConfig {
+        connectedness: editor_core::Severity::Off,
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the registry runs");
     let sep = report
         .findings
         .iter()

@@ -608,11 +608,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = constrain_at(
         doc,
         ids[1],
-        rest_mate(
-            dangling(ids[3]),
-            in_part(ids[1], body, CapEnd::Start),
-            1.0,
-        ),
+        rest_mate(dangling(ids[3]), in_part(ids[1], body, CapEnd::Start), 1.0),
     );
     let (doc, good) = constrain(
         doc,
@@ -735,11 +731,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, dangling_mate) = constrain_at(
         doc,
         ids[4],
-        rest_mate(
-            dangling(ids[5]),
-            in_part(ids[4], body, CapEnd::Start),
-            1.0,
-        ),
+        rest_mate(dangling(ids[5]), in_part(ids[4], body, CapEnd::Start), 1.0),
     );
     let (doc, second_bad) = constrain(
         doc,
@@ -864,7 +856,8 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
                 recourse: editor_core::coincide::Recourse::Assert,
                 ..
             }
-        ) && f.subject == editor_core::FindingSubject::Node(mate.placement)),
+        ) && f.subject
+            == editor_core::FindingSubject::Node(mate.placement)),
         "the census's row is reported against its mate, and the door, which does not \
          replay the product, has no form of it to read, so its recourse is an assertion: \
          {report}"

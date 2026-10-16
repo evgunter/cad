@@ -22,9 +22,9 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver,
-    ProductErrorKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
-    StableName, content_pin, evaluate, load, product, product_named, save,
+    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, ProductErrorKind, ProfileDoc,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin, evaluate, load,
+    product, product_named, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -221,7 +221,10 @@ fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> &topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
             [b] => b,
-            other => panic!("an instance's copies are one product body, got {}", other.len()),
+            other => panic!(
+                "an instance's copies are one product body, got {}",
+                other.len()
+            ),
         },
         other => panic!("an instance's value is its copies, got {other:?}"),
     }
@@ -229,7 +232,10 @@ fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> &topo::Body<f64> {
 
 /// **A read of the copy `instance` delivers of `part`'s one placement**:
 /// the copy keyed by that placement and the read it copies.
-fn copy_in(part: &ProfileDoc, instance: RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula> {
+fn copy_in(
+    part: &ProfileDoc,
+    instance: RecipeNodeId,
+) -> editor_core::BodyRead<editor_core::Formula> {
     let [placement] = part.placements()[..] else {
         panic!("the part places one copy")
     };
@@ -283,9 +289,11 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(&Frame::translation([
-                5.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([5.0, 0.0, 0.0])),
+    );
 
     let ev = run(&doc, &opts);
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
@@ -325,9 +333,11 @@ fn row2_one_part_two_instances_one_evaluation() {
     let doc_ref = store.insert(part("asm2a-r2-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[2], editor_core::Placement::literal(&Frame::translation([
-                9.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[2],
+        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
+    );
 
     let ev = run(&doc, &opts);
     assert_eq!(
@@ -350,9 +360,11 @@ fn row2_one_part_two_instances_one_evaluation() {
     let b = store.insert(part("asm2a-r2-b", 0.0, 2.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(&Frame::translation([
-                20.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([20.0, 0.0, 0.0])),
+    );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
 }
 
@@ -382,12 +394,16 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // Both instances pinned off the identity, so both ops do the same
     // work on the part they share: an identity placement is applied by
     // doing nothing, and an op that does nothing decides nothing.
-    let doc = repinned(doc, ids[0], editor_core::Placement::literal(&Frame::translation([
-                0.0, 9.0, 0.0,
-            ])));
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(&Frame::translation([
-                9.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
+    );
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
+    );
     let ev = run(&doc, &opts);
     assert_eq!(ev.part_evaluations, 1, "the second instance is a cache hit");
     let log = |id: RecipeNodeId| {
@@ -459,9 +475,11 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let doc_ref = store.insert(part("asm2a-r3-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(&Frame::translation([
-                5.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([5.0, 0.0, 0.0])),
+    );
     let ev = run(&doc, &opts);
 
     let a = instance_names(&ev, ids[0]);
@@ -574,9 +592,11 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         "an inserted instance is pinned to the world at the identity"
     );
 
-    let moved = repinned(doc.clone(), ids[0], editor_core::Placement::literal(&Frame::translation([
-                7.0, 0.0, 0.0,
-            ])));
+    let moved = repinned(
+        doc.clone(),
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([7.0, 0.0, 0.0])),
+    );
     let after = run(&moved, &opts);
     let after_body = product(&moved, &after, Tol::witness()).expect("gathers");
     assert_eq!(
@@ -773,9 +793,11 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     assert_eq!(text, again, "saves are byte-stable");
 
     // A placement moves it.
-    let moved = repinned(doc.clone(), ids[0], editor_core::Placement::literal(&Frame::translation([
-                1.0, 0.0, 0.0,
-            ])));
+    let moved = repinned(
+        doc.clone(),
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
+    );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
 
     // A pin-bump of the reference moves it too (the reference IS
@@ -798,9 +820,11 @@ fn row6_placement_is_part_of_the_content_key() {
     let (doc, ids) = assembly("asm2a-r6k-asm", &[doc_ref]);
     let first = run(&doc, &opts);
 
-    let moved = repinned(doc, ids[0], editor_core::Placement::literal(&Frame::translation([
-                4.0, 0.0, 0.0,
-            ])));
+    let moved = repinned(
+        doc,
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([4.0, 0.0, 0.0])),
+    );
     let second = evaluate::<f64>(
         &moved,
         Some(&first),
@@ -844,15 +868,14 @@ fn row7_instantiate_and_placement_round_trip() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(
-                &Frame::rotate_then_translate(
-                    [0.0, 0.0, 1.0],
-                    0.25,
-                    [2.0, 3.0, 0.0],
-                    fixture::band(),
-                )
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(
+            &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0], fixture::band())
                 .expect("a literal axis has a definite direction"),
-            ));
+        ),
+    );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
@@ -1388,15 +1411,16 @@ fn r1_part_evaluations_aggregates_through_nesting() {
         "one crossing per document entered, nested crossings included"
     );
     // And the nesting really produced geometry: a doubly-wrapped name,
-    // each level's copy under its placement (A10).
+    // each level's instance its own placement, and the leaf's copy under
+    // the leaf's placement (A10).
     let names = instance_names(&ev, ids[0]);
     assert!(
         names.iter().any(|n| matches!(
             &n.path[..],
-            [RoleSeg::InPart { of }] if of.copy_of().is_some_and(|(_, inner)| matches!(
-                &inner.path[..],
+            [RoleSeg::InPart { of }] if matches!(
+                &of.path[..],
                 [RoleSeg::InPart { of }] if of.copy_of().is_some()
-            ))
+            )
         )),
         "a nested instance's names wrap twice: {:?}",
         names.iter().take(3).collect::<Vec<_>>()
@@ -1506,9 +1530,11 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-door-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[1], editor_core::Placement::literal(&Frame::translation([
-                1.0, 0.0, 0.0,
-            ])));
+    let doc = repinned(
+        doc,
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
+    );
     let (doc, union) = insert(
         doc,
         Node::Union {

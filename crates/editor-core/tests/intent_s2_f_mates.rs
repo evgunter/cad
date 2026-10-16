@@ -13,8 +13,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Mate,
-    MateFrame, MatePrimitive, MateRef, MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef,
-    SplitError, assemble, product_recorded, relative_freedom_components,
+    MateFrame, MatePrimitive, MateRef, MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId,
+    RefusedRef, SplitError, assemble, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -531,10 +531,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
         .into_iter()
         .find(|&p| match doc.node(p) {
             Some(Node::Place { shapes, .. }) => {
-                shapes.len() == 1
-                    && doc
-                        .operation_of(shapes[0].read)
-                        .is_some_and(|at| at == t)
+                shapes.len() == 1 && doc.operation_of(shapes[0].read).is_some_and(|at| at == t)
             }
             _ => false,
         })
