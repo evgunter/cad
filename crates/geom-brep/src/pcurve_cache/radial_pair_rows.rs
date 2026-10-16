@@ -571,7 +571,11 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
 /// reads its radial circle at `0.7·escalate`, in the band, and takes
 /// the meridian (where check 2 then escalates, as the moving class's
 /// winding gate does: no carrier of a cylinder this thin certifies).
-/// The coefficient sum reads `1.4·escalate` and decides it moving.
+/// The coefficient sum reads `1.4·escalate` and decides it moving. At
+/// `Interval` the meridian's azimuth, the angle of a radial direction
+/// in band, encloses no finite gap from the window's centre, so its
+/// placement refuses there (`pcurve_chart_placement`, escalated) rather
+/// than naming the angle as read (PR 5225's fail-loud placement).
 #[test]
 fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     let r = 0.7 * band().escalate();
@@ -583,26 +587,30 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         Vec3::unit_x(),
     );
     let f = Interval::from_f64;
-    for (scalar, derived) in [
-        (
-            "f64",
-            derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band())
-                .map(|(_, d)| d),
+    let derived = derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band())
+        .map(|(_, d)| d);
+    assert!(
+        matches!(derived, Ok(Derivation::CylinderMeridian)),
+        "f64: the sub-band rim takes the meridian: {derived:?}"
+    );
+    let derived = derive_harmonic(
+        &carrier.map_scalar(f),
+        &surface.map_scalar(f),
+        super::Placement::own(&carrier.map_scalar(f)),
+        band(),
+    )
+    .map(|(_, d)| d);
+    assert!(
+        matches!(
+            &derived,
+            Err(PcurveCertifyError::Escalated {
+                cause: geom_core::Indeterminate {
+                    predicate: Some("pcurve_chart_placement"),
+                    ..
+                },
+                ..
+            })
         ),
-        (
-            "Interval",
-            derive_harmonic(
-                &carrier.map_scalar(f),
-                &surface.map_scalar(f),
-                super::Placement::own(&carrier.map_scalar(f)),
-                band(),
-            )
-            .map(|(_, d)| d),
-        ),
-    ] {
-        assert!(
-            matches!(derived, Ok(Derivation::CylinderMeridian)),
-            "{scalar}: the sub-band rim takes the meridian: {derived:?}"
-        );
-    }
+        "Interval: the sub-band rim's azimuth refuses its placement: {derived:?}"
+    );
 }
