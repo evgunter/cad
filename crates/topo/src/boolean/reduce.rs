@@ -4817,9 +4817,13 @@ mod minted_rule_rows {
     const OUTSIDE: MintedRule = MintedRule::LiesOn(LyingEnds::Outside);
     const PAIRED: MintedRule = MintedRule::LiesOn(LyingEnds::Paired);
 
-    /// The side `residual` reads at the witness band.
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The side `residual` reads at the run's band.
     fn side(rule: MintedRule, residual: f64) -> Result<bool, MintedRefusal> {
-        let band = Band::linear(Tol::witness()).unwrap();
+        let band = band();
         let decided = geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
             Margin::of(residual),
@@ -4918,11 +4922,13 @@ mod minted_rule_rows {
     /// incidence and never the frontier.
     #[test]
     fn a_side_in_band_refuses_in_band_under_every_rule() {
+        // Between the band's zero and escalate thresholds.
+        let in_band = (band().zero() * band().escalate()).sqrt();
         for rule in [CLEAR, UNCLEAR, INSIDE, OUTSIDE, PAIRED] {
             assert!(
-                matches!(side(rule, 5e-9), Err(MintedRefusal::InBand(_))),
+                matches!(side(rule, in_band), Err(MintedRefusal::InBand(_))),
                 "{rule:?}: {:?}",
-                side(rule, 5e-9)
+                side(rule, in_band)
             );
         }
     }
