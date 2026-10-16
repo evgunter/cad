@@ -860,6 +860,10 @@ pub mod test_support {
 mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
+#[cfg(test)]
+mod review_5225_probes;
+#[cfg(test)]
+mod delta_5225_probes;
 pub mod transform;
 pub mod validate;
 mod wedge_reach;
