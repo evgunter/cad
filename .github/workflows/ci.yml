@@ -41,6 +41,7 @@ env:
   MATURIN_VERSION: "1.14.1"
   TY_VERSION: "0.0.39"
   RUFF_VERSION: "0.16.1"
+  ACTIONLINT_VERSION: "1.7.7"
 
 jobs:
   filter:
@@ -247,6 +248,19 @@ jobs:
         run: python3 scripts/check-python-lint.py
         env:
           REQUIRE_RUFF: "1"
+      # The one lint over the workflows and actions themselves, on every
+      # tier: a render-only workflow edit runs nothing else. actionlint hands
+      # each `run:` block to shellcheck and skips them silently when it is
+      # missing, so its absence fails here. A composite action's own `run:`
+      # blocks are not covered; its `.sh` files are.
+      - name: workflow lint (actionlint, shellcheck)
+        run: |
+          command -v shellcheck >/dev/null || { echo "::error::no shellcheck on the runner: actionlint would check no run: block"; exit 1; }
+          mkdir -p "$HOME/actionlint-bin"
+          curl -LsSf --retry 5 "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar zxf - -C "$HOME/actionlint-bin" actionlint
+          "$HOME/actionlint-bin/actionlint" -shellcheck=shellcheck
+          find .github -name '*.sh' -exec shellcheck {} +
       - name: gates (scripts/gates)
         run: |
           rc=0
