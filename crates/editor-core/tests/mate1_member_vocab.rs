@@ -382,9 +382,10 @@ fn mates_never_solve_pattern_parameters() {
 /// pattern-member pair — two mates on the SAME copy whose cosets
 /// cannot meet (a coaxial about the copy's seat axis, then a seat half
 /// a unit off it) die in the bundle's fold with the measured clash,
-/// exactly as a plain pair's would: the door folds the bundle with the
-/// second added and refuses it there. The derived offset is a static
-/// left factor OUTSIDE the fold, so it cannot absorb the clash.
+/// exactly as a plain pair's would: the door admits each, its pin not
+/// yet whole, and the solve folds the bundle and refuses it. The
+/// derived offset is a static left factor OUTSIDE the fold, so it
+/// cannot absorb the clash.
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let mut store = PartStore::default();
@@ -421,14 +422,17 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
         top,
         seat([0.0, 0.0, 1.0], MatePrimitive::Coaxial),
     );
-    let (named, fault) = at_the_door_of(
-        &doc,
+    let (doc, _) = fixture::constrain_through(
+        doc,
         &reach,
         top,
         seat([0.5, 0.0, 1.0], MatePrimitive::FrameCoincidence),
-    )
-    .expect_err("the bundle's fold refuses");
-    assert_eq!(named, top, "the door names the copy's placement");
+    );
+    let poses = editor_core::solve_document(&doc, &reach, Tol::witness());
+    let fault = poses
+        .fault(top)
+        .cloned()
+        .expect("the bundle's fold refuses");
     assert!(
         matches!(
             fault,

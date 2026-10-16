@@ -671,18 +671,6 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         },
         tol,
     );
-    let shelf_i = insert(
-        &mut doc,
-        instance(
-            shelf,
-            Some(Placement::literal(&Frame::translation([
-                FLAT_PACK_GAP,
-                0.9,
-                0.0,
-            ]))),
-        ),
-        tol,
-    );
     // The world: each patterned post, laid down.
     for i in 0..2 {
         let post = insert(
@@ -702,6 +690,20 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         .unwrap_or_else(|err| panic!("the post's placement applies: {err:?}"));
         doc = applied.doc;
     }
+    // The shelf, pinned to the world beside them: the last placement,
+    // as the instance a split of it leaves behind is.
+    let shelf_i = insert(
+        &mut doc,
+        instance(
+            shelf,
+            Some(Placement::literal(&Frame::translation([
+                FLAT_PACK_GAP,
+                0.9,
+                0.0,
+            ]))),
+        ),
+        tol,
+    );
     (doc, pattern, shelf_i)
 }
 
@@ -1723,10 +1725,10 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 
     // Name-resolution identity, over the WHOLE table rather than a
     // sample: kept names verbatim, cut names re-anchored as the part's
-    // own copy of the shelf, under the remainder's new instance, in
-    // the copy the remainder places of it.
+    // own copy of the shelf, under the remainder's new instance, which
+    // is the copy the remainder places of it.
     let mapped = out.node_map[&shelf_i];
-    let placed_at = placement_reading(&out.remainder, out.instance);
+    let placed_at = out.instance;
     let mut crossed = 0usize;
     for (name, _) in before_names.iter() {
         let (placement, inner) = name.copy_of().expect("a product name is a copy's");

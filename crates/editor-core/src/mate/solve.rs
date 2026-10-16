@@ -1486,9 +1486,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
 /// copy ([`MateFault::Overconstrained`]: a mate beyond the pin is
 /// refused, never verified and kept), asked first, and the constraint's
 /// target agrees with the bundle's ([`MateFault::TargetsDiffer`], the
-/// stage's named interim), and the bundle with it folds (the fold's
-/// own refusal, a contradiction among them). The bundle is folded from
-/// its definitions at the door, at the document's own values.
+/// stage's named interim). A contradiction among the bundle's
+/// constraints is the solve's to refuse, as it folds the bundle whole.
+/// The bundle is folded from its definitions at the door, at the
+/// document's own values.
 ///
 /// `reach` absent is replay's: a bundle whose fold needs the parts is
 /// declined, as [`admit_mate`] declines.
@@ -1533,13 +1534,7 @@ pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     }
     let mut all = held;
     all.push(added);
-    let read = read_bundle(doc, env, placement, &all).map_err(Box::new)?;
-    // Then the bundle with the constraint, folded as the solve will
-    // fold it: a constraint it contradicts refuses here, never first at
-    // the solve.
-    if let Some(s) = &solve {
-        fold_bundle(s, &read)?;
-    }
+    read_bundle(doc, env, placement, &all).map_err(Box::new)?;
     Ok(())
 }
 
