@@ -2313,7 +2313,15 @@ mod tests {
             param_end: t1,
         };
         let bracket = Bracket::open();
-        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        let refused = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |k| arena.get(k).cloned(),
+            geom_core::Real::from_f64(1.0),
+            band(),
+        )
+        .is_err();
         assert!(refused, "the configuration is not a tangency");
         bracket.finish().escalations
     }

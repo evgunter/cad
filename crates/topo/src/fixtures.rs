@@ -82,6 +82,7 @@ pub(crate) fn test_curve(anchor: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<
         anchor,
         anchor,
         |_| None,
+        1.0,
         geom_core::Band::linear(tol).unwrap(),
     )
     .unwrap()

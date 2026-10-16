@@ -2360,6 +2360,22 @@ pub enum NodeWhy {
     NearlyParallel,
 }
 
+thread_local! {
+    /// Whether the pierce pass reads none of the branches the sweep
+    /// recorded ([`forget_branches`]).
+    static FORGET_BRANCHES: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Makes every boolean on this thread read its pierces as though the
+/// sweep had recorded no branch for any of them, until called with
+/// `false`: each pierce then reads the pierced face's tangent plane, the
+/// fallback a missing record takes (`vtxfac::classify_vertex_on_face`).
+/// `sweep-testing` only.
+#[cfg(feature = "sweep-testing")]
+pub fn forget_branches(on: bool) {
+    FORGET_BRANCHES.with(|f| f.set(on));
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -5218,6 +5234,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let edge_splits = core::mem::take(&mut acc.splits);
+    let mut branches = acc.take_branches();
+    if FORGET_BRANCHES.with(core::cell::Cell::get) {
+        branches.clear();
+    }
     let (mut contacts, mut pending) = acc.finish();
     let mut glued = Vec::with_capacity(declared.verified.touches.len());
     for touch in &declared.verified.touches {
@@ -5274,6 +5294,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &declared,
                 &contacts,
                 reread,
+                branches.get(&(operand, c.vertex)).copied(),
                 band,
             ) {
                 Ok(out) => out,
@@ -5309,6 +5330,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &declared,
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
+                            branches.get(&(operand, c.vertex)).copied(),
                             band,
                         ) {
                             Ok(_) | Err(BooleanError::Escalated { .. }) => {}
@@ -5543,6 +5565,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &recl::Reversed::default(),
+            held_faces(&touches, c),
             &mut touched,
         )?;
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
@@ -5658,6 +5681,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &reversed,
+            held_faces(&touches, vv[i].record),
             &mut retouched,
         )?;
         // A reversal moves a germ between flankers, after the touch is
@@ -5832,6 +5856,24 @@ fn touch_rows<T: Real>(
             }),
         })
         .collect()
+}
+
+/// **Each operand's face through a vertex pair's point** that the other
+/// operand's vertex of the pair touches, A's then B's
+/// ([`recl::HeldFace`]).
+fn held_faces<T: Real>(
+    touches: &std::collections::BTreeMap<(Operand, VertexKey), Touch<T>>,
+    c: VvContact,
+) -> [Option<recl::HeldFace<T>>; 2] {
+    [(Operand::B, c.b, c.a), (Operand::A, c.a, c.b)].map(|(operand, vertex, partner)| {
+        touches.get(&(operand, vertex)).map(|t| recl::HeldFace {
+            datum: t.datum,
+            operand,
+            vertex,
+            face: t.face,
+            partner,
+        })
+    })
 }
 
 /// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).
@@ -6843,8 +6885,8 @@ fn verify_tangency<T: Decide>(
 /// operands', the same under every op: the junction the result carries
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
-/// The rim's diameter is the extent every angular margin here is metered
-/// at.
+/// The wedge is levered at the farther of the two faces' extents, each
+/// read in its own operand ([`crate::wedge_reach`]).
 fn route_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -6861,8 +6903,16 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let extent = rim.radius + rim.radius;
-    let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
+    let circle = geom::Curve3::Circle {
+        center: rim.center,
+        axis: rim.axis,
+        radius: rim.radius,
+        u_ref: rim.u_ref,
+    };
+    let whole = (T::zero(), T::tau());
+    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
+        .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
+    let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, reach, band)
         .map_err(in_band)?;
     match routing {
         rim_wedge::RimRouting::Seam => {

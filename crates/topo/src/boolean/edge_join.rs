@@ -527,24 +527,18 @@ fn joinable<T: Decide>(
     if matches!(locus, Locus::Iso(_) | Locus::PairIso(..)) {
         return Ok(Some(join(false)));
     }
-    // The pair's reading at `w`, levered over the scale of the edge the
-    // join makes: it holds both edges, so the larger of their extents
-    // bounds its own from below. Both are read, so the lever does not
-    // depend on which edge the arena lists first, and a short edge
-    // beside a long one does not shrink it.
-    let extent = [(e1, d1), (e2, d2)]
+    // The pair's reading at `w`, levered at the two faces' extent as
+    // every reader of their wedge is (`crate::wedge_reach`), read from
+    // both edges so the lever does not depend on which edge the arena
+    // lists first.
+    let reach = [e1, e2]
         .into_iter()
-        .filter_map(|(e, d)| {
-            let c = body.edge_curve_linked(e, d).certified()?;
-            let (t0, t1) = c.params();
-            let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
-            Some(geom_brep::edge_extent(c.carrier(), t0, t1, chord))
-        })
+        .filter_map(|e| crate::edge_wedge_reach(body, e))
         .reduce(T::max);
-    let Some(extent) = extent else {
+    let Some(reach) = reach else {
         return Ok(None);
     };
-    let class = geom_brep::classify_dihedral(surf_f, surf_g, p, extent, band)
+    let class = geom_brep::classify_dihedral(surf_f, surf_g, p, reach, band)
         .map_err(|e| regularity(e.diag()))?;
     let regular = match (locus, class) {
         (Locus::Transverse, geom_brep::DihedralClass::Transverse) => true,
@@ -553,7 +547,7 @@ fn joinable<T: Decide>(
                 return Ok(None);
             };
             let verdict =
-                geom_brep::tangent_second_order(surf_f, surf_g, p, tangent, extent, band).verdict;
+                geom_brep::tangent_second_order(surf_f, surf_g, p, tangent, reach, band).verdict;
             verdict.map_err(regularity)?.sign == Sign::Positive
         }
         _ => false,
@@ -1012,7 +1006,14 @@ fn joined_spec<T: Decide>(
         // must-carry verdict reads its extent, so the pair is asked again
         // over the joined span.
         geom_brep::EdgeDescription::OnPair { pair } => body
-            .reask_on(*pair, carrier, (a, b), declared, band)
+            .reask_on(
+                *pair,
+                crate::edge_faces(body, join.kept),
+                carrier,
+                (a, b),
+                declared,
+                band,
+            )
             .map_err(refused)?,
         // An image is asked the same, between the joined edge's faces,
         // as every door that keeps one is. The join takes two images only

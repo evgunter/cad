@@ -160,10 +160,22 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
-    for &t in roots.iter().flatten() {
+    for (i, &t) in roots
+        .iter()
+        .enumerate()
+        .flat_map(|(i, ts)| ts.iter().map(move |t| (i, t)))
+    {
         let p = carrier.eval(t);
         match landing(y, face, p, band)? {
-            Landing::At(at, on) => return Ok(Some(CurvedEvent::Pierce { t, p, at, on })),
+            Landing::At(at, on) => {
+                return Ok(Some(CurvedEvent::Pierce {
+                    t,
+                    p,
+                    at,
+                    on,
+                    branch: Some(branch_of(i)),
+                }));
+            }
             Landing::Out => {}
             Landing::Unplaced => return Err(frontier()),
         }
@@ -189,11 +201,17 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        let on = ends[k].into_iter().find(|d| d.sign == Sign::Zero);
-        if let Some(on) = on {
+        let on = ends[k]
+            .into_iter()
+            .enumerate()
+            .find(|(_, d)| d.sign == Sign::Zero);
+        if let Some((i, on)) = on {
             placed[k] = Some(vertex_on_curved_face(
                 x_is, y, w, pw, face, on.margin, contacts, band, tol,
             )?);
+            if ends[k][1 - i].sign != Sign::Zero {
+                contacts.branches.insert((x_is, w), branch_of(i));
+            }
         }
     }
     if placed.iter().all(Option::is_none) {
@@ -202,4 +220,16 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     Placement::undeclared_no_interior(placed)
         .map(Some)
         .ok_or_else(frontier)
+}
+
+/// The branch of the plane at `index` in [`node::bisectors`]' order:
+/// the `â₁ − â₂` plane's ellipse is the bisector split's positive loop
+/// (`ring_path::LoopSplit::Bisector`), the `â₁ + â₂` plane's its
+/// negative one.
+fn branch_of(index: usize) -> crate::boolean::Branch {
+    if index == 0 {
+        crate::boolean::Branch::Positive
+    } else {
+        crate::boolean::Branch::Negative
+    }
 }

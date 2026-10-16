@@ -78,3 +78,19 @@ The lane now certifies a CIRCLE carrier, an arc rim, through its exact `Pcurve::
 
 So the doors now wait on blocker 2 alone, plus re-baselining the rows that pin `Chart(plane)`.
 
+
+## Blocker 2, decided (D2, 2026-10-16)
+
+Ev decided blocker 2 on the `[ev]` PR (fork-log row 152), and it dissolves the question. D2 no longer has a conventional pair form. A two-surface edge is one form, `{ pair, selector }`:
+- a curve known in advance (a closed form of the pair, such as a loft's boundary row, or a curve chosen in a 2-D overlap) takes a **structural** selector, certified by its own meter and each surface's chart-image certificate, with no pair lane at any scalar;
+- a curve that must be derived numerically takes a **witness**, admitted where its transversality or order-k jet margin certifies.
+
+So the doors state the cap rim by its closed form at every scalar, and no lane-less scalar remains for them. The build is these units, in this order. Units 3 and 4 land before the conventional form is removed, so nothing that passes today refuses:
+1. The selector type, with per-surface certification of structural selectors.
+2. Sweeps, lofts and blend rails state structural selectors, and construction-time `classify_dihedral` at joins retires. This includes this item's doors.
+3. Witness certificates through the analytic pose catalogue.
+4. The second-order lever arm read over the faces, not the edge's chord.
+5. An in-band coincidence refuses at the split / boolean / finish decision. `split_through_an_apex`'s in-band corner rows re-baseline to refusals, which Ev ruled fine.
+6. Import recovery: closed-form structural selectors (boundary isos, the analytic catalogue), typed refusals otherwise; STEP's synthesized sketches retire.
+7. Offset and shell read the selector.
+8. Order-k and freeform witness lanes, later.

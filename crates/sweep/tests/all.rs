@@ -68,6 +68,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flipped_shallow_dimple;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_minted_vertex_on_a_curved_face.rs"]
+mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
@@ -96,6 +98,8 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_seam_region_carrying_both_poles;
 #[path = "a_seam_region_covering_the_sphere_twice.rs"]
 mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
+mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -307,6 +311,8 @@ mod verbs_shell;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
+#[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
+mod a_tiny_lune_on_a_wide_sphere_reads_its_own_extent;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]

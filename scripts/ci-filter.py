@@ -16,7 +16,10 @@ per-crate):
                 convention: floors apply to CODE PRs.)
   TIER=all      a workspace-level file changed — the change can move any
                 crate's build, so everything runs, unscoped.
-  TIER=closure  only crate sources changed. PKGS is the DEPENDENT CLOSURE
+  TIER=closure  only crate sources changed — counting a page outside the
+                members that members read (it seeds its readers) and an
+                exact-name slow-set edit to .config/nextest.toml (it seeds the
+                crates its names belong to). PKGS is the DEPENDENT CLOSURE
                 PLUS THE READ REACH: the changed members, every member that
                 transitively depends on them (dev-dependencies INCLUDED — a
                 dev-dep edge is a real build edge for `cargo test`), and every
@@ -97,6 +100,9 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 request narrows it, and ci.yml fans `all` out
                                 as five matrix legs the way it fans `EPS=all`
                                 out as three
+  ALL_REASON=<why TIER is all: a requested whole run, a diff that could
+                not be read (an unresolvable base, an empty diff), or the
+                workspace-level change and its path; empty on other tiers>
   SEEDS=<comma-separated members whose OWN non-docs files changed, on
                                 every code tier; empty when none did (docs,
                                 aux, a workspace-level file alone) and when
@@ -374,6 +380,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import slow_set
+
 # Files that cannot move a hosted CI result.
 #
 # Documentation: deliberately narrow — only Markdown (anywhere) and the
@@ -386,10 +395,10 @@ import sys
 # executes the python blocks out of those same pages and out of that crate's
 # README. An edit to any of them can turn a build red — so they are not docs.
 #
-# THE SET IS READ OFF THE SOURCES ON EVERY RUN (`_compiled_markdown` and
-# `_markdown_read_by_python` below) and must stay that way. A sentence here
-# naming today's pages would be a second roster, and this one is the file that
-# decides whether anything runs: the last such sentence said `include_str!` was
+# THE SET IS READ OFF THE SOURCES ON EVERY RUN (`_compiled_markdown_readers`
+# and `_markdown_python_readers` below) and must stay that way. A sentence
+# here naming today's pages would be a second roster, and this one is the file
+# that decides whether anything runs: the last such sentence said `include_str!` was
 # unused, went on saying it after five pages started being compiled in, and
 # nothing could contradict it.
 #
@@ -439,8 +448,9 @@ _INCLUDE_RE = re.compile(r"\binclude(?:_str|_bytes)?!\s*\(\s*(\"[^\"\n]*\")?")
 _RUST_TREES = ("crates", "demos", "tools", "interval-transcendentals")
 
 
-def _compiled_markdown(root: str) -> frozenset[str]:
-    """Repo-relative `.md` paths that some Rust source compiles into a build.
+def _compiled_markdown_readers(root: str) -> dict[str, set[str]]:
+    """Each `.md` some Rust source compiles in -> the repo-relative sources
+    that compile it.
 
     FAILS CLOSED, twice over. An `include!` whose argument is not a plain
     string literal could name a `.md` and cannot be resolved by reading, so it
@@ -458,7 +468,7 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     run gates. The figure that IS tracked, because it is the one anyone
     acts on, is the job's billed minute in docs/CI-MINUTES-2026-08.md.
     """
-    out: set[str] = set()
+    out: dict[str, set[str]] = {}
     for tree in _RUST_TREES:
         base_dir = os.path.join(root, tree)
         if not os.path.isdir(base_dir):
@@ -486,8 +496,11 @@ def _compiled_markdown(root: str) -> frozenset[str]:
                     if not target.endswith(".md"):
                         continue
                     resolved = os.path.normpath(os.path.join(base, target))
-                    out.add(os.path.relpath(resolved, root).replace(os.sep, "/"))
-    return frozenset(out)
+                    page = os.path.relpath(resolved, root).replace(os.sep, "/")
+                    out.setdefault(page, set()).add(
+                        os.path.relpath(src, root).replace(os.sep, "/")
+                    )
+    return out
 
 
 # `--no-renames` IS LOAD-BEARING, not a style flag. With rename detection on
@@ -502,15 +515,16 @@ def _compiled_markdown(root: str) -> frozenset[str]:
 _DIFF_FLAGS = ("--name-only", "--no-renames")
 
 
-def _markdown_read_by_python(root: str) -> frozenset[str]:
-    """Repo-relative `.md` paths that a python test under `crates/` READS.
+def _markdown_python_readers(root: str) -> dict[str, set[str]]:
+    """Each `.md` a python test under `crates/` reads -> the repo-relative
+    test files that read it.
 
     The other half of the same fact. `crates/pncad-py/tests/test_guide.py`
     executes the python code blocks out of the guide pages and out of
     `crates/pncad-py/README.md`, so an edit to one of those can turn that
     suite red exactly as a Rust `include_str!` can turn a doctest red — and
-    `_compiled_markdown` cannot see it, because there is no `include!` to
-    match.
+    `_compiled_markdown_readers` cannot see it, because there is no `include!`
+    to match.
 
     The paths are built as `ROOT / "docs" / "guide" / "examples.md"`, so they
     are read the way they are written: an `ast` walk over `/`-chains of string
@@ -519,14 +533,14 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
     simply matches no diff. The shape in use is the shape checked.
 
     FAILS CLOSED ON EVERY MENTION IT CAN SEE, which is the posture
-    `_compiled_markdown` gets for free and this half has to buy. A `.md` STRING
-    LITERAL anywhere in one of these sources that no resolved chain accounts for
-    raises `Bail` — TIER=all — exactly as an unresolvable `include!` does on the
-    Rust side. That is the guard against the failure mode that has no other
-    tell: a page re-spelled some way this walk does not parse
-    (`Path(__file__).parents[1] / "README.md"`), which does not error, does not
-    shrink anything visibly, and simply drops that page into the docs tier where
-    its suite stops running. The literal is still there to be seen, so it is
+    `_compiled_markdown_readers` gets for free and this half has to buy. A
+    `.md` STRING LITERAL anywhere in one of these sources that no resolved
+    chain accounts for raises `Bail` — TIER=all — exactly as an unresolvable
+    `include!` does on the Rust side. That is the guard against the failure
+    mode that has no other tell: a page re-spelled some way this walk does not
+    parse (`Path(__file__).parents[1] / "README.md"`), which does not error,
+    does not shrink anything visibly, and simply drops that page into the docs
+    tier where its suite stops running. The literal is still there to be seen, so it is
     read as uncertainty rather than as absence.
 
     THE RESIDUE, said plainly because a disclosed blind spot is a work order: a
@@ -539,7 +553,7 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
     """
     import ast
 
-    out: set[str] = set()
+    out: dict[str, set[str]] = {}
 
     def parts(node: "ast.AST") -> list[str] | None:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -555,7 +569,7 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
 
     base_dir = os.path.join(root, "crates")
     if not os.path.isdir(base_dir):
-        return frozenset()
+        return out
     for base, dirs, names in os.walk(base_dir):
         dirs[:] = [d for d in dirs if d != "target"]
         for name in sorted(names):
@@ -592,8 +606,11 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
                     "resolve to a repo path, so whether that page is executed by a suite "
                     "cannot be read here — and that is what decides the docs tier"
                 )
-            out |= resolved
-    return frozenset(out)
+            for page in resolved:
+                out.setdefault(page, set()).add(
+                    os.path.relpath(src, root).replace(os.sep, "/")
+                )
+    return out
 
 
 # ------------------------------------------------------------------ THE READ
@@ -931,8 +948,8 @@ def _file_destinations(text: str, crate_dir: str) -> set[str]:
             break
     # AN `include!` ARGUMENT IS NOT A RUNTIME READ and is accounted for
     # elsewhere. It resolves against the FILE's directory rather than against
-    # any path expression here, `_compiled_markdown` already reads the whole
-    # family for the docs tier, and what it names is compiled in rather than
+    # any path expression here, `_compiled_markdown_readers` already reads the
+    # whole family for the docs tier, and what it names is compiled in rather than
     # opened — so leaving it in the sweep below would measure a
     # `include_str!("../../../docs/guide/north-star-audit.md")` from the crate
     # root and pin `pncad` for a page rustdoc pulls in.
@@ -1027,8 +1044,9 @@ def _read_reach(root: str) -> Reach:
     return reach
 
 
-def _suite_read_markdown(root: str) -> frozenset[str]:
-    """Repo-relative `.md` paths a RUST SUITE opens at run time.
+def _suite_markdown_readers(root: str) -> dict[str, set[str]]:
+    """Each `.md` a RUST SUITE opens at run time -> the crate directories
+    that open it.
 
     The third half of `_consumed_markdown`, and the same argument as the other
     two one language over: `crates/geom-core/tests/flagged_census.rs` reads
@@ -1038,13 +1056,12 @@ def _suite_read_markdown(root: str) -> frozenset[str]:
     red. Neither of the other two halves can see it: there is no `include!` to
     match and it is not python.
     """
-    reach = _read_reach(root)
-    return frozenset(
-        dest
-        for dests in reach.paths.values()
-        for dest in dests
-        if dest.endswith(".md")
-    )
+    out: dict[str, set[str]] = {}
+    for member, dests in _read_reach(root).paths.items():
+        for dest in dests:
+            if dest.endswith(".md"):
+                out.setdefault(dest, set()).add(member)
+    return out
 
 
 def _consumed_markdown(root: str) -> frozenset[str]:
@@ -1067,13 +1084,39 @@ def _consumed_markdown(root: str) -> frozenset[str]:
     rather than dropped — so a consumer re-spelled out of one parser's reach
     becomes TIER=all rather than becoming a page in the docs tier. No half can
     see a page whose name is never written down; that residue is
-    `_markdown_read_by_python`'s to state and it does.
+    `_markdown_python_readers`'s to state and it does.
     """
-    return (
-        _compiled_markdown(root)
-        | _markdown_read_by_python(root)
-        | _suite_read_markdown(root)
-    )
+    return frozenset(_markdown_readers(root))
+
+
+# Keyed by root, like `_REACH_CACHE`: one process classifies one tree, which
+# does not change under it, and the selftest's fixtures each get their own
+# root (a fresh tempdir, read by a fresh subprocess).
+_READERS_CACHE: dict[str, dict[str, frozenset[str | None]]] = {}
+
+
+def _markdown_readers(root: str) -> dict[str, frozenset[str | None]]:
+    """Each consumed `.md` -> the crate DIRECTORIES whose sources read it,
+    `None` standing for a reader outside `crates/` (an excluded workspace).
+
+    The same three halves `_consumed_markdown` unions, kept per reader, so a
+    consumed page outside every member seeds the members that read it instead
+    of forcing TIER=all. A page with a `None` reader is still unscopable."""
+    if root in _READERS_CACHE:
+        return _READERS_CACHE[root]
+
+    def crate_dir(src: str) -> str | None:
+        parts = src.split("/")
+        return parts[1] if len(parts) >= 3 and parts[0] == "crates" else None
+
+    out: dict[str, set[str | None]] = {}
+    for half in (_compiled_markdown_readers(root), _markdown_python_readers(root)):
+        for page, srcs in half.items():
+            out.setdefault(page, set()).update(crate_dir(s) for s in srcs)
+    for page, dirs in _suite_markdown_readers(root).items():
+        out.setdefault(page, set()).update(dirs)
+    _READERS_CACHE[root] = {page: frozenset(r) for page, r in out.items()}
+    return _READERS_CACHE[root]
 
 
 def _run(cmd: list[str], cwd: str) -> str:
@@ -1216,7 +1259,77 @@ def _seeds(files: list[str], root: str) -> str:
     return ",".join(sorted(out))
 
 
-def classify(files: list[str], root: str) -> dict[str, str]:
+# THE SLOW-SET LIST SCOPES BY ITS NAMES. `.config/nextest.toml` is
+# workspace-level — a profile setting moves every run — except for the one
+# edit the implementer discipline asks of every PR that adds a slow test: an
+# exact-name entry of the `ci` profile's `default-filter` added, dropped or
+# moved. That edit moves only the tests it names, so it seeds their crates: an
+# added name runs in the slow-set step of its crate, a dropped one in that
+# crate's default step, and the name check reads both binaries' listings.
+#
+# THE TEST IS STRUCTURAL AND FAILS SAFE. Both revisions must parse; the file
+# outside the filter's string must be byte-identical; `slow_set.entries` (the
+# one parser of the filter, shared with check-slow-set-names.py and ci.yml)
+# must read both filters; and every package an added or dropped pair names
+# must be a member. Anything else — a setting, a new profile, a matcher
+# `slow_set` refuses (a non-exact one, whitespace inside its text), a
+# reordering that moves no pair, a file this cannot read — raises `Bail`,
+# i.e. TIER=all.
+NEXTEST_CONFIG = slow_set.CONFIG
+_FILTER_OPEN_RE = re.compile(r'^default-filter\s*=\s*"""\n?', re.M)
+
+
+def _filter_span(text: str, rev: str) -> tuple[str, str, str]:
+    """`(before, filter, after)` of one revision's nextest config: the text
+    around its one multi-line `default-filter` string, and the `ci` profile's
+    parsed filter."""
+    try:
+        value = slow_set.ci_filter(text)
+    except slow_set.SlowSetError as exc:
+        raise Bail(f"{NEXTEST_CONFIG} at {rev}: {exc}") from exc
+    opens = list(_FILTER_OPEN_RE.finditer(text))
+    if len(opens) != 1:
+        raise Bail(f"{NEXTEST_CONFIG} at {rev}: not one multi-line default-filter string")
+    start = opens[0].end()
+    end = text.find('"""', start)
+    return text[:start], value, text[end:]
+
+
+def _slow_entries(value: str, rev: str) -> frozenset[tuple[str, str]]:
+    try:
+        return frozenset(slow_set.entries(value))
+    except slow_set.SlowSetError as exc:
+        raise Bail(f"{NEXTEST_CONFIG} at {rev}: {exc}") from exc
+
+
+def _slow_set_seeds(root: str, base: str | None, members: set[str]) -> set[str]:
+    """The members a slow-set-only edit of `.config/nextest.toml` names, or
+    `Bail` when the edit is anything else."""
+    if base is None:
+        raise Bail(f"{NEXTEST_CONFIG} changed and there is no base revision to read it at")
+    try:
+        try:
+            old_rev = _run(["git", "merge-base", base, "HEAD"], root).strip()
+        except subprocess.CalledProcessError:
+            old_rev = base
+        old = _run(["git", "show", f"{old_rev}:{NEXTEST_CONFIG}"], root)
+        new = _run(["git", "show", f"HEAD:{NEXTEST_CONFIG}"], root)
+    except subprocess.CalledProcessError as exc:
+        raise Bail(f"cannot read {NEXTEST_CONFIG} at both revisions ({exc})") from exc
+    old_before, old_filter, old_after = _filter_span(old, old_rev)
+    new_before, new_filter, new_after = _filter_span(new, "HEAD")
+    if (old_before, old_after) != (new_before, new_after):
+        raise Bail(f"{NEXTEST_CONFIG} changed outside the ci profile's default-filter")
+    moved = _slow_entries(old_filter, old_rev) ^ _slow_entries(new_filter, "HEAD")
+    if not moved:
+        raise Bail(f"{NEXTEST_CONFIG}'s ci filter changed and no exact-name entry moved")
+    pkgs = {binary.split("::")[0] for binary, _ in moved}
+    if not pkgs <= members:
+        raise Bail(f"{NEXTEST_CONFIG}: slow-set entries name non-members {sorted(pkgs - members)}")
+    return pkgs
+
+
+def classify(files: list[str], root: str, base: str | None = None) -> dict[str, str]:
     if not files:
         # No diff at all is not "nothing changed" as far as we can prove —
         # it is a base ref we failed to resolve. Fail closed.
@@ -1230,22 +1343,46 @@ def classify(files: list[str], root: str) -> dict[str, str]:
     dir_of, deps = _members(root)
     seeds: set[str] = set()
     aux: list[str] = []
+    render_only: frozenset[str] | None = None
     for f in files:
         if _is_docs(f, consumed):
             continue
         # AUX PATHS build no workspace crate: the excluded demo and tool
-        # workspaces, the grep gates, and the tracker. Their own jobs key on
-        # the diff directly (ci.yml's `filter` job), and the nightly re-takes
-        # everything, so they do not force the whole-workspace tier.
+        # workspaces, the grep gates, the tracker, and the render-only
+        # workflow files. Their own jobs key on the diff directly (ci.yml's
+        # `filter` job), and the nightly re-takes everything, so they do not
+        # force the whole-workspace tier.
         if f.startswith(AUX_PREFIXES):
             aux.append(f)
             continue
+        if f.startswith(".github/"):
+            if render_only is None:
+                render_only = _render_only_units(root)
+            if _workflow_unit(f) in render_only:
+                aux.append(f)
+                continue
+        if f == NEXTEST_CONFIG:
+            seeds |= _slow_set_seeds(root, base, set(dir_of.values()))
+            continue
         member = _own_member(f, dir_of)
+        # A PAGE A MEMBER READS seeds its readers, wherever it lives: an
+        # `include_str!`ed page can move the reader's build, a page a suite
+        # opens only the reader's tests. A reader outside every member (an
+        # excluded workspace) leaves the page unscopable.
+        if f in consumed:
+            readers = _markdown_readers(root)[f]
+            if not all(r in dir_of for r in readers):
+                raise Bail(f"{f} is read outside the workspace members")
+            seeds |= {dir_of[r] for r in readers}  # type: ignore[index]
+            if member is not None:
+                seeds.add(member)
+            continue
         # ALLOWLIST: only a file inside a member's directory is scopable.
         # Everything else is workspace-level and forces TIER=all:
         #   root Cargo.toml / Cargo.lock / rust-toolchain.toml — resolution
         #     and toolchain move every crate;
-        #   .cargo/**, .github/**, scripts/** — how everything is built/run;
+        #   .cargo/**, .github/** (but the render-only units above),
+        #     scripts/** — how everything is built/run;
         #   demos/**, tools/**, interval-transcendentals/** — the EXCLUDED
         #     workspaces; interval-transcendentals is a path dependency of
         #     geom-core, and demos/tour path-depends on nine members;
@@ -1373,6 +1510,89 @@ AUX_PREFIXES: tuple[str, ...] = (
     "docs/tess-budget-data/",
     "docs/perf-data/",
 )
+
+
+# THE RENDER-ONLY WORKFLOW FILES are aux paths too. Nothing the PR gate runs
+# reads them, so an edit to one cannot move a result the gate reports; the
+# render workflow they belong to runs nightly, and on a branch whose commit
+# subject carries `[render]` (ci.yml's `render tag` step, which reads the
+# commit and not the tier).
+#
+# DERIVED FROM THE TREE. A UNIT is a workflow file or an action directory
+# under `.github/`. `RENDER_WORKFLOW` is render-only unless the gate workflow
+# reaches it; any other unit is render-only when it is referenced at all and
+# every unit referring to it is render-only. A reference is the unit's path
+# written anywhere in a file under `_REFERENCE_TREES` — a `uses:`, a
+# `source`, a comment alike, which errs toward more referrers and so toward
+# TIER=all. A file under `scripts/` or `crates/` that names a unit is a
+# referrer that is never render-only. This script is not a referrer: it reads
+# no unit, and it names them to classify them.
+#
+# BLIND SPOT: a reader that never spells a unit's path (a walk over
+# `.github/` as a tree) is not seen. The one such reader today is a lint gate,
+# and the lint job runs on every tier.
+RENDER_WORKFLOW = ".github/workflows/render.yml"
+GATE_WORKFLOW = ".github/workflows/ci.yml"
+_REFERENCE_TREES = (".github", "scripts", "crates")
+_UNIT_RE = re.compile(rb"\.github/(actions/[A-Za-z0-9_.-]+|workflows/[A-Za-z0-9_.-]+\.ya?ml)")
+_SELF = "scripts/ci-filter.py"
+
+
+def _workflow_unit(path: str) -> str | None:
+    parts = path.split("/")
+    if len(parts) >= 3 and parts[0] == ".github" and parts[1] == "actions":
+        return "/".join(parts[:3])
+    if len(parts) == 3 and parts[:2] == [".github", "workflows"]:
+        return path
+    return None
+
+
+def _render_only_units(root: str) -> frozenset[str]:
+    """The units only the render workflow reads. See RENDER-ONLY above."""
+    units: set[str] = set()
+    referrers: dict[str, set[str]] = {}
+    for tree in _REFERENCE_TREES:
+        for base, dirs, names in os.walk(os.path.join(root, tree)):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for name in names:
+                path = os.path.join(base, name)
+                rel = os.path.relpath(path, root).replace(os.sep, "/")
+                if rel == _SELF:
+                    continue
+                try:
+                    with open(path, "rb") as fh:
+                        data = fh.read()
+                except OSError as exc:
+                    raise Bail(f"cannot read {rel}: {exc}") from exc
+                own = _workflow_unit(rel)
+                if own is not None:
+                    units.add(own)
+                for m in _UNIT_RE.finditer(data):
+                    unit = ".github/" + m.group(1).decode()
+                    if unit != own:
+                        referrers.setdefault(unit, set()).add(own or rel)
+    if RENDER_WORKFLOW not in units:
+        return frozenset()
+    reached = {GATE_WORKFLOW}
+    stack = [GATE_WORKFLOW]
+    while stack:
+        cur = stack.pop()
+        for unit, by in referrers.items():
+            if cur in by and unit not in reached:
+                reached.add(unit)
+                stack.append(unit)
+    if RENDER_WORKFLOW in reached:
+        return frozenset()
+    render = {RENDER_WORKFLOW}
+    grew = True
+    while grew:
+        grew = False
+        for unit in sorted(units - render):
+            by = referrers.get(unit, set())
+            if by and by <= render:
+                render.add(unit)
+                grew = True
+    return frozenset(render)
 
 
 JOB_ROOTS = {
@@ -2162,8 +2382,6 @@ _LEADING_ATTRS_RE = re.compile(r"^\s*(?:#\s*\[[^\]]*\]\s*)*")
 _INLINE_MOD_RE = re.compile(r"^" + _VIS + r"mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
 _RS_LITERAL_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
 _DEFINES_TEST_RE = re.compile(r"#\s*\[\s*test\s*\]|\bproptest!")
-_SLOW_BINARY_RE = re.compile(r"binary_id\(([^)]+)\)")
-_SLOW_TEST_RE = re.compile(r"test\(=([^)]+)\)")
 
 
 def _file_test_layout(text: str) -> tuple[list[str], bool]:
@@ -2221,14 +2439,12 @@ def _slow_set(root: str) -> dict[str, list[str]]:
     per-PR step, this one included."""
     out: dict[str, list[str]] = {}
     try:
-        with open(os.path.join(root, ".config", "nextest.toml"), encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError:
+        with open(os.path.join(root, NEXTEST_CONFIG), encoding="utf-8") as fh:
+            pairs = slow_set.entries(slow_set.ci_filter(fh.read()))
+    except (OSError, slow_set.SlowSetError):
         return out
-    for line in text.splitlines():
-        b = _SLOW_BINARY_RE.search(line)
-        if b:
-            out.setdefault(b.group(1), []).extend(_SLOW_TEST_RE.findall(line))
+    for binary, name in pairs:
+        out.setdefault(binary, []).append(name)
     return out
 
 
@@ -2859,8 +3075,6 @@ def _plant_seed_axis_fixture(
     both axes would make every one of those expectations a statement about the
     other axis's dependency edges.
     """
-    import shutil
-
     for pkg in pkgs:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
@@ -2883,7 +3097,7 @@ def _plant_seed_axis_fixture(
         )
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
-    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    _copy_scripts(t)
     meta = {
         "packages": [
             {
@@ -2999,9 +3213,52 @@ def _plant_reach(t: str) -> None:
     )
 
 
-def _plant_fixture(t: str) -> str:
+# The render-only derivation's fixture. Every unit is named unlike the real
+# ones, so the derivation is what classifies them and no name can.
+_FIXTURE_WORKFLOWS = {
+    ".github/workflows/ci.yml": "steps:\n  - uses: ./.github/actions/setup-tool\n",
+    ".github/workflows/nightly.yml": (
+        "jobs:\n  render:\n    uses: ./.github/workflows/render.yml\n"
+        "  probe:\n    steps:\n      - uses: ./.github/actions/shared-step\n"
+    ),
+    ".github/workflows/render.yml": (
+        "steps:\n  - uses: ./.github/actions/redo-lane\n"
+        "  - uses: ./.github/actions/setup-tool\n"
+        "  - uses: ./.github/actions/shared-step\n"
+        "  - uses: ./.github/actions/script-read\n"
+    ),
+    # Self-references, as the real lane's `lib.sh` makes: not a referrer.
+    ".github/actions/redo-lane/action.yml": (
+        "runs:\n  steps:\n    - uses: ./.github/actions/nested-step\n"
+        "    - run: source .github/actions/redo-lane/lib.sh\n"
+    ),
+    ".github/actions/redo-lane/lib.sh": "# sourced from .github/actions/redo-lane/action.yml\n",
+    ".github/actions/nested-step/action.yml": "runs: {}\n",
+    ".github/actions/setup-tool/action.yml": "runs: {}\n",
+    ".github/actions/shared-step/action.yml": "runs: {}\n",
+    ".github/actions/script-read/action.yml": "runs: {}\n",
+    ".github/actions/orphan/action.yml": "runs: {}\n",
+    "scripts/reads-action.sh": "cat .github/actions/script-read/action.yml\n",
+}
+
+
+def _plant_workflows(t: str) -> None:
+    for rel, text in _FIXTURE_WORKFLOWS.items():
+        os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
+        with open(os.path.join(t, rel), "w") as fh:
+            fh.write(text)
+
+
+def _copy_scripts(t: str) -> None:
+    """This script and the slow-set parser it imports, into a fixture."""
     import shutil
 
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in ("ci-filter.py", "slow_set.py"):
+        shutil.copy(os.path.join(here, name), os.path.join(t, "scripts", name))
+
+
+def _plant_fixture(t: str) -> str:
     for pkg in _FIXTURE_PKGS:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
@@ -3036,9 +3293,10 @@ def _plant_fixture(t: str) -> str:
     with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
         fh.write('PAGE = ROOT / "docs" / "guide" / "PYPAGE.md"\n')
     _plant_reach(t)
+    _plant_workflows(t)
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
-    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    _copy_scripts(t)
     meta = {
         "packages": [
             {
@@ -3201,19 +3459,46 @@ def selftest() -> None:
             # so an edit to it can turn a build red. This is the live shape —
             # `crates/pncad/src/guide.rs` does exactly this to `docs/GUIDE.md`
             # and four pages under `docs/guide/`.
-            ("a page compiled into rustdoc", ["docs/GUIDE.md"], "all"),
+            ("a page compiled into rustdoc", ["docs/GUIDE.md"], "closure"),
             # The same fact through the other two arms of the same derivation.
             # Without these, `_INCLUDE_RE` could narrow to `include_str!` alone
             # and `_RUST_TREES` could shrink to `("crates",)` with every case
             # green — two claims in the header that nothing checked.
-            ("a page embedded as bytes", ["docs/guide/ASSET.md"], "all"),
+            ("a page embedded as bytes", ["docs/guide/ASSET.md"], "closure"),
             ("a page compiled into an excluded workspace", ["docs/TOURPAGE.md"], "all"),
             # And the other consumer: a page a python suite executes, IN A
             # SUBDIRECTORY, which is where the real ones live.
-            ("a page a python suite reads", ["docs/guide/PYPAGE.md"], "all"),
+            ("a page a python suite reads", ["docs/guide/PYPAGE.md"], "closure"),
         ):
             _files_case(t, f"{what} must NOT classify docs", files,
                         TIER=tier, RUN_BUILD="true", RUN_K_LINT="true")
+
+        # --- A CONSUMED PAGE SEEDS THE MEMBERS THAT READ IT, derived from the
+        # same three halves that take it out of the docs tier. `docs/AUDIT.md`
+        # is `docs/predicate-dimension-audit.md`'s shape: one suite opens it.
+        # A reader outside every member (`docs/TOURPAGE.md`, above) keeps the
+        # page unscopable.
+        for what, files, seeds, pkgs in (
+            ("a page one suite reads", ["docs/AUDIT.md"], "stl", "stl"),
+            ("a page compiled into a member", ["docs/GUIDE.md"], "topo", "stl,topo"),
+            ("a page a member's python test reads", ["docs/guide/PYPAGE.md"], "stl", "stl"),
+            ("a read page beside a crate source", ["docs/AUDIT.md", "crates/geom-core/src/lib.rs"],
+             "geom-core,stl", "geom-core,stl,topo"),
+        ):
+            _files_case(t, f"{what} seeds {seeds}", files, TIER="closure", SEEDS=seeds, PKGS=pkgs)
+        _files_case(t, "a page read outside the members beside a crate source must classify all",
+                    ["docs/TOURPAGE.md", "crates/stl/src/lib.rs"], TIER="all")
+
+        # --- ALL_REASON says which of the three ways the tier became `all`.
+        for what, argv, stdin, says in (
+            ("a workspace-level change", ["--files", "-"], "Cargo.toml\n", "a workspace-level change ("),
+            ("a requested whole run", ["--force-all"], "", "a requested whole run"),
+            ("an empty diff", ["--files", "-"], "", "no readable diff"),
+            ("a closure", ["--files", "-"], "crates/stl/src/lib.rs\n", ""),
+        ):
+            got = _selftest_invoke(t, argv, stdin).get("ALL_REASON")
+            if not ((got or "").startswith(says) if says else got == ""):
+                raise SystemExit(f"SELFTEST FAILED: ALL_REASON on {what}: want {says!r}…, got {got!r}")
 
         # --- AUX paths build no workspace crate; their own jobs key on the diff.
         for what, files in (
@@ -3228,12 +3513,46 @@ def selftest() -> None:
                     ["demos/tour/src/main.rs", "crates/stl/src/lib.rs"],
                     TIER="closure", PKGS="stl")
 
+        # --- RENDER-ONLY WORKFLOW FILES are aux; anything the gate can reach
+        # is not. The fixture is `_FIXTURE_WORKFLOWS`.
+        for what, files, tier in (
+            ("the render workflow alone", [".github/workflows/render.yml"], "aux"),
+            ("a render-only action", [".github/actions/redo-lane/lib.sh",
+                                      ".github/actions/redo-lane/action.yml"], "aux"),
+            ("an action only a render-only action uses",
+             [".github/actions/nested-step/action.yml"], "aux"),
+            ("the render workflow beside the gate workflow",
+             [".github/workflows/render.yml", ".github/workflows/ci.yml"], "all"),
+            ("an action the gate workflow uses", [".github/actions/setup-tool/action.yml"], "all"),
+            ("an action the nightly uses too", [".github/actions/shared-step/action.yml"], "all"),
+            ("an action a script reads", [".github/actions/script-read/action.yml"], "all"),
+            ("an action nothing uses", [".github/actions/orphan/action.yml"], "all"),
+            ("the nightly, which calls the render workflow", [".github/workflows/nightly.yml"], "all"),
+            ("an unrecognised file under .github", [".github/CODEOWNERS"], "all"),
+        ):
+            _files_case(t, f"{what} must classify {tier}", files,
+                        TIER=tier, RUN_BUILD="false" if tier == "aux" else "true")
+        _files_case(t, "the render workflow beside a crate source scopes to the crate",
+                    [".github/workflows/render.yml", "crates/stl/src/lib.rs"],
+                    TIER="closure", PKGS="stl")
+        # The gate reaching the render workflow makes none of it render-only.
+        gate = os.path.join(t, GATE_WORKFLOW)
+        with open(gate, "a") as fh:
+            fh.write("  - uses: ./.github/workflows/render.yml\n")
+        for what, files in (
+            ("the render workflow, once the gate calls it", [".github/workflows/render.yml"]),
+            ("a render-only action, once the gate calls its workflow",
+             [".github/actions/redo-lane/action.yml"]),
+        ):
+            _files_case(t, f"{what} must classify all", files, TIER="all")
+        with open(gate, "w") as fh:
+            fh.write(_FIXTURE_WORKFLOWS[GATE_WORKFLOW])
+
         # --- SEEDS ON THE `all` TIER name the members whose own files moved,
-        # as they do on `closure`. ci.yml runs the slow set of exactly these,
-        # so an empty SEEDS here switches that row off for a crate diff that
-        # also edits `.config/nextest.toml` — the file the slow set lives in.
-        # The workspace-level path comes FIRST in two rows below: `classify`
-        # bails at it, so seeds collected by that loop would stop there.
+        # as they do on `closure`; the seed-keyed rows (the slow set, the
+        # python suite, the extra eps rows) read it. The workspace-level path
+        # comes FIRST in two rows below: `classify` bails at it, so seeds
+        # collected by that loop would stop there.
         for what, files, seeds in (
             ("a crate beside the slow-set list", [".config/nextest.toml", "crates/topo/src/lib.rs"],
              "topo"),
@@ -3313,6 +3632,8 @@ def selftest() -> None:
         _expect("a base equal to HEAD is an empty diff, not a docs change",
                 _selftest_invoke(t, ["--base", "HEAD"]),
                 {"TIER": "all", "RUN_BUILD": "true"})
+
+        _selftest_slow_set_edits(t)
 
     # --- THE VIEWER TOOLKIT AXIS, on its own fixture (`_VIEWER_FIXTURE_PKGS`).
     #
@@ -3504,7 +3825,7 @@ def selftest() -> None:
     _selftest_gated()
     _selftest_eps_rows()
     print("ci-filter selftest OK: docs/aux/closure/all tiers, the dependent closure, "
-          "the python and viewer axes, the oracle signal, requests, the per-file test gate and the extra eps rows")
+          "the render-only workflow files, the python and viewer axes, the oracle signal, requests, the per-file test gate and the extra eps rows")
 
 
 # A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
@@ -3527,11 +3848,100 @@ _GATED_TERM_RING = "(binary_id(geom-core::all) & test(/^ring_fuzz::/))"
 _GATED_TERM_PROBE = "(binary_id(topo) & test(/^review_probe::/))"
 
 
+_FIXTURE_NEXTEST = (
+    "[profile.ci]\n"
+    "fail-fast = false\n"
+    'default-filter = """\n'
+    "not (\n"
+    "  (binary_id(topo::all) & (test(=a::slow) | test(=a::slower))) |\n"
+    "  (binary_id(stl) & test(=b::slow))\n"
+    ")\n"
+    '"""\n'
+    "\n"
+    "[profile.ci.junit]\n"
+    'path = "junit.xml"\n'
+)
+
+
+def _selftest_slow_set_edits(t: str) -> None:
+    """`.config/nextest.toml` edits through `--base`: an exact-name slow-set
+    edit seeds the crates its names belong to, and every other edit stays
+    TIER=all. Each case is one commit on the same baseline."""
+    path = os.path.join(t, ".config", "nextest.toml")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write(_FIXTURE_NEXTEST)
+    _git(t, "add", "-A")
+    _git(t, "commit", "-qm", "slow set")
+    _git(t, "tag", "slowbase")
+
+    def case(what: str, edits: list[tuple[str, str]], extra: list[str] = (), **want: str) -> None:
+        _git(t, "reset", "-q", "--hard", "slowbase")
+        text = _FIXTURE_NEXTEST
+        for old, new in edits:
+            if old not in text:
+                raise SystemExit(f"SELFTEST FAILED: {what}: the fixture holds no {old!r}")
+            text = text.replace(old, new, 1)
+        with open(path, "w") as fh:
+            fh.write(text)
+        for rel in extra:
+            with open(os.path.join(t, rel), "a") as fh:
+                fh.write("// edit\n")
+        _git(t, "commit", "-qam", what)
+        _expect(what, _selftest_invoke(t, ["--base", "HEAD~1"]), want)
+
+    name_added = ("test(=a::slower)", "test(=a::slower) | test(=a::slowest)")
+    case("a slow-set name added seeds its crate", [name_added],
+         TIER="closure", SEEDS="topo", PKGS="stl,topo")
+    case("a slow-set name dropped seeds its crate",
+         [("(test(=a::slow) | test(=a::slower))", "test(=a::slow)")],
+         TIER="closure", SEEDS="topo", PKGS="stl,topo")
+    case("a whole slow-set entry dropped seeds its crate",
+         [(" |\n  (binary_id(stl) & test(=b::slow))", "")],
+         TIER="closure", SEEDS="stl", PKGS="stl")
+    case("a slow-set name moved between binaries seeds both crates",
+         [("binary_id(stl) & test(=b::slow)", "binary_id(geom-core::all) & test(=b::slow)")],
+         TIER="closure", SEEDS="geom-core,stl", PKGS="geom-core,stl,topo")
+    case("a slow-set name beside a crate source seeds both",
+         [("test(=b::slow)", "(test(=b::slow) | test(=b::slowish))")],
+         ["crates/verbs/src/lib.rs"],
+         TIER="closure", SEEDS="stl,verbs", PKGS="stl,verbs")
+    case("a profile setting changed must classify all",
+         [("fail-fast = false", "fail-fast = true")], TIER="all", SEEDS="")
+    case("a profile setting changed beside a slow-set name must classify all",
+         [("fail-fast = false", "fail-fast = true"), name_added], TIER="all")
+    case("a new profile must classify all",
+         [('path = "junit.xml"\n', 'path = "junit.xml"\n\n[profile.quick]\nretries = 2\n')],
+         TIER="all")
+    case("a non-exact predicate must classify all",
+         [("test(=b::slow)", "test(/b::/)")], TIER="all")
+    case("an entry naming no member must classify all",
+         [("(binary_id(stl) & test(=b::slow))",
+           "(binary_id(stl) & test(=b::slow)) |\n  (binary_id(nowhere::all) & test(=c::slow))")],
+         TIER="all")
+    case("entries joined by something other than `|` must classify all",
+         [(") |\n  (binary_id(stl)", ") &\n  (binary_id(stl)"), name_added], TIER="all")
+    case("a reordering that moves no name must classify all",
+         [("test(=a::slow) | test(=a::slower)", "test(=a::slower) | test(=a::slow)")],
+         TIER="all")
+    # nextest keeps a matcher's text literally, so whitespace inside one makes
+    # it name no test: the entry is dead, not unchanged.
+    case("a space inside a name beside a real name move must classify all",
+         [name_added, ("test(=b::slow)", "test(=b::slow )")], TIER="all")
+    case("a space inside a binary id beside a real name move must classify all",
+         [name_added, ("binary_id(topo::all)", "binary_id(topo:: all)")], TIER="all")
+    case("a setting after the filter changed beside a name move must classify all",
+         [name_added, ('path = "junit.xml"', 'path = "j.xml"')], TIER="all")
+    case("a malformed nextest.toml must classify all",
+         [('"""\n\n', "\n\n")], TIER="all")
+    _git(t, "reset", "-q", "--hard", "slowbase")
+    _files_case(t, "a slow-set edit with no base to read it at must classify all",
+                [".config/nextest.toml"], TIER="all")
+
+
 def _plant_gated_fixture(t: str) -> str:
     """A miniature workspace carrying three markers: a healthy `tests/` suite,
     a healthy `src/` one, and one naming a path that is not there."""
-    import shutil
-
     for pkg in _GATED_FIXTURE_PKGS:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         os.makedirs(os.path.join(t, "crates", pkg, "tests"), exist_ok=True)
@@ -3580,7 +3990,7 @@ def _plant_gated_fixture(t: str) -> str:
         )
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
-    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    _copy_scripts(t)
     meta = {
         "packages": [
             {
@@ -4038,9 +4448,9 @@ def _selftest_docs_premise() -> None:
     documentation. It does NOT prove the union is COMPLETE: "every member of
     this set is non-docs" is vacuously true of a set that has quietly lost
     members, and a derivation that stopped recognising a spelling loses them
-    without erroring. Completeness rests on `_markdown_read_by_python` and
-    `_compiled_markdown` failing closed on every consumption they can see — a
-    mention neither can resolve raises `Bail` rather than going missing — and
+    without erroring. Completeness rests on `_markdown_python_readers` and
+    `_compiled_markdown_readers` failing closed on every consumption they can
+    see — a mention neither can resolve raises `Bail` rather than going missing — and
     that is what turns a re-spelled page into the red below instead of into a
     quietly smaller set.
 
@@ -4213,8 +4623,13 @@ def main() -> int:
     # below — including one that happens before `files` is ever bound — still
     # reaches the path-keyed signals as "unknown", which they read as run.
     files: list[str] | None = None
+    # WHY THE TIER IS `all`, for the gate summary: a requested whole run, a
+    # diff that could not be read, or a workspace-level change. Empty on every
+    # other tier.
+    all_reason = ""
     try:
         if args.force_all:
+            all_reason = "a requested whole run (--force-all, a `scope=all` dispatch), which reads no diff"
             # `files` stays None, and that is the honest reading: nothing was
             # diffed, so nothing here can prove the oracle sources held still.
             # The signal runs.
@@ -4231,10 +4646,16 @@ def main() -> int:
                 # two-dot form rather than guessing.
                 raw = _run(["git", "diff", *_DIFF_FLAGS, args.base, "HEAD"], root)
             files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
-            res = classify(files, root)
+            res = classify(files, root, args.base)
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root, files)
+        detail = " ".join(str(exc).split())
+        all_reason = (
+            f"a workspace-level change ({detail})"
+            if files
+            else f"no readable diff against the base ({detail})"
+        )
 
     # `files` deliberately survives the `except` above. A Bail out of
     # `classify` is the NORMAL route for this signal, not a breakdown:
@@ -4264,6 +4685,7 @@ def main() -> int:
         )
 
     out = decorate(res, files, config, wheel_members)
+    out["ALL_REASON"] = all_reason if out["TIER"] == "all" else ""
 
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees
