@@ -365,8 +365,8 @@ impl Rim {
         let geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } = &self.ellipse
         else {
@@ -375,7 +375,7 @@ impl Rim {
         let spline = conic_arc_segments(
             *center,
             (*u_ref, axis.cross(*u_ref)),
-            (*major, *minor),
+            (*semi_u, *semi_v),
             self.params,
             n,
             domain,
@@ -562,7 +562,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
         ),
         "the wedge lies below the cut"
     );
-    let mut reverted = wedge.revert();
+    let mut reverted = wedge.revert().unwrap();
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {

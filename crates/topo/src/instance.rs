@@ -30,8 +30,9 @@
 //! **Who needs it.** A STEP assembly states N placed INSTANCES of M
 //! component representations. Each instance's frame is its own rigid
 //! map, and [`transform_rigid`](crate::transform_rigid) — the kernel's
-//! placement door, which re-checks rigidity with decided predicates and
-//! re-certifies every carrier — maps a WHOLE body. So an instance is
+//! placement door, which moves a body by a rigid motion the reader
+//! decided at `RigidMotion::check_rigid` and re-certifies every
+//! carrier — maps a WHOLE body. So an instance is
 //! materialized by building its component alone, mapping that lone body
 //! through the kernel door, and grafting the placed result in. The body
 //! that ships is then, entity for entity, the union of the bodies that
@@ -264,11 +265,7 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     }
     #[cfg(debug_assertions)]
     let before = dst.arena_counts();
-    let (map, targets) = crate::boolean::combine::graft_solids_minted(
-        dst,
-        src,
-        crate::boolean::combine::Bridge::RemapKeys,
-    )?;
+    let (map, targets) = crate::boolean::combine::graft_solids_minted(dst, src)?;
     #[cfg(debug_assertions)]
     dst.assert_euler_postcondition(before, graft_delta(src), "graft_disjoint_all_keyed");
     Ok(GraftKeys {
@@ -618,13 +615,8 @@ mod tests {
         // Onto an existing solid (the void door's and the booleans' shape).
         let target = dst.solids().next().unwrap().0;
         let mut unstaged = dst.clone();
-        let staged = crate::boolean::combine::graft_solids_with(
-            &mut dst,
-            &[target],
-            &src,
-            crate::boolean::combine::Bridge::RemapKeys,
-        )
-        .expect("the staged graft");
+        let staged = crate::boolean::combine::graft_solids_disjoint(&mut dst, &[target], &src)
+            .expect("the staged graft");
         let (map, _) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[target], &src)
             .expect("the unstaged graft");
         assert_eq!(deep_snapshot(&dst), deep_snapshot(&unstaged), "existing");

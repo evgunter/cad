@@ -46,8 +46,10 @@ parameters were an ulp off `k/5`.
 A second shape, same family (measured the same day, under both rules):
 a square with one arc edge whose bulge differs per section
 (`tan(π/8)`, `tan 50°`, `tan 30°`) at z = `[0, 0.8, 2]` or `[0, 1, 2]`
-refuses at `mint_pcurves` with `IsoUnsupported { what: "an arc rim whose
-chart image runs in neither u direction …" }` (or the seam-carrier
+refuses at `mint_pcurves` with `IsoUnsupported { what: "no boundary row
+of this chart, in either u direction, holds the circle …" }` (the arc
+rim's refusal as PR 4988 words it; measured under the earlier "… runs in
+neither u direction …" text) (or the seam-carrier
 text above), while the same square with one bulge in every section
 builds. `loft_v_is_the_section_set::an_arc_walled_loft_is_the_same_under_every_spelling`
 asserts that loft's geometry only, for this reason.
@@ -65,3 +67,12 @@ again, unmeasured in isolation (it was only ever run together with a
 parameter-rounding bug the branch then fixed), to keep that unit
 minimal. Its first measurement should be the rows above, plus
 `cert5_offgrid_knot_rational` and `m8_3_rational_volume`.
+
+## More evidence (NURBS build C, 2026-10-12)
+
+Evenly stacked sections do not escape it at `Interval`. `loft_body::<Interval>`
+on `arc_section(1.0)` at z = 0, 1, …, n − 1 (`common::stacked`) refuses
+with the same `IsoUnsupported` seam error at n = 8 (v-degree 2 and 3),
+16 (degree 2) and 40 (degrees 2 and 3), on main `f581d1ae29` and on
+`nurbs/refined-scan-cost` alike; n = 3 at degree 2 builds. Found while
+timing the rational speed meter on an arc loft.

@@ -574,7 +574,7 @@ impl core::error::Error for RangeRefusal {}
 #[derive(Debug, Clone, PartialEq)]
 pub struct DerivedRange {
     /// The document the drive runs on: the input, its spreads set as
-    /// [`derive`] says.
+    /// [`derive`](fn@derive) says.
     pub doc: Doc<ProfileProgram>,
     /// The variable whose axis IS the seed.
     pub axis: VarId,

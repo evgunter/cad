@@ -47,3 +47,29 @@ path would pass.
   both sides end there.
 - `UNCLASSIFIED_SIDE` fires for any vertex `senses_at` reads, not only
   crossings.
+
+## A fifth walker in topo (PR 4740)
+
+`ops::uncopied` (`crates/topo/src/boolean/ops.rs`), which names the
+vertex a null-edge copy was minted at so that `ee_lineage`'s fresh
+`VertexOnVertex` decision cites an input cell, walks the null edges
+back to the original once more, beside `NullCopies::of`, `with_copies`,
+`null_copy_rows`, `Descendants::null_copies` and `BooleanNaming`'s
+`null_copies` field. Since PR 4981 it is total: it reads the root of
+`BooleanReduction.copies` (`crate::lineage::VertexCopies`), which
+refuses a non-fresh copy where the reduction records it, so it no
+longer refuses `JoinDesync`. One closure, built once per reduction and read by all
+of them, retires the copies.
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+PR 4820 retired `ee_lineage`. An operand's carried edge-edge rows
+are now placed by `boolean::ops::carried` (`operand_fate`, then
+`records::landings`). `ops::uncopied` survives, and its caller is now
+`carried`'s minted-meeting decision.
+
+PR 4981 adds one more representation for that closure to retire:
+`BooleanReduction.copies` (`VertexCopies`, one per operand) is a
+directed view derived from `null_edges`, carried beside
+`Descendants::null_copies`, `NullCopies::of_operand`, `null_copy_rows`
+and `BooleanNaming.null_copies`.

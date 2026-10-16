@@ -2787,7 +2787,7 @@ impl<S> crate::placement::Placement<S> {
 
 impl<P> Node<P> {
     /// **The operands this node reads**, each at its address, in field
-    /// order — the reads [`crate::Doc::reads`] lists first and
+    /// order — the reads `crate::Doc::reads` lists first and
     /// [`crate::Doc::upstream`] expands to the operations that define
     /// them, the one dependency relation the schedule, the content key,
     /// acyclicity and the cascade read.

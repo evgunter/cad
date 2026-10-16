@@ -250,7 +250,7 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
+        ("die_fillet", 0x30a3_6d39_2cea_720au64),
         ("die_chamfer", 0xe357_7e62_ae47_31f6),
     ] {
         let doc = corpus::documents()
@@ -392,13 +392,28 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// value's `Debug`, and the records' `Debug` shape moved from seven
 /// per-kind lists to one list of canonical pairs. No outcome, count or
 /// point moved: every other row of these suites held.
+///
+/// RE-BLESSED, `crossing_slots` only, for the killed-lineage chase
+/// (`emit_topo`'s `KilledSplits`): its second slot's bottom-rim pieces,
+/// split off around stretches the subtract killed, are named as pieces
+/// of that rim rather than as chords, and two floor corners' vertex
+/// names moved with them. The digest feeds the name table. No body
+/// moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for the output stage's killed
+/// lineage (the records of the edges the merge kills, copied into
+/// `BooleanNaming::killed_lineage`): a stretch of the first cavity's
+/// bottom rim the merge left is named as a piece of that rim rather
+/// than as a seam, and one floor corner moved from a touch to a
+/// crossing of the two rims. The digest feeds the name table. No body
+/// moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x2454_2319_8a2e_6027u64),
+        ("crossing_slots", 0x76e1_5578_6bed_7a15u64),
         ("heat_sink", 0x077d_7601_580e_739f),
-        ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
+        ("kiss_carry", 0x54e4_b675_6a8d_48ae),
     ] {
         let doc = corpus::documents()
             .into_iter()

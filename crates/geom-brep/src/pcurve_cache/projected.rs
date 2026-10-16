@@ -136,6 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
 
 use super::{
@@ -450,6 +451,22 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     }
 }
 
+/// `range` cut at every knot of `kv` strictly inside it: the stretches
+/// each of which lies in one knot span's closure, in order — the pieces
+/// [`piece_controls`] takes. `None` when a cut is not ordered (a NaN end,
+/// or `range` running backwards), which a range a knot vector's breaks
+/// built cannot be, so the caller refuses rather than drops a stretch.
+pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
+    let (a, b) = (range.start(), range.end());
+    let mut breaks = vec![a];
+    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.push(b);
+    breaks
+        .windows(2)
+        .map(|w| ParamRange::new(w[0], w[1]))
+        .collect()
+}
+
 /// The net parameter `v` in the scalar: one of the net's breakpoints is
 /// that breakpoint's held value; any other is a point the caller
 /// chose (a partition or halving break, or the `f64` end of an edge's
@@ -462,54 +479,49 @@ fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
 
 /// The control points and weights of a net's restriction to `piece`
 /// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
-/// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
-/// (de Boor's recursion with the arguments taken in turn). Each control
-/// is a convex combination of the span's, so the weights stay positive.
-/// The recursion's ratios are formed in the scalar over the net's held
-/// knots, so at an enclosure scalar the controls enclose the true
-/// restriction's; a piece end that is one of the net's breakpoints is
+/// `B(a^{p−m}, b^m)`, `m = 0…p`, of each homogeneous channel
+/// `(w·P, w)`, by the scalar's own restriction
+/// ([`SpanLocate::restrict_window`]) over the net's held knots — at the
+/// certification scalar the window's certified restriction, so the
+/// controls enclose the true restriction's; every control is a
+/// combination of the span's with ratios in `[0, 1]`, so the weights
+/// stay positive. A piece end that is one of the net's breakpoints is
 /// that breakpoint's held value, and any other end is entered as the
 /// caller's `f64` parameter.
 ///
 /// The span is the one `a` locates in. Inside one knot span's closure
 /// with `a < b` that is the span holding the piece; at `a == b` on a
 /// knot it is the span starting there, whose closure holds the point.
-pub(crate) fn piece_controls<T: Real>(
+pub(crate) fn piece_controls<T: SpanLocate>(
     net: &NurbsCurve3<T>,
     piece: ParamRange,
 ) -> Vec<(Vec3<T>, T)> {
-    let (a, b) = (piece.start(), piece.end());
-    let kv = net.knots();
-    let p = kv.degree();
-    let (span, _) = kv.span_range(piece);
-    let j = span.index();
-    let knots = net.knot_values().values();
-    let (a, b) = (net_param(net, a), net_param(net, b));
-    let base: Vec<(Vec3<T>, T)> = span
+    let ends = (piece.start(), piece.end());
+    let (span, _) = net.knots().span_range(piece);
+    let held = net.knot_values().values();
+    let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
+    let homogeneous: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
             let w = net.weights()[i];
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
-    (0..=p)
-        .map(|m| {
-            let mut d = base.clone();
-            for r in 1..=p {
-                let u = if r <= p - m { a } else { b };
-                for i in (r..=p).rev() {
-                    let (lo, hi) = (knots[j - p + i], knots[j + 1 + i - r]);
-                    let alpha = (u - lo) / (hi - lo);
-                    let beta = T::one() - alpha;
-                    d[i] = (
-                        d[i - 1].0 * beta + d[i].0 * alpha,
-                        d[i - 1].1 * beta + d[i].1 * alpha,
-                    );
-                }
-            }
-            let (hp, w) = d[p];
-            (hp / w, w)
-        })
+    let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
+        let line: Vec<T> = homogeneous.iter().map(c).collect();
+        T::restrict_window(&line, span, held, ends, held_ends)
+    };
+    let (x, y, z, w) = (
+        channel(|q| q.0.x),
+        channel(|q| q.0.y),
+        channel(|q| q.0.z),
+        channel(|q| q.1),
+    );
+    x.into_iter()
+        .zip(y)
+        .zip(z)
+        .zip(w)
+        .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
         .collect()
 }
 
@@ -571,7 +583,21 @@ impl<T: SpanLocate> ProjectedImage<T> {
         let knots = self.breaks.knots();
         match &self.carrier {
             FramedCarrier::Net(net) => {
-                let controls = piece_controls(net, part);
+                // A part may cross the net's knots (a plane chart's one
+                // piece is the whole net): each span it crosses is
+                // restricted on its own, never extended past its knots.
+                let Some(stretches) = span_stretches(net.knots(), part) else {
+                    let poison = poison_from(t0 + t1);
+                    return FrameBox {
+                        x: (poison, poison),
+                        y: (poison, poison),
+                        z: (poison, poison),
+                    };
+                };
+                let controls: Vec<(Vec3<T>, T)> = stretches
+                    .into_iter()
+                    .flat_map(|stretch| piece_controls(net, stretch))
+                    .collect();
                 let first = controls[0].0;
                 let mut x = (first.x, first.x);
                 let mut y = (first.y, first.y);
@@ -801,7 +827,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// How many equal parts the fitted door cuts each knot span of a net
 /// into, in the composite's ring, when composing the chart's implicit
 /// form along it (`pcurve_cache::projected_hull_lane`): the incidence
-/// is read per part.
+/// is read per part. Not halved further: on honest rows eight parts read
+/// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
@@ -1377,6 +1404,15 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
+///
+/// Sound at every scalar on its own terms: a lattice distance is
+/// continuous in the angle and the same on either branch at a tie, so
+/// the floor's pick never shows in it, and an `Interval` straddle widens
+/// it but still encloses. Its readers (`projected_envelope`'s fidelity
+/// terms) pass a deck offset (a whole number of turns, or a reflection's
+/// zero) against a shift of 0 or π (the sphere's twin), all form-definite
+/// constants at `Sym`, and add the distance to an envelope bound: no
+/// identity reads it.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
 }
@@ -1899,9 +1935,10 @@ pub(super) fn projected_envelope<T: Decide>(
             let Surface::Sphere { center, radius, .. } = *surface else {
                 return Err(refuse("a circle's projected image is written for a sphere"));
             };
+            // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
+            // exact sup.
             let d = (*centre - to_frame(form.c - o, &e)).norm()
-                + (*a - to_frame(form.a, &e)).norm()
-                + (*b - to_frame(form.b, &e)).norm();
+                + harmonic_sup(*a - to_frame(form.a, &e), *b - to_frame(form.b, &e));
             for &k in &met {
                 let b = image.frame_box(k, t0, t1);
                 holds(b.x.0, band, k, SectorChannel::Azimuth)?;
@@ -2005,7 +2042,10 @@ pub(super) fn projected_envelope<T: Decide>(
     match (image.chart, &twin) {
         (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
             let (s, c) = half_angle.sin_cos();
-            let drift = (sin - s).abs() + (cos - c).abs();
+            // The slant direction's radial and axial components moved.
+            let drift = harmonic_sup_scalar(sin - s, cos - c);
+            #[cfg(test)]
+            let drift = super::mutants::cone_drift(sin - s, cos - c).unwrap_or(drift);
             terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
         }
         (

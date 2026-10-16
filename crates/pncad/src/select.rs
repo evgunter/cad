@@ -93,7 +93,7 @@ pub use editor_core::{
     CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
+    RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
     SelectRefusal, Selector, Sense, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
     all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried,
     denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
@@ -110,7 +110,7 @@ pub use editor_core::{
 /// prelude-curated `ValidationError` down to that arm was binding a
 /// value whose type this list did not name — and it is what the flush
 /// detector's own vocabulary is built from, since a
-/// [`FlushFinding`] is a finding plus the pair it was found on.
+/// `FlushFinding` is a finding plus the pair it was found on.
 ///
 /// Its two fields are already here, which is what makes the stop
 /// under it a stop rather than a deferral: a finding is a

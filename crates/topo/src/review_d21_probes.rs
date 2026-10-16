@@ -228,5 +228,5 @@ fn d21_a_cloned_body_resolves_every_key_of_the_original() {
     }
     // And the op the fact serves still runs clean on the same body: a
     // link it cannot follow panics.
-    drop(body.revert());
+    drop(body.revert().unwrap());
 }

@@ -52,8 +52,8 @@ fn section() -> Curve3<f64> {
     Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, H),
         axis: Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-        major: R / TILT.cos(),
-        minor: R,
+        semi_u: R / TILT.cos(),
+        semi_v: R,
         u_ref: Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
     }
 }

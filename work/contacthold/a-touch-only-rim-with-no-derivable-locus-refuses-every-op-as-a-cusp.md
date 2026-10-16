@@ -20,3 +20,17 @@ Under the same-side fork's recommendation, a touch-only pair has no
 junction. Its ∖ and ∩ return the operand or Empty, and its ∪ needs only
 a witness lane for the record, not a cusp edge. Confirm the reach with a
 fixture, then decide what each op should do there.
+
+## Since PR 4831
+
+The claim-free glue door routes a rim on the operands (`boolean::route_rim`:
+the normals and `departures`, the same under every op) and glues it only as
+a smooth seam (wedge π, faces leaving on opposite sides). A cusp-family or
+nested rim stays unglued, so `RimCuspArmUnbuilt` is not raised in
+production. Gluing every verified rim and refusing the rest regressed
+`strut_cover_on_cylinder_pairs::the_capsules_strut_waits_at_the_crossing_layer`
+(`UnsupportedDeclarationClass`) and
+`pi_seam_and_kiss_through_the_boolean::the_sphere_capped_tube_turned_within_a_hair_of_aligned`
+(a `departures` escalation). C7's per-op routing of the result's junction
+needs the membership, which the glue stage does not hold: that is the work
+here.

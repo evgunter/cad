@@ -1,6 +1,6 @@
 //! **Which fragment of a divided face holds a segment.** The join's
 //! chords divide faces, and a key read before a division names the face
-//! the division started from; [`crate::lineage::Lineage`] is that face
+//! the division started from; [`crate::lineage::Descent`] is that face
 //! and every fragment divided off it, through the fragment rows the
 //! chord joiner records ([`crate::chord_join::FragmentRows`]). The face
 //! holding both ends of a segment is the one face the faces at its two

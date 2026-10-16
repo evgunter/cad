@@ -57,7 +57,12 @@ fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
 
 /// `b` moved by `pose`, finished as an operand.
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
-    let moved = topo::transform_rigid(b, pose, Tol::witness()).unwrap();
+    let moved = topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(pose, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the placed operand", moved, Tol::witness())
 }
 
@@ -400,6 +405,55 @@ fn intersect_and_differences_answer_the_closed_form() {
                         );
                     }
                 }
+            }
+        }
+    }
+}
+
+/// **The mate's vertices on the bore's rims are read no partner of,
+/// and say so**: a shaft ruling on the bore's seam meets the collar at
+/// a rim vertex, where neither the bore nor the end face holds a
+/// subdivision bisector to read their wedge by
+/// (`UnreadNeighbourhood::NoBisector`), so the boolean classes none of
+/// the shaft's edges there; the record lists each such shaft vertex and
+/// why (`BooleanNaming::unread_partners`), which naming refuses by
+/// (`NamingError::PartnerUnread`) rather than reading a missing row,
+/// and no listed vertex holds a class.
+#[test]
+fn the_mate_records_its_unread_partners() {
+    let tol = Tol::witness();
+    let c = finished("the collar", collar(), tol);
+    for &(span, y0, h) in &SPANS {
+        let p = finished("the shaft", shaft(0.0, y0, h), tol);
+        for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
+            let bb = match topo::union(a, b, tol) {
+                Ok(BooleanResult::Body(bb)) => bb,
+                other => panic!(
+                    "{span}, {order}: the mate does not union: {:?}",
+                    other.err()
+                ),
+            };
+            let unread = &bb.naming.unread_partners;
+            assert!(
+                !unread.is_empty(),
+                "{span}, {order}: no partner went unread"
+            );
+            for u in unread {
+                assert_eq!(
+                    (u.operand == topo::Operand::A, u.neighbourhood),
+                    (
+                        order.starts_with("shaft"),
+                        topo::UnreadNeighbourhood::NoBisector
+                    ),
+                    "{span}, {order}: the shaft's vertex at the rim, no bisector: {u:?}"
+                );
+                assert!(
+                    !bb.naming
+                        .edge_classes
+                        .iter()
+                        .any(|c| (c.operand, c.vertex) == (u.operand, u.vertex)),
+                    "{span}, {order}: an unread vertex holds a class: {u:?}"
+                );
             }
         }
     }

@@ -497,7 +497,7 @@ fn p5_cap_refusal_payload_is_the_bound_the_door_re_derives() {
     let base = skinned_loft();
     let d = 0.08;
     match fit_offset_at(&base, d, 1e-14, band()) {
-        Err(OffsetFitError::SampleCapReached {
+        Err(OffsetFitError::WallReached {
             achieved,
             tolerance,
             grid,

@@ -35,6 +35,6 @@ The cylinder's spelling: decide each axis in `face_box_rule` (the band
 is already in scope there), carry `UnitVec3` in the rule's arm, and
 pass `UnitSpanBox` into the extent. The torus's `u_ref` wants an
 orthonormal pair, not two independent decisions — an
-`OrthoFrame`-shaped witness, which is the larger step. The cone lane
+`RigidMotion`-shaped witness, which is the larger step. The cone lane
 is fenced in `FaceBoxRule::ConeSlab`'s own docs as another unit's
 jurisdiction; take it with that lane.

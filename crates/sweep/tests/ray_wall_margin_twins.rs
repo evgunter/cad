@@ -13,8 +13,9 @@
 //! (`bool_germ_plane_normal`), which the same pipe boring a plate pins
 //! beside them.
 //!
-//! **CI EXECUTES THIS SUITE**: it is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`). By hand:
+//! **The nightly executes this suite; the PR gate only builds it**: it is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and
+//! runs in the nightly's dev-probe row. By hand:
 //! `cargo test -p sweep --features probe --test all -- ray_wall_margin_twins::`.
 
 #![cfg(feature = "probe")]

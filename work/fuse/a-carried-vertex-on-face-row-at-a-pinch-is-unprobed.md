@@ -64,3 +64,28 @@ Waits on `intent-stage4-is-built`, not on the whole program: asks whether carrie
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## 2026-10-13: re-scoped to the one carry (FUSE, carry-rows-after-4820)
+
+PR 4820 retired `remap_carried` and `vert_strict`. An operand's carried
+vertex-on-face row now takes this route:
+
+1. `boolean::ops::carried` places it through what the op made of each
+   input cell (`operand_fate`), by the census's record confirm
+   (`records::landings`).
+2. The landing is restated in the operand's clone keys.
+3. `carry_rows` reads it with the reduction's rows. Its vertex-on-face
+   loop still skips a row whose vertex a zip fused (`desc.fused`), the
+   rest-consumed rule.
+
+The question stands. At a pinch, the other operand's vertex fuses into
+one of the pinch's two vertices and keeps touching the other. A carried
+vertex-on-face row naming the vertex that fused is skipped, so does a
+contact at that point survive unrecorded? Still unprobed on main
+`0d2117d0`: no fixture puts a carried vertex-on-face row's vertex at a
+pinch.
+`records_cite_their_decision::a_carried_vertex_on_face_record_cites_its_operands_record`
+(a cube on its corner, no pinch) passes tier 3′.
+
+Owed, unchanged: the fixture this row describes, carried through
+`BooleanInputs`, and its tier-3′ verdict.

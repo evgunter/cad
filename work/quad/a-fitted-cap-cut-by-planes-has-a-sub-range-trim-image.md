@@ -44,3 +44,15 @@ builds every edge and corner and stops at tier 3 with this refusal:
 `NotValid { VolumeUncomputable { face: FaceKey(9v1), source:
 QuadratureUnsupported { "a General trim image whose carrier interval is
 not its own knot domain …" } } }`.
+
+**A third producer** (PCERT, PR 4410, 2026-10-12): `Body::split_edge`
+now carries a `General` row to each child, as the parent's image over
+the child's part of the edge's interval
+(`crates/topo/src/pcurves.rs`, `split_cache`). So every split of a seam
+holding a `General` row stores this shape. Before 4410 the split left
+that face rowless, and the lane refused it too, so this is no
+regression. `crates/sweep/tests/split_edge_fitted_rows.rs`'s
+`the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range`
+is a live witness: the interior-column body's volume is `Ok` before the
+split and this refusal, on the widened wall, after it. The fix the
+"Owed" paragraph names serves this producer as well.

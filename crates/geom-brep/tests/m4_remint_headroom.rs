@@ -60,6 +60,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
+        1.0,
         band,
     )
     .expect("0.9eps witness offset is marginal but VALID");
@@ -94,6 +95,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
+        1.0,
         band,
     )
     .expect("the re-mint formula's witness certifies with fresh headroom");

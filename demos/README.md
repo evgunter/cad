@@ -44,13 +44,13 @@ page is mostly about.
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. Its wall: `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends, and `Node::Chamfer` over those names refuses `UnsupportedRunOut` — a plane–plane chamfer cannot end at a corner whose other edges are unrequested (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`) |
+| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends; `Node::Chamfer` and `Node::Fillet` over those names build, each band cut off in its leg's side walls, and the scene renders the corner piece with both section faces' whole rims chamfered, each corner a turn whose far band runs past the mitre (the overrun), all held to closed-form volumes |
 | `spacer` | machined spacer with every edge broken — `chamfer_edges` over all twelve edges at one setback: 12 flat strips + 8 flat corner patches. Off the sheet since the montage-v3 curation, which gave the chamfer verb's cell to `diechamfer` (a better part, and the same size as `diefillet`'s radius so the two panels compare verbs) |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
-| `rocker` | **the fillet construction, in 2-D and in 3-D**: a rocker plate whose six profile corners are all authored through the PATHS fillet doors, covering arc×line, line×line, line×arc and — at the eye slot's rounded tip — **arc×arc**, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); then a **keyhole** through the arm whose two convex disc/slot creases are rounded on the SOLID by `fillet_edges` at r = 1/4, selected as lines between a cylinder and a plane on the keyhole's struts, the volume moving by exactly the closed-form `−2·A(r)·depth`; larger radii carve at their closed forms up to the outline's own 1/2; genus 2 |
+| `rocker` | **the fillet construction, in 2-D and in 3-D**: a rocker plate whose six profile corners are all authored through the PATHS fillet doors, covering arc×line, line×line, line×arc and — at the eye slot's rounded tip — **arc×arc**, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); then a **keyhole** through the arm whose two convex disc/slot creases are rounded on the SOLID by `fillet_edges` at the outline's own blend radius r = 1/2, selected as lines between a cylinder and a plane on the keyhole's struts, the volume moving by exactly the closed-form `−2·A(r)·depth`; smaller radii carve at their closed forms down to the eye tip's 1/4; genus 2 |
 | `diefillet` | the die blank: `Node::Fillet(cube, all edges, r = 0.12)` — the battery first, then plane–plane cylinder blends with sphere-octant corner patches |
 | `diepips` | the die's pips as ONE group cut — `cube ∖ (21 disjoint balls)`, S13's closed-group extent arm, each ball charted with its pole along the face it is cut by |
 | `diecomposed` | **the composed die**: the filleted blank, the 21 pips and the filleted pip rims in one body — `cube ∖ pips`, then `Node::Fillet` twice IN PLACE, selected by `select_where(CurveKind = Line)` for the twelve box edges and by `select_where(AdjacentKinds = {Plane} × {Sphere})` for all 21 rims as closed rings |
@@ -237,6 +237,13 @@ What still **fails** loudly: a wedged pass, and the matplotlib-fallback
 assertion. The re-baseline is only reached when the render itself
 succeeded, so a wedge is reported as a wedge and never as drift.
 
+**A re-baseline never deletes a cell.** Every lane publishes its whole
+pass through `publish_lane.py`, so a committed file the pass did not draw is a deletion, and the
+re-baseline fails with `lost cells`, lists those files one per line and
+commits nothing. If a file was meant to go (its cell was renamed or
+retired), delete it in a commit and push again with `[render]`.
+Otherwise the render dropped a scene, which is a failure to fix.
+
 ### Off-box: the hosted lanes
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
@@ -395,8 +402,15 @@ and `demos/renders-mc/*.svg` (both tracked, both text); and
 inputs are `demos/out/mc/*.svg` (untracked), written by the tour
 itself.
 
-A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
-published to the lane directory only once it is complete. The staging
+A pass in flight lives in an untracked stage (`demos/out/stage/<lane>/`
+for the two `render.sh` lanes, wild and uv; `demos/out/gui/` for gui;
+the tour's own `demos/out/mc/` for mc) and is published to the lane
+directory only once it is complete, by `publish_lane.py`, which every
+lane calls: it refuses a stage that is not exactly the cells the pass
+was asked for, replaces the lane's committed cells with copies of the
+stage's wholesale (a `.fail.txt` displacing its frame, a `.note.txt`
+beside it), and runs the provenance guard over the result. The
+`render.sh` staging
 tree mirrors the lane directory's *name* and each scene process runs with
 the staging root as its working directory, so a staged frame's path reads
 the same as its published one.
@@ -438,8 +452,9 @@ Three layers keep a matplotlib frame out of a committed path:
   guards. (`renders-preview/renders-freecad/` never appears: `--freecad`
   has no preview lane by design — its whole point is the OCC reference
   render.)
-* **Staging.** A pass renders into `demos/out/stage/<lane>/` and is moved
-  into the lane directory only once every scene is in hand, so no
+* **Staging.** A pass renders into `demos/out/stage/<lane>/` and its
+  cells replace the lane directory's wholesale, copied in by
+  `publish_lane.py`, only once every scene is in hand, so no
   incomplete pass ever reaches `renders/` — not a crashed one, not a
   wedged one, not one killed at the terminal.
 * **Guard.** `check_render_provenance.py` asserts that every committed
@@ -454,7 +469,11 @@ Three layers keep a matplotlib frame out of a committed path:
   FreeCAD). The wild lane runs under the
   same guard with INVERTED per-lane rules: there matplotlib is the
   primary renderer, and cells must carry the wild lane's own `Author`
-  stamp.
+  stamp. The gui lane's cells and its sheet must carry the gui lane's
+  `Author` stamp (`render-gui.sh`'s `AUTHOR`); its sheet is stamped and
+  checked like a cell rather than exempt. `publish_lane.py` runs the
+  guard over every lane in its `LANE_DIRS`, and the two SVG lanes (uv,
+  mc), which it does not govern, must say `--no-provenance`.
 
 **The montage sheets are exempt, and here is why that is safe.** Both
 FreeCAD-lane sheets are *composed* by matplotlib on purpose —

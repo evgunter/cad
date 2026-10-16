@@ -214,7 +214,7 @@ impl<'a> PlaneSection<'a> {
             lane: Lane {
                 plane,
                 frame: (p0, normal, u_ref, normal.cross(u_ref)),
-                wall: charted,
+                wall: charted.clone(),
                 wall_op: SsiOperand::Nurbs(charted),
                 sys,
                 ctx,
@@ -270,7 +270,7 @@ impl<'a> PlaneSection<'a> {
     /// The boundary pass's, the seeding sweep's, any refusal of the
     /// trace, the fit or the certificate on a branch between crossings
     /// (notably [`SsiError::CertificateEscalated`] naming
-    /// [`super::SsiLimb::HullSup`] when the fitted pair's real
+    /// [`super::SsiLimb::HullSupChart`] when the fitted pair's real
     /// between-samples deviation lands in the band, which an inflected
     /// wall can genuinely earn, and [`SsiError::RefinementExhausted`]
     /// where refinement meets the band or the branch's step budget), of a

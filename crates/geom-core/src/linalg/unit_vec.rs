@@ -32,15 +32,19 @@
 //!   length the caller names, with its own refusals
 //!   ([`LeveredUnitError`]).
 //! - `-u` — negation is exact at every scalar.
-//! - The exact basis axes and the cross product of an orthonormal
-//!   pair, both private to [`linalg`](super) and both exact by
-//!   construction rather than by decision — they exist so
-//!   [`OrthoFrame`](super::OrthoFrame) can build the world frames and
-//!   its own third axis, and they are documented on their own doors.
-//! - `UnitVec3::embed` and `UnitVec3::pin` — the exact crossings
-//!   between `f64` and the other scalars, as
-//!   [`OrthoFrame`](super::OrthoFrame)'s module docs state them: an
-//!   embedded direction witnesses the `f64` decision, carried.
+//! - The exact basis axes ([`UnitVec3::exact_x`], [`UnitVec3::exact_y`],
+//!   [`UnitVec3::exact_z`]), exact by construction rather than by
+//!   decision.
+//! - The cross product of an orthonormal pair, and a vector a rigid
+//!   motion produced, both private to [`linalg`](super) and both exact
+//!   in the reals by construction — they exist so
+//!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
+//!   a direction, and they are documented on their own doors.
+//!
+//! The exact crossings `UnitVec3::embed` and `UnitVec3::pin` are not
+//! built; they are scheduled with the frame's own on PATHS'
+//! `work/paths/the-sketch-plane-is-its-frame.md`
+//! ([`RigidMotion`](super::RigidMotion)'s "Not built yet").
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -355,7 +359,7 @@ impl<T: Real> UnitVec3<T> {
     /// This is NOT a "check that it is already unit" constructor and
     /// cannot be used as one: the premise is carried by the ARGUMENT
     /// types plus the orthogonality the one caller
-    /// ([`OrthoFrame`](super::OrthoFrame)) establishes at its own
+    /// ([`RigidMotion`](super::RigidMotion)) establishes at its own
     /// mints, and the result is a product rather than a vector handed
     /// in. A caller holding two witnesses it merely believes are
     /// perpendicular has a decision to make, not a door to call, which
@@ -364,23 +368,39 @@ impl<T: Real> UnitVec3<T> {
         Self(a.0.cross(b.0))
     }
 
+    /// **A unit vector a rigid motion produced**, by construction: a
+    /// column or row of a rotation's Rodrigues form, or a witness
+    /// carried through a rigid linear part
+    /// ([`RigidMotion`](super::RigidMotion)), each unit over the reals
+    /// for every value its inputs take. Like
+    /// [`Self::cross_of_orthonormal`] it is not a "check that it is
+    /// already unit" constructor: the premise is the construction, and
+    /// its only callers are [`RigidMotion`](super::RigidMotion)'s mints
+    /// and the decided door, which has decided the column's norm.
+    pub(in crate::linalg) fn by_construction(v: Vec3<T>) -> Self {
+        Self(v)
+    }
+
     /// The exact `x̂`, unit as its literal bits at every scalar that
-    /// represents 0 and 1 — no decision, nothing to decide. Private to
-    /// [`linalg`](super), where [`OrthoFrame`](super::OrthoFrame)'s
-    /// world frames are its only readers: a public exact-axis mint
-    /// would be a door with no caller, and a caller wanting a
-    /// direction it computed wants [`UnitVec3::new`].
-    pub(in crate::linalg) fn exact_x() -> Self {
+    /// represents 0 and 1 — no decision, nothing to decide: the world
+    /// frames' axes, and the axis a caller turns about when it names a
+    /// coordinate axis ([`RigidMotion::rotation`](super::RigidMotion::rotation)).
+    /// A caller wanting a direction it computed wants
+    /// [`UnitVec3::new`].
+    #[must_use]
+    pub fn exact_x() -> Self {
         Self(Vec3::unit_x())
     }
 
     /// The exact `ŷ`; see [`UnitVec3::exact_x`].
-    pub(in crate::linalg) fn exact_y() -> Self {
+    #[must_use]
+    pub fn exact_y() -> Self {
         Self(Vec3::unit_y())
     }
 
     /// The exact `ẑ`; see [`UnitVec3::exact_x`].
-    pub(in crate::linalg) fn exact_z() -> Self {
+    #[must_use]
+    pub fn exact_z() -> Self {
         Self(Vec3::unit_z())
     }
 }

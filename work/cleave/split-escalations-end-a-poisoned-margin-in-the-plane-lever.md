@@ -63,8 +63,36 @@ SmoothEdgeDisagrees}` in place of an `Indeterminate`, and ends through
 No `SliverSector` arm is a decided contradiction any more, so none
 takes the defect ending.
 
-Still open on this row: `CrossingEscalated`, `SplitJoinError`,
-`SectionError::WindingUndecided` and `SplitFinishError`.
+Since PR 4745, `SectionError::WindingUndecided`, `SplitFinishError`
+(`DescribeEscalated`, `DescribeBendEscalated`, `SectionWindingUndecided`)
+and `SplitJoinError::OrderEscalated`'s frame decisions
+(`split_join_frame_axis`, `_arm`) end the same way, with the section's,
+the split's and the join's lever. `RingHoming` ends in the walk
+decision's lever alone. `SplitJoinError::Escalated` and the order
+decisions `split_join_order_u`/`_v` take `Indeterminate::ending`, the
+ending geom-brep gives the same decision. Most of `Escalated`'s mints
+are sized (a pose's gap, an apex's offset, a tangent chord's advance),
+and so is a metred coordinate. Not all of them are, though (below).
+
+Still open on this row:
+- `CrossingEscalated` (no note on poison).
+- At the sites above, an invalid margin minted from a contradiction
+  of decided readings still takes the lever and the note rather than
+  the defect ending until the mint carries its `Escalation`.
+- **A straddle reads as a subdividable enclosure.**
+  `pc_axis_plane_parallel_straddle` is a `k_stats::straddle`, but
+  `SplitJoinError::Escalated` ends it through `Indeterminate::ending`,
+  which puts "subdivide the parameter box for a tighter enclosure" in
+  front of the lever. `RefusedArm::Straddle` and this row say a
+  straddle ends in the lever alone. The escalation does not carry its
+  `Escalation`, so the ending cannot tell.
+- **Two unsized mints offer the tolerance.** `chord_arc_leave_germ` and
+  `chord_arc_leave_section` (`chord_join.rs`, in the arc-leave reading)
+  raise `SplitJoinError::Escalated` on a levered cosine or sine, which
+  is no size the user chose. They take `Indeterminate::ending` with
+  the sized mints, so they offer a tolerance arm. They want the lever
+  alone, which needs `Escalated` to carry which kind of decision
+  minted it.
 
 ## `agreed_section` no longer mints poison (branch `cleave/split-straddles-carry-reading`)
 
@@ -87,3 +115,12 @@ alone, which is what `RefusedArm::Straddle` gives:
 The ending is still decided by the margin there, not by a typed
 `Escalation`. Carrying the type to those two errors is this row's
 repair.
+
+## More sites of the same shape (ENCL, from the sweep of `switch-profile-and-editor-core-onto-indeterminate-lever-ending`)
+
+These compose the lever by hand after an `Indeterminate`'s payload, so a poisoned margin also ends in the lever with no note:
+- `splitting/mod.rs` `SplitReduceError::SectionGermsEscalated`, both readings: `"… ({diag.payload()}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}"`.
+- `chord_join.rs` `SplitJoinError::Section { source: SectionError::Carrier(EllipseInvalid::Escalated(diag)) }`: `"… is undecided for the section through a curved face: {payload}. Recourse: {JOIN_RECOURSE}"`.
+
+This one is rendering-neutral:
+- `boolean/refusal_routes.rs` `Ending::recourse`'s `Self::Lever(lever)` arm composes `LeverOnly { lever }.recourse(RefusedArm::Undecided(diag), Reading::Build)`. That is `diag.lever_ending(lever)` spelled through the table.

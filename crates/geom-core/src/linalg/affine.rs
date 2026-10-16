@@ -10,7 +10,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::{Mat3, Point3, Vec3};
+use crate::linalg::{Mat3, Point3, UnitVec3, Vec3};
 use crate::real::Real;
 
 /// An affine map of the 3-D affine space: `p ↦ linear·p + translation`.
@@ -30,7 +30,7 @@ impl<T: Real> Affine3<T> {
     ///
     /// Everything it stores, it stores VERBATIM. Where a caller builds
     /// a placement from a base point — the frame witness's
-    /// [`OrthoFrame::to_affine`](crate::OrthoFrame::to_affine) is where
+    /// [`RigidMotion::to_affine`](crate::RigidMotion::to_affine) is where
     /// that happens — the translation is the subtraction
     /// `origin − Point3::origin()`: componentwise `x − (+0.0)`, which
     /// IEEE 754 leaves at `x` for every bit pattern (`−0.0`, `±inf` and
@@ -158,10 +158,19 @@ impl<T: Real> Affine3<T> {
     /// subnormal dust proportional to the anchor's own scale
     /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor).
     pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
-        let q = point - Point3::origin();
+        Self::anchored_rotation(point - Point3::origin(), axis.normalize(), angle)
+    }
+
+    /// [`Self::rotation_about_axis`]'s arithmetic over a unit axis `n`
+    /// as given and the anchor displacement `q`: linear part the
+    /// Rodrigues rotation, translation `(I − R)·q`. The one body of
+    /// this map and of
+    /// [`RigidMotion::rotation_about_axis`](super::RigidMotion::rotation_about_axis),
+    /// which differ only in whether the axis is normalized first.
+    pub(in crate::linalg) fn anchored_rotation(q: Vec3<T>, n: Vec3<T>, angle: T) -> Self {
         Self::from_parts(
-            Mat3::rotation_about(axis, angle),
-            Mat3::identity_minus_rotation_about(axis, angle) * q,
+            Mat3::rodrigues(n, angle),
+            Mat3::identity_minus_rodrigues(n, angle) * q,
         )
     }
 
@@ -196,6 +205,18 @@ impl<T: Real> Affine3<T> {
         p: Point3<T>,
     ) -> Point3<T> {
         point + Mat3::rotation_about(axis, angle) * (p - point)
+    }
+
+    /// [`Self::rotate_point_about_axis`] about a [`UnitVec3`] witness,
+    /// not normalized a second time ([`Mat3::rotation_about_unit`]):
+    /// the same spelling, `q + R·(p − q)`.
+    pub fn rotate_point_about_unit_axis(
+        point: Point3<T>,
+        axis: UnitVec3<T>,
+        angle: T,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about_unit(axis, angle) * (p - point)
     }
 
     /// Applies the map to a point: `linear·p + translation`, where `p`'s

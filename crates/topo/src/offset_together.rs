@@ -33,7 +33,8 @@
 //!
 //! **The unit is the SOLID, not the body.** A corner is the meeting of
 //! charts that belong to one solid — two solids share no vertex, no
-//! edge and no face — so a body of several solids is several
+//! edge and no face, though two of their vertices may share a point key
+//! where a boolean decided them one point — so a body of several solids is several
 //! independent corner problems, and this door solves the ones it was
 //! given. Every entity it reads and every entity it writes lies on a
 //! solid the moves name; the rest of the body is bitwise untouched.
@@ -231,7 +232,10 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     // of one vertex — are solved ONCE, over every plane meeting any of
     // them, and move together (`replace_face::group_by_point`): the
     // copies stay on one point, or the solve refuses because their
-    // planes no longer concur.
+    // planes no longer concur. Where the corners are two solids' (a
+    // split's halves, or two corners a boolean decided touch) and their
+    // planes no longer concur, each solid's corner is solved alone and
+    // they part (`replace_face::split_by_solid`).
     let mut at_vertex = Vec::new();
     for (vertex, _) in body.vertices() {
         if !scope.holds_vertex(vertex) {
@@ -256,8 +260,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             position.push((*vertex, *here));
         }
     }
-    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
-    for group in crate::replace_face::group_by_point(body, asked) {
+    let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
         let mut arms: Vec<T> = Vec::new();
         for (vertex, here, planes) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
@@ -269,7 +272,27 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             arms.extend(corner_arms(body, *vertex, *here));
         }
         let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
-        let point = solve_planar_corner(group[0], &planes, &arms, band)?;
+        solve_planar_corner(group[0], &planes, &arms, band)
+    };
+    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    let mut work = crate::replace_face::group_by_point(body, asked);
+    work.reverse();
+    while let Some(group) = work.pop() {
+        let point = match solve(&group) {
+            Ok(point) => point,
+            // Only a corner the planes definitely leave without a point
+            // parts; an escalated joint solve is undecided, not refused,
+            // and propagates.
+            Err(refused @ ReplaceFaceError::TogetherCorner { .. }) => {
+                let parts = crate::replace_face::split_by_solid(body, &group);
+                if parts.len() < 2 {
+                    return Err(refused);
+                }
+                work.extend(parts.into_iter().rev());
+                continue;
+            }
+            Err(other) => return Err(other),
+        };
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));
     }
@@ -383,6 +406,20 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 },
             )
         };
+        // The edge's two planes as the door leaves them.
+        let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
+            Some(&Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            }) => Surface::Plane {
+                origin: origin + p.delta,
+                normal,
+                u_ref,
+            },
+            _ => unreachable!("{:?} was read a plane in this call's plan phase", p.old_key),
+        };
+        let (sa, sb) = (moved(pa), moved(pb));
         specs.push((
             edge,
             EdgeCurveSpec {
@@ -393,6 +430,37 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                     slides,
                     mid,
                     carried,
+                    |declared| {
+                        crate::offset_restate::re_ask_on_pair(
+                            edge,
+                            [(pa.old_key, &sa), (pb.old_key, &sb)],
+                            &carrier,
+                            (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
+                            declared,
+                            band,
+                        )
+                    },
+                    || {
+                        crate::offset_restate::re_ask_chart(
+                            edge,
+                            [(pa.old_key, &sa), (pb.old_key, &sb)],
+                            &carrier,
+                            (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
+                            band,
+                        )
+                    },
                 )?,
                 carrier,
                 param_start: t0,
@@ -641,7 +709,8 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// **The solids a simultaneous door works over.**
 ///
 /// A corner is the meeting of charts that belong to ONE solid — two
-/// solids of a body share no vertex, no edge and no face — so the
+/// solids of a body share no vertex, no edge and no face (a point key,
+/// where a boolean decided two corners one point, is not a vertex) — so the
 /// coherent unit for a simultaneous solve is the solid, not the body.
 /// A scope names the solids the move set touches, and it is what both
 /// doors SOLVE and WRITE over: the coverage gate asks that every face
@@ -993,7 +1062,7 @@ mod scope_walks {
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use crate::test_support_fixtures::UNIT_SQUARE;
-    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol, Vec3};
 
     /// Two unit boxes, ten apart, as two solids of one body — grafted
     /// through the public disjoint-graft door, so the operand is one a
@@ -1005,7 +1074,7 @@ mod scope_walks {
         let other = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let placed = crate::transform_rigid(
             &other,
-            &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+            &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
             tol,
         )
         .unwrap();

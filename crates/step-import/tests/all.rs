@@ -51,6 +51,8 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
+#[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
+mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
@@ -93,6 +95,8 @@ mod perf12_census_goldens;
 mod placed_m7_8_instance;
 #[path = "poleguard.rs"]
 mod poleguard;
+#[path = "poles_inside_a_seam_region.rs"]
+mod poles_inside_a_seam_region;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]

@@ -357,23 +357,33 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
-            let curve =
-                crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
-                    .map_err(|refusal| match refusal {
-                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                            EulerOpError::NurbsLaneUnsupported {
-                                edge: Some(edge),
-                                scalar,
-                            }
-                        }
-                        crate::policy_lane::ByPolicy::Refused(error) => {
-                            EulerOpError::RechartFalsifies {
-                                door: RechartDoor::SetFaceSurfacesDescribing,
-                                edge,
-                                error,
-                            }
-                        }
-                    })?;
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge),
+                &spec.carrier,
+                (spec.param_start, spec.param_end),
+            );
+            let curve = crate::policy_lane::certify(
+                spec.clone(),
+                p_start,
+                p_end,
+                resolve(sides),
+                reach,
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                    EulerOpError::NurbsLaneUnsupported {
+                        edge: Some(edge),
+                        scalar,
+                    }
+                }
+                crate::policy_lane::ByPolicy::Refused(error) => EulerOpError::RechartFalsifies {
+                    door: RechartDoor::SetFaceSurfacesDescribing,
+                    edge,
+                    error,
+                },
+            })?;
             written.push((edge, sides, curve));
         }
 
@@ -894,7 +904,13 @@ impl<T: Decide> Body<T> {
             };
             let (p_start, p_end) = self.edge_endpoints(edge);
             let resolve = |k: SurfaceKey| self.slot_surface(&[], sides.repoint(k)).cloned();
-            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, band()?)
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge),
+                &spec.carrier,
+                (spec.param_start, spec.param_end),
+            );
+            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, reach, band()?)
                 .map_err(|refusal| match refusal {
                     crate::policy_lane::ByPolicy::NoLane { scalar } => {
                         EulerOpError::NurbsLaneUnsupported {
@@ -1235,7 +1251,8 @@ impl<T: Decide> Body<T> {
         let (p_start, p_end) = self.edge_endpoints(edge);
         self.check_description_adjacent(edge, &curve.description)?;
 
-        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
+        let faces = crate::edge_faces(self, edge);
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, faces, tol)?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
@@ -1247,62 +1264,182 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
-    /// Re-states `edge` as an image in `chart`, keeping its carrier,
-    /// its parameter interval and — through `at_rest_in_chart` — the
-    /// pushforward that scaffolded it, as its authority record.
+    /// Re-states `edge` where it rests ([`crate::rest_locus`]), keeping
+    /// its carrier, its parameter interval and the pushforward that
+    /// scaffolded it, as its authority record. Where it rests is read
+    /// off its faces, so no caller chooses a chart, and a pair is stated
+    /// only where the must-carry rule, asked here over the edge
+    /// ([`geom_brep::reask_pair`]), reads the join under-determined: a
+    /// corner is stated as the pair's `Intersection` and a determinate
+    /// tangency as its `TangentIntersection`. A door that asked the rule
+    /// already gets the same answer again; one that did not (a same-key
+    /// lane, a revolve's rims) cannot state a pair the rule refutes.
     ///
-    /// This is D2's **conventional split**, at rest: where two
-    /// surfaces under-determine an edge's locus (one surface on both
-    /// sides, or a smooth pair whose jet is zero), the description
-    /// stays conventional rather than intrinsic — but the edge is
-    /// between two real faces now, so it is an image in a chart and
-    /// not the scaffolding the mint left (D3's transience fence; the
+    /// This is D2's **conventional split**, at rest: the edge is between
+    /// two real faces now, so it is described where it rests and not as
+    /// the scaffolding the mint left (D3's transience fence; the
     /// scaffolding door is for edges whose surfaces do not exist yet).
+    /// An edge already described keeps its description.
     ///
     /// **The carrier is RESTATED, never rebuilt.** Re-deriving it from
     /// the endpoints recomputes the direction and the interval from a
     /// sum that need not be bitwise what the edge was minted with,
     /// which silently moves geometry in a pass whose whole contract is
-    /// that only the DESCRIPTION moves. Through `at_rest_in_chart` the
-    /// pushforward that scaffolded the edge stays beside it as the
-    /// authority record, which is what keeps tier 3's prefer-intrinsic
-    /// reading unchanged.
+    /// that only the DESCRIPTION moves.
     ///
-    /// One home for a rule three sweep lanes read: `extrude`'s strut
-    /// join, `revolve::upgrade`'s join lanes, and `swept`'s
-    /// scaffold-retirement pass each spelled these two lines
-    /// themselves. It lives here, beside [`Body::set_edge_curve`],
-    /// because that is the certified mutation it performs and because
-    /// `topo` is the crate both callers already depend on.
+    /// One home for a rule the sweep lanes read: `extrude`'s strut
+    /// join, `revolve`'s join lanes and `swept`'s scaffold-retirement
+    /// pass. It lives here, beside [`Body::set_edge_curve`], because
+    /// that is the certified mutation it performs.
     ///
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
-    /// resolve, and [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry)
-    /// if `chart` does not; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
-    /// carries no certified geometry to re-state; and whatever
-    /// [`Body::set_edge_curve`] raises on the re-attachment.
-    pub fn describe_at_rest(
-        &mut self,
-        edge: EdgeKey,
-        chart: SurfaceKey,
-        tol: Tol,
-    ) -> Result<(), EulerOpError>
+    /// resolve; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// carries no certified geometry to re-state;
+    /// [`EulerOpError::RestJoinUndecided`] and
+    /// [`EulerOpError::RestJoinMixed`] where the rule over a pair is in
+    /// band or mixed; and whatever [`Body::set_edge_curve`] raises on the
+    /// re-attachment.
+    pub fn describe_at_rest(&mut self, edge: EdgeKey, tol: Tol) -> Result<(), EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
-        let curve_key = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?.curve;
-        if !self.surfaces.contains_key(chart) {
-            return Err(Arg("chart").miss_geometry(GeomRef::Surface(chart)));
-        }
-        let spec = self
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
+        let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
+        let curve_key = data.curve;
+        let sides = crate::readback::edge_sides_of(self, edge, data);
+        let (s_plus, s_minus) = sides.surfaces();
+        let restated = self
             .edge_curve(edge, curve_key)
             .certified()
             .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
-            .restated_spec()
-            .at_rest_in_chart(chart, false);
+            .restated_spec();
+        let rest = crate::rest_locus(
+            self,
+            [
+                (s_plus, Some(sides.plus.face)),
+                (s_minus, Some(sides.minus.face)),
+            ],
+            &restated.carrier,
+            (restated.param_start, restated.param_end),
+            band,
+        );
+        let spec = match (&restated.description, rest) {
+            (&EdgeDescriptionSpec::Scaffold(mc), geom_brep::RestLocus::Pair(pair)) => {
+                let description = self
+                    .reask_on(
+                        pair,
+                        [sides.plus.face, sides.minus.face],
+                        &restated.carrier,
+                        (restated.param_start, restated.param_end),
+                        Some(mc),
+                        band,
+                    )
+                    .map_err(|refusal| match refusal {
+                        geom_brep::PairRefusal::Mixed(stations) => {
+                            EulerOpError::RestJoinMixed { edge, stations }
+                        }
+                        geom_brep::PairRefusal::InBand(escalation) => {
+                            EulerOpError::RestJoinUndecided {
+                                edge,
+                                diag: escalation.diag(),
+                            }
+                        }
+                    })?;
+                EdgeCurveSpec {
+                    description,
+                    ..restated
+                }
+            }
+            (_, rest) => restated.at_rest(rest),
+        };
         self.set_edge_curve(edge, spec, tol)?;
         Ok(())
+    }
+
+    /// **The must-carry rule asked again over a pair of this body's
+    /// surfaces** ([`geom_brep::reask_pair`]), over `carrier` on
+    /// `interval` between `faces`, which lever its wedge
+    /// ([`crate::wedge_reach`]), `declared` riding an under-determined
+    /// answer: the one
+    /// call shape every door that re-asks a pair on a body goes through
+    /// (the offset doors, whose moved surfaces are not yet the body's,
+    /// call [`geom_brep::reask_pair`] itself, the same shape).
+    ///
+    /// The pair's keys are links of a description the body holds, so a
+    /// key that does not resolve is a torn body, not a refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::PairRefusal`] on an in-band or mixed verdict.
+    pub(crate) fn reask_on(
+        &self,
+        pair: geom_brep::SurfacePair,
+        faces: [FaceKey; 2],
+        carrier: &geom::Curve3<T>,
+        interval: (T, T),
+        declared: Option<geom_brep::MappedCurve<T>>,
+        band: Band,
+    ) -> Result<EdgeDescriptionSpec<T>, geom_brep::PairRefusal>
+    where
+        T: Decide,
+    {
+        let surface = |k: SurfaceKey| {
+            let Some(s) = self.surfaces.get(k) else {
+                unreachable!("{k:?} is a surface a description this body holds names")
+            };
+            (k, s)
+        };
+        let [ka, kb] = pair.keys();
+        geom_brep::reask_pair(
+            [surface(ka), surface(kb)],
+            carrier,
+            interval,
+            crate::wedge_reach(self, faces, carrier, interval),
+            declared,
+            band,
+        )
+    }
+
+    /// **A chart image `edge` keeps, re-asked the must-carry rule** over
+    /// `carrier` on `interval`, between the surfaces of the edge's two
+    /// faces, levered at their reach ([`crate::wedge_reach`],
+    /// [`geom_brep::reask_chart`]): `Some` is the intrinsic
+    /// description the rule now demands, `None` keeps the image. The
+    /// call every door that keeps a chart image over a changed extent
+    /// makes, beside [`Body::reask_on`] for a pair.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::PairRefusal`] on an in-band or mixed verdict.
+    pub(crate) fn reask_chart_on(
+        &self,
+        edge: EdgeKey,
+        carrier: &geom::Curve3<T>,
+        interval: (T, T),
+        band: Band,
+    ) -> Result<Option<EdgeDescriptionSpec<T>>, geom_brep::PairRefusal>
+    where
+        T: Decide,
+    {
+        let sides = crate::readback::edge_sides_of(
+            self,
+            edge,
+            crate::live::proven(&self.edges, edge, EntityId::Edge),
+        );
+        let (ka, kb) = sides.surfaces();
+        let surface = |k: SurfaceKey| {
+            let Some(s) = self.surfaces.get(k) else {
+                unreachable!("{k:?} is the surface of a face this body holds")
+            };
+            (k, s)
+        };
+        let (fa, fb) = sides.faces();
+        let reach = crate::wedge_reach(self, [fa, fb], carrier, interval);
+        geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, reach, band)
     }
 
     /// Every edge described as a wrap edge whose two halves an operation
@@ -1941,9 +2078,9 @@ impl<T: Decide> Body<T> {
 /// hygiene and the validator's referential-integrity pass take.
 #[derive(Clone, Copy)]
 pub(crate) enum Named {
-    /// An intrinsic description's two operands (`Intersection` and
-    /// `TangentIntersection` alike: the described pair IS the faces'
-    /// pair).
+    /// A two-surface description's pair (`Intersection`,
+    /// `TangentIntersection` and `OnPair` alike: the described pair IS
+    /// the faces' pair).
     Pair(geom_brep::SurfacePair),
     /// A chart image's chart, and whether the edge is a wrap edge of a
     /// face on it (D1).
@@ -1964,7 +2101,8 @@ impl Named {
     fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
         match description {
             geom_brep::EdgeDescription::Intersection { pair, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => Self::Pair(*pair),
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+            | geom_brep::EdgeDescription::OnPair { pair } => Self::Pair(*pair),
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
                 wrap: c.wrap,
@@ -1976,7 +2114,8 @@ impl Named {
     fn of_spec<T: Real>(description: &geom_brep::EdgeDescriptionSpec<T>) -> Self {
         match *description {
             geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
-            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => Self::Pair(pair),
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. }
+            | geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } => Self::Pair(pair),
             geom_brep::EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
                 Self::Chart { surface, wrap }
             }
@@ -1984,8 +2123,8 @@ impl Named {
         }
     }
 
-    /// The surface keys the description references: the intrinsic
-    /// arms' pair, a chart image's chart, none for a scaffold (whose
+    /// The surface keys the description references: a two-surface
+    /// description's pair, a chart image's chart, none for a scaffold (whose
     /// pushforward carries its own defining data) or a null edge.
     pub(crate) fn keys(self) -> impl Iterator<Item = SurfaceKey> {
         let (a, b) = match self {
@@ -2249,6 +2388,22 @@ mod tests {
         );
     }
 
+    /// `describe_at_rest` reads where the edge rests off its faces, so
+    /// its one key is its argument: a dead edge is the caller's `Stale`
+    /// under `edge`, and nothing is written.
+    #[test]
+    fn describe_at_rest_refuses_a_dead_edge_as_its_argument() {
+        let (mut body, _) = brick_and_top();
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "edge",
+                key: EntityId::Edge(EdgeKey::default()),
+            }),
+            |b| b.describe_at_rest(EdgeKey::default(), tol()).unwrap_err(),
+        );
+    }
+
     /// **The describing door re-describes nothing by default.** The same
     /// swap with nothing listed refuses, naming the four rim edges, with
     /// the body untouched. With the stored descriptions
@@ -2256,38 +2411,6 @@ mod tests {
     /// re-certified on the new key and the body is valid at rest. Onto a
     /// plane a thousand `eps` above the cap, the first of them does not
     /// certify and the door refuses, naming it, with the body untouched.
-    /// `describe_at_rest`'s two keys are both arguments: a dead chart
-    /// is the caller's `StaleGeometry` under the role `chart`, as a dead
-    /// edge is its `Stale` under `edge`, and neither writes.
-    #[test]
-    fn describe_at_rest_refuses_a_dead_chart_as_its_argument() {
-        let (mut body, top) = brick_and_top();
-        let chart = surf(&body, top);
-        let edge = edges_naming(&body, chart)[0];
-        assert_err_deep_unchanged(
-            &mut body,
-            &EulerOpError::Argument(crate::BadArgument::StaleGeometry {
-                role: "chart",
-                key: crate::GeomRef::Surface(SurfaceKey::default()),
-            }),
-            |b| {
-                b.describe_at_rest(edge, SurfaceKey::default(), tol())
-                    .unwrap_err()
-            },
-        );
-        assert_err_deep_unchanged(
-            &mut body,
-            &EulerOpError::Argument(crate::BadArgument::Stale {
-                role: "edge",
-                key: EntityId::Edge(EdgeKey::default()),
-            }),
-            |b| {
-                b.describe_at_rest(EdgeKey::default(), chart, tol())
-                    .unwrap_err()
-            },
-        );
-    }
-
     #[test]
     fn the_describing_door_takes_only_what_it_is_handed_and_refuses_where_it_goes_stale() {
         let (mut body, top) = brick_and_top();
@@ -2382,7 +2505,14 @@ mod tests {
                 "an edge listed from the helper keeps its kind, on the new key"
             );
         }
-        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+        // The image is a conventional form on a corner, which tier 3
+        // refuses whoever stated it (D2).
+        assert_eq!(
+            validate_geometric(&body, tol()),
+            Err(vec![ValidationError::TransverseNotIntrinsic {
+                edge: listed
+            }])
+        );
     }
 
     /// **The describing door takes a shared chart too**, so a `Shared`

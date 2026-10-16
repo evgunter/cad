@@ -2,8 +2,11 @@
 id: trim-monotone-ladder-bisects-with-its-own-lerp-de-casteljau
 kind: issue
 title: The trim monotone ladder bisects with its own lerp-form de Casteljau beside compose's sub_segment
-status: open
+status: closed
 opened: 2026-10-11
+closed: 2026-10-11
+branch: nurbs/monotone-step-and-blossom
+pr: 4551
 cost: E
 ---
 
@@ -30,3 +33,18 @@ Route `bezier_bisect` through `sub_segment` per channel and re-baseline
 what moves. Its halves are cut from the previous half, which is the
 tighter choice near a zero (measured for `ssi::section::refined_sign`
 on `encl/one-halving-driver`).
+
+## Closed
+
+Closed by the NURBS lane's PR 4551, which routes the cut through the
+spline layer's one certified primitive. `bezier_bisect` halves each
+channel with `geom_core::spline::restrict_bernstein` at `(0, ½)` and
+`(½, 1)`: the blossom on `KnotVector::bezier(p, (0, 1))`, every level
+through `Certification::between`, so no lerp-form de Casteljau of its
+own survives. Each half is cut from the polygon it halves, as before.
+`sub_segment` is gone with `convex_step`; the segment cut on
+`[s0, s1]` is `blossom::restrict_segment` beside it.
+
+`between` is the monotone corner form, each corner also met with its
+convex form, then with its sources' hull, so a dyadic split such as
+this halving's `½` rounds once, as the convex form's did.

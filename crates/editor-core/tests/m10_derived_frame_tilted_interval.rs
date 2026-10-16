@@ -281,7 +281,7 @@ fn sym5_tilted_frame_ladder() {
                     println!(
                         "tilted {kind} half={half:e} {lift:?} {name}: frozen {} sym0 {} num {}\n  fails {} {}",
                         c.frozen,
-                        c.symbolic_zero,
+                        c.symbolic,
                         c.numeric,
                         f.len(),
                         head(f.first().map_or("", String::as_str), 260)
@@ -412,7 +412,7 @@ fn sym5_tilted_derived_guided_budget_ladder() {
         println!(
             "tilted derived Guided 1e-3 shipped budget {label}: frozen {} sym0 {} num {} in {:?}\n  fails {} {}",
             c.frozen,
-            c.symbolic_zero,
+            c.symbolic,
             c.numeric,
             t.elapsed(),
             f.len(),
@@ -833,10 +833,10 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
                 p.len(),
                 off.len(),
                 c_off.frozen,
-                c_off.symbolic_zero,
+                c_off.symbolic,
                 on.len(),
                 c_on.frozen,
-                c_on.symbolic_zero
+                c_on.symbolic
             );
             for f in &on {
                 println!("      on:    {}", head(f, 200));
@@ -1092,7 +1092,7 @@ fn sym8_phase1_the_tilt_u_ladder() {
                     println!(
                         "tiltU {kind} half={half:e} {lift:?} {label}: frozen {} sym0 {} num {} in {:.1}s\n  fails {} {}",
                         c.frozen,
-                        c.symbolic_zero,
+                        c.symbolic,
                         c.numeric,
                         t.elapsed().as_secs_f64(),
                         f.len(),
@@ -1149,7 +1149,7 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
         let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
-        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
+        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         println!(
             "tiltU derived Guided 1e-3 {label}: {counts:?}\n  carrier_endpoint_end {:?} \
              newell_plane_residual {:?}\n  fails {} {}",
@@ -1164,7 +1164,7 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     let (on_split, on_fails) = &seen[1];
     assert_eq!(
         *off_split,
-        [24, 0, 0, 1],
+        [24, 1],
         "on SYM-5's tier (rules F, G and the read shut) the carrier endpoint is one \
          decision short of the theorem"
     );
@@ -1179,10 +1179,10 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     );
     assert_eq!(
         *on_split,
-        [32, 16, 0, 0],
-        "the shipped tier's theorems and the decision read take the whole predicate between them: nothing here \
-         is numeric, and the sixteen the read answers are the frame's conditioning \
-         comparisons, which no form settles"
+        [48, 0],
+        "the shipped tier takes the whole predicate: nothing here is numeric, and sixteen of \
+         the 48 are the frame's conditioning comparisons, which only the decision read \
+         answers"
     );
     assert!(
         on_fails.is_empty(),
@@ -1255,11 +1255,9 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                     crate::m10_8_harness::split(&take_shape_report())
                 };
                 println!(
-                    "{name} half=1e-3 {lift:?} {label}: sym0 {} reg {} gated {} num {} frozen {} \
+                    "{name} half=1e-3 {lift:?} {label}: sym {} num {} frozen {} \
                      in {dt:.1}s\n  fails {} {}",
-                    c.symbolic_zero,
-                    c.registered,
-                    c.sign_gated,
+                    c.symbolic,
                     c.numeric,
                     c.frozen,
                     f.len(),
@@ -1267,7 +1265,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                 );
                 let mut named: Vec<&str> = Vec::new();
                 for (pred, row) in &split {
-                    if row[3] > 0 && f.iter().any(|r| r.contains(pred)) {
+                    if row[1] > 0 && f.iter().any(|r| r.contains(pred)) {
                         named.push(pred);
                         println!("  refused split {pred:<32} {row:?}");
                     }
@@ -1323,8 +1321,9 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 ///   to fold. A frame construction that minted one again would make
 ///   the arm load-bearing here, and this half reds.
 ///
-/// Measured at the merge of `main` into `props/sign-hull` (1e-9): all
-/// three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
+/// Measured at the merge of `main` into `props/sign-hull` (1e-9; a
+/// record, in that day's columns — `sign_gated` is part of `symbolic`
+/// since DECIDE-10): all three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
 /// `[32, 16, 0, 0]` and `newell_plane_residual` `[24, 24, 0, 0]`, at
 /// both dials.
 ///
@@ -1339,7 +1338,7 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
         start_shape_report();
         let (fails, counts) = sym(doc, ProfileLift::Guided, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
-        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
+        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
             fails,
             format!("{counts:?}"),
@@ -1387,6 +1386,95 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
     }
 }
 
+/// **WHAT THE DECISION READ BUYS the tilted family**, as a
+/// differential in decisions and verdicts: each cap replayed whole at
+/// `half = 1e-3` with the read on (shipped) and shut
+/// (`SymRules::without_the_reads`). With the read on every one
+/// certifies. With it shut the end cap and its `FlipZ` twin refuse at
+/// `newell_plane_residual`, and the start cap certifies on the forms
+/// alone, every decision as it reads with the read on.
+#[test]
+fn m10_what_the_read_buys_on_the_tilted_caps() {
+    let doc_of = |base, place| r2_document(1.0e-3, base, place);
+    // `(name, base, place, read-on receipt, read-shut receipt, the
+    // predicate the read-shut replay refuses at)`, each receipt
+    // `(symbolic, numeric)`.
+    type Row = (
+        &'static str,
+        Base,
+        Place,
+        (u64, u64),
+        (u64, u64),
+        Option<&'static str>,
+    );
+    let rows: [Row; 3] = [
+        (
+            "tiltU end cap",
+            Base::TiltU,
+            Place::Derived(1),
+            (972, 514),
+            (573, 300),
+            Some("newell_plane_residual"),
+        ),
+        (
+            "flipZ derived",
+            Base::FlipZ,
+            Place::Derived(1),
+            (972, 514),
+            (573, 300),
+            Some("newell_plane_residual"),
+        ),
+        (
+            "tiltU start-cap",
+            Base::TiltU,
+            Place::DerivedStartCap,
+            (972, 514),
+            (972, 514),
+            None,
+        ),
+    ];
+    let mut got = Vec::new();
+    for (name, base, place, want_on, want_off, refuses_at) in rows {
+        let doc = doc_of(base, place);
+        let (on_fails, on) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), budget());
+        let (off_fails, off) = sym(
+            &doc,
+            ProfileLift::Guided,
+            SymRules::without_the_reads(),
+            budget(),
+        );
+        println!("{name} read on: {on:?} {on_fails:?}\n{name} read shut: {off:?} {off_fails:?}");
+        assert!(
+            on_fails.is_empty(),
+            "{name}: certifies with the read on: {on_fails:?}"
+        );
+        match refuses_at {
+            Some(p) => assert!(
+                off_fails.len() == 1 && off_fails[0].contains(p),
+                "{name}: with the read shut it refuses at `{p}`: {off_fails:?}"
+            ),
+            None => assert!(
+                off_fails.is_empty(),
+                "{name}: with the read shut it still certifies: {off_fails:?}"
+            ),
+        }
+        got.push((
+            name,
+            (on.symbolic, on.numeric),
+            (off.symbolic, off.numeric),
+            want_on,
+            want_off,
+        ));
+    }
+    for (name, on, off, want_on, want_off) in got {
+        assert_eq!(
+            (on, off),
+            (want_on, want_off),
+            "{name}: (symbolic, numeric) with the read on and shut"
+        );
+    }
+}
+
 /// **SYM-12's reviews' two negative-`n.z` documents — rule F is inert on
 /// both.** Both carry the manifestly negative `n.z` of the start cap
 /// and `FlipZ`, through a different tilt: `FlipX` (`u` flipped instead
@@ -1397,8 +1485,9 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
 /// either: receipt, refusals and the `carrier_endpoint_end` /
 /// `newell_plane_residual` splits are the same at both dials.
 ///
-/// Measured at the merge of `main` into `props/sign-hull` (1e-9):
-/// `FlipX` `Pinned` `604 / 272 sign_gated / 446` and certifies;
+/// Measured at the merge of `main` into `props/sign-hull` (1e-9; a
+/// record, in that day's columns — `sign_gated` is part of `symbolic`
+/// since DECIDE-10): `FlipX` `Pinned` `604 / 272 sign_gated / 446` and certifies;
 /// `Guided` `548 / 144 / 308` and refuses at the wall join of loop 0
 /// vertex 0, `carrier_endpoint_end` `[28, 8, 0, 0]`,
 /// `newell_plane_residual` `[24, 20, 0, 0]`. It prints the end cap at
@@ -1416,7 +1505,7 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
         start_shape_report();
         let (fails, counts) = sym(doc, lift, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
-        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
+        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
             format!("{counts:?}"),
             fails,
@@ -1617,11 +1706,9 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
                 let t0 = std::time::Instant::now();
                 let (f, c) = sym(&doc, lift, rules, budget());
                 println!(
-                    "{name} half={half:e} {lift:?} {label}: sym0 {} reg {} gated {} num {} \
+                    "{name} half={half:e} {lift:?} {label}: sym {} num {} \
                      frozen {} in {:.1}s\n  fails {} {}",
-                    c.symbolic_zero,
-                    c.registered,
-                    c.sign_gated,
+                    c.symbolic,
                     c.numeric,
                     c.frozen,
                     t0.elapsed().as_secs_f64(),
@@ -1783,11 +1870,10 @@ fn sym10_phase1_hand_plant_table_tilted() {
                 budget(),
             );
             println!(
-                "derived {hname} {lift:?}: fails {} in {:.1}s | sym0 {} gated {} num {} frozen {}\n    {}",
+                "derived {hname} {lift:?}: fails {} in {:.1}s | sym {} num {} frozen {}\n    {}",
                 f.len(),
                 t0.elapsed().as_secs_f64(),
-                c.symbolic_zero,
-                c.sign_gated,
+                c.symbolic,
                 c.numeric,
                 c.frozen,
                 head(f.first().map_or("", String::as_str), 260)
@@ -1801,10 +1887,9 @@ fn sym10_phase1_hand_plant_table_tilted() {
         budget(),
     );
     println!(
-        "authored eps/8 Guided: fails {} | sym0 {} gated {} num {} frozen {}",
+        "authored eps/8 Guided: fails {} | sym {} num {} frozen {}",
         f.len(),
-        c.symbolic_zero,
-        c.sign_gated,
+        c.symbolic,
         c.numeric,
         c.frozen,
     );

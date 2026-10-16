@@ -3,7 +3,7 @@
 //! # Failures are values, and this module invents none of them
 //!
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
-//! `Poisoned { through }` — and the ratified error rule is that a
+//! `Poisoned { through }` — and G4's ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is the
 //! kernel's own rendering of the `NodeError`, its node spoken from the
@@ -1240,6 +1240,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)
         | NodeErrorKind::CurvedSolidFrontier { .. }
@@ -1253,6 +1254,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MissingSlot { .. }
         | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::NonPositiveCount { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing

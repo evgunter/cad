@@ -406,7 +406,12 @@ fn a_rigid_transform_re_derives_the_caches() {
     let (above, _) = tilted_cut();
     let before = above.pcurves().count();
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
-    let moved = topo::transform::transform_rigid(&above, &map, Tol::witness()).unwrap();
+    let moved = topo::transform::transform_rigid(
+        &above,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(moved.pcurves().count(), before);
     assert!(
         topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty()

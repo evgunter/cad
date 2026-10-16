@@ -335,7 +335,12 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
         let body = build(&f, s);
         let sigma = sense(&body, f.theta);
         for (pose, map) in poses(s) {
-            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+            let posed = transform_rigid(
+                &body,
+                &geom_core::test_support::rigid(&map, Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap();
             for n in directions() {
                 let (lo, hi) = support(&f, s, sigma, n);
                 for depth in [1e-4 * s, 1e-7 * s] {
@@ -397,7 +402,12 @@ fn a_cut_clear_of_the_faces_window_splits() {
             f.name
         );
         for (pose, map) in poses(s) {
-            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+            let posed = transform_rigid(
+                &body,
+                &geom_core::test_support::rigid(&map, Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap();
             for n in directions() {
                 let (lo, hi) = support(&f, s, sigma, n);
                 let (slo, shi) = sampled_support(&f, s, sigma, n);

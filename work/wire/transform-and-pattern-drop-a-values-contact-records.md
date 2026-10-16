@@ -19,10 +19,10 @@ Found by the TQUERY designer pair weighing `split-halves-have-no-contact-records
 ## The kernel half (2026-10-11, CONTACTHOLD)
 
 `topo-surgery-verbs-drop-a-bodys-contact-records` added the topo carry:
-`ContactRecords::carried_through` and each surgery verb's
-`carry_contacts`. `transform_rigid` keeps every key, so a `Transform`
-node's carry is `contacts.carried_through(0, &moved, Some)`, or
-`carried_from(0)` as `wire_place_in_world` already does. A `Pattern`
+`ContactRecords::carried_through` (since CONTACTHOLD's one carry, it
+takes an op's `topo::Lineage`) and each surgery verb's `carry_contacts`.
+`transform_rigid` keeps every key, so a `Transform` node's carry is
+`carried_from(0)`, as `wire_place_in_world` already does. A `Pattern`
 grafts copies, so it re-keys each copy's records through its graft keys,
 as `product.rs::carry_contacts` does. The editor-core nodes still
 default to `OpOut::plain`'s empty records.

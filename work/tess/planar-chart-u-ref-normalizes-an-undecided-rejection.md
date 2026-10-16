@@ -23,7 +23,7 @@ filing did not build a fixture, so the reachability is unmeasured.
 ## Shape
 
 The Gram–Schmidt step, decided: `UnitVec3::new` on the rejection (or
-`OrthoFrame::from_aim_and_reference` against the normal) under a
+`RigidMotion::from_aim_and_reference` against the normal) under a
 tessellation K name, refusing typed. Found by the
 `linalg/decided-not-minted` sweep's second pass, which looked for
 `reject_from(…).normalize()` after the first pattern

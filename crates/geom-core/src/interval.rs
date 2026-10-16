@@ -316,6 +316,22 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
 }
 
+/// Interval dot product of two triples, fixed ascending order (D9).
+#[must_use]
+pub fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Interval cross product of two triples, fixed component order (D9).
+#[must_use]
+pub fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
 /// A certified upper bound on `‖v‖` for a componentwise enclosure: the
 /// upper end of [`norm_sq`]'s root, which is
 /// [`Certification::sqrt`](certification::Certification::sqrt)'s
@@ -336,11 +352,7 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
     // The backend's root, which is `Certification::sqrt`'s: naming the door
     // here would list this file as an importer, and it holds `Real`.
-    let root = Interval(norm_sq(v).0.sqrt());
-    if !root.is_certified() {
-        return f64::NAN;
-    }
-    root.0.hi()
+    certified_hi(Interval(norm_sq(v).0.sqrt()))
 }
 
 /// `num / den` rounded DOWN — a lower bound on the real quotient,
@@ -372,6 +384,14 @@ pub fn max_bound(a: f64, b: f64) -> f64 {
 #[must_use]
 pub fn min_bound(a: f64, b: f64) -> f64 {
     -max_bound(-a, -b)
+}
+
+/// The upper end of an enclosure, `NaN` when it is refused: an upper
+/// bound on the value, or no bound at all. Asked by name because a
+/// refused enclosure carries ordinary endpoints.
+#[must_use]
+pub fn certified_hi(x: Interval) -> f64 {
+    if x.is_certified() { x.hi() } else { f64::NAN }
 }
 
 /// `num / den` rounded UP — an upper bound on the real quotient, which
@@ -552,6 +572,15 @@ impl Real for Interval {
         self.0.is_nai() || self.0.is_empty()
     }
 
+    /// Both endpoints finite, and not poison: `[MAX, ∞]` from an
+    /// overflow is unbounded, where [`is_finite_length`]'s `x − x`
+    /// reads the entire line and not poison.
+    ///
+    /// [`is_finite_length`]: crate::real::is_finite_length
+    fn is_bounded(self) -> bool {
+        !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
+    }
+
     /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
     /// honest enclosure (containment is the contract; a step function
     /// has no tighter interval image). Decoration per IEEE 1788: a box
@@ -678,6 +707,17 @@ impl Real for Interval {
     /// non-real mapping (module docs), decided at construction.
     fn powi(self, n: i32) -> Self {
         Self(self.0.powi(n))
+    }
+
+    /// `[lo·k, hi·k]` unpadded where both results are strictly above the
+    /// smallest normal and `k` is
+    /// a positive normal power of two; the general product everywhere
+    /// else ([`DInterval::scale_pow2`] states each case). Bit for bit
+    /// the general product wherever that product is itself exact, and
+    /// inside its one-step pad between the smallest normal and the 2Prod
+    /// floor, where it cannot certify the exact value.
+    fn scale_pow2(self, k: f64) -> Self {
+        Self(self.0.scale_pow2(k))
     }
 
     /// The pair `(sin(self), cos(self))`, each component an outward-padded
@@ -830,21 +870,20 @@ impl crate::spline::SpanLocate for Interval {
         Self(enclosure_hull_of(self.0, other.0))
     }
 
-    fn refine_homogeneous(
-        refinement: &crate::spline::RingRefinement,
-        _knots: &crate::spline::Knots<Self>,
-        channel: &[Self],
+    fn restrict_window(
+        window: &[Self],
+        span: crate::spline::Span<'_>,
+        held: &[Self],
+        ends: (f64, f64),
+        _held_ends: (Self, Self),
     ) -> Vec<Self> {
-        refinement.refine(channel)
-    }
-
-    fn refine_weights(
-        refinement: &crate::spline::RingRefinement,
-        _knots: &crate::spline::Knots<Self>,
-        weights: &[Self],
-    ) -> Option<Vec<Self>> {
-        let refined = refinement.refine(weights);
-        crate::spline::algebra::certainly_positive(&refined).then_some(refined)
+        // A held knot at `Interval` is the point of its `f64` structure,
+        // so the certified restriction reads the structure; the held
+        // values are checked for length only, as at every scalar.
+        if held.len() != span.knots().knots().len() {
+            return vec![Self::from_f64(f64::NAN); span.degree() + 1];
+        }
+        crate::spline::blossom::restrict_window(window, span, ends)
     }
 
     fn point_value(self) -> Option<f64> {
@@ -854,6 +893,10 @@ impl crate::spline::SpanLocate for Interval {
 
     fn structure_positive(self) -> bool {
         Bounds::lo(self) > 0.0 && !self.is_poison()
+    }
+
+    fn plain_constant(self) -> Option<f64> {
+        self.point_value()
     }
 
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
@@ -1214,6 +1257,29 @@ mod tests {
     /// Shorthand: the enclosure [lo, hi].
     fn iv(lo: f64, hi: f64) -> Interval {
         Interval::from_bounds(lo, hi)
+    }
+
+    /// **The interval scalar's `scale_pow2` is the backend's exact
+    /// scale, not the trait's default product.** Just above the
+    /// smallest normal the general product cannot certify an exact
+    /// halving (it is under the backend's 2Prod floor) and pads it one
+    /// step; the override returns the exact half, so a lost override
+    /// reds here. Above the floor the two agree bit for bit, and at
+    /// `f64` the door is the product.
+    #[test]
+    fn the_power_of_two_scale_is_the_backends_exact_scale() {
+        let least = f64::MIN_POSITIVE;
+        let x = iv(4.0 * least, 8.0 * least);
+        let got = x.scale_pow2(0.5);
+        assert_eq!((got.lo(), got.hi()), (2.0 * least, 4.0 * least));
+        let general = x * Interval::from_f64(0.5);
+        assert!(general.lo() < got.lo() && got.hi() < general.hi());
+        let x = iv(-3.0, 0.375);
+        assert_eq!(
+            x.scale_pow2(0.25).repr_bits(),
+            (x * Interval::from_f64(0.25)).repr_bits()
+        );
+        assert_eq!(Real::scale_pow2(0.375_f64, 0.25), 0.375 * 0.25);
     }
 
     /// A named unary trait operation (for the monotonicity tables).

@@ -480,8 +480,9 @@ fn the_rim_only_cap_records_two_opposite_pole_readings() {
 /// sweep's negative result, executed. A cylinder is unbounded along
 /// its axis in BOTH directions, so one rim circle bounds no finite
 /// face whichever way it is traversed: there is no missing extreme for
-/// a traversal to name, and `DegenerateFace` is the right answer
-/// rather than an unbuilt lane.
+/// a traversal to name. It is a loop winding the cylinder alone, which
+/// bounds no region of it, and that is the answer
+/// ([`PropsError::LoopsWindChart`]) rather than an unbuilt lane.
 #[test]
 fn a_cylinder_rim_only_face_is_extent_less() {
     let cyl = surf::cylinder::<f64>(RS);
@@ -500,7 +501,7 @@ fn a_cylinder_rim_only_face_is_extent_less() {
         )];
         assert!(matches!(
             curved_face(&cyl, &edges, true, band()),
-            Err(PropsError::DegenerateFace)
+            Err(PropsError::LoopsWindChart)
         ));
     }
 }

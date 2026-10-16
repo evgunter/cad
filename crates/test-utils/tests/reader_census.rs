@@ -371,6 +371,10 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/join.rs",
+        disposition: Shared, // the join's one face-to-surface walk, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/offer_rows.rs",
         disposition: Shared, // the Boolean's decision sites, code view
     },
@@ -431,6 +435,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/validate.rs",
         disposition: Shared, // the at-rest door roster, prose view and code view
+    },
+    Entry {
+        path: "crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs",
+        disposition: Shared, // the given pair's public mints, fields and derives, code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",

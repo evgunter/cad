@@ -165,11 +165,39 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// name holding one; every other row held its word. Re-taken merged
 /// over FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved
 /// the same rows on main.
+///
+/// **Re-pinned for the killed-lineage chase** (`emit_topo`'s
+/// `KilledSplits`): `crossing_slots` only. Its second slot's bottom rim
+/// reaches the result in pieces split off around stretches the subtract
+/// killed. Those pieces were read as chords, and one was named a seam of
+/// the first slot's floor and the second slot's wall. They are now
+/// pieces of that rim. Two floor corners moved with them: one from a
+/// junction of three seam lines to a crossing of the rim, and one from
+/// a face crossing to the seam vertex of two edges that touch. Every
+/// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved.
+/// **Re-pinned for the output stage's killed lineage** (`topo`'s
+/// output stage copies the records of the edges its merge kills into
+/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
+/// `crossing_slots` only. The second subtract's merge of the two flush
+/// floors kills one stretch of the first cavity's bottom rim and keeps
+/// the next, whose lineage stopped at the stretch killed, so it was
+/// named a seam of the cavity's wall and the slot's floor. It is now a
+/// piece of that rim, and the floor corner where the slot's rim meets
+/// the cavity's wall moved from a touch of the wall to a crossing of the
+/// two rims, as the other three such corners are named. Every
+/// other document held its word.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xa5e9e0fd2bbaebcf),
-    ("corner_table", 0x2da74bb6e496b7ae),
+    ("corner_table", 0x37758803526e4b40),
     ("heat_sink", 0xaa9e6024a43311a1),
-    ("crossing_slots", 0xe232b942234c7fa3),
+    ("crossing_slots", 0x9338d492da350a03),
     ("nested_islands_105", 0x8ab7c6f45f60f9dd),
     ("nested_islands_106_depth1", 0x2ba81ab7b5c23ae0),
     ("nested_islands_106_depth2", 0x4c2246499d325098),

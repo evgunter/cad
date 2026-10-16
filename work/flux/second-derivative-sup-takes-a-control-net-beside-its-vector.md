@@ -2,8 +2,12 @@
 id: second-derivative-sup-takes-a-control-net-beside-its-vector
 kind: issue
 title: nonrational_second_derivative_sup takes a control net beside its knot vector and re-mints its differenced level
-status: open
+status: closed
+pr: 4838
 opened: 2026-10-10
+priority: P3
+cost: E
+closed: 2026-10-12
 ---
 
 
@@ -25,3 +29,14 @@ level through `SplineCoeffs::derivative` → `SplineCoeffsBuf::pair` →
 builds by hand. `KnotVector::difference_coeffs` then has no consumer
 outside `crates/mesh/src/chords.rs` (filed on CHORD) and its own test,
 and goes with the last one.
+
+2026-10-11 (ENCL `degree-1-partial-has-four-spellings`, PR 4754): the
+premise of this row's last sentence no longer holds. `KnotVector::difference_coeffs` still
+has consumers beyond `chords.rs`: `props::quad`'s `PatchGrid::step`
+line step and `geom_core::spline::net`'s `TensorCoeffs::diff_u`/`diff_v`,
+which every tensor partial (`TensorCoeffs::derived_u`/`_v`) is built on. New evidence: the site's
+`p < 2` guard plus `clamped(derivative_knot_slice, p − 1)` is
+`KnotVector::derived`'s split by hand — `SpanConstant` refused as
+`DegreeBelowTwo`, `Discontinuous` as `DerivativeKnotVector`. A match on
+`knots.derived()` (or the pair's `SplineCoeffs::derived`) gives both
+refusals their cause directly.

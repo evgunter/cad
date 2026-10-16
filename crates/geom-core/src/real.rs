@@ -93,7 +93,7 @@ use crate::tolerance::Tol;
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
     /// parameters in this session's EARLY normal form, and a decision
-    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    /// that rests on the record is counted `crate::SymCounts::registered`.
     Recorded,
     /// Already recorded — the same two nodes, or two nodes the registry
     /// already resolves to one. Idempotent, and cheap: nothing is
@@ -363,6 +363,27 @@ pub trait Real:
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;
 
+    /// **Is every value this scalar carries a finite number?** At a
+    /// point scalar, whether the value is finite (`x − x` is not the
+    /// poison, [`is_finite_length`]); at the interval scalar, whether
+    /// both endpoints are finite and the enclosure is not poison — an
+    /// exact fact about the representation, as [`Self::is_poison`] is,
+    /// not a margin read against a band. The value channel answers at
+    /// the dual and symbolic scalars.
+    ///
+    /// It is [`is_finite_length`] with the enclosure's case decided
+    /// rather than waved through. That predicate keeps waving it
+    /// through on purpose (an overflowed norm still ENCLOSES the true
+    /// length); this one is for a value that must itself be finite to
+    /// be what its type claims — a rigid motion's angle and
+    /// translation (`linalg::RigidMotion`'s mints and decided door).
+    ///
+    /// Required, with no default: `is_finite_length` is the waving
+    /// answer at an enclosure, so a scalar that inherited it would
+    /// pass an unbounded enclosure silently. Each scalar states its
+    /// own reading.
+    fn is_bounded(self) -> bool;
+
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
     /// E12's "kept in reserve — discharge by provenance"): a
     /// constructor generic over `T: Real` states that the two values
@@ -472,6 +493,25 @@ pub trait Real:
     /// harmless within the session-boxed model range (D4 ¶4); changing it
     /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
+
+    /// **`self · k` for `k` an exact power of two** — the scale a
+    /// subdivision's `2⁻ʳ` applies to a sum it formed unscaled. The
+    /// value is the product's, `self * Self::from_f64(k)`, and that is
+    /// the default: exact at `f64` wherever the result is normal, and
+    /// the same expression at the symbolic and dual scalars.
+    ///
+    /// What the method is FOR is the interval scalar, where a general
+    /// product against a point folds corners and certifies each one
+    /// through a 2Prod witness. A power of two only moves an exponent,
+    /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
+    /// wherever both results are strictly above the smallest normal
+    /// (a product just under it rounds up onto it), and the general product
+    /// everywhere else — a result in the subnormal range, an overflow,
+    /// a poisoned operand, or a `k` that is not a positive normal power
+    /// of two. A `k` that is not one is never wrong, only not faster.
+    fn scale_pow2(self, k: f64) -> Self {
+        self * Self::from_f64(k)
+    }
 
     /// The sine and cosine together (argument in radians) — **the
     /// primitive**.
@@ -698,6 +738,14 @@ pub trait Real:
     /// need a topology-grade statement about the seam go through the
     /// predicate layer, like every other decision.
     ///
+    /// **What a reader owes at the jump: nothing.** An exact multiple of
+    /// `period` reduces to `0`, and an input a hair below one to a hair
+    /// under `period` (above), so which end of the jump a coincidence
+    /// lands on is rounding, not information. A caller reads the result
+    /// only where its answer is invariant under that branch, and a whole
+    /// turn comes from structure it holds (a closed carrier, a self-loop,
+    /// a decided full span), never from this value.
+    ///
     /// **What is promised across periods**: nothing bitwise. `2π` is not
     /// representable, so `θ + k·fl(τ)` is a *different real parameter*
     /// than `θ + k·τ`; reduced evaluations of `θ` and `θ + k·fl(τ)`
@@ -824,7 +872,7 @@ pub trait Real:
 ///   datum door, the evaluation layer's `unit()`, and every one of
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
 ///   roll offset and the ladder's rungs reach it through
-///   [`OrthoFrame::from_aim`](crate::OrthoFrame::from_aim));
+///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim));
 /// - `sweep`'s `revolve::axis::AxisFrame::build`;
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
@@ -1826,6 +1874,11 @@ impl Real for f64 {
     /// `f64`'s one poison value is NaN.
     fn is_poison(self) -> bool {
         self.is_nan()
+    }
+
+    /// A point: the value is a finite number.
+    fn is_bounded(self) -> bool {
+        self.is_finite()
     }
 
     /// **The witness at a point** ([`Real::register_equal`]): `f64`

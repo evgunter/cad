@@ -139,7 +139,7 @@ pub struct Lofted<T: Real> {
     /// wall `j − 1 mod n`'s `u = 1`).
     pub seam_edges: Vec<Vec<EdgeKey>>,
     /// **The v-parameter each input section sits at** —
-    /// [`LoftGeometry::section_params`] carried out to the caller
+    /// [`LoftGeometry::section_params`](crate::skin::LoftGeometry::section_params) carried out to the caller
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
     /// geometry, so "what spacing did the skin choose for my
     /// sections?" is answered by the result rather than re-derived by
@@ -332,14 +332,23 @@ impl fmt::Display for LoftError {
             ),
             Self::FarStackingEscalated { slab, source } => write!(
                 f,
-                "whether loft section {far}'s plane faces along the stack from section \
-                 {slab} is too close to call: {source}",
-                far = SlabPair(*slab).far()
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft section {far}'s plane faces along the stack from \
+                         section {slab}",
+                        far = SlabPair(*slab).far()
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::StackingEscalated { slab, source } => write!(
                 f,
-                "whether loft {} stack forward is too close to call: {source}",
-                SlabPair(*slab)
+                "{}",
+                source.undecided(
+                    format_args!("whether loft {} stack forward", SlabPair(*slab)),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
         }
     }
@@ -417,7 +426,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 ///
 /// `None` when the section has no loops at all, which the caller
 /// reports as [`LoftError::SectionStructure`]: a section that reached
-/// here without an outer loop is a corrupt [`LoftGeometry`], not an
+/// here without an outer loop is a corrupt [`LoftGeometry`](crate::skin::LoftGeometry), not an
 /// input fault.
 fn outer_world<T: Real>(
     profile: &ValidatedProfile<T>,
@@ -1295,4 +1304,32 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
         v_degree,
         tol,
     )
+}
+
+#[cfg(test)]
+mod undecided_tests {
+    use super::*;
+
+    /// **A loft's stacking escalation offers the tolerance a value in the
+    /// band gives**: the decision is the sections' mean spacing along a
+    /// normal, a length.
+    #[test]
+    fn a_stacking_escalation_ends_in_its_lengths_tolerance() {
+        use crate::swept::undecided_fixtures::{SIZED, expected, readings};
+        let near = expected("whether loft sections 1 and 2 stack forward", SIZED);
+        let far = expected(
+            "whether loft section 2's plane faces along the stack from section 1",
+            SIZED,
+        );
+        for ((source, near), far) in readings("loft_stacking").into_iter().zip(near).zip(far) {
+            assert_eq!(
+                LoftError::StackingEscalated { slab: 1, source }.to_string(),
+                near
+            );
+            assert_eq!(
+                LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
+                far
+            );
+        }
+    }
 }
