@@ -1171,8 +1171,8 @@ impl Half {
 
 /// **A face of one solid's through a vertex pair's point**: the face
 /// the other solid's vertex there touches (`vtxfac`'s pierce read
-/// again), with the datum that touch was read against, and the touch
-/// it names where a line on the face is not read
+/// again). It carries the datum that touch was read against, and the
+/// touch's vertices, which a refusal along the face names
 /// ([`BooleanError::PartnerAlongFace`]).
 ///
 /// The face is the solid's but no sector of its vertex's, since the
@@ -1202,29 +1202,30 @@ pub(super) struct HeldFace<T: geom_core::Real> {
 
 impl<T: Decide> HeldFace<T> {
     /// Whether the face holds the common line `axis`, read off the
-    /// line's own bound (`reach`) as the touch's partners are
-    /// (`vtxfac::partner_side`): a decided zero holds it, a definite
-    /// side does not, and a reading within the band refuses typed. A
-    /// curved face holding the line refuses as the partner beside it
-    /// does: which side of the face the line's neighbourhood takes is
-    /// second order.
+    /// line's own bound (`reach`) as the touch reads its partners
+    /// (`PierceDatum::side`): a decided zero holds it, a definite side
+    /// does not, and a reading within the band refuses typed. A curved
+    /// face holding the line refuses as a partner along it does
+    /// (`PierceDatum::curved_along`), so a face that holds a line is a
+    /// plane.
     fn holds(&self, axis: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
-        let lever = self.datum.lever.within(reach.length());
-        let read = super::sectors::pierce_side(
-            axis,
-            reach,
-            self.datum.normal,
-            self.datum.shape,
-            lever,
-            band,
-        )?;
-        if read.code != SideCode::On {
-            return Ok(false);
+        let on = self.datum.side(axis, reach, band)? == SideCode::On;
+        match self.datum.curved_along(on) {
+            Some(how) => Err(self.along(how)),
+            None => Ok(on),
         }
-        if self.datum.shape == super::sectors::FaceShape::Curved {
-            return Err(self.along(super::AlongFace::Curved));
+    }
+
+    /// Whether a flank lies under the face, read as [`Self::holds`]
+    /// reads the line, on the plane it holds. A flank on the face is a
+    /// face of the touching vertex's lying on it, which the touch does
+    /// not read.
+    fn under(&self, w: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+        match self.datum.side(w, reach, band)? {
+            SideCode::In => Ok(true),
+            SideCode::Out => Ok(false),
+            SideCode::On => Err(self.along(super::AlongFace::Flush)),
         }
-        Ok(true)
     }
 
     /// The refusal of a line on the face whose reading `along` names.
@@ -1534,22 +1535,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         // The other solid's face holding the line: its material is the
         // wedge with the half-turn under the face, by the side its link
-        // lies on. A flank on that face is a face of the touching
-        // vertex's lying on it, which the touch does not read.
+        // lies on.
         let Some(face) = holding[usize::from(own_is_a)] else {
             return Ok(in_wedge);
         };
-        let under = match side_code(
-            w,
-            reach,
-            face.datum.normal,
-            super::sectors::NO_CURVATURE(),
-            band,
-        )? {
-            SideCode::In => true,
-            SideCode::Out => false,
-            SideCode::On => return Err(face.along(super::AlongFace::Flush)),
-        };
+        let under = face.under(w, reach, band)?;
         match face.link {
             SideCode::Out => Ok(in_wedge || under),
             SideCode::In => Ok(in_wedge && under),
@@ -2522,6 +2512,10 @@ mod tests {
     /// whose ray lies on it), A's wedge is the void's complement, and its
     /// material is the wedge and under the face: B's corner in the void
     /// lies outside A, as the wedges alone read it.
+    ///
+    /// A flank of B's on the face is a face of the touching vertex's
+    /// lying on it, and refuses `PartnerAlongFace { Flush }`; a curved
+    /// face holding the line refuses `PartnerAlongFace { Curved }`.
     #[test]
     fn a_solid_with_an_edge_and_a_face_on_the_line_holds_the_half_turn_under_the_face() {
         use super::super::sectors::{FaceShape, PierceLever, Reach};
@@ -2646,6 +2640,30 @@ mod tests {
             BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
             "{err}"
         );
+        let along = |err: BooleanError| match err {
+            BooleanError::PartnerAlongFace { along, .. } => along,
+            other => panic!("a partner along the face: {other:?}"),
+        };
+        // B's corner below the face, one flank on it.
+        let flush = corner(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(-h, -h, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(-h, h, 0.0),
+        );
+        for op in [BooleanOp::Subtract, BooleanOp::Union] {
+            let err = meet(&above, &flush, op, Some(flat)).expect_err("a flank on the face");
+            assert_eq!(along(err), super::super::AlongFace::Flush, "{op:?}");
+            let curved = HeldFace {
+                datum: PierceDatum {
+                    shape: FaceShape::Curved,
+                    ..flat.datum
+                },
+                ..flat
+            };
+            let err = run(op, Some(curved)).expect_err("a curved face holding the line");
+            assert_eq!(along(err), super::super::AlongFace::Curved, "{op:?}");
+        }
         // The void's corners are disjoint, under the face as by the
         // wedges.
         let top = face(Vec3::new(0.0, 1.0, 0.0), In);

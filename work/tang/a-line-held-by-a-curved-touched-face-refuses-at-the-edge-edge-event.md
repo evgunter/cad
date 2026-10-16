@@ -4,7 +4,7 @@ kind: issue
 title: A common line held by a curved face a vertex touches refuses at the edge-edge event instead of reading the face's tangent half-plane
 status: open
 opened: 2026-10-16
-priority: P4
+priority: P3
 cost: E
 ---
 
