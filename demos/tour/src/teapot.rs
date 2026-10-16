@@ -1080,9 +1080,14 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     [r.handle, r.lid, r.cup, r.spout]
         .into_iter()
         .fold(tidied, |doc, body| {
-            apply(&doc, &DocEdit::place_in_world(body, None), tol, &RefusingReach)
-                .expect("each of the four places")
-                .doc
+            apply(
+                &doc,
+                &DocEdit::place_in_world(body, None),
+                tol,
+                &RefusingReach,
+            )
+            .expect("each of the four places")
+            .doc
         })
 }
 

@@ -1719,6 +1719,10 @@ impl DocSession {
                     fresh: Vec::new(),
                 })
             }
+            SessionOp::RemoveConstraint { mate } => self.commit(DocEdit::RemoveConstraint {
+                placement: mate.placement,
+                constraint: mate.id,
+            }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
             SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
@@ -3236,7 +3240,8 @@ impl DocSession {
             // enters; no panel offers one, so it is never a field's
             // standing value.
             DocEdit::SetParam {
-                value: pncad::document::SlotValue::Read(_),
+                value:
+                    pncad::document::SlotValue::Read(_) | pncad::document::SlotValue::Copy { .. },
                 ..
             } => false,
             // A declaration's two independent fields, each against

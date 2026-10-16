@@ -1010,7 +1010,7 @@ fn a_carried_row_says_the_labels_its_pin_fixes() {
         let mut store = store.clone();
         let mid_ref = store.insert(mid, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-pin-outer"), Tol::witness());
-        let (outer, instance) = insert(outer, Node::instantiate_part(mid_ref));
+        let (outer, _) = insert(outer, Node::instantiate_part(mid_ref));
         let ev = run(&outer, &with_resolver(store));
         match assemble(&outer, &ev, Tol::witness()) {
             Err(AssemblyError::CarriedMintRefusal { refusals }) => (mid_ref, refusals),
@@ -1129,7 +1129,7 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
 
     // A document that would otherwise certify, plus one broken part.
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-advisory-row"), Tol::witness());
-    let (doc, first) = insert(doc, Node::instantiate_part(good));
+    let (doc, _) = insert(doc, Node::instantiate_part(good));
     let (doc, second) = insert(doc, Node::instantiate_part(broken));
     let doc = place(doc, second, [20.0, 0.0, 0.0]);
 
@@ -1248,7 +1248,7 @@ fn refuses_as_product(
 fn a_product_inside_a_sub_assembly_still_refuses() {
     let (mut store, inner_ref, cube) = product_and_cube("nested", 1.0);
     let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
-    let (wrap, inner) = insert(wrap, Node::instantiate_part(inner_ref));
+    let (wrap, _) = insert(wrap, Node::instantiate_part(inner_ref));
     let wrap_ref = store.insert(wrap, Tol::witness());
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-nested-outer"),

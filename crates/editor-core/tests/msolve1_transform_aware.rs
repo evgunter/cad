@@ -944,7 +944,7 @@ fn a7_a_document_with_no_placer_solves_bit_for_bit() {
     assert_eq!(
         poses.relative(s.base).map(|g| g.columns),
         Some(editor_core::Frame::IDENTITY.columns),
-        "the root's own relative pose is the identity"
+        "the target's own relative pose is the identity"
     );
 }
 

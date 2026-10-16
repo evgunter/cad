@@ -152,9 +152,14 @@ fn blade_polygon() -> LoopProgram<Formula> {
 /// `blades` is the scene's whole edit.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    apply(&r.doc, &DocEdit::place_in_world(r.solid, None), tol, &RefusingReach)
-        .expect("the impeller places")
-        .doc
+    apply(
+        &r.doc,
+        &DocEdit::place_in_world(r.solid, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the impeller places")
+    .doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {

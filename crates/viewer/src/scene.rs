@@ -863,7 +863,9 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         tol,
     )?;
     // The plate is the product because it is placed (A10).
-    let DocEdit::InsertNode { node: placed, .. } = DocEdit::place_in_world(extrude, None) else {
+    let DocEdit::InsertNode { node: placed, .. } =
+        DocEdit::<ProfileProgram>::place_in_world(extrude, None)
+    else {
         unreachable!("`DocEdit::place_in_world` is an insert")
     };
     let (doc, _) = insert(doc, *placed, tol)?;

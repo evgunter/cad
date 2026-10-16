@@ -2,15 +2,16 @@
 //!
 //! These rows attack the PR #1400 claims by execution:
 //! - P1: the frame conjugation `F⁻¹·O_c⁻¹·O_p·F` at a NON-IDENTITY
-//!   group frame, against a pose composed by hand (Rodrigues written
-//!   in this file, never read back from the solver);
+//!   world frame `F` (the target's world pin), against a pose composed
+//!   by hand (Rodrigues written in this file, never read back from the
+//!   solver);
 //! - P1b: the same conjugation with the GATE as the independent oracle
-//!   (a consistent sibling loop under a rotated+translated group
-//!   frame must still verify against the evaluated geometry);
-//! - P2: a tree edge whose members are copies of TWO different
+//!   (a seat under a rotated+translated world frame must still verify
+//!   against the evaluated geometry);
+//! - P2: a constraint whose two sides are copies of TWO different
 //!   patterns — the `(Some, Some)` arm of the pair's left factor;
-//! - P3: the reversed tree direction — the patterned member as the
-//!   tree CHILD (the `oc.inverse()` arm);
+//! - P3: the reversed direction — the patterned member as the copy the
+//!   constraint places (the `oc.inverse()` arm);
 //! - P4: an out-of-range copy index on a SIBLING mate — one placing a
 //!   second copy off the same pattern — so what refuses, and where?
 //! - P5: a nested pattern head (pattern of a pattern) is a member,
@@ -214,10 +215,10 @@ impl Rigid {
     }
 }
 
-/// The group frame used by the placed probes: a quarter turn about z
+/// The leg's world pose in the pinned probes: a quarter turn about z
 /// plus a translation — rotation AND translation, so a conjugation
 /// written in either direction (or skipped) computes a DIFFERENT pose.
-fn group_frame() -> Frame {
+fn leg_frame() -> Frame {
     Rigid {
         r: [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         t: [1.0, 2.0, 3.0],
@@ -228,20 +229,20 @@ fn group_frame() -> Frame {
 // ---- P1: hand-derived conjugation at F ≠ identity, oblique axis ----
 
 /// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
-/// (1,1,1), origin (1,0,0), step 2π/5), with the group's recorded
-/// frame a rotation+translation. Expected world pose composed by hand
+/// (1,1,1), origin (1,0,0), step 2π/5), with the leg pinned to the
+/// world at a rotation+translation. Expected world pose composed by hand
 /// in this file: `O₁ ∘ F ∘ A` with `O₁` this file's own Rodrigues and
 /// `A` the seat translation — the copy's offset acts in document
-/// coordinates, outside the group's frame — and the pose in the
-/// group's own space `O₁ ∘ A`. The solver's output is never read into
+/// coordinates, outside the leg's world frame — and the pose relative
+/// to that frame `O₁ ∘ A`. The solver's output is never read into
 /// the expectation.
 #[test]
-fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
+fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
-    let (doc, leg) = instance_at(doc, leg_ref, group_frame());
+    let (doc, leg) = instance_at(doc, leg_ref, leg_frame());
     let (doc, axis) = insert(
         doc,
         Node::Datum(editor_core::Datum::Axis {
@@ -283,20 +284,20 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     );
     assert_eq!(poses.space(top), Some(Space::World));
 
-    let f = Rigid::from_frame(group_frame());
+    let f = Rigid::from_frame(leg_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let a = Rigid::translation([0.0, 0.0, 1.0]);
     let expected = o1.compose(f).compose(a).as_frame();
     let got = poses.placement(&doc, top).expect("the top places");
     assert!(
         near(got, expected, 1e-12),
-        "the copy's offset composes outside the group frame, hand-derived:\n got      {got:?}\n expected {expected:?}"
+        "the copy's offset composes outside the leg's world frame, hand-derived:\n got      {got:?}\n expected {expected:?}"
     );
     let own = o1.compose(a).as_frame();
     let got = poses.relative(top).expect("the top has a pose");
     assert!(
         near(got, own, 1e-12),
-        "and the pose in the group's own space leaves it out:\n got      {got:?}\n expected {own:?}"
+        "and the pose relative to the leg's frame leaves it out:\n got      {got:?}\n expected {own:?}"
     );
     let _ = store;
 }
@@ -312,7 +313,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
 /// one constraint more than the top's bundle can hold: the door refuses
 /// it as overconstrained.
 #[test]
-fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
+fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-loopf-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(
@@ -320,7 +321,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
         Tol::witness(),
     );
     let doc = ProfileDoc::empty(DocumentId::derive("r2-loopf"), Tol::witness());
-    let (doc, leg) = instance_at(doc, leg_ref, group_frame());
+    let (doc, leg) = instance_at(doc, leg_ref, leg_frame());
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -392,14 +393,14 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     }
 }
 
-// ---- P2: both members patterned (two patterns), tree edge ----
+// ---- P2: both sides patterned (two patterns) ----
 
-/// PROBE (claims 1+8): a tree edge whose BOTH members are pattern
+/// PROBE (claims 1+8): a constraint whose BOTH sides are pattern
 /// copies — of two different patterns — exercises the
 /// `O_c⁻¹ ∘ O_p` arm, which no committed row reaches. Expected pose
 /// composed by hand: `T(s1·x̂ − s2·ŷ) ∘ T([0,0,1])`.
 #[test]
-fn r2_two_patterns_tree_edge_composes_both_offsets() {
+fn r2_two_patterns_constraint_composes_both_offsets() {
     let mut store = PartStore::default();
     let (l1, l1_body) = store.insert_part(leg_part("r2-twop-l1"), Tol::witness());
     let (l2, l2_body) = store.insert_part(leg_part("r2-twop-l2"), Tol::witness());
@@ -464,7 +465,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let _ = store;
 }
 
-// ---- P3: the patterned member as the tree CHILD ----
+// ---- P3: the patterned member as the copy placed ----
 
 /// PROBE (claims 1+8): the top is a loose copy, the space the leg is
 /// pinned in, and the patterned member is the copy the mate places —
@@ -473,7 +474,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 /// b = top, and the child member's frame must land on the parent's),
 /// rel(leg) = O_c⁻¹ ∘ rep = T([−2, 0, −1]).
 #[test]
-fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
+fn r2_patterned_member_as_the_placed_copy_uses_the_inverse_offset() {
     let mut store = PartStore::default();
     let (top_ref, top_body) = store.insert_part(leg_part("r2-rev-top"), Tol::witness());
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-rev-leg"), Tol::witness());

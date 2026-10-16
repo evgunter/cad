@@ -1,17 +1,17 @@
-//! **Mates**: the declaration node's authored payload, the solve that
-//! reads it, and the admission table that says how far a class gets.
+//! **Mates**: a placement's constraints as values, the solve that
+//! reads them, and the admission table that says how far a class gets.
 //!
-//! A mate is ONE node carrying both halves — the placement constraint
+//! A mate is ONE value carrying both halves — the placement constraint
 //! (which frames coincide, at which axis senses, at which clocking)
 //! and the contact declaration (`Rest`, `Tangent`) — so there is no
-//! second vocabulary to keep synced. Authoring one is
-//! [`super::doc::Node`]'s `mate` constructor; everything the solve
-//! and the gate then say about it is here.
+//! second vocabulary to keep synced. It is a constraint of the
+//! placement that holds it, addressed by a [`MateRef`], never a node;
+//! everything the solve and the gate then say about it is here.
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!
-//! [`solve_document`] never raises. A refusing group must not fail
-//! an unrelated one, so the refusal is recorded per node and read back
+//! [`solve_document`] never raises. A refusing bundle must not fail
+//! an unrelated one, so the refusal is recorded per placement and read back
 //! through [`SolvedPoses::fault`] as a [`MateFault`] value. The one
 //! door that RAISES is [`SolvedPoses::placement`], which must answer
 //! with a frame or not at all — and it raises `MateError` carrying
@@ -34,7 +34,6 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
-    unplaced_tag,
 };
 use std::sync::Arc;
 
@@ -169,7 +168,18 @@ impl MateFrame {
         Self(d::MateFrame::on_face(offset.0.clone()))
     }
 
-    /// What the offset is written in: `"part"` or `"face"`.
+    /// The world's frame composed with `offset`, written in world
+    /// coordinates: the frame of a side that reads the world
+    /// (`Mate.world_pin`'s `a` side).
+    #[staticmethod]
+    fn on_world(offset: &Placement) -> Self {
+        Self(d::MateFrame {
+            base: d::FrameBase::World,
+            offset: offset.0.clone(),
+        })
+    }
+
+    /// What the offset is written in: `"part"`, `"face"` or `"world"`.
     #[getter]
     fn base(&self) -> &'static str {
         self.0.base.name()
@@ -192,6 +202,7 @@ impl MateFrame {
         match self.0.base {
             d::FrameBase::Part => format!("MateFrame.on_part({offset})"),
             d::FrameBase::Face => format!("MateFrame.on_face({offset})"),
+            d::FrameBase::World => format!("MateFrame.on_world({offset})"),
         }
     }
 }
@@ -481,28 +492,207 @@ pub(crate) fn class_admission(
 
 // ---- The solve's read side ----
 
-/// What a mate did in the solve.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `editor_core::MateRole` variant of the same name"
-)]
-pub(crate) enum MateRole {
-    Determining,
-    Declaring,
-    Refused,
-}
+/// **A constraint's id**: minted by the edit that adds it to a
+/// placement, never reused and never positional. Opaque: it is read
+/// off a `MateRef` and handed back, compared and hashed, never built.
+#[pyclass(eq, ord, hash, frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) struct ConstraintId(pub(crate) d::ConstraintId);
 
-impl MateRole {
-    fn from_kernel(role: d::MateRole) -> Self {
-        match role {
-            d::MateRole::Determining => Self::Determining,
-            d::MateRole::Declaring => Self::Declaring,
-            d::MateRole::Refused => Self::Refused,
-        }
+#[pymethods]
+impl ConstraintId {
+    fn __repr__(&self) -> String {
+        format!("ConstraintId({})", self.0)
     }
 }
+
+/// **A constraint's address**: the placement that holds it and the id
+/// minted with it. What every fault about one mate names, what
+/// `Doc.constrain` answers, and what `DocEdit.remove_constraint`
+/// takes. Hashable, and ordered by placement, then id.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) struct MateRef(pub(crate) d::MateRef);
+
+#[pymethods]
+impl MateRef {
+    /// The constraint `constraint` of `placement`.
+    #[new]
+    fn new(placement: &NodeId, constraint: &ConstraintId) -> Self {
+        Self(d::MateRef::new(placement.0, constraint.0))
+    }
+
+    /// The placement holding the constraint.
+    #[getter]
+    fn placement(&self) -> NodeId {
+        NodeId(self.0.placement)
+    }
+
+    /// The constraint's id.
+    #[getter]
+    fn constraint(&self) -> ConstraintId {
+        ConstraintId(self.0.id)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __lt__(&self, other: &Self) -> bool {
+        self.0 < other.0
+    }
+
+    fn __le__(&self, other: &Self) -> bool {
+        self.0 <= other.0
+    }
+
+    fn __gt__(&self, other: &Self) -> bool {
+        self.0 > other.0
+    }
+
+    fn __ge__(&self, other: &Self) -> bool {
+        self.0 >= other.0
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.0.hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("MateRef(NodeId({}), {})", self.0.placement.full(), self.0.id)
+    }
+}
+
+/// **A mate**: two sides and the alignment datum relating them, with
+/// the contact class it declares. A mate is a constraint of the
+/// placement that holds it (`Doc.constrain`, `Doc.place(shapes,
+/// constraints)`), never a node: this is its payload as a value.
+///
+/// Each face side is TWO things: `a_at` / `b_at` is the node the face
+/// is read at — the node whose geometry the mate speaks about — and
+/// `a` / `b` the name text of a face of that node's output. One side
+/// must be on the placement's own copy: a face of one of its shapes,
+/// or of the instance itself. The other reads a pose outside the copy.
+///
+/// `class_` is the declared contact class (trailing underscore:
+/// `class` is a Python keyword); `class_admission` says how far each
+/// class gets. `alignment` is the datum: which frames coincide, at
+/// which axis sense, with which clocking.
+///
+/// **A head must name a FACE, and that is refused here**: `a`/`b`
+/// naming an edge raises `EditError` with `variant ==
+/// "mate_head_not_a_face"` at this call. A dangling reference is not
+/// refused here: the solve refuses typed naming its head
+/// (`mate_dangling_head`), or the side's read when it is no face of a
+/// live body (`mate_side_unresolved`).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
+
+#[pymethods]
+impl Mate {
+    #[new]
+    fn new(
+        py: Python<'_>,
+        a_at: &NodeId,
+        a: &str,
+        b_at: &NodeId,
+        b: &str,
+        class_: super::contact::ContactClass,
+        alignment: &Alignment,
+    ) -> PyResult<Self> {
+        let face = |at: &NodeId, text: &str| -> PyResult<d::Operand> {
+            Ok(d::SitedFace::new(at.0, super::doc::face_name_from_text(py, text)?).into())
+        };
+        Ok(Self(d::Mate {
+            a: d::SideRead::Face(face(a_at, a)?),
+            b: d::SideRead::Face(face(b_at, b)?),
+            class: class_.to_kernel(py)?,
+            alignment: alignment.0.clone(),
+        }))
+    }
+
+    /// **A copy pinned to the world at `pose`**, the identity when
+    /// `None`: one coincidence of the world's frame, moved by `pose`,
+    /// with the placement's own copy's frame. The world is the `a`
+    /// side, so the copy sits at `pose` bit for bit.
+    ///
+    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
+    /// rigid step's components are checked against the slot they land
+    /// in, as there.
+    #[staticmethod]
+    #[pyo3(signature = (pose=None))]
+    fn world_pin(py: Python<'_>, pose: Option<&Placement>) -> PyResult<Self> {
+        let mate = d::Mate::world_pin(pose.map_or(d::Placement::IDENTITY, |p| p.0.clone()));
+        let placeholder = d::ConstraintId(d::MintId::new(0, 0));
+        super::doc::Node::check_slots(
+            py,
+            &d::Node::Place {
+                shapes: Vec::new(),
+                constraints: vec![d::Constraint {
+                    id: placeholder,
+                    mate: mate.clone(),
+                }],
+            },
+        )?;
+        Ok(Self(mate))
+    }
+
+    /// The declared contact class.
+    #[getter]
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
+        super::contact::contact_class(py, self.0.class)
+    }
+
+    /// The alignment datum.
+    #[getter]
+    fn alignment(&self) -> Alignment {
+        Alignment(self.0.alignment.clone())
+    }
+
+    /// What the `a` side reads: `"face"` (a face, its frame read off
+    /// it), `"copy"` (the placement's own copy, by its part frame) or
+    /// `"world"`.
+    #[getter]
+    fn a(&self) -> &'static str {
+        side_word(&self.0.a)
+    }
+
+    /// What the `b` side reads, in `a`'s words.
+    #[getter]
+    fn b(&self) -> &'static str {
+        side_word(&self.0.b)
+    }
+
+    /// BIT-exact equality: the same sides and class, and alignments
+    /// equal by `Alignment.__eq__`'s rule.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.bit_eq(&other.0)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Mate(a={:?}, b={:?}, class_={:?}, primitive={})",
+            side_word(&self.0.a),
+            side_word(&self.0.b),
+            self.0.class,
+            mate_primitive_tag(self.0.alignment.primitive)
+        )
+    }
+}
+
+/// The word for what a side reads.
+fn side_word<R>(side: &d::SideRead<R>) -> &'static str {
+    match side {
+        d::SideRead::Face(_) => "face",
+        d::SideRead::Copy => "copy",
+        d::SideRead::World => "world",
+    }
+}
+
 
 /// A residual subgroup: what a fold left free.
 ///
@@ -606,7 +796,8 @@ impl Subgroup {
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
-/// `instance`, `parent`, `child`, `residual`, `held`, `added`,
+/// `instance`, `placement`, `constraints`, `base`, `residual`, `held`,
+/// `added`,
 /// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `margin`,
 /// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
@@ -675,8 +866,8 @@ impl MateFault {
     /// `mate_poses_of_another_document`, whose subject is two
     /// documents).
     #[getter]
-    fn mate(&self) -> Option<NodeId> {
-        self.payload().mate.map(NodeId)
+    fn mate(&self) -> Option<MateRef> {
+        self.payload().mate.map(MateRef)
     }
 
     /// Which side of the mate refused.
@@ -721,19 +912,41 @@ impl MateFault {
             .map(|cause| cause.into_value(py).into_any())
     }
 
-    /// The instance a self-mate names twice, the instance whose part
-    /// a lever or a face frame was asked of, or whose checked offset
-    /// faulted (`mate_offset_disagrees`, `mate_offset_unchecked`).
+    /// The instance a self-mate names twice, or the instance whose
+    /// part a lever or a face frame was asked of.
     #[getter]
     fn instance(&self) -> Option<NodeId> {
         self.payload().instance.map(NodeId)
     }
 
-    /// The root of a faulted checked offset's group: the member whose
-    /// offset places the group the solve placed the instance in.
+    /// The placement a bundle's fault is about: the one a constraint
+    /// over-constrains (`mate_overconstrained`), or whose constraints
+    /// target different copies (`mate_targets_differ`).
     #[getter]
-    fn root(&self) -> Option<NodeId> {
-        self.payload().root.map(NodeId)
+    fn placement(&self) -> Option<NodeId> {
+        self.payload().placement.map(NodeId)
+    }
+
+    /// The constraints of `placement` the fault names, by address: on
+    /// `mate_overconstrained` each whose removal leaves the bundle's
+    /// codimension unchanged, on `mate_targets_differ` the bundle's
+    /// constraints whose targets differ.
+    #[getter]
+    fn constraints(&self) -> Option<Vec<MateRef>> {
+        let payload = self.payload();
+        let placement = payload.placement?;
+        payload.constraints.map(|ids| {
+            ids.iter()
+                .map(|&id| MateRef(d::MateRef::new(placement, id)))
+                .collect()
+        })
+    }
+
+    /// The frame base a side carries that its read does not admit
+    /// (`mate_side_base`): `"part"`, `"face"` or `"world"`.
+    #[getter]
+    fn base(&self) -> Option<&'static str> {
+        self.payload().base.map(d::FrameBase::name)
     }
 
     /// The face a `from_face` side read — its head's face, as its name
@@ -750,19 +963,8 @@ impl MateFault {
             .transpose()
     }
 
-    /// The instance an under-determined tree mate extended FROM.
-    #[getter]
-    fn parent(&self) -> Option<NodeId> {
-        self.payload().parent.map(NodeId)
-    }
-
-    /// The instance it failed to place.
-    #[getter]
-    fn child(&self) -> Option<NodeId> {
-        self.payload().child.map(NodeId)
-    }
-
-    /// What survived an under-determined fold.
+    /// What the rest of an over-constrained bundle already holds the
+    /// copy to (`mate_overconstrained`).
     #[getter]
     fn residual(&self) -> Option<Subgroup> {
         self.payload().residual.map(Subgroup)
@@ -770,14 +972,14 @@ impl MateFault {
 
     /// The mate already folded, for a contradictory pair.
     #[getter]
-    fn held(&self) -> Option<NodeId> {
-        self.payload().held.map(NodeId)
+    fn held(&self) -> Option<MateRef> {
+        self.payload().held.map(MateRef)
     }
 
     /// The mate whose intersection died against it.
     #[getter]
-    fn added(&self) -> Option<NodeId> {
-        self.payload().added.map(NodeId)
+    fn added(&self) -> Option<MateRef> {
+        self.payload().added.map(MateRef)
     }
 
     /// The predicate that decided against a contradictory pair.
@@ -993,12 +1195,12 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
 
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
 /// fault as `MateError`, spoken from `solved`, the document the solve
-/// recorded it over; and the two placement refusals as the
-/// `EvaluationError` the instance's own row would carry, spoken from
-/// `doc`, the document the placement door read them off.
+/// recorded it over; and a loose copy as the `EvaluationError` a node
+/// reading its space beside the world's carries (`space_mismatch`),
+/// spoken from `doc`, the document the placement door read it off.
 fn pose_err(
     py: Python<'_>,
-    instance: NodeId,
+    placement: NodeId,
     refusal: &d::PoseRefusal,
     solved: &Arc<d::ProfileDoc>,
     doc: &d::ProfileDoc,
@@ -1007,21 +1209,17 @@ fn pose_err(
         d::PoseRefusal::Mate(fault) => {
             return mate_err(py, fault, &Voice::Doc(Arc::clone(solved)));
         }
-        d::PoseRefusal::Unplaced { group, cause, .. } => d::NodeErrorKind::Unplaced {
-            group: *group,
-            cause: *cause,
-        },
-        d::PoseRefusal::Placement { node, error } => d::NodeErrorKind::PlacementRefused {
-            node: *node,
-            error: error.clone(),
+        d::PoseRefusal::Loose { root, .. } => d::NodeErrorKind::SpaceMismatch {
+            a: d::Space::Loose { root: *root },
+            b: d::Space::World,
         },
     };
-    let err = super::value::refused(py, instance, &kind, refusal.spoken(doc), None);
+    let err = super::value::refused(py, placement, &kind, refusal.spoken(doc), None);
     super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
 
-/// The document's solved poses: each instance's pose relative to its
-/// group root, each mate's role, and the per-node refusals.
+/// The document's solved poses: each placement's pose in its target's
+/// space, and the per-placement refusals.
 ///
 /// It keeps a copy of the document as it solved it: a fault is the
 /// solve's, recorded over that version, so its words are spoken from it
@@ -1031,79 +1229,58 @@ pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>);
 
 #[pymethods]
 impl SolvedPoses {
-    /// The node's recorded fault, `None` if the solve did not refuse
-    /// for it.
+    /// The placement's recorded fault, `None` if the solve did not
+    /// refuse for it.
     ///
-    /// Recorded against the refusing MATE and against every instance
-    /// in its group that consequently has no pose — a refusal
-    /// reaches the nodes it actually affects and no further.
-    fn fault(&self, node: &NodeId) -> Option<MateFault> {
+    /// A refusal is recorded against the placement whose bundle it is
+    /// about, and against every placement pinned to it that
+    /// consequently has no pose — a refusal reaches the copies it
+    /// actually affects and no further.
+    fn fault(&self, placement: &NodeId) -> Option<MateFault> {
         self.0
-            .fault(node.0)
+            .fault(placement.0)
             .cloned()
             .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
-    /// A mate's role, `None` if the node is not a live mate.
-    fn role(&self, mate: &NodeId) -> Option<MateRole> {
-        self.0.role(mate.0).map(MateRole::from_kernel)
+    /// **The placement's solved pose in its target's space**: where its
+    /// bundle puts its copy relative to the copy it is pinned to (the
+    /// world, or another placement's copy), and in a loose copy's own
+    /// space the pose it is evaluated at. `None` when the solve placed
+    /// nothing there: a node that is no placement, or a placement whose
+    /// bundle refused.
+    fn pose(&self, placement: &NodeId) -> Option<Frame> {
+        self.0.relative(placement.0).map(Frame)
     }
 
-    /// An instance's group root, `None` if the node is not a live
-    /// instance. A singleton group is its own root.
-    fn root(&self, instance: &NodeId) -> Option<NodeId> {
-        self.0.root(instance.0).map(NodeId)
-    }
-
-    /// An instance's pose in its group's own space: where it sits when
-    /// the group's frame is the identity — relative to its root when no
-    /// placer stands on the path from the root, and in an unplaced
-    /// group the pose the group is evaluated at.
-    fn relative(&self, instance: &NodeId) -> Option<Frame> {
-        self.0.relative(instance.0).map(Frame)
-    }
-
-    /// Why an instance's group is **unplaced** — `no_offset` (no member
-    /// carries an offset) or `dead_gauge` (its gauge chain names a
-    /// deleted gauge) — or `None` when it is placed or the node is not
-    /// a live instance. An unplaced group lives in its own space: it
-    /// evaluates in its own frame, and nothing outside it is compared
-    /// with it.
-    fn unplaced(&self, instance: &NodeId) -> Option<&'static str> {
-        self.0
-            .unplaced(instance.0)
-            .map(|cause| unplaced_tag(&cause))
-    }
-
-    /// **The instance's world placement, at the document's own
-    /// parameters**: its group's frame — the gauge chain composed with
-    /// the root's offset — composed into the solved pose.
+    /// **The placement's world pose, at the document's own
+    /// parameters**: its solved pose composed into the world pose of
+    /// the copy it is pinned to.
     ///
-    /// A lone instance returns its offset's frame on its gauge, bit for
-    /// bit, and on the world at the empty offset the identity.
+    /// A copy pinned to the world at `pose` returns that pose's frame,
+    /// bit for bit, and at the identity the identity.
     ///
-    /// `doc` is read for its gauges and offsets, and it must be the
-    /// document this solve is OF: passing a different one would
-    /// compose this document's poses onto that one's placements, which
-    /// is not a pose of either. The door refuses that first — a
-    /// `SolvedPoses` carries the id of the document `solve_document`
-    /// solved, and a mismatch raises `MateError` with tag
-    /// `mate_poses_of_another_document` before any frame is read.
+    /// `doc` must be the document this solve is OF: passing a different
+    /// one would compose this document's poses onto that one's
+    /// placements, which is not a pose of either. The door refuses that
+    /// first — a `SolvedPoses` carries the id of the document
+    /// `solve_document` solved, and a mismatch raises `MateError` with
+    /// tag `mate_poses_of_another_document` before any frame is read.
     ///
-    /// Raises `MateError` when the instance's group did not solve, and
-    /// `EvaluationError` — kind `unplaced`, or `placement_refused` with
-    /// the placement's own refusal as the cause — when nothing places
-    /// its group or a placement on its frame does not evaluate.
+    /// Raises `MateError` when the placement's bundle did not solve,
+    /// and `EvaluationError` — kind `space_mismatch` — when the copy is
+    /// loose, or pinned to a loose copy: it lives in a space of its own
+    /// and has no world pose.
     fn placement(
         &self,
         py: Python<'_>,
         doc: &super::doc::Doc,
-        instance: &NodeId,
+        placement: &NodeId,
     ) -> PyResult<Frame> {
         self.0
-            .placement(&doc.inner, instance.0)
+            .placement(&doc.inner, placement.0)
             .map(Frame)
-            .map_err(|refusal| pose_err(py, *instance, &refusal, &self.1, &doc.inner))
+            .map_err(|refusal| pose_err(py, *placement, &refusal, &self.1, &doc.inner))
     }
 
     fn __repr__(&self) -> String {
@@ -1111,12 +1288,12 @@ impl SolvedPoses {
     }
 }
 
-/// Solve the document's mates: the per-pair coset fold along a
-/// deterministic spanning tree, yielding every instance's pose
-/// relative to its group root and every mate's role.
+/// Solve the document's bundles: each placement's constraints folded
+/// into the coset they pin its copy to, yielding every placement's pose
+/// in its target's space.
 ///
-/// **Total — this never raises.** A refusing group must not fail an
-/// unrelated one, so refusals are recorded per node and read back
+/// **Total — this never raises.** A refusing bundle must not fail an
+/// unrelated one, so refusals are recorded per placement and read back
 /// through `SolvedPoses.fault`.
 ///
 /// The solve reads no geometry except what each mated part's own
@@ -1148,33 +1325,10 @@ pub(crate) fn solve_document(
     )
 }
 
-/// The **placement groups**: instances coupled by PLACING mates — both
-/// instances on one gauge — each listed with its group's members in
-/// document order. A mate-less document's groups are all singletons.
-#[pyfunction]
-pub(crate) fn groups(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
-    d::groups(&doc.inner)
-        .into_iter()
-        .map(|c| c.into_iter().map(NodeId).collect())
-        .collect()
-}
-
-/// An instance's group ROOT: the earliest member, in document order,
-/// that carries an offset — whose offset on the group's gauge places
-/// the whole group — or the earliest instance when none does or its
-/// gauge chain names a deleted gauge, and the group is unplaced.
-///
-/// Answers the node itself for a node that is not a live instance,
-/// which is the kernel's own total shape.
-#[pyfunction]
-pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
-    NodeId(d::root_of(&doc.inner, instance.0))
-}
-
-/// The **relative-freedom partition**: components over reads and gauge
-/// references, so mates couple what they constrain.
-///
-/// Coarser than `groups`, which partitions instances alone.
+/// The **relative-freedom partition**: the recipe's components over its
+/// reads, each in document order. A constraint couples its copy to its
+/// target because the placement holding it reads the target, and two
+/// copies pinned against the world share the world.
 #[pyfunction]
 pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
     d::relative_freedom_components(&doc.inner)
@@ -1185,21 +1339,17 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 
 // ---- The accepted edit's maintenance ----
 
-/// One act of automatic maintenance an accepted edit performed: the
-/// offset the mate door cleared, or a reference its delete stranded.
+/// One act of automatic maintenance an accepted edit performed: a
+/// reference its delete stranded, or an anonymous variable it removed.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
 /// automatic maintenance is deterministic from the edit, so a replay
 /// reproduces it and undo (keeping the prior document) restores it
-/// exactly. What the record adds is VISIBILITY: a cleared offset is
-/// said where it was cleared, with the offset it held, and a stranded
-/// name is said at the delete rather than at the next evaluation.
+/// exactly. What the record adds is VISIBILITY: a stranded name is
+/// said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
-/// inapplicable: `node` and `offset` for an `offset_cleared` — a
-/// member of the mate's first operand's group, now placed on the
-/// second's, and the offset it gave up; `node` and `name` for a
-/// strand, `node` (the selection's first reader) and `name` for a
+/// inapplicable: `node` and `name` for a strand, `node` (the selection's first reader) and `name` for a
 /// `stranded_selection`, and `name` alone for a `stranded_appearance`,
 /// whose carrier is the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -1208,8 +1358,7 @@ pub(crate) struct Maintenance(pub(crate) d::Maintenance);
 
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `offset_cleared`, `strand` or
-    /// `stranded_appearance`, the three the stub lists for this
+    /// The stable tag: one of the words the stub lists for this
     /// attribute. The word decides which of the payload
     /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
@@ -1219,8 +1368,7 @@ impl Maintenance {
         maintenance_tag(&self.0)
     }
 
-    /// The node this row is about: the instance whose offset the mate
-    /// door cleared, the surviving node whose payload carries a
+    /// The node this row is about: the surviving node whose payload carries a
     /// stranded name, the first node that reads a selection naming
     /// one (a `stranded_selection`), or the node whose operand reads
     /// what a delete removed (a `stranded_read`). `None` for a
@@ -1233,11 +1381,9 @@ impl Maintenance {
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
             d::Maintenance::Strand { node, .. } | d::Maintenance::StrandedRead { node, .. } => {
                 Some(NodeId(node.id()))
             }
-            d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
             d::Maintenance::StrandedSelection { readers, .. } => {
                 readers.first().map(|reader| NodeId(reader.id()))
             }
@@ -1263,26 +1409,9 @@ impl Maintenance {
             | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::OffsetCleared { .. }
-            | d::Maintenance::StrandedRead { .. }
-            | d::Maintenance::LabelDropped { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
-        }
-    }
-
-    /// The offset the mate door cleared, for an `offset_cleared`.
-    #[getter]
-    fn offset(&self) -> Option<super::place::Placement> {
-        match &self.0 {
-            d::Maintenance::OffsetCleared { offset, .. } => {
-                Some(super::place::Placement(offset.authored()))
+            d::Maintenance::StrandedRead { .. } | d::Maintenance::AnonymousVarRemoved { .. } => {
+                Ok(None)
             }
-            d::Maintenance::Strand { .. }
-            | d::Maintenance::StrandedRead { .. }
-            | d::Maintenance::StrandedSelection { .. }
-            | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::LabelDropped { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
 
@@ -1298,22 +1427,20 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Alignment>()?;
     m.add_class::<AxisSense>()?;
     m.add_class::<MateSide>()?;
-    m.add_class::<MateRole>()?;
+    m.add_class::<ConstraintId>()?;
+    m.add_class::<MateRef>()?;
+    m.add_class::<Mate>()?;
     m.add_class::<Subgroup>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
     m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
-    m.add_function(wrap_pyfunction!(groups, m)?)?;
-    m.add_function(wrap_pyfunction!(root_of, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
-    m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
+    m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
     m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
-    m.add("OFFSET_RECOURSE", d::OFFSET_RECOURSE)?;
-    m.add("UNPLACED_RECOURSE", d::UNPLACED_RECOURSE)?;
     Ok(())
 }

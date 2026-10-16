@@ -41,8 +41,10 @@
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
 //! drawn as the chrome spells any computed value, or the kernel's typed
 //! reason it has none; what an assertion found of it ([`Asserted`]);
-//! that a boolean, or a side of a split, holds no material; and
-//! whether a mate placed its child or only declares ([`MateRole`]).
+//! and that a boolean, or a side of a split, holds no material.
+//!
+//! A placement's constraints are its children ([`ConstraintRow`]): a
+//! constraint is no node, so its row hangs under its placement's.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -184,8 +186,9 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
-    Evaluation, Expr, Formula, Label, MateFault, MeasureUnavailableAt, Node, NodeError,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Datum, Dimension,
+    Doc, Evaluation, Expr, Formula, Label, MateFault, MateRef, MeasureUnavailableAt, Node,
+    NodeError, SideRead,
     NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
     ValuePayload, VarId, node_kind_noun,
 };
@@ -375,6 +378,52 @@ pub struct TreeRow {
     /// on every row while a newer document's run is outstanding
     /// (`DocSession::tree_rows`).
     pub version_offer: Option<VersionOffer>,
+    /// **A placement's constraints, its children** ([`ConstraintRow`]):
+    /// a `Place`'s or an instance's bundle, in bundle order. Empty on
+    /// every other row. A constraint is no node, so it has no row of its
+    /// own in the order; its placement's row carries it.
+    pub constraints: Vec<ConstraintRow>,
+}
+
+/// **One constraint of a placement, as a child of its row**: its
+/// address and what it is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConstraintRow {
+    /// The constraint's address: its placement and minted id.
+    pub mate: MateRef,
+    /// What the constraint is, in a few words ([`constraint_said`]).
+    pub said: String,
+}
+
+/// **What a constraint is, as its child row says it**: `world pin 7`
+/// for a copy pinned to the world by its own frame, `rest mate 7` (its
+/// contact class's name) for any other.
+pub fn constraint_said(constraint: &Constraint) -> String {
+    let mate = &constraint.mate;
+    let pin = matches!(
+        (&mate.a, &mate.b),
+        (SideRead::World, SideRead::Copy) | (SideRead::Copy, SideRead::World)
+    );
+    if pin {
+        format!("world pin {}", constraint.id)
+    } else {
+        format!("{} mate {}", mate.class.name(), constraint.id)
+    }
+}
+
+/// `node`'s constraints as child rows, empty for a node that is no
+/// placement.
+fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<ConstraintRow> {
+    match node {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
+            .iter()
+            .map(|constraint| ConstraintRow {
+                mate: MateRef::new(id, constraint.id),
+                said: constraint_said(constraint),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 impl TreeRow {
@@ -757,7 +806,9 @@ pub fn rows(
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
-        let Some(node) = doc.node(id) else {
+        // The world is no feature: it is in every document, defines no
+        // variable, and is never deleted, so it has no row.
+        let Some(node) = doc.node(id).filter(|node| !matches!(node, Node::World)) else {
             continue;
         };
         let depth = depth_of(&doc.upstream(id), &depths);
@@ -789,6 +840,7 @@ pub fn rows(
             repair_at,
             readout,
             version_offer,
+            constraints: constraint_rows(id, node),
         });
     }
     rows

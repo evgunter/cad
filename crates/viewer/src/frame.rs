@@ -757,6 +757,7 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Hover(_) => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -867,6 +868,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Hover(_)
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }

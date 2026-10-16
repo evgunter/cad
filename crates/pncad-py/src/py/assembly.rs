@@ -46,7 +46,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, NodeId, Var, name_text};
-use super::mate::MateSide;
+use super::mate::{MateRef, MateSide};
 use super::value::{Body, Evaluation};
 
 /// **What a row's `__str__` speaks its nodes from**: the evaluated
@@ -98,6 +98,12 @@ pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::Profil
     )
 }
 
+/// A mate's address as a repr spells it: the placement's full id and
+/// the constraint's.
+fn mate_text(mate: d::MateRef) -> String {
+    format!("{}/{}", mate.placement.full(), mate.id)
+}
+
 /// The gather refusal's payload, flattened: the node it is about, the
 /// node it was reached through, and an empty world's unplaced bodies.
 fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny>, Py<PyAny>) {
@@ -125,7 +131,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::StrandedPlacement { placement } => (id(placement), none(), none()),
         // The bodies to place, in document order, each its output
         // variable — the handle `Doc.place` takes.
-        E::EmptyProduct { unplaced } => (
+        // The loose copies are every one in the message.
+        E::EmptyProduct { unplaced, loose: _ } => (
             none(),
             none(),
             unplaced
@@ -134,13 +141,6 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map_or_else(|_| py.None(), |list| list.unbind()),
-        ),
-        // The unplaced groups are every one in the message, each
-        // with its cause.
-        E::Unplaced { groups } => (
-            groups.first().map_or_else(none, |(group, _)| id(group)),
-            none(),
-            none(),
         ),
         // The document-mismatch arm names two DOCUMENTS, which these
         // attributes cannot carry; the message states both.
@@ -302,10 +302,10 @@ pub(crate) struct MintedDeclaration(d::MintedDeclaration);
 
 #[pymethods]
 impl MintedDeclaration {
-    /// The mate this declaration came from.
+    /// The mate this declaration came from, by its address.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate)
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate)
     }
 
     /// The `a` reference, as opaque name text.
@@ -328,7 +328,7 @@ impl MintedDeclaration {
     }
 
     fn __repr__(&self) -> String {
-        format!("MintedDeclaration(mate={})", self.0.mate.full())
+        format!("MintedDeclaration(mate={})", mate_text(self.0.mate))
     }
 }
 
@@ -478,10 +478,11 @@ impl MintRefusal {
         mint_refusal_tag(&self.0)
     }
 
-    /// The mate that did not mint. Every arm carries one.
+    /// The mate that did not mint, by its address. Every arm carries
+    /// one.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate())
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate())
     }
 
     /// Which side of the mate the refused reference is on, for a
@@ -540,7 +541,7 @@ impl MintRefusal {
         format!(
             "MintRefusal({:?}, mate={})",
             self.variant(),
-            self.0.mate().full()
+            mate_text(self.0.mate())
         )
     }
 }
@@ -595,7 +596,7 @@ impl CarriedRefusal {
     fn __repr__(&self) -> String {
         format!(
             "CarriedRefusal(mate={}, of={})",
-            self.0.refusal.mate().full(),
+            mate_text(self.0.refusal.mate()),
             self.0.route.of
         )
     }
@@ -797,7 +798,7 @@ impl CarriedDeclaration {
     fn __repr__(&self) -> String {
         format!(
             "CarriedDeclaration(mate={}, of={})",
-            self.0.declaration.mate.full(),
+            mate_text(self.0.declaration.mate),
             self.0.route.of
         )
     }
@@ -863,10 +864,10 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     let from = SpokenFrom::Doc(Arc::clone(&doc));
     let mut node = none();
     let (refusals, findings) = match err {
-        // The group is the subject; the space's own gather refusal is
-        // in the message.
-        E::Space { group, .. } => {
-            node = Py::new(py, NodeId(*group))
+        // The loose copy is the subject; the space's own gather
+        // refusal is in the message.
+        E::Space { root, .. } => {
+            node = Py::new(py, NodeId(*root))
                 .map(|v| v.into_any())
                 .unwrap_or_else(|_| py.None());
             (none(), none())
