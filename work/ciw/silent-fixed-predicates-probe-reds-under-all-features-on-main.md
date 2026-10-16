@@ -2,7 +2,8 @@
 id: silent-fixed-predicates-probe-reds-under-all-features-on-main
 kind: issue
 title: rim_dim_review_probes' silent-fixed-predicates probe is red on main under --all-features: an undeclared flush subtract no longer refuses
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-10
 priority: P1
 cost: E
@@ -50,3 +51,19 @@ Not bisected.
 ## 2026-10-15 — moved from TINT to CIW (CIW orchestrator, at Ev's direction)
 
 TINT has no orchestrator. This red sits in a nightly job that CIW owns, and its fix is the test's own (a stale premise in the test, not a kernel defect), so CIW takes it. If the fix turns out to need kernel code, it is routed to the crate's owner.
+
+## Closed
+
+The premise was stale, not the kernel. #4496 (INTENT stage 4 E) made
+rung 3 of the plane ladder glue an undeclared one-plane contact on its
+decided Zero (`plane_eq.rs`, `bool_plane_offset`'s `Sign::Zero` arm)
+instead of refusing, which INTENT-STAGE4-SPEC §6 asks for ("refused
+ones build"). The flush subtract therefore builds, and
+`bool_plane_orient` still fires on the way, since the orientation rung
+decides before the offset. The probe's `is_err()` premise was flipped
+to `is_ok()` in 60b58da54b, which reached main with #4641. At 1e-9 the
+probe is green: `bool_plane_orient` 10 decisive samples,
+`split_join_frame_arm` 1, `split_section_area` 1, worst relative
+deviation 4.4e-16. This row's PR makes those three sites required, so
+a silence there reds the probe rather than passing a vacuous linearity
+check. (CIW lane)
