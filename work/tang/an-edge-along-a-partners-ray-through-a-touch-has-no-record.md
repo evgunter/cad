@@ -58,8 +58,13 @@ row.
 The reduction now hands each operand's touched face through the pair's
 point to `recl_edges` and `resolve_edge_edge` (`recl::HeldFace`). The
 face counts where it holds the common line at a decided zero; a
-holding in the band refuses typed. A flank is in the solid's material
-when it is in the wedge or under the face. A curved face holding the
+holding in the band refuses typed. The two compose by the side of the
+face the solid's own link lies on (`vtxfac::partner_side`): out of it
+(a pyramid lying on the plate), a flank is in the solid's material
+when it is in the wedge or under the face; in it (a void below the top
+whose ray lies on it, the wedge the void's complement), when it is in
+both. The mirrored void scene, red on main in `x ∪ y`, now builds and
+holds tier 3′ in every op, both slots, every pose. A curved face holding the
 line refuses as the partner beside it does (filed:
 `a-line-held-by-a-curved-touched-face-refuses-at-the-edge-edge-event`).
 `three_prime`'s edge-edge `ray` admission is gone, and all 12 tests of
