@@ -1709,7 +1709,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         tol,
         Some(&store),
     )
-    .expect("cutting one whole group out is legal");
+    .expect("cutting one pinned instance out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
     ws.resave(&out.remainder, tol)
         .expect("the remainder is stored");
