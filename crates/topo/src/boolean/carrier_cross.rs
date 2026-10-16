@@ -37,8 +37,8 @@
 //! [`BoundaryCrossing::Unread`]. So does every refusal `meet` types past
 //! the band's own escalation, and a face holding a lone vertex (a pierce
 //! ring), which has no boundary pre-pass: the caller keeps its frontier
-//! door. A refusal's decided meetings are read like an answer's: a
-//! crossing among them is split, and the fragments are read again.
+//! door. A refusal's meetings are not read: a stretch that escalates
+//! holds meetings whose stretch is undecided.
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
 use geom_core::{Band, Decide, Point3};
@@ -117,21 +117,6 @@ pub(super) fn boundary_crossing<T: Decide>(
         };
         let met = match meet(&swept, &Span::new(other.carrier(), other.params()), band) {
             Ok(met) => met,
-            // A crossing decided before the refusal is a crossing: the
-            // sweep splits there and reads both fragments again.
-            Err(refusal)
-                if refusal.shared.is_none()
-                    && refusal
-                        .found
-                        .iter()
-                        .any(|m| matches!(m.on_a, Hit::On { .. })) =>
-            {
-                crossings.extend(refusal.found.iter().filter_map(|m| match m.on_a {
-                    Hit::On { t, .. } => Some(t),
-                    Hit::End(_) => None,
-                }));
-                continue;
-            }
             Err(refusal) => {
                 return match refusal.fault {
                     MeetFault::Escalated(diag) => Err(escalated(diag)),
@@ -228,7 +213,7 @@ mod crossing_rows {
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
     use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
-    use crate::boolean::Operand;
+    use crate::boolean::{BooleanError, Operand};
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
@@ -375,8 +360,10 @@ mod crossing_rows {
     /// and is clear; read by the parameter at the major semi-axis, it
     /// would carry it `16·z` in. A span starting `0.8·z` before carries
     /// it `16·z` in, but its end lies `0.8·z` off the ruling, within the
-    /// zero band: the meeting's stretch reaches the end, the end is read
-    /// first, and the stretch's one meeting is there, so it is clear too.
+    /// zero band: the end, read first, is a meeting, and the crossing
+    /// `16·z` in, past the escalation from it, is a second in the same
+    /// stretch, so whether the two are two crossings or one run is
+    /// undecided and it escalates (`curve_pair_meet_stretch`).
     #[test]
     fn a_swept_spans_end_is_read_by_its_chord_to_the_meeting() {
         let tol = Tol::witness();
@@ -400,7 +387,7 @@ mod crossing_rows {
             semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
         };
-        let read = |gap: f64| {
+        let attempt = |gap: f64| {
             boundary_crossing(
                 &body,
                 Operand::B,
@@ -409,8 +396,8 @@ mod crossing_rows {
                 (theta - gap * z, theta + 0.01),
                 band,
             )
-            .unwrap()
         };
+        let read = |gap: f64| attempt(gap).unwrap();
         match read(20.0) {
             BoundaryCrossing::At { t, at, .. } => {
                 assert!((t - theta).abs() < 1e-12, "at the ruling: {t}");
@@ -419,9 +406,13 @@ mod crossing_rows {
             other => panic!("400·z inside the span, the meeting is found: {other:?}"),
         }
         assert!(
-            matches!(read(0.8), BoundaryCrossing::Clear),
-            "the end 0.8·z off the ruling, the meeting is its end: {:?}",
-            read(0.8)
+            matches!(
+                attempt(0.8),
+                Err(BooleanError::Escalated { ref diag, .. })
+                    if diag.predicate == Some("curve_pair_meet_stretch")
+            ),
+            "the end 0.8·z off the ruling and the crossing 16·z in, one stretch: {:?}",
+            attempt(0.8)
         );
         assert!(
             matches!(read(0.04), BoundaryCrossing::Clear),
