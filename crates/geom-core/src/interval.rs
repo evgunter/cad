@@ -852,6 +852,10 @@ impl crate::spline::SpanLocate for Interval {
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
 
+    fn structure_positive(self) -> bool {
+        Bounds::lo(self) > 0.0 && !self.is_poison()
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         arm.enclosure()
     }

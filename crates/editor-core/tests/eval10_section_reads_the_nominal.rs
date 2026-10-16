@@ -274,51 +274,63 @@ fn under_the_pinned_lift_a_section_seed_reaches_no_wall() {
     );
 }
 
-/// **A box over a section's width is refused, never the nominal over
-/// the box.** At `Interval` under the guided lift (the drive's), the
-/// rectangle sections loft with no box: every value is a point. With
-/// `p` widened by ε/16 the lower section still validates as a profile,
-/// but its value is wider than a point, and the loft refuses
-/// `SectionNotAPoint` naming the section. While a section was resolved
-/// at the nominal, this loft built its nominal wall and the lane
-/// certified it over the whole box.
+/// **A box over a section's width lofts the family it spans, never the
+/// nominal over the box.** At `Interval` under the guided lift (the
+/// drive's), with `p` widened by ε/256, the lower section's value is
+/// wider than a point and the loft skins it in `T`. (At ε/16 a wall's
+/// pcurve residual encloses about 13 times the box's width and
+/// escalates at the band, which the drive bisects.) Every vertex of the
+/// `f64` loft at each end of the box and at its middle (the guided
+/// lift's degenerate box at that offset, [`boxed_at`]) lies in a vertex
+/// of the enclosing body. Were the nominal lofted over the box, the
+/// ends would fall outside it.
 #[test]
-fn a_box_over_a_section_width_refuses_rather_than_lofting_the_nominal() {
-    use geom_core::Interval;
+fn a_box_over_a_section_width_lofts_the_family_it_spans() {
+    use geom_core::{Bounds, Interval};
     let (doc, loft) = square_loft_doc(0.5);
-    let run = |param_box| {
-        editor_core::evaluate::<Interval>(
+    let w = Tol::witness().get().eps / 256.0;
+    let mut axes = BTreeMap::new();
+    axes.insert(var(&doc), BoxAxis::Varying { lo: -w, hi: w });
+    let ev = editor_core::evaluate::<Interval>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions {
+            profile_lift: editor_core::ProfileLift::Guided,
+            param_box: Some(Arc::new(ParamBox::from_axes(axes))),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert!(
+        ev.node_error(loft).is_none(),
+        "the boxed loft evaluates: {:?}",
+        ev.node_error(loft)
+    );
+    let brackets: Vec<[(f64, f64); 3]> = crate::corpus::body_of(&ev, loft)
+        .points()
+        .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
+        .collect();
+    for offset in [-w, 0.0, w] {
+        let member = editor_core::evaluate::<f64>(
             &doc,
             None,
             &editor_core::CancelToken::new(),
             &EvalOptions {
                 profile_lift: editor_core::ProfileLift::Guided,
-                param_box,
-                ..EvalOptions::default()
+                ..boxed_at(&doc, offset)
             },
             Tol::witness(),
-        )
-    };
-    let unboxed = run(None);
-    assert!(
-        unboxed.node_error(loft).is_none(),
-        "with no box the sections are points, and the loft builds: {:?}",
-        unboxed.node_error(loft)
-    );
-    let mut axes = BTreeMap::new();
-    axes.insert(
-        var(&doc),
-        BoxAxis::Varying {
-            lo: -Tol::witness().get().eps / 16.0,
-            hi: Tol::witness().get().eps / 16.0,
-        },
-    );
-    let ev = run(Some(Arc::new(ParamBox::from_axes(axes))));
-    match ev.node_error(loft).map(|e| &e.kind) {
-        Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::SectionNotAPoint {
-            section: 0,
-        })) => {}
-        other => panic!("the boxed loft must refuse its wide section, got {other:?}"),
+        );
+        for (_, p) in crate::corpus::body_of(&member, loft).points() {
+            let v = [p.x, p.y, p.z];
+            assert!(
+                brackets
+                    .iter()
+                    .any(|b| b.iter().zip(&v).all(|((lo, hi), x)| lo <= x && x <= hi)),
+                "offset {offset}: the member's vertex {v:?} lies in no vertex of the enclosing body"
+            );
+        }
     }
 }
 

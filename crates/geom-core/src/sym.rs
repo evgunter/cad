@@ -5272,6 +5272,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
         self.value.point_value()
     }
 
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         T::split_projective(crate::spline::projective::SymArm(arm))
     }

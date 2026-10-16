@@ -68,11 +68,15 @@
 //! # At a generic scalar
 //!
 //! [`factor`] and [`BandedLu::solve`] run at any [`SpanLocate`] scalar
-//! (the skin's solve in its sections' scalar, `sweep::skin`), with
-//! every decision read off the value channel
-//! ([`SpanLocate::value_channel`]): the band's
-//! shape is the `first` indices, which are structure, and a pivot or
-//! factor entry refuses when its value channel is zero or not finite.
+//! (the skin's solve in its sections' scalar, `sweep::skin`). The
+//! band's shape is the `first` indices, which are structure, and a
+//! factor entry refuses when it is not finite
+//! ([`geom_core::is_finite_length`]), a pivot when it is not nonzero
+//! for every value it stands for ([`SpanLocate::structure_positive`]
+//! of it or its negation). At a point scalar those read the value
+//! channel; at an enclosure scalar an entry wider than a point solves,
+//! and where the substitutions summarise a dropped term against it they
+//! subtract `0 · v`, which is zero for the finite enclosure it is.
 //! The arithmetic is the `f64` solve's, operation for operation, so at
 //! `f64` it is that solve bit for bit, and the dropped terms the
 //! substitutions summarise enter as the constants they are (`±0`, and
@@ -161,7 +165,7 @@ pub(crate) fn factor<T: SpanLocate>(
             }
             let pivot = lu[q * width + q - first[q]];
             let l = s / pivot;
-            if !l.value_channel().is_finite() {
+            if !geom_core::is_finite_length(l) {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: q,
                     pivot: pivot.value_channel(),
@@ -176,7 +180,7 @@ pub(crate) fn factor<T: SpanLocate>(
                     s = s - lu[row + t - f] * lu[t * width + j - first[t]];
                 }
             }
-            if !s.value_channel().is_finite() {
+            if !geom_core::is_finite_length(s) {
                 return Err(LsqError::LsqDegenerate {
                     pivot_index: i,
                     pivot: s.value_channel(),
@@ -184,11 +188,11 @@ pub(crate) fn factor<T: SpanLocate>(
             }
             lu[row + j - f] = s;
         }
-        let pivot = lu[row + i - f].value_channel();
-        if pivot == 0.0 {
+        let pivot = lu[row + i - f];
+        if !(pivot.structure_positive() || (-pivot).structure_positive()) {
             return Err(LsqError::LsqDegenerate {
                 pivot_index: i,
-                pivot,
+                pivot: pivot.value_channel(),
             });
         }
     }

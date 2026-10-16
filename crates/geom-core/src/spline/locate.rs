@@ -213,6 +213,17 @@ pub trait SpanLocate: sealed::Sealed + Real {
         self.point_value().unwrap_or(f64::NAN)
     }
 
+    /// Whether every value this scalar stands for is above zero: the
+    /// positivity a structure decision asks of a value (C6), such as a
+    /// chord that is not empty or a parameter step that ascends. At a
+    /// point scalar it is `value_channel() > 0.0`, so poison answers
+    /// `false`. At `Interval` it reads the bracket, as the locator does:
+    /// a wide value answers by its lower end. The wrappers answer by
+    /// their value part.
+    fn structure_positive(self) -> bool {
+        self.value_channel() > 0.0
+    }
+
     /// **Which side of the projective partition this scalar is on**,
     /// answered by running one of `arm`'s two halves: its
     /// [`projective`](super::ProjectiveSplit::projective) half, which
@@ -288,6 +299,63 @@ mod tests {
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
         assert_eq!(0.5f64.point_value(), Some(0.5));
         assert_eq!(f64::NAN.point_value(), None, "NaN read as a point");
+    }
+
+    /// A structure positivity holds of every value a scalar stands for:
+    /// a point by its value channel, an enclosure only when its whole
+    /// bracket is above zero, and a wrapper by its value part.
+    #[test]
+    fn structure_positive_holds_of_every_value_the_scalar_stands_for() {
+        use crate::{Interval, Sym};
+        let wide = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let cases = [
+            ("a positive point", 0.5f64.structure_positive(), true),
+            ("zero", 0.0f64.structure_positive(), false),
+            ("NaN", f64::NAN.structure_positive(), false),
+            (
+                "a wide positive",
+                wide(0.25, 0.75).structure_positive(),
+                true,
+            ),
+            (
+                "a straddling bracket",
+                wide(-0.25, 0.75).structure_positive(),
+                false,
+            ),
+            (
+                "a bracket touching zero",
+                wide(0.0, 0.75).structure_positive(),
+                false,
+            ),
+            (
+                "NaI",
+                Interval::from_f64(f64::NAN).structure_positive(),
+                false,
+            ),
+            (
+                "a dual over a wide positive",
+                Dual::new(wide(0.25, 0.75), wide(-1.0, 1.0)).structure_positive(),
+                true,
+            ),
+            (
+                "a dual over a straddling bracket",
+                Dual::new(wide(-0.25, 0.75), wide(1.0, 1.0)).structure_positive(),
+                false,
+            ),
+            (
+                "a sym over a wide positive",
+                Sym::<Interval>::from_f64(0.5).structure_positive(),
+                true,
+            ),
+            (
+                "a negative dual point",
+                Dual64::variable(-1.0).structure_positive(),
+                false,
+            ),
+        ];
+        for (what, got, want) in cases {
+            assert_eq!(got, want, "{what}");
+        }
     }
 
     /// The `Probe` half is behind the `probe` feature (the recording

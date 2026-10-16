@@ -325,12 +325,15 @@ fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
 /// The fit's parameterization rule, its one home: clamped `0 → 1` and
 /// strictly ascending, which is what makes the averaged knot vector
 /// valid and the collocation matrix nonsingular (Schoenberg–Whitney).
-/// `!(a < b)` is NaN-catching, so a NaN parameter refuses.
-fn check_ordered(params: &[f64]) -> Result<(), FitError> {
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let ordered = params.first() == Some(&0.0)
-        && params.last() == Some(&1.0)
-        && params.windows(2).all(|w| w[0] < w[1]);
+/// The ends are the points `0` and `1`, and each step ascends for every
+/// value it stands for ([`SpanLocate::structure_positive`]): at `f64`
+/// that is `a < b`, which a NaN parameter fails.
+fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
+    let ordered = params.first().and_then(|u| u.point_value()) == Some(0.0)
+        && params.last().and_then(|u| u.point_value()) == Some(1.0)
+        && params
+            .windows(2)
+            .all(|w| (w[1] - w[0]).structure_positive());
     if ordered {
         Ok(())
     } else {
@@ -405,11 +408,15 @@ pub fn interpolate_columns(
 /// averaged knots (Book Eq. 9.8), the collocation rows and the banded
 /// solve are all formed in `T`, so a parameter or a datum that is a
 /// function of the variables gives knots and control rows that are
-/// functions of them too. The structure is read off the value channel
-/// ([`SpanLocate::point_value`]): the refusals are
-/// [`interpolate_columns`]', decided there, the span each parameter
-/// lies in is located there, and the banded solve refuses on it
-/// (`curves/banded.rs`). The arithmetic is [`interpolate_columns`]'s
+/// functions of them too. The refusals are [`interpolate_columns`]',
+/// decided for every value a datum or parameter stands for: a datum
+/// that is not finite ([`geom_core::is_finite_length`]), a step that
+/// does not ascend ([`SpanLocate::structure_positive`]), and in the
+/// banded solve a pivot that is not certainly nonzero
+/// (`curves/banded.rs`). So at an enclosure scalar a datum or an
+/// interior parameter may be wider than a point. The averaged knots are
+/// a carrier's, and one wider than a point refuses
+/// ([`SplineError::KnotNotAPoint`]). The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
@@ -440,15 +447,11 @@ pub fn interpolate_columns_in<T: SpanLocate>(
                 found: row.len(),
             });
         }
-        if row
-            .iter()
-            .any(|v| !v.point_value().is_some_and(f64::is_finite))
-        {
+        if row.iter().any(|v| !geom_core::is_finite_length(*v)) {
             return Err(FitError::NonFinitePoint { index });
         }
     }
-    let channel: Vec<f64> = params.iter().map(|u| u.value_channel()).collect();
-    check_ordered(&channel)?;
+    check_ordered(params)?;
     check_degree(n, degree)?;
     let knots = averaged_knots_in(params, degree)?;
     let (first, basis): (Vec<usize>, Vec<Vec<T>>) =

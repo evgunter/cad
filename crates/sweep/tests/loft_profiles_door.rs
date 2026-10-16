@@ -5,8 +5,8 @@
 //! ([`profile::ValidatedProfile::value_channel`]), and no section is
 //! validated again. At `f64` it is [`sweep::loft_body`] bit for bit; at
 //! `Dual64` its values are the caller's, derivatives included; at
-//! `Interval` a section or placement with no single point refuses by
-//! name.
+//! `Interval` a section or placement wider than a point encloses its
+//! family. A value that is not finite refuses by name at both doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -150,45 +150,121 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
     assert_eq!(wall_bits(&lofted), wall_bits(&nominal));
 }
 
-/// At `Interval` a section vertex wider than a point has no value
-/// channel to select the skin on, and refuses by name, naming its
-/// section.
-#[test]
-fn at_interval_a_wide_section_refuses_as_section_not_a_point() {
-    let i = Interval::from_f64;
-    let wide = Interval::from_bounds(1.2 - 1e-12, 1.2 + 1e-12);
-    match loft_profiles::<Interval>(
-        &[
-            validated(i(1.0), i(0.0), i(0.0)),
-            validated(wide, i(0.0), i(1.0)),
-        ],
-        1,
-        Tol::witness(),
-    ) {
-        Err(LoftError::SectionNotAPoint { section: 1 }) => {}
-        other => panic!(
-            "expected section 1's not-a-point refusal, got {:?}",
-            other.map(|_| ())
-        ),
+/// Asserts every wall pole and weight of `enclosing` holds the
+/// matching value of `sample`, the `f64` loft of one member of its
+/// family.
+fn assert_encloses(what: &str, enclosing: &Lofted<Interval>, sample: &Lofted<f64>) {
+    use geom_core::Bounds;
+    let brackets = wall_values(enclosing, |x| (x.lo(), x.hi()));
+    let values = wall_values(sample, |x| x);
+    assert_eq!(
+        brackets.len(),
+        values.len(),
+        "{what}: the wall shapes agree"
+    );
+    for (i, ((lo, hi), v)) in brackets.iter().zip(&values).enumerate() {
+        assert!(
+            lo <= v && v <= hi,
+            "{what}: wall value {i} is {v}, outside its enclosure [{lo}, {hi}]"
+        );
     }
 }
 
-/// At `Interval` a plane wider than a point refuses as the placement
-/// it is, before the sections are read.
+/// The ends of a box `ε/256` either side of `c`, narrow enough for the
+/// assembly's certificates to resolve at every ε.
+fn box_about(c: f64) -> (f64, f64) {
+    let w = Tol::witness().eps() / 256.0;
+    (c - w, c + w)
+}
+
+/// At `Interval` a section vertex wider than a point lofts in `T`, and
+/// the walls hold the `f64` loft of every member sampled: the box's
+/// ends and its middle.
 #[test]
-fn at_interval_a_wide_plane_refuses_as_placement_not_a_point() {
+fn at_interval_a_wide_section_encloses_its_family() {
     let i = Interval::from_f64;
-    match loft_profiles::<Interval>(
+    let (lo, hi) = box_about(1.2);
+    let enclosing = loft_profiles::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
-            validated(i(1.2), i(0.0), Interval::from_bounds(0.99, 1.01)),
+            validated(Interval::from_bounds(lo, hi), i(0.0), i(1.0)),
         ],
         1,
         Tol::witness(),
+    )
+    .expect("the wide polygon lofts at Interval");
+    for r in [lo, 1.2, hi] {
+        let sample = loft_profiles::<f64>(
+            &[validated(1.0, 0.0, 0.0), validated(r, 0.0, 1.0)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("r = {r}"), &enclosing, &sample);
+    }
+}
+
+/// At `Interval` a plane wider than a point is a placement over a box,
+/// and the walls hold every sampled member's.
+#[test]
+fn at_interval_a_wide_plane_encloses_its_family() {
+    let i = Interval::from_f64;
+    let (lo, hi) = box_about(1.0);
+    let enclosing = loft_profiles::<Interval>(
+        &[
+            validated(i(1.0), i(0.0), i(0.0)),
+            validated(i(1.2), i(0.0), Interval::from_bounds(lo, hi)),
+        ],
+        1,
+        Tol::witness(),
+    )
+    .expect("the polygon on a wide plane lofts at Interval");
+    for z in [lo, 1.0, hi] {
+        let sample = loft_profiles::<f64>(
+            &[validated(1.0, 0.0, 0.0), validated(1.2, 0.0, z)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("z = {z}"), &enclosing, &sample);
+    }
+}
+
+/// A section or placement holding a value that is not finite refuses
+/// by name, and both doors spell it the same way.
+#[test]
+fn a_value_that_is_not_finite_refuses_by_name_at_both_doors() {
+    match loft_body::<f64>(
+        &[section(1.0, 0.0), section(f64::NAN, 0.0)],
+        &[at(0.0), at(1.0)],
+        1,
+        Tol::witness(),
     ) {
-        Err(LoftError::PlacementNotAPoint { section: 1 }) => {}
+        Err(LoftError::SectionNotFinite { section: 1 }) => {}
         other => panic!(
-            "expected section 1's placement refusal, got {:?}",
+            "loft_body: expected section 1's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    match loft_body::<f64>(
+        &[section(1.0, 0.0), section(1.2, 0.0)],
+        &[at(0.0), at(f64::INFINITY)],
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
+        other => panic!(
+            "loft_body: expected section 1's placement refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    let poisoned = Profile::new(SketchPlane::new(at(f64::NAN)), section(1.2, 0.0))
+        .validate(Tol::witness())
+        .expect("validation reads the loops, not the plane");
+    match loft_profiles::<f64>(&[validated(1.0, 0.0, 0.0), poisoned], 1, Tol::witness()) {
+        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
+        other => panic!(
+            "loft_profiles: expected section 1's placement refusal, got {:?}",
             other.map(|_| ())
         ),
     }

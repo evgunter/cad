@@ -4,7 +4,9 @@
 //! the `f64` skin was lifted through: it re-values with the variable to
 //! the `f64` build's own bits, and the arc rim's weight margin, which
 //! reads the wall's boundary column against the rim's own sweep
-//! (`geom_brep`'s arc-rim class), is a symbolic Zero.
+//! (`geom_brep`'s arc-rim class), is a symbolic Zero. At `Interval` a
+//! loft over a section or placement wider than a point encloses the
+//! family it spans, and what a carrier cannot hold refuses typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -132,28 +134,200 @@ fn a_lofted_arc_walls_weight_carries_the_bulges_derivative() {
     );
 }
 
-/// At `Interval` the loft encloses the `f64` skin of its sections'
-/// value channel, so a section wider than a point has no skin to
-/// enclose: it refuses at the structure pass, rather than standing for
-/// the nominal surface over the family it spans.
+/// The quadrilateral `(−1, −1), (1, −1), (h, 1), (−1, 1)`, run
+/// counterclockwise: every side a line, and only one corner moving.
+fn quad<T: Real>(h: T) -> Vec<ProfileLoop<T>> {
+    let corner = |x: T, y: f64| (Point2::new(x, T::from_f64(y)), T::zero());
+    vec![bulge_loop(vec![
+        corner(T::from_f64(-1.0), -1.0),
+        corner(T::one(), -1.0),
+        corner(h, 1.0),
+        corner(T::from_f64(-1.0), 1.0),
+    ])]
+}
+
+/// Asserts every wall value of `enclosing` (poles, weights, v knots)
+/// holds the matching value of `sample`, the `f64` loft of one member
+/// of the family `enclosing` was built over.
+fn assert_encloses(what: &str, enclosing: &Lofted<geom_core::Interval>, sample: &Lofted<f64>) {
+    use geom_core::Bounds;
+    let brackets = wall_values(enclosing, |x| (x.lo(), x.hi()));
+    let values = wall_values(sample, |x| x);
+    assert_eq!(
+        brackets.len(),
+        values.len(),
+        "{what}: the wall shapes agree"
+    );
+    for (i, ((lo, hi), v)) in brackets.iter().zip(&values).enumerate() {
+        assert!(
+            lo <= v && v <= hi,
+            "{what}: wall value {i} is {v}, outside its enclosure [{lo}, {hi}]"
+        );
+    }
+}
+
+/// The ends of a box `ε/256` either side of `c`, narrow enough for the
+/// assembly's certificates to resolve at every ε.
+fn box_about(c: f64) -> (f64, f64) {
+    let w = Tol::witness().eps() / 256.0;
+    (c - w, c + w)
+}
+
+/// **At `Interval` a loft over a box encloses the family the box
+/// spans.** A [`quad`] whose moving corner is at `x` in [`box_about`]`(1.2)`, at
+/// heights `0`, `1` and `2` (its middle section the wide one), lofts
+/// at v-degree 2 in `T`: its middle section's v-parameter is wider
+/// than a point and enters only the collocation matrix, over the one
+/// v-span a three-section Bezier skin has. Every wall value holds the
+/// `f64` loft's at each end of the box and its middle.
 #[test]
-fn a_loft_over_a_section_wider_than_a_point_refuses_at_interval() {
+fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
     use geom_core::Interval;
-    let b = Interval::from_bounds(0.19, 0.21);
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    let wide = Interval::from_bounds(lo, hi);
+    let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
+    let enclosing = loft_body::<Interval>(
+        &[quad(ends), quad(wide), quad(ends)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("the boxed square lofts at Interval");
+    assert!(
+        enclosing.section_params[1].is_nan(),
+        "the middle section's parameter is no single point: {:?}",
+        enclosing.section_params
+    );
+    for h in [lo, 1.2, hi] {
+        let sample = loft_body::<f64>(
+            &[quad(1.2), quad(h), quad(1.2)],
+            &[0.0, 1.0, 2.0].map(at_height),
+            2,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("h = {h}"), &enclosing, &sample);
+    }
+}
+
+/// **A placement over a box encloses the family too**: the top quad
+/// at a height in [`box_about`]`(1)` lofts at `Interval`, and its walls
+/// hold the `f64` loft's at each end of the box and its middle.
+#[test]
+fn a_loft_over_a_wide_placement_encloses_its_family_at_interval() {
+    use geom_core::Interval;
+    let corner = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.0);
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
-            Interval::zero(),
-            Interval::zero(),
-            Interval::one(),
-        )),
+        at_height(Interval::zero()),
+        at_height(Interval::from_bounds(lo, hi)),
     ];
-    match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-        Err(sweep::LoftError::Skin(sweep::SkinError::SectionProfile { section: 0, .. })) => {}
+    let enclosing =
+        loft_body::<Interval>(&[quad(corner), quad(corner)], &places, 1, Tol::witness())
+            .expect("the square lofts over a wide placement at Interval");
+    for z in [lo, 1.0, hi] {
+        let sample = loft_body::<f64>(
+            &[quad(1.2), quad(1.2)],
+            &[at_height(0.0), at_height(z)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("z = {z}"), &enclosing, &sample);
+    }
+}
+
+/// **What the enclosure skin cannot carry refuses typed.** A carrier's
+/// weights and knots are points at every scalar
+/// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`):
+/// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
+///   wide bulge or from rounding alone, so an arc section refuses;
+/// - three sections at v-degree 1 put their middle parameter in the
+///   knot vector, where a wide one is no knot.
+#[test]
+fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
+    use geom_core::Interval;
+    use geom_core::spline::SplineError;
+    use sweep::{LoftError, SkinError};
+    let places = [0.0, 1.0].map(|z| at_height(Interval::from_f64(z)));
+    for (what, b) in [
+        ("a wide bulge", {
+            let (lo, hi) = box_about(0.2);
+            Interval::from_bounds(lo, hi)
+        }),
+        ("a point bulge", Interval::from_f64(0.2)),
+    ] {
+        match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
+            Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+            other => panic!(
+                "{what}: expected section 0's arc refusal, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    match loft_body::<Interval>(
+        &[quad(ends), quad(Interval::from_bounds(lo, hi)), quad(ends)],
+        &[0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z))),
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
+            SplineError::KnotNotAPoint { index: 1 },
+        )))) => {}
         other => panic!(
-            "expected section 0's profile refusal, got {:?}",
+            "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())
         ),
+    }
+}
+
+/// At an enclosure scalar curves that differ in degree are not made
+/// compatible: degree elevation is the projective knot algebra, which
+/// `Interval` does not run, so the second curve refuses by name. Curves
+/// already compatible come back as themselves.
+#[test]
+fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
+    use core::num::NonZeroUsize;
+    use geom::NurbsCurve3;
+    use geom_core::spline::Knots;
+    use geom_core::{Interval, Point3};
+    use sweep::{SketchSegment, SkinError, make_compatible, segment_curve};
+    let i = Interval::from_f64;
+    let p = |x: f64, y: f64| Point2::new(i(x), i(y));
+    let line = segment_curve::<Interval>(
+        0,
+        SketchSegment::Line {
+            a: p(0.0, 0.0),
+            b: p(1.0, 0.0),
+        },
+        Affine3::identity(),
+    )
+    .expect("a line converts at Interval");
+    let three = NonZeroUsize::new(3).expect("three");
+    let quadratic = NurbsCurve3::new(
+        Knots::new(vec![(i(0.0), three), (i(1.0), three)], 2).expect("clamped quadratic knots"),
+        vec![
+            Point3::new(i(0.0), i(0.0), i(1.0)),
+            Point3::new(i(0.5), i(0.5), i(1.0)),
+            Point3::new(i(1.0), i(0.0), i(1.0)),
+        ],
+        vec![i(1.0); 3],
+    )
+    .expect("an integral quadratic");
+    match make_compatible(&[line.clone(), quadratic]) {
+        Err(SkinError::IncompatibleAtEnclosure { section: 1 }) => {}
+        other => panic!("expected section 1's refusal, got {:?}", other.map(|_| ())),
+    }
+    let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");
+    for c in &same {
+        assert_eq!(
+            (c.knots().knots(), c.control().len()),
+            (line.knots().knots(), 2),
+            "a compatible line comes back as itself"
+        );
     }
 }
 
@@ -218,28 +392,6 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     .expect("the elbow sweeps at Interval");
     assert_eq!(enclosed.section_params, nominal.section_params);
     assert_eq!(wall_bits(&enclosed), wall_bits(&nominal));
-}
-
-/// A placement wider than a point refuses by name, before any skin.
-#[test]
-fn a_placement_wider_than_a_point_refuses_by_name() {
-    use geom_core::Interval;
-    let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
-            Interval::zero(),
-            Interval::zero(),
-            Interval::from_bounds(0.99, 1.01),
-        )),
-    ];
-    let b = Interval::from_f64(0.2);
-    match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-        Err(sweep::LoftError::PlacementNotAPoint { section: 1 }) => {}
-        other => panic!(
-            "expected section 1's placement refusal, got {:?}",
-            other.map(|_| ())
-        ),
-    }
 }
 
 /// Every value of every wall a loft built, in face order: poles,
