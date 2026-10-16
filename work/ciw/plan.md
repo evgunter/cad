@@ -6,7 +6,8 @@ hosted CI, workflows and scripts
 
 `ci.yml` is the per-PR gate, sized for latency: the default-eps suite
 minus the slow set (`.config/nextest.toml`'s `ci` profile), lint, the
-1e-6/1e-12 rows of the eps-sensitive crates the diff seeds, and the
+1e-6/1e-12 rows of the eps-sensitive crates the diff seeds and of the
+test files it changes, and the
 direct-path rows whose subject the diff touches. `nightly.yml` holds
 the rest: every eps row over the whole suite with the slow set, the
 k-lint rows, the render lanes, rustdoc and wasm32. A `main` push runs

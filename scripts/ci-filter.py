@@ -1611,7 +1611,11 @@ _GATED_LITERAL_RE = re.compile(r'"([^"\n\\]*)"')
 # in a crate's aggregated `tests/all.rs`. That pair is the only place the
 # module prefix a nextest test id carries is written down.
 _ALL_RS_PATH_RE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"\n]+)"\s*\]')
-_ALL_RS_MOD_RE = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
+# Any visibility: `pub(crate) mod kept_rows;` and `pub(super) mod x;` are live
+# mounts (crates/topo/src/merge_faces.rs, boolean/reduce.rs), and a reader that
+# took only bare `pub` missed them and derived a module path from the filename.
+_VIS = r"(?:pub(?:\s*\([^)]*\))?\s+)?"
+_ALL_RS_MOD_RE = re.compile(r"^\s*" + _VIS + r"mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
 # What may go into `test(/^<module>::/)` unquoted and unescaped. A Rust module
 # path cannot contain anything else; a path that does is not silently emitted
 # as a malformed filterset, it fails open (below).
@@ -2116,6 +2120,242 @@ def gated_filter(
     if not excluded:
         return "", notices
     return "not (" + " | ".join(excluded) + ")", notices
+
+
+# ------------------------------------------------- the extra eps rows (EPS_EXTRA)
+#
+# The nextest expression ci.yml's `test (eps 1e-6, 1e-12 …)` step runs at each
+# of the two non-default tolerances, ANDed with TEST_FILTER. Every row runs at
+# every eps nightly; this is what a pull request pays for before merge. Two
+# halves, each keyed to the diff:
+#
+#   WHOLE CRATES — `package(c)` for each seed in EPS_ROWS_PACKAGES, and for
+#     each crate with a changed path matching `(probe|golden)`.
+#   CHANGED TEST FILES, in ANY crate — the rows of each `tests/` suite the
+#     diff adds or modifies (its module of the crate's aggregated `all`
+#     binary), of each changed `src/` file that DEFINES tests, and of a changed
+#     `tests/all.rs`'s own top-level tests. A file's rows are the tests written
+#     IN it — its inline modules — and never its file-backed child modules:
+#     `test(/^names::/)` alone would also select every `names::<child>::` row,
+#     so each `mod <child>;` the file declares is subtracted from its term.
+#     A file whose only test item is such a child mount defines no test and
+#     gets no term. A new or edited test is the likeliest home of a
+#     non-portable ε literal, and these rows cost the file's own tests, not
+#     its crate's suite.
+#
+# What the file half cannot name, it says by notice and leaves to the nightly:
+# a `tests/` helper no `#[path]` line includes (its callers are other suites),
+# a `src/` file mounted by `#[path]` (`_src_path_mounts` says why its module
+# path is not derived), a crate root (`lib.rs`/`main.rs`), whose own tests
+# carry no module prefix of their own, and a `src/bin/` file, which is its own
+# binary target. A term whose rows are in ci's slow set (`.config/nextest.toml`)
+# is also said by notice: those rows are filtered out of this step, so a
+# slow-only suite is not covered here however its term reads.
+#
+# A dependent crate's rows are not here: a topo change that reds only a sweep
+# row at 1e-12 meets it at the nightly unless the diff edits that sweep file.
+
+# Crates whose whole suite runs at both extra rows when the diff seeds them.
+EPS_ROWS_PACKAGES = frozenset({"step-import", "geom-brep", "profile", "topo"})
+_EPS_PATH_RE = re.compile(r"^crates/([^/]+)/.*(probe|golden)")
+_LEADING_ATTRS_RE = re.compile(r"^\s*(?:#\s*\[[^\]]*\]\s*)*")
+_INLINE_MOD_RE = re.compile(r"^" + _VIS + r"mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
+_RS_LITERAL_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
+_DEFINES_TEST_RE = re.compile(r"#\s*\[\s*test\s*\]|\bproptest!")
+_SLOW_BINARY_RE = re.compile(r"binary_id\(([^)]+)\)")
+_SLOW_TEST_RE = re.compile(r"test\(=([^)]+)\)")
+
+
+def _file_test_layout(text: str) -> tuple[list[str], bool]:
+    """`(children, own_tests)` of one Rust file.
+
+    `children` is every module the file mounts from ANOTHER file (`mod x;`,
+    any visibility, any attributes), as a path relative to the file's own
+    module — `a::x` when the declaration sits inside an inline `mod a { }`.
+    Their tests carry this file's prefix and are not this file's rows.
+
+    `own_tests` is whether the file DEFINES a test: a `#[test]` or a
+    `proptest!` written in it (the two spellings the tree uses). A
+    `#[cfg(test)]` defines none: `crates/viewer/src/pane.rs` holds one only on
+    an inline helper module and on no test, and `names/mod.rs` only to mount
+    a child.
+
+    A line reader with brace counting, string and char literals blanked: a
+    brace inside a raw string can misplace a nested mount, and the error is a
+    child left unsubtracted, i.e. more rows selected, never fewer.
+    """
+    code = _gated_code_only(text)
+    children: list[str] = []
+    stack: list[str | None] = []
+    for raw in code.splitlines():
+        line = _RS_LITERAL_RE.sub('""', raw)
+        body = line[_LEADING_ATTRS_RE.match(line).end():]  # type: ignore[union-attr]
+        decl = _ALL_RS_MOD_RE.match(body)
+        if decl and None not in stack:
+            children.append("::".join([*stack, decl.group(1)]))  # type: ignore[list-item]
+        inline = _INLINE_MOD_RE.match(body)
+        opener = len(line) - len(body) + inline.end() - 1 if inline else -1
+        for k, ch in enumerate(line):
+            if ch == "{":
+                stack.append(inline.group(1) if k == opener else None)  # type: ignore[union-attr]
+            elif ch == "}" and stack:
+                stack.pop()
+    return children, bool(_DEFINES_TEST_RE.search(code))
+
+
+def _own_rows_term(binary: str, prefix: str, children: list[str]) -> str:
+    """The filterset for a file's own rows: its prefix less its file-backed
+    children. `prefix` empty is a binary's top level (`tests/all.rs`)."""
+    if not prefix:
+        if not children:
+            return f"binary_id({binary})"
+        return f"(binary_id({binary}) & not test(/^({'|'.join(children)})::/))"
+    term = f"(binary_id({binary}) & test(/^{prefix}::/)"
+    if children:
+        term += f" & not test(/^{prefix}::({'|'.join(children)})::/)"
+    return term + ")"
+
+
+def _slow_set(root: str) -> dict[str, list[str]]:
+    """Binary id -> the test names ci's `default-filter` leaves out of every
+    per-PR step, this one included."""
+    out: dict[str, list[str]] = {}
+    try:
+        with open(os.path.join(root, ".config", "nextest.toml"), encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return out
+    for line in text.splitlines():
+        b = _SLOW_BINARY_RE.search(line)
+        if b:
+            out.setdefault(b.group(1), []).extend(_SLOW_TEST_RE.findall(line))
+    return out
+
+
+def _slow_notice(
+    f: str, binary: str, prefix: str, children: list[str], text: str, slow: dict[str, list[str]]
+) -> str | None:
+    """A notice when some of `f`'s rows are in the slow set, and says so
+    louder when they may be all of them (as many slow names as `#[test]`s)."""
+    heads = [f"{prefix}::{c}::" if prefix else f"{c}::" for c in children]
+    mine = [
+        n for n in slow.get(binary, [])
+        if (not prefix or n.startswith(prefix + "::")) and not any(n.startswith(h) for h in heads)
+    ]
+    if not mine:
+        return None
+    written = len(re.findall(r"#\s*\[\s*test\s*\]", _gated_code_only(text)))
+    every = (
+        "EVERY row of it may be slow-set, so this step may run none of it; "
+        if len(mine) >= written else ""
+    )
+    return (
+        f"eps rows: {f}: {len(mine)} of its rows are in ci's slow set and skip this step; "
+        f"{every}they run at 1e-6/1e-12 nightly"
+    )
+
+
+def _changed_file_term(
+    root: str,
+    f: str,
+    dir_of: dict[str, str] | None,
+    mounts: dict[str, str],
+    slow: dict[str, list[str]],
+) -> tuple[str | None, list[str]]:
+    """`(term, notices)` for one changed file; `(None, [])` when it holds no rows."""
+    parts = f.split("/")
+    if len(parts) < 4 or parts[0] != "crates" or not f.endswith(".rs"):
+        return None, []
+    if parts[2] not in ("src", "tests") or not os.path.isfile(os.path.join(root, f)):
+        return None, []
+    pkg = (dir_of or {}).get(parts[1], parts[1])
+    with open(os.path.join(root, f), encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    if parts[2] == "tests":
+        if not os.path.isfile(os.path.join(root, "crates", parts[1], "tests", "all.rs")):
+            if len(parts) == 4 and _BINARY_ID_RE.match(pkg) and _MODULE_PATH_RE.match(parts[3][:-3]):
+                return f"binary_id({pkg}::{parts[3][:-3]})", []
+            return None, [f"eps rows: {f} is in no test binary this filter can name"]
+        binary = f"{pkg}::all"
+        if parts[3:] == ["all.rs"]:
+            children, own = _file_test_layout(text)
+            if not own or not _BINARY_ID_RE.match(pkg):
+                return None, []
+            notice = _slow_notice(f, binary, "", children, text, slow)
+            return _own_rows_term(binary, "", children), [notice] if notice else []
+        mod = _all_rs_modules(root, parts[1]).get("/".join(parts[3:]))
+        if mod is None:
+            return None, [
+                f"eps rows: {f} is a helper no `#[path]` line in tests/all.rs includes; "
+                "the suites that use it run at 1e-6/1e-12 nightly"
+            ]
+        term, problem = _suite_term(root, f, dir_of)
+        if term is None:
+            return None, [f"eps rows: {f}: {problem}"]
+        notice = _slow_notice(f, binary, mod, [], text, slow)
+        return term, [notice] if notice else []
+    if parts[3] == "bin":
+        if _DEFINES_TEST_RE.search(_gated_code_only(text)):
+            return None, [
+                f"eps rows: {f} is under src/bin/, its own binary target; "
+                "its rows run at 1e-6/1e-12 nightly"
+            ]
+        return None, []
+    children, own = _file_test_layout(text)
+    if not own:
+        return None, []
+    if f in mounts:
+        return None, [
+            f"eps rows: {f} is mounted by `#[path]` at {mounts[f]}, so its test-id prefix "
+            "is not derived; its rows run at 1e-6/1e-12 nightly"
+        ]
+    if parts[3:] in (["lib.rs"], ["main.rs"]):
+        return None, [f"eps rows: {f} is a crate root; its own rows run at 1e-6/1e-12 nightly"]
+    term, problem = _suite_term(root, f, dir_of)
+    if term is None:
+        return None, [f"eps rows: {f}: {problem}"]
+    prefix = term[term.index("/^") + 2 : term.index("::/")]
+    notice = _slow_notice(f, pkg, prefix, children, text, slow)
+    return _own_rows_term(pkg, prefix, children), [notice] if notice else []
+
+
+def eps_rows_filter(
+    root: str,
+    files: list[str] | None,
+    tier: str,
+    seeds: str,
+    dir_of: dict[str, str] | None = None,
+) -> tuple[str, list[str]]:
+    """`(EPS_EXTRA, notices)`. Empty means no extra row runs; `all()` on the
+    `all` tier and on any failure here, the direction that runs more."""
+    if tier in ("docs", "aux"):
+        return "", []
+    if tier != "closure" or files is None:
+        return "all()", []
+    try:
+        pkg_of = dir_of or {}
+        whole = [s for s in sorted(set(seeds.split(",")) & EPS_ROWS_PACKAGES)]
+        for f in files:
+            m = _EPS_PATH_RE.match(f)
+            if m:
+                pkg = pkg_of.get(m.group(1), m.group(1))
+                if pkg not in whole:
+                    whole.append(pkg)
+        terms = [f"package({p})" for p in whole]
+        notices: list[str] = []
+        mounts = _src_path_mounts(root)
+        slow = _slow_set(root)
+        for f in files:
+            parts = f.split("/")
+            if len(parts) > 1 and pkg_of.get(parts[1], parts[1]) in whole:
+                continue
+            term, more = _changed_file_term(root, f, dir_of, mounts, slow)
+            notices.extend(more)
+            if term and term not in terms:
+                terms.append(term)
+        return " | ".join(terms), notices
+    except Exception as exc:  # noqa: BLE001 — fail toward running more
+        return "all()", [f"eps rows: every row runs at 1e-6/1e-12 — the derivation failed ({exc})"]
 
 
 def gated_set(root: str) -> int:
@@ -3262,8 +3502,9 @@ def selftest() -> None:
     _selftest_unsampled()
     _selftest_config()
     _selftest_gated()
+    _selftest_eps_rows()
     print("ci-filter selftest OK: docs/aux/closure/all tiers, the dependent closure, "
-          "the python and viewer axes, the oracle signal, requests, and the per-file test gate")
+          "the python and viewer axes, the oracle signal, requests, the per-file test gate and the extra eps rows")
 
 
 # A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
@@ -3508,6 +3749,137 @@ def _selftest_gated() -> None:
             raise SystemExit(
                 f"SELFTEST FAILED: --gated-set said nothing about the empty case\n{run.stderr}"
             )
+
+
+def _selftest_eps_rows() -> None:
+    """EPS_EXTRA from the diff, over the gated fixture plus a few rows of its
+    own. Every expectation is written out, for the reason `_GATED_TERM_RING`
+    states. Each fixture is shaped so that one plausible mutation of the rule
+    turns its case red: a nested path, a `mod.rs`, the no-`all.rs` fallback
+    under a package name that is not its directory's, subsumption by a seed
+    whose file WOULD otherwise get a term, a deleted suite `all.rs` still
+    names, a file-backed child of a file and of an inline module."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as t:
+        _plant_gated_fixture(t)
+
+        def write(rel: str, body: str) -> None:
+            os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
+            with open(os.path.join(t, rel), "w") as fh:
+                fh.write(body)
+
+        # `stl` is not in EPS_ROWS_PACKAGES, so its files are named one by one.
+        # `gone.rs` is declared and absent: a deleted suite whose `#[path]`
+        # line outlived it, so only the existence check keeps it out.
+        write("crates/stl/tests/all.rs",
+              '#[path = "nested/a_row.rs"]\nmod nested_a_row;\nmod corpus;\n'
+              '#[path = "gone.rs"]\nmod gone;\n')
+        write("crates/stl/tests/nested/a_row.rs", "#[test]\nfn r() {}\n")
+        write("crates/stl/tests/corpus/mod.rs", "pub fn body() {}\n")
+        write("crates/stl/src/facets.rs", "#[cfg(test)]\nmod tests {\n    #[test]\n    fn r() {}\n}\n")
+        write("crates/stl/src/plain.rs", "pub fn f() {}\n")
+        write("crates/stl/src/lib.rs",
+              '#[cfg(test)]\n#[path = "mounted_rows.rs"]\nmod mounted_rows;\n'
+              "#[cfg(test)]\nmod tests {\n    #[test]\n    fn r() {}\n}\n")
+        write("crates/stl/src/mounted_rows.rs", "#[test]\nfn r() {}\n")
+        # A `mod.rs` with a plain child, a `pub(super)` `#[path]` child, and a
+        # child declared inside its inline test module.
+        write("crates/stl/src/geo/mod.rs",
+              "pub mod facets;\n#[cfg(test)]\n#[path = \"kept_rows.rs\"]\npub(super) mod kept;\n"
+              "#[cfg(test)]\nmod tests {\n    mod deep;\n    #[test]\n    fn r() { let _ = \"{\"; }\n}\n")
+        write("crates/stl/src/geo/facets.rs", "#[test]\nfn r() {}\n")
+        write("crates/stl/src/geo/kept_rows.rs", "#[test]\nfn r() {}\n")
+        # pane.rs's shape: `#[cfg(test)]` on a child mount and on an inline
+        # helper, and not one test of its own.
+        write("crates/stl/src/pane.rs",
+              "#[cfg(test)]\npub(crate) mod headless;\n#[cfg(test)]\nmod helper {\n    pub fn h() {}\n}\n")
+        write("crates/stl/src/bin/tool.rs", "fn main() {}\n#[test]\nfn r() {}\n")
+        write("crates/topo/src/kept.rs", "#[test]\nfn r() {}\n")
+        write("crates/wire/Cargo.toml", "")
+        write("crates/wire/src/lib.rs", "")
+        write("crates/wire/tests/roundtrip.rs", "#[test]\nfn r() {}\n")
+        write(".config/nextest.toml",
+              '[profile.ci]\ndefault-filter = """\nnot (\n'
+              "  (binary_id(stl::all) & (test(=nested_a_row::r))) |\n"
+              "  (binary_id(stl) & (test(=geo::facets::r)))\n)\n\"\"\"\n")
+        # `wire`'s package is `wire-fmt`, so a fallback term built from the
+        # directory name names a binary that does not exist.
+        stub = os.path.join(t, "bin", "cargo")
+        with open(stub) as fh:
+            text = fh.read()
+        start = text.index("<<'JSON'\n") + len("<<'JSON'\n")
+        end = text.rindex("\nJSON")
+        meta = json.loads(text[start:end])
+        meta["packages"].append({"name": "wire-fmt",
+                                 "manifest_path": os.path.join(t, "crates", "wire", "Cargo.toml"),
+                                 "dependencies": []})
+        with open(stub, "w") as fh:
+            fh.write(text[:start] + json.dumps(meta) + text[end:])
+
+        def case(what: str, files: list[str], want: str, notice: str | None = None,
+                 quiet: bool = False) -> None:
+            run = _selftest_run(t, ["--files", "-"], "\n".join(files) + "\n")
+            got = dict(ln.split("=", 1) for ln in run.stdout.splitlines() if "=" in ln)
+            if got.get("EPS_EXTRA") != want:
+                raise SystemExit(
+                    f"ci-filter selftest FAILED: eps rows, {what}: "
+                    f"EPS_EXTRA={got.get('EPS_EXTRA')!r}, want {want!r}\n{run.stderr}"
+                )
+            if notice is not None and notice not in run.stderr:
+                raise SystemExit(
+                    f"ci-filter selftest FAILED: eps rows, {what}: no notice "
+                    f"containing {notice!r} in:\n{run.stderr}"
+                )
+            if quiet and "eps rows" in run.stderr:
+                raise SystemExit(
+                    f"ci-filter selftest FAILED: eps rows, {what}: a notice where none is "
+                    f"due:\n{run.stderr}"
+                )
+
+        row = "(binary_id(stl::all) & test(/^nested_a_row::/))"
+        case("a changed suite outside the whole-crate list, by its `#[path]` module, "
+             "every row of it slow-set",
+             ["crates/stl/tests/nested/a_row.rs"], row, "EVERY row of it may be slow-set")
+        case("a changed src file holding tests",
+             ["crates/stl/src/facets.rs"], "(binary_id(stl) & test(/^facets::/))", quiet=True)
+        case("a nested src file, one row slow-set",
+             ["crates/stl/src/geo/facets.rs"], "(binary_id(stl) & test(/^geo::facets::/))",
+             "1 of its rows are in ci's slow set")
+        case("a `mod.rs`, less its file-backed children of any visibility and depth",
+             ["crates/stl/src/geo/mod.rs"],
+             "(binary_id(stl) & test(/^geo::/) & not test(/^geo::(facets|kept|tests::deep)::/))",
+             quiet=True)
+        case("a src file holding no tests", ["crates/stl/src/plain.rs"], "", quiet=True)
+        case("a src file whose `#[cfg(test)]` only mounts a child and gates a helper",
+             ["crates/stl/src/pane.rs"], "", quiet=True)
+        case("a seed in the whole-crate list subsumes its own files, others still named",
+             ["crates/topo/src/kept.rs", "crates/topo/src/review_probe.rs",
+              "crates/stl/tests/nested/a_row.rs"],
+             f"package(topo) | {row}")
+        case("a probe path takes its whole crate", ["crates/geom-core/src/probe_rows.rs"],
+             "package(geom-core)")
+        case("a suite in a crate with no all.rs, under its package's name",
+             ["crates/wire/tests/roundtrip.rs"], "binary_id(wire-fmt::roundtrip)", quiet=True)
+        case("a helper no `#[path]` line includes", ["crates/stl/tests/corpus/mod.rs"], "",
+             "crates/stl/tests/corpus/mod.rs is a helper")
+        case("a src file mounted by `#[path]`", ["crates/stl/src/mounted_rows.rs"], "",
+             "is mounted by `#[path]`")
+        case("a src file mounted by `#[path]` under `pub(super)`",
+             ["crates/stl/src/geo/kept_rows.rs"], "", "is mounted by `#[path]`")
+        case("a crate root", ["crates/stl/src/lib.rs"], "", "is a crate root")
+        case("a src/bin file", ["crates/stl/src/bin/tool.rs"], "", "is under src/bin/")
+        case("an all.rs with no test of its own", ["crates/stl/tests/all.rs"], "", quiet=True)
+        write("crates/stl/tests/all.rs",
+              '#[path = "nested/a_row.rs"]\nmod nested_a_row;\nmod corpus;\n'
+              '#[path = "gone.rs"]\nmod gone;\n#[test]\nfn top() {}\n')
+        case("an all.rs's own top-level rows, less every module it mounts",
+             ["crates/stl/tests/all.rs"],
+             "(binary_id(stl::all) & not test(/^(nested_a_row|corpus|gone)::/))", quiet=True)
+        case("a deleted suite all.rs still names: no term and no notice",
+             ["crates/stl/tests/gone.rs"], "", quiet=True)
+        case("the docs tier", ["README.md"], "")
+        case("the all tier", ["Cargo.lock"], "all()")
 
 
 def _selftest_unsampled() -> None:
@@ -3931,6 +4303,11 @@ def main() -> int:
     test_filter, gate_notices = gated_filter(root, files, out["TIER"], gate_dir_of)
     out["TEST_FILTER"] = test_filter
     notices.extend(gate_notices)
+    eps_extra, eps_notices = eps_rows_filter(
+        root, files, res["TIER"], out.get("SEEDS", ""), gate_dir_of
+    )
+    out["EPS_EXTRA"] = eps_extra
+    notices.extend(eps_notices)
 
     for note in notices:
         print(f"ci-filter: {note}", file=sys.stderr)

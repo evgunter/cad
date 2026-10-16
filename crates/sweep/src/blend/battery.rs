@@ -2,7 +2,7 @@
 //! the INPUTS before a single surface is minted.
 //!
 //! Each predicate below is a named Q1 trilean through the crate's
-//! [`super::decide`] funnel, with a margin in METERS at a named lever
+//! [`decide`](crate::swept::decide) funnel, with a margin in METERS at a named lever
 //! arm (never a raw dimensionless quantity — a sin or a determinant
 //! only becomes classifiable once it is folded against a length the
 //! user can reason about). `Positive` proceeds, `Zero` and `Negative`

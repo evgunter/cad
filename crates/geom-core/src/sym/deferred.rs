@@ -1,4 +1,4 @@
-//! **The deferring session** ([`with_deferred_session`]): every decision
+//! **The deferring session** ([`with_deferred_session`](crate::sym::deferred::with_deferred_session)): every decision
 //! is taken by the numeric channel, as the base scalar takes it, and a
 //! decision it calls `Zero` keeps its margin's node on a list instead
 //! of being discharged on the spot. A reader that wants to know whether
@@ -16,7 +16,7 @@
 //! nothing else.
 //!
 //! A margin names its entry by a number no other entry in the process
-//! carries ([`NEXT`]), so a margin carried out of its session reads as
+//! carries (`NEXT`), so a margin carried out of its session reads as
 //! no Zero in any other one, never as that one's entry of the same
 //! place. Past the last number a Zero is kept as no entry at all, which
 //! discharges as nothing: the door then reports the row unproven.
