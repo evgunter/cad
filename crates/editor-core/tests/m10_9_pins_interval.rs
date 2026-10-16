@@ -576,8 +576,8 @@ fn m10_9_what_the_registry_buys() {
 /// another form: frozen 3453 → 3426, every decision column held.
 /// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
 /// where it was levered at the edge's own chord reads each certified
-/// edge's two faces' boundaries: frozen 3426 → 6169, every decision
-/// column held, and both dials still read one receipt.
+/// edge's two faces' boundary vertices: frozen 3426 → 3972, every
+/// decision column held, and both dials still read one receipt.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -611,7 +611,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1372, 1284, 6169), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1372, 1284, 3972), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

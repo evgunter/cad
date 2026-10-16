@@ -396,9 +396,9 @@ struct Racing {
     /// supports (`work/scalar/the-race-rows-leaves-need-two-amounts-\
     /// where-they-needed-six.md`). Since an edge's wedge is levered at
     /// its faces' extent (`topo::wedge_reach`), every leaf's replay
-    /// reads every face's reach, so the slab's refused leaves all need
-    /// one amount whichever door refused them, and a certified leaf
-    /// needs the whole frozen set: two values on a drive that
+    /// reads every face's boundary, so the slab's refused leaves all
+    /// need one amount whichever door refused them, and a certified
+    /// leaf needs the whole frozen set: two values on a drive that
     /// certifies, one on the 8-leaf race, which certifies nothing at
     /// any budget measured (4/2 through 128/24, at ε 1e-6, 1e-9 and
     /// 1e-12). The guard is carried by the other two arms.
