@@ -521,8 +521,7 @@ fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
         angle: crate::fixture::ang(0.0),
     }
     .into();
-    let (doc, placement) =
-        crate::fixture::step(doc, DocEdit::place_in_world(a, Some(raised)));
+    let (doc, placement) = crate::fixture::step(doc, DocEdit::place_in_world(a, Some(raised)));
     let placement = placement.expect("the placement inserts");
     let copy = doc
         .output(placement, 0)
@@ -657,8 +656,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
         let read = doc.output(body, 0).expect("the block defines its body");
-        let (doc, placement) =
-            crate::fixture::step(doc, DocEdit::place_in_world(body, Some(pose)));
+        let (doc, placement) = crate::fixture::step(doc, DocEdit::place_in_world(body, Some(pose)));
         (doc, placement, read)
     };
     let placement = placement.expect("the placement's node");
@@ -696,14 +694,20 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         Some(inlined.node_map[&placement]),
         "the boolean reads the spliced placement's copy"
     );
-    let after = ev(&inlined.doc);
     let body = |run: &editor_core::Evaluation<f64>| {
-        let Some(NodeResult::Value(value)) = run.result(fused) else {
+        let Some(NodeResult::Ok(value)) = run.result(fused) else {
             panic!("the boolean evaluates: {:?}", run.result(fused))
         };
-        format!("{:?}", value.payload)
+        let editor_core::ValuePayload::Body(body) = &value.payload else {
+            panic!("the boolean is a body")
+        };
+        body_digest(body)
     };
-    assert_eq!(body(&after), body(&before), "the boolean's body is the one it had");
+    assert_eq!(
+        body(&ev(&inlined.doc)),
+        body(&before),
+        "the boolean's body is the one it had"
+    );
 }
 
 /// **An empty world names a pattern among the unplaced.** A block and a
@@ -848,17 +852,19 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
 /// silently.
 #[test]
 fn inline_keeps_both_copies_of_an_instance_placed_twice() {
-    let host_of = |part: ProfileDoc,
-                   label: &str,
-                   second: &dyn Fn(RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula>| {
-        let mut store = PartStore::default();
-        let part_ref = store.insert(part, Tol::witness());
-        let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (host, instance) = insert(host, Node::instantiate_part(part_ref));
-        let (host, second) = crate::fixture::step(host, DocEdit::place_in_world(second(instance), None));
-        let second = second.expect("the second placement inserts");
-        (host, instance, [instance, second], store)
-    };
+    let host_of =
+        |part: ProfileDoc,
+         label: &str,
+         second: &dyn Fn(RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula>| {
+            let mut store = PartStore::default();
+            let part_ref = store.insert(part, Tol::witness());
+            let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+            let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+            let (host, second) =
+                crate::fixture::step(host, DocEdit::place_in_world(second(instance), None));
+            let second = second.expect("the second placement inserts");
+            (host, instance, [instance, second], store)
+        };
     let (part, key) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-twice-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);

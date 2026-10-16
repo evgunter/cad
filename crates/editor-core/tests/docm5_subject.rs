@@ -33,12 +33,80 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,
-    DocumentId, Evaluation, Node, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
+    DocumentId, Evaluation, Node, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
     assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::Body;
+
+/// **A world whose gather refuses**: a cube instance pinned to the
+/// world and a second placed on it by a constraint whose side names a
+/// face the part does not have, so that placement fails and the gather
+/// refuses it typed. Answers the document, the options that resolve its
+/// part, and the failed placement.
+fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, RecipeNodeId) {
+    use editor_core::{
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive,
+        RoleSeg, StableName,
+    };
+    let mut store = fixture::resolver::PartStore::default();
+    let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, body) = insert(
+        part,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (part_ref, body) = store.insert_part((part, body), Tol::witness());
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
+    let nowhere = StableName {
+        kind: EntityKind::Face,
+        node: base,
+        path: vec![RoleSeg::InPart {
+            of: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 99),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
+        }],
+    };
+    let frame = || {
+        MateFrame::authored(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            Tol::witness(),
+        )
+        .expect("a definite frame")
+    };
+    let mate = fixture::mate(
+        fixture::head(nowhere),
+        fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
+        ContactClass::Rest,
+        Alignment {
+            a: frame(),
+            b: frame(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    );
+    let (doc, _) = fixture::constrain_at(doc, placed, mate);
+    (doc, fixture::resolver::with_resolver(store), placed)
+}
 
 /// The two spellings of the registry over one document.
 fn both_ways(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
@@ -96,23 +164,25 @@ fn an_empty_world_is_the_empty_product_subject() {
 /// `Subject::Unavailable`, and the door raises it AFTER the residents
 /// that read no subject have answered.**
 ///
-/// The reachable gather refusal over one well-formed document whose
-/// every copy evaluates is a world whose one placement lives in an
-/// unplaced group's own space. Connectedness reads the evaluation and answers first (it has
-/// nothing to say here); the separation resident reads the subject,
-/// finds none, and the door refuses `Product` carrying the gather's own
-/// sentence. Nothing is run and discarded, and no arm claims the
-/// document denotes no body when it does.
+/// The gather refusal here is a placement that failed: a constraint
+/// whose side names no face of its part fails the placement holding it,
+/// and the gather refuses that placement typed. Connectedness reads the
+/// evaluation, so where it runs it answers first, refusing the same
+/// placement's standing; with it off, the separation resident reads the
+/// subject, finds none, and the door refuses `Product` carrying the
+/// gather's own sentence. Nothing is run and discarded, and no arm
+/// claims the document denotes no body when it does.
 #[test]
 fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_residents() {
     let tol = Tol::witness();
-    let (doc, opts) = crate::fixture::unplaced_world("docm5-collide");
+    let (doc, opts, placement) = failed_placement_world("docm5-collide");
     let ev: Evaluation<f64> = crate::fixture::run(&doc, &opts);
-    let gathered = || product_recorded(&doc, &ev, tol).expect_err("an unplaced world");
+    let gathered = || product_recorded(&doc, &ev, tol).expect_err("a failed placement");
     let refusal = gathered();
-    assert!(
-        matches!(refusal, ProductError::EmptyProduct { .. }),
-        "the premise: {refusal:?}"
+    assert_eq!(
+        refusal,
+        ProductError::Root(NodeStanding::Failed { node: placement }),
+        "the premise: the gather refuses the failed placement"
     );
     let carries_the_gathers_refusal = |err: ChecksError| match &err {
         ChecksError::Product {
@@ -144,27 +214,39 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
         other => panic!("expected the gather's arm, got {other}"),
     }
 
+    let subject_free_off = ChecksConfig {
+        connectedness: Severity::Off,
+        ..ChecksConfig::default()
+    };
     // Through the wrapper, which gathers.
     carries_the_gathers_refusal(
-        run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
+        run_checks(&doc, &ev, &subject_free_off, tol).expect_err("the registry refuses"),
+    );
+    // And through the door, handed the same fact directly.
+    carries_the_gathers_refusal(
+        run_checks_on(&doc, &ev, Subject::refused(gathered()), &subject_free_off, tol)
+            .expect_err("the door refuses"),
     );
 
-    // And through the door, handed the same fact directly. The arm is
-    // the same, and it is raised whether or not the connectedness
-    // resident ran: what it is NOT raised by is a resident that reads
-    // no subject.
-    for cfg in [
-        ChecksConfig::default(),
-        ChecksConfig {
-            connectedness: Severity::Off,
-            ..ChecksConfig::default()
-        },
-    ] {
-        carries_the_gathers_refusal(
-            run_checks_on(&doc, &ev, Subject::refused(gathered()), &cfg, tol)
-                .expect_err("the door refuses"),
-        );
-    }
+    // Where connectedness runs, it reads the evaluation and answers
+    // first, through either spelling: its own refusal of the failed
+    // placement comes before the subject's.
+    let standing = ChecksError::Root(NodeStanding::Failed { node: placement });
+    assert_eq!(
+        run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
+        standing
+    );
+    assert_eq!(
+        run_checks_on(
+            &doc,
+            &ev,
+            Subject::refused(gathered()),
+            &ChecksConfig::default(),
+            tol
+        )
+        .expect_err("the door refuses"),
+        standing
+    );
 }
 
 /// **The gather is LAZY: a run no resident needs a subject for takes
@@ -243,18 +325,20 @@ fn a_run_that_needs_no_subject_does_not_gather() {
 /// **The coincidence lint needs the product.** The at-rest rows ride
 /// it: a mated pair's, and every contact between two copies (D10), so a
 /// document whose gather refuses has rows nobody can read, mate or no
-/// mate (two placed copies crossing here). With Separation off and the
+/// mate (a failed placement here). With Separation and connectedness
+/// (which reads the evaluation, and would answer first) off and the
 /// lint on, the run refuses with the gather's refusal rather than
 /// reporting the nodes' rows as if they were all.
 #[test]
 fn the_coincidence_lint_refuses_when_the_gather_refuses() {
     let tol = Tol::witness();
     let cfg = ChecksConfig {
+        connectedness: Severity::Off,
         separation: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
         ..ChecksConfig::default()
     };
-    let (collide, opts) = crate::fixture::unplaced_world("docm5-lint-collide");
+    let (collide, opts, _) = failed_placement_world("docm5-lint-collide");
     let ev: Evaluation<f64> = crate::fixture::run(&collide, &opts);
     assert!(
         product_recorded(&collide, &ev, tol).is_err(),

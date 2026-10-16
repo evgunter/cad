@@ -496,9 +496,10 @@ fn select_sides<T: Decide>(
 
 /// **A placement's constraint sides on its own copy**, resolved in the
 /// copy's own `table` ([`select_sides`]'s other half). A side read
-/// through a placer of the copy (a pattern of it, a transform) reads a
-/// value evaluated after this node, so its names are the solve's to
-/// resolve, through the member walk that poses the copy.
+/// through a placer of the copy (a pattern of it, a transform, a union)
+/// reads a value evaluated after this node, so it is resolved as the
+/// member walk reads it: the name the walk reaches at the copy
+/// ([`crate::mate::member::member_reading`]), in the copy's table.
 fn select_own_sides(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -506,16 +507,32 @@ fn select_own_sides(
     table: &names::NameTable,
 ) -> Result<(), NodeErrorKind> {
     for (slot, var) in node.operand_rows() {
-        if matches!(slot, crate::OperandSlot::Side { .. })
-            && crate::mate::solve::reads_own_copy(doc, id, var)
-            && doc
-                .selection(var)
-                .is_some_and(|select| doc.operation_of(select.body) == Some(id))
+        if !(matches!(slot, crate::OperandSlot::Side { .. })
+            && crate::mate::solve::reads_own_copy(doc, id, var))
+        {
+            continue;
+        }
+        if doc
+            .selection(var)
+            .is_some_and(|select| doc.operation_of(select.body) == Some(id))
         {
             let Some((entity, _)) = doc.var(var).and_then(|held| held.kind().selection()) else {
                 return Err(NodeErrorKind::UnresolvedRead { slot, var });
             };
             resolve_selection(doc, table, slot, var, entity, id)?;
+            continue;
+        }
+        let reached = crate::mate::member::head_of(doc, var)
+            .and_then(|head| crate::mate::member::member_reading(doc, &head));
+        if let Some((member, name)) = reached
+            && member.instance == id
+        {
+            ladder::resolve_in(&name, doc, table, |error| NodeErrorKind::SelectResolve {
+                slot,
+                var,
+                reference: 0,
+                error,
+            })?;
         }
     }
     Ok(())

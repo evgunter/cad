@@ -13,9 +13,9 @@ use std::sync::Arc;
 
 use crate::fixture::split_world as split;
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance, Uncarried,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
-    inline, load, save,
+    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, Uncarried,
+    content_pin, evaluate, inline, load, save,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -1202,8 +1202,9 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     })));
     let line = self_mate.line_at(body, Speaker::of(&doc));
     assert!(
-        line.starts_with(&format!("{spoken} failed: the mate solve refused: constraint "))
-            && line.contains("(it stands on this instance)"),
+        line.starts_with(&format!(
+            "{spoken} failed: the mate solve refused: constraint "
+        )) && line.contains("(it stands on this instance)"),
         "{line}"
     );
     let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {

@@ -338,38 +338,15 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
         "{refusal}"
     );
 
-    // A failed placement, of a body that builds: its pose's rotation
-    // axis has no direction.
-    let (doc, profile) = on_frame(
+    // A failed placement: an instance, its own placement, whose part
+    // this evaluation has no resolver to fetch.
+    let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::instantiate_part(editor_core::DocRef {
+            id: editor_core::DocumentId::derive("node_standing_checks_part"),
+            pin: editor_core::ContentPin([7; 32]),
+        }),
     );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let (doc, placement) = step(
-        doc,
-        DocEdit::place_in_world(
-            body,
-            Some(
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(0.0)],
-                    angle: ang(1.0),
-                }
-                .into(),
-            ),
-        ),
-    );
-    let placement = placement.expect("a placement mints its node");
     let ev = run(&doc, &CancelToken::new());
     let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
