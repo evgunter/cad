@@ -47,3 +47,7 @@ extent scan.
 ## 2026-10-14 — still red at 1e-6 and 1e-12 on main (NURBS, fresh target)
 
 Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
+
+## 2026-10-15 — moved from TINT to GERM (CIW orchestrator, at Ev's direction)
+
+TINT has no orchestrator and will not get one soon, so a row left there is not fixed. Nightly 61's `full suite` (run 38687151370) is still red on it. It goes to GERM, which owns the cone operand lanes and wrote the row. The refusal does not look like a test artifact. The rod is unit-scale, so the size-range argument that closed TANG's far-origin row does not apply. The row certifies at 1e-9 and refuses at both 1e-6 and 1e-12, which points at the extent scan's near-tangency reading (`topo/src/boolean/boxes.rs`, `FallbackExtentUnsupported`). GERM decides the kernel-vs-row question the body asks.
