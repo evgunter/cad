@@ -9,6 +9,8 @@
 //! family. A value that is not finite refuses by name at both doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::enclosure::{assert_encloses, box_about};
+
 use geom::Surface;
 use geom_core::{Affine3, Decide, Dual64, Interval, Point2, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -148,33 +150,6 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
     .expect("the f64 sections loft");
     assert_eq!(lofted.section_params, nominal.section_params);
     assert_eq!(wall_bits(&lofted), wall_bits(&nominal));
-}
-
-/// Asserts every wall pole and weight of `enclosing` holds the
-/// matching value of `sample`, the `f64` loft of one member of its
-/// family.
-fn assert_encloses(what: &str, enclosing: &Lofted<Interval>, sample: &Lofted<f64>) {
-    use geom_core::Bounds;
-    let brackets = wall_values(enclosing, |x| (x.lo(), x.hi()));
-    let values = wall_values(sample, |x| x);
-    assert_eq!(
-        brackets.len(),
-        values.len(),
-        "{what}: the wall shapes agree"
-    );
-    for (i, ((lo, hi), v)) in brackets.iter().zip(&values).enumerate() {
-        assert!(
-            lo <= v && v <= hi,
-            "{what}: wall value {i} is {v}, outside its enclosure [{lo}, {hi}]"
-        );
-    }
-}
-
-/// The ends of a box `ε/256` either side of `c`, narrow enough for the
-/// assembly's certificates to resolve at every ε.
-fn box_about(c: f64) -> (f64, f64) {
-    let w = Tol::witness().eps() / 256.0;
-    (c - w, c + w)
 }
 
 /// At `Interval` a section vertex wider than a point lofts in `T`, and

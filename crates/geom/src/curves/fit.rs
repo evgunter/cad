@@ -14,7 +14,11 @@
 //! control bits), never routed through `k_stats` (no topology decision
 //! exists here), never consulted by topology (cache shape is invisible
 //! to predicates). Raw `f64` comparisons below are all structure
-//! selection under that rule.
+//! selection under that rule. The generic solve's refusals
+//! ([`interpolate_columns_in`]) read the value channel at a point
+//! scalar and hold for every value of a bracket at an enclosure scalar
+//! ([`geom_core::spline::structure_ascends`], [`Real::is_bounded`](geom_core::Real::is_bounded)):
+//! a refusal, never a choice among structures.
 //!
 //! # OUR bound semantics (not Eq. 9.77's)
 //!
@@ -326,14 +330,14 @@ fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
 /// strictly ascending, which is what makes the averaged knot vector
 /// valid and the collocation matrix nonsingular (Schoenberg–Whitney).
 /// The ends are the points `0` and `1`, and each step ascends for every
-/// value it stands for ([`SpanLocate::structure_positive`]): at `f64`
+/// value it stands for ([`geom_core::spline::structure_ascends`]): at `f64`
 /// that is `a < b`, which a NaN parameter fails.
 fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
     let ordered = params.first().and_then(|u| u.point_value()) == Some(0.0)
         && params.last().and_then(|u| u.point_value()) == Some(1.0)
         && params
             .windows(2)
-            .all(|w| (w[1] - w[0]).structure_positive());
+            .all(|w| geom_core::spline::structure_ascends(w[0], w[1]));
     if ordered {
         Ok(())
     } else {
@@ -411,7 +415,7 @@ pub fn interpolate_columns(
 /// functions of them too. The refusals are [`interpolate_columns`]',
 /// decided for every value a datum or parameter stands for: a datum
 /// that is not finite ([`Real::is_bounded`](geom_core::Real::is_bounded)), a step that
-/// does not ascend ([`SpanLocate::structure_positive`]), and in the
+/// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
 /// interior parameter may be wider than a point. The averaged knots are

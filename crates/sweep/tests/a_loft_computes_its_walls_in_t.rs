@@ -9,6 +9,8 @@
 //! family it spans, and what a carrier cannot hold refuses typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::enclosure::{assert_encloses, box_about};
+
 use geom::Surface;
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;
@@ -144,52 +146,6 @@ fn quad<T: Real>(h: T) -> Vec<ProfileLoop<T>> {
         corner(h, 1.0),
         corner(T::from_f64(-1.0), 1.0),
     ])]
-}
-
-/// Asserts every wall value of `enclosing` (poles, weights, v knots)
-/// holds the matching value of `sample`, the `f64` loft of one member
-/// of the family `enclosing` was built over.
-fn assert_encloses(what: &str, enclosing: &Lofted<geom_core::Interval>, sample: &Lofted<f64>) {
-    use geom_core::Bounds;
-    let brackets = wall_values(enclosing, |x| (x.lo(), x.hi()));
-    let values = wall_values(sample, |x| x);
-    assert_eq!(
-        brackets.len(),
-        values.len(),
-        "{what}: the wall shapes agree"
-    );
-    for (i, ((lo, hi), v)) in brackets.iter().zip(&values).enumerate() {
-        assert!(
-            lo <= v && v <= hi,
-            "{what}: wall value {i} is {v}, outside its enclosure [{lo}, {hi}]"
-        );
-    }
-    // The vertices, the caps' corners among them, pairwise: one
-    // construction builds both bodies, so they list them in one order.
-    let corners: Vec<[(f64, f64); 3]> = enclosing
-        .body
-        .points()
-        .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
-        .collect();
-    let members: Vec<[f64; 3]> = sample.body.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
-    assert_eq!(
-        corners.len(),
-        members.len(),
-        "{what}: the vertex counts agree"
-    );
-    for (i, (b, v)) in corners.iter().zip(&members).enumerate() {
-        assert!(
-            b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
-            "{what}: vertex {i} at {v:?} lies outside its enclosure {b:?}"
-        );
-    }
-}
-
-/// The ends of a box `ε/256` either side of `c`, narrow enough for the
-/// assembly's certificates to resolve at every ε.
-fn box_about(c: f64) -> (f64, f64) {
-    let w = Tol::witness().eps() / 256.0;
-    (c - w, c + w)
 }
 
 /// **At `Interval` a loft over a box encloses the family the box

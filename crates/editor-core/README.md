@@ -231,8 +231,9 @@ plain replay bitwise (`tests/m10_p_fence.rs`,
   lane scalar, as an extrude reads its profile: the loops and plane the
   profile node produced under this lift, and its pass-1 pieces for naming.
   Nothing is re-resolved and no section has a second placement path. The
-  skin's structure is selected on the sections' value channel
-  (`sweep::loft_profiles`). At a projective scalar the walls are computed
+  skin's structure is selected on the sections' value channel where its
+  values are points, and over a range is what every value shares or a
+  typed refusal (`sweep::loft_profiles`). At a projective scalar the walls are computed
   from the section values themselves, so a seed on a parameter a section
   reads rides to the walls under the guided lift. At `Interval` the loft
   encloses the family its sections stand for: sections and planes whose

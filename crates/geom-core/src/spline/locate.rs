@@ -61,6 +61,28 @@ pub fn poison_from<T: Real>(seed: T) -> T {
     seed * T::from_f64(f64::NAN)
 }
 
+/// Whether `b` is above `a` for every value they stand for, as a
+/// structure decision (C6): at points, `a < b` on their value channels,
+/// so no arithmetic is formed at a point scalar; otherwise
+/// [`SpanLocate::structure_positive`] of `b − a`.
+pub fn structure_ascends<T: SpanLocate>(a: T, b: T) -> bool {
+    match (a.point_value(), b.point_value()) {
+        (Some(a), Some(b)) => a < b,
+        _ => (b - a).structure_positive(),
+    }
+}
+
+/// Whether `x` is nonzero for every value it stands for, as a structure
+/// decision (C6): at a point, `x != 0` on its value channel; otherwise
+/// [`SpanLocate::structure_positive`] of `x` or of `−x`. Poison is not
+/// nonzero.
+pub fn structure_nonzero<T: SpanLocate>(x: T) -> bool {
+    match x.point_value() {
+        Some(v) => v != 0.0,
+        None => x.structure_positive() || (-x).structure_positive(),
+    }
+}
+
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
 pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
