@@ -5550,8 +5550,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     reported: &mut Vec<Maintenance>,
     node: RecipeNodeId,
     slot: crate::OperandSlot,
-    read: &crate::Operand,
-    key: Option<&crate::CopyKey>,
+    (read, key): (&crate::Operand, Option<&crate::CopyKey>),
     tol: Tol,
 ) -> Result<EditRecord, EditError> {
     let Some(current) = new.nodes.get(&node).cloned() else {
@@ -6069,6 +6068,15 @@ fn inserted(
     }
 }
 
+/// What an accepted insert minted: the node, its fresh variables, its
+/// outputs and its constraints' ids.
+type Inserted = (
+    RecipeNodeId,
+    Vec<VarId>,
+    Vec<VarId>,
+    Vec<crate::node::ConstraintId>,
+);
+
 /// [`DocEdit::InsertNode`] of `node`, written into `new` (a copy of
 /// `doc`): the id it mints, or the door's refusal.
 fn insert_into<P: Clone + crate::ProfilePayload>(
@@ -6078,15 +6086,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     fresh: &[FreshEntry],
     tol: Tol,
     reach: Option<&dyn MateReach>,
-) -> Result<
-    (
-        RecipeNodeId,
-        Vec<VarId>,
-        Vec<VarId>,
-        Vec<crate::node::ConstraintId>,
-    ),
-    EditError,
-> {
+) -> Result<Inserted, EditError> {
     // A refusal speaks the node by the id drawn from it with every name
     // the document holds lowered, so a node authored by name and the
     // same node authored by id speak one id even where some other name
@@ -6538,13 +6538,13 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    return set_operand(doc, new, reported, *node, *operand, read, None, tol);
+                    return set_operand(doc, new, reported, *node, *operand, (read, None), tol);
                 }
                 (SlotId::Operand(operand), SlotValue::Copy { of, key }) => {
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    return set_operand(doc, new, reported, *node, *operand, of, Some(key), tol);
+                    return set_operand(doc, new, reported, *node, *operand, (of, Some(key)), tol);
                 }
                 (_, SlotValue::Copy { .. }) => {
                     return Err(EditError::CopyReadOffBodySeat {

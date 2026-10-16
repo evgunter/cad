@@ -1667,9 +1667,12 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
                 held = coset;
                 return Ok(());
             }
-            let fold_arm = match arm {
-                Some(arm) => arm,
-                None => return Err(form().unwrap_err()),
+            // No arm held means this mate formed none either: its
+            // refusal is the fold's.
+            let fold_arm = match (arm, form()) {
+                (Some(arm), _) => arm,
+                (None, Err(refusal)) => return Err(refusal),
+                (None, Ok(_)) => unreachable!("an arm this mate formed is held in the fold's"),
             };
             held = match super::coset::intersect(held, coset, band, fold_arm) {
                 Ok(next) => next,
