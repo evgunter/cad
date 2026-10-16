@@ -7,10 +7,12 @@
 //! definitely than the faces support.
 //!
 //! The fixture is a sliver of profile on the circle of radius
-//! [`R_SPHERE`] about the axis, `2e-3` across, revolved a radian: every
-//! face is within about `4e-3` of every edge, and its sphere-zone face
-//! is a lune of a sphere of radius 2. Every edge's reach is bounded by
-//! the body's own diameter, not the sphere's.
+//! [`R_SPHERE`] about the axis, its arc `Δ` of turn with `Δ` set from
+//! the ambient ε so the arc's sagitta `R·Δ²/8` is at least a thousand ε
+//! (the profile reads it as an arc at every ε row), revolved a radian: its
+//! sphere-zone face is a lune of a sphere of radius 2, the body a small
+//! fraction of the sphere across. Every edge's reach is bounded by the
+//! body's own diameter, not the sphere's.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -44,14 +46,20 @@ fn sliver(a: f64, b: f64, depth: f64, bulge_sign: f64) -> ProfileLoop<f64> {
 #[test]
 fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
     let tol = Tol::witness();
-    let (a, b, depth) = (5.0e-4, 1.0e-3, 5.0e-4);
+    // Never under 2e-3 of turn: the arc's centre, read back from its
+    // bulge, drifts off the axis as `1/Δ`, into the band at 1e-12.
+    let delta = (8000.0 * tol.eps() / R_SPHERE).sqrt().max(2.0e-3);
+    let (a, b, depth) = (delta, 2.0 * delta, R_SPHERE * delta / 2.0);
     // The arc's bulge sign is the profile's convention: whichever sign
     // puts the arc on the circle of radius R builds a sphere face.
+    let mut refused = Vec::new();
     let body = [1.0, -1.0]
         .into_iter()
         .find_map(|sign| {
             let vp = validated(vec![sliver(a, b, depth, sign)]);
-            let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), tol).ok()?;
+            let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), tol)
+                .map_err(|e| refused.push(format!("{sign}: {e:?}")))
+                .ok()?;
             let lune = t.body.faces().any(|(_, f)| {
                 matches!(
                     t.body.get_surface(f.surface).unwrap(),
@@ -60,7 +68,9 @@ fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
             });
             lune.then_some(t.body)
         })
-        .expect("the sliver revolves to a body with a lune of the R = 2 sphere");
+        .unwrap_or_else(|| {
+            panic!("the sliver revolves to a body with a lune of the R = 2 sphere: {refused:?}")
+        });
     assert_all_tiers(&body);
     let points: Vec<_> = body
         .vertices()
@@ -70,7 +80,10 @@ fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
         .iter()
         .flat_map(|p| points.iter().map(move |q| p.distance(*q)))
         .fold(0.0_f64, f64::max);
-    assert!(diameter < 5e-3, "the body is tiny: {diameter}");
+    assert!(
+        diameter < R_SPHERE / 8.0,
+        "the body is small beside its sphere: {diameter}"
+    );
     for (edge, _) in body.edges() {
         let reach = topo::edge_wedge_reach(&body, edge).unwrap();
         assert!(
