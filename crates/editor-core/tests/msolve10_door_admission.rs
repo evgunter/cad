@@ -144,9 +144,11 @@ fn with_class(
 /// **The constraint `at` names, as written**: its mate with every
 /// read and value spelled as authored, ready to be added again.
 fn written_mate(doc: &ProfileDoc, at: MateRef) -> editor_core::Mate<Formula> {
-    let node = doc.node(at.placement).expect("a live placement").written(doc);
-    let (Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) = node
-    else {
+    let node = doc
+        .node(at.placement)
+        .expect("a live placement")
+        .written(doc);
+    let (Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) = node else {
         panic!("{at:?} names a placement");
     };
     constraints
@@ -157,7 +159,10 @@ fn written_mate(doc: &ProfileDoc, at: MateRef) -> editor_core::Mate<Formula> {
 }
 
 /// The edit that adds `mate` to `placement`'s bundle.
-fn add(placement: RecipeNodeId, mate: editor_core::Mate<Formula>) -> DocEdit<editor_core::ProfileProgram> {
+fn add(
+    placement: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+) -> DocEdit<editor_core::ProfileProgram> {
     DocEdit::AddConstraint {
         placement,
         mate: Box::new(mate),
@@ -542,7 +547,10 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     };
     assert_eq!(named, ids[1]);
     assert_eq!(doc.ids(), before.ids());
-    assert!(fixture::bundle(&doc, named).is_empty(), "the bundle holds nothing");
+    assert!(
+        fixture::bundle(&doc, named).is_empty(),
+        "the bundle holds nothing"
+    );
     let (after, minted) = fixture::constrain(doc, mate(body, ids[0], ids[1], seat(None)));
     assert_ne!(minted, refused, "another mate, another id");
     assert!(
@@ -982,7 +990,8 @@ fn corpus() -> Vec<Row> {
         // side's slot door writes `b`'s side onto `a`.
         let (doc, ids, opts, body) = instances("msolve10-corpus-self", 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
-        let (doc, at) = fixture::constrain_with(doc, &reach, mate(body, ids[0], ids[1], seat(None)));
+        let (doc, at) =
+            fixture::constrain_with(doc, &reach, mate(body, ids[0], ids[1], seat(None)));
         let (doc, _) = step_with(
             doc,
             DocEdit::SetParam {
@@ -1125,7 +1134,11 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 }
                 mates += 1;
                 let at = MateRef::new(placement, c.id);
-                let tag = format!("{} of {}", c.id, test_utils::refusal::tag(placement.0.digest()));
+                let tag = format!(
+                    "{} of {}",
+                    c.id,
+                    test_utils::refusal::tag(placement.0.digest())
+                );
                 // The twin is added in the original's place: the bundle
                 // without it, the same mate added back.
                 let without = step(

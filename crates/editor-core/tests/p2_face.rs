@@ -304,6 +304,9 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    // The kept copy first: split appends its instance and inline what it
+    // splices, so the round trip keeps the placements' order (A4).
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, leg) = insert(doc, Node::instantiate_part(p.top));
     let (doc, pattern) = insert(
         doc,
@@ -316,9 +319,16 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
             },
         },
     );
-    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let doc = crate::p2_gauges::place_copies(doc, pattern, 3);
-    let copy_cap = || head(in_copy(pattern, 2, p.top_upper_cap(leg)));
+    // One copy of the pattern is read through its `Part`, as a reader of
+    // one copy reads it, so the round trip below reads it there again.
+    let part_two = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Part { .. })))
+        .nth(2)
+        .expect("copy 2's Part, the third `place_copies` inserts");
+    let copy_cap = || fixture::head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
     let (doc, m) = insert_mate(doc, face_mate(copy_cap(), head(p.top_cap(k))), &o);
     assert_eq!(m.placement, k, "m places k");
     let copy_two = [4.0, 0.0, 0.0];

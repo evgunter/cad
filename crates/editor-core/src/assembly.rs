@@ -946,7 +946,7 @@ impl crate::spoken::Say for AssemblyError {
                 // document (the arm's docs).
                 write!(
                     f,
-                    "nothing refuted, but {} declared face pair(s) could not be certified:",
+                    "nothing refuted, but {} declared face pair(s) were not certified:",
                     findings.len()
                 )?;
                 let said: Vec<SaidFinding<'_>> =

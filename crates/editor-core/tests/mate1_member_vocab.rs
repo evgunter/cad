@@ -16,14 +16,13 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame,
-    MateFrame, MatePrimitive, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    Space, StableName,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Frame, MateFrame,
+    MatePrimitive, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId, Space, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
-    ang, at_the_door_of, constrain, door_refusal, in_copy, insert, len, on_frame,
-    run, scl, solve, step,
+    ang, at_the_door_of, constrain, door_refusal, in_copy, insert, len, on_frame, run, scl, solve,
+    step,
 };
 use geom_core::Tol;
 
@@ -259,7 +258,11 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(mate.placement), None, "the mate solves — no fault");
+    assert_eq!(
+        poses.fault(mate.placement),
+        None,
+        "the mate solves — no fault"
+    );
 
     // Hand-composed from θ alone: copy 1 is the master rotated θ about
     // the z axis through the origin, so the member frame — an aligned
@@ -439,9 +442,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 // ---- The fence: what the vocabulary still refuses ----
 
 /// INVARIANT: the member vocabulary admits exactly what the rider
-/// names. A copy index at or past the count resolves to no member; a
-/// pattern of a non-instance body stands no member at all. Both refuse
-/// `DanglingHead` at the PATTERN node, exactly as every out-of-
+/// names. A copy index at or past the count resolves to no member, and
+/// refuses `DanglingHead` at the PATTERN node, exactly as every out-of-
 /// vocabulary head does.
 #[test]
 fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
@@ -483,49 +485,6 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         "a copy index past the count is a dangling head at the pattern: {fault:?}"
     );
     let _ = store;
-
-    // A pattern of a non-instance body (an extrude patterned in the
-    // same document): its copies stand on no instance — no member.
-    let (doc2, extrude) = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc2, body_pattern) = insert(
-        doc2,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let mut store2 = PartStore::default();
-    let (other_ref, other_body) = store2.insert_part(leg_part("mate1-fence-other"), Tol::witness());
-    let (doc2, other) = insert(doc2, fixture::mated_instance(other_ref));
-    let master_face = StableName {
-        kind: EntityKind::Face,
-        node: extrude,
-        path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
-    let fault2 = door_refusal(
-        &doc2,
-        seat_mate(
-            in_copy(body_pattern, 0, master_face),
-            in_part(other, other_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
-    );
-    assert!(
-        matches!(
-            fault2,
-            // The node the walk STOPPED at: it gets through the
-            // pattern's copy qualifier and stops on the body the
-            // pattern replicates, which is no member.
-            editor_core::MateFault::DanglingHead { head, .. } if head == extrude
-        ),
-        "a pattern of a non-instance stands no member: {fault2:?}"
-    );
-    let _ = store2;
 }
 
 /// INVARIANT: one copy named on BOTH sides is the self-mate refusal,

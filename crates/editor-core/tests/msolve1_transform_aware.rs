@@ -1163,7 +1163,19 @@ fn a10_a_nested_pattern_head_is_a_member() {
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
-    let doc = world(doc, &[base], &[(outer, 6)]);
+    // The top is a placement, so its own copy stands where copy
+    // (0, 0) of the outer pattern does: the world takes the other five
+    // copies, and the instance stands for the first.
+    let doc = (1..6).fold(world(doc, &[base], &[]), |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: outer.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    });
     let a = in_part(base, base_body, CapEnd::End);
     let nested = in_copy(
         outer,

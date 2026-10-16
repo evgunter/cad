@@ -1313,11 +1313,19 @@ impl Side {
 /// placement computes. Only an instance makes it: a `Place` reads its
 /// shapes, which are its inputs, and a `Place`'s read of its own output
 /// is a cycle like any other.
+///
+/// A selection read in the placement's own output is such a read
+/// whatever it names, so a side naming no face is the solve's to refuse
+/// (`SideUnresolved`) rather than a cycle; one read through a placer is
+/// such a read where the member walk ends on the placement.
 pub(crate) fn reads_own_copy<P>(doc: &Doc<P>, placement: RecipeNodeId, read: crate::VarId) -> bool {
     matches!(doc.node(placement), Some(Node::InstantiatePart { .. }))
-        && super::member::head_of(doc, read)
-            .and_then(|head| super::member::member_of(doc, &head))
-            .is_some_and(|member| member.instance == placement)
+        && (doc
+            .selection(read)
+            .is_some_and(|select| doc.operation_of(select.body) == Some(placement))
+            || super::member::head_of(doc, read)
+                .and_then(|head| super::member::member_of(doc, &head))
+                .is_some_and(|member| member.instance == placement))
 }
 
 /// **One side of a constraint of `placement`, read.**

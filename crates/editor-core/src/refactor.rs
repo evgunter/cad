@@ -1419,8 +1419,8 @@ impl core::fmt::Display for InlineError {
             Self::UnplaceablePart { instance, why } => write!(
                 f,
                 "inline: {instance} is placed by constraints other than one world pin, and \
-                 only a part whose one world placement is an instance pinned at the identity \
-                 takes them, but {why}. {}",
+                 only a part whose world is one instance pinned at the identity takes them, \
+                 but {why}. {}",
                 Recourse(&format!(
                     "pin {instance} to the world alone, or point it (UpdateReference) at a \
                      version whose world is one instance pinned at the identity"

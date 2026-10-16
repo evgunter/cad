@@ -97,6 +97,9 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
+    // The mate solve names the constraint it refused (`constraint #9 of
+    // node 7: …`).
+    ("Mate/", "constraint #9 of node 000000000007"),
     // A pair's corner list names each corner it could not fillet.
     ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
