@@ -70,7 +70,9 @@ def plan(stage, names, frame, sidecars):
         parsed = path.is_file() and split(path.name)
         if parsed:
             staged.setdefault(parsed[0], {})[parsed[1]] = path
-    missing = [n for n in names if not ({frame, FAIL} & allowed & staged.get(n, {}).keys())]
+    # A name is drawn by its frame, or (on a sidecar lane) by its failure.
+    drawn_by = {frame, FAIL} & allowed
+    missing = [n for n in names if not drawn_by & staged.get(n, {}).keys()]
     extra = sorted(
         path.name
         for name, files in staged.items()
