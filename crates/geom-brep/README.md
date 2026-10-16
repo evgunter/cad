@@ -653,18 +653,19 @@ pair with a spiric or spline side is the certified bisection walk, which
 is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under
 a `Zero` reading is placed by the exactly degenerate formula, never by the
-generic one. Two spans meet along stretches: a stretch is a longest
-interval of one span none of whose points is decided off the other (each
-reads zero or in band), and each stretch is one meeting, whether a
-crossing, a touch or a shared run. Each span's ends are read against the other span before anything
-else. A found meeting takes its whole stretch. Two curves may cross any
-number of times, and each crossing the band can tell apart from the others
-is its own meeting; but a candidate nearer a found meeting than the band's
-escalation width cannot be decided distinct from it, so it is not read
-again. A stretch in which no meeting is decided, or more than one,
-escalates: between two decided meetings in one stretch the spans are
-nowhere decided apart, so whether they are two crossings or one run is
-undecided.
+generic one. Two spans meet along stretches. A *stretch* is a longest
+interval of one span which is nowhere definitely off the other. A
+*meeting* is a stretch in which the span is definitely on the other at
+exactly one point or along exactly one interval (a crossing, a touch or a
+shared run), and the meeting is the whole stretch, not only the part
+definitely on. Each span's ends are read against the other span before
+anything else. A stretch definitely on the other nowhere, or at more than
+one place, escalates: between two such places the spans are nowhere
+definitely apart, so whether they are two crossings or one run is
+undecided. Two curves may cross any number of times, and each crossing in
+a stretch of its own is its own meeting; a candidate nearer a found
+meeting than the band's escalation width cannot be decided distinct from
+it, so it is not read again.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
