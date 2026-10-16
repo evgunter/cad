@@ -41,6 +41,7 @@ env:
   MATURIN_VERSION: "1.14.1"
   TY_VERSION: "0.0.39"
   RUFF_VERSION: "0.16.1"
+  ACTIONLINT_VERSION: "1.7.7"
 
 jobs:
   filter:
@@ -150,6 +151,7 @@ jobs:
           SEEDS: ${{ steps.classify.outputs.SEEDS }}
           PKGS: ${{ steps.classify.outputs.PKGS }}
           CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
+          EPS_EXTRA: ${{ steps.classify.outputs.EPS_EXTRA }}
         run: |
           # A row keyed here runs when the diff touches its own subject, and
           # nightly otherwise. TIER=all (an unscopable change) runs every row.
@@ -164,24 +166,10 @@ jobs:
             flag mesh_budget "case ',$PKGS,' in *,mesh,*) true;; *) false;; esac"
             flag demos "touched '^demos/'"
             flag tools "touched '^tools/'"
-            # THE EXTRA EPS ROWS. The eps-only reds of 2026-07..09 sat in these
-            # crates (and in probe/golden rows); a diff seeding one of them runs
-            # that crate's tests at 1e-6 and 1e-12 as well. Every row runs at
-            # every eps nightly.
-            extra=""
-            if [ "$DRAFT" != true ]; then
-              for c in step-import geom-brep profile topo; do
-                seeded "$c" && extra="$extra${extra:+ | }package($c)"
-              done
-              if [ -f changed.txt ]; then
-                # shellcheck disable=SC2013 # crate names: one word per line
-                for c in $(grep -E '^crates/[^/]+/.*(probe|golden)' changed.txt | cut -d/ -f2 | sort -u); do
-                  case "$extra" in *"package($c)"*) ;; *) extra="$extra${extra:+ | }package($c)";; esac
-                done
-              fi
-              [ "$TIER" = all ] && extra="all()"
-            fi
-            echo "eps_extra=$extra"
+            # THE EXTRA EPS ROWS: scripts/ci-filter.py's EPS_EXTRA (whole
+            # crates, and the rows of the test files this diff changes).
+            # Every row runs at every eps nightly.
+            if [ "$DRAFT" = true ]; then echo "eps_extra="; else echo "eps_extra=$EPS_EXTRA"; fi
             # test-utils holds the tree-wide source-reader ledger and has no
             # dependencies, so every closure builds it: a new source-reading
             # test anywhere owes that ledger a line, and this is where it
@@ -248,6 +236,8 @@ jobs:
         run: python3 scripts/work.py lint
       - name: dual-review log self-test
         run: python3 scripts/dual-review-log.py --selftest
+      - name: slow-set name check self-test
+        run: python3 scripts/check-slow-set-names.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
@@ -258,6 +248,19 @@ jobs:
         run: python3 scripts/check-python-lint.py
         env:
           REQUIRE_RUFF: "1"
+      # The one lint over the workflows and actions themselves, on every
+      # tier: a render-only workflow edit runs nothing else. actionlint hands
+      # each `run:` block to shellcheck and skips them silently when it is
+      # missing, so its absence fails here. A composite action's own `run:`
+      # blocks are not covered; its `.sh` files are.
+      - name: workflow lint (actionlint, shellcheck)
+        run: |
+          command -v shellcheck >/dev/null || { echo "::error::no shellcheck on the runner: actionlint would check no run: block"; exit 1; }
+          mkdir -p "$HOME/actionlint-bin"
+          curl -LsSf --retry 5 "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar zxf - -C "$HOME/actionlint-bin" actionlint
+          "$HOME/actionlint-bin/actionlint" -shellcheck=shellcheck
+          find .github -name '*.sh' -exec shellcheck {} +
       - name: gates (scripts/gates)
         run: |
           rc=0
@@ -328,14 +331,18 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: build
+        id: build
         run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
       - name: test (default eps)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
+          rc=0
           cargo nextest run --profile ci ${{ needs.filter.outputs.cargo_scope }} \
-            ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast
-      - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates this diff seeds)
+            ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
+          scripts/nextest-failures.py "default eps" "$rc"
+          exit $rc
+      - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates and test files this diff touches)
         if: '!cancelled() && needs.filter.outputs.eps_extra != '''''
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
@@ -345,26 +352,53 @@ jobs:
           rc=0
           for eps in 1e-6 1e-12; do
             echo "::group::eps=$eps: $EPS_EXTRA"
+            r=0
             CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
-              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast || rc=1
+              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast --no-tests=warn || r=$?
+            scripts/nextest-failures.py "eps $eps" "$r"
+            [ "$r" = 0 ] || rc=1
             echo "::endgroup::"
           done
           exit $rc
-      - name: test (the slow set of the crates this diff seeds)
-        if: '!cancelled() && needs.filter.outputs.seeds != '''''
+      - name: test (the slow set of the crates this diff seeds; every crate on a seedless all-tier diff)
+        if: '!cancelled() && (needs.filter.outputs.seeds != '''' || needs.filter.outputs.tier == ''all'')'
         env:
           SEEDS: ${{ needs.filter.outputs.seeds }}
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           # The `ci` profile skips the slow set; a crate's own slow tests still
-          # run when the diff touches that crate.
+          # run when the diff touches that crate. An `all`-tier diff that seeds
+          # no crate (a workflow, manifest, toolchain or nextest config change)
+          # can move every binary, so it runs the whole slow set.
           slow="$(python3 -c "import tomllib; f = tomllib.load(open('.config/nextest.toml', 'rb'))['profile']['ci']['default-filter'].strip(); assert f.startswith('not ('); print(f[4:])")"
-          pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
+          if [ -n "$SEEDS" ]; then
+            pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
+          else
+            pkgs="all()"
+          fi
+          echo "slow set over: $pkgs"
+          rc=0
           cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
-            -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass
+            -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
+          scripts/nextest-failures.py "slow set" "$rc"
+          exit $rc
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+      - name: the slow set names only tests that exist (the packages this run built)
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        env:
+          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+        run: |
+          set -o pipefail
+          case " $SCOPE " in *" --workspace "*) complete=--complete ;; *) complete= ;; esac
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo nextest list --ignore-default-filter $SCOPE --message-format json \
+            | python3 scripts/check-slow-set-names.py $complete
+      # Last, so the failing rows close the log whatever ran after them.
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
 
   viewer:
     name: viewer app feature (eframe + wgpu, wasm32)

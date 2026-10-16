@@ -1399,7 +1399,7 @@ impl<T: SolveScalar> SideFrame<T> {
     }
 }
 
-/// **One side's frame**, resolved: its base ([`side_base`]) composed
+/// **One side's frame**, resolved: its base (`side_base`) composed
 /// with its offset ([`compose_offset`]). `reach` absent is replay's,
 /// and a face base is then DECLINED (`Ok(None)`), on the rule
 /// [`admit_mate`] states.
@@ -1411,7 +1411,7 @@ impl<T: SolveScalar> SideFrame<T> {
 ///
 /// # Errors
 ///
-/// [`side_base`]'s and [`compose_offset`]'s.
+/// `side_base`'s and [`compose_offset`]'s.
 #[allow(clippy::too_many_arguments)]
 fn resolve_side<P: crate::ProfilePayload, T: SolveScalar>(
     doc: &Doc<P>,

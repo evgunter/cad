@@ -14,12 +14,16 @@ refs: [two-curve-curve-meeting-finders, 5027]
 
 Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's surface-pair table, and C5 governs curve pairs too: one exhaustive `(CurveKind, CurveKind)` table, one method per pair fixed at write time, no runtime fallback. The designer pair's agreed final state is in the PR body and in `two-curve-curve-meeting-finders`.
 
+## Decision: two readings and their composition (2026-10-15)
+
+Ev approved the designers' converged recommendation on 5154 (2026-10-15): the point-on-span reading splits into `geom`'s one-carrier readings (the point's foot, `Curve3::foot`, and whether it lies on the carrier, `Curve3::on_carrier`, decided off only on a lower bound on its distance to the whole carrier) and the span's reading of its ends (`Span::place`), composed once beside `Span` (`Span::contact`), which decides nothing of its own. The fork-log is row 146.
+
 ## What to build, in order
 
 1. **Move the shared machinery down.**
    - `topo::bisect` goes to `geom-core`.
    - `topo::carrier_speed`'s rate bounds and the half-angle ladder (`topo::boolean::circle_roots::half_angle_roots`) go down with the reader.
-2. **One span type and one point-on-span reading** (`Off`, `Carrier`, `On(t, margin)`, `End`). It replaces the four readings: `carrier_cross::strictly_inside`, `census::curved::interior_at`/`clear_of_end`, the census line lane's `on_edge_interior`, and `LoopEdge::contact`'s conic rows.
+2. **One span type and one point-on-span reading** (`Off`, `Carrier`, `On(t, margin)`, `End`). It replaces the four readings: `carrier_cross::strictly_inside`, `census::curved::interior_reading` (once `interior_at`) and `clear_of_end`, the census line lane's `on_edge_interior`, and `LoopEdge::contact`'s conic rows.
 3. **The table.**
    - Line, circle and ellipse pairs are closed forms in one conic's angle, measured in metres. They are well-conditioned: a double root is decided by the gap between its roots along the curve, and a `Zero` reading places its candidate with the exactly degenerate formula.
    - Spiric and spline pairs use the certified walk.
@@ -64,11 +68,13 @@ Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on
 
 `reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
 
-These four readings still decide the point-on-span question themselves, and move onto `Span::contact`:
-- `carrier_cross::strictly_inside`;
-- `census::curved::interior_at` and `clear_of_end`;
+These four readings decided the point-on-span question themselves, and move onto `Span::contact`:
+- `carrier_cross::strictly_inside` (moved in PR 5154);
+- `census::curved::interior_reading` (once `interior_at`) and `clear_of_end`;
 - the census line lane's `on_edge_interior`;
 - `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.
+
+**Follow-on, its own unit:** `two-coplanar-ellipses-have-no-meeting-method`, the coplanar ellipse pair's method. The census confirm refuses that pose typed since it reads `meet`.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`

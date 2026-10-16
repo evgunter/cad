@@ -2,8 +2,13 @@
 id: a-red-test-steps-fail-line-past-the-log-tail-cannot-be-named
 kind: issue
 title: A red test step whose FAIL line falls outside the last 5000 log lines cannot be named from a session
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+priority: P3
+cost: M
+branch: ciw/readable-reds
+pr: 5206
 refs: [5104, an-all-tier-diff-with-no-crate-seed-runs-no-slow-row]
 ---
 
@@ -58,3 +63,30 @@ host refuses the session's proxy (403). The panic was read only after
 pushing a temporary `failure-output = "final"` on the `ci` profile,
 which moved the output into the closing summary, and reverting it in
 the next commit.
+
+## Closed
+
+Every failing nextest row is now named where a session can read it.
+The `ci` profile in `.config/nextest.toml` writes `junit.xml`
+(`[profile.ci.junit]`) and sets `failure-output = "immediate-final"`.
+`scripts/nextest-failures.py` runs after each nextest invocation and reads
+the report's path from that table. It deletes the report once read, so a
+later run that dies cannot re-report a stale one. For each failing test it
+writes the name, the panic's location and message (backtrace dropped) and
+its first four `seed=` lines (then a count of the rest) to the step summary
+and to `$RUNNER_TEMP/nextest-failures.txt`. A final `if: failure()` step
+prints that file, so the rows close the job log. The first two failing
+tests of each invocation also get an `::error` annotation, and one more
+annotation counts the rest: GitHub keeps 10 error annotations per step, and
+nightly's ε loop runs three invocations in one step. A nonzero exit with no
+failing row is recorded, naming the missing report path when there is none.
+Any exception inside the script is a `::warning` and exit 0, so a step under
+`bash -e` keeps nextest's exit code and its remaining ε rows.
+
+The script covers every nextest step of ci.yml's `test` job (default ε,
+the 1e-6/1e-12 loop, the slow set) and nightly.yml's `full suite` job.
+The nightly job now runs `--profile ci --ignore-default-filter` rather than
+the default profile. That is the same whole suite, with two differences: the
+junit report, and `failure-output = "immediate-final"` in place of the
+default `immediate`, so a failing test's output is printed both when it fails
+and again at the end of each run.
