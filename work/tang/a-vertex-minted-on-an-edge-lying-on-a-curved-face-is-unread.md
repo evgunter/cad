@@ -98,6 +98,14 @@ Every op builds in both slots at its closed form, tier 3 clean. On main
 the tool-first slot refuses `Join(UnpairedLooseEnds)` at 60°..120°, and
 `ClassificationInvariant` in the 40°..80° union.
 
+The item's original line-first signatures, `VertexReadTwice` at
+60°..120° and `PartnerAlongFace { along: Curved }` at 40°..80°, were not
+reproduced on main in PR 5218's review over 102 probe poses. The
+original probe was never committed. So the curved half's closure rests
+on the committed substitute witness above: the same cylinder, ruling and
+tool angles, with a resting piece, red on main with the item's tool-first
+signature (`Join(UnpairedLooseEnds)`).
+
 What is left in this item is the conic half below.
 
 ## The conic half, as it stands
