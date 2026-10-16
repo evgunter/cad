@@ -56,3 +56,15 @@ With no seed, its package expression is `all()`, so the whole slow set
 runs, and the step prints which set it took. `scripts/ci-filter.py` is
 unchanged. An `all`-tier diff that does seed crates still runs only their
 slow tests, as before.
+
+## 2026-10-16: the whole-slow-set run is withdrawn
+
+Ev ruled on #5224: "cool. let's skip the slow tests then". No failure had
+motivated running the whole slow set on a seedless `all`-tier diff, and it
+was a costly rule. ci.yml's slow-set step now runs only when `seeds != ''`,
+over the slow tests of the seeded crates, on every tier. A workspace-level
+file adds no slow tests. When TIER=all seeds no crate, the `test` job writes
+one line to the step summary saying the slow set did not run and that the
+nightly runs it whole, so the PR does not read as fully gated. The
+failing-test reporting stays. Landed with
+`a-slow-set-edit-to-nextest-toml-runs-the-whole-suite`.

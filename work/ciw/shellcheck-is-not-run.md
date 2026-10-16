@@ -85,3 +85,7 @@ this item is a residue and not a supersession.
 ## Re-homed to CIW (2026-09-28)
 
 Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+
+## 2026-10-16 — partly covered
+
+#5222 added a `workflow lint (actionlint, shellcheck)` step to ci.yml's lint job, on every tier. It covers every workflow's `run:` blocks and the `.sh` files under `.github/`. The `.sh` scripts outside `.github/` (`scripts/`, `local-scripts/`, `demos/`) are still linted by nothing. That is what is left of this row. (CIW orchestrator)
