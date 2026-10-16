@@ -901,13 +901,13 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
     }
 }
 
-/// **The world couples A9's components** (A11 (2)): two instances
-/// pinned against the world, with no mate between them, are one
-/// component — the world fixes their poses relative to each other — and
-/// a loose instance is a component of its own until a constraint
-/// relates it to one of them.
+/// **A world pin couples nothing** (A9): two instances pinned against
+/// the world, with no constraint between them, are two components — a
+/// pin reads the world, not the other copy, so nothing relates their
+/// poses but the world each is fixed in — and a loose instance is a
+/// component of its own until a constraint relates it to one of them.
 #[test]
-fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
+fn two_instances_pinned_to_the_world_are_two_components_with_no_mate() {
     let p = parts("r1-reading");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-reading"), Tol::witness());
     let (doc, a) = pinned(
@@ -921,10 +921,10 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
     let of = |components: &[Vec<RecipeNodeId>], id| {
         components.iter().position(|comp| comp.contains(&id))
     };
-    assert_eq!(
-        of(&components, a),
-        of(&components, b),
-        "one world, one component"
+    assert!(
+        components.iter().any(|comp| comp == &vec![a])
+            && components.iter().any(|comp| comp == &vec![b]),
+        "a world pin reads no other copy: {components:?}"
     );
     assert!(
         components.iter().any(|comp| comp == &vec![c]),

@@ -677,6 +677,7 @@ where
                 key: copy.key.clone(),
                 bodies: copy.bodies.clone(),
                 family: copy.family,
+                parts: copy.parts,
                 table,
                 motion,
             })
@@ -2781,6 +2782,7 @@ fn copy_of<T: Decide + topo::AtRestPolicy>(
             fragment_groups: Arc::default(),
             contacts: Arc::default(),
             carried: Arc::default(),
+            parts: member.parts,
             ..value.clone()
         },
     ))
@@ -3823,6 +3825,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
                             key: member.key.clone(),
                             table: name_family(id, &member.table, &bodies)?,
                             family: member.family,
+                            parts: member.parts,
                             bodies,
                             motion: None,
                         })
@@ -3866,7 +3869,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     // list order, each with the table its value names it by.
     let mut keys: Vec<crate::CopyKey> = Vec::with_capacity(shapes.len());
     let mut flat: Vec<(names::NameTable, Arc<Body<T>>)> = Vec::new();
-    let mut spans: Vec<(core::ops::Range<u32>, bool)> = Vec::with_capacity(shapes.len());
+    let mut spans: Vec<(core::ops::Range<u32>, bool, usize)> = Vec::with_capacity(shapes.len());
     let mut parts = 0;
     for &(of, read, results) in shapes {
         let key = crate::CopyKey::Read(read);
@@ -3894,7 +3897,11 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
         parts += value.parts;
-        spans.push((start..u32::try_from(flat.len()).unwrap_or(u32::MAX), family));
+        spans.push((
+            start..u32::try_from(flat.len()).unwrap_or(u32::MAX),
+            family,
+            value.parts,
+        ));
     }
     let named: Vec<(&names::NameTable, &Body<T>)> =
         flat.iter().map(|(table, body)| (table, body.as_ref())).collect();
@@ -3902,7 +3909,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     let members = keys
         .into_iter()
         .zip(spans)
-        .map(|(key, (span, family))| {
+        .map(|(key, (span, family, parts))| {
             let bodies = flat[span.start as usize..span.end as usize]
                 .iter()
                 .map(|(_, body)| Arc::clone(body))
@@ -3914,6 +3921,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
                 key,
                 bodies,
                 family,
+                parts,
                 table: Arc::new(table),
                 motion: None,
             })

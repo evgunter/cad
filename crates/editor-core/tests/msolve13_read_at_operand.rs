@@ -746,7 +746,8 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
         seat(s.base_cap(s.base1), head_at(union, through_top)),
     );
     let ev = run(&doc, &s.opts);
-    assert!(gate(&doc, &ev).is_ok(), "A3(d): the document gates");
+    let gated = gate(&doc, &ev);
+    assert!(gated.is_ok(), "A3(d): the document gates: {gated:?}");
     let cut = fixture::with_placements(&doc, &[s.base1, s.top, t1, union].into_iter().collect());
     let cut: Vec<_> = cut.into_iter().collect();
     let out = split_of(&s, &doc, &cut, "msolve13-a3d-part")

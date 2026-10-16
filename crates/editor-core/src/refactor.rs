@@ -1416,12 +1416,11 @@ impl core::fmt::Display for InlineError {
             Self::UnplaceablePart { instance, why } => write!(
                 f,
                 "inline: {instance} is placed by constraints other than one world pin, and \
-                 only a part whose one placement on its world is an instance pinned there at \
-                 the identity can take them, but {why}. {}",
+                 only a part whose one world placement is an instance pinned at the identity \
+                 takes them, but {why}. {}",
                 Recourse(&format!(
-                    "pin {instance} to the world alone, or give the referenced document one \
-                     instance pinned to its world at the identity, point {instance} at that \
-                     version (UpdateReference), then inline"
+                    "pin {instance} to the world alone, or point it (UpdateReference) at a \
+                     version whose world is one instance pinned at the identity"
                 ))
             ),
             Self::InstanceReadUncarried { reader, why } => write!(

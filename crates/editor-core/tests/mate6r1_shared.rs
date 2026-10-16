@@ -415,19 +415,22 @@ fn r1_true_carried_declaration_at_both_doors() {
 /// `run_checks`. On the merge base `declared_pairs` re-minted into a
 /// clone and `mint` STOPPED at the bad mate, so the good mate that
 /// follows it did not suppress. After the change the gather's set holds
-/// both. This row is the one that can show the resident going quieter.
+/// the good one. A bad reference fails its placement, so the bad mate's
+/// placement is put out of the product (its target is a loose copy),
+/// where its failure refuses nothing the checks gather.
 #[test]
 fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-dp-cube"), Tol::witness());
-    let (doc, ids) = seated_row("r1-dp", part, 3);
-    // Bad mate FIRST (dangling), then a good Rest on a later placement
-    // seating cube 2 on the base — a real, declared contact. (It stands
-    // on the base: the copy the bad mate places has no pose.)
-    let (doc, _) = constrain(
+    let (doc, ids) = seated_row("r1-dp", part, 4);
+    // Bad mate FIRST (dangling, on the loose `ids[3]`), then a good Rest
+    // on a later placement seating cube 2 on the base — a real,
+    // declared contact.
+    let (doc, _) = constrain_at(
         doc,
+        ids[1],
         mate_of(
-            dangling(ids[0]),
+            dangling(ids[3]),
             in_part(ids[1], body, CapEnd::Start),
             1.0,
             ContactClass::Rest,

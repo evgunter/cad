@@ -997,6 +997,22 @@ pub fn at_the_door(
     at_the_door_of(doc, reach, placement, mate)
 }
 
+/// **`mate` added to `placement`'s bundle through `reach`**: the door
+/// [`at_the_door_of`] admits it at, panicking on a refusal. For a bundle
+/// whose fold needs the parts' lever, which [`constrain_at`]'s refusing
+/// reach cannot give.
+pub fn constrain_through(
+    doc: ProfileDoc,
+    reach: &dyn MateReach,
+    placement: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+) -> (ProfileDoc, editor_core::MateRef) {
+    match at_the_door_of(&doc, reach, placement, mate) {
+        Ok(admitted) => admitted,
+        Err((at, fault)) => panic!("the constraint is admitted, got {at:?}: {fault}"),
+    }
+}
+
 /// [`at_the_door`] onto `placement` as named.
 #[allow(clippy::result_large_err)]
 pub fn at_the_door_of(

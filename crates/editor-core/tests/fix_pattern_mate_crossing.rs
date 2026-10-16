@@ -155,12 +155,17 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
 
 /// A determining `Rest` constraint seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> Mate<Formula> {
+    seat_framed(a, b, mate_frame([0.0, 0.0, 1.0]))
+}
+
+/// [`seat`] with its `a` side framed by `frame`.
+fn seat_framed(a: StableName, b: StableName, frame: MateFrame<Formula>) -> Mate<Formula> {
     fixture::mate(
         fixture::head(a),
         fixture::head(b),
         ContactClass::Rest,
         Alignment {
-            a: mate_frame([0.0, 0.0, 1.0]),
+            a: frame,
             b: mate_frame([0.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
@@ -197,6 +202,21 @@ fn four_legs(
     MateRef,
     RecipeNodeId,
 ) {
+    four_legs_framed(label, mate_frame([0.0, 0.0, 1.0]))
+}
+
+/// [`four_legs`] with the seat's pattern side framed by `frame`.
+fn four_legs_framed(
+    label: &str,
+    frame: MateFrame<Formula>,
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    MateRef,
+    RecipeNodeId,
+) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
@@ -215,9 +235,10 @@ fn four_legs(
     let (doc, mate) = fixture::constrain_at(
         doc,
         top,
-        seat(
+        seat_framed(
             in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
             in_part(top, top_body, CapEnd::Start),
+            frame,
         ),
     );
     (doc, leg, pattern, top, mate, leg_body)
@@ -303,14 +324,35 @@ fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
 /// INVARIANT (AQ8, for a PATTERN-HEADED edge): cutting the pattern
 /// side keeps the top's constraint, which reads a cut copy — one
 /// crossing, the top's face outside, the pattern copy's inside, in the
-/// part's names. Cutting the top alone takes its constraint with it,
-/// whose read of the kept pattern copy the cut severs. The whole cut
-/// carries both ends, so its record is empty.
+/// part's names. The crossing side is framed on its face: a frame on
+/// the leg's part reads the copy through the pattern, which moves it,
+/// so that seat refuses `MateFrameCrosses` at the same cut. Cutting
+/// the top alone takes its constraint with it, whose read of the kept
+/// pattern copy the cut severs. The whole cut carries both ends, so its
+/// record is empty.
 #[test]
 fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its_placement() {
-    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-torn");
     let o = legs_reach();
+    let (authored, leg, pattern, top, authored_mate, _) = four_legs("fix-xs-torn-authored");
+    let refused = editor_core::split(
+        &authored,
+        &cut(&authored, [leg, pattern]),
+        DocumentId::derive("fix-xs-torn-authored-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect_err("a part frame read through the pattern does not cross");
+    assert!(
+        matches!(
+            &refused,
+            editor_core::SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::A }
+                if placement.id() == top && *constraint == authored_mate.id
+        ),
+        "{refused:?}"
+    );
 
+    let (doc, leg, pattern, top, mate, leg_body) =
+        four_legs_framed("fix-xs-torn", MateFrame::from_face());
     let across = editor_core::split(
         &doc,
         &cut(&doc, [leg, pattern]),

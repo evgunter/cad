@@ -185,9 +185,10 @@ fn a_copy_pinned_against_a_pinned_copy_is_in_the_product() {
     let (doc, store, doc_ref, body) = host("s3b-chain");
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = constrain(doc, coaxial(body, a, b));
-    let (doc, _) = constrain(doc, seated(body, a, b));
     let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
     let ev = run(&doc, &o);
     assert_eq!(ev.space(b), Space::World);
     assert_eq!(product_solids(&doc, &ev), 2);
@@ -201,9 +202,10 @@ fn copies_pinned_only_against_each_other_are_one_loose_space() {
     let (doc, store, doc_ref, body) = host("s3b-loose-pair");
     let (doc, a) = insert(doc, mated_instance(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = constrain(doc, coaxial(body, a, b));
-    let (doc, _) = constrain(doc, seated(body, a, b));
     let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
     let ev = run(&doc, &o);
     assert_eq!(ev.space(a), Space::Loose { root: a });
     assert_eq!(ev.space(b), Space::Loose { root: a });
@@ -330,10 +332,10 @@ fn a_mate_beyond_the_pin_refuses_at_the_door() {
     let (doc, store, doc_ref, body) = host("s3b-beyond");
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = constrain(doc, coaxial(body, a, b));
-    let (doc, _) = constrain(doc, seated(body, a, b));
     let o = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
     match at_the_door_of(&doc, &reach, b, coaxial(body, a, b)) {
         Err((at, MateFault::Overconstrained { placement, .. })) => {
             assert_eq!((at, placement), (b, b));
@@ -351,10 +353,12 @@ fn the_solve_names_every_redundant_constraint() {
     let (doc, store, doc_ref, body) = host("s3b-redundant");
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, first) = constrain(doc, coaxial(body, a, b));
-    let (doc, second) = constrain(doc, coaxial(body, a, b));
-    let (doc, seat) = constrain(doc, seated(body, a, b));
-    let ev = run(&doc, &with_resolver(store));
+    let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, first) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, second) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, seat) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
+    let ev = run(&doc, &o);
     match mate_fault(&ev, b) {
         MateFault::Overconstrained {
             placement,

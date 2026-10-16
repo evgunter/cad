@@ -127,8 +127,7 @@ fn classed_mate(
 /// A reference that resolves to NO product face: the part's body has
 /// caps, but node 99 does not exist in it at all. The constraint is
 /// admitted — the door reads the name, not the part's faces — and the
-/// placement it is in refuses at evaluation, so the gather records it
-/// [`MintRefusal::Unevaluated`], which is what the totality rows need.
+/// placement it is in refuses at evaluation.
 fn dangling(instance: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -587,32 +586,34 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 // Every row ABOVE is blind to the difference, by construction: each
 // places its unmintable mate LAST in document order, so a walk that
 // stops there has already minted everything a total walk would. The
-// three rows below are the guard, and they are split by REFUSAL KIND
-// because `mint` has two independent `continue`s — the unresolved
-// reference and the unmintable class — and a mutation to one is not a
-// mutation to the other. Each row puts its bad mate BEFORE a good one
-// and asserts the good one's record survives.
+// three rows below are the guard. Each puts its bad mate BEFORE a good
+// one and asserts the good one's record survives: a constraint whose
+// reference resolves to nothing (its placement fails, so it is put out
+// of the product, where its failure stops nothing), and the unmintable
+// class, which mints a row and continues.
 
-/// GUARD (`mint`'s reference arm): a mate whose reference resolves to no
-/// product face is recorded and STEPPED OVER — the mate authored after
-/// it still mints. Stopping at the bad reference would drop a
-/// declaration the document really does state, which at the seam is a
-/// contact the consuming document then cannot account for.
+/// GUARD (`mint`'s reference arm, restated over a loose copy): a
+/// constraint whose side resolves to no face fails its placement, and a
+/// failed placement in the product refuses the gather. Its placement is
+/// put out of the product here — its target is a copy no bundle pins —
+/// so its failure stops nothing: the mate authored after it still
+/// mints, and the bad one's refusal is its placement's, at evaluation.
 #[test]
 fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-ref-cube"), Tol::witness());
-    let (doc, ids) = seated_row("mate6-tot-ref-row", part, 3);
-    let (doc, bad) = constrain(
+    let (doc, ids) = seated_row("mate6-tot-ref-row", part, 4);
+    // `ids[3]` stays loose: the copy the bad constraint places is in its
+    // space, not the world.
+    let (doc, bad) = constrain_at(
         doc,
+        ids[1],
         rest_mate(
-            dangling(ids[0]),
+            dangling(ids[3]),
             in_part(ids[1], body, CapEnd::Start),
             1.0,
         ),
     );
-    // The good mate stands its copy on the base: the copy the bad mate
-    // places has no pose for anything to stand on.
     let (doc, good) = constrain(
         doc,
         rest_mate(
@@ -623,6 +624,10 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     );
 
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        ev.node_error(bad.placement).is_some(),
+        "the bad reference fails its placement"
+    );
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -634,18 +639,9 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         1,
         "and its record is in the set the gate will read"
     );
-    assert_eq!(
-        gathered
-            .unminted
-            .iter()
-            .map(MintRefusal::mate)
-            .collect::<Vec<_>>(),
-        vec![bad],
-        "the bad reference is a ROW, not a stop"
-    );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::Unevaluated { .. }),
-        "recorded under the mate's own refusal: {:?}",
+        gathered.unminted.is_empty(),
+        "a constraint off the product is asked nothing by its gather: {:?}",
         gathered.unminted
     );
 }
@@ -701,19 +697,22 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     );
 }
 
-/// GUARD (the rows, and their ORDER): a document that refuses BOTH ways
+/// GUARD (the rows, and their ORDER): a document that refuses twice
 /// with a good mate between them. The refusal rows are the whole set, in
 /// DOCUMENT ORDER — which is what makes `assemble`'s "raise every one"
 /// a statement about the document rather than about the walk.
 ///
 /// This is the row the stop-at-first-bad-mate walk cannot pass on any
 /// assertion: it would mint nothing, record one refusal, and never reach
-/// the second.
+/// the second. A constraint whose reference resolves to nothing fails
+/// its placement rather than minting a row; one is here too, on a copy
+/// out of the product, and its refusal is its placement's at evaluation
+/// while the rows stand.
 #[test]
 fn every_unmintable_mate_gets_its_row_in_document_order() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-order-cube"), Tol::witness());
-    let (doc, ids) = seated_row("mate6-tot-order-row", part, 4);
+    let (doc, ids) = seated_row("mate6-tot-order-row", part, 6);
     let (doc, first_bad) = constrain(
         doc,
         classed_mate(
@@ -731,16 +730,32 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             1.0,
         ),
     );
+    // `ids[5]` stays loose, so the copy this bad reference places is out
+    // of the product.
+    let (doc, dangling_mate) = constrain_at(
+        doc,
+        ids[4],
+        rest_mate(
+            dangling(ids[5]),
+            in_part(ids[4], body, CapEnd::Start),
+            1.0,
+        ),
+    );
     let (doc, second_bad) = constrain(
         doc,
-        rest_mate(
-            dangling(ids[2]),
+        classed_mate(
+            in_part(ids[2], body, CapEnd::End),
             in_part(ids[3], body, CapEnd::Start),
-            1.0,
+            1.5,
+            ContactClass::Tangent,
         ),
     );
 
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        ev.node_error(dangling_mate.placement).is_some(),
+        "the bad reference fails its placement"
+    );
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -758,9 +773,11 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         "both refusals, in document order"
     );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. })
-            && matches!(gathered.unminted[1], MintRefusal::Unevaluated { .. }),
-        "each under its own arm: {:?}",
+        gathered
+            .unminted
+            .iter()
+            .all(|row| matches!(row, MintRefusal::NoAtRestRecord { .. })),
+        "each under the class arm: {:?}",
         gathered.unminted
     );
     // And the door that raises reads the WHOLE set, in document order:
@@ -772,11 +789,6 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
                 refusals.iter().map(MintRefusal::mate).collect::<Vec<_>>(),
                 vec![first_bad, second_bad],
                 "every refusal, in document order"
-            );
-            assert!(
-                matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
-                    && matches!(refusals[1], MintRefusal::Unevaluated { .. }),
-                "each still under its own arm: {refusals:?}"
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             let said = |mate: MateRef| {
@@ -893,7 +905,8 @@ fn a_pair_the_census_refuses_mints_no_record() {
 
 /// **Across the instantiate seam a record cites the part's record**:
 /// the instance's patch cites record 0 of its one input, the part, and
-/// the row's product cites that instance's record through its root.
+/// the row's product, whose one placement is that instance, cites the
+/// same record of the same part.
 /// Red if the seam carries the part's citations unchanged (they name
 /// the part's rows, which the instance does not hold).
 #[test]
@@ -924,12 +937,13 @@ fn an_instances_record_cites_the_parts_record() {
             record: 0
         })
     );
-    // The product cites its placement's records by the placement's
-    // read of the instance.
-    let [editor_core::CitedInput::Read(read)] = product.cited_inputs[..] else {
-        panic!("one input, read: {:?}", product.cited_inputs);
-    };
-    assert_eq!(outer.operation_of(read), Some(instances[0]));
+    // The instance is the product's one placement, so the product
+    // cites its records by the part the instance references.
+    assert_eq!(
+        product.cited_inputs,
+        vec![editor_core::CitedInput::Part(stand_ref)],
+        "one input: the instance's part"
+    );
 }
 
 /// **The gather mints only the mates of the space it gathers** (F's Q8

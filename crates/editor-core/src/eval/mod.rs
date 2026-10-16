@@ -1127,6 +1127,9 @@ pub struct KeyedCopy<T: Decide> {
     pub bodies: Vec<Arc<Body<T>>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
+    /// The parts it delivers ([`NodeValue::parts`]): what a reader of
+    /// this one copy reads, not its placement's sum.
+    pub parts: usize,
     /// Its names, indexing `bodies` by position.
     pub table: Arc<crate::names::NameTable>,
     /// **The motion a reader moves `bodies` by**: an instance's copy
@@ -2318,26 +2321,31 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::NoSuchCopy { input, key } => write!(
                 f,
-                "{} delivers no copy keyed {key}",
-                by.node(*input)
+                "{} delivers no copy keyed {key}. {}",
+                by.node(*input),
+                crate::sentence::Recourse("read a copy it delivers")
             ),
             Self::CopiesShareAKey { key } => write!(
                 f,
-                "two of the placement's shapes read {key}, so two copies would be keyed alike; \
-                 copy the family whole, or place each member by its own placement"
+                "two of the placement's shapes read {key}, so two copies would be keyed alike. {}",
+                crate::sentence::Recourse(
+                    "copy the family whole, or place each member by its own placement"
+                )
             ),
             Self::CopyShape { input, key, family } => {
                 if *family {
                     write!(
                         f,
-                        "the copy keyed {key} of {} is a family; read one member of it by index",
-                        by.node(*input)
+                        "the copy keyed {key} of {} is a family. {}",
+                        by.node(*input),
+                        crate::sentence::Recourse("read one member of it by index")
                     )
                 } else {
                     write!(
                         f,
-                        "the copy keyed {key} of {} is one body; read it without an index",
-                        by.node(*input)
+                        "the copy keyed {key} of {} is one body. {}",
+                        by.node(*input),
+                        crate::sentence::Recourse("read it without an index")
                     )
                 }
             }

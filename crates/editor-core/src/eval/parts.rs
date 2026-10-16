@@ -825,6 +825,7 @@ pub(crate) fn keyed_copies<T: Decide>(
                 key: CopyKey::part(node, CopyKey::Read(read)),
                 bodies,
                 family,
+                parts: value.parts,
                 table: Arc::clone(&value.name_table),
                 motion: None,
             })

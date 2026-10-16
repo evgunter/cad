@@ -908,8 +908,11 @@ fn an_unread_definition_moves_with_what_it_reads_and_comes_back() {
         "k",
         VarDecl::defined(Formula::add(named("w"), len(0.001)).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-follows-part");
     for name in ["w", "k"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -975,8 +978,11 @@ fn a_chain_of_definitions_moves_whole_and_comes_back() {
         "m",
         VarDecl::defined(Formula::add(named("k"), named("k")).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-chain-part");
     for name in ["w", "k", "m"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -1002,8 +1008,11 @@ fn a_free_variable_tied_to_a_moving_definition_moves_with_it() {
         "k",
         VarDecl::defined(Formula::add(named("w"), named("u")).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-tied-part");
     for name in ["w", "u", "k"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -1067,6 +1076,9 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
 #[test]
 fn a_named_definition_reading_the_depth_comes_back() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
+    // The kept block goes first, so the cut's placement comes last and
+    // the round trip keeps the placements' order.
+    let (doc, _) = block(doc, 10.0, len(1.0));
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
         .slot(cut[2], SlotId::Distance)
@@ -1091,7 +1103,6 @@ fn a_named_definition_reading_the_depth_comes_back() {
     )
     .doc;
     let doc = step(&doc, k).doc;
-    let (doc, _) = block(doc, 10.0, len(1.0));
     let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
     assert_eq!(out.remainder.var_named("k"), None, "k left");
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())

@@ -107,8 +107,9 @@ pub struct MintedDeclaration {
     pub faces: (FaceKey, FaceKey),
 }
 
-// The declaration as a finding names it: its mate and its class. A
-// carried row keeps the nodes this sentence names ([`PartRow::own`]).
+// The declaration as a finding names it: its constraint and its class
+// (the finding's header says it is declared). A carried row keeps the
+// nodes this sentence names ([`PartRow::own`]).
 impl crate::spoken::Say for MintedDeclaration {
     fn say(
         &self,
@@ -117,7 +118,7 @@ impl crate::spoken::Say for MintedDeclaration {
     ) -> core::fmt::Result {
         write!(
             f,
-            "{}'s declared {} contact",
+            "{}'s {} contact",
             by.mate(self.mate),
             self.class.name()
         )
@@ -945,7 +946,7 @@ impl crate::spoken::Say for AssemblyError {
                 // document (the arm's docs).
                 write!(
                     f,
-                    "nothing was refuted, but {} declared face pair(s) could not be certified:",
+                    "nothing refuted, but {} declared face pair(s) could not be certified:",
                     findings.len()
                 )?;
                 let said: Vec<SaidFinding<'_>> =

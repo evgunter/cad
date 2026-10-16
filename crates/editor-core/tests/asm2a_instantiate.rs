@@ -424,14 +424,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 463 is
-    // the placing op's own log on this part (the literal offset admitted
-    // at the decided rigidity door, once, then placement and validation
-    // of the placed body); 728 is the part's, on its own
+    // two instances passes when both lose the same decisions. 471 is
+    // the placing op's own log on this part: the world pin's pose, which
+    // the solve folds to an affine representative, admitted at the
+    // decided rigidity door where the copy is placed, then placement and
+    // validation of the placed body. (Eight of them are that admission,
+    // which `work/intent/the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion.md`
+    // retires by having the solve mint the rigid motion.) 728 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log,
     // decided once (the pinned lift reuses the pre-pass's validated
     // form).
-    assert_eq!(first.len(), 463, "the instantiate op's own decisions");
+    assert_eq!(first.len(), 471, "the instantiate op's own decisions");
     assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
@@ -823,8 +826,8 @@ fn row6_placement_is_part_of_the_content_key() {
         Tol::witness(),
     );
     assert_eq!(
-        third.reused, 2,
-        "an unchanged instance and its placement are memo hits"
+        third.reused, 1,
+        "an unchanged instance, its own placement, is a memo hit"
     );
     assert_eq!(
         third.part_evaluations, 0,
@@ -1003,7 +1006,11 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         insert(doc, Node::instantiate_part(missing)).0
     };
     let inner_root = broken.ids()[0];
-    let placement = broken.placements()[0];
+    assert_eq!(
+        broken.placements(),
+        vec![inner_root],
+        "the part's one instance is its one placement"
+    );
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
@@ -1011,16 +1018,10 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let ev = run(&doc, &opts);
     let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootPoisoned {
-            root,
-            through,
-            refusal,
-            ..
-        } => {
+        PartFault::PartRootFailed { node, refusal, .. } => {
             assert_eq!(
-                (*root, *through),
-                (placement, inner_root),
-                "the failing node and the placement it cost are named"
+                *node, inner_root,
+                "the failing placement is named: the instance itself"
             );
             assert!(
                 matches!(
@@ -1036,7 +1037,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
                 "the root's refusal travels typed, with the reference it crossed: {refusal:?}"
             );
         }
-        other => panic!("expected PartRootPoisoned, got {other:?}"),
+        other => panic!("expected PartRootFailed, got {other:?}"),
     }
     let rendered = fault.to_string();
     assert!(
@@ -1239,9 +1240,10 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 }
 
 /// **Two documents down, the chain still ends at the failing node.**
-/// The bracket's root is a transform over an instance of the poisoned
-/// part, so the bracket's root is poisoned through a failed INSTANCE,
-/// whose own fault is the part's poisoned root in turn. The assembly's
+/// The bracket holds an instance of the poisoned part, and the instance
+/// is a placement in the bracket's product: it fails in its own right
+/// (the placement a transform over it also reads is poisoned through
+/// it), and its own fault is the part's poisoned root in turn. The assembly's
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.
 #[test]
@@ -1255,7 +1257,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
     let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
     let (bracket, moved) = moved_over(bracket, inner);
-    let (bracket, bracket_root) = crate::fixture::place(bracket, moved);
+    let (bracket, _) = crate::fixture::place(bracket, moved);
     let bracket_ref = store.insert(bracket.clone(), tol);
 
     let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
@@ -1263,19 +1265,12 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let ev = run(&doc, &opts);
 
     let fault = part_fault(&ev, ids[0]);
-    let PartFault::PartRootPoisoned {
-        root,
-        through,
-        refusal,
-        ..
-    } = &fault
-    else {
-        panic!("expected PartRootPoisoned, got {fault:?}");
+    let PartFault::PartRootFailed { node, refusal, .. } = &fault else {
+        panic!("expected PartRootFailed, got {fault:?}");
     };
     assert_eq!(
-        (*root, *through),
-        (bracket_root, inner),
-        "the bracket's root, poisoned through its failed instance"
+        *node, inner,
+        "the bracket's failed root is its instance, a placement in its own right"
     );
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Part {

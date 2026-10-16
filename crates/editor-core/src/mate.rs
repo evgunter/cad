@@ -77,7 +77,7 @@ pub use reach::{
 pub(crate) use solve::solve_with_env;
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, relative_freedom_components, solve_document,
-    solve_document_at, solve_document_by_placement,
+    solve_document_at,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -2034,3 +2034,41 @@ impl MateFault {
 }
 
 impl core::error::Error for MateFault {}
+
+/// **[`solve_document`] with each placement's decisions kept apart**:
+/// the solve, and what it decided about each placement's bundle in
+/// decision order — the share an evaluation opens that placement's log
+/// with, ahead of the placement's own op ([`solve_with_env`]'s
+/// recording, read back placement by placement). For a caller that
+/// checks the split.
+pub fn solve_document_by_placement<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    reach: &dyn MateReach,
+    tol: geom_core::Tol,
+) -> (
+    SolvedPoses,
+    std::collections::BTreeMap<crate::node::RecipeNodeId, geom_core::k_stats::Recorded>,
+) {
+    let poses = solve_with_env(doc, &doc.var_env::<f64>(), reach, tol);
+    let shares = doc
+        .placements()
+        .into_iter()
+        .filter_map(|placement| {
+            let recordings = poses.take_recordings(placement);
+            if recordings.is_empty() {
+                return None;
+            }
+            let mut share = geom_core::k_stats::Recorded::default();
+            for recording in &recordings {
+                share
+                    .verdicts
+                    .extend_from_slice(&recording.recorded().verdicts);
+                share
+                    .escalations
+                    .extend_from_slice(&recording.recorded().escalations);
+            }
+            Some((placement, share))
+        })
+        .collect();
+    (poses, shares)
+}

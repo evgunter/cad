@@ -221,17 +221,29 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
         1,
         "the product is the union's one copy"
     );
-    // Its side stopping resolving is the evaluation's refusal, not the
-    // gate's (review R1, MINOR-1): the mate is still no statement about
-    // the product.
+    // Its side stopping resolving is the evaluation's refusal (review
+    // R1, MINOR-1): it fails the mate's placement, and the union reading
+    // that copy is poisoned through it, so the gate refuses the union's
+    // placement poisoned there rather than mint anything of the mate.
     let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &with_resolver(store));
     assert!(
         ev.node_error(mate.placement).is_some(),
         "the evaluation refuses the side"
     );
-    let gated = assemble(&doc, &ev, Tol::witness()).map(|_| ());
-    assert!(gated.is_ok(), "the gate asks nothing of it: {gated:?}");
+    match assemble(&doc, &ev, Tol::witness()) {
+        Err(AssemblyError::Product(refusal)) => assert!(
+            matches!(
+                *refusal,
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == mate.placement
+            ),
+            "{refusal:?}"
+        ),
+        other => panic!("the gate refuses the poisoned product: {other:?}"),
+    }
 }
 
 /// **An instance copied twice has two world copies**: its own, and a
@@ -287,8 +299,8 @@ fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> Profile
 }
 
 /// **A side whose name stops resolving refuses the mate in the
-/// selection's words, and the gate names the mate** rather than pass a
-/// mate that speaks for nothing.
+/// selection's words, and the gate names its placement** rather than
+/// pass a mate that speaks for nothing.
 #[test]
 fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     let (doc, [a, b], store, body) = pair("f-vanish");
@@ -309,12 +321,15 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
         "{:?}",
         ev.node_error(mate.placement)
     );
+    // The placement is in the product, so the gather refuses it typed.
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Mint { refusals }) => assert!(
-            matches!(refusals.as_slice(), [MintRefusal::Unevaluated { mate: m, .. }] if *m == mate),
-            "{refusals:?}"
+        Err(AssemblyError::Product(refusal)) => assert_eq!(
+            *refusal,
+            editor_core::ProductError::Root(editor_core::NodeStanding::Failed {
+                node: mate.placement
+            }),
         ),
-        other => panic!("a mate with no value refuses at the gate: {other:?}"),
+        other => panic!("a mate with no value fails its placement at the gate: {other:?}"),
     }
 }
 

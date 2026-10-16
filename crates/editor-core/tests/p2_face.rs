@@ -199,10 +199,12 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    // `k` is listed first, so a cut of the base and the top holds the
+    // last placements and a round trip keeps their order.
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, base) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]));
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _seat) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, m) = insert_mate(
         doc,
         face_mate(head(p.top_upper_cap(top)), head(p.top_cap(k))),

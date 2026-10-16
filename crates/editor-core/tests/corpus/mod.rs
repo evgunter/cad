@@ -361,12 +361,13 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-/// The single body a node evaluated to (`Body` payload or a boolean's
-/// nonempty body).
+/// The single body a node evaluated to (`Body` payload, a boolean's
+/// nonempty body, or an instance's copies read as its part product).
 pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }

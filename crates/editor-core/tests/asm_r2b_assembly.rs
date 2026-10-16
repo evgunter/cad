@@ -822,11 +822,12 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     // What the SPLICE contributed, not what survived it: this
     // document also holds the two ends of the crossing mate, which
     // `inline` never touches, so `!order().is_empty()` would hold
-    // however little came in. The count can only come from the part,
-    // less the part's world: every document has its own.
+    // however little came in. The count can only come from the part
+    // (`ids` leaves out each document's world, which every document
+    // has its own of).
     assert_eq!(
         back.doc.ids().len(),
-        before - 1 + part_nodes - 1,
+        before - 1 + part_nodes,
         "the instance went and the part's own recipe came in its place"
     );
 }
@@ -1651,13 +1652,13 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     );
     assert!(
         msg.contains(
-            "constraint 0:0000000000060000 of node 000000000004's declared Rest contact, refuted:"
+            "constraint 0 of node 000000000004's Rest contact, refuted:"
         ),
         "{msg}"
     );
     assert!(
         msg.contains(
-            "constraint 0:0000000000060000 of node 000000000004's declared Rest contact, declined:"
+            "constraint 0 of node 000000000004's Rest contact, declined:"
         ),
         "{msg}"
     );

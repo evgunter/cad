@@ -650,11 +650,14 @@ fn r1_a_cut_with_a_parametric_pin_round_trips_exactly() {
     let p = parts("r1-parametric");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-parametric"), Tol::witness());
     let doc = crate::p2_gauges::declare_lift(doc, 0.5);
+    // The kept instance comes first: split appends its instance and
+    // inline its splice, so the cut's placements, listed last, come
+    // back in their order.
+    let (doc, _kept) = pinned(doc, p.top, literal([0.0, 8.0, 0.0]));
     let (doc, base) = pinned(doc, p.base, crate::p2_gauges::lifting_pose(0.0));
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let (doc, deep) = pinned(doc, p.base, literal([4.0, 8.0, 0.0]));
-    let (doc, _kept) = pinned(doc, p.top, literal([0.0, 8.0, 0.0]));
     let out = round_trip(&doc, &[base, top, deep], &p, "r1-parametric");
     assert!(
         out.part
@@ -978,23 +981,36 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     }
 }
 
-/// **A cut a kept placement separates comes back regrouped** (A10's
-/// replacement rule, A4): three pinned instances x, y, z, inserted in
-/// that order, and a cut of x and z. The regrouped document's cut is
-/// adjacent, so a second round trip changes nothing, and the comparator
-/// reads the first round trip as the document.
+/// **A cut a kept placement separates comes back regrouped** (A4:
+/// inline-of-split is the document up to minted ids and order): three
+/// pinned instances x, y, z, inserted in that order, and a cut of x and
+/// z. Split appends its instance and inline its splice, so the round
+/// trip lists y, then x and z, and the regrouping is the only thing the
+/// comparator reads as changed. The regrouped document's cut comes
+/// last, so a second round trip changes nothing.
 #[test]
 fn r1_a_cut_whose_placements_a_kept_one_separates_round_trips() {
     let p = parts("r1-interleaved");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-interleaved"), Tol::witness());
     let (doc, x) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]));
-    let (doc, _y) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]));
+    let (doc, y) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]));
     let (doc, z) = pinned(doc, p.top, literal([0.0, 0.0, 7.0]));
     let out = split(&doc, &[x, z], "r1-interleaved", &p.opts()).expect("two pinned instances");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps).expect("the round trip is the document");
+    let said = same_up_to_ids(&doc, &back.doc, &map, &steps)
+        .expect_err("the round trip regroups the placements");
+    let [only] = said.lines().collect::<Vec<_>>()[..] else {
+        panic!("the regrouping is the one difference: {said}")
+    };
+    assert!(only.starts_with("order: "), "the regrouping: {said}");
+    let order: Vec<RecipeNodeId> = back.doc.placements();
+    assert_eq!(
+        order,
+        vec![map[&y], map[&x], map[&z]],
+        "the kept placement, then the cut's in their order"
+    );
     round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
 }

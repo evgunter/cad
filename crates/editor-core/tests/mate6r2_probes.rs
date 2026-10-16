@@ -9,9 +9,10 @@
 //! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
 //! owns that. What the rows are FOR now is what each one says below.
 //!
-//! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
-//!         (claims 2 and 3): first bad mate in document order wins,
-//!         and the mint refusal preempts the declared gate.
+//! P1/P2 — refusal precedence with MULTIPLE bad mates (claims 2 and
+//!         3): a bad reference fails its placement, and that failure
+//!         preempts the mint rows and the declared gate in either
+//!         document order.
 //! P3 — the checks resident over the ×3-stand seam document
 //!         (claims 4/6): declared-pair suppression across the seam.
 //! P4 — the checks resident over a single correctly-mated document
@@ -190,12 +191,13 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 /// The stand at `seat`, and two more copies of the cube, each placed on
 /// the stand's lower cube by one bad mate: a bad-reference mate and a
 /// Tangent mate, their placements in `order` (the bad reference first
-/// when `badref_first`).
+/// when `badref_first`). Answers the document and the placement the bad
+/// reference is in.
 fn stand_with_two_bad_mates(
     label: &str,
     store: &mut PartStore,
     badref_first: bool,
-) -> ProfileDoc {
+) -> (ProfileDoc, RecipeNodeId) {
     let (part, body) = store.insert_part(cube_part(&format!("{label}-cube")), Tol::witness());
     let (doc, ids, _) = stand(&format!("{label}-stand"), part, body, 1.5);
     let (doc, first) = insert(doc, mated_instance(part));
@@ -223,54 +225,56 @@ fn stand_with_two_bad_mates(
             1.5,
         ),
     );
-    doc
+    (doc, badref)
+}
+
+/// The gate's answer over a document whose bad reference failed its
+/// placement: the gather refuses that placement typed, ahead of every
+/// mint row (the Tangent's included) and of the declared gate, and the
+/// placement's own refusal is the mate's.
+fn refuses_the_failed_placement(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    badref: RecipeNodeId,
+) {
+    let result = assemble(doc, ev, Tol::witness());
+    match &result {
+        Err(AssemblyError::Product(refusal)) => assert_eq!(
+            **refusal,
+            editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node: badref }),
+            "the failed placement is the gate's answer"
+        ),
+        _ => panic!("expected the failed placement, got {}", headline(&result)),
+    }
+    assert!(
+        ev.node_error(badref).is_some(),
+        "the bad reference's refusal is its placement's"
+    );
 }
 
 /// P1: a stand whose declaration is FALSE (seat 1.5 — would refuse at
 /// the declared gate), plus a bad-reference mate, plus a Tangent mate,
-/// their placements in that document order. Both bad mates are refused,
-/// and the bad reference — first in document order — heads the list.
+/// their placements in that document order. The bad reference fails its
+/// placement, and that failure, not any mint row, is the gate's answer.
 #[test]
-fn p1_both_bad_mates_refuse_badref_heading_the_list() {
+fn p1_badref_first_refuses_its_failed_placement() {
     let mut store = PartStore::default();
-    let doc = stand_with_two_bad_mates("m6r2-p1", &mut store, true);
+    let (doc, badref) = stand_with_two_bad_mates("m6r2-p1", &mut store, true);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    println!("P1: {}", headline(&result));
-    assert!(matches!(
-        &result,
-        Err(AssemblyError::Mint { refusals })
-            if matches!(
-                refusals.as_slice(),
-                [
-                    editor_core::MintRefusal::Unevaluated { .. },
-                    editor_core::MintRefusal::NoAtRestRecord { .. },
-                ]
-            )
-    ));
+    println!("P1: {}", headline(&assemble(&doc, &ev, Tol::witness())));
+    refuses_the_failed_placement(&doc, &ev, badref);
 }
 
 /// P2: same document, the two bad mates' placements in the OPPOSITE
-/// order. The same two refusals, with the Tangent's `NoAtRestRecord` at
-/// the head — the list is the DOCUMENT's order, not the walk's.
+/// order. The same answer: the failed placement is named whichever
+/// document order the mates are in.
 #[test]
-fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
+fn p2_tangent_first_refuses_the_same_failed_placement() {
     let mut store = PartStore::default();
-    let doc = stand_with_two_bad_mates("m6r2-p2", &mut store, false);
+    let (doc, badref) = stand_with_two_bad_mates("m6r2-p2", &mut store, false);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    println!("P2: {}", headline(&result));
-    assert!(matches!(
-        &result,
-        Err(AssemblyError::Mint { refusals })
-            if matches!(
-                refusals.as_slice(),
-                [
-                    editor_core::MintRefusal::NoAtRestRecord { .. },
-                    editor_core::MintRefusal::Unevaluated { .. },
-                ]
-            )
-    ));
+    println!("P2: {}", headline(&assemble(&doc, &ev, Tol::witness())));
+    refuses_the_failed_placement(&doc, &ev, badref);
 }
 
 /// P3: the checks resident over the seam document (×3 stands).

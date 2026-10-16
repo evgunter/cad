@@ -479,10 +479,15 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
     ] {
         let applied = apply(&doc, &edit, Tol::witness(), &RefusingReach)
             .unwrap_or_else(|e| panic!("removing {what} is never refused: {e}"));
-        assert_eq!(
-            applied.maintenance,
-            Vec::<Maintenance>::new(),
-            "{what}: no edit records a frame"
+        // The only maintenance is the silent retirement of the
+        // anonymous variables the removed constraint's frames read.
+        assert!(
+            applied
+                .maintenance
+                .iter()
+                .all(Maintenance::is_silent_retirement),
+            "{what}: no edit records a frame: {:?}",
+            applied.maintenance
         );
         let poses = solve(&applied.doc, &o, Tol::witness());
         let ev = run(&applied.doc, &o);
