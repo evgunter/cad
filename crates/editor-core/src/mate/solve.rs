@@ -1486,8 +1486,9 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
 /// copy ([`MateFault::Overconstrained`]: a mate beyond the pin is
 /// refused, never verified and kept), asked first, and the constraint's
 /// target agrees with the bundle's ([`MateFault::TargetsDiffer`], the
-/// stage's named interim). The bundle is folded from its definitions
-/// at the door, at the document's own values.
+/// stage's named interim), and the bundle with it folds (the fold's
+/// own refusal, a contradiction among them). The bundle is folded from
+/// its definitions at the door, at the document's own values.
 ///
 /// `reach` absent is replay's: a bundle whose fold needs the parts is
 /// declined, as [`admit_mate`] declines.
@@ -1510,19 +1511,19 @@ pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     // A bundle that already pins its copy refuses whatever is added,
     // so the pin is asked first: a mate beyond it is overconstrained,
     // whichever copy it reads.
-    if let Some(reach) = reach
+    let solve = reach.map(|reach| Solve {
+        doc,
+        env,
+        reach,
+        band,
+        tol,
+        record: Record::Caller,
+    });
+    if let Some(s) = &solve
         && !bundle.is_empty()
     {
         let read = read_bundle(doc, env, placement, &held).map_err(Box::new)?;
-        let s = Solve {
-            doc,
-            env,
-            reach,
-            band,
-            tol,
-            record: Record::Caller,
-        };
-        if fold_bundle(&s, &read)?.subgroup.is_determined() {
+        if fold_bundle(s, &read)?.subgroup.is_determined() {
             return Err(Box::new(MateFault::Overconstrained {
                 placement,
                 constraints: vec![added.id],
@@ -1532,7 +1533,13 @@ pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     }
     let mut all = held;
     all.push(added);
-    read_bundle(doc, env, placement, &all).map_err(Box::new)?;
+    let read = read_bundle(doc, env, placement, &all).map_err(Box::new)?;
+    // Then the bundle with the constraint, folded as the solve will
+    // fold it: a constraint it contradicts refuses here, never first at
+    // the solve.
+    if let Some(s) = &solve {
+        fold_bundle(s, &read)?;
+    }
     Ok(())
 }
 

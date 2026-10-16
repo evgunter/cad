@@ -1059,8 +1059,9 @@ pub fn door_refusal(
 /// pattern (`SetStructuralParam` on its count), a re-pointed `Part`,
 /// a deleted operand — and this is the shortest road to a head on
 /// LIVE geometry. The constraint enters with that side on copy 1 of a
-/// scratch pattern over `anchor`, the instance its OTHER side stands on
-/// — two members over one instance — then the side's slot door
+/// scratch pattern over `anchor`, an instance OTHER than the one its
+/// other side stands on (a pattern of the placement's own copy is that
+/// copy, and refuses `SelfMate`) — then the side's slot door
 /// (`SetParam` at `OperandSlot::Side`, which re-points a read and asks
 /// no admission) writes the side `mate` spells, and the scratch pattern
 /// is deleted. Nothing solves, so the refusing reach suffices.

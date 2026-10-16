@@ -819,33 +819,33 @@ fn two_operands(
 
 /// **A5.** A seat read through one transform of an instance pins the
 /// instance, and a second seat through another transform of the same
-/// instance reads the copy through a second reading of it, which the
-/// door refuses, consistent with the first or not (`TargetsDiffer`, the
-/// stage's named interim: a bundle reads its copy through one reading).
-/// The first seat alone solves, and the product gathers.
+/// instance is a mate beyond the pin, which the door refuses as
+/// overconstrained, consistent with the first or not: the pin is asked
+/// before the target (`TargetsDiffer`, the stage's named interim, would
+/// otherwise name the second reading). The first seat alone solves, and
+/// the product gathers.
 #[test]
 fn a5_a_second_seat_through_another_operand_is_refused() {
     for (what, label, extra_lift) in [
         ("consistent", "msolve1-a5-consistent", 0.0),
         ("inconsistent", "msolve1-a5-inconsistent", 3.0),
     ] {
-        let (doc, opts, m1, far_corner, top) = two_operands(label, extra_lift);
+        let (doc, opts, _held, far_corner, top) = two_operands(label, extra_lift);
         let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(top).is_none(),
             "A5 {what}: the first seat solves: {:?}",
             poses.fault(top)
         );
-        let refused =
-            match fixture::at_the_door_of(&doc, &editor_core::RefusingReach, top, far_corner) {
-                Err((_, fault)) => fault,
-                Ok(_) => panic!("A5 {what}: the door admitted a second seat"),
-            };
+        let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+        let refused = match fixture::at_the_door_of(&doc, &reach, top, far_corner) {
+            Err((_, fault)) => fault,
+            Ok(_) => panic!("A5 {what}: the door admitted a second seat"),
+        };
         assert!(
             matches!(
                 &refused,
-                MateFault::TargetsDiffer { placement, constraints }
-                    if *placement == top && constraints.contains(&m1.id)
+                MateFault::Overconstrained { placement, .. } if *placement == top
             ),
             "A5 {what}: the second seat is refused: {refused:?}"
         );
