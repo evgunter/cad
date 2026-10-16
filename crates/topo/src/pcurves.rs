@@ -192,14 +192,15 @@
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
-//! [`crate::Body::split_edge`] holds the same posture at a parameter
-//! split: a [`geom_brep::Pcurve`] is a function of the carrier
-//! parameter, so each child's chart image IS the parent's restricted
-//! to the child's sub-interval. The op re-certifies both restrictions
-//! before it mutates ([`split_cache`]) and writes them onto the parent
-//! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing (projected and fitted-grade rows restrict
-//! like the rest). The carry is exact on every chart; two readers of
+//! [`crate::Body::split_edge`] carries rows across a parameter split:
+//! each child's row is its own edge's, so a closed-form or projected
+//! image is derived again over the child's sub-interval and placed in
+//! the chart's principal window as the mint places it (C4), and a
+//! fitted or general image is the parent's restricted to the
+//! sub-interval. The op certifies both children and decides the joints
+//! they make before it mutates ([`split_cache`]), and writes them onto
+//! the parent halves and the two new halves, minting nothing where
+//! there was nothing. The carry is exact on every chart; two readers of
 //! the split body are narrower, both stated at [`split_cache`]. On a
 //! described-NURBS wall [`mint_pcurves`] — the recovery step this
 //! module's caveats name for a face left rowless — refuses, because
@@ -2252,7 +2253,7 @@ pub(crate) struct CarriedRows<T: Real> {
     pub(crate) leaving: Option<JointElement>,
 }
 
-/// Why [`split_cache`] could not state a restriction, for one parent
+/// Why [`split_cache`] could not state a child's row, for one parent
 /// half-edge. Raised, never swallowed: the split leaves nothing it
 /// could not state.
 #[derive(Clone, Debug)]
@@ -2280,22 +2281,25 @@ pub(crate) enum SplitRefusal {
     Joint(Option<Indeterminate>),
 }
 
-/// The **restriction of an edge's two half-edge rows to the two
+/// The **rows of an edge's two half-edges stated over the two
 /// children of a parameter split** — [`crate::Body::split_edge`]'s
 /// pcurve limb, and the reason that op carries its rows across the
 /// surgery instead of staling them. The answer holds one entry per
 /// given half-edge: that half-edge's [`CarriedRows`], or `None` where
 /// there is nothing to carry.
 ///
-/// A [`Pcurve`] is a function of the **carrier parameter** and carries
-/// no interval of its own ([`Pcurve::eval`]), exactly as an
-/// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
-/// `t` have the parent's chart image, restricted to `[t₀, t]` and
-/// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval, through the image's own door ([`restate`], with the
-/// scalar's [`crate::AtRestPolicy::fitted_lane`] for a projected row's
-/// hull terms and a fitted-grade row's check 4), rather than deriving
-/// anything.
+/// A row is its image placed over its own edge's span in the chart's
+/// principal window (C4), so a child of a split at `t` is stated over
+/// `[t₀, t]` or `[t, t₁]` as the mint would state it: a closed-form or
+/// projected image is derived there ([`geom_brep::chart_pcurve_over`]),
+/// and a fitted or general image, which has no angular placement, is
+/// the parent's restricted to the sub-interval. Each is certified
+/// through the image's own door ([`restate`], with the scalar's
+/// [`crate::AtRestPolicy::fitted_lane`] for a projected row's hull
+/// terms and a fitted-grade row's check 4). Children placed again can
+/// sit whole turns from each other and from the parent's image, so the
+/// joint between them and the parent's joints into and out of them are
+/// decided here, as every joint is ([`CarriedRows`]).
 ///
 /// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
 /// child's span: its hull bounds the image's whole domain against the
@@ -7420,6 +7424,95 @@ pub(crate) mod pole_slit_tests {
                         turns[0]
                     );
                 }
+            }
+        }
+    }
+
+    /// **A split's children are the mint's rows, and the loop still
+    /// closes.** The cylinder patch, its bottom arc's carrier stated 0,
+    /// ±1, 5 and 10 periods off, is split on that arc, and the split
+    /// body's rows, their intervals, certificates and joint elements
+    /// are byte for byte what a fresh `mint_pcurves` of the same body
+    /// writes; it validates and bounds both faces. Two turns of the
+    /// chart: one where both children sit inside the window, and one
+    /// turned so the arc straddles the window's cut at `−1`, where the
+    /// first child is placed a whole turn from the second and the joint
+    /// between them is a decided `±1` (the premise, read off the stored
+    /// element). Dropping the split's re-decision of the parent's end
+    /// joints (`CarriedRows::entering`, `::leaving`) leaves the
+    /// straddling patch's joints the parent's, and it no longer
+    /// validates (`LoopDiscontinuity` on both halves the re-placed child
+    /// meets); `sweep`'s `the_site_rows_are_the_passs_on_every_revolved_chart`
+    /// goes red the same way on the full cone.
+    #[test]
+    fn a_split_of_an_edge_stated_periods_off_is_the_mints_and_closes() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let rows = |body: &Body<f64>| {
+            let mut out: Vec<String> = body
+                .pcurves()
+                .map(|(he, c)| {
+                    format!(
+                        "{he:?} {:?} {:?} {:?} {:?}",
+                        c.params(),
+                        c.pcurve(),
+                        c.certificate(),
+                        body.joint(he)
+                    )
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        // Inside the window, and straddling its cut: the arc covers
+        // chart `u ∈ [−turn, π − turn]`, split an eighth of a turn in.
+        for (turn, straddles) in [(0.0, false), (1.0 + PI / 4.0, true)] {
+            for periods in [0.0, 1.0, -1.0, 5.0, 10.0] {
+                let label = format!("turned {turn}, {periods} periods off");
+                let mut body = cylinder_patch_turned(periods, turn).unwrap();
+                let bottom = body
+                    .edges()
+                    .map(|(e, _)| e)
+                    .find(|&e| {
+                        let he = body.get_edge(e).unwrap().he_plus;
+                        matches!(
+                            super::half_edge_carrier(&body, he),
+                            Ok((Curve3::Circle { center, .. }, _, _)) if center.z == 0.0
+                        )
+                    })
+                    .expect("the bottom arc");
+                let he = body.get_edge(bottom).unwrap().he_plus;
+                let (_, t0, t1) = super::half_edge_carrier(&body, he).unwrap();
+                let t = t0.min(t1) + PI / 4.0;
+                let made = body
+                    .split_edge(bottom, t, tol)
+                    .unwrap_or_else(|e| panic!("{label}: splits: {e:?}"));
+                assert_eq!(
+                    super::validate_pcurves(&body, band),
+                    vec![],
+                    "{label}: validates"
+                );
+                for (f, face) in body.faces() {
+                    let s = body.get_surface(face.surface).unwrap().clone();
+                    super::chart_boundary(&body, f, &s, band)
+                        .unwrap_or_else(|e| panic!("{label}, {f:?}: bounds: {e:?}"));
+                }
+                let mut fresh = body.clone();
+                super::mint_pcurves(&mut fresh, tol).unwrap();
+                assert_eq!(
+                    rows(&body),
+                    rows(&fresh),
+                    "{label}: the split's rows are the mint's"
+                );
+                let new = body.get_edge(made.new_edge).unwrap();
+                let apart = [new.he_plus, new.he_minus, he].into_iter().any(
+                    |h| matches!(body.joint(h), Some(crate::JointElement::Shift(d)) if d.u != 0),
+                );
+                assert_eq!(
+                    apart, straddles,
+                    "{label}: the premise, the children a whole turn apart where the arc \
+                     straddles the cut"
+                );
             }
         }
     }

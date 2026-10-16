@@ -169,29 +169,33 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
-    /// stored chart row is CARRIED to both children — a
-    /// [`geom_brep::Pcurve`] is a function of the carrier parameter
-    /// and holds no interval of its own, so each child's image is the
-    /// parent's restricted to its sub-interval, exactly as each
-    /// child's carrier is. A restriction DERIVES nothing: it
-    /// re-certifies the parent's image through the door that stated it
-    /// (`restate`: `PcurveCache::certify` for an exact row,
+    /// stored chart row passes to both children as each child's own
+    /// row. C4 places a row over its own edge's span in the chart's
+    /// principal window, so a closed-form or projected child is derived
+    /// over its sub-interval exactly as the mint derives it (and is the
+    /// mint's row, byte for byte); a fitted or general row, which has
+    /// no angular placement, is the parent's restricted to the
+    /// sub-interval. Either is certified through the door that states
+    /// it (`restate`: `PcurveCache::certify` for an exact row,
     /// `certify_projected`, `certify_fitted` or `certify_general` for
     /// the rest, the last three through the scalar's
-    /// [`crate::AtRestPolicy::fitted_lane`]). Both restrictions
-    /// are certified in the plan phase
+    /// [`crate::AtRestPolicy::fitted_lane`]). Both children are
+    /// certified in the plan phase
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. So does the joint between the two children, decided
-    /// at the split point as every joint is: where it is undecided the
-    /// op refuses ([`EulerOpError::SplitJointUndecided`]) rather than
-    /// write an element nothing decided. A half-edge with no row keeps none: the op carries
+    /// untouched. So do the joints, decided as every joint is: the one
+    /// between the two children at the split point, the way the half
+    /// runs, and, where a child was placed again, the parent's joints
+    /// into and out of it against their neighbours' rows (children
+    /// placed apart can sit whole turns from the parent's image). Where
+    /// one is undecided the op refuses
+    /// ([`EulerOpError::SplitJointUndecided`]) rather than write an
+    /// element nothing decided. A half-edge with no row keeps none: the op carries
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// Projected and fitted-grade rows restrict like any other. The
-    /// carry is exact on every chart; two readers of the split body are
+    /// The carry is exact on every chart; two readers of the split body are
     /// narrower, both stated at `split_cache`. On a SPLINE chart the
     /// recovery step the caveat below names, `mint_pcurves`, refuses on
     /// a described-NURBS wall's split: the iso derivation's rim arms
@@ -482,9 +486,10 @@ impl<T: Decide> Body<T> {
         let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
-        // stored chart row, restricted to the two children's
-        // sub-intervals and re-certified. Read-only, so a refusal
-        // leaves the body untouched like every gate above it.
+        // stored chart row, stated over the two children's sub-intervals
+        // (placed again where it is closed-form or projected) and
+        // certified, with the joints the children make. Read-only, so a
+        // refusal leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
             crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
                 |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {

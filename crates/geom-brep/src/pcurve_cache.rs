@@ -4827,11 +4827,18 @@ pub const ANGLE_WINDOW_START: f64 = -1.0;
 
 /// **An angle read off the geometry**: the two frame components of a
 /// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle two ways: [`Azimuth::principal`], the stable
-/// `atan2` read, which a derivation then places in the principal window
-/// through the marks (`Placement::phase`), and [`Azimuth::near`], which
-/// names the angle within half a turn of a stated reference, a renaming
-/// with no decision. Neither reads a whole-period integer off a value.
+/// It leaves as an angle one way: [`Azimuth::principal`], the stable
+/// `atan2` read, whose copy a derivation then decides in the principal
+/// window through the marks (`Placement::phase`, a [`Period::decide`]
+/// about the window's centre). No whole-period integer is read off a
+/// value.
+///
+/// An anchored `atan2` (the direction rotated back by a reference and
+/// read there) would name the copy with no decision, but it rotates
+/// every read, so a symbolic scalar no longer folds the read onto the
+/// carrier's own form: on the M10-10 plate the map-residual reads went
+/// from 36 theorems to 36 numeric decisions and the plate left the band
+/// below its ceiling. The principal read keeps `k = 0` bit-identical.
 #[derive(Clone, Copy, Debug)]
 pub struct Azimuth<T> {
     y: T,
@@ -4847,15 +4854,6 @@ impl<T: Real> Azimuth<T> {
     /// The direction's length: the radius its angle is read at.
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
-    }
-
-    /// The angle of the direction in `(anchor − π, anchor + π]`: the
-    /// direction rotated back by `anchor`, read by `atan2`, and the
-    /// anchor added again. An anchored `atan2`, so the cut sits half a
-    /// turn from the anchor, wherever that is.
-    pub fn near(self, anchor: T) -> T {
-        let (s, c) = anchor.sin_cos();
-        anchor + (self.y * c - self.x * s).atan2(self.x * c + self.y * s)
     }
 }
 
