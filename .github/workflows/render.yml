@@ -720,6 +720,15 @@ jobs:
       # tour is on disk and uploaded, before the uv and wild halves run — so
       # that what it reports is the montage lanes' precondition and nothing
       # else. `-s`, not `-e`: a zero-byte scenes.json is not a tour.
+      # Every lane publishes through demos/publish_lane.py, so its
+      # self-test (and the provenance guard's and the uv composer's,
+      # which it leans on) runs before any lane can: a failure here
+      # leaves tour_ok unset, and no lane renders or publishes.
+      - name: render tooling self-tests
+        run: |
+          python3 demos/publish_lane.py --selftest
+          python3 demos/check_render_provenance.py --selftest
+          python3 demos/compose_uv_montage.py --selftest
       - name: the tour output is on disk
         id: tour-ok
         if: ${{ env.TOUR_WANTED == 'true' }}

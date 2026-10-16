@@ -238,12 +238,6 @@ jobs:
         run: python3 scripts/dual-review-log.py --selftest
       - name: slow-set name check self-test
         run: python3 scripts/check-slow-set-names.py --selftest
-      - name: render lane publisher self-test
-        run: python3 demos/publish_lane.py --selftest
-      - name: render provenance guard self-test
-        run: python3 demos/check_render_provenance.py --selftest
-      - name: uv sheet composer self-test
-        run: python3 demos/compose_uv_montage.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
