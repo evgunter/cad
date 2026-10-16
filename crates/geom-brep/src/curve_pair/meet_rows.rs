@@ -1385,3 +1385,124 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
         "held across the seam: {got:?}"
     );
 }
+
+/// **Two lines joined at a vertex meet there alone.** Two segments
+/// leaving `J = (1, 2, 0)` at `10⁻⁷` rad to each other, a metre long,
+/// each line stored from an origin a kilometre behind `J`. Within the
+/// band of each other over their first centimetre, they meet in one
+/// stretch, whose meeting is the joint, found at both ends. The line ×
+/// line form's crossing, solved from the origins with no square root,
+/// lands within `10⁻⁹` of `J`, inside the joint's ring, so it is not read
+/// again. Red where the ring is narrower than the form's rounding, or the
+/// form's crossing is placed off the joint.
+#[test]
+fn two_lines_joined_at_a_vertex_meet_there_alone() {
+    let j = Point3::new(1.0, 2.0, 0.0);
+    let phi = 1e-7_f64;
+    let u1 = Vec3::new(1.0, 0.0, 0.0);
+    let u2 = Vec3::new(phi.cos(), phi.sin(), 0.0);
+    let back = 1000.0;
+    let x = line((j - u1 * back).to_array(), u1.to_array());
+    let y = line((j - u2 * back).to_array(), u2.to_array());
+    let span = (back, back + 1.0);
+    for (order, got) in [
+        ("first first", meets((&x, span), (&y, span))),
+        ("second first", meets((&y, span), (&x, span))),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(m.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {m:?}"
+        );
+    }
+}
+
+/// **The coplanar ellipse pair's ceiling holds** (`pose::level_ceiling`):
+/// wherever a point lies in an ellipse's plane, the signed lower bound
+/// on its distance from the ellipse ([`geom::ellipse_level_clearance`]),
+/// which the subdivision reads as the residual, is at least
+/// `min(reach, |F|/ceiling)`, `F` the ellipse's level there. Read over a
+/// grid of points out to six semi-major axes, on ellipses of axis ratio
+/// `1` to `10⁻³`. Anti-vacuity, each a witness the grid holds: the worst
+/// `|F|·s/bound` passes `3` (so a ceiling of `1/s` breaks the row), and a
+/// point lies past `s/4` where `|F|·s/4` exceeds its bound (so a reach of
+/// `4s` breaks it). Red where the ceiling or its reach is weakened.
+#[test]
+fn the_coplanar_ellipse_ceiling_holds_at_its_extremes() {
+    let (mut worst, mut past_reach) = (0.0_f64, 0usize);
+    for (a, b) in [
+        (1.0, 1.0),
+        (2.0, 1.0),
+        (1.0, 0.3),
+        (3.0, 0.1),
+        (1.0, 1e-3),
+        (0.2, 1.0),
+    ] {
+        let small: f64 = f64::min(a, b);
+        let (ceiling, reach) = super::pose::level_ceiling(small);
+        let extent = 6.0 * f64::max(a, b);
+        let n = 400;
+        for i in 0..=n {
+            for k in 0..=n {
+                let x = extent * (2.0 * f64::from(i) / f64::from(n) - 1.0);
+                let y = extent * (2.0 * f64::from(k) / f64::from(n) - 1.0);
+                let f = (x / a).powi(2) + (y / b).powi(2) - 1.0;
+                let bound = geom::ellipse_level_clearance((x, y), (a, b)).abs();
+                assert!(
+                    bound >= f64::min(reach, f.abs() / ceiling) * (1.0 - 1e-12),
+                    "({a}, {b}) at ({x}, {y}): bound {bound} under min({reach}, {})",
+                    f.abs() / ceiling
+                );
+                if bound > 0.0 {
+                    worst = worst.max(f.abs() * small / bound);
+                    if bound < f64::min(4.0 * small, f.abs() * small / 4.0) {
+                        past_reach += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(worst > 3.0, "a point the ceiling 1/s misses: worst {worst}");
+    assert!(past_reach > 0, "a point the reach 4s misses");
+}
+
+/// **Meetings are next to each other along the span, whatever order
+/// they are found in.** The unit circle from `−π/2` to `3π/2`, and the
+/// ellipse `(1 + η, 0.5)` about its centre, `η = 1.5·10⁻¹⁰`: they cross
+/// at `±θ₀` and `π ± θ₀`, `θ₀ ≈ 10⁻⁵`, and between `−θ₀` and `θ₀` the
+/// ellipse lies at most `η` off the circle, inside the zero band, so
+/// those two are two meetings in one stretch (and so are the two about
+/// `π`). Found in the order `θ₀, π − θ₀, −θ₀, π + θ₀`, the pair escalates
+/// on the stretch (`curve_pair_meet_stretch`), carrying all four. Read in
+/// that order instead of along the circle, each pair's halfway point lies
+/// near `π/2`, half a metre off the ellipse, and the pair would be
+/// decided. Red where the meetings are not ordered along the span.
+#[test]
+fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
+    let eta = 1.5e-10;
+    let (big, minor) = (1.0 + eta, 0.5_f64);
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let e = flat_ellipse([0.0, 0.0], [1.0, 0.0], big, minor);
+    let s2 = (1.0 - 1.0 / big.powi(2)) / (1.0 / minor.powi(2) - 1.0 / big.powi(2));
+    let theta = s2.sqrt().asin();
+    let (sc, se) = (
+        Span::new(&c, (-PI / 2.0, 1.5 * PI)),
+        Span::new(&e, (0.0, TAU)).endless(),
+    );
+    let mut found = super::Found::default();
+    for ta in [theta, PI - theta, -theta, PI + theta] {
+        let point = c.eval(ta);
+        let tb = e.param_near(point, 0.0).unwrap();
+        found.read(&sc, &se, super::Candidate { point, ta, tb }, band());
+    }
+    assert_eq!(found.points.len(), 4, "four meetings: {:?}", found.points);
+    let got = found.finish(&sc, &se, None, band());
+    assert!(
+        matches!(
+            &got,
+            Err(r) if r.found.len() == 4
+                && matches!(r.fault, MeetFault::Escalated(d) if d.predicate == Some("curve_pair_meet_stretch"))
+        ),
+        "two meetings in one stretch escalate: {got:?}"
+    );
+}

@@ -172,7 +172,7 @@
 //! root comes from a square root whose rounding is about `√ulp` of the
 //! radius, and its gap from its twin escalates where the found meeting
 //! decides it exactly. The arms whose equation is the meeting's are the
-//! in-plane ones: a line's signed distance from a line, a circle's or an
+//! in-plane ones: a circle's or an
 //! ellipse's signed distance from a line in its plane, and a circle's
 //! distance from a circle in its plane. Their first harmonics,
 //! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
@@ -180,8 +180,9 @@
 //! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
 //! and the reflection of a meeting of two circles in one plane across
 //! their line of centres. Two found meetings leave a first harmonic
-//! none, and two lines, whose distance is convex along either, meet in
-//! at most one stretch, so a found meeting leaves them none.
+//! none. Two lines' crossing is solved linearly, with no square root to
+//! condition, so it lands inside a found joint's ring and is not read
+//! again: that form divides nothing out.
 //!
 //! **A crossing of the other's plane is not a meeting**, so the arms
 //! across a plane divide nothing out. A conic's or a line's root on the
@@ -330,7 +331,7 @@ pub(super) fn closed<T: Decide>(
     // foot.
     let flipped: Vec<_> = known.iter().copied().map(flip).collect();
     match arm {
-        Arm::LineLine => line_line(a, b, known, band),
+        Arm::LineLine => line_line(a, b, band),
         Arm::LineConic => line_conic(a, b, known, band),
         Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
         Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
@@ -733,7 +734,6 @@ fn one_line<T: Decide>(
 fn line_line<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
-    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (la, lb) = (line_of(a.carrier())?, line_of(b.carrier())?);
@@ -746,11 +746,7 @@ fn line_line<T: Decide>(
     let w = o1 + u1 * mid - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
-    // A found meeting is the one crossing (module docs, "deflation").
     let crossing = || {
-        if !known.is_empty() {
-            return Pose::Generic(Vec::new());
-        }
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
         Pose::Generic(vec![Candidate {
@@ -770,7 +766,6 @@ fn line_line<T: Decide>(
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
         Route::Level if definite(row::TILT, Margin::levered(s, lever), band)? => Ok(crossing()),
-        Route::Level if !known.is_empty() => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
 }
@@ -1127,7 +1122,19 @@ fn coplanar_ellipse_circle<T: Decide>(
         residual_reach: Some(r),
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
-    match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
+    subdivided(&poly, &residual, &frame, place, band)
+}
+
+/// A coplanar pair's roots from the certified subdivision, each placed
+/// as a candidate: none is [`Pose::Apart`], and a refusal is typed.
+fn subdivided<T: Decide>(
+    poly: &crate::half_angle::TrigPoly<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<T>,
+    place: &impl Fn(T) -> Candidate<T>,
+    band: Band,
+) -> Result<Pose<T>, MeetFault> {
+    match certified_subdivision(poly, residual, frame, &COPLANAR_ROWS, None, band) {
         Ok(Roots::Miss) => Ok(Pose::Apart),
         Ok(Roots::Certified(found)) => Ok(Pose::Generic(
             found.roots().iter().map(|&t| place(t)).collect(),
@@ -1181,7 +1188,7 @@ fn coplanar_ellipses<T: Decide>(
     let small = big_a.abs().min(big_b.abs());
     let terms = ((w.norm() + ka.semi_u.abs() + ka.semi_v.abs()) / small).powi(2) + T::one();
     let (t0, t1) = e.params();
-    let four = T::from_f64(4.0);
+    let (ceiling, reach) = level_ceiling(small);
     let frame = SubdivisionFrame {
         t0,
         t1,
@@ -1189,20 +1196,22 @@ fn coplanar_ellipses<T: Decide>(
         noise: crate::rounding_charge(terms),
         // `g` vanishes at the second's centre: no floor but zero holds.
         f_per_metre: T::zero(),
-        f_per_metre_hi: four / small,
-        residual_reach: Some(small / four),
+        f_per_metre_hi: ceiling,
+        residual_reach: Some(reach),
     };
     let residual = |theta: T| {
         let d = ka.point(theta) - kb.center;
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
-    match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
-        Ok(Roots::Miss) => Ok(Pose::Apart),
-        Ok(Roots::Certified(found)) => Ok(Pose::Generic(
-            found.roots().iter().map(|&t| place(t)).collect(),
-        )),
-        Err(why) => Err(MeetFault::Unsettled(why)),
-    }
+    subdivided(&poly, &residual, &frame, place, band)
+}
+
+/// **The ceiling on an ellipse's level per metre of
+/// [`geom::ellipse_level_clearance`], and how far it reaches**
+/// (`coplanar_ellipses`'s docs): `(4/s, s/4)`, `s` the smaller semi-axis.
+pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
+    let four = T::from_f64(4.0);
+    (four / small, small / four)
 }
 
 /// A first harmonic's range along a conic, in metres, and where its roots
