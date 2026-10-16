@@ -491,13 +491,15 @@ fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
     );
 }
 
-/// **An edge on its chart's axis refuses typed, at every scalar.** A
-/// line along a sphere's polar axis, through its poles, reaches the axis
-/// at its ends and its midpoint, so its placement's lever is zero and
-/// its azimuth names no copy: `PlacementUndirected` at `f64` and at
-/// `Interval` alike, never the angle `atan2(0, 0)` reads.
+/// **A pole's zero-radius parallel keeps the angle it reads, at every
+/// scalar.** A ball's poles carry a parallel of radius zero: its azimuth
+/// moves nothing, every copy is the same point, and its placement's lever
+/// (its reach from the axis, over its span and over its own turn) is zero.
+/// The placement names no other copy (zero turns) at `f64` and at
+/// `Interval` alike, never deciding marks at a zero lever (PR 5225's delta
+/// review, G1).
 #[test]
-fn an_edge_on_its_charts_axis_refuses_typed() {
+fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
     use geom_core::{Interval, Real};
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -505,26 +507,24 @@ fn an_edge_on_its_charts_axis_refuses_typed() {
         axis: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let axis = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, -1.0),
-        dir: Vec3::unit_z(),
-    };
-    let place = super::Placement::over((0.0, 2.0), &axis, &sphere);
-    assert!(
-        matches!(
-            place.turns(super::Along::Azimuth, 1.0, band()),
-            Err(super::PcurveCertifyError::PlacementUndirected)
-        ),
+    let pole = circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        0.0,
+        Vec3::unit_x(),
+    );
+    let place = super::Placement::over((2.0, 2.0), &pole, &sphere);
+    assert_eq!(
+        place.turns(super::Along::Azimuth, 7.0, band()).unwrap(),
+        0,
         "f64"
     );
     let f = Interval::from_f64;
-    let (axis, sphere) = (axis.map_scalar(f), sphere.map_scalar(f));
-    let place = super::Placement::over((f(0.0), f(2.0)), &axis, &sphere);
-    assert!(
-        matches!(
-            place.turns(super::Along::Azimuth, f(1.0), band()),
-            Err(super::PcurveCertifyError::PlacementUndirected)
-        ),
+    let (pole, sphere) = (pole.map_scalar(f), sphere.map_scalar(f));
+    let place = super::Placement::over((f(2.0), f(2.0)), &pole, &sphere);
+    assert_eq!(
+        place.turns(super::Along::Azimuth, f(7.0), band()).unwrap(),
+        0,
         "Interval"
     );
 }

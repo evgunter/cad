@@ -747,6 +747,26 @@ fn harmonic_span_box<T: Real>(
 }
 
 impl<T: Real> Pcurve<T> {
+    /// **Whether a derivation places this kind of image** over its edge's
+    /// span (C4): a closed-form or projected image is derived again over
+    /// any sub-span and named in its chart's window there, while a fitted,
+    /// general or iso image has no angular placement and restricts. One
+    /// fact each kind answers, so a new kind cannot fall to restriction
+    /// silently: the match has no wildcard.
+    #[must_use]
+    pub fn is_placed(&self) -> bool {
+        match self {
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::Projected(_) => true,
+            Pcurve::Fitted(_)
+            | Pcurve::General(_)
+            | Pcurve::IsoLine { .. }
+            | Pcurve::IsoArc { .. } => false,
+        }
+    }
+
     /// [`Pcurve::chart_box`] for the closed-form images, whose box needs
     /// no span location — [`Pcurve::Harmonic`] and
     /// [`Pcurve::FocalSection`] — at every [`Real`] scalar: the door for
@@ -1725,10 +1745,6 @@ pub enum PcurveCertifyError {
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
     AzimuthPeriodExceeded,
-    /// The edge has no direction about its chart's axis to name an angle
-    /// by: it lies on the axis at its ends and its midpoint, so the
-    /// placement's lever is zero (`Placement::turns`).
-    PlacementUndirected,
     /// The edge's span sits on a mark of its chart's window more whole
     /// turns away than an `i32` counts (`Placement::turns`): its image
     /// names no copy the kernel can store.
@@ -1893,11 +1909,6 @@ impl core::fmt::Display for PcurveCertifyError {
                  re-aim the chart's axis away from it",
                 channel.describe()
             ),
-            Self::PlacementUndirected => write!(
-                f,
-                "pcurve certification: the edge lies on its chart's axis and has no direction \
-                 about it to name its angle by"
-            ),
             Self::PlacementTurnsExceeded => write!(
                 f,
                 "pcurve certification: the edge's parameter span sits more than 2³¹ turns \
@@ -1970,7 +1981,7 @@ impl PcurveCertifyError {
             Self::AzimuthPeriodExceeded => {
                 (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
             }
-            Self::PlacementTurnsExceeded | Self::PlacementUndirected => {
+            Self::PlacementTurnsExceeded => {
                 (PcurveCheck::ChartWinding, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
@@ -4812,11 +4823,14 @@ pub struct WalkStop {
 /// No whole-period integer is read off a value: [`Period::decide`]
 /// decides it through the marks, and every other integer is structure.
 ///
-/// **The principal window** an angular channel's images are placed in
-/// is `(−1, τ − 1]` ([`ANGLE_WINDOW_START`], whose doc has the census
-/// that chose it): a row's angle at its span's midpoint is taken there
-/// by deciding the turns off it through these marks, about the window's
-/// centre `π − 1`. A net's channels keep their knot domain.
+/// **The principal windows** a periodic chart's angles are placed in
+/// ([`Window`]): an azimuth or a torus's tube angle in `(−1, τ − 1]`
+/// ([`ANGLE_WINDOW_START`], whose doc has the census that chose it),
+/// about the centre `π − 1`; a sphere's latitude in `(−π, π]`, about
+/// `0`, so every latitude the chart has is itself. A row's angle at its
+/// span's midpoint is taken into its window by deciding the turns off it
+/// through these marks ([`Placement::turns`]). A net's channels keep
+/// their knot domain.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Period<T> {
     length: T,
@@ -4861,6 +4875,21 @@ impl<T: Real> Period<T> {
 /// | `(−π/2, 3π/2]` | 0.9% | 21.6 k |
 /// | `(−1, τ − 1]` | 0.8% | 0 |
 ///
+/// On the torus's tube angle the same window moves 6.6% and puts none on
+/// the cut. A sphere's latitude is named in its own window, `(−π, π]`
+/// ([`Window::Latitude`]), and needs no census: every latitude the chart
+/// has lies in `[−π/2, π/2]`, so the window moves none of them and none
+/// comes within `π/2` of its cut.
+///
+/// **The table is a measurement and is not guarded.** It reads every
+/// image the workspace suite derives, which no one row sees, and a census
+/// row would pin the suite's population rather than the window. It is
+/// re-taken by logging each placed image's channels at its span's
+/// midpoint from `chart_pcurve_over` over a full
+/// `cargo nextest run --workspace --profile ci` and counting, per
+/// candidate window, the images it moves and the midpoints within `1e-6`
+/// of its cut.
+///
 /// A body can still put a midpoint on the cut (a cone rotated so its
 /// seam sits at `−1`). Within the band of the cut the placement's mark
 /// is undecided and takes its lower branch (the D9 tie-break), so
@@ -4871,7 +4900,8 @@ impl<T: Real> Period<T> {
 /// overlap with itself). That a boolean's union path does not either is
 /// argued, not pinned: it was measured by moving the cut onto a cone's
 /// seam (to `0` and `0.5`) under `refusal_concision`'s cone union, which
-/// read the same (PR 5225), and no row holds it.
+/// read the same (PR 5225), and the row that would hold it is
+/// `work/pcert/no-row-pins-that-the-boolean-union-path-reads-window-copies-alike`.
 pub const ANGLE_WINDOW_START: f64 = -1.0;
 
 /// **An angle read off the geometry**: the two frame components of a
@@ -7638,9 +7668,11 @@ pub(crate) enum Along {
 /// ([`Placement::over`]): the azimuth at the farthest the carrier reaches
 /// from the chart's axis at the span's ends and midpoint (so an edge
 /// through the axis at its midpoint, a ruling across a cone's apex, still
-/// has the length its ends give it, and only an edge with no direction
-/// about the axis has none); the tube angle at the torus's minor radius;
-/// the latitude at the sphere's radius.
+/// has the length its ends give it), and, for a span wholly on the axis (a
+/// pole or apex vertex read over no length), at the farthest its carrier
+/// reaches over its own interval; only a carrier wholly on the axis has
+/// none. The tube angle at the torus's minor radius; the latitude at the
+/// sphere's radius.
 #[derive(Clone, Copy, Debug)]
 struct Levers<T> {
     azimuth: T,
@@ -7693,7 +7725,21 @@ impl<T: Decide> Placement<T> {
                 let q = carrier.eval(t) - origin;
                 (q - e[2] * q.dot(e[2])).norm()
             };
-            reach(t0).max(reach(mid)).max(reach(t1))
+            let at = |(a, b): (T, T)| {
+                reach(a)
+                    .max(reach((a + b) * T::from_f64(0.5)))
+                    .max(reach(b))
+            };
+            let over_span = at((t0, t1));
+            // A span on the axis (a vertex at a pole or the apex, read over
+            // no length) still has its carrier's direction: the reach of
+            // the carrier over its own interval. Only a carrier wholly on
+            // the axis has none.
+            if (T::one() / over_span).is_bounded() {
+                over_span
+            } else {
+                at(own_interval(carrier))
+            }
         });
         let (tube, latitude) = match *surface {
             Surface::Torus { minor_radius, .. } => (minor_radius, T::one()),
@@ -7745,10 +7791,11 @@ impl<T: Decide> Placement<T> {
     /// takes. The turns are decided through the half-period marks about
     /// the window's centre (C4: a whole-period choice a reader tells apart
     /// goes through the marks), levered at the angle's lever ([`Levers`]).
-    /// A lever of zero (an edge on the axis, with no direction about it;
-    /// at `Interval`, an enclosure reaching zero) names no copy and
-    /// refuses at every scalar; a lever in
-    /// the band reads its marks in band, where the copy is the tie-break's.
+    /// A lever of zero (an edge wholly on the axis, a pole's zero-radius
+    /// parallel; at `Interval`, an enclosure reaching zero) moves nothing,
+    /// so every copy is the same curve and the angle as read is kept, at
+    /// every scalar alike; a lever in the band reads its marks in band,
+    /// where the copy is the tie-break's.
     /// On a mark (the window's cut) both copies are the image, and the
     /// lower is taken, which puts the midpoint at the window's closed end:
     /// a tie-break (D9).
@@ -7763,10 +7810,12 @@ impl<T: Decide> Placement<T> {
             Along::Tube => (Window::Angle, self.levers.tube),
             Along::Latitude => (Window::Latitude, self.levers.latitude),
         };
-        // A zero lever (or an enclosure reaching zero) has no bounded
-        // reciprocal, at every scalar alike.
+        // A zero lever (or an enclosure reaching zero: no bounded
+        // reciprocal, at every scalar alike) is an angle that moves
+        // nothing, a pole's zero-radius parallel: every copy names the same
+        // points, and the angle as read is the copy (D9's tie-break).
         if !(T::one() / lever).is_bounded() {
-            return Err(PcurveCertifyError::PlacementUndirected);
+            return Ok(0);
         }
         let centre = window.centre::<T>();
         match Period::new(T::tau()).decide(

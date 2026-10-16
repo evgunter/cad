@@ -2429,16 +2429,10 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // C4 places a row over its own edge's span, in the chart's
         // principal window, so a child's row is the placement over its
         // sub-interval: a closed-form or projected image is derived
-        // there, exactly as the mint derives it. A fitted or general
-        // image has no angular placement, and a stated image the chart
-        // derives nothing for keeps the parent's; each restricts.
-        let placed_again = matches!(
-            image,
-            Pcurve::Harmonic { .. }
-                | Pcurve::FocalSection(_)
-                | Pcurve::Spiric { .. }
-                | Pcurve::Projected(_)
-        );
+        // there, exactly as the mint derives it. A fitted, general or iso
+        // image has no angular placement, and its children restrict the
+        // parent's (`Pcurve::is_placed`).
+        let placed_again = image.is_placed();
         // A derivation that refuses over a child's span refuses the split
         // (fail-loud): the parent's image is not the child's row there.
         let child = |a: T, b: T| {

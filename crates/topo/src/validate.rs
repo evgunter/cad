@@ -3348,13 +3348,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                      to be stored",
                     Some(REPARAMETERIZE),
                 ),
-                C::PlacementUndirected => (
-                    "a boundary curve lies on its chart's axis, where its image has no angle",
-                    Some(
-                        "Recourse: re-aim the chart's axis away from the curve, or split the \
-                         edge there",
-                    ),
-                ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
