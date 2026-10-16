@@ -12,7 +12,9 @@
 //! (the profile reads it as an arc at every ε row), revolved a radian: its
 //! sphere-zone face is a lune of a sphere of radius 2, the body a small
 //! fraction of the sphere across. Every edge's reach is bounded by the
-//! body's own diameter, not the sphere's.
+//! body's own diameter, not the sphere's. It pins the curved-carrier
+//! over-statement (the first review's M1), not the along-edge run
+//! (`work/tang/the-wedge-reach-counts-a-faces-run-along-its-edge.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

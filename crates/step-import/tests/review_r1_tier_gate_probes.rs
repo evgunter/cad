@@ -565,10 +565,9 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
     )
 }
 
-/// C3 route 2: the sliver wedge — the in-band defect adoption cannot
-/// see (a wedge ANGLE, not a carrier residual). Whatever door refuses,
-/// it must refuse LOUDLY; a shipped wedge would mean an in-band
-/// dihedral passed the gate silently.
+/// C3 route 2: the sliver wedge — an in-band wedge ANGLE, not a carrier
+/// residual. Whatever door refuses, it must refuse LOUDLY; a shipped
+/// wedge would mean an in-band dihedral passed silently.
 ///
 /// The wedge between two faces is levered at how far the faces run
 /// (`topo::wedge_reach`), not at the edge between them. The apex faces
@@ -577,9 +576,11 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// inside (ε, Kε) on every hosted ε row. That margin is also the far
 /// edge's length, `leg·alpha`: two planes in band over their whole
 /// extent leave their far ends in band too, so the file's far face is
-/// a sliver and the attachment gate refuses it there, loudly, before
-/// the at-rest gate is asked. Where a refusal is the at-rest gate's,
-/// it must carry the sliver verdict.
+/// a sliver and the attachment gate refuses it there, by name, before
+/// the at-rest gate is asked. So this row pins THAT refusal; the
+/// at-rest gate's own `SliverDihedral` is reached by `topo`'s
+/// `review_m2_pr3` lamina, and through import by no row
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn r1_in_band_dihedral_wedge_never_ships_silently() {
     let (leg, h) = (10.0_f64, 0.1_f64);
@@ -593,20 +594,11 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
             ),
             Ok(other) => panic!("alpha={alpha:e}: unexpected non-solid {other:?}"),
             Err(err) => {
-                println!("alpha={alpha:e}: refused: {err}");
-                if let StepImportError::TierInvalid { errors, .. } = &err {
-                    assert!(
-                        errors
-                            .iter()
-                            .any(|v| matches!(v, ValidationError::SliverDihedral { .. })),
-                        "alpha={alpha:e}: gate refusal without the sliver verdict: {errors:?}"
-                    );
-                    let msg = err.to_string();
-                    assert!(
-                        msg.contains("shared at-rest validation gate"),
-                        "voice: {msg}"
-                    );
-                }
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("geometry attachment gate"),
+                    "alpha={alpha:e}: the far edge's in-band length refuses at attachment: {msg}"
+                );
             }
         }
     }

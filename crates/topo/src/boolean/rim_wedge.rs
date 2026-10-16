@@ -114,11 +114,12 @@ pub(crate) enum RimRouting {
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
 /// the displacement it induces over the reach the verdict is consumed
-/// across, and that reach is the rim's diameter. (The wedge screen and
-/// the material arm after it read the faces' wedge, levered at the
-/// faces' extent as every such reader is.) The extent is DERIVED here rather than threaded in, and the reason is
-/// that it cannot be threaded: it is a property of the rim, and the
-/// caller has no rim until this function returns one. `ra.radius +
+/// across, and that reach is the rim's diameter. That diameter is
+/// derived here, not threaded in, because it cannot be: it is a
+/// property of the rim, and the caller has no rim until this function
+/// returns one. (The wedge screen and the material arm after it read a
+/// different quantity, the faces' wedge, which the caller levers at the
+/// faces' reach, `crate::wedge_reach`, as every reader of it does.) `ra.radius +
 /// rb.radius` is that diameter for any pair whose radii agree, and a
 /// pair whose radii disagree is about to be rejected on the radius
 /// margin regardless.

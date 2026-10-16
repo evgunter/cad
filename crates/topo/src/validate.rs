@@ -7038,11 +7038,11 @@ pub(crate) fn tier3_local_checks_marked<
         };
         let (t0, t1) = curve.params();
         // The wedge is levered at the farther face's extent, never the
-        // edge's own (`crate::wedge_reach`).
-        let reach = reaches
-            .get(edge_key)
-            .copied()
-            .unwrap_or_else(|| wedges.reach([f_plus, f_minus], curve.carrier(), (t0, t1)));
+        // edge's own (`crate::wedge_reach`), read once by check 2 under
+        // the same three guards as this loop's.
+        let reach = reaches.get(edge_key).copied().unwrap_or_else(|| {
+            unreachable!("check 2 read {edge_key:?}'s reach under this loop's guards")
+        });
         // The interior schedule's stations, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5
         // and check 4's second-order walk.

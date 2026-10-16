@@ -20,5 +20,7 @@ Since TANG's U-lever (PR 5204) every reader of the wedge between an edge's two f
 
 **A fillet's corner arc in band, and its under-determined `OnPair`** (`sweep/tests/contact_edge_must_carry.rs`, `review_contact_edge_must_carry_r1_probes.rs`, now `r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency`). At the faces' extent the arc's second-order margin is `κ·arm²/2` with the arm capped at the ball's radius `r`, so `r/2`: in band only where the fillet radius itself is, which the fillet door refuses first.
 
-Found by the U-lever review (PR 5204, findings M2 and m1).
+**The at-rest gate's `SliverDihedral` through import** (`step-import/tests/review_r1_tier_gate_probes.rs`, `r1_in_band_dihedral_wedge_never_ships_silently`). For a PLANAR wedge, two planes in band over their whole extent leave their far ends in band too, so the attachment gate refuses the file's sliver far face before the at-rest gate is asked: the row now pins that refusal. A curved pose (faces whose curvature arm, not their extent, sets the lever) might reach the at-rest arm through import; none was searched for. `topo`'s `review_m2_pr3` lamina reaches the arm natively.
+
+Found by the U-lever review (PR 5204, findings M2 and m1; the import arm, the second review's F4).
 

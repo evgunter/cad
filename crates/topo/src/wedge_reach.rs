@@ -14,9 +14,14 @@
 //! wedge, and one large face beside a small one reads the gap the large
 //! one opens.
 //!
-//! **The measure never over-states the faces**, the unsafe direction
-//! for a lever, which would read a corner more definitely than the
-//! faces support. A face is read at its boundary's vertices, so a short
+//! **The measure never over-states the faces' boundaries**, the unsafe
+//! direction for a lever, which would read a corner more definitely
+//! than the faces support. One over-statement remains: the reach is
+//! measured from the edge's middle, so a face's run ALONG the edge
+//! counts as lever, though two faces separate only with distance from
+//! the edge (`work/tang/the-wedge-reach-counts-a-faces-run-along-its-edge.md`;
+//! the edge's own extent read it the same way). A face is read at its
+//! boundary's vertices, so a short
 //! arc of a large circle reads the arc's ends and not the circle, and a
 //! lune of a large sphere its own extent, not the sphere's diameter.
 //! That falls short of the boundary by at most a curved edge's bulge
@@ -112,10 +117,14 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         // does not bound yet. Its middle is `at`.
         let mut far = square(carrier.eval(t0)).max(square(carrier.eval(t1)));
         let [a, b] = faces;
-        for face in if a == b { vec![a] } else { vec![a, b] } {
+        let mut fold = |face| {
             for &p in self.face_points(face).iter() {
                 far = far.max(square(p));
             }
+        };
+        fold(a);
+        if b != a {
+            fold(b);
         }
         far.sqrt()
     }
