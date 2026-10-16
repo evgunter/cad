@@ -64,7 +64,8 @@ The four places where the reader used the old terms now use the ruled ones:
 - **The ring** (`curve_pair::ringed`, row `curve_pair_meet_same`). A candidate whose distance from a found meeting is not decided past the band is not read. A refusal held at a point a later meeting rings is no refusal of the answer.
 - **One meeting per stretch** (`curve_pair::stretches`, row `curve_pair_meet_stretch`). Two meetings next to each other along a span lie in two stretches only where the point halfway between them is definitely off the other span. Otherwise it escalates, carrying both. Stretches are read along each span in turn. On a span with no ends, the last and first meetings are next to each other across the seam. A stretch with no meeting escalates through the refusal held at its candidate.
 - **Deflation** (`pose::owed`), only on the arms whose first harmonic is the meeting's own equation: line × circle and line × ellipse in one plane (Vieta), and coplanar circles (the reflection across the line of centres). One found meeting leaves the other root `2θ_hi − θ_J`, and two leave none.
-  - Across a plane (a line or a conic crossing the other's plane), a root is a crossing of the plane and not a meeting. Its window, about `e/|d̂·n̂|` either side, can hold several meetings, so those arms divide nothing out: each plane root is polished and metered as with no meeting found. PR 5227's review showed real meetings lost when it was skipped.
+  - Across a plane (a line or a conic crossing the other's plane), a root is a crossing of the plane and not a meeting. Its window, about `e/|d̂·n̂|` either side, can hold several meetings, so those arms divide nothing out. PR 5227's review showed real meetings lost when it was skipped.
+  - Beside a found meeting, a conic's window is read instead (`pose::window`). It is the found meetings' own when every piece past their rings reads off, on, or receding (the distance certified growing away from the meeting), and the feet on the other conic move one way. Otherwise the root is polished and metered as with no meeting found.
   - Two lines' crossing is linear and lands inside a found joint's ring, so that form divides nothing out either.
   - The coplanar subdivisions divide nothing out; their roots in a found meeting's ring are not read again.
 - **The polish fix** (`walk::polished_feet`). The walk's witnesses halfway to the feet of the other span's ends stand on feet polished by `Curve3::foot`, not on raw piece middles.
@@ -76,12 +77,13 @@ The rows that pin each mechanism, each red under the bug it names:
 - `meet_rows::meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in` (the order along the span);
 - `meet_rows::a_found_meetings_root_is_divided_out_of_the_closed_form` (deflation, the interval tangent joint);
 - `plane_rows::*`, four rows (no deflation across a plane: never decided with a meeting missing);
-- `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered` (the fillet joint's `Meter`, carrying the joint);
+- `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window` and `meet_rows::a_fillet_joint_between_two_ellipses_is_read_by_its_window` (fillet joints decided by their window);
+- `pose::window::rows::*` (each window reading, and a control holding a second meeting);
 - `meet_rows::two_lines_joined_at_a_vertex_meet_there_alone` (line × line's crossing in the joint's ring);
 - `walk::tests::the_walks_witnesses_stand_on_polished_feet` (the polish fix).
 
 ## Status
 
-Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. With the coplanar ellipse pair read on the same branch (`two-coplanar-ellipses-have-no-meeting-method`, its first bullet), 24 of the 31 rows pass. The 7 `band_turn_overrun_fillet*` rows refuse typed `Unsettled::Meter` at fillet joints across a plane, and so do 9 more rows of the same two files, 16 in all. They came back when PR 5227's review showed that dividing a found meeting out of a plane crossing loses real meetings. Their home is `curve-pair-polish-meters-refuse-shallow-meetings`.
+Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. With the coplanar ellipse pair read on the same branch (`two-coplanar-ellipses-have-no-meeting-method`, its first bullet), all 31 rows pass. The sixteen `band_turn_overrun_fillet*` rows pass too: their fillet joints are decided by the window reading.
 
 Reading ends first moved two escalation rows to the end's own reading (`curve_carrier_gap`): `census::tests::crossing_cuts`, and `sweep`'s `a_ruling_lying_on_a_wall::two_rims_the_band_reads_coplanar_are_one_curve_only_within_it` at `k` = 2 and 5. `carrier_cross`'s `a_swept_spans_end_is_read_by_its_chord_to_the_meeting` now escalates at `0.8·z` (`curve_pair_meet_stretch`). There the end's meeting and the crossing `16·z` inside it are two meetings in one stretch.

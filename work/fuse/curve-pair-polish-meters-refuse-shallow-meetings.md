@@ -4,7 +4,7 @@ kind: issue
 title: The curve-pair reader's polish meters refuse curves crossing in nearly parallel planes and curves crossing below the basin floor
 status: open
 opened: 2026-10-14
-priority: P1
+priority: P2
 cost: M
 refs: [the-curve-pair-reader]
 ---
@@ -42,4 +42,16 @@ The other nine are:
 - `band_turn_overrun_fillet::{features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say, generic_hexahedra_build_and_fill_at_the_oracle, leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales, the_sweep_builds_every_convex_overrun_at_the_probes_closed_forms, the_sweep_fills_concave_overruns, the_witnesses_build_at_every_pose}`;
 - `band_turn_overrun_fillet_model::{features_about_the_arc_build_clear_and_refuse_where_they_straddle, the_built_body_is_the_model_point_by_point, the_model_reads_the_box_corner_by_hand_and_every_witness}`.
 
-The geom-brep row `curve_pair::meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered` pins the pose: a rod's 45° rim and a fillet circle ending tangent at `(−0.8586, 0, 0.9)`. What would decide it soundly is a reading of the plane root's window against the joint's stretch: the window decided within the joint's stretch, or decided off past it. That is this row's lever.
+**Decided since (2026-10-16, `fuse/curve-pair-reader-c3`).** The plane root's window is now read rather than polished blind (`geom_brep::curve_pair::pose::window`). Beside a found meeting, the window is the found meetings' own when every piece of it past their rings reads, outward from a ring, as one of:
+- **off**: a lower bound past the zero band;
+- **on**: an upper bound inside it;
+- **receding**: `d² = H² + D²` strictly growing away from the meeting, `H` the height above the other's plane and `D` the in-plane distance, in one of three certified ways;
+
+and the feet on the other conic move one way. The argument is in the module docs. Otherwise the root is polished and metered as before, so a window holding a second meeting still refuses or finds it.
+
+All sixteen rows pass. The geom-brep rows that pin the poses:
+- `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window` (the rim and fillet circle);
+- `meet_rows::a_fillet_joint_between_two_ellipses_is_read_by_its_window`;
+- `pose::window::rows::*`, one row per reading and a control.
+
+What stays on this row is the meter itself: shallow meetings with no found meeting beside them (the evidence above).
