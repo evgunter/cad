@@ -1,14 +1,20 @@
 # nextest profiles. `ci` is the per-PR gate: the suite minus the SLOW SET
 # below — the tests that took >= 1 s on a 4-vCPU runner and are not deleted
 # (work/ciw/latency-cut.md has the measurement and the verdicts). The slow set
-# runs every night, at every eps row, under the default profile, which filters
-# nothing. A renamed test drops out of this list and runs per-PR, never
-# silently nowhere; scripts/check-slow-set-names.py fails the test job on the
-# dead name. Put a test here when it costs >= 1 s and has no record of
-# catching a bug the fast set would miss; take it out when it earns one.
+# runs every night, at every eps row, under this profile with
+# `--ignore-default-filter`. A renamed test drops out of this list and runs
+# per-PR, never silently nowhere; scripts/check-slow-set-names.py fails the
+# test job on the dead name. Put a test here when it costs >= 1 s and has no
+# record of catching a bug the fast set would miss; take it out when it earns
+# one.
 
 [profile.ci]
 fail-fast = false
+# A failing test's output is printed again at the end of the run, and its
+# name, panic and seed land in junit.xml, which scripts/nextest-failures.py
+# turns into annotations and a step summary: a session reads the job log only
+# through its last 5000 lines, and one run prints ~14 000 PASS lines.
+failure-output = "immediate-final"
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
@@ -43,3 +49,6 @@ not (
   (binary_id(viewer::all) & (test(=display_budget::a_bodys_count_has_stopped_falling_by_its_own_extent) | test(=display_budget::no_probe_out_tessellates_the_picture_it_sizes) | test(=display_budget::the_budget_commits_the_delta_it_always_has) | test(=display_budget::the_gallery_ring_is_drawn_inside_the_budget) | test(=index_memo::every_parametric_corpus_document_indexes_the_same_through_the_seam_across_edits) | test(=pick3_acceptance::the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex) | test(=review_pick_r2::the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus) | test(=door_at_rest::a_landings_door_reads_pending_until_its_own_answer_settles) | test(=door_at_rest::the_threaded_door_seam_answers_the_newest_landing)))
 )
 """
+
+[profile.ci.junit]
+path = "junit.xml"
