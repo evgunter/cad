@@ -2,7 +2,8 @@
 id: the-curve-pair-reader
 kind: unit
 title: Build geom-brep's curve-pair meeting reader: one point-on-span reading, one total (CurveKind, CurveKind) table, the census walk as oracle; carrier_cross, the census confirm and the edge-face cut become its callers
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-14
 priority: P1
 cost: H
@@ -66,7 +67,7 @@ Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on
 - resolution-caused ones: `Meter`, `SignInBand`, `Exhausted`;
 - self-contradictions, a kernel-bug class: `ImpossibleCount`, `Resolvent`, `CountDisagrees`.
 
-`reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
+`reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b), and stage (c) carried it out to its own row, `roots-unsettled-mixes-three-kinds`.
 
 These four readings decided the point-on-span question themselves, and move onto `Span::contact`:
 - `carrier_cross::strictly_inside` (moved in PR 5154);
@@ -83,3 +84,13 @@ These four readings decided the point-on-span question themselves, and move onto
 - cleave's conditioning P1, when cleave has not landed its own fix first
 
 Coordinate with cleave on `carrier_cross` (cleave/hone ground).
+
+## Closed (2026-10-15)
+
+Stage (c) landed over three branches, `fuse/curve-pair-reader-c` (PR 5154), `-c2` (PR 5162) and `-c3`:
+- **The point-on-span reading** is `geom`'s one-carrier readings, `Curve3::foot` and `Foot::on_carrier`, composed with the span's reading of its ends (`Span::place`) once, in `Span::contact` (the 2026-10-15 decision above; C5 says so).
+- **The four readings moved**: `carrier_cross`, the census curved and line lanes and `LoopEdge::contact`'s conic rows read `Span::contact` (or `Span::read`, its whole reading); the spiric row's refusal is typed.
+- **The callers**: `carrier_cross`, the census confirm (`census::curved`), the census edge-face cut and tier 3′'s pass 5′ (`census::sweep_curved_edge_edge`) read `meet`.
+- **The near-concentric census row** reads the decided answer.
+
+Closed with it: `two-curve-curve-meeting-finders`, `near-concentric-arcs-run-the-census-meeting-search-past-its-budget`, `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime`, and cleave's `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`. Carried to their own rows: `roots-unsettled-mixes-three-kinds`, `two-coplanar-ellipses-have-no-meeting-method`, `the-polish-basin-meter-levers-by-the-lines-own-span`.

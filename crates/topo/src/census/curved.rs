@@ -16,7 +16,9 @@
 //! interiors (C5, `crates/geom-brep/README.md`). A closed edge whose
 //! vertex is conventional reads as a span with no ends. A meeting at an
 //! end of either edge is not one, and a refusal past the band's own
-//! escalation is pushed typed on both edges.
+//! escalation is pushed typed on both edges. Tier 3′'s pass 5′ sweeps
+//! with the same reading ([`interiors_meeting`]), keeping no point of
+//! the run about a meeting at an end: that meeting is a vertex event.
 
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
@@ -276,11 +278,68 @@ fn reads_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let interior = |m: &Meeting<T>| matches!((m.on_a, m.on_b), (Hit::On { .. }, Hit::On { .. }));
+    interior_meeting(body, ra, rb, band, |_| true, errors).map(|m| m.is_some())
+}
+
+/// A meeting on two edges' interiors, as pass 5′ reports it.
+pub(super) struct Interior<T: Real> {
+    /// The meeting's point.
+    pub(super) point: Point3<T>,
+    /// The margin the first edge's reading put it on that edge by.
+    pub(super) margin: MarginDiag,
+    /// Whether the carriers are one curve: the edges then overlap
+    /// along a run of it, rather than crossing or touching at a point.
+    pub(super) overlap: bool,
+}
+
+/// **The first meeting [`geom_brep::curve_pair::meet`] places on both
+/// of `a`'s and `b`'s interiors**, of those `keep` admits — pass 5′'s
+/// reading (`census::sweep_curved_edge_edge`), which keeps no point of
+/// a run: such a point stands beside a meeting at an end, the vertex
+/// event passes 1, 2 and 2′ answer. `Some(None)` where none is placed;
+/// `None` where a decision escalated or an edge is not read (pushed).
+pub(super) fn interiors_meeting<T: Decide>(
+    body: &Body<T>,
+    a: EdgeKey,
+    b: EdgeKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Interior<T>>> {
+    let ra = read(body, a, band, errors)?;
+    let rb = read(body, b, band, errors)?;
+    interior_meeting(body, &ra, &rb, band, |m| !m.run, errors)
+}
+
+/// The first meeting `keep` admits that [`meet`] places on both
+/// interiors, a decided one standing whatever refusal followed it; a
+/// refusal with none such pushed typed on both edges.
+fn interior_meeting<T: Decide>(
+    body: &Body<T>,
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+    keep: impl Fn(&Meeting<T>) -> bool,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Interior<T>>> {
+    let interior = |points: &[Meeting<T>], shared: Option<_>| {
+        points
+            .iter()
+            .filter(|m| keep(m))
+            .find_map(|m| match (m.on_a, m.on_b) {
+                (Hit::On { margin, .. }, Hit::On { .. }) => Some(Interior {
+                    point: m.point,
+                    margin,
+                    overlap: shared.is_some(),
+                }),
+                _ => None,
+            })
+    };
     let refusal = match meet(&span(body, ra), &span(body, rb), band) {
-        Ok(met) => return Some(met.points.iter().any(interior)),
-        Err(refusal) if refusal.found.iter().any(interior) => return Some(true),
-        Err(refusal) => refusal,
+        Ok(met) => return Some(interior(&met.points, met.shared)),
+        Err(refusal) => match interior(&refusal.found, refusal.shared) {
+            Some(found) => return Some(Some(found)),
+            None => refusal,
+        },
     };
     let what = match refusal.fault {
         MeetFault::Escalated(cause) => {
@@ -311,7 +370,7 @@ mod tests {
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{Read, curved_interiors_meet, reads_meet};
+    use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::body::Body;
     use crate::entity::EdgeKey;
     use crate::{EdgeCurveSpec, MevSite};
@@ -758,5 +817,46 @@ mod tests {
                 "{what}: an escalation is pushed exactly where undecided: {errors:?}"
             );
         }
+    }
+
+    /// **An arc ending tangent on a line's interior meets it at no
+    /// interior point pass 5′ keeps**, nor does a line leaving the arc's
+    /// end along its tangent (the slot's joint). Past the arc's end the
+    /// two stay within the band of each other a short way; that run's
+    /// points lie inside both, but stand beside the meeting at the arc's
+    /// end, a vertex on the line, which pass 2 answers by its own record.
+    /// A line crossing the arc nearby is a meeting all the same. Red when
+    /// pass 5′ keeps a run's point, which would owe an edge-edge record
+    /// beside the `(vertex, edge)` one.
+    #[test]
+    fn a_tangent_touch_at_an_arcs_end_holds_no_interior_meeting_for_pass_five_prime() {
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let arc = read(circle(Point3::new(0.0, 0.0, 0.0), 1.0), (0.0, half_pi));
+        let pass = |other: &Read<f64>| {
+            let mut errors = Vec::new();
+            let met = interior_meeting(&Body::new(), &arc, other, band(), |m| !m.run, &mut errors)
+                .map(|m| m.map(|m| m.overlap));
+            (met, errors)
+        };
+        let joint = read(
+            line(Point3::new(0.0, 1.0, 0.0), -Vec3::unit_x()),
+            (0.0, 1.0),
+        );
+        assert_eq!(pass(&joint), (Some(None), vec![]), "the joint");
+        let through = read(
+            line(Point3::new(1.0, 1.0, 0.0), -Vec3::unit_x()),
+            (0.0, 2.0),
+        );
+        assert_eq!(
+            pass(&through),
+            (Some(None), vec![]),
+            "the arc's end on the line"
+        );
+        let radial = arc.curve.eval(0.5) - Point3::new(0.0, 0.0, 0.0);
+        let across = read(
+            line(Point3::new(0.0, 0.0, 0.0) + radial * 0.5, radial),
+            (0.0, 1.0),
+        );
+        assert_eq!(pass(&across), (Some(Some(false)), vec![]), "a crossing");
     }
 }
