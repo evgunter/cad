@@ -12301,7 +12301,7 @@ mod tests {
         /// arc `19ε` from each end along the arc — clear of the end in
         /// metres — but only `0.95ε` from it in the carrier's parameter
         /// times its minor semi-axis. Both crossings are cut, and the
-        /// edge's stretch inside the cap is one cell between them.
+        /// edge's interval inside the cap is one cell between them.
         #[test]
         fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
             use std::f64::consts::FRAC_PI_2;
@@ -12369,7 +12369,7 @@ mod tests {
                     && (cells[0].0 + 0.05).abs() < 1e-9
                     && (cells[0].2 - 0.1).abs() < 1e-6
                     && matches!(cells[0].3, CutAt::CurvedCrossing(_)),
-                "the stretch inside, bounded at the crossing: {cells:?}"
+                "the interval inside, bounded at the crossing: {cells:?}"
             );
             let (cells, errors) = cells_along_y(&body, cap, &on_y(0.0, 0.15));
             assert!(errors.is_empty(), "{errors:?}");

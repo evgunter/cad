@@ -166,12 +166,12 @@ impl<'c, T: Decide> Foot<'c, T> {
     }
 }
 
-/// What [`Curve3::clear_of`] finds of a point against a stretch of the
+/// What [`Curve3::clear_of`] finds of a point against an interval of the
 /// carrier.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Clearance {
-    /// Every piece of the stretch is decided past the band from the
-    /// point: no point of the stretch lies within the band of it.
+    /// Every piece of the interval is decided past the band from the
+    /// point: no point of the interval lies within the band of it.
     Clear,
     /// A piece within the band's reach of the point is not decided clear:
     /// its clearance's reading (zero, negative, or the escalation).
@@ -223,7 +223,7 @@ struct Piece<T> {
 impl<T: Decide> Curve3<T> {
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
     /// parameter a consumer already holds for `q`, or any parameter of
-    /// the stretch it reads.
+    /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
         let seed = match self {
             Self::Line { origin, dir } => (q - *origin).dot(*dir) / dir.dot(*dir),
@@ -409,12 +409,12 @@ impl<T: Decide> Curve3<T> {
         }
     }
 
-    /// **Whether `q` is clear of the stretch `(t0, t1)` of the carrier**
+    /// **Whether `q` is clear of the interval `(t0, t1)` of the carrier**
     /// by the certified piece walk (module docs): every piece's middle
     /// point's distance less its reach decides positive
     /// (`curve_carrier_piece_clear`), a piece stopping once its reach is
     /// within the band (`curve_carrier_piece`). A lower bound on `q`'s
-    /// distance from the stretch, past the band, where it is `Clear`.
+    /// distance from the interval, past the band, where it is `Clear`.
     ///
     /// # Errors
     ///

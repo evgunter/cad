@@ -222,7 +222,7 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 /// (the basin meter's crossing angle, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
 /// lands on both circles;
 /// below it the circles stay within the band's escalation `e` of each
-/// other over a run of about `e/θ`, the polish's basin meter refuses
+/// other over a stretch of about `e/θ`, the polish's basin meter refuses
 /// (`Unsettled::Meter`) rather than place one point on it; and in one
 /// plane the coplanar arm decides.
 #[test]
@@ -628,8 +628,8 @@ fn shallow_circles(tilt: f64, h: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
 /// **Two curves in nearly parallel planes, crossing at a wide angle half
 /// a zero apart, meet**: the meeting is not where either crosses the
 /// other's plane, which lies `h/sin(tilt)` along it. Circle × circle, line
-/// × circle and circle × line. At a tilt of `2·10⁻⁸` the run within the
-/// band about the crossing is half a metre, and the polish's basin meter
+/// × circle and circle × line. At a tilt of `2·10⁻⁸` the stretch about
+/// the crossing is half a metre, and the polish's basin meter
 /// refuses (`Unsettled::Meter`).
 #[test]
 fn an_in_band_miss_across_nearly_parallel_planes_meets() {
@@ -684,7 +684,7 @@ fn touching_circles(tilt: f64, h: f64, along: f64, angle: f64) -> [(Curve3<f64>,
 /// band meets the other where it crosses its shadow**, not at that
 /// lowest point, which lies a millimetre from the crossing: their least
 /// distance there is `6.5·10⁻¹⁰`, in the zero band, so the answer is a
-/// meeting or a refusal; where the touch's in-band run is short against
+/// meeting or a refusal; where the touch's stretch is short against
 /// the angle the shadow is crossed at, a meeting on both.
 #[test]
 fn a_touch_of_the_other_plane_meets_where_the_curves_do() {
@@ -746,7 +746,7 @@ fn a_thin_ellipse_in_the_circles_plane_crosses_it_there() {
     }
 }
 
-/// **A touch past one span whose in-band run reaches into both meets at
+/// **A touch past one span whose stretch reaches into both meets at
 /// the span's end** (the oracle's counterexample, seed 3 at effort 40,
 /// draw 6159). Two circles in one plane `5·10⁻⁸` apart, their radii's gap
 /// as near: the touch at `−π/2` lies `0.0026` rad past the second span's
