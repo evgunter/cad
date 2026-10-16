@@ -361,7 +361,20 @@ impl<T: Decide> Found<T> {
         let fault = match (held, shared) {
             (Some(fault), _) => Some(fault),
             (None, Some(_)) => None,
-            (None, None) => stretches(a, b, &self.points, band).err(),
+            (None, None) => stretches(a, b, &self.points, band)
+                .and_then(|()| {
+                    let swapped: Vec<_> = self
+                        .points
+                        .iter()
+                        .map(|m| Meeting {
+                            point: m.point,
+                            on_a: m.on_b,
+                            on_b: m.on_a,
+                        })
+                        .collect();
+                    stretches(b, a, &swapped, band)
+                })
+                .err(),
         };
         match fault {
             None => Ok(Meetings {
@@ -384,7 +397,8 @@ impl<T: Decide> Found<T> {
 /// nowhere definitely apart between the two as far as the reading can
 /// say, so whether they are two crossings or one run is undecided: it
 /// escalates (`curve_pair_meet_stretch`). On a span with no ends the last
-/// meeting is next to the first, across the carrier's seam.
+/// meeting is next to the first, across the carrier's seam. A stretch is
+/// one span's, so the answer reads them along each span in turn.
 fn stretches<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
