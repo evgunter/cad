@@ -18,7 +18,6 @@
 
 use core::convert::Infallible;
 
-use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
 
 /// A root finder's decided answer about a residual along a carrier
@@ -198,8 +197,24 @@ pub fn spread_signs<T: Decide>(
     spread: T,
     band: Band,
 ) -> Result<(Sign, Sign), Indeterminate> {
-    let below = decide(row, Margin::of(value - spread), band)?;
-    let above = decide(row, Margin::of(value + spread), band)?;
+    let (below, above) = spread_readings(row, value, spread, band)?;
+    Ok((below.sign, above.sign))
+}
+
+/// [`spread_signs`], keeping each end's reading, for a caller that names
+/// a straddle of the two ([`geom_core::k_stats::straddle`]).
+///
+/// # Errors
+///
+/// As [`spread_signs`].
+pub fn spread_readings<T: Decide>(
+    row: &'static str,
+    value: T,
+    spread: T,
+    band: Band,
+) -> Result<(geom_core::Decided, geom_core::Decided), Indeterminate> {
+    let below = geom_core::k_stats::decide_reported(row, Margin::of(value - spread), band)?;
+    let above = geom_core::k_stats::decide_reported(row, Margin::of(value + spread), band)?;
     Ok((below, above))
 }
 

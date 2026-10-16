@@ -5,95 +5,36 @@
 //! reads as the joined edge's interior, whatever its carrier.
 //!
 //! One reading serves every carrier kind. A point is on a curved edge's
-//! interior when it is on the carrier (its distance from its foot
-//! decided zero) and strictly inside the span at both ends, or anywhere
-//! on a closed edge whose vertex is conventional — the questions
-//! [`on_edge_interior`](crate::census::on_edge_interior) asks of a line. The foot is polished by
-//! Gauss–Newton from [`geom::Curve3::param_near`]'s parameter where the
-//! kind inverts in closed form (which is no foot off an ellipse), and
-//! otherwise from each piece of the span the foot search keeps. An end
-//! is cleared when the parameter's distance from it, metered by the
-//! carrier's least speed ([`geom::carrier_speed::speed_range`]), decides
-//! positive, and reached when it decides negative; between the two the
-//! same distance metered by the greatest speed decides the side, and on
-//! the inner side the point's distance from the end's point decides.
+//! interior when [`geom_brep::curve_pair::Span::contact`], the one
+//! point-on-span reading, places it `On` the edge's span at its foot
+//! ([`geom::Curve3::foot`], the one foot reading): on the carrier and
+//! clear of both ends, or anywhere on a closed edge whose vertex is
+//! conventional, which reads as a span with no ends.
 //!
 //! Two edges' interiors meet when [`geom_brep::curve_pair::meet`], the
 //! one reading of two carrier spans' meetings, places a meeting on both
 //! interiors (C5, `crates/geom-brep/README.md`). A closed edge whose
 //! vertex is conventional reads as a span with no ends. A meeting at an
 //! end of either edge is not one, and a refusal past the band's own
-//! escalation is pushed typed on both edges.
-//!
-//! **The foot search** is [`geom_core::bisect`]'s walk over the span. A
-//! piece reaches at most `ℓ` metres from its middle point, `ℓ` its
-//! half-span times the carrier's greatest speed; a piece whose middle
-//! point lies farther than that from the point is cleared, and one whose
-//! reach is within the band is kept and its foot polished. A walk past
-//! [`geom_core::bisect::PIECE_BUDGET`] refuses typed.
+//! escalation is pushed typed on both edges. Tier 3′'s pass 5′ sweeps
+//! with the same reading ([`interiors_meeting`]). A meeting at an end
+//! takes its whole stretch, so the in-band points about a vertex event
+//! are no meeting of their own.
 
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
 use geom_brep::roots::Unsettled;
-use geom_core::{Band, Decide, InfSpeed, Margin, MarginDiag, Point3, Real, Sign, SupSpeed};
+use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
-use super::{
-    CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero, gap_zero_reading,
-};
+use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
-use geom_core::bisect::{Step, bisect};
-
-/// The Gauss–Newton steps a candidate is polished by.
-const POLISH_STEPS: usize = 4;
 
 /// An edge's certified curve as these lanes read it.
 struct Read<T: Real> {
     edge: EdgeKey,
     curve: Curve3<T>,
     span: (T, T),
-    lo: InfSpeed<T>,
-    hi: SupSpeed<T>,
-}
-
-/// A run `(a, b)` of a span, cut `depth` times.
-#[derive(Clone, Copy)]
-struct Piece<T> {
-    a: T,
-    b: T,
-    depth: u32,
-}
-
-impl<T: Real> Piece<T> {
-    fn whole((a, b): (T, T)) -> Self {
-        Self { a, b, depth: 0 }
-    }
-
-    fn mid(self) -> T {
-        geom::mid_param(self.a, self.b)
-    }
-
-    /// The most metres a point of the piece lies from its middle point.
-    fn reach(self, hi: SupSpeed<T>) -> T {
-        geom_core::bisect::reach(hi, (self.a, self.b))
-    }
-
-    /// The two halves, in order.
-    fn halves(self) -> [Self; 2] {
-        let (m, depth) = (self.mid(), self.depth + 1);
-        [
-            Self {
-                a: self.a,
-                b: m,
-                depth,
-            },
-            Self {
-                a: m,
-                b: self.b,
-                depth,
-            },
-        ]
-    }
 }
 
 fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
@@ -141,13 +82,7 @@ pub(super) fn in_both(
     }
 }
 
-/// Whether a search decision definitely came out `sign`; an escalation
-/// keeps the piece open.
-fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> bool {
-    geom_core::k_stats::decide(name, Margin::of(margin), band) == Ok(sign)
-}
-
-/// `e`'s certified curve, span and rate bounds, or the typed refusal
+/// `e`'s certified curve and span, or the typed refusal
 /// pushed for an edge with none; whose speed bound meters no reach over
 /// its span (a span within the band, or a bound that is poison — which
 /// certification refuses to mint, so the refusal guards a door closed
@@ -196,8 +131,6 @@ fn read<T: Decide>(
         edge,
         curve: carrier,
         span,
-        lo,
-        hi,
     })
 }
 
@@ -212,124 +145,12 @@ pub(super) fn carrier<T: Decide>(
     read(body, e, band, errors).map(|r| r.curve)
 }
 
-/// Whether a polish step that moves its point `moved` metres is kept:
-/// while it moves less than `bound` (the steps a foot in reach needs,
-/// and not a jump to a far branch), decided exactly. A singular step —
-/// a tangency's — comes out poison and is dropped with the rest, at
-/// every scalar.
-///
-/// **The `16·slack` bound has no row, and needs none.** A polished
-/// parameter is read, never trusted: the reading decides the point's gap
-/// at it, so a step the bound drops or keeps can lose a foot but never
-/// invent one. In [`polish_foot`] the guarded quantity `|C′|·|dt|` is
-/// `|(C − q)·C′|/|C′|`, at most the iterate's own gap, while `slack` is
-/// the gap at the seed: the bound binds only once the gap has grown past
-/// sixteen times the seed's, which is Gauss–Newton diverging.
-fn step_kept<T: Decide>(moved: T, bound: T) -> bool {
-    crate::splitting::order::exact_band().is_ok_and(|exact| {
-        surely(
-            "pm_census_curved_polish_step",
-            bound - moved,
-            exact,
-            Sign::Positive,
-        )
-    })
-}
-
-/// Gauss–Newton from `t` toward `r`'s foot of `q`, each step kept
-/// ([`step_kept`]) while it moves the point less than `16·slack` metres
-/// along the carrier.
-fn polish_foot<T: Decide>(r: &Read<T>, q: Point3<T>, mut t: T, slack: T) -> T {
-    let bound = slack * T::from_f64(16.0);
-    for _ in 0..POLISH_STEPS {
-        let (p, d) = r.curve.ders1(t);
-        let dt = T::zero() - (p - q).dot(d) / d.dot(d);
-        if step_kept(d.norm() * dt.abs(), bound) {
-            t = t + dt;
-        }
-    }
-    t
-}
-
-/// **The pieces of `curve` over `span` that `q` may rest on**: the
-/// span halved, a piece decided clear of `q` when its middle point's
-/// distance less its reach ([`geom_core::bisect::reach`] of `hi`) decides
-/// positive, and kept when its reach stops at the band ([`stops`]). Every
-/// point of the span within the band of `q` lies in a kept piece. The one
-/// walk the foot search ([`feet`]) and pass 2′'s skip
-/// ([`may_rest_on`]) take; it decides nothing about the carrier's least
-/// speed, so it never refuses an edge `read` would.
-fn near_pieces<T: Decide>(
-    curve: &Curve3<T>,
-    span: (T, T),
-    hi: SupSpeed<T>,
-    q: Point3<T>,
-    band: Band,
-) -> Result<Vec<Piece<T>>, geom_core::bisect::Exhausted> {
-    let mut out = Vec::new();
-    bisect(
-        [Piece::whole(span)],
-        |p| -> Step<Piece<T>, core::convert::Infallible> {
-            let reach = p.reach(hi);
-            let gap = (curve.eval(p.mid()) - q).norm();
-            if surely(
-                "pm_census_ve_curved_clear",
-                gap - reach,
-                band,
-                Sign::Positive,
-            ) {
-                return Step::Settled;
-            }
-            if stops("pm_census_ve_curved_piece", reach, band) {
-                out.push(p);
-                return Step::Settled;
-            }
-            Step::Halve(p.halves())
-        },
-    )?;
-    Ok(out)
-}
-
-/// The parameters of `r`'s carrier where `q` may lie on it within the
-/// band (module docs): each polished foot — of [`Curve3::param_near`]'s
-/// parameter where the kind inverts in closed form, else of each piece
-/// [`near_pieces`] keeps. `None` past the budget (pushed).
-fn feet<T: Decide>(
-    r: &Read<T>,
-    q: Point3<T>,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<Vec<T>> {
-    if let Some(t) = r.curve.param_near(q, geom::mid_param(r.span.0, r.span.1)) {
-        let slack = (r.curve.eval(t) - q).norm();
-        return Some(vec![polish_foot(r, q, t, slack)]);
-    }
-    let Ok(pieces) = near_pieces(&r.curve, r.span, r.hi, q, band) else {
-        refuse(
-            r.edge,
-            "the census's foot search on a curved edge ran past its budget",
-            errors,
-        );
-        return None;
-    };
-    Some(
-        pieces
-            .into_iter()
-            .map(|p| {
-                let m = p.mid();
-                let slack = (r.curve.eval(m) - q).norm() + p.reach(r.hi);
-                polish_foot(r, q, m, slack)
-            })
-            .collect(),
-    )
-}
-
 /// **Whether `q` may rest on `e`'s span** — pass 2′'s skip, a consumer of
-/// the curved lane's own walk ([`near_pieces`]): `false` only where every
-/// piece is decided clear of `q`, so a vertex the sweep passes by holds
-/// no touch the reading would have found; `true` where a piece survives,
-/// past the budget, or for an edge with no certified curve, leaving the
-/// question to the reading.
+/// the point-on-span reading ([`Span::contact`] at `q`'s foot): `false`
+/// only where it decides `q` off the span, so a vertex the sweep passes by
+/// holds no touch the reading would have found; `true` where it places
+/// `q` on the span or refuses, or for an edge with no certified curve,
+/// leaving the question to the reading.
 pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
     let Some(curve) = body
         .edges
@@ -339,8 +160,11 @@ pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, b
     else {
         return true;
     };
-    let hi = geom::carrier_speed::speed_range(curve.carrier()).1;
-    near_pieces(curve.carrier(), curve.params(), hi, q, band).map_or(true, |p| !p.is_empty())
+    let (t0, t1) = curve.params();
+    !matches!(
+        Span::new(curve.carrier(), curve.params()).contact(q, geom::mid_param(t0, t1), band),
+        Ok(None)
+    )
 }
 
 /// Whether `q` lies on `e`'s interior (module docs). `None` where a
@@ -368,9 +192,12 @@ pub(super) fn on_curved_interior_reading<T: Decide>(
     on_interior_reading(body, &r, q, band, errors)
 }
 
-/// [`on_curved_interior_reading`] on an edge already read. A foot off
-/// the carrier may escalate where another is on the interior: its
-/// escalations stand only if no foot decides.
+/// [`on_curved_interior_reading`] on an edge already read: `q` read
+/// against the edge's span ([`span`]) at its foot by
+/// [`geom_brep::curve_pair::Span::contact`], the one point-on-span
+/// reading. A refusal is pushed typed: an escalation as itself, a
+/// spline's walk past its budget or a spline with no speed bound as the
+/// edge's.
 fn on_interior_reading<T: Decide>(
     body: &Body<T>,
     r: &Read<T>,
@@ -378,89 +205,31 @@ fn on_interior_reading<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
-    let mut held = Vec::new();
-    for t in feet(r, q, band, errors)? {
-        if let Some(Some(margin)) = interior_reading(body, r, q, t, band, &mut held) {
-            return Some(Some(margin));
+    let span = span(body, r);
+    match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
+        Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
+        Ok(Some(Hit::End(_)) | None) => Some(None),
+        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+        Err(geom::CarrierRefusal::Exhausted) => {
+            refuse(
+                r.edge,
+                "the census's reading of a point on a spline edge ran past its budget",
+                errors,
+            );
+            None
+        }
+        Err(geom::CarrierRefusal::Unbounded) => {
+            refuse(
+                r.edge,
+                "a spline edge whose speed bound is zero or poison",
+                errors,
+            );
+            None
         }
     }
-    if held.is_empty() {
-        return Some(None);
-    }
-    errors.extend(held);
-    None
-}
-
-/// Whether `q`, read at `t` on `r`'s carrier, is on its interior: the
-/// margin its gap decided Zero on, or `None` off it.
-fn interior_reading<T: Decide>(
-    body: &Body<T>,
-    r: &Read<T>,
-    q: Point3<T>,
-    t: T,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<Option<MarginDiag>> {
-    let gap = Margin::norm3(q - r.curve.eval(t));
-    let Some(margin) = gap_zero_reading("pm_census_ve_curved_gap", gap, band, errors)? else {
-        return Some(None);
-    };
-    if on_conventional_vertex(body, r) {
-        return Some(Some(margin));
-    }
-    let (t0, t1) = r.span;
-    let mut interior = Some(Some(margin));
-    for (m, end) in [(t - t0, t0), (t1 - t, t1)] {
-        match clear_of_end(r, q, m, end, band, errors) {
-            Some(true) => {}
-            Some(false) => interior = interior.map(|_| None),
-            None => interior = None,
-        }
-    }
-    interior
-}
-
-/// Whether `q`, at parameter distance `m` inside the span from its end
-/// at `end`, is clear of that end (module docs). The parameter distance
-/// metered by the least speed understates the arc, so it decides clear
-/// and past; where it reads zero or in its band, the same distance
-/// metered by the greatest speed decides the side (past, or within the
-/// band of the end, is not inside), and on the inner side the point's
-/// distance from the end's point decides the rest.
-fn clear_of_end<T: Decide>(
-    r: &Read<T>,
-    q: Point3<T>,
-    m: T,
-    end: T,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<bool> {
-    match geom_core::k_stats::decide("pm_census_ve_curved_span", Margin::metered(m, r.lo), band) {
-        Ok(Sign::Positive) => return Some(true),
-        Ok(Sign::Negative) => return Some(false),
-        Ok(Sign::Zero) | Err(_) => {}
-    }
-    match decided(
-        "pm_census_ve_curved_side",
-        Margin::metered_sup(m, r.hi),
-        band,
-        errors,
-    )? {
-        Sign::Negative | Sign::Zero => Some(false),
-        Sign::Positive => {
-            let chord = Margin::norm3(q - r.curve.eval(end));
-            gap_is_zero("pm_census_ve_curved_end", chord, band, errors).map(|at| !at)
-        }
-    }
-}
-
-/// Whether a piece of reach `reach` is small enough to stop at, decided
-/// on `row`: within the band.
-fn stops<T: Decide>(row: &'static str, reach: T, band: Band) -> bool {
-    matches!(
-        geom_core::k_stats::decide(row, Margin::of(reach), band),
-        Ok(Sign::Negative | Sign::Zero)
-    )
 }
 
 /// Whether `a`'s and `b`'s interiors meet, one of them curved (module
@@ -510,11 +279,62 @@ fn reads_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let interior = |m: &Meeting<T>| matches!((m.on_a, m.on_b), (Hit::On { .. }, Hit::On { .. }));
+    interior_meeting(body, ra, rb, band, errors).map(|m| m.is_some())
+}
+
+/// A meeting on two edges' interiors, as pass 5′ reports it.
+pub(super) struct Interior<T: Real> {
+    /// The meeting's point.
+    pub(super) point: Point3<T>,
+    /// The margin the first edge's reading put it on that edge by.
+    pub(super) margin: MarginDiag,
+    /// Whether the carriers are one curve: the edges then overlap
+    /// along a run of it, rather than crossing or touching at a point.
+    pub(super) overlap: bool,
+}
+
+/// **The first meeting [`geom_brep::curve_pair::meet`] places on both
+/// of `a`'s and `b`'s interiors** — pass 5′'s reading
+/// (`census::sweep_curved_edge_edge`). `Some(None)` where none is placed;
+/// `None` where a decision escalated or an edge is not read (pushed).
+pub(super) fn interiors_meeting<T: Decide>(
+    body: &Body<T>,
+    a: EdgeKey,
+    b: EdgeKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Interior<T>>> {
+    let ra = read(body, a, band, errors)?;
+    let rb = read(body, b, band, errors)?;
+    interior_meeting(body, &ra, &rb, band, errors)
+}
+
+/// The first meeting [`meet`] places on both
+/// interiors, a decided one standing whatever refusal followed it; a
+/// refusal with none such pushed typed on both edges.
+fn interior_meeting<T: Decide>(
+    body: &Body<T>,
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Interior<T>>> {
+    let interior = |points: &[Meeting<T>], shared: Option<_>| {
+        points.iter().find_map(|m| match (m.on_a, m.on_b) {
+            (Hit::On { margin, .. }, Hit::On { .. }) => Some(Interior {
+                point: m.point,
+                margin,
+                overlap: shared.is_some(),
+            }),
+            _ => None,
+        })
+    };
     let refusal = match meet(&span(body, ra), &span(body, rb), band) {
-        Ok(met) => return Some(met.points.iter().any(interior)),
-        Err(refusal) if refusal.found.iter().any(interior) => return Some(true),
-        Err(refusal) => refusal,
+        Ok(met) => return Some(interior(&met.points, met.shared)),
+        Err(refusal) => match interior(&refusal.found, refusal.shared) {
+            Some(found) => return Some(Some(found)),
+            None => refusal,
+        },
     };
     let what = match refusal.fault {
         MeetFault::Escalated(cause) => {
@@ -545,7 +365,7 @@ mod tests {
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{Read, curved_interiors_meet, feet, reads_meet};
+    use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::body::Body;
     use crate::entity::EdgeKey;
     use crate::{EdgeCurveSpec, MevSite};
@@ -599,13 +419,10 @@ mod tests {
     }
 
     fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
-        let (lo, hi) = geom::carrier_speed::speed_range(&curve);
         Read {
             edge: EdgeKey::default(),
             curve,
             span,
-            lo,
-            hi,
         }
     }
 
@@ -665,10 +482,9 @@ mod tests {
     /// **The reading answers a meeting on every kind**, and clears
     /// carriers that keep apart: a line across a spiric's oval meets it;
     /// a line through a spline's point meets it there; an ellipse and a
-    /// circle a metre above it nowhere. Two coplanar ellipses at right
-    /// angles, which meet near `(a, a)`, `a² = 4/5`, refuse typed on both
-    /// edges: the pair's closed form has no method for two ellipses in
-    /// one plane (`work/fuse/two-coplanar-ellipses-have-no-meeting-method.md`).
+    /// circle a metre above it nowhere; two coplanar ellipses at right
+    /// angles meet near `(a, a)`, `a² = 4/5`. Every pair is decided, with
+    /// nothing pushed.
     #[test]
     fn the_reading_answers_a_meeting_on_every_kind() {
         let a = 0.8_f64.sqrt();
@@ -686,7 +502,7 @@ mod tests {
                     ellipse(2.0, 1.0, Vec3::unit_y()),
                     (-theta - 0.2, -theta + 0.3),
                 ),
-                None,
+                Some(true),
             ),
             (
                 "spiric × line",
@@ -720,13 +536,9 @@ mod tests {
         for (what, x, y, want) in cases {
             let (met, errors) = meet(&x, &y);
             assert_eq!(met, want, "{what}: {errors:?}");
-            let refused = errors.len() == 2
-                && errors
-                    .iter()
-                    .all(|e| format!("{e:?}").contains("two ellipses in one plane"));
             assert!(
-                errors.is_empty() == want.is_some() && (want.is_some() || refused),
-                "{what}: refused typed exactly where undecided: {errors:?}"
+                errors.is_empty(),
+                "{what}: decided, nothing pushed: {errors:?}"
             );
         }
     }
@@ -735,11 +547,11 @@ mod tests {
     /// to a circle, two coplanar circles touching from outside, and a
     /// line crossing a circle at 0.01 rad each meet; the line moved
     /// `1e-4` off the circle does not. An arc ending where a circle
-    /// touches it from outside meets it too: the arc stays within ε of
-    /// the circle over its last few hundredths of a millimetre, so points
-    /// of its interior clear of the end lie within the band of the
-    /// circle. Red when a touch read at a span's end does not read the
-    /// run about it.
+    /// touches it from outside meets it at the arc's end alone: the arc
+    /// stays within ε of the circle over its last few hundredths of a
+    /// millimetre, but that stretch's one meeting is the touch at the end,
+    /// and it takes the whole stretch. Red when a point of that stretch is
+    /// read as an interior meeting of its own.
     #[test]
     fn a_tangency_and_a_shallow_crossing_are_decided() {
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -775,7 +587,7 @@ mod tests {
                 "a circle touching it from outside at the end of an arc of it",
                 to_top,
                 read(circle(Point3::new(0.0, 2.0, 0.0), 1.0), (-2.9, -0.3)),
-                Some(true),
+                Some(false),
             ),
             (
                 "a line 1e-4 off it",
@@ -806,11 +618,11 @@ mod tests {
         let t0 = core::f64::consts::FRAC_PI_2;
         let r = read(ellipse(1.0, 0.05, Vec3::unit_x()), (t0, t0 + 1.0));
         let t = t0 + 15.0 * eps;
-        let mut errors = Vec::new();
-        let inside =
-            super::interior_reading(&Body::new(), &r, r.curve.eval(t), t, band(), &mut errors)
-                .map(|on| on.is_some());
-        assert_eq!((inside, errors), (Some(true), vec![]));
+        let q = r.curve.eval(t);
+        let inside = super::span(&Body::new(), &r)
+            .contact(q, t, band())
+            .map(|c| matches!(c, Some(geom_brep::curve_pair::Hit::On { .. })));
+        assert_eq!(inside.ok(), Some(true));
     }
 
     /// **A point past the band outside an ellipse arc's start is not on
@@ -929,22 +741,6 @@ mod tests {
         assert_eq!((on, errors), (Some(true), vec![]));
     }
 
-    /// **A spline's foot is found by the search**: a point of it reads
-    /// its own parameter, a point a millimetre off it none.
-    #[test]
-    fn a_point_on_a_spline_finds_its_foot() {
-        let r = read(spline(), (0.0, 1.0));
-        let q = r.curve.eval(0.3);
-        let mut errors = Vec::new();
-        let ts = feet(&r, q, band(), &mut errors).unwrap();
-        assert!(
-            !ts.is_empty() && ts.iter().all(|&t| (r.curve.eval(t) - q).norm() < 1e-12),
-            "{ts:?}"
-        );
-        let off = feet(&r, q + Vec3::unit_z() * 1e-3, band(), &mut errors).unwrap();
-        assert_eq!((off, errors), (vec![], vec![]));
-    }
-
     /// **Two circles kissing in their plane meet at the point**: the
     /// unit circle's arc over ±30° against an arc over 150..210° of a
     /// unit circle outside it or a half-unit one inside it, each touching
@@ -1011,5 +807,46 @@ mod tests {
                 "{what}: an escalation is pushed exactly where undecided: {errors:?}"
             );
         }
+    }
+
+    /// **An arc ending tangent on a line's interior meets it at no
+    /// interior point**, nor does a line leaving the arc's end along its
+    /// tangent (the slot's joint). Near the arc's end the two stay within
+    /// the band of each other a short way, inside both; that stretch's one
+    /// meeting is at the arc's end, a vertex on the line, which pass 2
+    /// answers by its own record. A line crossing the arc nearby is a
+    /// meeting all the same. Red when a point of that stretch is read as a
+    /// meeting of its own, which would owe an edge-edge record beside the
+    /// `(vertex, edge)` one.
+    #[test]
+    fn a_tangent_touch_at_an_arcs_end_holds_no_interior_meeting_for_pass_five_prime() {
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let arc = read(circle(Point3::new(0.0, 0.0, 0.0), 1.0), (0.0, half_pi));
+        let pass = |other: &Read<f64>| {
+            let mut errors = Vec::new();
+            let met = interior_meeting(&Body::new(), &arc, other, band(), &mut errors)
+                .map(|m| m.map(|m| m.overlap));
+            (met, errors)
+        };
+        let joint = read(
+            line(Point3::new(0.0, 1.0, 0.0), -Vec3::unit_x()),
+            (0.0, 1.0),
+        );
+        assert_eq!(pass(&joint), (Some(None), vec![]), "the joint");
+        let through = read(
+            line(Point3::new(1.0, 1.0, 0.0), -Vec3::unit_x()),
+            (0.0, 2.0),
+        );
+        assert_eq!(
+            pass(&through),
+            (Some(None), vec![]),
+            "the arc's end on the line"
+        );
+        let radial = arc.curve.eval(0.5) - Point3::new(0.0, 0.0, 0.0);
+        let across = read(
+            line(Point3::new(0.0, 0.0, 0.0) + radial * 0.5, radial),
+            (0.0, 1.0),
+        );
+        assert_eq!(pass(&across), (Some(Some(false)), vec![]), "a crossing");
     }
 }

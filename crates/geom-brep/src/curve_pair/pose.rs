@@ -28,11 +28,11 @@
 //!   of each other, each inside its own span's projection (for a conic,
 //!   inside its extent's): the meeting projects within `z < e` of the
 //!   overlap, even where the overlap is empty (the projections then part
-//!   by less than `z`) or shorter than the band. Over that stretch the
+//!   by less than `z`) or shorter than the band. Over that interval the
 //!   offset moves at most `rate` per metre from its value at the
 //!   overlap's middle, so it stays past the band's escalation and no
 //!   point of one lies within `z` of the other. The parts of either span
-//!   outside that stretch lie farther than `z` from the other by their
+//!   outside that interval lie farther than `z` from the other by their
 //!   projections alone. **Split invariance follows by construction**: a
 //!   piece of a span projects inside the whole's projection, so a
 //!   piece's overlap is a sub-interval of the whole's, and its offset at
@@ -92,8 +92,11 @@
 //!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
 //!     the ellipse's angle, goes to the certified subdivision
 //!     ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses** have no metre residual here, and refuse typed
-//!     ([`MeetFault::Unsupported`]).
+//!   - **two ellipses**: the first's level on the second, of degree two
+//!     in the first's angle, goes to the certified subdivision in the
+//!     metres of the lower bound on a point's distance from an ellipse
+//!     ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s), with
+//!     a ceiling on the level per metre of it (`coplanar_ellipses`).
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -137,7 +140,7 @@
 //! `e` of the other's plane, so it lies on the arc about a crossing or a
 //! touch where the height is within `e`: `ℓ`, read off the harmonic (or
 //! `e/σ` on a line). The pair the polish is after lies within
-//! `2(ℓ + e)` of where it starts, on either carrier. Two meters guard it,
+//! `2(ℓ + e)` of where it starts, on either carrier. Three meters guard it,
 //! each refusing [`Unsettled::Meter`] unless definite:
 //!
 //! - **its basin** (`curve_pair_pose_basin`): over that reach each
@@ -147,33 +150,63 @@
 //!   the tangents then keep at least half the angle between them,
 //!   the closest pair is the one stationary pair there, and the polish
 //!   contracts toward it;
+//! - **its travel** (`curve_pair_pose_travel`): the polished pair lies
+//!   within twice the region of where it started, as the basin says;
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
 //!   step moves the pair within the band's zero.
 //!
-//! # The spans' ends
+//! # The spans' ends, and deflation
 //!
 //! A touch or a crossing is one point, but two curves near it stay
-//! within the band over a run about it, long where they cross at a
+//! within the band over a stretch about it, long where they cross at a
 //! shallow angle or touch with little relative curvature. Where that
-//! point lies past a span and the run reaches into both, the spans meet
-//! in the band at an end of one of them, which no isolated candidate
-//! reads. So the outcome of a [`Pose::Tangent`] or [`Pose::Generic`]
-//! also reads each span's ends against the other ([`end_candidates`]): a
-//! span end within the band of the other span is a meeting, and one in
-//! the band's gap escalates. Where the point lies at a span's end and
-//! the run reaches into it, the meeting read at the end is not the only
-//! one: points of the span clear of its end lie within the band of the
-//! other too. So a meeting read at an end has its run read once more
-//! (`run_candidates`), midway between the escalation and the arc where
-//! the carriers part by half what the zero band leaves.
+//! point lies past a span and the stretch reaches into both, the spans
+//! meet in the band at an end of one of them, which no isolated
+//! candidate reads. So each span's ends are read against the other
+//! first ([`end_candidates`]): a span end within the band of the other
+//! span is a meeting, and one in the band's gap escalates.
+//!
+//! **A meeting so found is a root the pose already holds where the
+//! arm's equation is the meeting's own**, and there the arm divides it
+//! out rather than solving for it again: re-derived near a tangent, a
+//! root comes from a square root whose rounding is about `√ulp` of the
+//! radius, and its gap from its twin escalates where the found meeting
+//! decides it exactly. The arms whose equation is the meeting's are the
+//! in-plane ones: a circle's or an
+//! ellipse's signed distance from a line in its plane, and a circle's
+//! distance from a circle in its plane. Their first harmonics,
+//! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
+//! so the other root is `2θ_hi − θ_J`, linear in the found one's angle
+//! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
+//! and the reflection of a meeting of two circles in one plane across
+//! their line of centres. Two found meetings leave a first harmonic
+//! none. Two lines' crossing is solved linearly, with no square root to
+//! condition, so it lands inside a found joint's ring and is not read
+//! again: that form divides nothing out.
+//!
+//! **A crossing of the other's plane is not a meeting**, so the arms
+//! across a plane divide nothing out. A conic's or a line's root on the
+//! other's plane marks a window, about `e/|d̂·n̂|` of arc either side,
+//! where it lies within the band's escalation of that plane, and that
+//! window can hold more than one meeting, each in a stretch of its own.
+//! A conic's plane root whose window holds a found meeting is read
+//! instead (`window`): where the window certainly holds no meeting but
+//! the found ones, the root is not polished. Every other plane root is
+//! polished and metered as it would be with no meeting found; a candidate
+//! it gives nearer a found meeting than the escalation is that meeting
+//! again (C5's ring rule), and a meter that cannot place one refuses. The coplanar subdivisions divide nothing
+//! out: their roots nearer a found meeting than the escalation are not
+//! read again.
 //!
 //! # The band
 //!
 //! Every decision above that falls in the band's gap escalates
 //! ([`MeetFault::Escalated`]); none prunes a candidate.
 
+mod window;
+
 use geom::{Curve3, CurveKind};
-use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::k_stats::{decide, straddle};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
@@ -255,12 +288,12 @@ mod row {
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
+    pub(super) const TRAVEL: &str = "curve_pair_pose_travel";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
     pub(super) const POLISH: &str = "curve_pair_pose_polish";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
-    pub(super) const RUN: &str = "curve_pair_pose_run";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -284,7 +317,7 @@ pub fn pose<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     let (ka, kb) = (a.carrier().kind(), b.carrier().kind());
     match super::method(ka, kb) {
-        Method::Closed(arm) => closed(arm, a, b, band).map_err(PoseRefusal::Closed),
+        Method::Closed(arm) => closed(arm, a, b, &[], band).map_err(PoseRefusal::Closed),
         Method::Walk => Err(PoseRefusal::Walked { a: ka, b: kb }),
     }
 }
@@ -294,29 +327,41 @@ pub(super) fn closed<T: Decide>(
     arm: Arm,
     a: &Span<'_, T>,
     b: &Span<'_, T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     // Where one side is a circle and the other an ellipse, the ellipse is
     // parametrized, so the reading against the circle is at its exact
     // foot.
+    let flipped: Vec<_> = known.iter().copied().map(flip).collect();
     match arm {
         Arm::LineLine => line_line(a, b, band),
-        Arm::LineConic => line_conic(a, b, band),
-        Arm::ConicLine => Ok(swapped(line_conic(b, a, band)?)),
-        Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, band),
-        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, band),
-        Arm::CircleEllipse => Ok(swapped(conic_conic(b, a, Coplanar::EllipseCircle, band)?)),
-        Arm::EllipseEllipse => conic_conic(a, b, Coplanar::Ellipses, band),
+        Arm::LineConic => line_conic(a, b, known, band),
+        Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
+        Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
+        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, known, band),
+        Arm::CircleEllipse => Ok(swapped(conic_conic(
+            b,
+            a,
+            Coplanar::EllipseCircle,
+            &flipped,
+            band,
+        )?)),
+        Arm::EllipseEllipse => conic_conic(a, b, Coplanar::Ellipses, known, band),
+    }
+}
+
+/// A candidate with its two carriers' roles swapped.
+fn flip<T: geom_core::Real>(c: Candidate<T>) -> Candidate<T> {
+    Candidate {
+        point: c.point,
+        ta: c.tb,
+        tb: c.ta,
     }
 }
 
 /// A pose read with the spans' roles swapped, given back in their order.
 fn swapped<T: geom_core::Real>(pose: Pose<T>) -> Pose<T> {
-    let flip = |c: Candidate<T>| Candidate {
-        point: c.point,
-        ta: c.tb,
-        tb: c.ta,
-    };
     match pose {
         Pose::Coincident { sense, witnesses } => Pose::Coincident {
             sense,
@@ -356,12 +401,6 @@ fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
 fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     let (t0, t1) = s.params();
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
-}
-
-/// The conic's tangent `C′(θ)`.
-fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
-    let (sin, cos) = theta.sin_cos();
-    k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
 }
 
 /// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
@@ -405,70 +444,6 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             ta: foot(a, point),
             tb,
         });
-    }
-    out
-}
-
-/// **The run about a meeting read at a span's end** (module docs, "The
-/// spans' ends"): where the two carriers stay within the zero band of
-/// each other past the end, into the span. About `c`, whose points are
-/// `g` apart, they part by at most `sin φ·s + (κ₁ + κ₂)·s²/2` over an arc
-/// `s` either way, `φ` the angle between their tangents and `κ` each
-/// carrier's curvature bound. At the `s₂` where that reaches half of what
-/// the zero band leaves, `(z − g)/2`, the run ends as far as this bound
-/// can say. The meeting lies within the zero band `z` of the end, so a
-/// run that reaches past `e + 2z`, the escalation and that slack twice
-/// (`curve_pair_pose_run`, two of the bound's own lengths, read exactly),
-/// holds points clear of the end: each carrier's points midway between
-/// the two, `(s₂ + e + 2z)/2` either side of `c`, each with its foot on the
-/// other, past the escalation from the end and within half the zero band
-/// of the other carrier. None where the run is shorter.
-pub(super) fn run_candidates<T: Decide>(
-    a: &Span<'_, T>,
-    b: &Span<'_, T>,
-    c: &Candidate<T>,
-    band: Band,
-) -> Vec<Candidate<T>> {
-    let (Some(ka), Some(kb)) = (
-        geom::carrier_speed::curvature_hi(a.carrier()),
-        geom::carrier_speed::curvature_hi(b.carrier()),
-    ) else {
-        return Vec::new();
-    };
-    let ((pa, da), (pb, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
-    let two = T::from_f64(2.0);
-    let left = (T::from_f64(band.zero()) - (pa - pb).norm()) / two;
-    let sine = unit(da).cross(unit(db)).norm();
-    let bend = ka + kb;
-    // `sin φ·s + κ·s²/2 = left`, its positive root written so that it
-    // does not cancel where `κ` vanishes.
-    let s2 = left * two / (sine + (sine.powi(2) + bend * left * two).sqrt());
-    // Two of the bound's own lengths compared, not a distance the band
-    // resolves: read exactly (the least pair of positive `f64`s), and an
-    // enclosure that straddles is read on.
-    // The meeting is read within the zero band of the end, so a point the
-    // run puts `o` from it lies at least `o − z` from the end: clear of it
-    // past the escalation where `o > e + z`.
-    let e = T::from_f64(band.escalate()) + T::from_f64(band.zero()) * two;
-    if matches!(
-        decide(row::RUN, Margin::of(s2 - e), Band::least()),
-        Ok(Sign::Negative | Sign::Zero)
-    ) {
-        return Vec::new();
-    }
-    let s = (s2 + e) / two;
-    let mut out = Vec::with_capacity(4);
-    let dta = s / da.norm();
-    for ta in [c.ta - dta, c.ta + dta] {
-        let point = a.carrier().eval(ta);
-        let tb = b.carrier().foot(point, c.tb).t();
-        out.push(Candidate { point, ta, tb });
-    }
-    let dtb = s / db.norm();
-    for tb in [c.tb - dtb, c.tb + dtb] {
-        let point = b.carrier().eval(tb);
-        let ta = a.carrier().foot(point, c.ta).t();
-        out.push(Candidate { point, ta, tb });
     }
     out
 }
@@ -559,11 +534,19 @@ enum Side<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Side<'_, T> {
-    /// The point and tangent at `t`.
+    /// The point and tangent at `t`: the carrier's own
+    /// [`Curve3::ders1`].
     fn ders(self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Self::Line((origin, dir)) => (origin + dir * t, dir),
-            Self::Conic(k) => (k.point(t), tangent(k, t)),
+            Self::Line((origin, dir)) => Curve3::Line { origin, dir }.ders1(t),
+            Self::Conic(k) => Curve3::Ellipse {
+                center: k.center,
+                axis: k.axis,
+                semi_u: k.semi_u,
+                semi_v: k.semi_v,
+                u_ref: k.u_ref,
+            }
+            .ders1(t),
         }
     }
 
@@ -631,12 +614,15 @@ impl<T: Decide> Polish<'_, T> {
         let (s, t, moved) =
             super::polish::pair(|s| self.a.ders(s), |t| self.b.ders(t), self.start, |_| true);
         let ((p, _), (q, _)) = (self.a.ders(s), self.b.ders(t));
-        // Within its basin the polish contracts toward a pair inside the
-        // region; one that left it twice over had none to contract to.
+        // Within its basin the polish stays in the region; one that left
+        // it twice over is a polish the basin meter did not certify.
         let travel = (p - p0).norm() + (q - q0).norm();
-        if decide(row::CLEAR, Margin::of(travel - region - region), band) == Ok(Sign::Positive) {
-            return Ok(None);
-        }
+        metered(
+            row::TRAVEL,
+            Margin::of(region + region - travel),
+            Sign::Positive,
+            band,
+        )?;
         match decide(row::POLISH, Margin::of(moved), band) {
             Ok(Sign::Zero | Sign::Negative) => {}
             Ok(Sign::Positive) | Err(_) => return Err(MeetFault::Unsettled(Unsettled::Meter)),
@@ -792,6 +778,7 @@ fn line_line<T: Decide>(
 fn line_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let line = line_of(a.carrier())?;
@@ -850,10 +837,11 @@ fn line_conic<T: Decide>(
             tb: theta,
         }
     };
-    Ok(match harmonic_roots(&k, &range, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => Pose::Tangent(place(theta)),
-        Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+    let found: Vec<T> = known.iter().map(|c| c.tb).collect();
+    Ok(match owed(&k, &range, &found, band)? {
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -871,7 +859,7 @@ enum Coplanar {
 
 /// The conic `k`'s height above the plane through `on` with unit normal
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
-fn height<T: Decide>(k: &Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
+pub(super) fn height<T: Decide>(k: &Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     (
         (k.center - on).dot(n),
         k.semi_u * k.u_ref.dot(n),
@@ -884,6 +872,7 @@ fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
     coplanar: Coplanar,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
@@ -911,7 +900,7 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse((&ka, &kb, b), ha, swing_a, noise, lever, band);
+        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, lever), known, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
@@ -930,11 +919,9 @@ fn conic_conic<T: Decide>(
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, band),
+        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, known, band),
         Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
-        Coplanar::Ellipses => Err(MeetFault::Unsupported {
-            pose: "two ellipses in one plane that are not one curve",
-        }),
+        Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
 }
 
@@ -995,33 +982,52 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// definite (module docs): its crossings and touch, each polished to the
 /// closest pair.
 fn transverse<T: Decide>(
-    (ka, kb, b): (&Conic<T>, &Conic<T>, &Span<'_, T>),
+    (a, ka, kb, b): (&Span<'_, T>, &Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
-    noise: T,
-    lever: T,
+    (noise, lever): (T, T),
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let window = window::Window {
+        a: ka,
+        span_a: a.params(),
+        b: kb,
+        carrier_b: b.carrier(),
+        height: (c0, cp, sp),
+        noise,
+    };
+    let joints: Vec<_> = known
+        .iter()
+        .map(|c| window::Joint {
+            point: c.point,
+            ta: c.ta,
+        })
+        .collect();
     let near = |theta: T| {
+        let arc = range.band_arc(theta, band);
+        if !joints.is_empty() && window.holds_only((theta - arc, theta + arc), &joints, band) {
+            return Ok(None);
+        }
         let q = ka.point(theta);
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
             start: (theta, foot(b, q)),
-            reach: ka.speed_hi() * range.band_arc(theta, band),
+            reach: ka.speed_hi() * arc,
             clear: clearance(b.carrier(), q),
             lever,
         }
         .closest(band)
     };
     Ok(match harmonic_roots(ka, &range, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => match near(theta)? {
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => match near(theta)? {
             Some(c) => Pose::Tangent(c),
             None => Pose::Apart,
         },
-        Found::Cross(thetas) => {
+        Harmonic::Cross(thetas) => {
             let mut out = Vec::with_capacity(2);
             for theta in thetas {
                 out.extend(near(theta)?);
@@ -1044,8 +1050,7 @@ fn constant<T: Decide>(
     spread: T,
     band: Band,
 ) -> Result<bool, MeetFault> {
-    let below = decide_reported(row, Margin::of(value - spread), band)?;
-    let above = decide_reported(row, Margin::of(value + spread), band)?;
+    let (below, above) = crate::roots::spread_readings(row, value, spread, band)?;
     match (below.sign, above.sign) {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(true),
         (Sign::Zero, Sign::Zero) => Ok(false),
@@ -1060,6 +1065,7 @@ fn coplanar_circles<T: Decide>(
     kb: &Conic<T>,
     (noise, slant): (T, T),
     place: &impl Fn(T) -> Candidate<T>,
+    known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.semi_u.abs(), kb.semi_u.abs());
@@ -1094,10 +1100,11 @@ fn coplanar_circles<T: Decide>(
         cross_hi: hi * (far + rb) / swing,
         noise,
     };
-    Ok(match harmonic_roots(ka, &range, band)? {
-        Found::Apart => Pose::Apart,
-        Found::Touch(theta) => Pose::Tangent(place(theta)),
-        Found::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
+    let found: Vec<T> = known.iter().map(|c| c.ta).collect();
+    Ok(match owed(ka, &range, &found, band)? {
+        Harmonic::Apart => Pose::Apart,
+        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
 
@@ -1139,13 +1146,112 @@ fn coplanar_ellipse_circle<T: Decide>(
         residual_reach: Some(r),
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
-    match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
+    subdivided(&poly, &residual, &frame, place, band)
+}
+
+/// A coplanar pair's roots from the certified subdivision, each placed
+/// as a candidate: none is [`Pose::Apart`], and a refusal is typed.
+fn subdivided<T: Decide>(
+    poly: &crate::half_angle::TrigPoly<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<T>,
+    place: &impl Fn(T) -> Candidate<T>,
+    band: Band,
+) -> Result<Pose<T>, MeetFault> {
+    match certified_subdivision(poly, residual, frame, &COPLANAR_ROWS, None, band) {
         Ok(Roots::Miss) => Ok(Pose::Apart),
         Ok(Roots::Certified(found)) => Ok(Pose::Generic(
             found.roots().iter().map(|&t| place(t)).collect(),
         )),
         Err(why) => Err(MeetFault::Unsettled(why)),
     }
+}
+
+/// **Two ellipses in one plane** (module docs): the first's level on
+/// the second, `F(θ) = X²/A² + Y²/B² − 1` at the first's point `(X, Y)`
+/// in the second's frame, is of degree two in the first's angle, and goes
+/// to the certified subdivision in the metres of
+/// [`geom::ellipse_level_clearance`], the lower bound on a point's
+/// distance from the second that [`Curve3::clearance`] reads, signed as
+/// `F`.
+///
+/// **The ceiling on `|F|` per metre of that bound.** `X²/A⁴ + Y²/B⁴` is
+/// at most `(F + 1)/s²`, `s` the second's smaller semi-axis, so `g = |∇F|`
+/// is at most `2√(1 + |F|)/s`, and the bound
+/// `2|F|/(g + √(g² + 4|F|/s²))` is at least
+/// `|F|·s/(√(1 + |F|) + √(1 + 2|F|))`. Where `|F| ≤ 1` that is at least
+/// `|F|·s/(√2 + √3) > |F|·s/4`; past it, increasing in `|F|`, at least
+/// `s/(√2 + √3) > s/4`. So the bound is at least `min(s/4, |F|/(4/s))`
+/// everywhere: the ceiling `4/s`, reaching to `s/4`.
+fn coplanar_ellipses<T: Decide>(
+    e: &Span<'_, T>,
+    ka: &Conic<T>,
+    kb: &Conic<T>,
+    place: &impl Fn(T) -> Candidate<T>,
+    band: Band,
+) -> Result<Pose<T>, MeetFault> {
+    let (big_a, big_b) = (kb.semi_u, kb.semi_v);
+    let (ub, vb) = (kb.u_ref, kb.v_ref());
+    let (poly, terms) = level_on(ka, kb);
+    let small = big_a.abs().min(big_b.abs());
+    let (t0, t1) = e.params();
+    let (ceiling, reach) = level_ceiling(small);
+    let frame = SubdivisionFrame {
+        t0,
+        t1,
+        speed_hi: ka.speed_hi(),
+        noise: crate::rounding_charge(terms),
+        // `g` vanishes at the second's centre: no floor but zero holds.
+        f_per_metre: T::zero(),
+        f_per_metre_hi: ceiling,
+        residual_reach: Some(reach),
+    };
+    let residual = |theta: T| {
+        let d = ka.point(theta) - kb.center;
+        geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
+    };
+    subdivided(&poly, &residual, &frame, place, band)
+}
+
+/// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
+/// `a(θ)` in `b`'s plane, `(X, Y)` in `b`'s frame and `(A, B)` its
+/// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
+/// first harmonic); and the term bound its rounding is charged on. The
+/// height of `a(θ)` above `b`'s plane plays no part.
+pub(super) fn level_on<T: Decide>(
+    ka: &Conic<T>,
+    kb: &Conic<T>,
+) -> (crate::half_angle::TrigPoly<T>, T) {
+    let (big_a, big_b) = (kb.semi_u, kb.semi_v);
+    let (ub, vb) = (kb.u_ref, kb.v_ref());
+    let (ua, va) = (ka.u_ref * ka.semi_u, ka.v_ref() * ka.semi_v);
+    let w = ka.center - kb.center;
+    // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
+    let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
+    let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));
+    let (a2, b2) = (big_a.powi(2), big_b.powi(2));
+    let two = T::from_f64(2.0);
+    let poly = DegreeTwo::new(
+        (x0.powi(2) + (p.powi(2) + q.powi(2)) / two) / a2
+            + (y0.powi(2) + (r.powi(2) + t.powi(2)) / two) / b2
+            - T::one(),
+        two * (x0 * p / a2 + y0 * r / b2),
+        two * (x0 * q / a2 + y0 * t / b2),
+        (p.powi(2) - q.powi(2)) / (two * a2) + (r.powi(2) - t.powi(2)) / (two * b2),
+        p * q / a2 + r * t / b2,
+    )
+    .poly();
+    let small = big_a.abs().min(big_b.abs());
+    let terms = ((w.norm() + ka.semi_u.abs() + ka.semi_v.abs()) / small).powi(2) + T::one();
+    (poly, terms)
+}
+
+/// **The ceiling on an ellipse's level per metre of
+/// [`geom::ellipse_level_clearance`], and how far it reaches**
+/// (`coplanar_ellipses`'s docs): `(4/s, s/4)`, `s` the smaller semi-axis.
+pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
+    let four = T::from_f64(4.0);
+    (four / small, small / four)
 }
 
 /// A first harmonic's range along a conic, in metres, and where its roots
@@ -1194,14 +1300,32 @@ impl<T: Decide> Range<T> {
 }
 
 /// What a first harmonic's extremes and root gap decide.
-enum Found<T> {
+enum Harmonic<T> {
     /// No root: the extremes definitely one-signed.
     Apart,
     /// A touch at this angle: a double root, or an extreme in the zero
     /// band that has not crossed.
     Touch(T),
-    /// Two crossings.
-    Cross([T; 2]),
+    /// Crossings: two, or those left once the found meetings' roots are
+    /// divided out (module docs, "deflation").
+    Cross(Vec<T>),
+}
+
+/// **A first harmonic's roots along `k` still owed**, `found` the angles
+/// of the meetings already found (module docs, "deflation"): none
+/// found, every root ([`harmonic_roots`]); one, the other, `2θ_hi − θ_J`;
+/// two, none.
+fn owed<T: Decide>(
+    k: &Conic<T>,
+    r: &Range<T>,
+    found: &[T],
+    band: Band,
+) -> Result<Harmonic<T>, MeetFault> {
+    Ok(match found {
+        [] => harmonic_roots(k, r, band)?,
+        [theta] => Harmonic::Cross(vec![r.at_hi + r.at_hi - *theta]),
+        _ => Harmonic::Cross(Vec::new()),
+    })
 }
 
 /// A first harmonic's roots along `k` (module docs).
@@ -1209,7 +1333,7 @@ fn harmonic_roots<T: Decide>(
     k: &Conic<T>,
     r: &Range<T>,
     band: Band,
-) -> Result<Found<T>, MeetFault> {
+) -> Result<Harmonic<T>, MeetFault> {
     let lo = extreme_sign(row::EXTREME, r.lo, r.noise, band)?;
     let hi = extreme_sign(row::EXTREME, r.hi, r.noise, band)?;
     // The angle from `hi` of the roots read from each extreme: none
@@ -1227,7 +1351,7 @@ fn harmonic_roots<T: Decide>(
         cross * ((size - r.noise).max(T::zero()) / size.max(r.noise))
     };
     let (psi, gap_psi, at_near) = match (lo, hi) {
-        (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Found::Apart),
+        (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
         (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
         (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
@@ -1242,8 +1366,8 @@ fn harmonic_roots<T: Decide>(
     let roots = [r.at_hi + psi, r.at_hi - psi];
     let gap = Margin::norm3(k.point(r.at_hi + gap_psi) - k.point(r.at_hi - gap_psi));
     Ok(match decide(row::ROOT_GAP, gap, band)? {
-        Sign::Zero => Found::Touch(at_near),
-        Sign::Positive | Sign::Negative => Found::Cross(roots),
+        Sign::Zero => Harmonic::Touch(at_near),
+        Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),
     })
 }
 

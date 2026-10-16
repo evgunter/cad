@@ -2,7 +2,8 @@
 id: two-curve-curve-meeting-finders
 kind: issue
 title: The kernel has two curve-curve meeting finders: carrier_cross's closed-form line, circle and ellipse crossings, and the census's bisection search
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-13
 priority: P3
 cost: H
@@ -46,3 +47,7 @@ The near-concentric arcs are decided by the circle×circle arm. That closes `nea
 Measured on the way, and filed: `cleave/a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` (P1). `carrier_cross` misplaces circle-pair candidates near the band, so the boolean reads `Clear` where the edges cross.
 
 **Ev ruled (2026-10-14, PR 5027):** the home is `geom-brep`, and C5 governs curve pairs. The implementation unit follows. Ev also asked whether the principle generalizes further; the audit of non-compliant pair questions is a separate unit.
+
+## Closed — one reader (`fuse/the-curve-pair-reader`, branches `fuse/curve-pair-reader-c`, `-c2` and `-c3`)
+
+`geom_brep::curve_pair::meet` is the one reading of whether, and where, two carrier spans meet: one total `(CurveKind, CurveKind)` table, closed forms for line, circle and ellipse pairs, the certified walk for spiric and spline pairs and as the closed forms' oracle (C5, `crates/geom-brep/README.md`). `boolean::carrier_cross`, the census confirm (`census::curved`), the census edge-face cut and tier 3′'s pass 5′ are its callers. The point-on-span question is `geom`'s one-carrier readings (`Curve3::foot`, `Foot::on_carrier`) composed with the span's reading of its ends once, in `Span::contact`. The census's bisection search is retired.
