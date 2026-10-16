@@ -92,8 +92,11 @@
 //!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
 //!     the ellipse's angle, goes to the certified subdivision
 //!     ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses** have no metre residual here, and refuse typed
-//!     ([`MeetFault::Unsupported`]).
+//!   - **two ellipses**: the first's level on the second, of degree two
+//!     in the first's angle, goes to the certified subdivision in the
+//!     metres of the lower bound on a point's distance from an ellipse
+//!     ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s), with
+//!     a ceiling on the level per metre of it (`coplanar_ellipses`).
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -911,9 +914,7 @@ fn conic_conic<T: Decide>(
     match coplanar {
         Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, known, band),
         Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
-        Coplanar::Ellipses => Err(MeetFault::Unsupported {
-            pose: "two ellipses in one plane that are not one curve",
-        }),
+        Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
 }
 
@@ -1126,6 +1127,75 @@ fn coplanar_ellipse_circle<T: Decide>(
         residual_reach: Some(r),
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
+    match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
+        Ok(Roots::Miss) => Ok(Pose::Apart),
+        Ok(Roots::Certified(found)) => Ok(Pose::Generic(
+            found.roots().iter().map(|&t| place(t)).collect(),
+        )),
+        Err(why) => Err(MeetFault::Unsettled(why)),
+    }
+}
+
+/// **Two ellipses in one plane** (module docs): the first's level on
+/// the second, `F(θ) = X²/A² + Y²/B² − 1` at the first's point `(X, Y)`
+/// in the second's frame, is of degree two in the first's angle, and goes
+/// to the certified subdivision in the metres of
+/// [`geom::ellipse_level_clearance`], the lower bound on a point's
+/// distance from the second that [`Curve3::clearance`] reads, signed as
+/// `F`.
+///
+/// **The ceiling on `|F|` per metre of that bound.** `X²/A⁴ + Y²/B⁴` is
+/// at most `(F + 1)/s²`, `s` the second's smaller semi-axis, so `g = |∇F|`
+/// is at most `2√(1 + |F|)/s`, and the bound
+/// `2|F|/(g + √(g² + 4|F|/s²))` is at least
+/// `|F|·s/(√(1 + |F|) + √(1 + 2|F|))`. Where `|F| ≤ 1` that is at least
+/// `|F|·s/(√2 + √3) > |F|·s/4`; past it, increasing in `|F|`, at least
+/// `s/(√2 + √3) > s/4`. So the bound is at least `min(s/4, |F|/(4/s))`
+/// everywhere: the ceiling `4/s`, reaching to `s/4`.
+fn coplanar_ellipses<T: Decide>(
+    e: &Span<'_, T>,
+    ka: &Conic<T>,
+    kb: &Conic<T>,
+    place: &impl Fn(T) -> Candidate<T>,
+    band: Band,
+) -> Result<Pose<T>, MeetFault> {
+    let (big_a, big_b) = (kb.semi_u, kb.semi_v);
+    let (ub, vb) = (kb.u_ref, kb.v_ref());
+    let (ua, va) = (ka.u_ref * ka.semi_u, ka.v_ref() * ka.semi_v);
+    let w = ka.center - kb.center;
+    // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
+    let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
+    let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));
+    let (a2, b2) = (big_a.powi(2), big_b.powi(2));
+    let two = T::from_f64(2.0);
+    let poly = DegreeTwo::new(
+        (x0.powi(2) + (p.powi(2) + q.powi(2)) / two) / a2
+            + (y0.powi(2) + (r.powi(2) + t.powi(2)) / two) / b2
+            - T::one(),
+        two * (x0 * p / a2 + y0 * r / b2),
+        two * (x0 * q / a2 + y0 * t / b2),
+        (p.powi(2) - q.powi(2)) / (two * a2) + (r.powi(2) - t.powi(2)) / (two * b2),
+        p * q / a2 + r * t / b2,
+    )
+    .poly();
+    let small = big_a.abs().min(big_b.abs());
+    let terms = ((w.norm() + ka.semi_u.abs() + ka.semi_v.abs()) / small).powi(2) + T::one();
+    let (t0, t1) = e.params();
+    let four = T::from_f64(4.0);
+    let frame = SubdivisionFrame {
+        t0,
+        t1,
+        speed_hi: ka.speed_hi(),
+        noise: crate::rounding_charge(terms),
+        // `g` vanishes at the second's centre: no floor but zero holds.
+        f_per_metre: T::zero(),
+        f_per_metre_hi: four / small,
+        residual_reach: Some(small / four),
+    };
+    let residual = |theta: T| {
+        let d = ka.point(theta) - kb.center;
+        geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
+    };
     match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
         Ok(Roots::Miss) => Ok(Pose::Apart),
         Ok(Roots::Certified(found)) => Ok(Pose::Generic(

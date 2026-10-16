@@ -396,8 +396,7 @@ fn near_concentric_arcs_are_decided() {
 /// **A circle and an ellipse in one plane** cross where the ellipse's
 /// distance from the circle changes sign, four times here, in either
 /// order; **an ellipse stored the other way round** is one curve with
-/// itself; **two ellipses in one plane that are not one curve** refuse
-/// typed.
+/// itself.
 #[test]
 fn coplanar_conics_with_an_ellipse() {
     let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
@@ -427,12 +426,178 @@ fn coplanar_conics_with_an_ellipse() {
         band(),
     );
     assert!(matches!(got, Ok(Pose::Coincident { .. })), "{got:?}");
-    let other = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0], 2.0, 0.5);
-    let got = meets((&e, (0.0, 1.0)), (&other, (0.0, 1.0)));
+}
+
+/// The ellipse `(2, 0.5)` about the origin in `z = 0`, its major axis
+/// turned to `u`, moved by `at`.
+fn flat_ellipse(at: [f64; 2], u: [f64; 2], a: f64, b: f64) -> Curve3<f64> {
+    ellipse(
+        [at[0], at[1], 0.0],
+        [0.0, 0.0, 1.0],
+        [u[0], u[1], 0.0],
+        a,
+        b,
+    )
+}
+
+/// **Two ellipses in one plane cross where one's level on the other
+/// changes sign.** The ellipses `(2, 0.5)` along `x̂` and along `ŷ` about
+/// the origin cross at `(±s, ±s)`, `s = 1/√4.25`, four times over whole
+/// turns, in either order, each meeting on both interiors at one of those
+/// points; the first's quarter turn `(0, π/2)` holds one of them, at
+/// `(s, s)`. Control: the second shrunk to `(1.9, 0.45)` still crosses
+/// four times, each meeting moved off `(±s, ±s)`. Red where a crossing is
+/// cleared, placed off either ellipse, or read twice.
+#[test]
+fn two_coplanar_ellipses_cross_where_the_level_changes_sign() {
+    let s = 1.0 / 4.25_f64.sqrt();
+    let x = flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.0, 0.5);
+    let whole = (-PI, PI);
+    let near = |p: Point3<f64>| {
+        [(s, s), (s, -s), (-s, s), (-s, -s)]
+            .iter()
+            .any(|&(u, v)| (p - Point3::new(u, v, 0.0)).norm() <= 1e-8)
+    };
+    for (what, y, at_s) in [
+        (
+            "square",
+            flat_ellipse([0.0, 0.0], [0.0, 1.0], 2.0, 0.5),
+            true,
+        ),
+        (
+            "shrunk",
+            flat_ellipse([0.0, 0.0], [0.0, 1.0], 1.9, 0.45),
+            false,
+        ),
+    ] {
+        for (order, got) in [
+            ("first first", meets((&x, whole), (&y, whole))),
+            ("second first", meets((&y, whole), (&x, whole))),
+        ] {
+            let m = got.unwrap_or_else(|e| panic!("{what}, {order}: {e:?}"));
+            assert_eq!(m.points.len(), 4, "{what}, {order}: four crossings: {m:?}");
+            assert!(
+                m.points
+                    .iter()
+                    .all(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::On { .. }))),
+                "{what}, {order}: each on both interiors: {m:?}"
+            );
+            for p in &m.points {
+                assert_eq!(near(p.point), at_s, "{what}, {order}: {:?}", p.point);
+                for (c, name) in [(&x, "first"), (&y, "second")] {
+                    let on = c.on_carrier(p.point, c.param_near(p.point, 0.0).unwrap(), band());
+                    assert!(
+                        matches!(on, Ok(geom::OnCarrier::On { .. })),
+                        "{what}, {order}: on the {name}: {:?} {on:?}",
+                        p.point
+                    );
+                }
+            }
+        }
+    }
+    let y = flat_ellipse([0.0, 0.0], [0.0, 1.0], 2.0, 0.5);
+    let m = meets((&x, (0.0, PI / 2.0)), (&y, whole)).unwrap();
     assert!(
-        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsupported { .. })),
-        "{got:?}"
+        matches!(m.points[..], [p] if (p.point - Point3::new(s, s, 0.0)).norm() <= 1e-8),
+        "the quarter turn's one crossing: {m:?}"
     );
+}
+
+/// **Two ellipses in one plane that keep apart meet nowhere**: the
+/// ellipse `(1, 0.4)` inside `(2, 0.5)` about one centre, and the same
+/// moved `5` along `x̂`, outside it, each decided apart with no meeting,
+/// in either order. Control: the inner one widened to `(2.2, 0.4)` pokes
+/// out through the other's ends and crosses it four times. Red where a
+/// clear pair is refused or an undecided one cleared.
+#[test]
+fn two_coplanar_ellipses_apart_meet_nowhere() {
+    let x = flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.0, 0.5);
+    let whole = (-PI, PI);
+    for (what, y, crossings) in [
+        ("inside", flat_ellipse([0.0, 0.0], [1.0, 0.0], 1.0, 0.4), 0),
+        ("outside", flat_ellipse([5.0, 0.0], [1.0, 0.0], 1.0, 0.4), 0),
+        (
+            "poking out",
+            flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.2, 0.4),
+            4,
+        ),
+    ] {
+        for (order, got) in [
+            ("first first", meets((&x, whole), (&y, whole))),
+            ("second first", meets((&y, whole), (&x, whole))),
+        ] {
+            let m = got.unwrap_or_else(|e| panic!("{what}, {order}: {e:?}"));
+            assert_eq!(m.points.len(), crossings, "{what}, {order}: {m:?}");
+        }
+        let got = pose(&Span::new(&x, whole), &Span::new(&y, whole), band());
+        assert_eq!(
+            matches!(got, Ok(Pose::Apart)),
+            crossings == 0,
+            "{what}: apart exactly where clear: {got:?}"
+        );
+    }
+}
+
+/// **Two ellipses in one plane that touch are never read apart.** The
+/// ellipses `(2, 1)` about the origin and about `(0, 2)` touch from
+/// outside at `(0, 1)`, a double root of the level. The two stay within
+/// the band of each other over about `10⁻⁴` of arc about it, wider than
+/// the band, so the subdivision finds no definite sign to split it at:
+/// the pair refuses typed (`Unsettled::SignInBand`, or `Tangency` where a
+/// piece narrows to the band first), never a decided miss, in either
+/// order.
+/// Pulled `10⁻³` apart they are decided apart; pushed `10⁻³` together
+/// they cross twice, near `(±0.09, 1)`. Red where the touch is cleared.
+#[test]
+fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
+    let x = flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.0, 1.0);
+    let whole = (-PI, PI);
+    for (order, got) in [
+        (
+            "first first",
+            meets(
+                (&x, whole),
+                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
+            ),
+        ),
+        (
+            "second first",
+            meets(
+                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
+                (&x, whole),
+            ),
+        ),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(ref r) if matches!(
+                    r.fault,
+                    MeetFault::Unsettled(Unsettled::Tangency | Unsettled::SignInBand)
+                )
+            ),
+            "{order}: the touch refuses typed: {got:?}"
+        );
+    }
+    let apart = meets(
+        (&x, whole),
+        (&flat_ellipse([0.0, 2.001], [1.0, 0.0], 2.0, 1.0), whole),
+    )
+    .unwrap();
+    assert!(apart.points.is_empty(), "pulled apart: {apart:?}");
+    let pushed = meets(
+        (&x, whole),
+        (&flat_ellipse([0.0, 1.999], [1.0, 0.0], 2.0, 1.0), whole),
+    )
+    .unwrap();
+    assert_eq!(pushed.points.len(), 2, "pushed together: {pushed:?}");
+    for p in &pushed.points {
+        assert!(
+            (p.point.y - 0.9995).abs() < 1e-3 && p.point.x.abs() < 0.2,
+            "near the touch: {:?}",
+            p.point
+        );
+    }
 }
 
 /// What a pair whose least distance is in the zero band may answer: a

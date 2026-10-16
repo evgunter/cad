@@ -482,10 +482,9 @@ mod tests {
     /// **The reading answers a meeting on every kind**, and clears
     /// carriers that keep apart: a line across a spiric's oval meets it;
     /// a line through a spline's point meets it there; an ellipse and a
-    /// circle a metre above it nowhere. Two coplanar ellipses at right
-    /// angles, which meet near `(a, a)`, `a² = 4/5`, refuse typed on both
-    /// edges: the pair's closed form has no method for two ellipses in
-    /// one plane (`work/fuse/two-coplanar-ellipses-have-no-meeting-method.md`).
+    /// circle a metre above it nowhere; two coplanar ellipses at right
+    /// angles meet near `(a, a)`, `a² = 4/5`. Every pair is decided, with
+    /// nothing pushed.
     #[test]
     fn the_reading_answers_a_meeting_on_every_kind() {
         let a = 0.8_f64.sqrt();
@@ -503,7 +502,7 @@ mod tests {
                     ellipse(2.0, 1.0, Vec3::unit_y()),
                     (-theta - 0.2, -theta + 0.3),
                 ),
-                None,
+                Some(true),
             ),
             (
                 "spiric × line",
@@ -537,13 +536,9 @@ mod tests {
         for (what, x, y, want) in cases {
             let (met, errors) = meet(&x, &y);
             assert_eq!(met, want, "{what}: {errors:?}");
-            let refused = errors.len() == 2
-                && errors
-                    .iter()
-                    .all(|e| format!("{e:?}").contains("two ellipses in one plane"));
             assert!(
-                errors.is_empty() == want.is_some() && (want.is_some() || refused),
-                "{what}: refused typed exactly where undecided: {errors:?}"
+                errors.is_empty(),
+                "{what}: decided, nothing pushed: {errors:?}"
             );
         }
     }

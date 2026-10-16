@@ -28,9 +28,10 @@ fn met(a: &Curve3<f64>, b: &Curve3<f64>, band: Band) -> Result<Meetings<f64>, Me
 /// tilt carries `k·z` across the larger semi-axis (`z` the band's zero,
 /// `k` = 0.1, 0.5, 0.9), the band reads the planes parallel and through
 /// one point, while the larger semi-axes differ by about `m·k·z`. That is
-/// no certified absence of meetings: the pair refuses as two ellipses in
-/// one plane, or at `k = 0.1`, where the semi-axes' gap sits at the
-/// band's edge, refuses that way or escalates.
+/// no certified absence of meetings, nor two certified crossings: one's
+/// level on the other stays within the band over long arcs about the
+/// crossings, so the coplanar subdivision refuses typed (`Unsettled`), or
+/// the reading escalates. Red where the pair is decided.
 #[test]
 fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
     let b = band();
@@ -69,7 +70,7 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
         for (x, y, order) in [(&e, &f, "e × f"), (&f, &e, "f × e")] {
             let got = met(x, y, b);
             let fault = got.as_ref().err().map(|r| r.fault);
-            let two = matches!(fault, Some(MeetFault::Unsupported { .. }));
+            let two = matches!(fault, Some(MeetFault::Unsettled(_)));
             let escalated = matches!(fault, Some(MeetFault::Escalated(_)));
             assert!(
                 two || escalated,

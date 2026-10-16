@@ -368,14 +368,11 @@ impl<T: Decide> Curve3<T> {
                 u_ref,
             } => {
                 let w = q - center;
-                let (x, y) = (w.dot(u_ref) / semi_u, w.dot(axis.cross(u_ref)) / semi_v);
-                let two = T::from_f64(2.0);
-                let f = x.powi(2) + y.powi(2) - T::one();
-                let g2 = (two * x / semi_u).powi(2) + (two * y / semi_v).powi(2);
-                let g = g2.sqrt();
-                let small = semi_u.abs().min(semi_v.abs());
-                let lower =
-                    two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt());
+                let lower = ellipse_level_clearance(
+                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
+                    (semi_u, semi_v),
+                )
+                .abs();
                 (lower.powi(2) + w.dot(axis).powi(2)).sqrt()
             }
             Self::Spiric {
@@ -470,6 +467,21 @@ impl<T: Decide> Curve3<T> {
         .map_err(|_| CarrierRefusal::Exhausted)?;
         Ok(kept.map_or(Clearance::Clear, Clearance::Near))
     }
+}
+
+/// **A lower bound on an in-plane point's distance from an ellipse,
+/// signed as the ellipse's level** (module docs): `(x, y)` the point in
+/// the ellipse's frame, `(a, b)` its semi-axes, and the bound
+/// `2F/(g + √(g² + 4|F|/s²))`, `F = x²/a² + y²/b² − 1`, `g = |∇F|`, `s` the
+/// smaller semi-axis. Negative inside the ellipse, positive outside, zero
+/// exactly on it; its magnitude is [`Curve3::clearance`]'s in the plane.
+pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
+    let two = T::from_f64(2.0);
+    let (u, v) = (x / a, y / b);
+    let f = u.powi(2) + v.powi(2) - T::one();
+    let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
+    let small = a.abs().min(b.abs());
+    two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 
 /// **The angle of `(x, y)`, read about `near`**: relative to `near`'s
