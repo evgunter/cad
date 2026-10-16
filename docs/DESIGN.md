@@ -314,9 +314,11 @@ curve pairs.
   `PartialOrd`/`PartialEq`, plus a style rule and a CI tripwire for the
   residual channels); all operations total with poison propagation
   (NaN/empty) — poison flows through *values*, never *decisions*;
-  `sin_cos` is the primitive; no fused operations (`hypot`,
-  `mul_add`) — cross-instantiation consistency outranks last-ulp
-  accuracy; no order-implicit reductions.
+  `sin_cos` is the primitive; no order-implicit reductions. **No fused
+  operations** (`hypot`, `mul_add`): a formula rounds the same way at
+  every scalar type and on every platform, so the f64 build, a dual's
+  value part and the determinism contract agree ([intrinsic],
+  [determinism]); last-ulp accuracy is the price.
 - **Interval scalar**: the *decoration as the poison channel*
   (`decoration < Def ⇒ Indeterminate(Invalid)` — silent domain clamps
   never decide); `Bounds` means only "carries a bracket" and
