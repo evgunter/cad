@@ -2,7 +2,9 @@
 id: near-concentric-arcs-run-the-census-meeting-search-past-its-budget
 kind: issue
 title: Two arcs within about 1e-5 of each other along a long run (concentric circles) run the census's meeting search past its budget and refuse, where the first-order bend charges each carrier's whole curvature
-status: open
+status: closed
+closed: 2026-10-14
+branch: fuse/curve-pair-reader-c2
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -93,3 +95,7 @@ does nothing for near-parallel ellipses or splines. It is a candidate for
 `two-curve-curve-meeting-finders`' design: the census would read it as
 a root-level clear before the generic search, beside `carrier_cross`'s
 closed-form line, circle and ellipse crossings.
+
+## Closed — the census confirm reads `meet` (fuse/curve-pair-reader-c2)
+
+The census's meeting search is retired: `census::curved::curved_interiors_meet` reads `geom_brep::curve_pair::meet`. Two coplanar near-concentric circles are its circle pair's closed form: one curve where the Procrustes gap reads zero, else `Pose::Concentric` where the radii's gap is definite. Re-baselined: `census::curved::tests::near_concentric_arcs_are_decided` reads `Some(false)` at Δr = 30 times the escalation band (3e-7 at ε = 1e-9, so the row holds at every ε row) and at 1e-3, decided with nothing pushed, and `Some(true)` at half the zero band. The window that ran past the budget is gone. `geom_brep::curve_pair::meet_rows::near_concentric_arcs_are_decided` pins the reader at Δr = 1e-7, 1e-5 and 1e-3, and one curve at 5e-10.
