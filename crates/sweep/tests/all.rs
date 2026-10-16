@@ -309,6 +309,8 @@ mod verbs_shell;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
+#[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
+mod a_tiny_lune_on_a_wide_sphere_reads_its_own_extent;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]

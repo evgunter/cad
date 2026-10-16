@@ -863,7 +863,7 @@ mod tier3_tests;
 pub mod transform;
 pub mod validate;
 mod wedge_reach;
-pub use wedge_reach::{edge_faces, edge_wedge_reach, wedge_reach};
+pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;

@@ -6795,6 +6795,12 @@ pub(crate) fn tier3_local_checks_marked<
         errors.extend(curve_datum_errors(edge_key, curve.carrier(), band));
     }
 
+    // One wedge reader for checks 2 and 4: each face's boundary is
+    // collected once, and each edge's reach is read once and shared by
+    // its re-certification and its dihedral check (`crate::WedgeReach`).
+    let wedges = crate::WedgeReach::new(body);
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, T> = slotmap::SecondaryMap::new();
+
     // ------------------------------------------------------------------
     // Tier 3, check 2: carrier re-certification + description adjacency
     // (edge-arena order). Tier 1 guarantees every key below resolves;
@@ -6851,12 +6857,12 @@ pub(crate) fn tier3_local_checks_marked<
             continue;
         };
         let (t0, t1) = curve.params();
-        let reach = crate::wedge_reach(
-            body,
+        let reach = wedges.reach(
             [sides.plus.face, sides.minus.face],
             curve.carrier(),
             (t0, t1),
         );
+        reaches.insert(edge_key, reach);
         match curve.recertify_via_stated(
             p_start,
             p_end,
@@ -7033,7 +7039,10 @@ pub(crate) fn tier3_local_checks_marked<
         let (t0, t1) = curve.params();
         // The wedge is levered at the farther face's extent, never the
         // edge's own (`crate::wedge_reach`).
-        let reach = crate::wedge_reach(body, [f_plus, f_minus], curve.carrier(), (t0, t1));
+        let reach = reaches
+            .get(edge_key)
+            .copied()
+            .unwrap_or_else(|| wedges.reach([f_plus, f_minus], curve.carrier(), (t0, t1)));
         // The interior schedule's stations, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5
         // and check 4's second-order walk.

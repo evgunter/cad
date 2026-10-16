@@ -3924,11 +3924,16 @@ impl<T: Decide> Body<T> {
     /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
-    /// edge; `faces` are the two faces the edge bounds once the door has
-    /// run, as the body stands before it (the face a minted strut or
-    /// chord lies in, twice), which lever its wedge
-    /// ([`crate::wedge_reach`]). Pure (no mutation) — ops call it inside
-    /// their precondition phase.
+    /// edge; `faces` are the two faces the edge bounds as this door
+    /// leaves them, read as the body stands before it (the face a minted
+    /// strut or chord lies in, twice), which lever its wedge
+    /// ([`crate::wedge_reach`]). Those are not always the faces of the
+    /// operation's result: a boolean splits an operand's edge against
+    /// that operand's untrimmed faces, and later discards one piece of a
+    /// face a chord divides. What guarantees the result is the at-rest
+    /// gate, which re-reads every edge at the faces it bounds there
+    /// (tier 3's re-certification and check 4). Pure (no mutation) —
+    /// ops call it inside their precondition phase.
     ///
     /// # Errors
     ///
