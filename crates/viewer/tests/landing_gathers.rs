@@ -341,11 +341,11 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(session.at_rest().is_none(), "and there is no badge");
 }
 
-/// **An unplaced ASSEMBLY takes no at-rest badge either.** An
-/// instance no placement reads is not in the world — the measure read
-/// at it places nothing — so the gather says `EmptyProduct`, naming the
-/// instance's body, while the document still holds an
-/// `InstantiatePart`.
+/// **A loose ASSEMBLY takes no at-rest badge either.** An instance
+/// whose bundle pins nothing is a loose copy, not in the world — the
+/// measure read at it places nothing — so the gather says
+/// `EmptyProduct`, naming the loose instance, while the document still
+/// holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
 /// the A5 badge agrees with it: there is no product for the gate to
 /// judge, and an at-rest badge reading "at rest: product: …" would
