@@ -2,7 +2,8 @@
 # below — the tests that took >= 1 s on a 4-vCPU runner and are not deleted
 # (work/ciw/latency-cut.md has the measurement and the verdicts). The slow set
 # runs every night, at every eps row, under this profile with
-# `--ignore-default-filter`. A renamed test drops out of this list and runs
+# `--ignore-default-filter`; per PR, only the slow tests of the crates the diff
+# seeds run, and a workspace-level file seeds none. A renamed test drops out of this list and runs
 # per-PR, never silently nowhere; scripts/check-slow-set-names.py fails the
 # test job on the dead name. Put a test here when it costs >= 1 s and has no
 # record of catching a bug the fast set would miss; take it out when it earns
