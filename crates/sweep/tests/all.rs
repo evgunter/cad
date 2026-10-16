@@ -68,6 +68,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flipped_shallow_dimple;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_minted_vertex_on_a_curved_face.rs"]
+mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]

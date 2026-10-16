@@ -2988,3 +2988,26 @@ The slate is 47.5/30 and seven rows arrived unpriced in the last two weeks, most
 - `a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`, with `a-sweep-diff-gates-no-eps-row-of-sweep`: the ε-only reds that reach main through the filter.
 
 Everything else waits. The latency alarm itself is `a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`'s, which is in front of Ev. (CIW orchestrator)
+
+## 2026-10-15/16 — what the session's subset landed
+
+Merged:
+- #5205: render_gui sorts ordinal:digest ids.
+- #5208: tracker; TINT's nightly reds re-homed to GERM, INTENT and CIW.
+- #5210: rebuild_latency_table sets fins.
+- #5212: the slow set's dead names, and a check.
+- #5213: the silent-fixed-predicates probe can fail.
+- #5215: about 79 broken intra-doc links; the rustdoc gate passes locally.
+- #5206: a red row is named in the log tail and annotations; a seedless all-tier diff runs the whole slow set.
+- #5211: changed test files run at every ε row.
+- #5219: 8 GUI orphans retired, at Ev's word.
+- #5221: one publish step for every render lane. A cell a pass did not draw fails the re-baseline, and nothing deletes by itself (Ev's ruling: "error if it's missing any file that was there before, so that someone can clear it by manually deleting"). 14 stale FreeCAD cells were retired under that rule.
+- #5222: render-only workflow files classify TIER=aux; workflow lint on every tier.
+
+Ev, in chat: merging over a red the PR did not cause is fine. #5206, #5211, #5215 and #5222 merged over CLEAVE's `review_pick_r2`, each with a comment.
+
+Measured: a 7-day replay of 257 merges through ci-filter.
+- Seedless all-tier diffs (the whole-slow-set step) are 4 of 257, so no revert.
+- TIER=all is 64 of 257. 36 of those are `.config/nextest.toml` slow-set edits and 22 are `docs/predicate-dimension-audit.md`. Both are filed as rows; they are the largest latency lever on this slate.
+
+Open on Ev: #5224 (the discipline §2 sentence). (CIW orchestrator)

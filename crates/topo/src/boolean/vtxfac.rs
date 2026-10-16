@@ -89,7 +89,7 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side, pierce_side_reported};
+use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side_reported};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{AlongFace, Coincide, Contradiction, DeclarationRead};
 use super::{
@@ -158,6 +158,41 @@ pub(super) struct PierceDatum<T: geom_core::Real> {
     pub lever: PierceLever<T>,
 }
 
+impl<T: Decide> PierceDatum<T> {
+    /// A bound's side of the face, as the touch reads its partners
+    /// ([`partner_side`]): its lever the face's within the bound's own
+    /// reach ([`super::sectors::pierce_side`]).
+    pub(super) fn side(
+        self,
+        dir: Vec3<T>,
+        reach: super::sectors::Reach<T>,
+        band: Band,
+    ) -> Result<SideCode, BooleanError> {
+        let lever = self.lever.within(reach.length());
+        super::sectors::pierce_side(dir, reach, self.normal, self.shape, lever, band)
+            .map(|read| read.code)
+    }
+
+    /// Whether the face holds a line along `dir`, read off its bound
+    /// ([`Self::side`]): a decided zero holds it, a definite side does
+    /// not, and a reading within the band refuses typed.
+    pub(super) fn holds_line(
+        self,
+        dir: Vec3<T>,
+        reach: super::sectors::Reach<T>,
+        band: Band,
+    ) -> Result<bool, BooleanError> {
+        Ok(self.side(dir, reach, band)? == SideCode::On)
+    }
+
+    /// The refusal of a bound lying on the face where its side is
+    /// second order: on a curved face, a bound in the tangent plane
+    /// leaves it by the two carriers' relative curvature.
+    pub(super) fn curved_along(self, on: bool) -> Option<AlongFace> {
+        (on && self.shape == super::sectors::FaceShape::Curved).then_some(AlongFace::Curved)
+    }
+}
+
 /// What [`partner_side`] read of a partner beside a touch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PartnerRead {
@@ -195,11 +230,10 @@ pub(super) fn partner_side<T: Decide>(
 ) -> Result<PartnerRead, BooleanError> {
     let mut codes = Vec::with_capacity(partner.len());
     for s in partner {
-        let code = |dir, reach: super::sectors::Reach<T>| {
-            let lever = datum.lever.within(reach.length());
-            pierce_side(dir, reach, datum.normal, datum.shape, lever, band).map(|read| read.code)
-        };
-        codes.push([code(s.start, s.start_reach)?, code(s.end, s.end_reach)?]);
+        codes.push([
+            datum.side(s.start, s.start_reach, band)?,
+            datum.side(s.end, s.end_reach, band)?,
+        ]);
     }
     let mut side = None;
     for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
@@ -209,15 +243,13 @@ pub(super) fn partner_side<T: Decide>(
         side = Some(*c);
     }
     let along = codes.iter().flatten().any(|&c| c == SideCode::On);
-    let refused = if along && datum.shape == super::sectors::FaceShape::Curved {
-        Some(AlongFace::Curved)
-    } else if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
-        Some(AlongFace::FaceOnFace)
-    } else if along && flush {
-        Some(AlongFace::Flush)
-    } else {
-        None
-    };
+    let refused = datum.curved_along(along).or_else(|| {
+        if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
+            Some(AlongFace::FaceOnFace)
+        } else {
+            (along && flush).then_some(AlongFace::Flush)
+        }
+    });
     Ok(match (refused, side) {
         (Some(how), _) => PartnerRead::Along(how),
         (None, Some(side)) => PartnerRead::Side { side, along },

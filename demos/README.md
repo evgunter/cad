@@ -237,6 +237,13 @@ What still **fails** loudly: a wedged pass, and the matplotlib-fallback
 assertion. The re-baseline is only reached when the render itself
 succeeded, so a wedge is reported as a wedge and never as drift.
 
+**A re-baseline never deletes a cell.** Every lane publishes its whole
+pass through `publish_lane.py`, so a committed file the pass did not draw is a deletion, and the
+re-baseline fails with `lost cells`, lists those files one per line and
+commits nothing. If a file was meant to go (its cell was renamed or
+retired), delete it in a commit and push again with `[render]`.
+Otherwise the render dropped a scene, which is a failure to fix.
+
 ### Off-box: the hosted lanes
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
@@ -395,8 +402,15 @@ and `demos/renders-mc/*.svg` (both tracked, both text); and
 inputs are `demos/out/mc/*.svg` (untracked), written by the tour
 itself.
 
-A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
-published to the lane directory only once it is complete. The staging
+A pass in flight lives in an untracked stage (`demos/out/stage/<lane>/`
+for the two `render.sh` lanes, wild and uv; `demos/out/gui/` for gui;
+the tour's own `demos/out/mc/` for mc) and is published to the lane
+directory only once it is complete, by `publish_lane.py`, which every
+lane calls: it refuses a stage that is not exactly the cells the pass
+was asked for, replaces the lane's committed cells with copies of the
+stage's wholesale (a `.fail.txt` displacing its frame, a `.note.txt`
+beside it), and runs the provenance guard over the result. The
+`render.sh` staging
 tree mirrors the lane directory's *name* and each scene process runs with
 the staging root as its working directory, so a staged frame's path reads
 the same as its published one.
@@ -438,8 +452,9 @@ Three layers keep a matplotlib frame out of a committed path:
   guards. (`renders-preview/renders-freecad/` never appears: `--freecad`
   has no preview lane by design — its whole point is the OCC reference
   render.)
-* **Staging.** A pass renders into `demos/out/stage/<lane>/` and is moved
-  into the lane directory only once every scene is in hand, so no
+* **Staging.** A pass renders into `demos/out/stage/<lane>/` and its
+  cells replace the lane directory's wholesale, copied in by
+  `publish_lane.py`, only once every scene is in hand, so no
   incomplete pass ever reaches `renders/` — not a crashed one, not a
   wedged one, not one killed at the terminal.
 * **Guard.** `check_render_provenance.py` asserts that every committed
@@ -454,7 +469,11 @@ Three layers keep a matplotlib frame out of a committed path:
   FreeCAD). The wild lane runs under the
   same guard with INVERTED per-lane rules: there matplotlib is the
   primary renderer, and cells must carry the wild lane's own `Author`
-  stamp.
+  stamp. The gui lane's cells and its sheet must carry the gui lane's
+  `Author` stamp (`render-gui.sh`'s `AUTHOR`); its sheet is stamped and
+  checked like a cell rather than exempt. `publish_lane.py` runs the
+  guard over every lane in its `LANE_DIRS`, and the two SVG lanes (uv,
+  mc), which it does not govern, must say `--no-provenance`.
 
 **The montage sheets are exempt, and here is why that is safe.** Both
 FreeCAD-lane sheets are *composed* by matplotlib on purpose —
