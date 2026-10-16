@@ -590,6 +590,11 @@ trait HoldsNodes {
     fn output_port(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
         None
     }
+    /// The 1-based position of the constraint `mate` names in its
+    /// placement's bundle, where the document holds it.
+    fn constraint_at(&self, _mate: crate::mate::MateRef) -> Option<usize> {
+        None
+    }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
     /// the document holds what `id` holds.
     fn written(
@@ -623,6 +628,13 @@ trait HoldsNodes {
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        self.node(mate.placement)
+            .and_then(crate::mate::solve::bundle_of)?
+            .iter()
+            .position(|c| c.id == mate.id)
+            .map(|k| k + 1)
     }
 
     fn written(
@@ -936,6 +948,9 @@ impl<P> Recording<'_, P> {
 }
 
 impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        self.doc.constraint_at(mate)
+    }
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         let node = self.doc.spoken(id);
         let mut said = self.said.borrow_mut();
@@ -1269,11 +1284,18 @@ impl<'a> Speaker<'a> {
         NodeAs(noun, said)
     }
 
-    /// **A constraint, said**: `constraint <id> of <placement>`, the
-    /// placement as [`Speaker::node`] says it.
+    /// **A constraint, said**: `constraint <n> of <placement>`, `n` its
+    /// 1-based position in the placement's bundle as the document holds
+    /// it (the viewer's tree says it so), the placement as
+    /// [`Speaker::node`] says it. With no document to read the bundle
+    /// off, `n` is the constraint's ordinal (`#<ordinal>`), never its
+    /// arena key.
     #[must_use]
     pub fn mate(self, mate: crate::mate::MateRef) -> String {
-        format!("constraint {} of {}", mate.id, self.node(mate.placement))
+        match self.doc.and_then(|doc| doc.constraint_at(mate)) {
+            Some(at) => format!("constraint {at} of {}", self.node(mate.placement)),
+            None => format!("constraint {} of {}", mate.id, self.node(mate.placement)),
+        }
     }
 }
 

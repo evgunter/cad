@@ -468,6 +468,44 @@ fn mated(
     (doc, ids)
 }
 
+/// A document instantiating `first` — a reference with the block its
+/// caps are named on — pinned to the world, and `second` placed by one
+/// constraint from `first`'s top cap to `second`'s own copy, admitted at
+/// the constraint door over `authoring`'s reach.
+fn placed_on_copy(
+    label: &str,
+    (first, (first_doc, first_block)): Stored,
+    second: DocRef,
+    authoring: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    let mate = editor_core::Mate {
+        a: editor_core::SideRead::Face(
+            fixture::head(
+                leaf_cap(&first_doc, first_block, CapEnd::End)
+                    .in_part(ids[0])
+                    .into_name(),
+            )
+            .into(),
+        ),
+        b: editor_core::SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: frame([0.0, 0.0, 1.0]),
+            b: frame([0.0; 3]),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: Some(0.0),
+        },
+    };
+    let reach = mate_reach::<f64>(authoring, Tol::witness());
+    let (doc, _) = fixture::at_the_door_of(&doc, &reach, placed, mate)
+        .unwrap_or_else(|(_, f)| panic!("{f}"));
+    (doc, ids)
+}
+
 /// **Below the top, both askers find the rows the descent entered.** A
 /// nested document with two mated instances asks its cache twice per
 /// part — the mate solve's reach, then each instance's own op — and
@@ -490,10 +528,16 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
     let opts = with_resolver(store);
 
     let own = run(&assembly, &opts);
+    if let Some(v) = own.value(ids[0]) {
+        for (n, _) in v.name_table.iter() {
+            eprintln!("DBG {n:?}");
+        }
+    }
     for id in &ids {
         assert!(
             matches!(own.result(*id), Some(NodeResult::Ok(_))),
-            "the mated instances place at the top"
+            "the mated instances place at the top: {:?}",
+            own.node_error(*id)
         );
     }
     let ev = run(&top, &opts);
@@ -517,24 +561,27 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 }
 
 /// **A part no instance asks for is evaluated, and its failure reaches
-/// nothing.** Below the top, `holder`'s mate is over a part the store
-/// cannot resolve, so the mate faults and neither instance's placement
-/// asks for its part. The descent evaluates the resolvable one anyway,
-/// with the two documents under it. Whether that subtree is healthy or
-/// ends in a missing document, the top's refusal is drawn the same, and
-/// it is the one `holder`'s own evaluation, which asks for nothing,
-/// draws.
+/// nothing.** Below the top, `holder` pins an instance of a part the
+/// store cannot resolve to the world, and places a second instance, of
+/// `asked`, by a constraint from a face of the first to its own copy. A
+/// copy side reads no face, so the solve forms no lever for `asked`,
+/// and the face side's part refuses: the constraint faults and nothing
+/// at the top asks for `asked`. The descent evaluates it anyway, with
+/// the two documents under it. Whether that subtree is healthy or ends
+/// in a missing document, the top's refusal is drawn the same, and it is
+/// the one `holder`'s own evaluation, which evaluates no part, draws.
 #[test]
 fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let mut authoring = PartStore::new();
     let asked = stored(&mut authoring, leaf_labelled("part-descent-asked"));
     let lost = stored(&mut authoring, leaf_labelled("part-descent-lost"));
     let asked_ref = asked.0;
-    // `lost` is the copy the mate places, its second operand.
-    let (holder, ids) = mated(
+    // `lost` is pinned to the world, `asked` the copy the constraint
+    // places.
+    let (holder, ids) = placed_on_copy(
         "part-descent-holder",
-        asked,
         lost,
+        asked.0,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");
@@ -563,7 +610,7 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         let own = run(&holder, &opts);
         assert_eq!(
             own.part_evaluations, 0,
-            "at the top the holder asks for no part: the mate faults first"
+            "at the top the holder evaluates no part: the constraint faults first"
         );
         let ev = run(&top, &opts);
         assert_eq!(

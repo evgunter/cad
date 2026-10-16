@@ -396,6 +396,25 @@ fn a_bundle_of_two_targets_refuses() {
     }
 }
 
+/// **The pin is asked before the target**: on a copy its bundle
+/// already pins (an instance's default world pin), a mate to another
+/// copy is overconstrained, not a second target. The order the
+/// unpinned bundle above meets is the other: `TargetsDiffer`.
+#[test]
+fn a_mate_on_a_pinned_copy_is_overconstrained_whatever_it_targets() {
+    let (doc, store, doc_ref, body) = host("s3b-pin-first");
+    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
+    let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    match at_the_door_of(&doc, &reach, b, coaxial(body, a, b)) {
+        Err((at, MateFault::Overconstrained { placement, .. })) => {
+            assert_eq!((at, placement), (b, b));
+        }
+        other => panic!("a mate on a pinned copy is overconstrained, not {other:?}"),
+    }
+}
+
 /// **A constraint has a side on its copy**: one relating two other
 /// copies refuses `NotOnTheCopy`.
 #[test]

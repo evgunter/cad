@@ -232,15 +232,18 @@ fn four_legs_framed(
     let (top_ref, top_body) = block_ref("fix-xs-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let doc = place_copies(doc, pattern, 4);
-    let (doc, mate) = fixture::constrain_at(
-        doc,
+    let reach = editor_core::mate_reach::<f64>(&legs_reach(), Tol::witness());
+    let (doc, mate) = fixture::at_the_door_of(
+        &doc,
+        &reach,
         top,
         seat_framed(
             in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
             in_part(top, top_body, CapEnd::Start),
             frame,
         ),
-    );
+    )
+    .unwrap_or_else(|(at, fault)| panic!("the seat is admitted, got {at:?}: {fault}"));
     (doc, leg, pattern, top, mate, leg_body)
 }
 

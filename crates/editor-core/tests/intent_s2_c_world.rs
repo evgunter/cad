@@ -461,11 +461,14 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         "{refused:?}"
     );
 
-    // Inline of an instance a boolean reads.
-    let part = {
+    // Inline of an instance whose one copy a boolean reads.
+    let (part, key) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-inline-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
-        place(doc, body).0
+        let read = doc.output(body, 0).expect("the block defines its body");
+        let (doc, placement) = place(doc, body);
+        let key = editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read));
+        (doc, key)
     };
     let mut store = PartStore::default();
     let part_ref = store.insert(part, Tol::witness());
@@ -475,7 +478,10 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::keyed(editor_core::Operand::Node(instance), key),
+                other.into(),
+            ]),
         },
     );
     let (host, _) = place(host, fused);
@@ -699,7 +705,10 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
             panic!("the boolean evaluates: {:?}", run.result(fused))
         };
         let editor_core::ValuePayload::Body(body) = &value.payload else {
-            panic!("the boolean is a body")
+            panic!(
+                "the boolean is a body: {:.300}",
+                format!("{:?}", value.payload)
+            )
         };
         body_digest(body)
     };

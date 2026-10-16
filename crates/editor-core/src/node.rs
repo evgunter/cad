@@ -96,12 +96,14 @@ pub struct StepId(pub MintId);
 )]
 pub struct ConstraintId(pub MintId);
 
-/// A constraint is spoken by its ordinal: the mint never draws one
-/// twice, and a sentence always names the placement it is of, so the
-/// digest would add length and no information.
+/// A constraint id is spoken by its ordinal, `#<ordinal>`: the mint
+/// never draws one twice, and a sentence always names the placement it
+/// is of, so the digest would add length and no information. Where the
+/// document is at hand, a constraint is spoken by its position in its
+/// bundle instead ([`crate::spoken::Speaker::mate`]).
 impl core::fmt::Display for ConstraintId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.0.ordinal())
+        write!(f, "#{}", self.0.ordinal())
     }
 }
 

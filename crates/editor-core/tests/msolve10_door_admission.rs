@@ -290,16 +290,16 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     let t = test_utils::refusal::tag(named.0.digest());
-    let own = format!("constraint {} of this instance contradicts itself", held.id);
+    let own = format!("constraint {} of this node contradicts itself", held.id);
     assert!(
         sentence.contains(&format!(
-            "Instance {t} is refused by the solve on its own datum: {own}"
+            "InstantiatePart {t} is refused by the solve on its own datum: {own}"
         )) && fault.to_string().starts_with(&format!(
-            "constraint {} of instance {t} contradicts itself",
+            "constraint {} of node {t} contradicts itself",
             held.id
         )),
         "the door names the placement once, and the fault's own sentence names the \
-         constraint: {sentence}"
+         constraint: {sentence} / {fault}"
     );
     assert_eq!(sentence.matches(&t).count(), 1, "{sentence}");
 }

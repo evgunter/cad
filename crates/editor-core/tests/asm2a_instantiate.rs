@@ -1398,7 +1398,8 @@ fn r1_part_evaluations_aggregates_through_nesting() {
                 [RoleSeg::InPart { of }] if of.copy_of().is_some()
             ))
         )),
-        "a nested instance's names wrap twice"
+        "a nested instance's names wrap twice: {:?}",
+        names.iter().take(3).collect::<Vec<_>>()
     );
 }
 
