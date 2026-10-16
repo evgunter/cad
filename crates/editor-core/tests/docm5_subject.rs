@@ -111,7 +111,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     let gathered = || product_recorded(&doc, &ev, tol).expect_err("an unplaced world");
     let refusal = gathered();
     assert!(
-        matches!(refusal, ProductError::Unplaced { .. }),
+        matches!(refusal, ProductError::EmptyProduct { .. }),
         "the premise: {refusal:?}"
     );
     let carries_the_gathers_refusal = |err: ChecksError| match &err {

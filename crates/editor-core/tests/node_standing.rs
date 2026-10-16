@@ -357,7 +357,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     );
     let (doc, placement) = step(
         doc,
-        DocEdit::place(
+        DocEdit::place_in_world(
             body,
             Some(
                 editor_core::Step::Rigid {

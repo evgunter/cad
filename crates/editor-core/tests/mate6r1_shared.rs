@@ -12,17 +12,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, product_recorded, run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocRef, DocumentId,
+    EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, assemble, product_recorded, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, step};
+use fixture::{constrain, constrain_at, insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
 // ---- store / eval plumbing (the shared resolver, `fixture::resolver`) ----
@@ -83,19 +82,51 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
         .expect("a definite frame")
 }
 
-fn mate_of(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
+/// A frame-coincidence mate seating `b`'s copy at height `seat` on
+/// `a`'s, declaring `class`.
+fn mate_of(a: StableName, b: StableName, seat: f64, class: ContactClass) -> editor_core::Mate<Formula> {
+    fixture::mate(
+        fixture::head(a),
+        fixture::head(b),
         class,
-        alignment: Alignment {
+        Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
             b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
         },
+    )
+}
+
+/// `count` instances of `part`: the first pinned to the world, the rest
+/// with empty bundles, each loose until a mate places it.
+fn seated_row(label: &str, part: DocRef, count: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (mut doc, first) = insert(doc, Node::instantiate_part(part));
+    let mut ids = vec![first];
+    for _ in 1..count {
+        let (next, id) = insert(doc, mated_instance(part));
+        doc = next;
+        ids.push(id);
     }
+    (doc, ids)
+}
+
+/// A two-cube stand: the lower cube pinned to the world, the upper one
+/// seated on it at `seat` by a `Rest` mate.
+fn stand(label: &str, part: DocRef, body: RecipeNodeId, seat: f64) -> ProfileDoc {
+    let (inner, sub) = seated_row(label, part, 2);
+    constrain(
+        inner,
+        mate_of(
+            in_part(sub[0], body, CapEnd::End),
+            in_part(sub[1], body, CapEnd::Start),
+            seat,
+            ContactClass::Rest,
+        ),
+    )
+    .0
 }
 
 /// `n` instances of `part`, each displaced `spacing * i` along +x.
@@ -108,26 +139,19 @@ fn row_of(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..count {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
+        let (next, id) = insert(doc, mated_instance(part));
+        #[allow(clippy::cast_precision_loss)]
+        let dx = spacing * i as f64;
+        let (next, _) = constrain_at(
+            next,
+            id,
+            editor_core::Mate::world_pin(editor_core::Placement::literal(&Frame::translation([
+                dx, 0.0, 0.0,
+            ]))),
+        );
         doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = spacing * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
-            doc = next;
-        }
         ids.push(id);
     }
-    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -140,13 +164,13 @@ fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String
             .iter()
             .map(|r| match r {
                 editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
-                    format!("NoAtRestRecord(mate={}, class={class:?})", mate.0)
+                    format!("NoAtRestRecord(mate={mate:?}, class={class:?})")
                 }
                 editor_core::MintRefusal::Reference { mate, side, .. } => {
-                    format!("Reference(mate={}, side={side:?})", mate.0)
+                    format!("Reference(mate={mate:?}, side={side:?})")
                 }
                 editor_core::MintRefusal::Unevaluated { mate, .. } => {
-                    format!("Unevaluated(mate={})", mate.0)
+                    format!("Unevaluated(mate={mate:?})")
                 }
             })
             .collect::<Vec<_>>()
@@ -180,39 +204,33 @@ fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String
 fn r1_two_bad_mates_noatrest_then_reference() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-2bad-a-cube"), Tol::witness());
-    let (doc, ids) = row_of("r1-2bad-a", part, 3, 4.0);
+    let (doc, ids) = seated_row("r1-2bad-a", part, 3);
     // mate #1 (earlier in document order): Tangent -> NoAtRestRecord.
-    let (doc, m1) = step(
+    let (doc, m1) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Tangent,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+        in_part(ids[0], body, CapEnd::End),
+        in_part(ids[1], body, CapEnd::Start),
+        1.0,
+        ContactClass::Tangent,
+        ),
     );
     // mate #2 (later): a dangling reference -> Reference.
-    let (doc, m2) = step(
+    let (doc, m2) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                dangling(ids[1]),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+        dangling(ids[1]),
+        in_part(ids[2], body, CapEnd::Start),
+        1.0,
+        ContactClass::Rest,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_noatrest_then_reference m1={:?} m2={:?} => {v}",
-        m1.map(|m| m.0),
-        m2.map(|m| m.0)
+        m1,
+        m2
     );
 }
 
@@ -221,37 +239,33 @@ fn r1_two_bad_mates_noatrest_then_reference() {
 fn r1_two_bad_mates_reference_then_noatrest() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-2bad-b-cube"), Tol::witness());
-    let (doc, ids) = row_of("r1-2bad-b", part, 3, 4.0);
-    let (doc, m1) = step(
+    let (doc, ids) = seated_row("r1-2bad-b", part, 3);
+    let (doc, m1) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                dangling(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+        dangling(ids[0]),
+        in_part(ids[1], body, CapEnd::Start),
+        1.0,
+        ContactClass::Rest,
+        ),
     );
-    let (doc, m2) = step(
+    // Seated on the base, not on the copy the bad mate places, which
+    // has no pose for a second copy to stand on.
+    let (doc, m2) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-                ContactClass::Tangent,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            1.0,
+            ContactClass::Tangent,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_reference_then_noatrest m1={:?} m2={:?} => {v}",
-        m1.map(|m| m.0),
-        m2.map(|m| m.0)
+        m1,
+        m2
     );
 }
 
@@ -265,37 +279,33 @@ fn r1_two_bad_mates_reference_then_noatrest() {
 fn r1_a_good_mate_after_a_bad_one() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-goodafterbad-cube"), Tol::witness());
-    let (doc, ids) = row_of("r1-goodafterbad", part, 3, 4.0);
-    let (doc, bad) = step(
+    let (doc, ids) = seated_row("r1-goodafterbad", part, 3);
+    let (doc, bad) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                dangling(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+        dangling(ids[0]),
+        in_part(ids[1], body, CapEnd::Start),
+        1.0,
+        ContactClass::Rest,
+        ),
     );
-    let (doc, good) = step(
+    // Seated on the base, not on the copy the bad mate places, which
+    // has no pose for a second copy to stand on.
+    let (doc, good) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE good_mate_after_bad bad={:?} good={:?} => {v}",
-        bad.map(|m| m.0),
-        good.map(|m| m.0)
+        bad,
+        good
     );
 }
 
@@ -316,18 +326,15 @@ fn r1_a_good_mate_after_a_bad_one() {
 fn r1_mint_refusal_precedes_the_census() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-prec-cube"), Tol::witness());
-    let (doc, ids) = row_of("r1-prec", part, 2, 4.0);
-    let (doc, m) = step(
+    let (doc, ids) = seated_row("r1-prec", part, 2);
+    let (doc, m) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Tangent,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+        in_part(ids[0], body, CapEnd::End),
+        in_part(ids[1], body, CapEnd::Start),
+        1.0,
+        ContactClass::Tangent,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     // The gather must still ANSWER (record-not-raise), whatever
@@ -336,7 +343,7 @@ fn r1_mint_refusal_precedes_the_census() {
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE mint_refusal_precedes_the_census mate={:?} gather_ok={gathers} => {v}",
-        m.map(|m| m.0)
+        m
     );
 }
 
@@ -362,26 +369,7 @@ fn r1_false_carried_declaration_at_both_doors() {
     let (part, body) = store.insert_part(cube_part("r1-false-cube"), Tol::witness());
     // seat 1.5 on a unit cube: a definite half-unit gap. The inner mate
     // declares a Rest that the geometry refutes.
-    let mut inner = ProfileDoc::empty(DocumentId::derive("r1-false-stand"), Tol::witness());
-    let mut sub = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        sub.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &sub);
-    let (inner, _) = step(
-        inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(sub[0], body, CapEnd::End),
-                in_part(sub[1], body, CapEnd::Start),
-                1.5,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let inner = stand("r1-false-stand", part, body, 1.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-false-outer", inner_ref, 1, 4.0);
 
@@ -405,26 +393,7 @@ fn r1_false_carried_declaration_at_both_doors() {
 fn r1_true_carried_declaration_at_both_doors() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-true-cube"), Tol::witness());
-    let mut inner = ProfileDoc::empty(DocumentId::derive("r1-true-stand"), Tol::witness());
-    let mut sub = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        sub.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &sub);
-    let (inner, _) = step(
-        inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(sub[0], body, CapEnd::End),
-                in_part(sub[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let inner = stand("r1-true-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-true-outer", inner_ref, 1, 4.0);
 
@@ -451,32 +420,27 @@ fn r1_true_carried_declaration_at_both_doors() {
 fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-dp-cube"), Tol::witness());
-    let (doc, ids) = row_of("r1-dp", part, 3, 4.0);
-    // Bad mate FIRST (dangling), then a good Rest seating cube 2 on
-    // cube 1 — a real, declared contact.
-    let (doc, _) = step(
+    let (doc, ids) = seated_row("r1-dp", part, 3);
+    // Bad mate FIRST (dangling), then a good Rest on a later placement
+    // seating cube 2 on the base — a real, declared contact. (It stands
+    // on the base: the copy the bad mate places has no pose.)
+    let (doc, _) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                dangling(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+            dangling(ids[0]),
+            in_part(ids[1], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
+        ),
     );
-    let (doc, _) = step(
+    let (doc, _) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_of(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            1.0,
+            ContactClass::Rest,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     let report =
@@ -520,26 +484,7 @@ fn r1_no_mates_document_digest() {
 fn r1_three_stands_exact_counts() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-x3-cube"), Tol::witness());
-    let mut inner = ProfileDoc::empty(DocumentId::derive("r1-x3-stand"), Tol::witness());
-    let mut sub = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        sub.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &sub);
-    let (inner, _) = step(
-        inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(sub[0], body, CapEnd::End),
-                in_part(sub[1], body, CapEnd::Start),
-                1.0,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let inner = stand("r1-x3-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-x3-outer", inner_ref, 3, 4.0);
     let ev = run(&outer, &with_resolver(store));
@@ -567,28 +512,9 @@ fn r1_three_stands_exact_counts() {
 fn r1_overlapping_false_carried_declaration() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-ovl-cube"), Tol::witness());
-    let mut inner = ProfileDoc::empty(DocumentId::derive("r1-ovl-stand"), Tol::witness());
-    let mut sub = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        sub.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &sub);
     // seat 0.5 on a unit cube: the two cubes INTERPENETRATE, and the
     // Rest declaration over their caps is a lie about that geometry.
-    let (inner, _) = step(
-        inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(sub[0], body, CapEnd::End),
-                in_part(sub[1], body, CapEnd::Start),
-                0.5,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let inner = stand("r1-ovl-stand", part, body, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl-outer", inner_ref, 1, 4.0);
 
@@ -617,26 +543,7 @@ fn r1_overlapping_false_carried_declaration() {
 fn r1_two_overlapping_false_stands() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-ovl2-cube"), Tol::witness());
-    let mut inner = ProfileDoc::empty(DocumentId::derive("r1-ovl2-stand"), Tol::witness());
-    let mut sub = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        sub.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &sub);
-    let (inner, _) = step(
-        inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_of(
-                in_part(sub[0], body, CapEnd::End),
-                in_part(sub[1], body, CapEnd::Start),
-                0.5,
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let inner = stand("r1-ovl2-stand", part, body, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl2-outer", inner_ref, 2, 4.0);
     let ev = run(&outer, &with_resolver(store.clone()));

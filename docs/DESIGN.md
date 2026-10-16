@@ -1539,8 +1539,7 @@ unattributed contact; DISCIPLINES DS2's identification grade; the axis
 declaration channel; `ParamSource`; NAMES N6's recipe-source stamps
 (`GeomSource`, with `AxisSource`); PARAM-LINT's
 declared-distinct record; the profiles' stored tangent-joint flags;
-ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
-declaring mates and A12's reading edges; and A5's at-rest gate
+ASSEMBLY A3, A10's sink rule and A12's reading edges; and A5's at-rest gate
 (`assemble` and its refusal), whose census becomes a check, with
 DISCIPLINES DS6's product-separation resident (`Separation`).
 

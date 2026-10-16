@@ -1,31 +1,33 @@
-//! FIX review probe — AQ8 unreachability, over EVERY cut set.
+//! FIX review probe — AQ8's crossing gate, over EVERY cut set.
 //!
-//! The unit's own rows check the claim "no accepted cut severs a mate
-//! EDGE" against four hand-constructed cuts. That is a sample, and the
-//! item file discloses it as one. These rows close it by exhaustion:
-//! for a document carrying the three head shapes a pattern brings, run
-//! [`split`] over EVERY subset of the recipe and assert that no
-//! accepted cut ever mints an interface crossing.
+//! A kept constraint whose two face reads land on opposite sides of a
+//! cut is a kept placement pinned against the part, and the split
+//! records it as one interface crossing — but only when both its sides
+//! resolve to members (AQ8 option (b): a dangling side contributes
+//! nothing). Hand-built cuts sample that claim; these rows close it by
+//! exhaustion: for a document carrying the three head shapes a pattern
+//! brings, run [`split`] over EVERY subset of the recipe and assert
+//! that each accepted cut's record holds exactly the straddling
+//! constraints that weld two members.
 //!
-//! Whether a mate welds its two members is re-derived here from the
-//! member walk (`fixture::mate_members`) rather than from the
+//! Whether a constraint welds its two members is re-derived here from
+//! the member walk (`fixture::mate_members`) rather than from the
 //! collector's own gate, so the row goes red if the two ever disagree.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
-    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, derivation_nodes,
-    split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, Formula, Mate, MateFrame,
+    MateRef, MatePrimitive, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
+    StableName, derivation_nodes, split,
 };
 use fixture::resolver::in_part;
-use fixture::{in_copy, insert, len, on_frame, scl, step};
+use fixture::{in_copy, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document, and its body.
@@ -56,31 +58,27 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
 }
 
 /// **The world the product is** (A10): each `(pattern, count)`'s copies
-/// placed through a `Part` per copy, and each of `bodies` placed — the
-/// old product roots, in their document order.
-fn world(doc: ProfileDoc, roots: &[(RecipeNodeId, Option<i64>)]) -> ProfileDoc {
-    roots.iter().fold(doc, |doc, &(root, copies)| match copies {
-        None => fixture::place(doc, root).0,
-        Some(count) => (0..count).fold(doc, |doc, i| {
+/// placed through a `Part` per copy. The instances are placements of
+/// their own.
+fn world(doc: ProfileDoc, patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        (0..count).fold(doc, |doc, i| {
             let (doc, copy) = insert(
                 doc,
                 Node::Part {
-                    of: root.into(),
+                    of: pattern.into(),
                     select: editor_core::PartSelect::Instance(Formula::count(i)),
                 },
             );
             fixture::place(doc, copy).0
-        }),
+        })
     })
 }
 
-/// Whether `id` is one of [`world`]'s nodes: a placement, or a `Part`
+/// Whether `id` is one of [`world`]'s nodes: a `Place`, or a `Part`
 /// selecting a pattern copy for one.
 fn of_the_world(doc: &ProfileDoc, id: RecipeNodeId) -> bool {
-    matches!(
-        doc.node(id),
-        Some(Node::PlaceInWorld { .. } | Node::Part { .. })
-    )
+    matches!(doc.node(id), Some(Node::Place { .. } | Node::Part { .. }))
 }
 
 /// `cut` and the world copies of what it moves: each `Part` selecting a
@@ -107,19 +105,27 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
     .expect("a definite frame")
 }
 
-fn seat(a: StableName, b: StableName) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+fn seat(a: StableName, b: StableName) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head(a),
+        fixture::head(b),
+        ContactClass::Rest,
+        Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
             b: mate_frame([0.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
+}
+
+/// The one name a face side selects.
+fn side_name(side: &Operand) -> StableName {
+    let Operand::Select { names, .. } = side else {
+        panic!("a face side is a selection, got {side:?}")
+    };
+    names[0].clone()
 }
 
 fn linear(spacing: f64) -> PatternKind<Formula> {
@@ -133,17 +139,19 @@ fn linear(spacing: f64) -> PatternKind<Formula> {
 struct Sweep {
     accepted: usize,
     refused: usize,
-    /// Accepted cuts carrying a remainder mate whose two ends land on
-    /// opposite sides — the shape a crossing would be minted from.
+    /// Kept constraints of accepted cuts whose two ends land on
+    /// opposite sides — the shape a crossing is minted from.
     straddling_mates: usize,
+    /// Crossings the accepted cuts minted.
+    crossings: usize,
 }
 
 /// Runs [`split`] over every non-empty subset of `doc`'s recipe (its
 /// world placements and copy `Part`s ride with what they place,
-/// [`with_world`]) and
-/// asserts the AQ8 invariant on each accepted one: an interface record
-/// is always empty, and any remainder mate whose ends straddle the cut
-/// welds no two members.
+/// [`with_world`]) and asserts the AQ8 invariant on each accepted one:
+/// the interface record holds one crossing per kept constraint whose
+/// ends straddle the cut and weld two members, and none for a
+/// straddling constraint with a dangling side.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
     let ids: Vec<RecipeNodeId> = doc
         .ids()
@@ -151,8 +159,9 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
         .filter(|&id| !of_the_world(doc, id))
         .collect();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
-    // A mate welds two members iff BOTH its sides resolve to members.
-    let edge_count = |m: RecipeNodeId| {
+    // A constraint welds two members iff BOTH its sides resolve to
+    // members.
+    let edge_count = |m: MateRef| {
         crate::fixture::mate_members(doc)
             .into_iter()
             .filter(|&(mate, _)| mate == m)
@@ -162,6 +171,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
         accepted: 0,
         refused: 0,
         straddling_mates: 0,
+        crossings: 0,
     };
     for mask in 1u32..(1u32 << ids.len()) {
         let cut: BTreeSet<RecipeNodeId> = ids
@@ -184,35 +194,34 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
         let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
             panic!("the split minted an instance");
         };
-        assert!(
-            interface.is_empty(),
-            "{label}: cut {cut:?} was ACCEPTED and minted {} crossing(s) — \
-             AQ8 unreachability is BROKEN: {:?}",
+        let mut welding = 0;
+        for placement in doc.placements() {
+            if cut.contains(&placement) {
+                continue;
+            }
+            for c in fixture::bundle(doc, placement) {
+                let (SideRead::Face(a), SideRead::Face(b)) = (&c.mate.a, &c.mate.b) else {
+                    continue;
+                };
+                let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
+                if inside(&side_name(a)) != inside(&side_name(b)) {
+                    seen.straddling_mates += 1;
+                    if edge_count(MateRef::new(placement, c.id)) == 2 {
+                        welding += 1;
+                    }
+                }
+            }
+        }
+        seen.crossings += interface.crossings.len();
+        assert_eq!(
+            interface.crossings.len(),
+            welding,
+            "{label}: cut {cut:?} was ACCEPTED and minted {} crossing(s), but {welding} kept \
+             constraint(s) straddle it welding two members — AQ8's gate and the member walk \
+             DISAGREE: {:?}",
             interface.crossings.len(),
             interface.crossings
         );
-        for id in doc.ids() {
-            if cut.contains(&id) {
-                continue;
-            }
-            let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
-                continue;
-            };
-            let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-            let (a, b) = (
-                crate::fixture::side_name(doc, *a),
-                crate::fixture::side_name(doc, *b),
-            );
-            if inside(&a) != inside(&b) {
-                seen.straddling_mates += 1;
-                assert_ne!(
-                    edge_count(id),
-                    2,
-                    "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — welding two members — \
-                     straddling it. The group precondition should have refused."
-                );
-            }
-        }
     }
     seen
 }
@@ -234,7 +243,7 @@ fn three_shapes() -> ProfileDoc {
         },
     );
     let (b_ref, b_body) = block_ref("rev-xs-b");
-    let (doc, b) = insert(doc, Node::instantiate_part(b_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(b_ref));
     let (c_ref, c_body) = block_ref("rev-xs-c");
     let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
     let (doc, pc) = insert(
@@ -253,33 +262,34 @@ fn three_shapes() -> ProfileDoc {
             kind: linear(7.0),
         },
     );
-    // Pattern-placed head onto a plain one: an EDGE, welds a—b.
-    let (doc, _) = step(
+    // A plain instance seated on a pattern-placed head: an EDGE, welds
+    // a—b, and `b`'s placement.
+    let (doc, _) = fixture::constrain_at(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat(
-                in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
-                in_part(b, b_body, CapEnd::Start),
-            )),
-            fresh: Vec::new(),
-        },
+        b,
+        seat(
+            in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
+            in_part(b, b_body, CapEnd::Start),
+        ),
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
     // two-level nest, which is the name such a table never mints:
-    // NOT an edge, welds nothing. The insert door refuses such a
-    // head, so it is authored the way one arises after insert
-    // (`insert_mate_with_stranded_head`).
+    // NOT an edge, welds nothing. The constraint door refuses such a
+    // head, so it is authored the way one arises after the add
+    // (`insert_mate_with_stranded_head`), on an instance of its own.
+    let (e_ref, e_body) = block_ref("rev-xs-e");
+    let (doc, e) = insert(doc, fixture::mated_instance(e_ref));
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
             in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
-            in_part(b, b_body, CapEnd::End),
+            in_part(e, e_body, CapEnd::End),
         ),
         editor_core::MateSide::A,
-        b,
-        b_body,
+        e,
+        e_body,
     );
-    world(doc, &[(pa, Some(3)), (b, None), (npc, Some(4))])
+    world(doc, &[(pa, 3), (npc, 4)])
 }
 
 /// The adversary the four-cut sample cannot reach: a pattern-placed
@@ -304,7 +314,7 @@ fn foreign_master() -> ProfileDoc {
     let (c_ref, c_body) = block_ref("rev-xs-f-c");
     let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
     let (d_ref, d_body) = block_ref("rev-xs-f-d");
-    let (doc, d) = insert(doc, Node::instantiate_part(d_ref));
+    let (doc, d) = insert(doc, fixture::mated_instance(d_ref));
     // The head resolves to no member (the walk reaches `a` under a
     // name whose master is `c`), which the insert door refuses: it is
     // authored the way such a head arises after insert.
@@ -318,24 +328,24 @@ fn foreign_master() -> ProfileDoc {
         d,
         d_body,
     );
-    world(doc, &[(pa, Some(3)), (c, None), (d, None)])
+    world(doc, &[(pa, 3)])
 }
 
-/// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, no
-/// cut `split` accepts ever mints an interface crossing, and no
-/// accepted cut leaves a mate welding two members straddling it.
+/// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, the
+/// crossings a cut `split` accepts mints are exactly the kept
+/// constraints welding two members across it.
 #[test]
-fn no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing() {
+fn every_cut_mints_exactly_its_straddling_member_edges() {
     let seen = sweep_every_cut(&three_shapes(), "shapes");
     assert!(seen.accepted > 0, "the sweep accepted nothing: vacuous");
     assert!(
-        seen.straddling_mates > 0,
-        "no accepted cut ever put a mate's ends on opposite sides — the row \
-         cannot go red, and the non-member seam is unexercised"
+        seen.straddling_mates > seen.crossings,
+        "no accepted cut ever put a dangling constraint's ends on opposite \
+         sides — the non-member seam is unexercised"
     );
     eprintln!(
-        "shapes: {} accepted, {} refused, {} straddling remainder mates",
-        seen.accepted, seen.refused, seen.straddling_mates
+        "shapes: {} accepted, {} refused, {} straddling remainder constraints, {} crossings",
+        seen.accepted, seen.refused, seen.straddling_mates, seen.crossings
     );
 }
 
@@ -346,8 +356,9 @@ fn no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing() {
 fn a_pattern_head_whose_master_names_a_foreign_instance_still_cannot_cross() {
     let seen = sweep_every_cut(&foreign_master(), "foreign");
     assert!(seen.accepted > 0, "the sweep accepted nothing: vacuous");
+    assert_eq!(seen.crossings, 0, "the dangling head welds nothing, so nothing crosses");
     eprintln!(
-        "foreign: {} accepted, {} refused, {} straddling remainder mates",
-        seen.accepted, seen.refused, seen.straddling_mates
+        "foreign: {} accepted, {} refused, {} straddling remainder constraints, {} crossings",
+        seen.accepted, seen.refused, seen.straddling_mates, seen.crossings
     );
 }

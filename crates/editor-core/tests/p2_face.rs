@@ -16,17 +16,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use std::sync::Arc;
 
 use crate::fixture;
-use crate::p2_gauges::{Parts, block, cut, literal, parts, seat, set_gauge, set_offset};
+use crate::p2_gauges::{Parts, block, cut, literal, parts, pinned, seat};
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName,
-    FacePoseRefusal, FaceRefusal, MateFault, MateFrame, MatePrimitive, MateRole, MateSide, Node,
-    NodeErrorKind, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
-    StableName,
+    FacePoseRefusal, FaceRefusal, Formula, Mate, MateFault, MateFrame, MatePrimitive, MateRef,
+    MateSide, Node, NodeErrorKind, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
+    SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -35,64 +34,61 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
-/// A declaring `Rest` coincidence between two heads, both sides framed
-/// on their own head faces, outward normals opposed.
-fn face_mate(a: SitedFace, b: SitedFace) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+/// A `Rest` coincidence between two heads, both sides framed on their
+/// own head faces, outward normals opposed.
+fn face_mate(a: SitedFace, b: SitedFace) -> Mate<Formula> {
+    fixture::mate(
+        a,
+        b,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::from_face(),
             b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
 }
 
-/// `node` (a mate) with its `a` side authored at the part's origin
-/// instead: the authored twin the frame rule holds to all three
-/// conditions.
-fn authored_a(node: AuthoredNode) -> AuthoredNode {
-    let Node::Mate {
-        a,
-        b,
-        class,
-        mut alignment,
-    } = node
-    else {
-        panic!("a mate");
-    };
-    alignment.a = MateFrame::authored(
+/// `mate` with its `a` side authored at the part's origin instead: the
+/// authored twin the frame rule holds.
+fn authored_a(mut mate: Mate<Formula>) -> Mate<Formula> {
+    mate.alignment.a = MateFrame::authored(
         [0.0; 3],
         [0.0, 0.0, 1.0],
         [1.0, 0.0, 0.0],
         geom_core::Tol::witness(),
     )
     .expect("a definite frame");
-    Node::Mate {
-        a,
-        b,
-        class,
-        alignment,
-    }
+    mate
 }
 
-/// Inserts a mate through the store's reach, which resolves its face
-/// sides at the door.
-fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
+/// Adds a constraint through the store's reach, which resolves its face
+/// sides at the door, to the bundle of the copy it places.
+fn insert_mate(doc: ProfileDoc, mate: Mate<Formula>, o: &EvalOptions) -> (ProfileDoc, MateRef) {
     let reach = editor_core::mate_reach::<f64>(o, Tol::witness());
-    let (doc, id) = step_with(
+    fixture::constrain_with(doc, &reach, mate)
+}
+
+/// `mate` taken out of its placement's bundle.
+fn remove(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
+    step(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
+        DocEdit::RemoveConstraint {
+            placement: mate.placement,
+            constraint: mate.id,
         },
-        &reach,
-    );
-    (doc, id.expect("the mate is minted"))
+    )
+    .0
+}
+
+/// The selection a stored constraint's `side` reads.
+fn side_var(doc: &ProfileDoc, mate: MateRef, side: MateSide) -> editor_core::VarId {
+    match fixture::constraint(doc, mate).side(side) {
+        SideRead::Face(var) => *var,
+        other => panic!("side {} reads a face, not {other:?}", side.name()),
+    }
 }
 
 /// **Where a face side's frame is in the world**: the face its head
@@ -105,27 +101,18 @@ fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (Profile
 fn side_world(
     doc: &ProfileDoc,
     o: &EvalOptions,
-    mate: RecipeNodeId,
+    mate: MateRef,
     side: MateSide,
     copy_shift: [f64; 3],
 ) -> [u64; 9] {
-    let Some(Node::Mate {
-        a, b, alignment, ..
-    }) = doc.node(mate)
-    else {
-        panic!("{mate:?} is a mate");
-    };
-    let (head, frame) = match side {
-        MateSide::A => (a, &alignment.a),
-        MateSide::B => (b, &alignment.b),
-    };
-    let head = &crate::fixture::side_head(doc, *head);
+    let stored = fixture::constraint(doc, mate);
     assert_eq!(
-        *frame,
+        *stored.frame(side),
         MateFrame::from_face(),
         "side {} is a face side",
         side.name()
     );
+    let head = &fixture::side_head(doc, side_var(doc, mate, side));
     let member = editor_core::member_of(doc, head).expect("the head reads a member");
     if copy_shift == [0.0; 3] {
         assert!(member.chain.is_empty(), "a plain read: {member:?}");
@@ -193,70 +180,75 @@ fn resolver(store: &PartStore) -> Arc<dyn PartResolver> {
     Arc::new(store.clone())
 }
 
-/// **The face-crossing scene**: a base at `[4, 0, 0]` and a top mated
-/// onto it — one placed group, the top a NON-root member — and a
-/// third block `k` on a gauge of its own, so a mate between it and the
-/// top declares. `m` is that mate: the top's upper cap to `k`'s bottom
-/// cap, both sides framed on their heads. Returns the store's parts,
-/// the document and `[base, top, seat, k, m]`.
-fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 5]) {
+/// Whether `err` is the frame rule's refusal of side `a` of `mate`.
+fn crosses_at_a(err: &SplitError, mate: MateRef) -> bool {
+    matches!(
+        err,
+        SplitError::MateFrameCrosses { placement, constraint, side: MateSide::A }
+            if placement.id() == mate.placement && *constraint == mate.id
+    )
+}
+
+/// **The face-crossing scene**: a base pinned to the world at
+/// `[4, 0, 0]` and a top mated onto it, so the top is placed by its
+/// mate rather than pinned; and a third block `k` placed by `m` alone,
+/// the top's upper cap to `k`'s bottom cap, both sides framed on their
+/// heads. Returns the store's parts, the document, `[base, top, k]` and
+/// `m`.
+fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let doc = set_offset(doc, base, Some(literal([4.0, 0.0, 0.0])));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-    let (doc, seat_mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
-    let doc = set_gauge(doc, k, Some(g));
-    let doc = fixture::place_all(doc, &[base, top, k]);
+    let (doc, base) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]));
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _seat) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, m) = insert_mate(
         doc,
         face_mate(head(p.top_upper_cap(top)), head(p.top_cap(k))),
         &o,
     );
-    (p, doc, [base, top, seat_mate, k, m])
+    assert_eq!(m.placement, k, "m places k");
+    (p, doc, [base, top, k], m)
 }
 
 // ---- the seam ----
 
-/// **A face side reading a non-root member crosses split and inline,
-/// and its world frame does not move.** The kept mate `m` reads the
-/// top — the second member of its group, which the authored frame rule
-/// refuses — through its head face. Split re-anchors the head through
-/// the instance left behind, and the face it names is then a row of
-/// the new part; inline unwraps it back onto the inner top. At each of
-/// the three documents the side's resolved world frame is the same
-/// bits, and `inline(split(d))` is `d` up to node ids under the R1
-/// comparator — the mate's two face sides included. The authored twin refuses `MateFrameCrosses`, since
-/// its vectors are coordinates of the top and the top is no root.
+/// **A face side reading a mate-placed copy crosses split and inline,
+/// and its world frame does not move.** The kept constraint `m` reads
+/// the top — placed by its mate, not pinned at the identity, which the
+/// authored frame rule refuses — through its head face. Split
+/// re-anchors the head through the instance left behind, and the face
+/// it names is then a row of the new part; inline unwraps it back onto
+/// the inner top. At each of the three documents the side's resolved
+/// world frame is the same bits, and `inline(split(d))` is `d` up to
+/// node ids under the R1 comparator — the constraint's two face sides
+/// included. The authored twin refuses `MateFrameCrosses`, since its
+/// vectors are coordinates of the top and the top is not pinned to the
+/// world at the identity.
 #[test]
-fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
+fn a_face_side_reading_a_mate_placed_copy_crosses_split_and_inline_unmoved() {
     let label = "p2-face-nonroot";
-    let (p, doc, [base, top, seat_mate, _k, m]) = face_across(label);
+    let (p, doc, [base, top, k], m) = face_across(label);
     let o = p.opts();
-    assert_eq!(
-        solve(&doc, &o, Tol::witness()).role(m),
-        Some(MateRole::Declaring)
-    );
-    assert_eq!(
-        editor_core::root_of(&doc, top),
-        base,
-        "the top is a non-root member"
+    assert!(
+        fixture::offset_of(&doc, top).is_none(),
+        "the top is placed by its mate, not pinned"
     );
     let before = side_world(&doc, &o, m, MateSide::A, [0.0; 3]);
 
-    let out = split(&doc, &[base, top, seat_mate], label, &o);
+    let out = split(&doc, &[base, top], label, &o);
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let with_part = with_resolver(store.clone());
-    let Some(Node::Mate { a, alignment, .. }) = out.remainder.node(m) else {
-        panic!("the kept mate");
-    };
-    assert_eq!(alignment.a, MateFrame::from_face());
     assert_eq!(
-        crate::fixture::side_head(&out.remainder, *a).name.node,
+        *fixture::constraint(&out.remainder, m).frame(MateSide::A),
+        MateFrame::from_face()
+    );
+    assert_eq!(
+        fixture::side_head(&out.remainder, side_var(&out.remainder, m, MateSide::A))
+            .name
+            .node,
         out.instance,
         "the head re-anchors through the instance"
     );
@@ -282,40 +274,34 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     same_up_to_ids(&doc, &back.doc, &map, &steps)
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
-    // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
-        panic!("the mate");
-    };
-    let (twin, twin_m) = {
-        let (unmated, _) = step(doc.clone(), DocEdit::DeleteNode { id: m });
-        insert_mate(unmated, authored_a(face_side), &o)
-    };
-    let err = split_err(&twin, &[base, top, seat_mate], label, &o);
-    assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == twin_m),
-        "{err:?}"
+    // The authored twin is held to the frame rule: the top is not
+    // pinned at the identity.
+    let (twin, twin_m) = insert_mate(
+        remove(doc, m),
+        authored_a(face_mate(head(p.top_upper_cap(top)), head(p.top_cap(k)))),
+        &o,
     );
+    let err = split_err(&twin, &[base, top], label, &o);
+    assert!(crosses_at_a(&err, twin_m), "{err:?}");
 }
 
 /// **A face side reading a pattern copy crosses split and inline, and
-/// its world frame does not move.** Condition (a) — no copy between —
-/// holds an authored side alone, and dropping it for a face side is
-/// deliberate: the head names the copy's face and crosses as it is. A
-/// leg patterned three times two apart along x, and a kept declaring
-/// mate whose face side reads copy 2's upper cap. Split cuts the leg
-/// and its pattern, and the side then reads the instance plainly, its
-/// face the copy's cap as the new part names it; inline unwraps it back
-/// onto copy 2 of the inner pattern. At each of the three documents the
-/// side's world frame is the same bits, and `inline(split(d))` is `d`
-/// up to node ids under the R1 comparator. The authored twin refuses
-/// `MateFrameCrosses` at split, since it reads a copy.
+/// its world frame does not move.** The head names the copy's face and
+/// crosses as it is. A leg patterned three times two apart along x, and
+/// a kept constraint placing `k` whose face side reads copy 2's upper
+/// cap. Split cuts the leg and its pattern, and the side then reads the
+/// instance plainly, its face the copy's cap as the new part names it;
+/// inline unwraps it back onto copy 2 of the inner pattern. At each of
+/// the three documents the side's world frame is the same bits, and
+/// `inline(split(d))` is `d` up to node ids under the R1 comparator.
+/// The authored twin refuses `MateFrameCrosses` at split, since it
+/// reads a copy.
 #[test]
 fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
     let label = "p2-face-copy-seam";
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
     let (doc, leg) = insert(doc, Node::instantiate_part(p.top));
     let (doc, pattern) = insert(
         doc,
@@ -328,22 +314,11 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
             },
         },
     );
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
-    let doc = set_gauge(doc, k, Some(g));
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let doc = crate::p2_gauges::place_copies(doc, pattern, 3);
-    let doc = fixture::place(doc, k).0;
-    let (doc, m) = insert_mate(
-        doc,
-        face_mate(
-            head(in_copy(pattern, 2, p.top_upper_cap(leg))),
-            head(p.top_cap(k)),
-        ),
-        &o,
-    );
-    assert_eq!(
-        solve(&doc, &o, Tol::witness()).role(m),
-        Some(MateRole::Declaring)
-    );
+    let copy_cap = || head(in_copy(pattern, 2, p.top_upper_cap(leg)));
+    let (doc, m) = insert_mate(doc, face_mate(copy_cap(), head(p.top_cap(k))), &o);
+    assert_eq!(m.placement, k, "m places k");
     let copy_two = [4.0, 0.0, 0.0];
     let before = side_world(&doc, &o, m, MateSide::A, copy_two);
 
@@ -373,97 +348,85 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
     same_up_to_ids(&doc, &back.doc, &map, &steps)
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
-    // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
-        panic!("the mate");
-    };
-    let (twin, twin_m) = {
-        let (unmated, _) = step(doc.clone(), DocEdit::DeleteNode { id: m });
-        insert_mate(unmated, authored_a(face_side), &o)
-    };
-    let err = split_err(&twin, &[leg, pattern], label, &o);
-    assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == twin_m),
-        "{err:?}"
+    // The authored twin is held to the frame rule: it reads a copy.
+    let (twin, twin_m) = insert_mate(
+        remove(doc, m),
+        authored_a(face_mate(copy_cap(), head(p.top_cap(k)))),
+        &o,
     );
+    let err = split_err(&twin, &[leg, pattern], label, &o);
+    assert!(crosses_at_a(&err, twin_m), "{err:?}");
 }
 
-/// **A face side whose member is unplaced refuses `MateFrameCrosses`**
-/// at split: a member in its group's own space has no place in the
-/// part's world for its face to keep, so the frame would mean another
-/// place. The cut holds an unplaced top beside a placed base.
+/// **A face side whose member is a loose copy refuses at split**: a
+/// copy in its own space has no place in the part's world for its face
+/// to keep, so the face would mean another place. The cut holds a loose
+/// top beside a pinned base, and `k` is placed against the loose top.
 ///
-/// Inline's mirror — a host side reading an unplaced member of the
-/// part — is not a document the doors build: the part's product table
-/// carries no row for a body in an own space, so the side's own insert
+/// Inline's mirror — a host side reading a loose copy of the part — is
+/// not a document the doors build: the part's product table carries no
+/// row for a body in a loose space, so the side's own constraint door
 /// refuses `NoSuchName` before any inline is asked. The row pins that,
 /// so the day the product carries such rows the inline half is owed.
 #[test]
-fn a_face_side_reading_an_unplaced_member_refuses_mate_frame_crosses() {
+fn a_face_side_reading_a_loose_copy_refuses_at_split() {
     let label = "p2-face-unplaced";
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let (doc, loose) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
-    let doc = set_gauge(doc, k, Some(g));
-    let doc = fixture::place_all(doc, &[base, loose, k]);
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, m) = insert_mate(
         doc,
         face_mate(head(p.top_upper_cap(loose)), head(p.top_cap(k))),
         &o,
     );
-    assert!(
-        solve(&doc, &o, Tol::witness()).unplaced(loose).is_some(),
+    assert_eq!(m.placement, k, "m places k");
+    assert_eq!(
+        solve(&doc, &o, Tol::witness()).space(loose),
+        Some(editor_core::Space::Loose { root: loose }),
         "the loose top lives in its own space"
     );
     let err = split_err(&doc, &[base, loose], label, &o);
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate, side: MateSide::A, promote: None } if mate.id() == m),
+        crosses_at_a(&err, m)
+            || matches!(
+                &err,
+                SplitError::SeveredEdge { consumer, input, .. }
+                    if consumer.id() == k && input.id() == loose
+            ),
         "{err:?}"
     );
 
     // The same two as a part, and a host side reading the loose top.
     let part_doc = ProfileDoc::empty(DocumentId::derive(&format!("{label}-sub")), Tol::witness());
-    let (part_doc, sub_base) = insert(part_doc, Node::instantiate_part(p.base));
+    let (part_doc, _sub_base) = insert(part_doc, Node::instantiate_part(p.base));
     let (part_doc, sub_loose) = insert(part_doc, fixture::mated_instance(p.top));
-    let part_doc = fixture::place_all(part_doc, &[sub_base, sub_loose]);
-    let loose_copy = part_doc.placements()[1];
     let mut store = p.store.clone();
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
-    let (host, g) = insert(host, Node::gauge(None, literal([0.0, 0.0, 8.0])));
     let (host, i) = insert(host, Node::instantiate_part(sub));
-    let (host, k) = insert(host, Node::instantiate_part(p.top));
-    let host = set_gauge(host, k, Some(g));
-    let host = fixture::place_all(host, &[i, k]);
-    let through = FaceName::new(p.top_upper_cap(sub_loose).in_copy(loose_copy))
+    let (host, k) = insert(host, fixture::mated_instance(p.top));
+    let through = FaceName::new(p.top_upper_cap(sub_loose))
         .expect("a face")
         .in_part(i)
         .into_name();
     let reach = editor_core::mate_reach::<f64>(&with_sub, Tol::witness());
-    let refused = host.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(face_mate(head(through), head(p.top_cap(k)))),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
+    let refused = fixture::at_the_door_of(
+        &host,
         &reach,
+        k,
+        face_mate(head(through), head(p.top_cap(k))),
     );
     assert!(
         matches!(
             &refused,
-            Err(editor_core::EditError::MateRefused { fault, .. })
+            Err((_, MateFault::FaceUnresolved { refusal, .. }))
                 if matches!(
-                    &**fault,
-                    MateFault::FaceUnresolved { refusal, .. }
-                        if matches!(
-                            refusal.as_ref(),
-                            FaceRefusal::Reach { refusal: FacePoseRefusal::NoSuchName, .. }
-                        )
+                    refusal.as_ref(),
+                    FaceRefusal::Reach { refusal: FacePoseRefusal::NoSuchName, .. }
                 )
         ),
         "{:?}",
@@ -500,13 +463,12 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     );
     let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
     let doc = crate::p2_gauges::place_copies(doc, pattern, 3);
-    let doc = fixture::place(doc, mover).0;
     let copy_cap = in_copy(pattern, 2, p.top_upper_cap(leg));
-    let node = Node::Mate {
-        a: head(in_part(mover, p.base_body, CapEnd::Start)).into(),
-        b: head(copy_cap.clone()).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+    let mate = fixture::mate(
+        head(in_part(mover, p.base_body, CapEnd::Start)),
+        head(copy_cap.clone()),
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 [0.0; 3],
                 [0.0, 0.0, -1.0],
@@ -519,14 +481,16 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    };
-    let (doc, m) = insert_mate(doc, node, &o);
+    );
+    let (doc, m) = insert_mate(doc, mate, &o);
+    assert_eq!(m.placement, mover, "the constraint places the mover");
     let ev = run(&doc, &o);
-    assert!(ev.node_error(m).is_none(), "{:?}", ev.node_error(m));
-    let Some(Node::Mate { b, .. }) = doc.node(m) else {
-        panic!("the mate");
-    };
-    let b = &crate::fixture::side_head(&doc, *b);
+    assert!(
+        ev.node_error(m.placement).is_none(),
+        "{:?}",
+        ev.node_error(m.placement)
+    );
+    let b = &fixture::side_head(&doc, side_var(&doc, m, MateSide::B));
     let member = editor_core::member_of(&doc, b).expect("a copy is a member");
     assert_eq!(member.copy(), vec![(pattern, 2)]);
     let master = editor_core::head_face(&doc, b).expect("the strip");
@@ -556,9 +520,9 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
 #[test]
 fn a_head_naming_no_part_face_refuses_no_part_face_at_the_door() {
     let label = "p2-face-no-part-face";
-    let (p, doc, [base, _top, _seat, k, m]) = face_across(label);
+    let (p, doc, [base, _top, k], m) = face_across(label);
     let o = p.opts();
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: m });
+    let doc = remove(doc, m);
     let bare = StableName {
         kind: editor_core::EntityKind::Face,
         node: base,
@@ -569,20 +533,14 @@ fn a_head_naming_no_part_face_refuses_no_part_face_at_the_door() {
         "the bare name walks to the base's member"
     );
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let refused = doc.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(face_mate(head(bare), head(p.top_cap(k)))),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &reach,
-    );
-    let Err(editor_core::EditError::MateRefused { fault, .. }) = &refused else {
-        panic!("the door refuses the mate: {:?}", refused.as_ref().err());
+    let refused =
+        fixture::at_the_door_of(&doc, &reach, k, face_mate(head(bare), head(p.top_cap(k))));
+    let Err((_, fault)) = &refused else {
+        panic!("the door refuses the constraint");
     };
     assert!(
         matches!(
-            &**fault,
+            fault,
             MateFault::FaceUnresolved { side: MateSide::A, refusal, .. }
                 if matches!(
                     refusal.as_ref(),
@@ -613,8 +571,8 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         .placements()
         .into_iter()
         .filter(|&at| {
-            matches!(base.node(at), Some(Node::PlaceInWorld { body: read, .. })
-                if base.operation_of(read.read) == Some(body))
+            matches!(base.node(at), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| base.operation_of(s.read) == Some(body)))
         })
         .collect();
     let base = old_copies
@@ -638,12 +596,12 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
 
 /// The top seated on the base's upper cap, the base side framed on its
 /// head: the top's origin lands on the cap's canonical origin.
-fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
-    Node::Mate {
-        a: top.into(),
-        b: base_cap.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> Mate<Formula> {
+    fixture::mate(
+        top,
+        base_cap,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 [0.0; 3],
                 [0.0, 0.0, -1.0],
@@ -656,7 +614,7 @@ fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
 }
 
 /// The top's world origin, by bits.
@@ -713,9 +671,13 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         &reach,
     );
     let ev = run(&doc, &o);
-    let fault = match &ev.node_error(m).expect("the stranded head faults").kind {
+    let fault = match &ev
+        .node_error(m.placement)
+        .expect("the stranded head faults")
+        .kind
+    {
         NodeErrorKind::Mate(fault) => (**fault).clone(),
-        other => panic!("a mate's own refusal: {other}"),
+        other => panic!("a constraint's own refusal: {other}"),
     };
     assert!(
         matches!(
@@ -738,9 +700,9 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     );
     let ev = run(&doc, &o);
     assert!(
-        ev.node_error(m).is_none(),
+        ev.node_error(m.placement).is_none(),
         "repaired whole: {:?}",
-        ev.node_error(m)
+        ev.node_error(m.placement)
     );
     assert_eq!(
         origin_of(&doc, &o, top)[2],
@@ -770,8 +732,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, low) = insert(doc, Node::instantiate_part(low_ref));
-    let (doc, high) = insert(doc, Node::instantiate_part(high_ref));
-    let doc = set_offset(doc, high, Some(literal([10.0, 0.0, 0.0])));
+    let (doc, high) = pinned(doc, high_ref, literal([10.0, 0.0, 0.0]));
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let low_head = in_part(low, low_body, CapEnd::End);
     let (doc, m) = insert_mate(
@@ -790,15 +751,22 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     let (doc, _) = step_with(
         doc,
         DocEdit::SetParam {
-            node: m,
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+            node: m.placement,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
+                constraint: m.id,
+                side: MateSide::B,
+            }),
             value: editor_core::SlotValue::Read(head(in_part(high, high_body, CapEnd::End)).into()),
             fresh: Vec::new(),
         },
         &reach,
     );
     let ev = run(&doc, &o);
-    assert!(ev.node_error(m).is_none(), "{:?}", ev.node_error(m));
+    assert!(
+        ev.node_error(m.placement).is_none(),
+        "{:?}",
+        ev.node_error(m.placement)
+    );
     let on_high = origin_of(&doc, &o, top);
     assert_eq!(
         on_high,

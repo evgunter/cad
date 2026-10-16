@@ -1514,9 +1514,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // A fold's dropped label is said nowhere else: the gauge is
-        // gone, and nothing evaluates a label.
-        Maintenance::LabelDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1526,10 +1523,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
-        // The mate door's offset clear is what inserting the mate
-        // means — the joined group stands on the one it joined — and
-        // the mate the person just placed is its notice.
-        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -2545,7 +2538,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
-        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid

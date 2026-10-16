@@ -1,6 +1,6 @@
 //! INTENT stage 2 PR C: the product is the world
 //! (`docs/INTENT-STAGE2-SPEC.md` §4, §9 rows 6–12). The product is
-//! every copy a `PlaceInWorld` defines, in the placements' document
+//! every copy a placement pinned to the world defines, in the placements' document
 //! order, and nothing else places.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -307,8 +307,9 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     let (doc, b) = block(doc, 3.0);
     let bodies = vec![doc.output(a, 0).unwrap(), doc.output(b, 0).unwrap()];
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::EmptyProduct { unplaced }) => {
+        Err(ProductError::EmptyProduct { unplaced, loose }) => {
             assert_eq!(unplaced, bodies, "every unplaced body, in document order");
+            assert!(loose.is_empty(), "and no loose copy: {loose:?}");
         }
         other => panic!("an empty world refuses EmptyProduct: {other:?}"),
     }
@@ -490,90 +491,63 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     );
 }
 
-/// **Construction never reads the world** (D10). A block placed, and a
-/// boolean that would read the placement's copy: the edit door refuses
-/// it at insert and at `SetParam`, naming the placement, and a file
-/// that holds such a read refuses at load. Only the gather and export
-/// read a placement's pose.
+/// **A construction may read a world copy.** A block placed at a
+/// pose, and a boolean reading the placement's copy: the edit door
+/// admits it at insert and at `SetParam`, the boolean builds the copy
+/// where the placement puts it, and the document round-trips through a
+/// file bit for bit.
 ///
-/// Red if a `Body` slot admits the copy: the boolean then evaluates,
-/// and its geometry moves with the pose.
+/// Red if a `Body` slot refuses the copy, or reads the unplaced block
+/// (the boolean's body is then the one over the block itself).
 #[test]
-fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
+fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
     let doc = ProfileDoc::empty_derived("intent-c-copy-read", Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.75);
-    let (doc, placement) = place(doc, a);
+    let raised: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
+        translation: [0.0, 0.0, 2.0].map(len),
+        axis: [0.0, 0.0, 1.0].map(crate::fixture::scl),
+        angle: crate::fixture::ang(0.0),
+    }
+    .into();
+    let (doc, placement) =
+        crate::fixture::step(doc, DocEdit::place_in_world(a, Some(raised)));
+    let placement = placement.expect("the placement inserts");
     let copy = doc
         .output(placement, 0)
         .expect("the placement defines its copy");
     let boolean = |a: editor_core::Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     };
-    let refused_naming_placement =
-        |result: Result<_, editor_core::EditError>, at: &str| match result {
-            Err(editor_core::EditError::ReadsWorldCopy {
-                placement: named, ..
-            }) => assert_eq!(
-                named.id(),
-                placement,
-                "{at}: the refusal names the placement"
-            ),
-            Err(other) => panic!("{at}: refused otherwise: {other}"),
-            Ok(_) => panic!("{at}: a slot read the world copy"),
-        };
-    refused_naming_placement(
-        doc.apply(
-            &DocEdit::InsertNode {
-                node: Box::new(boolean(copy.into())),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
-        "insert",
+    let (read_copy, by_insert) = insert(doc.clone(), boolean(copy.into()));
+    let (read_block, by_block) = insert(doc.clone(), boolean(a.into()));
+    assert_ne!(
+        crate::fixture::built_bits(&ev(&read_copy), by_insert),
+        crate::fixture::built_bits(&ev(&read_block), by_block),
+        "the boolean reads the copy where it is placed, not the block"
     );
 
     let (doc, fused) = insert(doc, boolean(a.into()));
-    refused_naming_placement(
-        doc.apply(
-            &DocEdit::SetParam {
-                node: fused,
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
-                value: editor_core::SlotValue::Read(copy.into()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
-        "SetParam",
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: fused,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
+            value: editor_core::SlotValue::Read(copy.into()),
+            fresh: Vec::new(),
+        },
+    );
+    assert_eq!(
+        crate::fixture::built_bits(&ev(&doc), fused),
+        crate::fixture::built_bits(&ev(&read_copy), by_insert),
+        "the slot edit reads the copy as the insert does"
     );
 
-    // The same read written into a file: the union's first member
-    // swapped for the copy, on the wire.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let body_a = doc.output(a, 0).expect("the block's body");
-    let key = serde_json::to_value(fused).expect("an id serializes");
-    let key = key.as_str().expect("a node id is a string");
-    let forged = crate::wire::doctored(&text, |body| {
-        let member = &mut body["snapshot"]["nodes"][key]["Union"]["members"]["Spelled"][0];
-        assert_eq!(
-            *member,
-            serde_json::to_value(body_a).expect("an id serializes"),
-            "the union's first member is the block's body"
-        );
-        *member = serde_json::to_value(copy).expect("an id serializes");
-    });
-    match editor_core::persist::load(&forged, Tol::witness()) {
-        Err(error) => {
-            let said = error.to_string();
-            assert!(
-                said.contains("reads the world copy"),
-                "the load names the read: {said}"
-            );
-        }
-        Ok(_) => panic!("a file whose boolean reads a world copy loads"),
-    }
+    let loaded = editor_core::persist::load(&text, Tol::witness())
+        .unwrap_or_else(|e| panic!("a boolean reading a world copy loads: {e}"))
+        .doc;
+    assert!(loaded.bit_eq(&doc), "and round-trips bit for bit");
 }
 
 /// **A posed placement moves its copy, rigidly, records and all.**
@@ -615,7 +589,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
         body_digest(&product(doc, &ev(doc), Tol::witness()).expect("the world gathers"))
     };
     let (unposed, _) = place(doc.clone(), union);
-    let (posed, _) = crate::fixture::step(doc.clone(), DocEdit::place(union, Some(pose)));
+    let (posed, _) = crate::fixture::step(doc.clone(), DocEdit::place_in_world(union, Some(pose)));
     let (moved, by) = insert(doc, xform(union, t, axis, angle));
     let (moved, _) = place(moved, by);
     assert_eq!(
@@ -653,14 +627,12 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
 /// **Inline leaves no heir for a posed part placement.** The part
 /// places its one block at a pose of its own, and a host boolean reads
-/// the instance: what stood where the instance's body did is the
-/// placement's world copy, which no slot reads, so inline refuses
-/// naming the part's placement rather than re-pointing the boolean at
-/// the copy.
+/// the instance's copy of it: what stood there is the placement's
+/// world copy, moved, so inline refuses naming the part's placement
+/// rather than re-pointing the boolean at the unposed block.
 ///
-/// Red if inline re-points the reader at the copy (the replay's
-/// `SetParam` refuses `ReadsWorldCopy` as a forwarded edit instead) or
-/// at the unposed block (the boolean's geometry moves).
+/// Red if inline re-points the reader at the unposed block (the
+/// boolean's geometry moves).
 #[test]
 fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
@@ -669,10 +641,13 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         angle: crate::fixture::ang(0.0),
     }
     .into();
-    let (part, placement) = {
+    let (part, placement, read) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
-        crate::fixture::step(doc, DocEdit::place(body, Some(pose)))
+        let read = doc.output(body, 0).expect("the block defines its body");
+        let (doc, placement) =
+            crate::fixture::step(doc, DocEdit::place_in_world(body, Some(pose)));
+        (doc, placement, read)
     };
     let placement = placement.expect("the placement's node");
     let mut store = PartStore::default();
@@ -683,7 +658,13 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::keyed(
+                    editor_core::Operand::Node(instance),
+                    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read)),
+                ),
+                other.into(),
+            ]),
         },
     );
     let (host, _) = place(host, fused);
@@ -730,7 +711,7 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     );
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
-        matches!(&refused, ProductError::EmptyProduct { unplaced } if *unplaced == want),
+        matches!(&refused, ProductError::EmptyProduct { unplaced, loose } if *unplaced == want && loose.is_empty()),
         "{refused:?}"
     );
     let said = refused.to_string();
@@ -755,7 +736,7 @@ fn cut_with_a_reader(
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let before = doc.ids().len();
     let (doc, b) = block(doc, 0.0);
-    let (doc, p) = crate::fixture::step(doc, DocEdit::place(b, pose));
+    let (doc, p) = crate::fixture::step(doc, DocEdit::place_in_world(b, pose));
     let p = p.expect("the placement's node");
     let mut cut: BTreeSet<RecipeNodeId> = doc.ids()[before..].iter().copied().collect();
     let doc = if second {
@@ -827,16 +808,17 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
     }
 }
 
-/// **Inline keeps every copy the host places.** The host places one
-/// instance twice at the identity, over a part that places its block
+/// **Inline keeps every copy the host places.** The host holds one
+/// instance pinned to the world at the identity and a second placement
+/// copying the instance's copies, over a part that places its block
 /// once: the inlined host still places two copies, and its product is
-/// the one it had. A part that places two bodies cannot stand twice
-/// where one instance body did, so the second host placement refuses as
-/// a reader the part's world does not carry.
+/// the one it had. A part that places two bodies cannot stand where
+/// one body did, so the second host placement refuses as a reader the
+/// part's world does not carry.
 ///
-/// Red if inline deletes every identity host placement and splices the
-/// part's world once (one copy, the product moves), or drops the second
-/// placement silently.
+/// Red if inline splices the part's world once and drops the second
+/// copy (one copy, the product moves), or drops the second placement
+/// silently.
 #[test]
 fn inline_keeps_both_copies_of_an_instance_placed_twice() {
     let host_of = |part: ProfileDoc, label: &str| {
@@ -844,9 +826,8 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
         let part_ref = store.insert(part, Tol::witness());
         let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (host, instance) = insert(host, Node::instantiate_part(part_ref));
-        let (host, first) = place(host, instance);
         let (host, second) = place(host, instance);
-        (host, instance, [first, second], store)
+        (host, instance, [instance, second], store)
     };
     let part = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-twice-part"), Tol::witness());
@@ -891,20 +872,16 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
     }
 }
 
-/// **A measure observes a copy; a construction never reads one.** A
-/// distance between two copies' end caps reads the copies' placed
-/// geometry (D10: a measure defines an observed variable, and
-/// construction never reads the world), so it is admitted at the edit
-/// door, measures the pose, and round-trips through a file. A shell
-/// whose open face is a selection of the same copy still refuses
-/// naming the placement: a construction seat reads the body.
+/// **A measure observes a copy.** A distance between two copies' end
+/// caps reads the copies' placed geometry (a measure defines an
+/// observed variable), so it is admitted at the edit door, measures the
+/// pose, and round-trips through a file.
 ///
 /// Red if the measure seat refuses (the quieting `Gap` of an
-/// interference could never be written), if it reads the unplaced body
-/// (`0.0` rather than `2.0`), or if the construction seat admits the
-/// copy.
+/// interference could never be written), or if it reads the unplaced
+/// body (`0.0` rather than `2.0`).
 #[test]
-fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
+fn a_measure_observes_a_world_copy() {
     use crate::fixture::{ang, scl};
     let doc = ProfileDoc::empty_derived("intent-c-measure-copy", Tol::witness());
     let (doc, a) = block(doc, 0.0);
@@ -916,7 +893,7 @@ fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
         angle: ang(0.0),
     }
     .into();
-    let (doc, q) = crate::fixture::step(doc, DocEdit::place(b, Some(raised)));
+    let (doc, q) = crate::fixture::step(doc, DocEdit::place_in_world(b, Some(raised)));
     let q = q.expect("the placement inserts");
     let (doc, measure) = crate::fixture::measure_node(
         &doc,
@@ -938,25 +915,4 @@ fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
         .unwrap_or_else(|e| panic!("a measure of two copies loads: {e}"))
         .doc;
     assert_eq!(distance(&loaded), Some(2.0), "and reads them after a load");
-
-    match doc.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Shell {
-                thickness: len(0.1),
-                open: editor_core::Operand::select(
-                    editor_core::Operand::Node(p),
-                    vec![cap(a, CapEnd::End).in_copy(p)],
-                ),
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(editor_core::EditError::ReadsWorldCopy { placement, .. }) => {
-            assert_eq!(placement.id(), p, "the refusal names the placement");
-        }
-        Err(other) => panic!("refused otherwise: {other}"),
-        Ok(_) => panic!("a construction read a world copy"),
-    }
 }

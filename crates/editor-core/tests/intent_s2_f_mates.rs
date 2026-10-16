@@ -1,18 +1,19 @@
 //! **INTENT stage 2 F: a mate's sides read `Face` variables** (D10).
 //!
-//! A mate side is a selection of the body it is read in, so a mate
-//! depends on what it reads as every reader does: A9's partition runs
-//! over reads, a cut separating a mate from a body it reads is the
-//! ordinary severed read, and the at-rest gate mints a mate's
-//! declaration on the world copies of the bodies its sides read.
+//! A mate side is a selection of the body it is read in, so the
+//! placement whose bundle holds the mate depends on what it reads as
+//! every reader does: A9's partition runs over reads, a cut separating
+//! a mate from a body it reads is the ordinary severed read, and the
+//! at-rest gate mints a mate's declaration on the world copies of the
+//! bodies its sides read.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula,
-    MateFrame, MatePrimitive, MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Mate,
+    MateFrame, MatePrimitive, MateRef, MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef,
     SplitError, assemble, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -50,22 +51,23 @@ fn seat(
     body: RecipeNodeId,
     (a_at, a): (RecipeNodeId, RecipeNodeId),
     (b_at, b): (RecipeNodeId, RecipeNodeId),
-) -> editor_core::AuthoredNode {
-    Node::Mate {
-        a: fixture::head_at(a_at, in_part(a, body, CapEnd::End)).into(),
-        b: fixture::head_at(b_at, in_part(b, body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head_at(a_at, in_part(a, body, CapEnd::End)),
+        fixture::head_at(b_at, in_part(b, body, CapEnd::Start)),
+        ContactClass::Rest,
+        Alignment {
             a: frame([0.0, 0.0, 1.0]),
             b: frame([0.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
         },
-    }
+    )
 }
 
-/// Two cube instances, the first rooting the group, and the store.
+/// Two cube instances, the first pinned to the world and the second
+/// placed by what its bundle comes to hold, and the store.
 fn pair(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], PartStore, RecipeNodeId) {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(cube_part(&format!("{label}-part")), Tol::witness());
@@ -83,29 +85,29 @@ fn component_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<usize> {
 }
 
 /// **Test 20 (A9 over reads).** Two instances are relatively free until
-/// a mate reads a face of each: its reads reach down to both instances,
-/// so mate and instances are one component.
+/// a mate in the second's bundle reads a face of the first: the
+/// placement's reads reach the first instance, so both are one
+/// component.
 #[test]
 fn a_mate_couples_its_two_instances_through_its_reads() {
     let (doc, [a, b], _, body) = pair("f-a9");
     let of = component_of;
     assert_ne!(of(&doc, a), of(&doc, b), "unmated instances are free");
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let (doc, mate) = fixture::constrain(doc, seat(body, (a, a), (b, b)));
+    assert_eq!(mate.placement, b, "the mate places the second instance");
     assert_eq!(of(&doc, a), of(&doc, b), "the mate couples them");
-    assert_eq!(of(&doc, mate), of(&doc, a), "and is in their component");
-    assert_eq!(
-        doc.upstream(mate),
-        vec![a, b],
-        "a mate's upstream is the bodies its sides read, in side order"
+    assert!(
+        doc.upstream(b).contains(&a),
+        "the placement's upstream holds the copy its mate targets: {:?}",
+        doc.upstream(b)
     );
 }
 
 /// **Test 20 (A9 over reads, without a mate).** A measure across two
 /// unmated instances reads both, so it couples them as a mate does
-/// (Q4); and two instances on one gauge stay one component, because the
-/// gauge edges outlive A12's reading edges.
+/// (Q4).
 #[test]
-fn a_measure_and_a_shared_gauge_couple_as_reads_do() {
+fn a_measure_couples_as_reads_do() {
     let (doc, [a, b], _, body) = pair("f-a9-measure");
     let (measured, measure) = fixture::measure_node(
         &doc,
@@ -121,56 +123,21 @@ fn a_measure_and_a_shared_gauge_couple_as_reads_do() {
         "a measure across two instances couples them"
     );
     assert_eq!(component_of(&measured, measure), component_of(&measured, a));
-    let (doc, g) = insert(
-        doc,
-        Node::gauge(
-            None,
-            editor_core::Placement::literal(&editor_core::Frame::translation([0.0, 0.0, 5.0])),
-        ),
-    );
-    let mut doc = doc;
-    for instance in [a, b] {
-        doc = step(
-            doc,
-            DocEdit::SetGauge {
-                node: instance,
-                gauge: Some(g),
-            },
-        )
-        .0;
-    }
-    assert_eq!(
-        component_of(&doc, a),
-        component_of(&doc, b),
-        "two instances on one gauge are one component"
-    );
-    assert_eq!(component_of(&doc, g), component_of(&doc, a));
 }
 
-/// **Test 21 (split across a mate).** A cut that takes the body a kept
-/// mate's side reads, which no cut placement places, refuses as the
-/// ordinary severed read, naming the mate and the body.
+/// **Test 21 (split across a mate).** A cut that takes the copy a kept
+/// mate's side reads, which is loose and so no world placement, refuses
+/// as the ordinary severed read, naming the mate's placement and the
+/// copy.
 #[test]
 fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
-    let (doc, [a, b], _, body) = pair("f-split");
-    // `a` on a gauge of its own, so the mate declares rather than welds
-    // a group the cut would tear.
-    let (doc, g) = insert(
-        doc,
-        Node::gauge(
-            None,
-            editor_core::Placement::literal(&editor_core::Frame::translation([0.0, 0.0, 5.0])),
-        ),
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetGauge {
-            node: a,
-            gauge: Some(g),
-        },
-    );
-    let doc = fixture::place_all(doc, &[a]);
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let mut store = PartStore::default();
+    let (doc_ref, body) = store.insert_part(cube_part("f-split-part"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("f-split"), Tol::witness());
+    let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    // The mate places `a` onto `b`, which stays loose.
+    let (doc, mate) = fixture::constrain_at(doc, a, seat(body, (a, a), (b, b)));
     let err = editor_core::split(
         &doc,
         &[b].into_iter().collect(),
@@ -184,23 +151,27 @@ fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
             &err,
             SplitError::SeveredEdge {
                 consumer,
-                slot: Some(OperandSlot::Side(editor_core::MateSide::B)),
+                slot: Some(OperandSlot::Side {
+                    constraint,
+                    side: editor_core::MateSide::B,
+                }),
                 input,
                 consumer_is_cut: false,
-            } if *consumer == doc.spoken(mate) && *input == doc.spoken(b)
+            } if *consumer == doc.spoken(mate.placement)
+                && *constraint == mate.id
+                && *input == doc.spoken(b)
         ),
         "{err:?}"
     );
 }
 
-/// **Test 22 (minting on placed copies).** A mate between two placed
-/// instances mints its declaration on their two world copies, and the
-/// gate certifies it.
+/// **Test 22 (minting on placed copies).** A mate between two
+/// instances in the world mints its declaration on their two world
+/// copies, and the gate certifies it.
 #[test]
 fn a_mate_between_placed_instances_mints_on_their_copies() {
     let (doc, [a, b], store, body) = pair("f-mint");
-    let doc = fixture::place_all(doc, &[a, b]);
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let (doc, mate) = fixture::constrain(doc, seat(body, (a, a), (b, b)));
     let ev = run(&doc, &with_resolver(store));
     let (minted, unminted) = fixture::mate_mints(&doc, &ev);
     assert_eq!(
@@ -215,18 +186,25 @@ fn a_mate_between_placed_instances_mints_on_their_copies() {
     );
 }
 
-/// **Test 22 (a member no placement reads).** A mate whose sides read
-/// a boolean's operands, which no placement reads, mints nothing: it
-/// relates the operands in the workbench, which is the boolean's
-/// business, and the product is the boolean's copy alone.
+/// **Test 22 (a member of no world copy).** A mate between two loose
+/// instances whose copies a boolean reads mints nothing: the copies are
+/// in their own space, not the world, the mate relates them there, and
+/// the product is the boolean's copy alone.
 #[test]
 fn a_mate_on_unplaced_operands_mints_nothing() {
-    let (doc, [a, b], store, body) = pair("f-unplaced");
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let mut store = PartStore::default();
+    let (doc_ref, body) = store.insert_part(cube_part("f-unplaced-part"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("f-unplaced"), Tol::witness());
+    let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, mate) = fixture::constrain_at(doc, b, seat(body, (a, a), (b, b)));
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                fixture::copy(a, body),
+                fixture::copy(b, body),
+            ]),
         },
     );
     let doc = fixture::place_all(doc, &[fused]);
@@ -249,21 +227,22 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &with_resolver(store));
     assert!(
-        ev.node_error(mate).is_some(),
+        ev.node_error(mate.placement).is_some(),
         "the evaluation refuses the side"
     );
     let gated = assemble(&doc, &ev, Tol::witness()).map(|_| ());
     assert!(gated.is_ok(), "the gate asks nothing of it: {gated:?}");
 }
 
-/// **A body placed twice has two world copies**, so a side read in it
-/// answers two faces, and a declaration names one pair: the gate
-/// refuses `Ambiguous` rather than pick a copy.
+/// **An instance copied twice has two world copies**: its own, and a
+/// placement copying its copies. A side read in it answers two faces,
+/// and a declaration names one pair: the gate refuses `Ambiguous`
+/// rather than pick a copy.
 #[test]
 fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     let (doc, [a, b], store, body) = pair("f-twice");
-    let doc = fixture::place_all(doc, &[a, b, b]);
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let (doc, mate) = fixture::constrain(doc, seat(body, (a, a), (b, b)));
+    let (doc, _) = fixture::place(doc, b);
     let ev = run(&doc, &with_resolver(store));
     let (_, unminted) = fixture::mate_mints(&doc, &ev);
     assert_eq!(
@@ -279,7 +258,7 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
 
 /// `mate`'s side `b` re-pointed at a face name `instance`'s table does
 /// not carry: the selection's ladder refuses it.
-fn ghost_side(doc: ProfileDoc, mate: RecipeNodeId, instance: RecipeNodeId) -> ProfileDoc {
+fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> ProfileDoc {
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
         node: instance,
@@ -295,8 +274,11 @@ fn ghost_side(doc: ProfileDoc, mate: RecipeNodeId, instance: RecipeNodeId) -> Pr
     step(
         doc,
         DocEdit::SetParam {
-            node: mate,
-            slot: editor_core::SlotId::Operand(OperandSlot::Side(editor_core::MateSide::B)),
+            node: mate.placement,
+            slot: editor_core::SlotId::Operand(OperandSlot::Side {
+                constraint: mate.id,
+                side: editor_core::MateSide::B,
+            }),
             value: editor_core::SlotValue::Read(fixture::head_at(instance, ghost).into()),
             fresh: Vec::new(),
         },
@@ -310,20 +292,22 @@ fn ghost_side(doc: ProfileDoc, mate: RecipeNodeId, instance: RecipeNodeId) -> Pr
 #[test]
 fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     let (doc, [a, b], store, body) = pair("f-vanish");
-    let doc = fixture::place_all(doc, &[a, b]);
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let (doc, mate) = fixture::constrain(doc, seat(body, (a, a), (b, b)));
     let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &with_resolver(store));
     assert!(
         matches!(
-            ev.node_error(mate).map(|e| &e.kind),
+            ev.node_error(mate.placement).map(|e| &e.kind),
             Some(editor_core::NodeErrorKind::SelectResolve {
-                slot: OperandSlot::Side(editor_core::MateSide::B),
+                slot: OperandSlot::Side {
+                    side: editor_core::MateSide::B,
+                    ..
+                },
                 ..
             })
         ),
         "{:?}",
-        ev.node_error(mate)
+        ev.node_error(mate.placement)
     );
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => assert!(
@@ -456,30 +440,28 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = insert(
+    let (doc, mate) = fixture::constrain(
         doc,
-        Node::Mate {
-            a: fixture::head(fixture::in_copy(
+        fixture::mate(
+            fixture::head(fixture::in_copy(
                 pattern,
                 2,
                 in_part(instance, leg, CapEnd::End),
-            ))
-            .into(),
-            b: fixture::head(in_part(top, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
+            )),
+            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            ContactClass::Rest,
+            Alignment {
                 a: frame([0.0, 0.0, 1.0]),
                 b: frame([0.0, 0.0, 0.0]),
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Opposed,
                 clocking: None,
             },
-        },
+        ),
     );
-    let Some(Node::Mate { a: side, .. }) = doc.node(mate) else {
-        panic!("the mate is there")
+    let editor_core::SideRead::Face(side) = fixture::constraint(&doc, mate).a else {
+        panic!("the mate's side a reads a face")
     };
-    let side = *side;
     // Named, so another reader may read it by its variable.
     let (doc, _) = step(
         doc,
@@ -528,21 +510,23 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, _]) = lifted_cube_measured("f-posed", |x, _| x, |_, t| t);
     // Re-place `x` itself, posed, and drop the transform's placement.
     let placed_t = doc
-        .ids()
+        .placements()
         .into_iter()
-        .find(|&p| {
-            matches!(doc.node(p), Some(Node::PlaceInWorld { .. }))
-                && doc.upstream(p).len() == 1
-                && doc
-                    .node(doc.upstream(p)[0])
-                    .is_some_and(|n| matches!(n, Node::Transform { .. }))
+        .find(|&p| match doc.node(p) {
+            Some(Node::Place { shapes, .. }) => {
+                shapes.len() == 1
+                    && doc
+                        .operation_of(shapes[0].read)
+                        .is_some_and(|at| at == t)
+            }
+            _ => false,
         })
         .expect("the transform is placed");
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: placed_t });
     let (doc, posed) = step(
         doc,
-        DocEdit::place(
-            editor_core::Operand::Node(x),
+        DocEdit::place_in_world(
+            x,
             Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([0.0, 0.0, 10.0]),
             )),
@@ -584,38 +568,33 @@ fn a_selection_crossing_a_posed_placement_refuses() {
 #[test]
 fn a_face_based_side_that_vanishes_refuses_as_the_solve_naming_the_side() {
     let (doc, [a, b], store, body) = pair("f-face-vanish");
-    let doc = fixture::place_all(doc, &[a, b]);
     let opts = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (doc, mate) = fixture::step_with(
+    let (doc, mate) = fixture::constrain_with(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: fixture::head(in_part(a, body, CapEnd::End)).into(),
-                b: fixture::head(in_part(b, body, CapEnd::Start)).into(),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: MateFrame::from_face(),
-                    b: MateFrame::from_face(),
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            }),
-            fresh: Vec::new(),
-        },
         &reach,
+        fixture::mate(
+            fixture::head(in_part(a, body, CapEnd::End)),
+            fixture::head(in_part(b, body, CapEnd::Start)),
+            ContactClass::Rest,
+            Alignment {
+                a: MateFrame::from_face(),
+                b: MateFrame::from_face(),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        ),
     );
-    let mate = mate.expect("the mate mints");
     assert!(
-        run(&doc, &opts).node_error(mate).is_none(),
+        run(&doc, &opts).node_error(mate.placement).is_none(),
         "the mate holds"
     );
     let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &opts);
     assert!(
         matches!(
-            ev.node_error(mate).map(|e| &e.kind),
+            ev.node_error(mate.placement).map(|e| &e.kind),
             Some(editor_core::NodeErrorKind::Mate(fault))
                 if matches!(**fault, editor_core::MateFault::FaceUnresolved {
                     side: editor_core::MateSide::B,
@@ -623,37 +602,6 @@ fn a_face_based_side_that_vanishes_refuses_as_the_solve_naming_the_side() {
                 })
         ),
         "{:?}",
-        ev.node_error(mate).map(|e| &e.kind)
-    );
-}
-
-/// **A mate side reads the body, not its world copy** (stage 5 B's
-/// `Reader`): a side is a construction seat, so a selection of a
-/// placement's copy refuses at the door, and the gate's copy rule
-/// carries the face to the copy instead.
-#[test]
-fn a_mate_side_read_at_a_world_copy_refuses() {
-    let (doc, [a, b], _, body) = pair("f-world-copy");
-    let (doc, placed) = fixture::place(doc, a);
-    let refused = editor_core::apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(seat(body, (placed, a), (b, b))),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("a side reads the body the placement copies");
-    assert!(
-        matches!(
-            &refused,
-            editor_core::EditError::ReadsWorldCopy {
-                slot: editor_core::SlotId::Operand(OperandSlot::Side(editor_core::MateSide::A)),
-                placement,
-                ..
-            } if *placement == doc.spoken(placed)
-        ),
-        "{refused:?}"
+        ev.node_error(mate.placement).map(|e| &e.kind)
     );
 }

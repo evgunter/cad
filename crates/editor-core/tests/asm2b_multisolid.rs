@@ -16,7 +16,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Mate, Node, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
@@ -47,33 +47,50 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each placed in the world
-/// at the identity, the i-th
-/// displaced `spacing * i` along +x so the solids stay disjoint.
+/// An assembly instantiating `refs` in order, each pinned to the world,
+/// the i-th displaced `spacing * i` along +x so the solids stay
+/// disjoint.
 fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
-        doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = spacing * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
+        if i == 0 {
+            let (next, id) = insert(doc, Node::instantiate_part(*r));
             doc = next;
+            ids.push(id);
+            continue;
         }
+        #[allow(clippy::cast_precision_loss)]
+        let dx = spacing * i as f64;
+        let (next, id) = insert(doc, fixture::mated_instance(*r));
+        doc = fixture::constrain_at(next, id, pin_at([dx, 0.0, 0.0])).0;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
+}
+
+/// A world pin at a translation.
+fn pin_at(translation: [f64; 3]) -> Mate {
+    Mate::world_pin(editor_core::Placement::literal(&Frame::translation(
+        translation,
+    )))
+}
+
+/// `placement`'s bundle replaced by one world pin at `translation`.
+fn repinned(doc: ProfileDoc, placement: RecipeNodeId, translation: [f64; 3]) -> ProfileDoc {
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::constrain_at(doc, placement, pin_at(translation)).0
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -139,8 +156,11 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     // The instance value itself is the multi-solid body — the lift's
     // whole content: one rigid map over N solids, not N maps.
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b.solids().count(),
-        other => panic!("an instance's value is a body, got {other:?}"),
+        Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
+            [b] => b.solids().count(),
+            other => panic!("an instance's copies are one product body, got {}", other.len()),
+        },
+        other => panic!("an instance's value is its copies, got {other:?}"),
     };
     assert_eq!(solids_of(a_ids[0]), 2, "each instance carries both solids");
     assert_eq!(solids_of(a_ids[1]), 2);
@@ -309,8 +329,8 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
-/// solids rigidly (every vertex x by exactly the translation, volume
+/// Row 4 — pinning a multi-solid instance to the world at another pose
+/// moves ALL of its solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.
 #[test]
@@ -326,16 +346,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
-    let (moved, _) = step(
-        doc,
-        DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                7.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
-    );
+    let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0]);
     assert_ne!(
         content_pin(&moved, Tol::witness()).expect("pins"),
         pin0,

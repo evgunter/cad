@@ -1103,6 +1103,11 @@ fn resolve_side<P: crate::ProfilePayload, T: SolveScalar>(
 /// the carrier's own in-frame reference direction (`Pose::u_ref`),
 /// through the witness ladder.
 ///
+/// The reach levers parts, so only an instance's face is read: a face
+/// side on a `Place` copy or a raw construction refuses typed
+/// ([`FaceRefusal::NotAnInstance`]), the stage's named interim
+/// (`work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
+///
 /// # Errors
 ///
 /// [`MateFault::FaceUnresolved`] naming the mate, the side, the

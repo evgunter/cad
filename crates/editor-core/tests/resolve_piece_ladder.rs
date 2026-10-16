@@ -266,7 +266,7 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
+            payload: editor_core::ValuePayload::World,
             name_table: Arc::new(t),
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -277,6 +277,7 @@ fn one_node_eval(
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,
+            motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -284,8 +285,7 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
+        loose: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],

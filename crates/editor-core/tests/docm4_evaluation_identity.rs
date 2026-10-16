@@ -56,23 +56,41 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
 }
 
 /// An assembly-shaped document under `id`: two instances of `part_ref`,
-/// the second translated, both placed in the world.
+/// the second translated, both pinned to the world.
 fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
-    let (doc, _) = fixture::step(
+    let doc = pinned_at(
         doc,
-        DocEdit::SetOffset {
-            instance: b,
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                4.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        b,
+        editor_core::Placement::literal(&Frame::translation([4.0, 0.0, 0.0])),
     );
-    (fixture::place_all(doc, &[a, b]), vec![a, b])
+    (doc, vec![a, b])
 }
+
+/// `placement` pinned to the world at `pose`: its bundle replaced by
+/// one world pin.
+fn pinned_at(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    pose: editor_core::Placement<editor_core::Formula>,
+) -> ProfileDoc {
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
+}
+
 
 fn run(
     doc: &editor_core::ProfileDoc,
@@ -469,15 +487,10 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     assert_eq!(warm.part_evaluations, 0, "a memo hit crosses no seam");
     assert_eq!(warm.prior_refused, None);
 
-    let (moved, _) = fixture::step(
+    let moved = pinned_at(
         asm.clone(),
-        DocEdit::SetOffset {
-            instance: ids[1],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                9.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
     );
     let after = run(&moved, Some(&warm), &opts);
     assert_eq!(

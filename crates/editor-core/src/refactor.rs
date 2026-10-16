@@ -1000,7 +1000,7 @@ pub enum Uncarried {
     },
     /// The one placement on the world copies recipe content, which no
     /// bundle of an instance's faces may move onto (the B4 interim,
-    /// `work/intent/a-bundle-folds-in-the-joined-space.md`).
+    /// `work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
     NotAnInstance {
         /// The placement, spoken from the document that holds it.
         placement: SpokenNode,
@@ -1165,7 +1165,7 @@ pub enum InlineError {
     /// **A host constraint's face side would land on a part copy that
     /// is no instance**: the solve reads a face only of an instance
     /// until the fold moves into the evaluation (the B4 interim,
-    /// `work/intent/a-bundle-folds-in-the-joined-space.md`).
+    /// `work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
     SideLeavesAnInstance {
         /// The host placement holding the constraint.
         placement: SpokenNode,
@@ -3592,7 +3592,7 @@ pub fn inline(
     // part stands in that copy's coordinates, which must be the
     // instance's. A face side lands on a part copy, which must be an
     // instance for the solve to read its face (the B4 interim,
-    // `work/intent/a-bundle-folds-in-the-joined-space.md`), and the
+    // `work/intent/the-solve-reads-a-face-only-of-an-instance.md`), and the
     // instance's own copy side must land on the root.
     let landing_copy = |var: VarId| -> Option<RecipeNodeId> {
         let select = doc.selection(var)?;

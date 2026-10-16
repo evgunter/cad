@@ -28,14 +28,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CapEnd, CarriedRefusal,
-    ContactClass, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, MateFrame,
-    MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, assemble,
+    ContactClass, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, Mate, MateFrame,
+    MatePrimitive, MateRef, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, assemble,
     product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -101,29 +100,37 @@ fn mate_node(
     b: StableName,
     class: ContactClass,
     a_frame: MateFrame<Formula>,
-) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
+) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head(a),
+        fixture::head(b),
         class,
-        alignment: Alignment {
+        Alignment {
             a: a_frame,
             b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
         },
-    }
+    )
 }
 
+/// `node`'s bundle replaced by one world pin at the translation `at`.
 fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
-    step(
+    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
+        step(
+            doc,
+            DocEdit::RemoveConstraint {
+                placement: node,
+                constraint: c.id,
+            },
+        )
+        .0
+    });
+    fixture::constrain_at(
         doc,
-        DocEdit::SetOffset {
-            instance: node,
-            offset: Some(editor_core::Placement::literal(&Frame::translation(at))),
-            fresh: Vec::new(),
-        },
+        node,
+        Mate::world_pin(editor_core::Placement::literal(&Frame::translation(at))),
     )
     .0
 }
@@ -150,9 +157,8 @@ fn stand(
     let (cube, cube_body) = store.insert_part(cube_part(&format!("{label}-cube")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, c0) = insert(doc, Node::instantiate_part(cube));
-    let (doc, c1) = insert(doc, Node::instantiate_part(cube));
-    let doc = fixture::place_all(doc, &[c0, c1]);
-    let (doc, mate) = insert(
+    let (doc, c1) = insert(doc, fixture::mated_instance(cube));
+    let (doc, mate) = fixture::constrain(
         doc,
         mate_node(
             in_part(c0, cube_body, CapEnd::End),
@@ -236,7 +242,7 @@ fn row_of(
         }
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
 }
 
 fn findings_of(result: &Result<Assembly<f64>, AssemblyError>) -> Vec<editor_core::AtRestFinding> {
@@ -407,8 +413,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let s1 = ProfileDoc::empty(DocumentId::derive("docm6-deep-s1"), Tol::witness());
     let (s1, s1_slab) = insert(s1, Node::instantiate_part(slab));
     let (s1, s1_cube) = insert(s1, crate::fixture::mated_instance(cube));
-    let s1 = fixture::place_all(s1, &[s1_slab, s1_cube]);
-    let (s1, s1_mate) = insert(
+    let (s1, s1_mate) = fixture::constrain(
         s1,
         mate_node(
             in_part(s1_slab, slab_body, CapEnd::End),
@@ -429,8 +434,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let (mid, m_c0) = insert(mid, Node::instantiate_part(cube));
     let mid = place(mid, m_c0, [30.0, 0.0, 0.0]);
     let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
-    let mid = fixture::place_all(mid, &[m_s1a, m_s1b, m_c0, m_c1]);
-    let (mid, mid_mate) = insert(
+    let (mid, mid_mate) = fixture::constrain(
         mid,
         mate_node(
             in_part(m_c0, cube_body, CapEnd::End),
@@ -450,7 +454,6 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let (outer, o_m1) = insert(outer, Node::instantiate_part(mid_ref));
     let (outer, o_m2) = insert(outer, Node::instantiate_part(mid_ref));
     let outer = place(outer, o_m2, [0.0, 100.0, 0.0]);
-    let outer = fixture::place_all(outer, &[o_cube, o_m1, o_m2]);
     let outer_id = outer.id();
 
     let ev = run(&outer, &with_resolver(store.clone()));
@@ -477,7 +480,6 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer_ref = store.insert(outer, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("docm6-deep-top"), Tol::witness());
     let (top, t) = insert(top, Node::instantiate_part(outer_ref));
-    let top = fixture::place(top, t).0;
     let ev = run(&top, &with_resolver(store));
     let gathered = product_recorded(&top, &ev, Tol::witness()).expect("the top gathers");
     let mut expected = Vec::new();
@@ -717,7 +719,6 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     );
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-precedence"), Tol::witness());
     let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
-    let doc = fixture::place(doc, instance).0;
     // The SAME two faces the inner mate declared, named from out here:
     // the stand's own two cube caps, each seen through this instance.
     let err = doc
@@ -823,7 +824,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // `cubes` and `body` being the instantiated stand's.
     let with_own_mate =
         |doc: ProfileDoc, ids: &[RecipeNodeId], (stand, body): (DocRef, RecipeNodeId)| {
-            insert(
+            fixture::constrain(
                 doc,
                 mate_node(
                     wrap(ids[0], in_stand(&store, stand, 1, body, CapEnd::End)),
@@ -937,7 +938,6 @@ fn a_carried_refusals_deeper_hop_says_its_documents_label_where_the_outer_holds_
     let outer = labelled(outer, twin[0], "spare seat");
     let (outer, instance) = insert(outer, Node::instantiate_part(mid_ref));
     let outer = place(outer, instance, [12.0, 0.0, 0.0]);
-    let outer = fixture::place(outer, instance).0;
     let outer = labelled(outer, instance, "left bracket");
 
     let ev = run(&outer, &with_resolver(store));
@@ -1009,7 +1009,6 @@ fn a_carried_row_says_the_labels_its_pin_fixes() {
         let mid_ref = store.insert(mid, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-pin-outer"), Tol::witness());
         let (outer, instance) = insert(outer, Node::instantiate_part(mid_ref));
-        let outer = fixture::place(outer, instance).0;
         let ev = run(&outer, &with_resolver(store));
         match assemble(&outer, &ev, Tol::witness()) {
             Err(AssemblyError::CarriedMintRefusal { refusals }) => (mid_ref, refusals),
@@ -1084,7 +1083,6 @@ fn every_carried_refusal_is_raised_in_gather_order() {
     let (doc, a) = insert(doc, Node::instantiate_part(first));
     let (doc, b) = insert(doc, Node::instantiate_part(second));
     let doc = place(doc, b, [20.0, 0.0, 0.0]);
-    let doc = fixture::place_all(doc, &[a, b]);
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
@@ -1132,7 +1130,6 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
     let (doc, first) = insert(doc, Node::instantiate_part(good));
     let (doc, second) = insert(doc, Node::instantiate_part(broken));
     let doc = place(doc, second, [20.0, 0.0, 0.0]);
-    let doc = fixture::place_all(doc, &[first, second]);
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the row gathers");
@@ -1250,7 +1247,6 @@ fn a_product_inside_a_sub_assembly_still_refuses() {
     let (mut store, inner_ref, cube) = product_and_cube("nested", 1.0);
     let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
     let (wrap, inner) = insert(wrap, Node::instantiate_part(inner_ref));
-    let wrap = fixture::place(wrap, inner).0;
     let wrap_ref = store.insert(wrap, Tol::witness());
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-nested-outer"),
@@ -1377,9 +1373,8 @@ fn stand_over(
 ) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
     let (doc, c0) = insert(doc, Node::instantiate_part(cube));
-    let (doc, c1) = insert(doc, Node::instantiate_part(cube));
-    let doc = fixture::place_all(doc, &[c0, c1]);
-    let (doc, mate) = insert(
+    let (doc, c1) = insert(doc, fixture::mated_instance(cube));
+    let (doc, mate) = fixture::constrain(
         doc,
         mate_node(
             in_part(c0, cube_body, CapEnd::End),
@@ -1427,7 +1422,6 @@ fn outer_over_twin(
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, instance, [10.0, 0.0, 0.0]);
-    let outer = fixture::place(outer, instance).0;
     let (outer, _) = step(
         outer,
         DocEdit::SetLabel {
@@ -1586,7 +1580,7 @@ fn contradicted(
         held,
     );
     let (c0, c1) = (doc.ids()[0], doc.ids()[1]);
-    let (doc, second) = insert(
+    let (doc, second) = fixture::constrain(
         doc,
         mate_node(
             in_part(c0, cube_body, CapEnd::End),
@@ -1641,7 +1635,6 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let (held, added) = (outer.ids()[4], outer.ids()[5]);
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, instance, [10.0, 0.0, 0.0]);
-    let outer = fixture::place(outer, instance).0;
     let (th, ta) = (
         test_utils::refusal::tag(held.0.digest()),
         test_utils::refusal::tag(added.0.digest()),
@@ -1742,7 +1735,6 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
         let part_ref = store.insert(part, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
         let (outer, instance) = insert(outer, Node::instantiate_part(part_ref));
-        let outer = fixture::place(outer, instance).0;
         let ev = run(&outer, &with_resolver(store));
         let error = ev.node_error(instance).expect("the part has no body");
         let level = error

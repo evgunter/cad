@@ -296,7 +296,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
         doc = d;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
 }
 
 /// A refusal as a surface draws it: its own sentence, then each
@@ -427,8 +427,9 @@ fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
 }
 
 /// A document instantiating `first` and `second` — each a reference
-/// with the block its caps are named on — with a mate between them,
-/// admitted at the insert door over `authoring`'s reach.
+/// with the block its caps are named on — `first` pinned to the world
+/// and `second` placed by a mate onto it, admitted at the constraint
+/// door over `authoring`'s reach.
 /// A stored leaf: its reference, and its document with its block.
 type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
 
@@ -438,29 +439,29 @@ fn mated(
     (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, ids) = instantiating_all(label, &[first, second]);
-    let mate = Node::Mate {
-        a: (fixture::head(
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    let mate = fixture::mate(
+        fixture::head(
             leaf_cap(&first_doc, first_block, CapEnd::End)
                 .in_part(ids[0])
                 .into_name(),
-        ))
-        .into(),
-        b: (fixture::head(
+        ),
+        fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
                 .in_part(ids[1])
                 .into_name(),
-        ))
-        .into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+        ),
+        ContactClass::Rest,
+        Alignment {
             a: frame([0.0, 0.0, 1.0]),
             b: frame([0.0; 3]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: Some(0.0),
         },
-    };
+    );
     let reach = mate_reach::<f64>(authoring, Tol::witness());
     let (doc, _) = at_the_door(&doc, &reach, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
     (doc, ids)
@@ -528,8 +529,7 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let asked = stored(&mut authoring, leaf_labelled("part-descent-asked"));
     let lost = stored(&mut authoring, leaf_labelled("part-descent-lost"));
     let asked_ref = asked.0;
-    // `lost` is the mate's second operand, so its group roots the pair
-    // and the solve asks for its part first.
+    // `lost` is the copy the mate places, its second operand.
     let (holder, ids) = mated(
         "part-descent-holder",
         asked,
