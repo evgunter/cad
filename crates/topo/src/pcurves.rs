@@ -2258,7 +2258,7 @@ pub(crate) struct CarriedRows<T: Real> {
 /// could not state.
 #[derive(Clone, Debug)]
 pub(crate) struct SplitRowError {
-    /// The parent half-edge whose row was being restricted.
+    /// The parent half-edge whose children's rows were being stated.
     pub(crate) half_edge: HalfEdgeKey,
     /// What refused.
     pub(crate) refusal: SplitRefusal,
@@ -2267,12 +2267,17 @@ pub(crate) struct SplitRowError {
 /// The two refusals of [`split_cache`].
 #[derive(Clone, Debug)]
 pub(crate) enum SplitRefusal {
-    /// The parent's image, restricted to one child's sub-interval,
-    /// failed the closed-form certification the whole image passed. A
+    /// A child's row refused over its sub-interval: the derivation that
+    /// places a closed-form or projected child there, or the
+    /// certification of the child's row (derived, or a fitted or
+    /// general parent's restricted), which the whole image passed. A
     /// covered lane that refuses here is a genuine defect.
     Certify(PcurveCertifyError),
-    /// The one decider decided no element for the joint between the
-    /// two children ([`decide_joint`]). The gap there is zero, and a
+    /// The one decider decided no element for a joint the split makes
+    /// ([`decide_joint`]): between the two children, or one of the
+    /// parent's end joints decided again against its neighbour (or, on a
+    /// one-edge loop, its own other child). At the children's joint the
+    /// gap is zero, and a
     /// zero gap meets the image's own orbit point at any lever
     /// ([`lever_periods`]), even a point off a narrow cone's apex by
     /// more than the band whose lever is under it: what refuses is a
@@ -2427,15 +2432,23 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // there, exactly as the mint derives it. A fitted or general
         // image has no angular placement, and a stated image the chart
         // derives nothing for keeps the parent's; each restricts.
-        let child = |a: T, b: T| match &image {
+        let placed_again = matches!(
+            image,
             Pcurve::Harmonic { .. }
-            | Pcurve::FocalSection(_)
-            | Pcurve::Spiric { .. }
-            | Pcurve::Projected(_) => geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band)
-                .unwrap_or_else(|_| image.clone()),
-            _ => image.clone(),
+                | Pcurve::FocalSection(_)
+                | Pcurve::Spiric { .. }
+                | Pcurve::Projected(_)
+        );
+        // A derivation that refuses over a child's span refuses the split
+        // (fail-loud): the parent's image is not the child's row there.
+        let child = |a: T, b: T| {
+            if placed_again {
+                geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band).map_err(refused)
+            } else {
+                Ok(image.clone())
+            }
         };
-        let (first, second) = (child(t0, t), child(t, t1));
+        let (first, second) = (child(t0, t)?, child(t, t1)?);
         // The children meet at `t`, so the joint is decided there as every
         // joint is, which reads whether the split point is on the chart's
         // singular set. It runs the way the half does: from the first
@@ -2452,13 +2465,6 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // decided again against their neighbours' rows, as every joint
         // is. A neighbour with no row, or one of this edge's own halves
         // (a strut's tip), keeps its element.
-        let placed_again = matches!(
-            image,
-            Pcurve::Harmonic { .. }
-                | Pcurve::FocalSection(_)
-                | Pcurve::Spiric { .. }
-                | Pcurve::Projected(_)
-        );
         let neighbour = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             if halves.contains(&he) {
                 return None;
@@ -7324,7 +7330,14 @@ pub(crate) mod pole_slit_tests {
     fn a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it() {
         let band = Band::linear(Tol::witness()).unwrap();
         let tau = core::f64::consts::TAU;
-        let turn = -geom_brep::ANGLE_WINDOW_START;
+        // The window's cut, pinned as the literal it is (`−1`), so a row
+        // that moved the window would go red here rather than follow it.
+        let turn = 1.0;
+        assert_eq!(
+            geom_brep::ANGLE_WINDOW_START,
+            -turn,
+            "the cut this row sits on"
+        );
         // Far enough off the cut that the placement's mark is decided at
         // every ε row: past the escalation band, which is ten band zeros.
         let far = 100.0 * band.zero();
@@ -7373,10 +7386,13 @@ pub(crate) mod pole_slit_tests {
                 );
                 copies.push(here);
             }
+            // The tie-break takes the lower branch, which names the
+            // midpoint at the window's closed end, `τ − 1`: pinned as that
+            // copy, so an upper tie-break goes red.
             let near: Vec<f64> = copies[..3].concat();
             assert!(
-                near.iter().all(|u| (u - near[0]).abs() < 1e-12),
-                "{name}: the first premise, one copy within an ulp of the cut: {near:?}"
+                near.iter().all(|u| (u - (tau - 1.0)).abs() < 1e-12),
+                "{name}: the first premise, one copy, τ − 1, within an ulp of the cut: {near:?}"
             );
             let all = copies.concat();
             assert!(
@@ -7443,6 +7459,133 @@ pub(crate) mod pole_slit_tests {
                         turns[0]
                     );
                 }
+            }
+        }
+    }
+
+    /// **A sphere patch anywhere in latitude reads in the chart's
+    /// region.** A patch between two meridians and two parallels, below
+    /// latitude −1 rad, across the equator's south and north, is minted,
+    /// validates, stores every latitude in `[−π/2, π/2]` (the sphere's
+    /// latitude window, `geom_brep`'s `Window::Latitude`), and overlaps
+    /// itself with positive area. Placed in the angular window instead, a
+    /// meridian below latitude −1 was stored a turn up, which the chart
+    /// region's sphere arm refuses (PR 5225's first review, P2).
+    #[test]
+    fn a_sphere_patch_anywhere_in_latitude_reads_in_the_charts_region() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z());
+        let circle =
+            |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+        let p = |u: f64, v: f64| Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
+        let rhat = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+        for (va, vb) in [(-1.4_f64, -1.1_f64), (-0.9, -0.3), (0.3, 1.3)] {
+            let (u0, u1) = (0.0_f64, 1.0_f64);
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(p(u0, va), true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: o,
+                        radius: 1.0,
+                        axis: z,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            let bottom = EdgeCurveSpec::arc_of_circle(
+                circle(Point3::new(0.0, 0.0, va.sin()), z, va.cos(), rhat(u0)),
+                0.0,
+                u1 - u0,
+            )
+            .unwrap();
+            let b = body
+                .mev(
+                    MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    p(u1, va),
+                    bottom,
+                    tol,
+                )
+                .unwrap();
+            let right =
+                EdgeCurveSpec::arc_of_circle(circle(o, rhat(u1).cross(z), 1.0, rhat(u1)), va, vb)
+                    .unwrap();
+            let r = body
+                .mev(
+                    MevSite::Fan {
+                        he1: b.he_minus,
+                        he2: b.he_minus,
+                    },
+                    p(u1, vb),
+                    right,
+                    tol,
+                )
+                .unwrap();
+            let top = EdgeCurveSpec::arc_of_circle(
+                circle(Point3::new(0.0, 0.0, vb.sin()), -z, vb.cos(), rhat(u1)),
+                0.0,
+                u1 - u0,
+            )
+            .unwrap();
+            let tp = body
+                .mev(
+                    MevSite::Fan {
+                        he1: r.he_minus,
+                        he2: r.he_minus,
+                    },
+                    p(u0, vb),
+                    top,
+                    tol,
+                )
+                .unwrap();
+            let left =
+                EdgeCurveSpec::arc_of_circle(circle(o, z.cross(rhat(u0)), 1.0, rhat(u0)), -vb, -va)
+                    .unwrap();
+            body.mef(
+                MefSite::Chords {
+                    he1: tp.he_minus,
+                    he2: b.he_plus,
+                },
+                left,
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+            super::mint_pcurves(&mut body, tol).unwrap();
+            let label = format!("[{va}, {vb}]");
+            assert_eq!(super::validate_pcurves(&body, band), vec![], "{label}");
+            for (he, c) in body.pcurves() {
+                let (a, b) = c.params();
+                let mid = c.pcurve().eval(0.5 * (a + b));
+                assert!(
+                    mid.y.abs() <= core::f64::consts::FRAC_PI_2 + 1e-12,
+                    "{label}, {he:?}: a latitude in the chart's region: {mid:?}"
+                );
+            }
+            for (f, _) in body.faces() {
+                let o = crate::declared_pair_overlap(
+                    &body,
+                    f,
+                    &body,
+                    f,
+                    crate::contact::ContactVerdict::Definite,
+                    band,
+                );
+                assert!(
+                    matches!(o, Ok(crate::ChartOverlap::PositiveArea)),
+                    "{label}, {f:?}: {o:?}"
+                );
             }
         }
     }

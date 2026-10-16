@@ -90,8 +90,10 @@ use crate::m10_9_pins_interval::measured_studies;
 /// (`pcurve_chart_placement`), and a cylinder's meridian azimuth is
 /// read only on a meridian, so a rim circle centred on the axis no
 /// longer takes the frame read the tier proved zero. `symbolic` falls
-/// by those frame reads and `numeric` rises by the marks; `frozen` takes
-/// the marks' contradiction checks. Plate `[1048, 654, 729]` →
+/// by those frame reads and `numeric` rises by the marks; `frozen` rises
+/// by the marks' contradiction checks whose forms froze (plate +12,
+/// annulus +16, link +6, bracket +15, pad +21), the frame reads having
+/// been proved and frozen nothing. Plate `[1048, 654, 729]` →
 /// `[1032, 726, 741]`, annulus `[566, 399, 904]` → `[550, 471, 920]`,
 /// link `[356, 259, 542]` → `[348, 295, 548]`, bracket
 /// `[1453, 1008, 1969]` → `[1433, 1096, 1984]`, pad `[1317, 1159, 2976]`

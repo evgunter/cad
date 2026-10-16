@@ -1,8 +1,9 @@
 //! C4's placement: a periodic chart's image is placed over its edge's
-//! span in the chart's principal window ([`super::ANGLE_WINDOW_START`]),
-//! so where a carrier's parameter starts moves no stored image.
+//! span in the chart's principal window ([`super::ANGLE_WINDOW_START`];
+//! a sphere's latitude in its own, [`super::Window::Latitude`]), so where
+//! a carrier's parameter starts moves no stored image.
 
-use core::f64::consts::TAU;
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -24,6 +25,65 @@ fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
 type Arm = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64));
+
+/// A ring torus `R = 2`, `r = 0.7` about `z`, and its Villarceau circle
+/// through azimuth `phi` on `family` (`±1`), started at `psi` (PR 5225's
+/// second review).
+fn villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {
+    let (major, minor) = (2.0, 0.7);
+    let (axis, u_ref) = (Vec3::unit_z(), Vec3::unit_x());
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref,
+    };
+    let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+    let tilt = (minor / major).asin();
+    let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+    let carrier = circle(
+        Point3::new(0.0, 0.0, 0.0) + d * minor,
+        d.cross(lean),
+        major,
+        d * psi.cos() + lean * psi.sin(),
+    );
+    (torus, carrier)
+}
+
+/// A cone of half-angle 0.4 about `z` and its section by a plane tilted
+/// 0.2 rad off the axis at height 1.5: an ellipse, the focal arm's.
+fn cone_ellipse() -> (Surface<f64>, Curve3<f64>) {
+    let cone = Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle: 0.4,
+        u_ref: Vec3::unit_x(),
+    };
+    let tilt: f64 = 0.2;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.5),
+        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+    };
+    let reach = crate::Reach::Measured {
+        at: Point3::new(0.0, 0.0, 0.0),
+        lever: 4.0,
+    };
+    match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
+        Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => (cone, e),
+        other => panic!("a tilted section of a cone is an ellipse: {other:?}"),
+    }
+}
+
+/// Whether a chart's second coordinate is an angle, and in which window.
+fn second_window(surface: &Surface<f64>) -> Option<fn(f64) -> bool> {
+    match surface {
+        Surface::Torus { .. } => Some(in_window),
+        Surface::Sphere { .. } => Some(in_latitude),
+        _ => None,
+    }
+}
 
 /// One carrier per periodic arm of the derivation, with an edge's span.
 fn arms() -> Vec<Arm> {
@@ -56,7 +116,44 @@ fn arms() -> Vec<Arm> {
     };
     let lat: f64 = 0.5;
     let tube: f64 = 0.3;
+    let (cone_e, ellipse) = cone_ellipse();
+    let (torus_v, villarceau_circle) = villarceau(0.7, 1.0, 0.3);
+    let (wall_r, wall_rr, wall_d) = (0.09375, 0.0703125, 0.0078125);
+    let wall_torus = Surface::Torus {
+        center: o,
+        axis: y,
+        major_radius: wall_r,
+        minor_radius: wall_rr,
+        u_ref: x,
+    };
+    let spiric = Curve3::Spiric {
+        center: o,
+        axis: y,
+        u_ref: x,
+        major_radius: wall_r,
+        minor_radius: wall_rr,
+        offset: wall_d,
+    };
+    let wall_t = 0.8911225078866529;
+    let general = circle(o, Vec3::new(0.6_f64.sin(), 0.0, 0.6_f64.cos()), 1.0, {
+        Vec3::new(0.6_f64.cos(), 0.0, -0.6_f64.sin())
+    });
     vec![
+        ("cone focal section", cone_e, ellipse, (0.3, 2.1)),
+        ("torus Villarceau", torus_v, villarceau_circle, (0.4, 1.6)),
+        ("torus spiric wall", wall_torus, spiric, (-wall_t, wall_t)),
+        (
+            "sphere general circle (projected)",
+            sphere.clone(),
+            general,
+            (0.3, 0.3 + FRAC_PI_2),
+        ),
+        (
+            "sphere meridian, below latitude −1",
+            sphere.clone(),
+            circle(o, -y, 1.0, x),
+            (-1.4, -1.1),
+        ),
         (
             "cylinder rim",
             cylinder.clone(),
@@ -106,12 +203,20 @@ fn in_window(u: f64) -> bool {
     ANGLE_WINDOW_START < u && u <= ANGLE_WINDOW_START + TAU
 }
 
+/// A sphere's latitude window `(−π, π]`, and within it the chart's own
+/// latitudes `[−π/2, π/2]` an edge's midpoint on the sphere reads.
+fn in_latitude(v: f64) -> bool {
+    -PI < v && v <= PI && v.abs() <= FRAC_PI_2 + 1e-12
+}
+
 /// **A carrier restated whole periods off derives one placed image.**
-/// On every periodic arm, the edge's span shifted by `k` whole turns of
-/// the carrier's parameter (`k` from −10 to 10) derives an image that
-/// meets the unshifted one at every point of the span, its azimuth in
-/// the principal window at the span's midpoint, and certifies with the
-/// same envelope: check 4 re-derives the image the mint placed.
+/// On every periodic arm (the harmonic ones, the focal section on a cone
+/// and a torus, the spiric wall and the projected image), the edge's
+/// span shifted by `k ∈ {−10, −1, 1, 10}` whole turns of the carrier's
+/// parameter derives an image that meets the unshifted one at every
+/// point of the span, both its angular channels in their windows at the
+/// span's midpoint, and certifies with the same envelope: check 4
+/// re-derives the image the mint placed.
 #[test]
 fn a_carrier_restated_whole_periods_off_derives_one_placed_image() {
     let band = band();
@@ -134,10 +239,18 @@ fn a_carrier_restated_whole_periods_off_derives_one_placed_image() {
                     "{name}, {k} turns, at {s} of the span: {p:?} against {q:?}"
                 );
             }
+            let mid = image.eval(0.5 * (a + b));
             assert!(
-                in_window(image.eval(0.5 * (a + b)).x),
-                "{name}, {k} turns: the azimuth at the midpoint is in the window"
+                in_window(mid.x),
+                "{name}, {k} turns: the azimuth at the midpoint is in the window: {mid:?}"
             );
+            if let Some(second) = second_window(&surface) {
+                assert!(
+                    second(mid.y),
+                    "{name}, {k} turns: the second angle at the midpoint is in its window: \
+                     {mid:?}"
+                );
+            }
             assert!(
                 (env - envelope).abs() < 1e-12,
                 "{name}, {k} turns: the envelope {env:e} against {envelope:e}"

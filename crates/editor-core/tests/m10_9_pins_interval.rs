@@ -588,7 +588,10 @@ fn m10_9_what_the_registry_buys() {
 /// Placing each row in the chart's principal window (PCERT B1): the
 /// frame reads on rims centred on the axis gone and two numeric marks
 /// per placed azimuth, (1372, 1284, 3426) → (1348, 1384, 3444), at both
-/// dials alike.
+/// dials alike: `symbolic` −24 (the frame reads), `numeric` +100 (fifty
+/// placements' two marks), and `frozen` +18, the marks' contradiction
+/// checks whose forms froze; the frame reads were proved, so froze
+/// nothing.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
