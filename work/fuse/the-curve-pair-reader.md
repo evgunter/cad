@@ -23,7 +23,7 @@ Ev approved the designers' converged recommendation on 5154 (2026-10-15): the po
 1. **Move the shared machinery down.**
    - `topo::bisect` goes to `geom-core`.
    - `topo::carrier_speed`'s rate bounds and the half-angle ladder (`topo::boolean::circle_roots::half_angle_roots`) go down with the reader.
-2. **One span type and one point-on-span reading** (`Off`, `Carrier`, `On(t, margin)`, `End`). It replaces the four readings: `carrier_cross::strictly_inside`, `census::curved::interior_at`/`clear_of_end`, the census line lane's `on_edge_interior`, and `LoopEdge::contact`'s conic rows.
+2. **One span type and one point-on-span reading** (`Off`, `Carrier`, `On(t, margin)`, `End`). It replaces the four readings: `carrier_cross::strictly_inside`, `census::curved::interior_reading` (once `interior_at`) and `clear_of_end`, the census line lane's `on_edge_interior`, and `LoopEdge::contact`'s conic rows.
 3. **The table.**
    - Line, circle and ellipse pairs are closed forms in one conic's angle, measured in metres. They are well-conditioned: a double root is decided by the gap between its roots along the curve, and a `Zero` reading places its candidate with the exactly degenerate formula.
    - Spiric and spline pairs use the certified walk.
@@ -70,9 +70,11 @@ Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on
 
 These four readings decided the point-on-span question themselves, and move onto `Span::contact`:
 - `carrier_cross::strictly_inside` (moved in PR 5154);
-- `census::curved::interior_at` and `clear_of_end`;
+- `census::curved::interior_reading` (once `interior_at`) and `clear_of_end`;
 - the census line lane's `on_edge_interior`;
 - `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.
+
+**Follow-on, its own unit:** `two-coplanar-ellipses-have-no-meeting-method`, the coplanar ellipse pair's method. The census confirm refuses that pose typed since it reads `meet`.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`

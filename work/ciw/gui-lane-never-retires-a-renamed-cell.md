@@ -15,7 +15,8 @@ Found by the CIW render-gui lane (PR 5205): its `[render]` dispatch (render.yml 
 `d3713cf944` added 7 cells under new names. The tour's assembly documents
 now carry `PlaceInWorld` / `Part` nodes, so `shape_name` changed. The 8
 cells under the old names stayed committed although no document produces
-them any more (retired by hand in PR 5219).
+them any more; PR 5219 retired them with `git rm` (Ev, in chat: "please
+do delete those orphans").
 
 The cause is not the gui lane's alone. `.github/actions/rebaseline-lane`
 refuses to commit a deletion, so it catches a missing cell only when the
