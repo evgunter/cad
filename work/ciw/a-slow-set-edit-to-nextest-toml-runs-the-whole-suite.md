@@ -41,8 +41,11 @@ Replayed through the new filter. The first set is the 268 merges that
 /home/user/cad's shallow clone reaches, 2026-10-13 to 2026-10-15. The
 "7-day" figures above came from that set, since the clone does not reach
 2026-10-09. TIER=all went from 68 to 10. Every all→closure transition is
-one of the two rules. Of the 39 merges forced by nextest.toml, 37 now scope.
-The 2 that do not edited the header comment (#5206, #5212). Over the true
+one of the two rules. Of the 39 merges forced by nextest.toml, 36 now scope.
+Two of the other three edited the header comment (#5206, #5212), and the
+third also touched `scripts/payload-rung-sweep.py`. The 10 left: `ci.yml` 3,
+`scripts/payload-rung-sweep.py` 3, the nextest.toml header 2, `benches/` 1
+and `interval-transcendentals/` 1. Over the true
 7 days, 805 merges since 2026-10-09: TIER=all went from 168 to 37, and
 closure from 242 to 373. Docs (391) and aux (4) did not change. The 37 left,
 by first unscopable path: `scripts/payload-rung-sweep.py` 13, a member

@@ -36,7 +36,8 @@ pncad and pncad-py: the `include_str!` in pncad, and the python tests, which
 also switches the python suite on.
 
 Replay, the same runs as `a-slow-set-edit-to-nextest-toml-runs-the-whole-suite`:
-in the 268-merge window, 22 audit-doc merges and 1 north-star merge moved
-from all to closure. Over 805 merges, 85 nextest.toml, 40 audit-doc, 4 `docs/GUIDE.md`,
+in the 268-merge window, 21 of the 22 audit-doc merges and the 1 north-star
+merge moved from all to closure. The 22nd also touched
+`scripts/payload-rung-sweep.py`. Over 805 merges, 85 nextest.toml, 40 audit-doc, 4 `docs/GUIDE.md`,
 1 north-star and 1 `docs/guide/assembly.md` moved from all to closure.
 Those counts are by first unscopable path.
