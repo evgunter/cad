@@ -56,6 +56,9 @@ use geom_core::{Band, Decide, Margin, Point3, Sign};
 use super::{Conic, level_on};
 use crate::half_angle::TrigPoly;
 
+/// The most turns of a window or a ring a span is read over.
+const MAX_TURNS: usize = 64;
+
 /// What one window reads: the two conics, `a`'s span, `b`'s carrier,
 /// `a`'s height above `b`'s plane as `(c₀, c₁, s₁)` and its rounding.
 pub(super) struct Window<'w, T: geom_core::Real> {
@@ -182,6 +185,10 @@ impl<T: Decide> Window<'_, T> {
         let row = "curve_pair_window_recedes";
         let h = bounds(&self.height_poly(), m, w, self.noise);
         let (poly, terms) = level;
+        // The charge covers the f64 harmonics' distance from the true
+        // level, below what an f64 reading can resolve, so no row pins it:
+        // it rests on `rounding_charge`'s estimate, as the subdivision's
+        // does, and an Interval reading carries its own enclosure.
         let f = bounds(poly, m, w, crate::rounding_charge(*terms));
         let (big, small) = (
             self.b.semi_u.abs().max(self.b.semi_v.abs()),
@@ -286,6 +293,10 @@ impl<T: Decide> Window<'_, T> {
     /// meets `a`'s span is read over that part, so a window across the
     /// span's seam is read on both sides of it, and the part of a window
     /// past an open span's end, which is no point of the span, is not.
+    /// The turns are counted from the one nearest the span's start, the
+    /// window's centre reduced there, up to the span's end: one or two on a
+    /// span of at most a turn, wherever its parameters lie. A span longer
+    /// than `MAX_TURNS` turns is not read (`false`).
     pub(super) fn holds_only(&self, (lo, hi): (T, T), joints: &[Joint<T>], band: Band) -> bool {
         let two = T::from_f64(2.0);
         if !positive("curve_pair_window_width", T::pi() / two - (hi - lo) / two) {
@@ -294,27 +305,40 @@ impl<T: Decide> Window<'_, T> {
         let (t0, t1) = self.span_a;
         let level = level_on(self.a, self.b);
         let tau = T::tau();
-        let turns = [
-            T::zero() - tau - tau,
-            T::zero() - tau,
-            T::zero(),
-            tau,
-            tau + tau,
-        ];
+        // The turns of `t` from the one nearest the span's start up to
+        // the span's end, at most `MAX_TURNS`; `None` past that.
+        let copies = |t: T, reach: T| -> Option<Vec<T>> {
+            let mut at = t0 + (t - t0).reduce_periodic_centred(tau);
+            let mut out = Vec::new();
+            while positive("curve_pair_window_width", t1 - (at - reach)) {
+                if out.len() == MAX_TURNS {
+                    return None;
+                }
+                out.push(at);
+                at = at + tau;
+            }
+            Some(out)
+        };
+        let half = (hi - lo) / two;
+        let Some(centres) = copies((lo + hi) / two, half) else {
+            return false;
+        };
         let mut anchored = false;
-        for &turn in &turns {
-            let (l, h) = ((lo + turn).max(t0), (hi + turn).min(t1));
+        for centre in centres {
+            let (l, h) = ((centre - half).max(t0), (centre + half).min(t1));
             if !positive("curve_pair_window_width", h - l) {
                 continue;
             }
             // The found meetings on this part, each with its ring, in order.
             let mut rings: Vec<(T, T)> = Vec::new();
             for j in joints {
-                for &again in &turns {
-                    let ta = j.ta + again;
-                    let Some(radius) = self.ring(j, ta, band) else {
-                        return false;
-                    };
+                let Some(radius) = self.ring(j, j.ta, band) else {
+                    return false;
+                };
+                let Some(tas) = copies(j.ta, radius) else {
+                    return false;
+                };
+                for ta in tas {
                     if positive("curve_pair_window_ring", ta + radius - l)
                         && positive("curve_pair_window_ring", h - (ta - radius))
                     {
