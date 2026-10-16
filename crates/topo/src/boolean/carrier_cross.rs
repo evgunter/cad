@@ -213,8 +213,8 @@ mod crossing_rows {
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
     use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
-    use crate::boolean::{BooleanError, Operand};
     use crate::boolean::contain::FaceContainment;
+    use crate::boolean::{BooleanError, Operand};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_brep::curve_pair::Span;

@@ -1338,7 +1338,9 @@ fn a_crossing_of_the_others_plane_at_a_found_meeting_is_still_metered() {
         ("rim first", meets((&rim, sr), (&fillet, sf))),
         ("fillet first", meets((&fillet, sf), (&rim, sr))),
     ] {
-        let refusal = got.expect_err(order);
+        let Err(refusal) = got else {
+            panic!("{order}: decided on a window nothing read: {got:?}");
+        };
         assert!(
             matches!(refusal.fault, MeetFault::Unsettled(Unsettled::Meter))
                 && matches!(refusal.found[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
