@@ -238,12 +238,12 @@ fn an_end_reads_by_name_at_any_foot() {
     }
 }
 
-/// **An end is the end's point**, on a slow stretch too: where the
+/// **An end is the end's point**, on a slow arc too: where the
 /// ellipse runs at its minor semi-axis, half a zero of arc past the end
 /// reads at it and thirty zeros past it reads clear of it; one in the
 /// band's gap off the carrier and five zeros past is not read past.
 #[test]
-fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
+fn an_end_is_read_by_its_chord_on_a_slow_arc() {
     let carrier = ellipse();
     // At `t = 0` the ellipse runs at its minor semi-axis, 0.5 m/rad.
     let span = Span::new(&carrier, (-PI / 2.0, 0.0));

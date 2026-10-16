@@ -28,11 +28,11 @@
 //!   of each other, each inside its own span's projection (for a conic,
 //!   inside its extent's): the meeting projects within `z < e` of the
 //!   overlap, even where the overlap is empty (the projections then part
-//!   by less than `z`) or shorter than the band. Over that stretch the
+//!   by less than `z`) or shorter than the band. Over that interval the
 //!   offset moves at most `rate` per metre from its value at the
 //!   overlap's middle, so it stays past the band's escalation and no
 //!   point of one lies within `z` of the other. The parts of either span
-//!   outside that stretch lie farther than `z` from the other by their
+//!   outside that interval lie farther than `z` from the other by their
 //!   projections alone. **Split invariance follows by construction**: a
 //!   piece of a span projects inside the whole's projection, so a
 //!   piece's overlap is a sub-interval of the whole's, and its offset at
