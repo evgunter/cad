@@ -1118,7 +1118,7 @@ mod r3_seam_oracle {
             (x >> 11) as f64 / (1u64 << 53) as f64
         };
         let (mut bad, mut certified, mut with_p) = (Vec::new(), 0, 0);
-        for draw in 0..4000 {
+        for draw in 0..20000 {
             let t = 10f64.powf(-7.5 + rnd() * 1.5);
             let rb = 10f64.powf(-0.3 + rnd() * 0.8);
             let delta = (0.1 + 0.4 * rnd()) * 1e-9 / t * if rnd() < 0.5 { 1.0 } else { -1.0 };
@@ -1144,23 +1144,35 @@ mod r3_seam_oracle {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let w = (1e-8 / t).asin() * 1.05;
-            let k = (rnd() * 9.0).floor() - 4.0;
+            let k = (rnd() * 41.0).floor() - 20.0;
             let turn = k * TAU;
             // The span: a whole turn cut anywhere, or an open arc ending
             // near the root on either side, or longer than a turn.
-            let kind = (rnd() * 4.0).floor();
+            let kind = (rnd() * 7.0).floor();
             let cut = (rnd() - 0.5) * 2.5 * w;
             let span = match kind as i32 {
                 0 => (turn + cut, turn + cut + TAU),
                 1 => (turn + cut, turn + cut + TAU * (0.5 + 0.49 * rnd())),
                 2 => (turn + cut - TAU * (0.5 + 0.49 * rnd()), turn + cut),
-                _ => (turn + cut, turn + cut + TAU * (1.0 + 0.5 * rnd())),
+                3 => (turn + cut, turn + cut + TAU * (1.0 + 0.5 * rnd())),
+                // A hair over a whole turn.
+                4 => (turn + cut, turn + cut + TAU + 10f64.powf(-12.0 + 6.0 * rnd())),
+                // The span's start exactly at the window's edge, either side.
+                5 => {
+                    let e = if rnd() < 0.5 { -w } else { w };
+                    (turn + e, turn + e + TAU * (0.5 + 0.5 * rnd()))
+                }
+                // The span's end exactly at the window's edge.
+                _ => {
+                    let e = if rnd() < 0.5 { -w } else { w };
+                    (turn + e - TAU * (0.5 + 0.5 * rnd()), turn + e)
+                }
             };
-            let window_turn = ((rnd() * 5.0).floor() - 2.0) * TAU;
-            let joint_turn = ((rnd() * 9.0).floor() - 4.0) * TAU;
+            let window_turn = ((rnd() * 41.0).floor() - 20.0) * TAU;
+            let joint_turn = ((rnd() * 41.0).floor() - 20.0) * TAU;
             let window = (window_turn - w, window_turn + w);
             let in_span = |th: f64| {
-                (-8..=8).any(|q| {
+                (-30..=30).any(|q| {
                     let v = th + f64::from(q) * TAU;
                     v >= span.0 && v <= span.1
                 })
@@ -1180,7 +1192,7 @@ mod r3_seam_oracle {
             let p_on = in_span(delta) && parted && dist(delta) < 0.9e-9;
             // Each J inside the span is given (both ends of a closed cut).
             let mut joints = Vec::new();
-            for q in -8..=8 {
+            for q in -30..=30 {
                 let v = f64::from(q) * TAU;
                 if v >= span.0 && v <= span.1 {
                     joints.push((v + joint_turn - joint_turn, 0.0));
