@@ -67,3 +67,15 @@ TINT has no orchestrator. Nightly 61's `k-lint (dev-probe)` (run 38687151370, jo
 The other two pre-pass reds this row tracked:
 - `mm-scale-sphere-rim-probe-no-longer-refuses` is closed by #4696 (merged 2026-10-11).
 - `silent-fixed-predicates-probe-reds-under-all-features-on-main` moves to CIW, which owns `scripts/k_probe_sweep.sh`.
+
+## 2026-10-15 — the whole pre-pass, census (CIW lane)
+
+The whole `run_plain` selection was run locally at ε 1e-9, on main
+`736a494f87` plus the CIW topo probe fix, without stopping at the first
+red. 41 suites ran and two are red. This row's assertion is unchanged
+("the assembly gate recorded 0 samples, tier 3 2053 and tier 3′ 2533",
+`assemble_one_local_battery.rs:70`). The other red is
+`geom-brep::rim_dim_review_probes::small_body_rims_50eps_apart_refuse`,
+filed on FLUX as
+`geom-brep-open-split-rim-probe-refuses-chart-loop-open-not-props-loop-closed`.
+`topo::rim_dim_review_probes` is green.

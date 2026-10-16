@@ -149,7 +149,7 @@ pub(super) struct ContactAcc {
     /// Every edge split the sweep made, in split order.
     pub(super) splits: super::EdgeSplits,
     /// Every decision a push made, in decision order: the rows the
-    /// records cite ([`Backing::Decided`] names an index here until
+    /// records cite ([`Backing::Decided`](crate::Backing::Decided) names an index here until
     /// the result's carry renumbers it).
     pending: Vec<PendingRow>,
     seen_vv: std::collections::BTreeMap<(VertexKey, VertexKey), usize>,

@@ -8,7 +8,7 @@
 //! interior when it is on the carrier (its distance from its foot
 //! decided zero) and strictly inside the span at both ends, or anywhere
 //! on a closed edge whose vertex is conventional — the questions
-//! [`super::on_edge_interior`] asks of a line. The foot is polished by
+//! [`on_edge_interior`](crate::census::on_edge_interior) asks of a line. The foot is polished by
 //! Gauss–Newton from [`geom::Curve3::param_near`]'s parameter where the
 //! kind inverts in closed form (which is no foot off an ellipse), and
 //! otherwise from each piece of the span the foot search keeps. An end

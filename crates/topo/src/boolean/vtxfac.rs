@@ -233,7 +233,8 @@ pub(super) fn partner_side<T: Decide>(
 pub(super) struct PairRead<T: geom_core::Real> {
     pub partner: VertexKey,
     pub side: Option<SideCode>,
-    pub read: Option<super::sectors::WedgeRead>,
+    /// The partner's reading, or why it read nothing.
+    pub read: Result<super::sectors::WedgeRead, super::UnreadNeighbourhood>,
     pub sectors: Vec<BoolSector<T>>,
 }
 
@@ -265,7 +266,7 @@ fn layered<'a, T: geom_core::Real>(
 ) -> Option<SideCode> {
     let (mut holding, mut on) = (0usize, 0usize);
     for p in partners {
-        let read = p.read.as_ref()?;
+        let read = p.read.as_ref().ok()?;
         let &(_, class) = read.rows.iter().find(|&&(h, _)| h == he)?;
         if class == SideCode::On {
             on += 1;
@@ -281,6 +282,12 @@ fn layered<'a, T: geom_core::Real>(
         _ => None,
     }
 }
+
+/// The shape of a partner's face, read on the partners' body: what
+/// [`along_partners`] needs to tell faces glued flush along an edge from
+/// faces that may be tangent there. A face it cannot read refuses.
+pub(super) type ShapeOf<'s> =
+    &'s dyn Fn(crate::entity::FaceKey) -> Result<super::sectors::FaceShape, BooleanError>;
 
 /// Why [`touch_classes`] leaves a touching vertex's edge undecided.
 #[derive(Debug)]
@@ -321,18 +328,21 @@ pub(super) fn touch_classes<T: Decide>(
     own: &[BoolSector<T>],
     touch: &[(HalfEdgeKey, SideCode)],
     pairs: &[PairRead<T>],
+    shape: ShapeOf<'_>,
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, SideCode)>, TouchUndecided> {
     touch
         .iter()
         .map(|&(he, own_side)| {
             let side = || pairs.iter().filter(move |p| p.side == Some(own_side));
-            if let Some(p) = side().find(|p| !p.read.as_ref().is_some_and(|r| r.pointed)) {
+            if let Some(p) = side().find(|p| !p.read.as_ref().is_ok_and(|r| r.pointed)) {
                 return Err(TouchUndecided::Beside(Some(p.partner)));
             }
-            let class = partners_class(own, he, side(), band, || layered(own_side, he, side()))
-                .map_err(TouchUndecided::Along)?
-                .ok_or_else(|| TouchUndecided::Beside(side().next().map(|p| p.partner)))?;
+            let class = partners_class(own, he, side(), shape, band, || {
+                layered(own_side, he, side())
+            })
+            .map_err(TouchUndecided::Along)?
+            .ok_or_else(|| TouchUndecided::Beside(side().next().map(|p| p.partner)))?;
             Ok((he, class))
         })
         .collect()
@@ -344,7 +354,8 @@ pub(super) fn touch_classes<T: Decide>(
 /// naming the partner and one beside it, where a partner's cone reads
 /// nothing beside another's: against the vertex's edges, or against
 /// the other's in reading which cone holds which. One pair alone keeps
-/// its rows, none where its partner reads nothing.
+/// its rows; where its partner reads nothing it has none, and names the
+/// partner and its neighbourhood instead ([`super::UnreadPartner`]).
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
@@ -366,19 +377,21 @@ pub(super) fn touch_classes<T: Decide>(
 /// rows miss (every pair reads the vertex's one orbit) each break that
 /// and refuse as an invariant.
 ///
-/// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
-/// sectors lie on fewer than two faces; where they lie on two with no
-/// bisector to read the wedge by; or where its corner is read as a
-/// polygon cone and some edge has no reference whose every reading is
-/// decided, with none escalating (`sectors::cone_side`'s `None`). A
-/// nesting read in band refuses.
+/// A partner reads nothing (`sectors::wedge_read`'s
+/// [`super::UnreadNeighbourhood`]) where its sectors lie on fewer than
+/// two faces; where they lie on two with no bisector to read the wedge
+/// by; or where its edge or corner is read as a polygon cone and some
+/// edge has no reference whose every reading is decided, with none
+/// escalating (`sectors::cone_side`'s `None`). A nesting read in band
+/// refuses.
 pub(super) fn pair_classes<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
     own: &[BoolSector<T>],
     pairs: &[PairRead<T>],
+    shape: ShapeOf<'_>,
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
+) -> Result<PairClasses, BooleanError> {
     let refuse = |unread: usize, beside: usize| BooleanError::VertexReadTwice {
         operand,
         vertex,
@@ -388,32 +401,44 @@ pub(super) fn pair_classes<T: Decide>(
         ],
     };
     if let [one] = pairs {
-        return Ok(one
-            .read
-            .as_ref()
-            .map(|r| r.rows.clone())
-            .unwrap_or_default());
+        return Ok(match &one.read {
+            Ok(read) => (read.rows.clone(), None),
+            Err(why) => (Vec::new(), Some((one.partner, *why))),
+        });
     }
-    if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
+    if let Some(unread) = pairs.iter().position(|p| p.read.is_err()) {
         return Err(refuse(unread, usize::from(unread == 0)));
     }
     // Every partner reads, so this keeps one read per pair.
-    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
+    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref().ok()).collect();
     let unwitnessed = |inner: usize, outer: usize| BooleanError::NestingUnread {
         operand,
         vertex,
         partners: [pairs[inner].partner, pairs[outer].partner],
     };
-    layered_alone(own, pairs, &reads, band, refuse, unwitnessed)
+    Ok((
+        layered_alone(own, pairs, &reads, shape, band, refuse, unwitnessed)?,
+        None,
+    ))
 }
+
+/// [`pair_classes`]' answer: the vertex's edge classes, and the lone
+/// partner it read nothing of, with that partner's neighbourhood
+/// ([`super::UnreadPartner`]), where there is one.
+pub(super) type PairClasses = (
+    Vec<(HalfEdgeKey, SideCode)>,
+    Option<(VertexKey, super::UnreadNeighbourhood)>,
+);
 
 /// [`pair_classes`]' layering of partners that each read (`reads`, one
 /// per pair); `refuse(j, i)` where partner `j`'s cone reads nothing
 /// against partner `i`'s edges.
+#[allow(clippy::too_many_arguments)]
 fn layered_alone<T: Decide>(
     own: &[BoolSector<T>],
     pairs: &[PairRead<T>],
     reads: &[&super::sectors::WedgeRead],
+    shape: ShapeOf<'_>,
     band: Band,
     refuse: impl Fn(usize, usize) -> BooleanError,
     unwitnessed: impl Fn(usize, usize) -> BooleanError,
@@ -466,7 +491,7 @@ fn layered_alone<T: Decide>(
         .rows
         .iter()
         .map(|&(he, _)| {
-            let class = partners_class(own, he, pairs.iter(), band, || {
+            let class = partners_class(own, he, pairs.iter(), shape, band, || {
                 layered(base, he, pairs.iter())
             })?
             .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?;
@@ -484,6 +509,7 @@ fn partners_class<'a, T: Decide + 'a>(
     own: &[BoolSector<T>],
     he: HalfEdgeKey,
     partners: impl Iterator<Item = &'a PairRead<T>>,
+    shape: ShapeOf<'_>,
     band: Band,
     layer: impl FnOnce() -> Option<SideCode>,
 ) -> Result<Option<SideCode>, BooleanError> {
@@ -491,7 +517,7 @@ fn partners_class<'a, T: Decide + 'a>(
         .filter(|p| {
             p.read
                 .as_ref()
-                .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
+                .is_ok_and(|r| r.rows.contains(&(he, SideCode::On)))
         })
         .collect();
     if let [_, _, ..] = on.as_slice() {
@@ -500,7 +526,7 @@ fn partners_class<'a, T: Decide + 'a>(
                 what: "a vertex's row names no edge of its own sectors",
             },
         )?;
-        return along_partners(edge, &on, band).map(Some);
+        return along_partners(edge, &on, shape, band).map(Some);
     }
     Ok(layer())
 }
@@ -576,57 +602,87 @@ fn interior<T: Decide>(
 
 /// **The class of an edge on two or more partners' boundaries** (`on`):
 /// `On` where the material their faces bound changes side somewhere
-/// around it. Around the edge each partner's material turns at the
-/// half-planes its faces leave the edge in
-/// ([`super::sectors::half_planes`]), so the solid's material turns at
-/// a half-plane one partner alone leaves it in: the edge is on the
-/// solid's boundary where one such is decidedly apart from every other
-/// partner's. Where every half-plane meets another's the partners lie
-/// flush along the edge, met on both sides of a shared face or a face
-/// tangent to a curved one, which these first-order readings do not
-/// tell apart; that refuses, as a half-plane in band of another's does,
-/// with [`super::BooleanDecision::PartnerFaces`]. Faces flush along
-/// the edge part by the half-planes' chord at the farthest reach of
-/// the edge and the partners' sectors.
+/// around it, or where their faces are glued along it. Around the edge
+/// each partner's material turns at the half-planes its faces leave the
+/// edge in ([`super::sectors::half_planes`]), so the solid's material
+/// turns at a half-plane one partner alone leaves it in: the edge is on
+/// the solid's boundary where one such is decidedly apart from every
+/// other partner's.
+///
+/// Where every half-plane meets another's at a decided zero, the
+/// partners lie flush along the edge. Where each such meeting is of two
+/// plane faces (`shape`) bounding material on opposite sides, the faces
+/// are glued, coincident only to within the band: a sub-band tilt parts
+/// them by a sliver whose boundary the edge lies on, so only `On` is
+/// decided there (D4), as the polygon-cone oracle reads any direction
+/// on a face (`sectors::cone_fuzz`). Matched plane faces bounding
+/// material on one side overlap the partners' materials to within the
+/// band, as a lump thinner than the band glued on a face reads; a
+/// curved face in a meeting may be tangent to its match rather than
+/// glued, which these first-order readings do not tell apart; and a
+/// chord in band of zero is neither apart nor flush. Each refuses with
+/// [`super::BooleanDecision::PartnerFaces`]. These flush readings are
+/// reached only where no half-plane is decidedly apart from every other
+/// partner's, which reads `On` first. Faces flush along the edge part by
+/// the half-planes' chord at the farthest reach of the edge and the
+/// partners' sectors.
 pub(super) fn along_partners<T: Decide>(
     edge: &BoolSector<T>,
     on: &[&PairRead<T>],
+    shape: ShapeOf<'_>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
+    use super::sectors::FaceShape;
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let mut planes = Vec::new();
     for (k, p) in on.iter().enumerate() {
         let read = super::sectors::half_planes(edge.end, edge.end_reach, &p.sectors, band)?;
-        planes.extend(read.into_iter().map(|t| (k, t)));
+        planes.extend(read.into_iter().map(|(t, s)| (k, t, s)));
     }
     let reach = on
         .iter()
         .flat_map(|p| p.sectors.iter().map(BoolSector::span))
         .fold(edge.end_reach.length(), |a, b| a.max(b));
     let mut refused = None;
-    for &(k, t) in &planes {
+    for &(k, t, s) in &planes {
         let mut apart = true;
-        for &(_, u) in planes.iter().filter(|&&(j, _)| j != k) {
+        for &(_, u, r) in planes.iter().filter(|&&(j, ..)| j != k) {
             let chord = Margin::levered((t - u).norm(), reach);
-            if let Err(diag) =
-                crate::validate::decide_nonzero("bool_partner_half_plane", chord, band)
-            {
-                apart = false;
-                refused.get_or_insert(diag);
+            let Err(diag) = crate::validate::decide_nonzero("bool_partner_half_plane", chord, band)
+            else {
+                continue;
+            };
+            apart = false;
+            let planar = shape(s.face)? == FaceShape::Plane && shape(r.face)? == FaceShape::Plane;
+            if diag.margin.rejected_sign() == Some(Sign::Zero) && planar {
+                // Each face's normal is square to the one plane both
+                // lie in, so they are opposed (glued) or alike.
+                let sides = Margin::of(s.normal.vec().dot(r.normal.vec()));
+                match crate::validate::decide("bool_partner_glued_side", sides, band) {
+                    Ok(Sign::Negative) => continue,
+                    Ok(Sign::Positive | Sign::Zero) => {}
+                    Err(sided) => {
+                        refused.get_or_insert(sided);
+                        continue;
+                    }
+                }
             }
+            refused.get_or_insert(diag);
         }
         if apart {
             return Ok(SideCode::On);
         }
     }
-    Err(match refused {
-        Some(diag) => BooleanError::Escalated {
+    match refused {
+        Some(diag) => Err(BooleanError::Escalated {
             decision: super::BooleanDecision::PartnerFaces,
             diag,
-        },
-        None => BooleanError::ClassificationInvariant {
-            what: "an edge on two partners' boundaries lies in none of their faces",
-        },
-    })
+        }),
+        None if planes.is_empty() => Err(invariant(
+            "an edge on two partners' boundaries lies in none of their faces",
+        )),
+        None => Ok(SideCode::On),
+    }
 }
 
 /// Output of one vertex-on-face classification.
@@ -2370,7 +2426,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
-/// the carrier ladder ([`super::carrier_eq`]) over `extent` where it has
+/// the carrier ladder ([`super::carrier_eq`](mod@super::carrier_eq)) over `extent` where it has
 /// an arm for both, else datum by datum on their stored descriptions,
 /// each within the band (`bool_held_carrier_datum`). Anything undecided
 /// is `false`, which reads the face rather than passing it over.
@@ -2778,6 +2834,7 @@ fn out_runs(entries: &[Entry]) -> Vec<(usize, usize)> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::boolean::sectors::FaceShape;
 
     /// [`germ_order`]'s order alone, for one pierce's germs.
     fn germ_order_only(
@@ -2962,7 +3019,7 @@ mod tests {
         let read = |partner, side, met: bool, rows: &[(HalfEdgeKey, SideCode)]| PairRead::<f64> {
             partner,
             side,
-            read: Some(WedgeRead {
+            read: Ok(WedgeRead {
                 pointed: true,
                 met,
                 rows: rows.to_vec(),
@@ -2972,7 +3029,7 @@ mod tests {
         let unread = |partner, side| PairRead::<f64> {
             partner,
             side,
-            read: None,
+            read: Err(crate::boolean::UnreadNeighbourhood::OneFace),
             sectors: Vec::new(),
         };
         let three = [(e, In), (f, Out), (g, On)];
@@ -3034,7 +3091,7 @@ mod tests {
                 vec![
                     read(w, Some(Out), true, &three),
                     PairRead {
-                        read: Some(WedgeRead {
+                        read: Ok(WedgeRead {
                             pointed: false,
                             met: true,
                             rows: vec![(e, On), (f, Out)],
@@ -3047,10 +3104,11 @@ mod tests {
         ];
         let band = Band::linear(Tol::witness()).unwrap();
         for (what, touch, pairs, want) in touches {
-            let got = touch_classes::<f64>(&[], &touch, &pairs, band).map_err(|u| match u {
-                TouchUndecided::Beside(p) => p,
-                TouchUndecided::Along(e) => panic!("{what}: {e:?}"),
-            });
+            let got = touch_classes::<f64>(&[], &touch, &pairs, &|_| Ok(FaceShape::Plane), band)
+                .map_err(|u| match u {
+                    TouchUndecided::Beside(p) => p,
+                    TouchUndecided::Along(e) => panic!("{what}: {e:?}"),
+                });
             assert_eq!(got, want, "{what}");
         }
         let own = VertexKey::from(key(6));
@@ -3059,17 +3117,20 @@ mod tests {
             (
                 "one arch",
                 vec![read(w, None, true, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
                 "one void's apex",
                 vec![read(w, None, false, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
-                "one partner that reads nothing",
+                "one partner that reads nothing names it and why",
                 vec![unread(w, None)],
-                Ok(Vec::new()),
+                Ok((
+                    Vec::new(),
+                    Some((w, crate::boolean::UnreadNeighbourhood::OneFace)),
+                )),
             ),
             (
                 "an arch beside a partner that reads nothing",
@@ -3087,7 +3148,14 @@ mod tests {
                 Err([px, pw]),
             ),
         ] {
-            let got = pair_classes(Operand::B, own, &[], &pairs, band);
+            let got = pair_classes(
+                Operand::B,
+                own,
+                &[],
+                &pairs,
+                &|_| Ok(FaceShape::Plane),
+                band,
+            );
             if let Err(e) = &got {
                 assert!(
                     e.to_string()
@@ -3114,14 +3182,21 @@ mod tests {
     /// ([`along_partners`]): an edge along x, each partner a corner with
     /// one face leaving it, one in the plane z = 0 and the other's turned
     /// `tilt` about x. Their half-planes part by the tilt, so the edge is
-    /// on the solid's boundary, `On`. Flush, they refuse
+    /// on the solid's boundary, `On`. Flush, as plane faces bounding
+    /// material on opposite sides, they are glued, coincident only to
+    /// within the band, and the edge is `On`, at ε 1e-9 and, both turned
+    /// 3e-7 about x, at ε 1e-12. On one side, they overlap to within the
+    /// band; with a curved face they may be tangent; and a chord in band
+    /// of zero is neither apart nor flush: each refuses
     /// [`super::super::BooleanDecision::PartnerFaces`]. Beside a partner on
     /// the edge's side whose cone lies in no half-space, the edge still
     /// names it to refuse on, its faces unread.
     #[test]
     fn a_touching_edge_on_two_partners_boundaries_reads_their_faces() {
         use super::super::sectors::{Reach, WedgeRead};
-        let band = Band::linear(Tol::witness()).unwrap();
+        // The band at ε 1e-9, whatever the run's: the in-band chord below
+        // is sized to it.
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let he = HalfEdgeKey::from(key(1));
         let (w, x) = (VertexKey::from(key(4)), VertexKey::from(key(5)));
@@ -3141,10 +3216,20 @@ mod tests {
             normal: OutwardNormal::from_chart(along.cross(end), true),
             arm: 1.0,
         };
+        let partner_of = |partner| PairRead {
+            partner,
+            side: Some(SideCode::Out),
+            read: Ok(WedgeRead {
+                pointed: true,
+                met: true,
+                rows: vec![(he, SideCode::On)],
+            }),
+            sectors: Vec::new(),
+        };
         let partner = |partner, pointed, end| PairRead {
             partner,
             side: Some(SideCode::Out),
-            read: Some(WedgeRead {
+            read: Ok(WedgeRead {
                 pointed,
                 met: true,
                 rows: vec![(he, SideCode::On)],
@@ -3163,12 +3248,53 @@ mod tests {
         let flat = partner(w, true, Vec3::new(0.0, 1.0, 0.0));
         let turned =
             |tilt: f64, pointed| partner(x, pointed, Vec3::new(0.0, tilt.cos(), tilt.sin()));
-        let got = touch_classes(&own, &touch, &[flat.clone(), turned(0.5, true)], band);
+        // The face z = 0 turned `tilt` about x, seen from above (`up`)
+        // or from below: the same quarter-plane, run the other way round
+        // its normal.
+        let face = |partner, tilt: f64, up: bool| {
+            let y = Vec3::new(0.0, tilt.cos(), tilt.sin());
+            let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+            let (start, end, n) = if up { (along, y, n) } else { (y, along, -n) };
+            PairRead {
+                sectors: vec![BoolSector {
+                    start,
+                    start_reach: chord(start),
+                    end,
+                    end_reach: chord(end),
+                    normal: OutwardNormal::from_chart(n, true),
+                    ..sector(along)
+                }],
+                ..partner_of(partner)
+            }
+        };
+        let glued = face(x, 0.0, false);
+        let (plane, curved) = (|_| Ok(FaceShape::Plane), |_| Ok(FaceShape::Curved));
+        let classes = |partners: &[PairRead<f64>], shape: ShapeOf<'_>| {
+            touch_classes(&own, &touch, partners, shape, band)
+        };
+        let got = classes(&[flat.clone(), turned(0.5, true)], &plane);
         assert!(
             matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
             "partners apart along it: {got:?}"
         );
-        let got = touch_classes(&own, &touch, &[flat.clone(), turned(0.0, true)], band);
+        let got = classes(&[flat.clone(), glued], &plane);
+        assert!(
+            matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
+            "plane faces glued along it: {got:?}"
+        );
+        let fine = Band::new(1e-12, 1e-11).unwrap();
+        let got = touch_classes(
+            &own,
+            &touch,
+            &[face(w, 3e-7, true), face(x, 3e-7, false)],
+            &plane,
+            fine,
+        );
+        assert!(
+            matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
+            "plane faces glued along it, turned 3e-7, at ε 1e-12: {got:?}"
+        );
+        let got = classes(&[flat.clone(), face(x, 3e-9, false)], &plane);
         assert!(
             matches!(
                 got,
@@ -3177,9 +3303,31 @@ mod tests {
                     ..
                 }))
             ),
-            "partners flush along it: {got:?}"
+            "plane faces parted in band along it: {got:?}"
         );
-        let got = touch_classes(&own, &touch, &[flat, turned(0.5, false)], band);
+        let got = classes(&[flat.clone(), turned(0.0, true)], &plane);
+        assert!(
+            matches!(
+                got,
+                Err(TouchUndecided::Along(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::PartnerFaces,
+                    ..
+                }))
+            ),
+            "plane faces flush along it, material on one side: {got:?}"
+        );
+        let got = classes(&[flat.clone(), turned(0.0, true)], &curved);
+        assert!(
+            matches!(
+                got,
+                Err(TouchUndecided::Along(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::PartnerFaces,
+                    ..
+                }))
+            ),
+            "a curved face flush along it: {got:?}"
+        );
+        let got = classes(&[flat, turned(0.5, false)], &plane);
         assert!(
             matches!(got, Err(TouchUndecided::Beside(Some(p))) if p == x),
             "beside a partner in no half-space: {got:?}"

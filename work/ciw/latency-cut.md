@@ -60,8 +60,9 @@ and probe/golden rows — which is the rule the gate's extra eps rows key on.
 - `test`: one job, no archive hand-off. The default-eps suite under the
   `ci` profile (the slow set filtered out); the slow set of the crates the
   diff seeds; the 1e-6 and 1e-12 rows for seeded step-import, geom-brep,
-  profile and topo and for any crate whose probe or golden files changed;
-  doc-tests.
+  profile and topo, for any crate whose probe or golden files changed,
+  and for every test file the diff adds or modifies in any other crate
+  (`scripts/ci-filter.py`'s `EPS_EXTRA`); doc-tests.
 - `lint`: rustfmt, clippy `--all-features` over the closure (viewer's app
   feature only when the viewer job runs), every `scripts/gates/*.sh`,
   payload-rung check, ruff, the tracker lint.

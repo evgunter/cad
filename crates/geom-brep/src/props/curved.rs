@@ -876,7 +876,7 @@ impl<T: Decide> Rim<T> {
     /// stored span is decided ([`require_rim_span`], at the rim
     /// circle's radius `r_c` — certification's lever), so every reader
     /// of [`Rim::dt`] — the cylinder and torus charts' `Δu` sums,
-    /// [`du_of_rims`], [`span_sum`] — rests on that bound. A
+    /// `du_of_rims`, [`span_sum`] — rests on that bound. A
     /// full-period rim sits AT it and is admitted.
     fn decided(
         e: &LoopEdge<T>,

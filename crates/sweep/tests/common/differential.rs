@@ -2,11 +2,11 @@
 //! their closed-form volumes are derived from, the one `outcome` line a
 //! battery prints per pose, the reflex-corner pose, and the near-tangent
 //! corner poses ([`NtPrism`]) the census probe and its pin share. Derived without
-//! the kernel, as [`super::oracles`] is, and printed in one format, so
+//! the kernel, as `super::oracles` is, and printed in one format, so
 //! two batteries' lines can be diffed against each other.
 //!
 //! **Deliberately not absorbed**, and the whole of it:
-//! [`super::oracles`]' closed forms, which are swept-solid volumes with
+//! `super::oracles`' closed forms, which are swept-solid volumes with
 //! nothing polygonal to share; the per-battery operands of
 //! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's;
 //! and `join_reflex_wedge_probes.rs`' fan-wedge `Pose`, whose operands
