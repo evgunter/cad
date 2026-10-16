@@ -46,6 +46,16 @@ then failed three tests in the default-ε step, at 1.04–1.22 s hosted against
 No other fast-set test reached 1 s on that run. The bar was then lowered to
 local ≥ 0.5 s, which moved 81 more tests.
 
+The next run (job 116903500717) failed three source-reading census tests in
+`geom-core::all`, at 1.13–1.37 s hosted against 0.40–0.49 s locally, a ratio
+of up to 2.8. The earlier run had passed them, so they flap:
+
+- `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`, 1.368 s;
+- `flagged_census::every_shipped_site_cites_a_ledger_row_that_exists`, 1.143 s;
+- `flagged_census::shipped_decide_flagged_sites_match_the_ledger`, 1.129 s.
+
+The bar was then lowered to local ≥ 0.3 s, which moved 183 more.
+
 ## Fixed
 
 - `scripts/check-fast-set-times.py` reads the default-ε step's junit report
@@ -57,23 +67,29 @@ local ≥ 0.5 s, which moved 81 more tests.
   has a `--selftest` in the lint job.
 - Nightly runs the `ci` profile with `--ignore-default-filter`, so it has no
   fast set to check.
-- The 383 tests under **Moved** went to the slow set.
+- The 566 tests under **Moved** went to the slow set.
 
 ## The margin after the move
 
-- The slowest fast-set test now takes 0.496 s locally. At the worst ratio the
-  hosted run showed (1.9), that is 0.94 s hosted.
-- 183 fast-set tests sit at 0.3–0.5 s locally, 72 of them at 0.4–0.5 s. Those
-  72 are the ones a ratio near 2 could carry over the 1 s backstop.
-- Nothing remains at 0.5–1.0 s locally.
+- The slowest fast-set test now takes 0.297 s locally. At the worst ratio a
+  hosted run showed (2.8), that is 0.83 s hosted.
+- 201 fast-set tests sit at 0.2–0.3 s locally, 76 of them at 0.25–0.3 s. A
+  ratio above 3.3 would carry one of those over the 1 s backstop. The local
+  fast set is 13 632 tests at 360 cpu-s.
+- Nothing remains at 0.3–1.0 s locally.
 - In the hosted tail (1e-12, before the move), 3 of 2388 tests sat at
   0.7–1.0 s and 14 at 0.5–1.0 s.
 
 ## Moved
 
-These 383 tests moved to the slow set: 222 at ≥ 1 s locally, 160 at 0.5–1.0 s
-locally, and 1 (0.10 s locally, 2.36 s hosted) by its hosted 1e-12 time. The local fast set went from
-1463 to 431 cpu-s.
+These 566 tests moved to the slow set:
+
+- 222 at ≥ 1 s locally;
+- 160 at 0.5–1.0 s locally;
+- 183 at 0.3–0.5 s locally;
+- 1 (0.10 s locally, 2.36 s hosted) by its hosted 1e-12 time.
+
+The local fast set went from 1463 to 360 cpu-s.
 
 | local s | hosted 1e-12 s | binary | test |
 |---|---|---|---|
@@ -459,4 +475,187 @@ locally, and 1 (0.10 s locally, 2.36 s hosted) by its hosted 1e-12 time. The loc
 | 0.51 |  | `editor-core::all` | `docm4_evaluation_identity::a_matched_pair_gathers_bit_identically` |
 | 0.50 |  | `sweep::all` | `reach_split_gate_per_face::a_plane_missing_a_spline_body_returns_it_whole` |
 | 0.50 |  | `editor-core::all` | `decide_6_read_cost_interval::decide_6_the_profile_decides_nothing` |
+| 0.50 |  | `geom-core::all` | `sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these` |
+| 0.49 |  | `editor-core::all` | `msolve14_run_scalar::c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f64s` |
+| 0.49 |  | `sweep::all` | `a_ruling_lying_on_a_wall::a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared` |
+| 0.49 |  | `sweep::all` | `blend_band_reach_rows::an_open_arc_link_s_reach_is_its_whole_turn` |
+| 0.49 |  | `sweep::all` | `r1_p2_probes::r1_general_image_is_operand_order_blind` |
+| 0.49 |  | `geom-core::all` | `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` |
+| 0.49 |  | `topo` | `boolean::conic_quadric::ellipse_rows::a_section_whose_projection_is_a_circle_is_a_first_harmonic` |
+| 0.48 |  | `sweep::all` | `snowman::a_circle_across_an_earlier_cut_takes_none_of_its_own` |
+| 0.48 |  | `sweep::all` | `extent_scan_off_face_tangency::the_off_face_touches_build_in_a_tilted_frame` |
+| 0.48 |  | `topo::all` | `a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once` |
+| 0.48 |  | `editor-core::all` | `m10_4_stackup_interval::a_loft_section_seed_rides_the_section_to_the_measure` |
+| 0.48 |  | `editor-core::all` | `decide_7_rule_g_cost_interval::decide_7_the_profile_decides_nothing` |
+| 0.48 |  | `editor-core::all` | `m4_pr4_hit::inversion_is_total_on_the_die` |
+| 0.48 |  | `sweep::all` | `rest_zip_admission::a_line_kiss_beside_a_tangent_site_records_its_contact` |
+| 0.47 |  | `topo::all` | `join_star_fixture::the_star_fixture_folds_in_every_member_order` |
+| 0.47 |  | `editor-core::all` | `m10_10_pins_interval::m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors` |
+| 0.47 |  | `editor-core::all` | `perf12_census_bvh_diff::the_ten_fin_heat_sink_is_bit_equal_superset_and_ordered` |
+| 0.47 |  | `mesh::all` | `m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise` |
+| 0.47 |  | `geom-brep::all` | `offset_fit::the_regularity_floor_is_positive_on_a_regular_patch_and_conservative` |
+| 0.47 |  | `sweep::all` | `reach_split_gate_window::a_cut_into_the_faces_window_refuses_at_the_gate` |
+| 0.47 |  | `editor-core::all` | `m10_6_r1_probes_interval::the_bracket_walk_through_the_public_doors` |
+| 0.47 |  | `sweep::all` | `an_annular_tube_through_a_plate::the_annulus_builds_at_every_witness_azimuth_pair` |
+| 0.47 |  | `sweep::all` | `blend_band_reach_rows::a_concave_boss_foot_refuses_a_hovering_wall_in_its_reach` |
+| 0.47 |  | `mesh` | `nurbs_cert::tests::the_bilinear_rational_stratum_is_dominated_at_every_weight_decade` |
+| 0.47 |  | `geom-brep::all` | `offset_fit::the_fit_lives_on_the_base_chart_window_bit_for_bit` |
+| 0.46 |  | `step-import::all` | `recognize_pins::a_displaced_seam_carrier_refuses_with_the_measured_residual` |
+| 0.46 |  | `editor-core::all` | `resolve_group_membership::a_unions_group_resized_at_any_fold_step_reads_two_to_one` |
+| 0.46 |  | `editor-core::all` | `m4_pr2_eval::cancelation_returns_a_typed_partial_result` |
+| 0.46 |  | `geom-brep::all` | `m7_8_plane_nurbs_edge::the_at_rest_re_derivation_of_this_class_needs_the_injected_lane` |
+| 0.46 |  | `sweep::all` | `verbs_offc_consumer::the_boolean_gate_refuses_an_approx_operand_by_kind` |
+| 0.45 |  | `sweep::all` | `rim_of_structural_review_probes::every_circle_edge_of_the_public_door_corpus_answers_against_the_oracle` |
+| 0.45 |  | `editor-core::all` | `union_flush_onto_edge_contact::the_union_node_publishes_one_table_in_every_member_order` |
+| 0.45 |  | `sweep::all` | `pierce_tangent_off_face::a_brick_edge_grazing_a_torus_in_its_mouth_builds` |
+| 0.45 |  | `sweep::all` | `sym11_far_placement_rows::sym11_the_far_placement_never_contradicts_at_sym_interval` |
+| 0.45 |  | `editor-core::all` | `m10_8_pins_interval::m10_8_the_a0_set_is_a0_alone` |
+| 0.45 |  | `sweep::all` | `a_plane_across_a_one_face_wall::a_plane_close_by_the_wrap_edges_end` |
+| 0.45 |  | `sweep::all` | `torus_touch_off_faces::a_ball_touching_the_outer_equator_off_its_face_builds` |
+| 0.44 |  | `geom-core::all` | `interval_exact_fuzz::ring_ops_are_sound_against_exact_arithmetic` |
+| 0.44 |  | `sweep::all` | `review_ring2_r1_e2e::ring2_r1_end_to_end_certificate_bits` |
+| 0.44 |  | `topo::all` | `review_cleave_mint_doors::review_mev_strut_reaches_the_lane_at_both_scalars` |
+| 0.44 |  | `sweep::all` | `parallel_cylinder_join::a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door` |
+| 0.44 |  | `editor-core::all` | `emit_union_borders::a_split_keeps_its_names_when_the_splitting_feature_moves` |
+| 0.44 |  | `sweep::all` | `reach_continuation::rounded_continuations_inside_a_wall_build_subtract_and_intersect` |
+| 0.44 |  | `topo::all` | `issue93_nested_islands::interval::nested_intersects_interval` |
+| 0.44 |  | `geom-core::all` | `m10_10_r2_probes::over_boxes::r2_rule_d_decides_over_negative_straddling_and_wide_boxes` |
+| 0.44 |  | `viewer::all` | `display_budget::a_coarsened_picture_says_so_in_both_numbers` |
+| 0.44 |  | `topo::all` | `union_flush_onto_edge_contact::a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op` |
+| 0.44 |  | `geom-brep::all` | `m5_pr7_ssi::a_curved_branch_the_hermite_cannot_certify_is_marched` |
+| 0.43 |  | `sweep::all` | `blend_band_reach_oracle::an_oblique_cavity_s_corners_meet_a_ball_island_where_the_oracle_says` |
+| 0.43 |  | `sweep::all` | `join_pierce_runs_sweep::eight_crossing_corners_nest_two_deep_and_build_every_op` |
+| 0.43 |  | `editor-core::all` | `m10_4_stackup_interval::the_bore_pin_gap_stackup_pins_the_lift` |
+| 0.43 |  | `editor-core::all` | `m4_pr2_eval::poisoning_hits_descendants_only_and_is_walkable` |
+| 0.43 |  | `sweep::all` | `bool3_torus_doors::an_uncertain_root_count_sets_its_ray_aside` |
+| 0.43 |  | `editor-core::all` | `union_pinch_member_order::holes_touching_at_a_corner_build_one_body_in_every_member_order` |
+| 0.43 |  | `viewer::all` | `gesture_table::no_operation_dissolves_an_in_flight_free_move_in_silence` |
+| 0.42 |  | `editor-core::all` | `m10_6_reports_interval::a_content_key_moves_exactly_when_the_report_does` |
+| 0.42 |  | `sweep::all` | `m8_4_intersection_iso::the_operand_order_is_not_a_fact_about_the_locus` |
+| 0.42 |  | `geom-brep::all` | `offb_r2_probes::p2_rational_torus_patch_certificate_contains_a_dense_sample_both_signs` |
+| 0.42 |  | `topo::all` | `review_cleave_mint_doors::review_mef_mints_the_plane_x_nurbs_class_at_f64` |
+| 0.42 |  | `sweep::all` | `reach_split_gate_pose::a_cut_clear_of_the_face_splits_in_every_pose` |
+| 0.42 |  | `editor-core::all` | `m4_pr7_appearance::appearance_only_edit_recomputes_zero_nodes` |
+| 0.41 |  | `editor-core::all` | `m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row` |
+| 0.41 |  | `topo` | `boolean::solid_contain::r1_generic_poses::r1_generic_poses_agree_with_the_geometric_oracle` |
+| 0.41 |  | `geom-core::all` | `flagged_census::every_shipped_site_cites_a_ledger_row_that_exists` |
+| 0.41 |  | `geom-brep::all` | `offset_fit::a_collapsed_control_row_refuses_at_the_regularity_floor` |
+| 0.41 |  | `sweep::all` | `m8_14_long_turn_sweep::a_half_turn_helical_sweeps_walls_face_out` |
+| 0.41 |  | `sweep::all` | `band_reads_three_ways::an_l_void_crossing_the_arc_crosses_in_every_order_and_pose` |
+| 0.40 |  | `mesh` | `nurbs_cert::tests::rational_face_bound_dominates_sampled_hessian` |
+| 0.40 |  | `geom-brep` | `ssi::enclose::tests::the_derivative_box_is_never_wider_than_the_whole_cells` |
+| 0.40 |  | `geom-core::all` | `flagged_census::shipped_decide_flagged_sites_match_the_ledger` |
+| 0.40 |  | `editor-core::all` | `m10_3_r2_probes_interval::the_certification_width_threshold_is_no_longer_a_fraction_of_epsilon` |
+| 0.40 |  | `sweep::all` | `bool3_torus_doors::the_clamp_floor_clears_the_shell_about_the_top_circle` |
+| 0.40 |  | `step-import::all` | `review_probes_m7_3::probe_arc_loft_weights_snapped_to_one_refuses` |
+| 0.40 |  | `sweep::all` | `bool2_r2_probes::r2_oracle_sweep_over_three_cone_bodies` |
+| 0.40 |  | `editor-core::all` | `perf12_census_bvh_diff::adversarial_rows_bit_equal_superset_and_ordered` |
+| 0.40 |  | `sweep` | `offer_rows::every_sphere_offer_passes_just_below_it` |
+| 0.39 |  | `geom-brep` | `pcurve_cache::envelope_lemma_fuzz::the_envelope_dominates_the_stored_images_residual_on_every_periodic_arm` |
+| 0.39 |  | `geom-brep` | `ssi::one_arc::tests::a_side_within_the_band_whose_cover_reaches_past_eps_holds_no_piece` |
+| 0.39 |  | `topo::all` | `union_flush_onto_edge_contact::two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_every_op` |
+| 0.39 |  | `editor-core::all` | `review_m4_pr2::edit_back_restores_bit_identical_bodies` |
+| 0.39 |  | `sweep::all` | `verbs_germarms::the_ringed_wall_rows_hold_off_the_origin` |
+| 0.39 |  | `topo::all` | `a_corner_flat_at_its_short_bounds::a_long_edge_beside_a_corner_flat_at_its_short_bounds_is_classed_where_it_runs` |
+| 0.39 |  | `editor-core::all` | `reach_slab_cut_sector_side::a_slab_across_a_round_boss_builds_in_every_order` |
+| 0.39 |  | `sweep::all` | `blend_band_reach_rows::a_convex_rim_refuses_a_void_in_its_material_and_builds_beside_one_just_clear` |
+| 0.39 |  | `topo` | `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` |
+| 0.38 |  | `editor-core::all` | `m10_9_pins_interval::m10_9_the_value_channel_is_untouched_on_a_certifying_box` |
+| 0.38 |  | `sweep::all` | `operand_gate_pose::a_brick_beside_a_ball_builds_at_every_pose` |
+| 0.38 |  | `geom-brep::all` | `pn_apex_reach::apex_outcomes_agree_with_the_oracle` |
+| 0.38 |  | `sweep::all` | `bool6_per_slab_stacking::a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself` |
+| 0.37 |  | `topo` | `boolean::section_cert::section_cert_cone_pair_rows::twin_cones_side_by_side_meet_in_a_hyperbola` |
+| 0.37 |  | `geom-brep::all` | `m7_8_plane_nurbs_edge::without_the_lane_a_non_lane_defect_on_this_class_is_not_reported` |
+| 0.37 |  | `sweep::all` | `encl_curved_loft_shell::a_tilted_caps_marched_rim_refuses_at_its_certificate` |
+| 0.37 |  | `editor-core::all` | `union_flush_onto_edge_contact::the_union_node_folds_a_flush_partner_onto_the_edge_contact` |
+| 0.37 |  | `topo::all` | `review_m3_pr6::r4_extended_sweep_volume_identities` |
+| 0.37 |  | `sweep::all` | `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image` |
+| 0.37 |  | `sweep::all` | `band_one_cycle_members::a_head_crossing_between_its_boundary_samples_refuses_as_a_bound` |
+| 0.37 |  | `topo::all` | `shell_tolerance_chain::no_production_file_reaches_the_numeric_target_routines` |
+| 0.36 |  | `step-import::all` | `parser::truncations_refuse_without_panicking` |
+| 0.36 |  | `step-import::all` | `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` |
+| 0.36 |  | `sweep::all` | `review_4781_r1_probes::review_4781_kiss_with_overlap` |
+| 0.36 |  | `topo::all` | `a_given_pair_is_made_from_a_kernel_verdict::the_one_public_mint_of_a_given_pair_is_given_at` |
+| 0.36 |  | `editor-core::all` | `m10_di_dual_corpus::the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64` |
+| 0.36 |  | `sweep::all` | `reach_wall_chord_rows::a_vertex_on_a_curved_face_is_confirmed_by_its_trim` |
+| 0.36 |  | `geom-core::all` | `review_m5_pr7b_tensor::the_budget_boundary_54_completes_and_57_is_refused` |
+| 0.36 |  | `stl::all` | `export::the_acceptance_exports_agree_are_honest_and_are_byte_identical` |
+| 0.36 |  | `topo` | `splitting::spiric_arc::tests::the_row_reads_the_arcs_region_at_f64` |
+| 0.36 |  | `step-import::all` | `review_probes::g7_full_truncation_sweep` |
+| 0.36 |  | `sweep::all` | `reach_volume_backstop::planted_subtraction_results_refuse_down_to_the_stated_resolution` |
+| 0.35 |  | `sweep::all` | `lane1_r2_probes::the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits` |
+| 0.35 |  | `sweep::all` | `r1_p2_probes::r1_general_image_is_the_measured_column_among_many` |
+| 0.35 |  | `editor-core::all` | `m10_6_reports_interval::the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one` |
+| 0.35 |  | `geom-brep` | `offset_fit::tests::a_uniform_weight_scale_moves_no_cell_bound` |
+| 0.35 |  | `topo` | `ring_path::tests::a_path_from_the_tubes_top_or_bottom_reads_the_oracle_or_nothing` |
+| 0.35 |  | `sweep::all` | `tang_circle_cylinder::parallel_cylinders_that_pierce_build_at_the_closed_form` |
+| 0.35 |  | `sweep::all` | `join_rc_probes::reflex_corner_edge_in_face_poses_build_every_op_undeclared` |
+| 0.35 |  | `sweep::all` | `parallel_cylinder_join::a_tipped_rod_refuses_alike_in_both_operand_orders` |
+| 0.35 |  | `sweep::all` | `m6_loft_body::certified::the_loft_body_certifies_and_encloses_nine_at_interval` |
+| 0.35 |  | `topo` | `splitting::spiric_arc::fuzz::random_arcs_at_f64` |
+| 0.35 |  | `editor-core::all` | `m4_pr3_names_ci::memo_reuse_transfers_tables_bit_identically` |
+| 0.35 |  | `editor-core::all` | `seat4_verb_lowering::the_boolean_documents_evaluate_to_their_committed_digests` |
+| 0.34 |  | `editor-core::all` | `m10_4_r1_probes_interval::r1_another_documents_verdict_certifies_this_one` |
+| 0.34 |  | `geom::all` | `surfaces_stretch_sup::the_bound_covers_the_named_carriers_and_never_reads_above_recipe_a` |
+| 0.34 |  | `sweep::all` | `band_one_cycle_members::a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside` |
+| 0.34 |  | `topo::all` | `review_m3_pr55::interval::interval_new_fixtures` |
+| 0.34 |  | `sweep::all` | `shell7_dump::shell7_dump_corpus` |
+| 0.34 |  | `sweep::all` | `torus_touch_off_faces::a_brick_whose_plane_touches_the_outer_equator_off_its_face_builds` |
+| 0.34 |  | `sweep::all` | `torus_touch_off_faces::a_rod_whose_wall_touches_the_outer_equator_past_its_end_builds` |
+| 0.34 |  | `editor-core::all` | `msolve12_honest_translation::c1_every_separated_pair_measures_what_it_refuses` |
+| 0.34 |  | `geom-brep::all` | `m5_pr7_ssi::a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length` |
+| 0.34 |  | `sweep::all` | `carved_sphere_operand::a_tilted_cut_of_a_ball_is_an_operand` |
+| 0.34 |  | `sweep::all` | `an_inside_out_thin_tube_operand::an_inside_out_thin_tube_is_refused_as_an_operand` |
+| 0.34 |  | `sweep::all` | `snowman::a_spun_snowman_builds_under_every_boolean` |
+| 0.34 |  | `geom-brep::all` | `m5_pr7_ssi::an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_domain` |
+| 0.34 |  | `geom-brep::all` | `m5_pr7_ssi::shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcurve` |
+| 0.34 |  | `geom-brep::all` | `m7_8_plane_nurbs_edge::the_stated_carrier_certifies_against_both_surfaces` |
+| 0.34 |  | `editor-core::all` | `docm2_part_interval::the_part_select_document_evaluates_at_sym_interval` |
+| 0.34 |  | `editor-core::all` | `docm2_part_interval::a7_the_width_ladder_of_the_split_of_a_widened_box` |
+| 0.34 |  | `sweep::all` | `a_ruling_through_a_box_corner_edge::a_post_through_the_near_wall_piece_keeps_the_rests_on_their_piece` |
+| 0.34 |  | `sweep::all` | `split_through_a_ruling::a_cylinder_cut_parallel_to_its_tilted_axis_answers` |
+| 0.34 |  | `sweep::all` | `join_pierce_runs_sweep::an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them` |
+| 0.33 |  | `editor-core::all` | `m10_5_r2_probes_interval::the_cost_curve_is_flat_where_the_bound_is_broken` |
+| 0.33 |  | `geom-brep` | `props::quad::tests::q7_a_chord_crossing_interior_knots_is_split_at_them` |
+| 0.33 |  | `sweep::all` | `reach_continuation::a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order` |
+| 0.33 |  | `editor-core::all` | `m10_8_r2_probes_interval::r2_the_shape_report_attributes_each_decision_to_its_own_door` |
+| 0.33 |  | `sweep::all` | `bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order` |
+| 0.33 |  | `sweep::all` | `join1_r1_rows::a_pole_struts_halves_face_their_own_meridians` |
+| 0.33 |  | `geom-brep::all` | `span_reach_hunt::a_conic_arcs_span_reach_is_never_short_of_its_farthest_point` |
+| 0.33 |  | `editor-core::all` | `emit_union_borders::a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is` |
+| 0.33 |  | `topo` | `review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface` |
+| 0.33 |  | `editor-core::all` | `node_labels::a_rename_recomputes_nothing_and_mints_nothing` |
+| 0.33 |  | `geom-brep::all` | `m5_pr7_ssi::a_plane_three_eps_off_a_flat_walls_edge_traces_the_edge_long_branch` |
+| 0.33 |  | `topo` | `boolean::refusal_routes::offer_rows::every_withdrawn_tolerance_stays_withdrawn` |
+| 0.33 |  | `topo` | `chord_join::torus_ring_rows::a_torus_ring_run_winds_its_island_as_the_oracle_does` |
+| 0.32 |  | `geom-brep::all` | `m5_pr7_ssi::an_unaffordable_seed_floor_refuses_the_cell_budget_typed` |
+| 0.32 |  | `sweep::all` | `review_probes_m8_4::probe_e_reversed_chart_takes_the_backward_candidate` |
+| 0.32 |  | `editor-core::all` | `m10_10_pins_interval::m10_10_the_plates_ceiling_is_the_flip` |
+| 0.32 |  | `topo` | `shell::tests::speed_fuzz::no_rational_spline_outruns_its_speed_bound` |
+| 0.32 |  | `sweep::all` | `germ_cone_apex_closure::a_half_cone_agrees_with_the_closed_form` |
+| 0.32 |  | `topo` | `chord_join::tests::the_chord_arc_rung_is_decided_in_one_place` |
+| 0.32 |  | `sweep::all` | `r1_p2_probes::r1_cap_rim_measured_map_certifies` |
+| 0.32 |  | `viewer::all` | `docm9_range_vs_probe::the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket` |
+| 0.32 |  | `geom-brep::all` | `pcurve_parameter_finding::fitted_cylinder_graph_is_chord_parameterized` |
+| 0.32 |  | `editor-core::all` | `intent_literals_b_door::every_formula_the_door_walks_refuses_typed_as_an_unheld_name` |
+| 0.32 |  | `sweep::all` | `a_loft_computes_its_walls_in_t::a_placement_in_t_stays_a_function_of_its_parameter` |
+| 0.31 |  | `editor-core` | `expr::tests::evaluation_and_drop_keep_their_own_stack` |
+| 0.31 |  | `sweep::all` | `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` |
+| 0.31 |  | `sweep::all` | `reach_wall_chord_rows::an_x_bar_sunk_into_either_cap_answers_its_closed_form` |
+| 0.31 |  | `editor-core::all` | `r2_m10_di_probes::direct_validation_door_behavior_at_dual64` |
+| 0.31 |  | `editor-core::all` | `seat8_split_lowering::the_split_documents_evaluate_to_their_committed_digests` |
+| 0.31 |  | `sweep::all` | `r1_p2_probes::r1_wall_seam_arm_mints_and_certifies_the_interior_column` |
+| 0.31 |  | `editor-core::all` | `m10_5_r2_probes_interval::the_fold_is_the_same_over_a_parallel_and_a_sequential_drive` |
+| 0.31 |  | `sweep::all` | `a_ring_on_a_sphere_face::a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint` |
+| 0.31 |  | `topo::all` | `census_g2_carrier::the_verdict_is_argument_order_symmetric_under_rotation` |
+| 0.31 |  | `viewer` | `readout::tests::the_top_of_the_type_is_spelled_exactly` |
+| 0.31 |  | `editor-core::all` | `m10_6_ci_rows_interval::every_registered_assertion_holds_over_the_certified_leaves_within_budget` |
+| 0.31 |  | `sweep::all` | `split_through_a_ruling::a_flared_frustum_split_through_a_ruling_answers` |
+| 0.30 |  | `sweep::all` | `join_pierce_runs_sweep::a_run_turned_at_a_shared_vertex_holds_the_rest_of_its_pair` |
+| 0.30 |  | `topo` | `boolean::conic_quadric::circle_wall_rows::the_second_harmonic_band_reaches_past_the_tilt_band` |
+| 0.30 |  | `topo` | `face_normal::tests::the_planar_sense_flip_lives_in_one_place` |
+| 0.30 |  | `geom-brep` | `patch_bound::tests::a_uniform_weight_scale_moves_no_cell` |
+| 0.30 |  | `mesh::all` | `review_m2_pr6_determinism::survives_eps_row_bitwise_independence` |
+| 0.30 |  | `sweep::all` | `rest_zip_admission::a_tangent_sites_controls_build_sound` |
+| 0.30 |  | `mesh` | `nurbs_cert::tests::r1_moebius_ruling_degree1_cross_terms_dominated` |
 | 0.10 | 2.36 | `topo::all` | `a_seamless_pipe_cut_by_an_oblique_plane_measures::a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval` |
