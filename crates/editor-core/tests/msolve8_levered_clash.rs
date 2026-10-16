@@ -574,7 +574,7 @@ fn c1_length_none_and_roll_arm() {
 }
 
 /// **A transported direction never refuses, and the clash it reaches
-/// is levered.** The spanning tree reads the pair from the root, so
+/// is levered.** The fold reads the pair from the target, so
 /// a mate authored `(second, first)` is INVERTED before the fold —
 /// its directions transported by the representative's rotation and
 /// re-minted under the band. The three documents above, authored the

@@ -82,7 +82,7 @@ fn the_at_rest_badge_checks_a_loose_space() {
     };
     let reach = mate_reach::<f64>(&opts, tol);
     let step = |doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
-                    edit: DocEdit<pncad::document::ProfileProgram>| {
+                edit: DocEdit<pncad::document::ProfileProgram>| {
         let applied = apply(doc, &edit, tol, &reach).unwrap();
         *doc = applied.doc;
     };

@@ -17,7 +17,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
@@ -751,7 +750,7 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let cut = fixture::with_placements(&doc, &[s.base1, s.top, t1, union].into_iter().collect());
     let cut: Vec<_> = cut.into_iter().collect();
     let out = split_of(&s, &doc, &cut, "msolve13-a3d-part")
-        .unwrap_or_else(|e| panic!("A3(d): the whole group cuts: {e}"));
+        .unwrap_or_else(|e| panic!("A3(d): the whole assembly cuts: {e}"));
     let mut store = s.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = editor_core::inline(

@@ -205,7 +205,7 @@ fn scene(label: &str) -> Scene {
     scene_with(label, box_part(&format!("{label}-top"), 1.0, TOP_HEIGHT))
 }
 
-/// `T(top)` over the plain block, with NO pattern: `T` is a root.
+/// `T(top)` over the plain block, with NO pattern: nothing reads `T`.
 fn scene_no_pattern(label: &str) -> Scene {
     lifted(label, box_part(&format!("{label}-top"), 1.0, TOP_HEIGHT))
 }
@@ -265,9 +265,9 @@ fn mated(
 // ---- A1: the issue's document ----
 
 /// **The issue's own document.** The mate is read at `T`, below the
-/// pattern that places it again. The solve places it (`Determining`),
-/// the product gathers, and no placement reads `T`, so the mate has no
-/// world copy and mints nothing.
+/// pattern that places it again. The solve places it (the block's
+/// space is the world), the product gathers, and no placement reads
+/// `T`, so the mate has no world copy and mints nothing.
 #[test]
 fn the_issues_document_mints_nothing_for_a_side_read_below_the_pattern() {
     let s = scene("msolve5-a1");
@@ -300,7 +300,7 @@ fn the_issues_document_mints_nothing_for_a_side_read_below_the_pattern() {
 
 /// The same document read AT `P` with the `Instance(0, top/…)`
 /// spelling holds at the gate: copy 0 IS `T(top)`, and the pattern's
-/// row is a product root's own row.
+/// row is a placed copy's own row.
 #[test]
 fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let s = scene("msolve5-control");
@@ -320,15 +320,15 @@ fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let ev = run(&doc, &s.opts);
     assert!(
         gate(&doc, &ev).is_ok(),
-        "read at the root, the gate holds: {:?}",
+        "read at the pattern, the gate holds: {:?}",
         gate(&doc, &ev)
     );
 }
 
-// ---- a pass-through root over the pattern ----
+// ---- a pass-through `Part` over the pattern ----
 
-/// A mate read at a `Part { Instance(0) }` root over the pattern
-/// holds: a pass-through root's rows are verbatim — the `Part`
+/// A mate read at a placed `Part { Instance(0) }` over the pattern
+/// holds: a pass-through `Part`'s rows are verbatim — the `Part`
 /// projects the pattern's `Instance(0)` rows under their own heads —
 /// so the product's table answers and the operand is never asked.
 #[test]
@@ -357,7 +357,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
     let ev = run(&doc, &s.opts);
     assert!(
         gate(&doc, &ev).is_ok(),
-        "read at a pass-through root, the gate holds: {:?}",
+        "read at a pass-through `Part`, the gate holds: {:?}",
         gate(&doc, &ev)
     );
 }
@@ -492,7 +492,7 @@ fn an_operand_under_an_empty_boolean_placement_mints_nothing() {
     let ev = run(&doc, &s.opts);
     assert!(
         product(&doc, &ev, Tol::witness()).is_ok(),
-        "an empty root contributes nothing and the product gathers"
+        "an empty placement contributes nothing and the product gathers"
     );
     crate::fixture::assert_mints_nothing(&doc, &ev, mate);
     let _ = empty;
@@ -593,6 +593,6 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             AssemblyError::Product(e)
                 if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == top)
         ),
-        "the gather refuses at the failed root before any reference is read: {err:?}"
+        "the gather refuses at the failed placement before any reference is read: {err:?}"
     );
 }

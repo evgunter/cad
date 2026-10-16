@@ -1398,7 +1398,7 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
 /// document under which the tilt lands in the band — the road a
 /// verdict moves by after insert (the memo row's).
 #[test]
-fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
+fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
     let body = body_node(&small);
     let large = resized(small.clone(), 5.0, 10.0);

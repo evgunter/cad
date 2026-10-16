@@ -811,7 +811,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "PlaceInWorld {} output 0: not certifiably disjoint from PlaceInWorld {} output 0",
+            "Place {} output 0: not certifiably disjoint from Place {} output 0",
             copy(big),
             copy(small)
         )),

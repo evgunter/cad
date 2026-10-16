@@ -464,14 +464,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            [
-                "1 × Pattern",
-                "1 × PlacedUnion",
-                "1 × Union",
-                "1 × PlaceInWorld",
-            ]
-            .iter()
-            .all(|kind| hover.contains(kind))
+            ["1 × Pattern", "1 × PlacedUnion", "1 × Union", "1 × Place"]
+                .iter()
+                .all(|kind| hover.contains(kind))
         }),
         "the hover names each dependent by kind: {:?}",
         affordance.hover

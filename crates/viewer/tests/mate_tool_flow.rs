@@ -48,6 +48,9 @@ fn two_picks_one_choice_one_committed_edit() {
     assert!(matches!(tool.state(), MateToolState::One(_)));
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
+    // post_b's world pin off, so the mate places it: its bundle is the
+    // empty one.
+    asm::unpin(&mut session, bench.post_b);
 
     // The proposal: each side IS the picked face, by the part's own
     // name, resolved by the solve at every evaluation.
@@ -71,8 +74,10 @@ fn two_picks_one_choice_one_committed_edit() {
         "the frame is the shelf's own underside"
     );
 
-    // EXACTLY one committed edit, through the session's one door.
-    common::commit_mate(&mut session, proposal.op());
+    // EXACTLY one committed edit, through the session's one door, into
+    // post_b's bundle.
+    let mate = common::commit_mate(&mut session, proposal.op());
+    assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
 
     // The placement is SOLVED from the mate: the two picked FACES now
     // coincide in world space — their poses read off the landed
@@ -232,7 +237,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // before — the copy as the document spoke it when it was picked —
     // though the document that dropped it no longer holds it.
     let said = format!(
-        "face of PlaceInWorld {}",
+        "face of InstantiatePart {}",
         test_utils::refusal::tag(bench.shelf_i.0.digest())
     );
     assert!(
@@ -283,9 +288,7 @@ fn place_copies(
     pattern: RecipeNodeId,
     count: i64,
 ) -> Vec<RecipeNodeId> {
-    let withdrawn = session.perform(SessionOp::DeleteNode {
-        node: bench.post_b,
-    });
+    let withdrawn = session.perform(SessionOp::DeleteNode { node: bench.post_b });
     assert!(withdrawn.refusal.is_none(), "{:?}", withdrawn.refusal);
     let parts = (0..count)
         .map(|index| {
@@ -400,7 +403,9 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     let mate = common::commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        common::solve(&session, doc, tol).fault(mate.placement).is_none(),
+        common::solve(&session, doc, tol)
+            .fault(mate.placement)
+            .is_none(),
         "the pattern member solves: {:?}",
         common::solve(&session, doc, tol).fault(mate.placement)
     );
@@ -803,7 +808,9 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     let mate = common::commit_mate(&mut session, spun.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        common::solve(&session, doc, tol).fault(mate.placement).is_none(),
+        common::solve(&session, doc, tol)
+            .fault(mate.placement)
+            .is_none(),
         "the spun member solves: {:?}",
         common::solve(&session, doc, tol).fault(mate.placement)
     );
@@ -975,7 +982,9 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     let mate = common::commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        common::solve(&session, doc, tol).fault(mate.placement).is_none(),
+        common::solve(&session, doc, tol)
+            .fault(mate.placement)
+            .is_none(),
         "the nested member solves: {:?}",
         common::solve(&session, doc, tol).fault(mate.placement)
     );
@@ -1036,7 +1045,9 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     let mate = common::commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        common::solve(&session, doc, tol).fault(mate.placement).is_none(),
+        common::solve(&session, doc, tol)
+            .fault(mate.placement)
+            .is_none(),
         "the Part-selected member solves: {:?}",
         common::solve(&session, doc, tol).fault(mate.placement)
     );
@@ -1083,7 +1094,7 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         .expect_err("one instance is no pair");
     let said = refused.respoken(session.doc()).to_string();
     let spoken = format!(
-        "PlaceInWorld \"post\" ({})",
+        "InstantiatePart \"post\" ({})",
         test_utils::refusal::tag(bench.post_b.0.digest())
     );
     assert_eq!(

@@ -495,7 +495,10 @@ fn select_sides<T: Decide>(
 }
 
 /// **A placement's constraint sides on its own copy**, resolved in the
-/// copy's own `table` ([`select_sides`]'s other half).
+/// copy's own `table` ([`select_sides`]'s other half). A side read
+/// through a placer of the copy (a pattern of it, a transform) reads a
+/// value evaluated after this node, so its names are the solve's to
+/// resolve, through the member walk that poses the copy.
 fn select_own_sides(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -505,6 +508,9 @@ fn select_own_sides(
     for (slot, var) in node.operand_rows() {
         if matches!(slot, crate::OperandSlot::Side { .. })
             && crate::mate::solve::reads_own_copy(doc, id, var)
+            && doc
+                .selection(var)
+                .is_some_and(|select| doc.operation_of(select.body) == Some(id))
         {
             let Some((entity, _)) = doc.var(var).and_then(|held| held.kind().selection()) else {
                 return Err(NodeErrorKind::UnresolvedRead { slot, var });

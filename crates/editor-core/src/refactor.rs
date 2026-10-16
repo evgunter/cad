@@ -42,8 +42,8 @@
 //! instance (FORK-S3M: a constraint reads its target across the cut): a
 //! face frame rides its face; a frame on the copy's own part stands in
 //! that copy's coordinates, which are the instance's only where the
-//! copy is pinned to the world at the identity
-//! ([`SplitError::MateFrameCrosses`]). Neither door computes a frame.
+//! side reads the copy through nothing that moves it and the copy is
+//! pinned to the world at the identity ([`SplitError::MateFrameCrosses`]). Neither door computes a frame.
 //!
 //! [`inline`] is the inverse. An instance pinned to the world at a pose
 //! splices its part's placements with every constraint on the part's
@@ -2917,7 +2917,8 @@ pub fn split(
     // (FORK-S3M: a constraint reads its target across the cut): a face
     // frame rides its face, which the instance carries where it was; a
     // frame on the copy's own part stands in that copy's coordinates,
-    // which are the instance's only where the copy is pinned at the
+    // which are the instance's only where the side reads the copy
+    // through nothing that moves it and the copy is pinned at the
     // identity.
     for kept in doc.placements() {
         if cut.contains(&kept) {
@@ -2938,13 +2939,20 @@ pub fn split(
                 else {
                     continue;
                 };
-                if constraint.mate.frame(side).base == crate::mate::FrameBase::Part
-                    && matches!(
-                        doc.node(at),
-                        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-                    )
-                    && !places_at_identity(doc, at)
-                {
+                // The copy whose part the frame stands on is the member
+                // the side resolves to: its coordinates survive only read
+                // at it, through nothing that moves it (a union or a
+                // `Part` selection), pinned at the identity.
+                let survives = match crate::mate::member::member_of_side(doc, *var) {
+                    Some(member) => member.chain.is_empty() && places_at_identity(doc, member.instance),
+                    None => {
+                        !matches!(
+                            doc.node(at),
+                            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                        ) || places_at_identity(doc, at)
+                    }
+                };
+                if constraint.mate.frame(side).base == crate::mate::FrameBase::Part && !survives {
                     return Err(SplitError::MateFrameCrosses {
                         placement: doc.spoken(kept),
                         constraint: constraint.id,

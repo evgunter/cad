@@ -334,7 +334,8 @@ fn lifted(label: &str) -> Lifted {
 /// **A shaft in two coaxial bores**: the bolt held by two coaxial mates
 /// on ONE line, so the second bore's axis point lies on the first's
 /// axis and the fold meets a clocking with no radius to turn
-/// (`clocking_about`'s degenerate arm). The clocking is then fixed
+/// (`clocking_about`'s degenerate arm); either bore is then one the
+/// rest of the bundle already fixes, so the bundle is overconstrained. The clocking is then fixed
 /// either by a clocked coaxial rider and a planar rest
 /// ([`ShaftShape::ClockedRider`]), or by a planar rest and a third pin
 /// on a parallel axis a quarter off the first ([`ShaftShape::ParallelPin`]).
@@ -889,10 +890,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// keyed by document position, measured equal on main and on the
 /// branch at all three ε. Taken over the surface pair's set spelling
 /// above, which landed beside it.
+///
+/// And again for INTENT stage 3 B (all three rows): a mate is a
+/// constraint of the placement it places, so the corpus's documents
+/// changed shape — the lone rest is a loose copy rather than a refusal,
+/// the contradictory pair is an overconstrained bundle, the gauge chain
+/// is a three-step world pin, the closing loop is a chain of bundles,
+/// and both shafts' bundles are overconstrained — and the digest feeds
+/// each node's space and fault where it fed a mate's role and a
+/// group's root.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb917_d447_d10b_70f6),
-    (1e-6, 0x0972_1080_d45a_cb46),
-    (1e-12, 0xf104_317b_97ae_0ad1),
+    (1e-9, 0xeca8_2432_1b41_a72c),
+    (1e-6, 0x842a_00b7_5945_84ae),
+    (1e-12, 0x340f_1cf9_18ae_208f),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
