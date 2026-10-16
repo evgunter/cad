@@ -248,6 +248,8 @@ jobs:
         run: python3 scripts/work.py lint
       - name: dual-review log self-test
         run: python3 scripts/dual-review-log.py --selftest
+      - name: slow-set name check self-test
+        run: python3 scripts/check-slow-set-names.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
@@ -328,6 +330,7 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: build
+        id: build
         run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
       - name: test (default eps)
         env:
@@ -381,6 +384,16 @@ jobs:
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+      - name: the slow set names only tests that exist (the packages this run built)
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        env:
+          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+        run: |
+          set -o pipefail
+          case " $SCOPE " in *" --workspace "*) complete=--complete ;; *) complete= ;; esac
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo nextest list --ignore-default-filter $SCOPE --message-format json \
+            | python3 scripts/check-slow-set-names.py $complete
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed)
         if: failure()

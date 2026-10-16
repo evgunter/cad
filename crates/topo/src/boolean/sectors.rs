@@ -169,7 +169,12 @@ pub(super) enum FaceShape {
 impl FaceShape {
     /// The shape of a face on `surface`.
     pub(super) fn of<T: geom_core::Real>(surface: &geom::Surface<T>) -> Self {
-        match surface.kind() {
+        Self::of_kind(surface.kind())
+    }
+
+    /// [`Self::of`], from the surface's kind.
+    pub(super) fn of_kind(kind: geom::SurfaceKind) -> Self {
+        match kind {
             geom::SurfaceKind::Plane => Self::Plane,
             _ => Self::Curved,
         }
@@ -1158,18 +1163,23 @@ fn within_signs<T: Decide>(
     ))
 }
 
+/// A half-plane a sector's face leaves an edge in ([`half_planes`]): its
+/// unit direction square to the edge, and the sector.
+pub(super) type HalfPlane<'s, T> = (Vec3<T>, &'s BoolSector<T>);
+
 /// **The half-planes `other`'s faces leave `dir` in**, where `dir` lies
 /// on the boundary of `other`'s corner: for each sector whose face's
 /// plane holds `dir` and whose closure holds it, the unit direction
 /// square to `dir` into the face, on each side of `dir` the sector lies
-/// — one side where `dir` runs along a bound, both where it runs inside.
-/// Around `dir`, the corner's material changes side at exactly these.
+/// — one side where `dir` runs along a bound, both where it runs inside
+/// — each with the sector it leaves `dir` in. Around `dir`, the corner's
+/// material changes side at exactly these.
 pub(super) fn half_planes<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     other: &[BoolSector<T>],
     band: Band,
-) -> Result<Vec<Vec3<T>>, BooleanError> {
+) -> Result<Vec<HalfPlane<'_, T>>, BooleanError> {
     let mut out = Vec::new();
     for s in other {
         if plane_side_code(dir, reach, s.normal, band)? != SideCode::On {
@@ -1179,12 +1189,12 @@ pub(super) fn half_planes<T: Decide>(
         // the face lies ahead of `start` and behind `end`.
         let ahead = s.normal.vec().cross(dir).normalize();
         match within_signs(s, dir, DeclarationRead::Moot, band)? {
-            (Sign::Positive, Sign::Positive) => out.extend([ahead, -ahead]),
+            (Sign::Positive, Sign::Positive) => out.extend([(ahead, s), (-ahead, s)]),
             (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
-                out.push(ahead);
+                out.push((ahead, s));
             }
             (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
-                out.push(-ahead);
+                out.push((-ahead, s));
             }
             _ => {}
         }
@@ -2621,7 +2631,13 @@ mod tests {
         };
         assert!(
             matches!(
-                super::super::vtxfac::touch_classes(&[], &[(first, SideCode::Out)], &[pair], band()),
+                super::super::vtxfac::touch_classes(
+                    &[],
+                    &[(first, SideCode::Out)],
+                    &[pair],
+                    &|_| Ok(FaceShape::Plane),
+                    band()
+                ),
                 Err(super::super::vtxfac::TouchUndecided::Beside(Some(p))) if p == partner
             ),
             "a touch beside a saddle refuses"
