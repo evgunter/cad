@@ -1531,14 +1531,18 @@ mod arc_end_rows {
     /// than reading the piece as the face's interior (`NoEdge`, a decided
     /// contradiction downstream).
     ///
-    /// - At `contains`, both arms of the finding, on half-disc caps the
-    ///   public operators built: an end off both corners (read at a band
-    ///   finer than the run's) and the band's own parting (`K = 1.25`).
-    /// - Through `departures`, the band's parting: a line along `x`
-    ///   through the point, which crosses the cap's arc just past it; a
-    ///   second face, a block's top in the cap's plane, whose left edge
-    ///   stands the same distance before it, so the one touch piece's
-    ///   midpoint is the point.
+    /// - At `contains`, the finding's arm on a half-disc cap the public
+    ///   operators built: an end off both corners, read at a band finer
+    ///   than the run's.
+    /// - The band's own parting (`K = 1.25`) no longer parts the end from
+    ///   its corner: the boundary reading puts a point at the end only on
+    ///   its raw chord, the distance the vertex pass reads to the corner.
+    ///   The point beside the end escalates at `contains` on the end's
+    ///   straddle (`curve_pair_span_end_straddle`), and so does the touch
+    ///   piece through `departures`: a line along `x` through the point,
+    ///   which crosses the cap's arc just past it, and a block's top in
+    ///   the cap's plane whose left edge stands the same distance before
+    ///   it, so the one touch piece's midpoint is the point.
     #[test]
     fn a_touch_at_an_arc_end_clear_of_its_corners_is_not_read() {
         let tol = Tol::witness();
@@ -1557,17 +1561,14 @@ mod arc_end_rows {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
         assert!(
             matches!(
-                crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow),
-                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if !g.off_corner()
+                contains(&body, cap, q, narrow),
+                Err(ref d) if straddle(d)
             ),
-            "the band's own parting"
-        );
-        assert_eq!(
-            contains(&body, cap, q, narrow),
-            Ok(None),
-            "the band's parting"
+            "the band's parting escalates: {:?}",
+            contains(&body, cap, q, narrow)
         );
         // The line crosses the unit circle at `x = -sqrt(1 - y²)`, `delta`
         // past the point; the block's left edge stands `delta` before it.
@@ -1589,10 +1590,9 @@ mod arc_end_rows {
             dir: Vec3::unit_x(),
         };
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
-        assert_eq!(
-            got,
-            Ok(Departure::EdgeKindUnread),
-            "the touch piece at the arc's end is not read"
+        assert!(
+            matches!(got, Err(ref d) if straddle(d)),
+            "the touch piece at the arc's end escalates: {got:?}"
         );
     }
 }
@@ -1702,7 +1702,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 arc,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent arc, theta {theta}"),
             );
@@ -1841,7 +1841,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 got,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent circle, alpha {alpha}"),
             );

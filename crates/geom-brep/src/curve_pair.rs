@@ -3,7 +3,11 @@
 //! question").
 //!
 //! - **One point-on-span reading** ([`span`]): every candidate point any
-//!   method proposes is settled by [`Span::contact`] on both spans.
+//!   method proposes is settled by [`Span::contact`] on both spans, at its
+//!   foot on each ([`geom::Curve3::foot`], seeded by the candidate's own
+//!   parameter). It composes `geom`'s one-carrier reading with the
+//!   span's reading of its ends ([`Span::read`]), and decides nothing of
+//!   its own.
 //! - **One total table** ([`method`]): one exhaustive match over the two
 //!   carriers' [`CurveKind`]s, with no wildcard arm, fixing each pair's
 //!   method at write time. Line, circle and ellipse pairs are closed
@@ -32,7 +36,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
-pub use span::{Contact, Hit, Span};
+pub use span::{Hit, Place, Reading, Span, SpanEnd};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -126,6 +130,13 @@ pub enum MeetFault {
     },
     /// A carrier is not of the kind its arm reads.
     Desync,
+    /// Two readings of the pose contradict each other, which their
+    /// definitions rule out but for rounding: a kernel fault, never a
+    /// pose.
+    Contradiction {
+        /// The readings.
+        readings: &'static str,
+    },
 }
 
 impl From<Indeterminate> for MeetFault {
@@ -188,8 +199,8 @@ fn outcome<T: Decide>(
     let mut points = Vec::new();
     let mut held = None;
     for c in &candidates {
-        let on_a = a.contact(c.point, c.ta, band).map(Contact::hit);
-        let on_b = b.contact(c.point, c.tb, band).map(Contact::hit);
+        let on_a = a.contact(c.point, c.ta, band);
+        let on_b = b.contact(c.point, c.tb, band);
         match (on_a, on_b) {
             (Ok(None), _) | (_, Ok(None)) => {}
             (Ok(Some(on_a)), Ok(Some(on_b))) => points.push(Meeting {
@@ -202,10 +213,25 @@ fn outcome<T: Decide>(
     }
     match held {
         None => Ok(Meetings { shared, points }),
-        Some(diag) => Err(MeetRefusal {
-            fault: MeetFault::Escalated(diag),
+        Some(refusal) => Err(MeetRefusal {
+            fault: carrier_fault(refusal),
             found: points,
         }),
+    }
+}
+
+/// A point-on-span refusal as the meeting's: an escalation as itself, a
+/// spline's walk past its budget as unsettled, and a spline with no
+/// speed bound as a pose the reader does not serve.
+fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
+    match refusal {
+        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
+            MeetFault::Escalated(diag)
+        }
+        geom::CarrierRefusal::Exhausted => MeetFault::Unsettled(Unsettled::Exhausted),
+        geom::CarrierRefusal::Unbounded => MeetFault::Unsupported {
+            pose: "a spline whose speed bound is zero or poison",
+        },
     }
 }
 
@@ -213,5 +239,7 @@ fn outcome<T: Decide>(
 mod meet_oracle;
 #[cfg(test)]
 mod meet_rows;
+#[cfg(test)]
+mod one_curve_rows;
 #[cfg(test)]
 mod span_rows;

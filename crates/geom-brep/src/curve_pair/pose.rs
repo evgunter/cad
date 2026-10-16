@@ -10,18 +10,55 @@
 //! Every length below is metres, and every closed form solves in one
 //! carrier's own parameter: a line's, or a conic's angle.
 //!
-//! - **Two lines.** Their tilt, the sine between them levered by the
-//!   longer span (`curve_pair_pose_tilt`). Read zero, the lines are
-//!   parallel over both spans, and the second span's middle point's
-//!   distance from the first line (`curve_pair_pose_offset`) decides one
-//!   line ([`Pose::Coincident`]) or [`Pose::Parallel`]. Read definite, the
-//!   candidate is the first line's point nearest the second.
-//! - **A line and a conic.** The line's tilt to the conic's plane, `d̂·n̂`
-//!   levered by the longer of the line's span and the conic's greatest
-//!   speed. Definite: the line crosses the plane once, and the candidate
-//!   is the closest pair polished from there (below). Zero: the line's
-//!   height above the plane at its span's middle decides
-//!   [`Pose::Parallel`], or, read zero, the line in the plane. There the
+//! - **The router** (two lines, and a line against a conic's plane):
+//!   where the pair can meet is the overlap of the two spans'
+//!   projections on the first line (for a conic, the line's span with
+//!   the conic's centre ± its larger semi-axis), length `L`, and the
+//!   escalation `e` either side. The pair's offset there is the second
+//!   line's distance from the overlap's middle point on the first, or the
+//!   line's height above the conic's plane at that point. **The parallel
+//!   argument runs first, whatever the tilt reads**: where the offset less
+//!   its most variation over the overlap and `e` either side,
+//!   `rate·(L/2 + e)`, decides positive (`curve_pair_pose_parallel`), the
+//!   pair is [`Pose::Parallel`], `rate` being `s/c` for two lines (`s`
+//!   the sine between them, `c = |û₁·û₂|`) and `|d̂·n̂|` for a line and a
+//!   plane. **Why that proves no meeting anywhere on either span:** a
+//!   meeting is two points, one per span, within the band's zero `z` of
+//!   each other, so their projections on the first line lie within `z`
+//!   of each other, each inside its own span's projection (for a conic,
+//!   inside its extent's): the meeting projects within `z < e` of the
+//!   overlap, even where the overlap is empty (the projections then part
+//!   by less than `z`) or shorter than the band. Over that stretch the
+//!   offset moves at most `rate` per metre from its value at the
+//!   overlap's middle, so it stays past the band's escalation and no
+//!   point of one lies within `z` of the other. The parts of either span
+//!   outside that stretch lie farther than `z` from the other by their
+//!   projections alone. **Split invariance follows by construction**: a
+//!   piece of a span projects inside the whole's projection, so a
+//!   piece's overlap is a sub-interval of the whole's, and its offset at
+//!   its own middle less its own variation is at least the whole's
+//!   margin; a pair read Parallel whole is read Parallel in every split.
+//!   Only where that margin does not decide does the tilt route: levered
+//!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
+//!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
+//!   span, the pair is level where it can meet, and the offset at the
+//!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
+//!   and otherwise the parallel margin having not decided refuses
+//!   [`Unsettled::Meter`]. A tilt over the longer span in its band
+//!   escalates.
+//! - **Two lines.** Crossing, the candidate is the first line's point
+//!   nearest the second. Level, the lines are [`Pose::Coincident`] only
+//!   where each span's two ends lie within the zero band of the other's
+//!   carrier (`curve_pair_pose_offset`): a line's distance from another is
+//!   affine along it, so its ends bound it over the whole span, and
+//!   `Coincident` claims one curve over both spans, not only where they
+//!   can meet. Two lines level at a shallow corner, their overlap one
+//!   point and an end apart past the band, are read as the crossing the
+//!   longer span's tilt decides, and refuse [`Unsettled::Meter`] where it
+//!   reads zero.
+//! - **A line and a conic.** Crossing, the line crosses the plane once,
+//!   and the candidate is the closest pair polished from there (below).
+//!   Level, the line lies in the plane where it can meet, and there the
 //!   conic's signed distance from the line, `(C(θ) − o)·m̂` with `m̂` the
 //!   line's normal in the plane, is a first harmonic in the conic's angle
 //!   (below).
@@ -34,27 +71,29 @@
 //!   Both definite: the first conic's height above the second's plane,
 //!   `(C₁(θ) − c₂)·n̂₂`, is a first harmonic in its own angle whose roots
 //!   are where it crosses that plane, and each candidate is the closest
-//!   pair polished from one (below). In one plane:
+//!   pair polished from one (below). In one plane, **one reading decides
+//!   whether two conics are one curve**, whatever their kinds
+//!   (`curve_pair_pose_one_curve`, `one_curve_gap`): each conic is
+//!   `c + L·x` over the unit circle, `L = [a·û, b·v̂]`, and the centres'
+//!   gap plus `‖L₁ − L₂Q‖` for the best rotation `Q` bounds how far a
+//!   point of either lies from the other, a tilt out of the plane
+//!   included. Read zero is [`Pose::Coincident`]. Past it:
 //!   - **two circles**: their centres' distance `d`
 //!     (`curve_pair_pose_centres`). Zero is one centre, and the radii's gap
 //!     with `d` and the slant as its spread (`curve_pair_pose_radii`)
-//!     decides one curve or [`Pose::Concentric`]. Definite, the first
-//!     circle's distance from the second's centre runs between `|r₁ − d|`
-//!     and `r₁ + d`, so its distance from the second circle has those
-//!     extremes less `r₂`, exactly; and its square is a first harmonic in
-//!     the first circle's angle, whose roots are read from the extremes
-//!     (below);
-//!   - **a circle and an ellipse**: one curve when the bound
-//!     `|Δc| + max(|a − r|, |b − r|)` plus the slant reads zero
-//!     (`curve_pair_pose_one_curve`); otherwise the ellipse's distance
-//!     from the circle, `|E(θ) − c| − r`, whose square less `r²` is of
-//!     degree two in the ellipse's angle, goes to the certified
-//!     subdivision ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: one curve when the frames' bound
-//!     `|Δc| + min_Q ‖L₁ − L₂Q‖`, `L = [a·û, b·v̂]` over the eight signed
-//!     permutations `Q`, plus the slant reads zero. Two ellipses in one
-//!     plane that are not one curve have no metre residual here, and
-//!     refuse typed ([`MeetFault::Unsupported`]).
+//!     decides [`Pose::Concentric`]; read zero all round, it contradicts
+//!     the one-curve reading, which is at most `d + |Δr|` plus the slant
+//!     ([`MeetFault::Contradiction`]). Definite, the first circle's distance from
+//!     the second's centre runs between `|r₁ − d|` and `r₁ + d`, so its
+//!     distance from the second circle has those extremes less `r₂`,
+//!     exactly; and its square is a first harmonic in the first circle's
+//!     angle, whose roots are read from the extremes (below);
+//!   - **a circle and an ellipse**: the ellipse's distance from the
+//!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
+//!     the ellipse's angle, goes to the certified subdivision
+//!     ([`crate::half_angle::certified_subdivision`]);
+//!   - **two ellipses** have no metre residual here, and refuse typed
+//!     ([`MeetFault::Unsupported`]).
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -98,9 +137,9 @@
 //!
 //! - **its basin** (`curve_pair_pose_basin`): over that reach each
 //!   tangent turns by at most its carrier's curvature times the reach, so
-//!   `sin φ − 4(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
+//!   `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
 //!   where the polish starts, levered as the tilt is, must read positive:
-//!   the tangents then stay within a quarter of the angle between them,
+//!   the tangents then keep at least half the angle between them,
 //!   the closest pair is the one stationary pair there, and the polish
 //!   contracts toward it;
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
@@ -200,6 +239,7 @@ pub enum PoseRefusal {
 mod row {
     pub(super) const TILT: &str = "curve_pair_pose_tilt";
     pub(super) const OFFSET: &str = "curve_pair_pose_offset";
+    pub(super) const PARALLEL: &str = "curve_pair_pose_parallel";
     pub(super) const SENSE: &str = "curve_pair_pose_sense";
     pub(super) const SWING: &str = "curve_pair_pose_swing";
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
@@ -307,53 +347,29 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
 }
 
-/// The span's middle point.
-fn middle<T: Decide>(s: &Span<'_, T>) -> Point3<T> {
-    let (t0, t1) = s.params();
-    s.carrier().eval(geom::mid_param(t0, t1))
-}
-
 /// The conic's tangent `C′(θ)`.
 fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
     let (sin, cos) = theta.sin_cos();
     k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
 }
 
-/// The conic's parameter nearest `q`: the angle of `q`'s unit
-/// coordinates, exact on a circle and on any point of the ellipse,
-/// polished otherwise. A foot that is not the nearest point only reads
-/// the point farther off ([`Span::contact`]).
-fn conic_foot<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    let w = q - k.center;
-    let seed = (w.dot(k.v_ref()) / k.semi_v).atan2(w.dot(k.u_ref) / k.semi_u);
-    super::polish::foot(|t| Side::Conic(k).ders(t), q, seed, |_| true)
-}
-
-/// A lower bound on `q`'s distance from the conic: the conic lies in its
-/// plane between the circles of its semi-axes about its centre, so `q`
-/// is at least its height above the plane, and its distance in the plane
-/// outside that ring, apart from it. Exact on a circle.
-fn conic_clearance<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    let w = q - k.center;
-    let h = w.dot(k.axis);
-    let rho = (w - k.axis * h).norm();
-    let out = (rho - k.speed_hi()).max(k.speed_lo() - rho).max(T::zero());
-    (h.powi(2) + out.powi(2)).sqrt()
-}
-
-/// The line's parameter nearest `q`.
+/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    (q - origin).dot(dir) / dir.dot(dir)
+    Curve3::Line { origin, dir }.foot(q, T::zero()).t()
 }
 
-/// The carrier's parameter nearest `q`, on a line or a conic; `None` on
-/// a kind with no closed pose.
-fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
-    match *c {
-        Curve3::Line { origin, dir } => Some(line_foot((origin, dir), q)),
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } => Some(conic_foot(&Conic::of(c)?, q)),
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-    }
+/// A lower bound on `q`'s distance from the carrier
+/// ([`Curve3::clearance`], the one bound), zero where it has none in
+/// closed form.
+fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
+    c.clearance(q).unwrap_or_else(T::zero)
+}
+
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
+/// middle.
+fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
+    let (t0, t1) = s.params();
+    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
@@ -364,12 +380,20 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
     let (a0, a1) = a.params();
     for ta in [a0, a1] {
         let point = a.carrier().eval(ta);
-        out.extend(foot(b.carrier(), point).map(|tb| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta,
+            tb: foot(b, point),
+        });
     }
     let (b0, b1) = b.params();
     for tb in [b0, b1] {
         let point = b.carrier().eval(tb);
-        out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta: foot(a, point),
+            tb,
+        });
     }
     out
 }
@@ -503,7 +527,7 @@ struct Polish<'k, T: geom_core::Real> {
     /// within the band's escalation of the second's plane.
     reach: T,
     /// A lower bound on the start point's distance from the second
-    /// carrier ([`conic_clearance`]).
+    /// carrier ([`Curve3::clearance`]).
     clear: T,
     /// What the basin's sine is levered by.
     lever: T,
@@ -550,6 +574,105 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
+/// The overlap, along the unit `u` from `o`, of the projections `a` and
+/// `b` (each a pair of ends, either order): its middle and its length,
+/// zero where the projections are disjoint (module docs, "Two lines").
+fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> (T, T) {
+    let lo = a.0.min(a.1).max(b.0.min(b.1));
+    let hi = a.0.max(a.1).min(b.0.max(b.1));
+    ((lo + hi) * T::from_f64(0.5), (hi - lo).max(T::zero()))
+}
+
+/// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
+/// distances along it from `o`.
+fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
+    let (t0, t1) = s.params();
+    (
+        (s.carrier().eval(t0) - o).dot(u),
+        (s.carrier().eval(t1) - o).dot(u),
+    )
+}
+
+/// Where the router sends a line's pair (module docs, "The router").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Route {
+    /// Definitely apart over every place they can meet.
+    Parallel,
+    /// Crossing: the tilt definite over the longer span.
+    Crossing,
+    /// Level over where they can meet, the offset there read zero.
+    Level,
+}
+
+/// **The router** of two lines, or of a line and a conic's plane (module
+/// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
+/// most metres the offset moves per metre along the first line, `offset`
+/// the second's distance (or the plane's height) at the overlap's middle,
+/// `length` the overlap's and `lever` the longer span's metres.
+///
+/// The parallel argument runs first and alone: where the offset less its
+/// most variation over the overlap and the escalation either side decides
+/// positive (`curve_pair_pose_parallel`), no point meets, whatever the
+/// tilt reads. Only otherwise does the tilt route: definite over the
+/// longer span, a crossing; zero over the overlap, or over the longer
+/// span, level where the offset reads zero, and [`Unsettled::Meter`]
+/// where it does not, the parallel margin having not decided.
+///
+/// # Errors
+///
+/// The band's escalation of the tilt over the longer span or of the
+/// offset, and the Meter refusal above.
+fn route<T: Decide>(
+    tilt: T,
+    rate: T,
+    offset: T,
+    (length, lever): (T, T),
+    band: Band,
+) -> Result<Route, MeetFault> {
+    let e = T::from_f64(band.escalate());
+    let half = length * T::from_f64(0.5) + e;
+    if decide(row::PARALLEL, Margin::of(offset - rate * half), band) == Ok(Sign::Positive) {
+        return Ok(Route::Parallel);
+    }
+    let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
+        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
+    if !level {
+        return Ok(Route::Crossing);
+    }
+    if definite(row::OFFSET, Margin::of(offset), band)? {
+        return Err(MeetFault::Unsettled(Unsettled::Meter));
+    }
+    Ok(Route::Level)
+}
+
+/// Whether two lines are one curve within the band over both whole spans
+/// (`curve_pair_pose_offset`): each span's ends lie within the zero band
+/// of the other's carrier. A line's distance from another is affine in
+/// its parameter, so its ends bound it over the span.
+fn one_line<T: Decide>(
+    (a, la): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    (b, lb): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    band: Band,
+) -> Result<bool, MeetFault> {
+    let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
+        let w = q - o;
+        (w - u * w.dot(u)).norm()
+    };
+    for (s, other) in [(a, lb), (b, la)] {
+        let (t0, t1) = s.params();
+        for t in [t0, t1] {
+            if definite(
+                row::OFFSET,
+                Margin::of(off(other, s.carrier().eval(t))),
+                band,
+            )? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// Two lines (module docs).
 fn line_line<T: Decide>(
     a: &Span<'_, T>,
@@ -559,27 +682,35 @@ fn line_line<T: Decide>(
     let (la, lb) = (line_of(a.carrier())?, line_of(b.carrier())?);
     let ((o1, d1), (o2, d2)) = (la, lb);
     let (u1, u2) = (unit(d1), unit(d2));
-    let lever = reach(a).max(reach(b));
     let n = u1.cross(u2);
     let s = n.norm();
-    if !definite(row::TILT, Margin::levered(s, lever), band)? {
-        let w = middle(b) - o1;
-        let off = w - u1 * w.dot(u1);
-        if definite(row::OFFSET, Margin::norm3(off), band)? {
-            return Ok(Pose::Parallel);
-        }
-        return Ok(Pose::Coincident {
+    let first = (o1, u1);
+    let (mid, length) = overlap(on_line(first, a), on_line(first, b));
+    let w = o1 + u1 * mid - o2;
+    let off = (w - u2 * w.dot(u2)).norm();
+    let lever = reach(a).max(reach(b));
+    let crossing = || {
+        let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
+        let point = o1 + u1 * along;
+        Pose::Generic(vec![Candidate {
+            point,
+            ta: line_foot(la, point),
+            tb: line_foot(lb, point),
+        }])
+    };
+    match route(s, s / u1.dot(u2).abs(), off, (length, lever), band)? {
+        Route::Parallel => Ok(Pose::Parallel),
+        Route::Crossing => Ok(crossing()),
+        Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
             sense: sense(u1.dot(u2), lever, band)?,
             witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-        });
+        }),
+        // Level where they can meet but apart past the band along a span:
+        // a shallow corner, read as the crossing the longer span's tilt
+        // decides.
+        Route::Level if definite(row::TILT, Margin::levered(s, lever), band)? => Ok(crossing()),
+        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
-    let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
-    let point = o1 + u1 * along;
-    Ok(Pose::Generic(vec![Candidate {
-        point,
-        ta: line_foot(la, point),
-        tb: line_foot(lb, point),
-    }]))
 }
 
 /// A line `a` and a conic `b` (module docs).
@@ -594,29 +725,35 @@ fn line_conic<T: Decide>(
     let u = unit(d);
     let n = k.axis;
     let den = u.dot(n);
+    // Where they can meet (module docs): the line's span and the conic's
+    // extent, both projected on the line.
+    let c = (k.center - o).dot(u);
+    let (mid, length) = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    if definite(row::TILT, Margin::levered(den, lever), band)? {
-        // The line's height above the plane runs `|d̂·n̂|` per metre, so
-        // it is within the band's escalation `e/|d̂·n̂|` either side of
-        // the crossing.
-        let point = o + u * ((k.center - o).dot(n) / den);
-        let e = T::from_f64(band.escalate()) + noise;
-        let polish = Polish {
-            a: Side::Line(line),
-            b: Side::Conic(&k),
-            start: (line_foot(line, point), conic_foot(&k, point)),
-            reach: e / den.abs(),
-            clear: conic_clearance(&k, point),
-            lever,
-        };
-        return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
-    }
-    if definite(row::OFFSET, Margin::of((middle(a) - k.center).dot(n)), band)? {
-        return Ok(Pose::Parallel);
+    let height = (o + u * mid - k.center).dot(n);
+    match route(den, den.abs(), height.abs(), (length, lever), band)? {
+        Route::Parallel => return Ok(Pose::Parallel),
+        Route::Crossing => {
+            // The line's height above the plane runs `|d̂·n̂|` per metre,
+            // so it is within the band's escalation `e/|d̂·n̂|` either side
+            // of the crossing.
+            let point = o + u * ((k.center - o).dot(n) / den);
+            let e = T::from_f64(band.escalate()) + noise;
+            let polish = Polish {
+                a: Side::Line(line),
+                b: Side::Conic(&k),
+                start: (line_foot(line, point), foot(b, point)),
+                reach: e / den.abs(),
+                clear: clearance(b.carrier(), point),
+                lever,
+            };
+            return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
+        }
+        Route::Level => {}
     }
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
@@ -699,83 +836,91 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse(&ka, &kb, ha, swing_a, noise, lever, band);
+        return transverse((&ka, &kb, b), ha, swing_a, noise, lever, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
-    let cosine = unit(oriented(&ka)).dot(unit(oriented(&kb)));
-    let foot_a = |q: Point3<T>| conic_foot(&ka, q);
-    let foot_b = |q: Point3<T>| conic_foot(&kb, q);
-    let coincident = || -> Result<Pose<T>, MeetFault> {
-        Ok(Pose::Coincident {
-            sense: sense(cosine, lever, band)?,
+    if one_curve(&ka, &kb, band)? {
+        let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
+        return Ok(Pose::Coincident {
+            sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), lever, band)?,
             witnesses: witnesses(a, b, &foot_a, &foot_b),
-        })
-    };
+        });
+    }
     let place = |theta: T| {
         let point = ka.point(theta);
         Candidate {
             point,
             ta: theta,
-            tb: conic_foot(&kb, point),
+            tb: foot(b, point),
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, &coincident, band),
-        Coplanar::EllipseCircle => {
-            let w = ka.center - kb.center;
-            let r = kb.semi_u.abs();
-            let bound =
-                w.norm() + (ka.semi_u.abs() - r).abs().max((ka.semi_v.abs() - r).abs()) + slant;
-            if !definite(row::ONE_CURVE, Margin::of(bound), band)? {
-                return coincident();
-            }
-            coplanar_ellipse_circle(a, &ka, &kb, &place, band)
-        }
-        Coplanar::Ellipses => {
-            if !definite(
-                row::ONE_CURVE,
-                Margin::of(frame_gap(&ka, &kb) + slant),
-                band,
-            )? {
-                return coincident();
-            }
-            Err(MeetFault::Unsupported {
-                pose: "two ellipses in one plane that are not one curve",
-            })
-        }
+        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, band),
+        Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
+        Coplanar::Ellipses => Err(MeetFault::Unsupported {
+            pose: "two ellipses in one plane that are not one curve",
+        }),
     }
 }
 
-/// A bound on how far a point of one coplanar ellipse lies from the
-/// other: the centres' gap plus the least, over the eight signed
-/// permutations `Q` of the frame, Frobenius norm of `L₁ − L₂Q`,
-/// `L = [a·û, b·v̂]`, which pairs each point `c₁ + L₁x` of the first with
-/// the point `c₂ + L₂Qx` of the second.
+/// **Whether two conics read in one plane are one curve** (module docs):
+/// [`one_curve_gap`] read zero.
+///
+/// # Errors
+///
+/// The band's escalation.
+pub(super) fn one_curve<T: Decide>(
+    e: &Conic<T>,
+    f: &Conic<T>,
+    band: Band,
+) -> Result<bool, MeetFault> {
+    Ok(!definite(
+        row::ONE_CURVE,
+        Margin::of(one_curve_gap(e, f)),
+        band,
+    )?)
+}
+
+/// **The one-curve reading's margin** (module docs): a bound on how far
+/// a point of either conic lies from the other, a tilt out of the plane
+/// included. Each conic is `c + L·x` over the unit circle's `x`, with
+/// `L = [a·û, b·v̂]`. For any orthogonal `Q`, pairing `c_e + L_e·x` with
+/// `c_f + L_f·Q·x` pairs every point of each with a point of the other
+/// within `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order
+/// and signs of the semi-axes change `L` by an orthogonal factor, which
+/// `Q` absorbs. The gap read from either side is the same but for
+/// rounding, and the larger is taken, so the gap does not depend on the
+/// order of the pair.
+pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
+    (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e))
+}
+
+/// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
+/// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`) and
+/// then by the rotation that best matches the two, which maximizes
+/// `tr(Qᵀ·L_fᵀ·L_e)`.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    let (e1, e2) = (e.u_ref * e.semi_u, e.v_ref() * e.semi_v);
-    let (f1, f2) = (f.u_ref * f.semi_u, f.v_ref() * f.semi_v);
-    let pair = |p: Vec3<T>, q: Vec3<T>| ((e1 - p).norm_squared() + (e2 - q).norm_squared()).sqrt();
-    let neg = |v: Vec3<T>| v * (T::zero() - T::one());
-    let gaps = [
-        pair(f1, f2),
-        pair(neg(f1), neg(f2)),
-        pair(f1, neg(f2)),
-        pair(neg(f1), f2),
-        pair(f2, f1),
-        pair(neg(f2), neg(f1)),
-        pair(f2, neg(f1)),
-        pair(neg(f2), f1),
-    ];
-    let least = gaps.into_iter().fold(gaps[0], |x, y| x.min(y));
-    (e.center - f.center).norm() + least
+    let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
+    let up = e1.cross(e2).dot(f1.cross(f2));
+    let f2 = f2 * (up / up.abs());
+    let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
+    let h = (x.powi(2) + y.powi(2)).sqrt();
+    let (cos, sin) = (x / h, y / h);
+    let d1 = e1 - (f1 * cos + f2 * sin);
+    let d2 = e2 - (f2 * cos - f1 * sin);
+    let half = T::from_f64(0.5);
+    let (mid, off) = (
+        (d1.dot(d1) + d2.dot(d2)) * half,
+        (d1.dot(d1) - d2.dot(d2)) * half,
+    );
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
 /// definite (module docs): its crossings and touch, each polished to the
 /// closest pair.
 fn transverse<T: Decide>(
-    ka: &Conic<T>,
-    kb: &Conic<T>,
+    (ka, kb, b): (&Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
     noise: T,
@@ -788,9 +933,9 @@ fn transverse<T: Decide>(
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
-            start: (theta, conic_foot(kb, q)),
+            start: (theta, foot(b, q)),
             reach: ka.speed_hi() * range.band_arc(theta, band),
-            clear: conic_clearance(kb, q),
+            clear: clearance(b.carrier(), q),
             lever,
         }
         .closest(band)
@@ -840,7 +985,6 @@ fn coplanar_circles<T: Decide>(
     kb: &Conic<T>,
     (noise, slant): (T, T),
     place: &impl Fn(T) -> Candidate<T>,
-    coincident: &impl Fn() -> Result<Pose<T>, MeetFault>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.semi_u.abs(), kb.semi_u.abs());
@@ -848,10 +992,15 @@ fn coplanar_circles<T: Decide>(
     let w = w - ka.axis * w.dot(ka.axis);
     let d = w.norm();
     if !definite(row::CENTRES, Margin::norm3(w), band)? {
+        // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
+        // radii whose gap reads zero all round with the centres' are one
+        // curve, which the one-curve reading has just denied.
         return if constant(row::RADII, ra - rb, d + noise + slant, band)? {
             Ok(Pose::Concentric)
         } else {
-            coincident()
+            Err(MeetFault::Contradiction {
+                readings: "two circles read not one curve, on one centre, with radii one",
+            })
         };
     }
     // `|C₁(θ) − c₂|` runs between `|r₁ − d|` and `r₁ + d`; its square
