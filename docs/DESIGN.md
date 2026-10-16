@@ -727,22 +727,32 @@ EdgeDescription =
 ```
 
 A two-surface edge is always a curve of the two surfaces' intersection,
-and its selector says which: no two-surface edge is conventional. A
-**witness** selector is the branch through a point; it serves a derived
-locus (a boolean's contact, an imported edge), and is admitted only
-where its margin certifies: transversality for a crossing, the order-k
-jet system's margin for a tangency of order k (below), each taken across
-the locus, over the faces, never along the edge. A **structural**
-selector is a construction's pushforward (a profile vertex swept, a
-section placed, a section vertex skinned through a loft's sections); it
-picks the curve exactly whatever the contact order, so a construction
-never classifies its own joins by measurement, and the sketch's joint
-class is the one reading of their kind. Its certificate is the
-pushforward's meter and incidence on each surface, each read through
-that surface's own chart-image certificate (the one meter every pcurve
-carries). A derived locus whose selecting lane is not written refuses
-typed, naming the lane; a coincidence of two surfaces in band is refused
-at the structural act that made them adjacent. A locus one chart defines
+and its selector says which: no two-surface edge is conventional. The
+selector follows one question, asked of the geometry and never of where
+the body came from: **is the curve known in advance?** Where it is —
+the surfaces' contact or crossing has a closed form (a ruling where a
+plane meets a cylinder or a swept wall, a circle where coaxial surfaces
+of revolution meet, a row or column of a swept or skinned wall), or the
+curve was chosen to lie in a region where the two surfaces overlap in
+2-D — the selector is **structural**: that closed form, picking the
+curve exactly whatever the contact order, certified by its own meter and
+incidence on each surface, each read through that surface's own
+chart-image certificate (the one meter every pcurve carries). A
+construction that knows the curve (a profile vertex swept, a section
+placed, a section vertex skinned through a loft's sections) states that
+closed form directly, and an import recovers the same closed form from
+the same geometry, so a native body and its imported copy carry the same
+selector: the closed form is a property of the surfaces, not of the
+history. Where the curve must be derived numerically from the geometry
+— a crossing or tangency with no closed form — the selector is a
+**witness**, the branch through a point, admitted only where its margin
+certifies: transversality for a crossing, the order-k jet system's
+margin for a tangency of order k, each taken across the locus, over the
+faces, never along the edge. A construction therefore never classifies
+its own joins by measurement, and the sketch's joint class is the one
+reading of their kind. A curve no lane can yet select refuses typed,
+naming the lane, native or imported alike; a coincidence of two surfaces
+in band is refused at the structural act that made them adjacent. A locus one chart defines
 (parameterization seams — infinite-order contact, the seam's position
 pure convention; iso-lines; splits whose two faces share one surface;
 two records that read as one carrier) is `Chart`: one (surface,
@@ -757,9 +767,9 @@ an unconditional challenge: every edge must have an intensional
 description — there is no escape hatch, so it cannot be reached for
 when not absolutely necessary. This holds for imported geometry (D7):
 the intrinsic variants are checkable properties of the geometry as it
-now stands, and a construction's structural selector is its own data,
-so extensional input is *adopted* by reconstructing the selector it
-satisfies, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
+now stands, and a closed-form selector is a property of the surfaces,
+so extensional input is *adopted* by recovering the selector a native
+body would carry, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
 taxonomy (imported fillets force `TangentIntersection`), not the need
 for a fallback.
 
@@ -798,15 +808,15 @@ readings bracket an in-band point the schedule did not sample, and it
 refuses typed, naming the two stations.
 
 **Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
-intrinsic, and its selector is the one the curve is picked by: a
-construction's structural selector for an edge it built, a witness for a
-derived locus. A fillet we build carries its rolling ball's contact rail
-as its selector; a sweep carries the profile vertex it swept, whatever
-the joint's contact order. A pushforward that selects the curve is
-description, not history; D5 provenance stays the record of who built
-the edge, and native and imported bodies carry identical *loci* — an
-imported edge may carry a witness where the native one carries its
-pushforward. At rest, a witness selector must certify its reading:
+intrinsic, and its selector is decided by the geometry alone: a closed
+form where one exists, a witness where the curve must be derived. A
+fillet we build carries its rolling ball's contact rail; a sweep carries
+the ruling its profile vertex sweeps out, whatever the joint's contact
+order; an imported copy of either recovers the same closed form. A
+closed form that selects the curve is description, not history; D5
+provenance stays the record of who built the edge, and native and
+imported bodies carry identical descriptions. At rest, a witness
+selector must certify its reading:
 a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
 otherwise), a jet-determinate tangency as `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
