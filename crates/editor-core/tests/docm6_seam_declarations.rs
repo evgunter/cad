@@ -1430,7 +1430,7 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
     let spoken_row = refusals[0].spoken(&inner);
     assert!(
         spoken_row.starts_with(&format!(
-            "constraint {c} of InstantiatePart \"inner seat\" ({t})'s class"
+            "constraint 1 of InstantiatePart \"inner seat\" ({t})'s class"
         )),
         "{spoken_row}"
     );
@@ -1492,7 +1492,6 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
 fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken() {
     let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
     let t = test_utils::refusal::tag(mate.placement.0.digest());
-    let c = mate.id;
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let findings = findings_of(&result);
@@ -1506,7 +1505,7 @@ fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken()
         .expect("the part's rest is refuted, carried");
     assert!(
         own.spoken(&outer).starts_with(&format!(
-            "constraint {c} of InstantiatePart \"outer seat\" ({t})'s declared"
+            "constraint 1 of InstantiatePart \"outer seat\" ({t})'s Rest contact"
         )),
         "{}",
         own.spoken(&outer)
@@ -1514,13 +1513,13 @@ fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken()
     let carried_line = carried.spoken(&outer);
     assert!(
         carried_line.starts_with(&format!(
-            "constraint {c} of InstantiatePart \"inner seat\" ({t})'s declared"
+            "constraint 1 of InstantiatePart \"inner seat\" ({t})'s Rest contact"
         )) && !carried_line.contains("outer seat"),
         "{carried_line}"
     );
     assert!(
         carried.to_string().starts_with(&format!(
-            "constraint {c} of InstantiatePart \"inner seat\" ({t})'s declared"
+            "constraint 1 of InstantiatePart \"inner seat\" ({t})'s Rest contact"
         )),
         "with no document at hand the part's mate is said as the part holds it: {carried}"
     );
@@ -1604,7 +1603,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
     let (inner, _) = contradicted(&store, cube, cube_body, "speak-c-inner", "inner top");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
-    let (outer, [held, added]) =
+    let (outer, [held, _added]) =
         contradicted(&store, cube, cube_body, "speak-c-outer", "outer top");
     assert_eq!(
         inner.ids(),
@@ -1623,10 +1622,8 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     assert_eq!(
         own.spoken(&outer, &ev),
         format!(
-            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: constraint {} \
-             of this node and constraint {} of this node cannot both hold: {}",
-            held.id,
-            added.id,
+            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: constraint 1 \
+             of this node and constraint 2 of this node cannot both hold: {}",
             own.to_string()
                 .split_once(" cannot both hold: ")
                 .expect("the pair's sentence")

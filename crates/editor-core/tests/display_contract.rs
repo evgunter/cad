@@ -1411,7 +1411,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 )),
             },
             vec![
-                "Place 000000000005's constraint 3:3fa9c1d2a0b1c3d4 was minted as no \
+                "Place 000000000005's constraint #3 was minted as no \
                  constraint's id, or is held twice",
             ],
         ),
@@ -1428,7 +1428,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec![
-                "step 1 of constraint 3:3fa9c1d2a0b1c3d4 of Place 000000000005's b frame offset",
+                "step 1 of constraint #3 of Place 000000000005's b frame offset",
                 "non-finite coordinate",
             ],
         ),
@@ -1464,7 +1464,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 )),
             },
             vec![
-                "Place 000000000005's constraint 3:3fa9c1d2a0b1c3d4's alignment datum",
+                "Place 000000000005's constraint #3's alignment datum",
                 "non-finite coordinate",
             ],
         ),
@@ -2077,7 +2077,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     });
     assert_f6(
         &unevaluated,
-        &["constraint 2:0000000000000000 of node 000000000002 declares nothing about the product, since it has no value"],
+        &["constraint #2 of node 000000000002 declares nothing about the product, since it has no value"],
         &["Unevaluated", "Failed"],
     );
 
@@ -2090,7 +2090,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     assert_f6(
         &tied,
         &[
-            "constraint 2:0000000000000000 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's a reference",
             "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
@@ -2152,7 +2152,7 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     assert_f6(
         &row,
         &[
-            "constraint 5:0000000000000000 of node 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -2161,7 +2161,7 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     assert_f6(
         &mint(row),
         &[
-            "constraint 5:0000000000000000 of node 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -2210,8 +2210,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &raised,
         &[
             &counted,
-            "constraint 2:0000000000000000 of node 000000000002's a reference",
-            "constraint 5:0000000000000000 of node 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #2 of node 000000000002's a reference",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["Reference", "NoAtRestRecord"],
     );
@@ -2256,8 +2256,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &carried,
         &[
             &counted,
-            "constraint 2:0000000000000000 of node 000000000002's a reference",
-            "constraint 5:0000000000000000 of node 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #2 of node 000000000002's a reference",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
     );
@@ -2292,7 +2292,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &pair,
         &[
-            "constraint 3:0000000000000000 of node 000000000003 and constraint 5:0000000000000000 of node 000000000005 cannot both hold",
+            "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
             "a clash of 0.01 m",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2315,7 +2315,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &itself,
         &[
-            "constraint 6:0000000000000000 of node 000000000006 contradicts itself",
+            "constraint #6 of node 000000000006 contradicts itself",
             "the clocking disagrees with the roll the coincidence already pins",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2324,7 +2324,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert!(
         !itself
             .to_string()
-            .contains("constraint 6:0000000000000000 of node 000000000006 and constraint 6:0000000000000000 of node 000000000006"),
+            .contains("constraint #6 of node 000000000006 and constraint #6 of node 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2381,7 +2381,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     };
     let shown = fault.to_string();
     for want in [
-        "constraint 3:0000000000000000 of node 000000000003 and constraint 5:0000000000000000 of node 000000000005 cannot both hold",
+        "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
         "the relative rotation is not the identity",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",

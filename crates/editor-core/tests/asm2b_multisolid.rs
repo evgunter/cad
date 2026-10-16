@@ -429,8 +429,10 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// reach an instance under its placement's copy) with the volume bits
 /// and the solid count held. INTENT stage 3 B moved it once more — an
 /// instance is its own placement, so a part's names reach it with no
-/// copy wrapper of the assembly's — again holding both.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 1_948_008_702_300_591_060;
+/// copy wrapper of the assembly's, and the world is scheduled nowhere,
+/// so every node's position in the order is one earlier — again
+/// holding both.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 18_438_575_778_868_179_147;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

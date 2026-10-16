@@ -285,8 +285,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    // The world denotes no body, so its table is empty.
-    let world = RecipeNodeId::WORLD;
+    // The sketch frame denotes no body, so its table is empty.
+    let frame = doc.ids()[0];
     let ev2 = run(&doc);
     let some_face = ev2
         .value(ext2)
@@ -299,9 +299,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         })
         .unwrap();
     assert_eq!(
-        entity_name(&ev2, world, some_face),
+        entity_name(&ev2, frame, some_face),
         Err(HitTestError::Unnamed(UnnamedEntity {
-            node: world,
+            node: frame,
             entity: some_face
         }))
     );

@@ -1724,26 +1724,24 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     );
 
     // Name-resolution identity, over the WHOLE table rather than a
-    // sample: kept names verbatim, cut names re-anchored as the part's
-    // own copy of the shelf, under the remainder's new instance, which
-    // is the copy the remainder places of it.
+    // sample: kept names verbatim, cut names re-anchored under the
+    // remainder's new instance. An instance is its own copy, so the
+    // shelf's product names are the shelf instance's own; across the
+    // seam they are the part's names for the same entities — the shelf
+    // instance's, now in the part — wrapped in the remainder instance.
     let mapped = out.node_map[&shelf_i];
-    let placed_at = out.instance;
     let mut crossed = 0usize;
     for (name, _) in before_names.iter() {
-        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
-        let expected = if inner.node == shelf_i {
+        let expected = if name.node == shelf_i {
             crossed += 1;
             in_part(
                 out.instance,
                 &StableName {
-                    kind: inner.kind,
+                    kind: name.kind,
                     node: mapped,
-                    path: inner.path.clone(),
-                }
-                .in_copy(out.node_map[&placement]),
+                    path: name.path.clone(),
+                },
             )
-            .in_copy(placed_at)
         } else {
             name.clone()
         };
@@ -1809,15 +1807,13 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     let restored = back.node_map[&mapped];
     let mut returned = 0usize;
     for (name, _) in before_names.iter() {
-        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
-        let expected = if inner.node == shelf_i {
+        let expected = if name.node == shelf_i {
             returned += 1;
             StableName {
-                kind: inner.kind,
+                kind: name.kind,
                 node: restored,
-                path: inner.path.clone(),
+                path: name.path.clone(),
             }
-            .in_copy(back.node_map[&out.node_map[&placement]])
         } else {
             name.clone()
         };

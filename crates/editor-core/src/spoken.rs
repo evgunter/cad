@@ -805,6 +805,8 @@ enum NodeFact {
     Carry(RecipeNodeId, Carry),
     /// A variable an operation defines, with that operation and port.
     Output(crate::var::VarId, OutputOf),
+    /// A constraint, with its 1-based position in its bundle.
+    Constraint(crate::mate::MateRef, usize),
 }
 
 impl NodeFact {
@@ -815,6 +817,7 @@ impl NodeFact {
             Self::SoleProfile(node, _) => (1, node.0),
             Self::Carry(node, _) => (2, node.0),
             Self::Output(var, _) => (3, var.0),
+            Self::Constraint(mate, _) => (4, mate.id.0),
         }
     }
 
@@ -890,6 +893,13 @@ impl HeldNodes {
 }
 
 impl HoldsNodes for HeldNodes {
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Constraint(held, at) if held == mate => Some(at),
+            _ => None,
+        })
+    }
+
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.nodes
             .iter()
@@ -949,7 +959,9 @@ impl<P> Recording<'_, P> {
 
 impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
     fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
-        self.doc.constraint_at(mate)
+        let at = self.doc.constraint_at(mate)?;
+        self.said.borrow_mut().keep(NodeFact::Constraint(mate, at));
+        Some(at)
     }
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         let node = self.doc.spoken(id);

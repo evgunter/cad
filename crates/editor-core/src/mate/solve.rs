@@ -1523,8 +1523,15 @@ pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     if let Some(s) = &solve
         && !bundle.is_empty()
     {
-        let read = read_bundle(doc, env, placement, &held).map_err(Box::new)?;
-        if fold_bundle(s, &read)?.subgroup.is_determined() {
+        // The held bundle's own refusal (a lever the reach cannot give,
+        // a contradiction among what it holds) is its own, and the
+        // solve's to say: only a bundle that folds to a pin refuses
+        // what is added.
+        let pins = read_bundle(doc, env, placement, &held)
+            .ok()
+            .and_then(|read| fold_bundle(s, &read).ok())
+            .is_some_and(|fold| fold.subgroup.is_determined());
+        if pins {
             return Err(Box::new(MateFault::Overconstrained {
                 placement,
                 constraints: vec![added.id],
