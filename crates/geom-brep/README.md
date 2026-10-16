@@ -657,9 +657,12 @@ generic one. Two spans meet along stretches: a stretch is a longest
 interval of one span whose points read within the zero band of the other,
 and each stretch is one meeting, whether a crossing, a touch or a shared
 run. Each span's ends are read against the other span before anything
-else. A found meeting takes its whole stretch: a later candidate within the
-band's escalation width of it is that meeting found again, never a second
-one. A stretch in which no meeting is decided, or more than one, escalates.
+else. A found meeting takes its whole stretch. Two curves may cross any
+number of times, and each crossing the band can tell apart from the others
+is its own meeting; but a candidate nearer a found meeting than the band's
+escalation width cannot be decided distinct from it, so it is not read
+again. A stretch in which no meeting is decided, or more than one,
+escalates.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
