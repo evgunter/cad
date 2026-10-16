@@ -20,10 +20,9 @@ hardware not shared with any other lane and its result is a durable artifact.
 `ci` profile in `.config/nextest.toml`), the slow tests of the crates your diff
 touches (and every crate's slow tests when the diff changes only shared build
 or CI files, such as `ci.yml`, `Cargo.toml`, the toolchain or the nextest
-config, and no crate), the 1e-6
-and 1e-12 rows of the eps-sensitive crates your diff touches and of every test
-file it adds or edits, lint (fmt, clippy `--all-features`, `scripts/gates/`,
-workflow lint), and the rows whose own
+config, and no crate), the 1e-6 and 1e-12 rows of the eps-sensitive crates your
+diff touches and of every test file it adds or edits, lint (fmt, clippy
+`--all-features`, `scripts/gates/`, workflow lint), and the rows whose own
 subject you touched (viewer, python, demos, tools, mesh budget, topo release,
 step import, interval). `.github/workflows/nightly.yml` runs everything else:
 the whole suite at every eps row, the k-lint rows, the render lanes, rustdoc,
