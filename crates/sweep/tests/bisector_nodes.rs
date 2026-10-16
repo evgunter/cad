@@ -270,11 +270,11 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
 /// - `δ` beyond the band and short of `√band`: each pierce reads the
-///   partner wall through the plane the sweep found it on, so a cap
-///   builds at its closed form, and so do a seam's `∪` and `∩`; a seam's
-///   `∖` still refuses at rest, its arcs from each pierce to the node
-///   read a lamina until their wedge is levered at their faces
-///   (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`);
+///   partner wall through the plane the sweep found it on, and the arcs
+///   from each pierce to the node read their wedge at their faces'
+///   reach, so every pose builds at its closed form (at ε 1e-12 a cap's
+///   short ruling refuses at its pcurve,
+///   `work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`);
 /// - `δ` past `√band`: every operation builds at its closed form.
 ///
 /// Every operation, both operand orders, both poses, at every ε.
@@ -359,12 +359,6 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 ),
                                 "{cut}: the crossings' distance in band, got {r:?}"
                             ),
-                            // The pierce reads its sides and germ through the
-                            // branch the sweep found it on. A cap builds; a
-                            // seam's ∪ and ∩ build, and its ∖ keeps arcs from
-                            // each pierce to the node `2δ` long at a dihedral of
-                            // `δ`, which tier 3 reads a lamina until the wedge
-                            // is levered at its faces (U-lever).
                             // At ε 1e-12 the ruling where the cap meets the
                             // partner wall between the two pierces mints its
                             // pcurve at the wall's seam
@@ -375,7 +369,11 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                     "{cut}: the short ruling's pcurve, got {r:?}"
                                 );
                             }
-                            Want::PastThePierce if capped || op != "∖" => {
+                            // Otherwise every pose builds: the pierce reads the
+                            // partner wall through its branch, and the short arcs
+                            // from each pierce to the node read their wedge at
+                            // their faces' reach.
+                            Want::PastThePierce => {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
                                 };
@@ -387,17 +385,6 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                     m.volume_pad
                                 );
                             }
-                            Want::PastThePierce => assert!(
-                                matches!(
-                                    &r,
-                                    Err(topo::BooleanError::ResultInvalid { errors })
-                                        if errors.iter().all(|e| matches!(
-                                            e,
-                                            topo::ValidationError::LaminaWedge { .. }
-                                        ))
-                                ),
-                                "{cut}: the short arcs' wedge at rest, got {r:?}"
-                            ),
                             Want::Builds => {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
@@ -439,11 +426,10 @@ fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
 /// 1e-4}` off a node, and both operands capped, every operation, both
 /// operand orders and both poses.
 ///
-/// - Each cap alone, and both caps from 1e-6, build at their closed forms
-///   (both caps: `2X − 2X³/3 − 2δ·acos δ`, `X = √(1 − δ²)`).
-/// - A seam at 1e-6 builds `∪` and `∩`; its `∖` keeps arcs `2δ` long at a
-///   dihedral of `δ`, a lamina at rest until U-lever. At 1e-4 its seam's
-///   wedge escalates (`SeamWedge`), U-lever's too.
+/// - Each seam and each cap at 1e-6 and 1e-4, and both caps, build at
+///   their closed forms (both caps: `2X − 2X³/3 − 2δ·acos δ`,
+///   `X = √(1 − δ²)`): the arcs from each pierce to the node, `2δ` long at
+///   a dihedral of `δ`, read their wedge at their faces' reach.
 /// - 1e-8 is the witness band's escalation edge (K·ε). The node stands
 ///   1e-8 off the seam, so its placement escalates (margin 9.99e-9); both
 ///   caps' sectors stand about a band apart (margins 1e-9 to 4e-9) and
@@ -588,33 +574,6 @@ fn the_near_node_poses_at_the_witness_band() {
                             }
                             single_cap_builds += 1;
                         }
-                        if seam && d == 1e-4 {
-                            assert!(
-                                matches!(
-                                    r,
-                                    Err(topo::BooleanError::Escalated {
-                                        decision: topo::BooleanDecision::SeamWedge,
-                                        ..
-                                    })
-                                ),
-                                "{cut}: the seam wedge at rest, U-lever's, got {r:?}"
-                            );
-                            continue;
-                        }
-                        if seam && op == "∖" {
-                            assert!(
-                                matches!(
-                                    &r,
-                                    Err(topo::BooleanError::ResultInvalid { errors })
-                                        if errors.iter().all(|e| matches!(
-                                            e,
-                                            topo::ValidationError::LaminaWedge { .. }
-                                        ))
-                                ),
-                                "{cut}: the short arcs' wedge at rest, U-lever's, got {r:?}"
-                            );
-                            continue;
-                        }
                         let Ok(BooleanResult::Body(out)) = r else {
                             panic!("{cut}: builds, got {r:?}");
                         };
@@ -747,20 +706,18 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
     }
 }
 
-/// **At oblique angles, past the pierce**: A's seam turned `δ` off a
-/// node, at 35° with `r = 1` and at 60° with `r = 0.5`, crosses the
+/// **At oblique angles a seam near a node builds**: A's seam turned `δ`
+/// off a node, at 35° with `r = 1` and at 60° with `r = 0.5`, crosses the
 /// partner wall at two pierces that read it through their bisector
-/// plane. At `δ = 3·√band` the result's short arcs from each pierce to
-/// the node still refuse at rest (`EdgeUndescribed`), until their wedge
-/// is levered at their faces; at `5·√band` every operation builds. The
-/// offsets scale with `√band`, as the arcs' first-order wedge does.
-/// Every operation, both operand orders.
+/// plane, and the arcs from each pierce to the node read their wedge at
+/// their faces' reach. At `δ = √band`, `3·√band` and `5·√band` every
+/// operation builds. Every operation, both operand orders.
 #[test]
-fn an_oblique_seam_near_a_node_builds_past_the_ring_at_rest() {
+fn an_oblique_seam_near_a_node_builds() {
     let tol = Tol::witness();
     let root = geom_core::Band::linear(tol).unwrap().escalate().sqrt();
     for (deg, r) in [(35.0_f64, 1.0), (60.0, 0.5)] {
-        for (k, builds) in [(3.0, false), (5.0, true)] {
+        for k in [1.0, 3.0, 5.0] {
             let delta = k * root;
             let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
             let b = spin(
@@ -776,14 +733,7 @@ fn an_oblique_seam_near_a_node_builds_past_the_ring_at_rest() {
                     ("∖", topo::subtract(x, y, tol)),
                 ] {
                     let what = format!("{deg}°, r = {r}, δ = {delta:e} ({order}), {op}");
-                    if builds {
-                        assert!(got.is_ok(), "{what}: builds, got {got:?}");
-                    } else {
-                        assert!(
-                            matches!(got, Err(topo::BooleanError::EdgeUndescribed { .. })),
-                            "{what}: the short arcs at rest, got {got:?}"
-                        );
-                    }
+                    assert!(got.is_ok(), "{what}: builds, got {got:?}");
                 }
             }
         }

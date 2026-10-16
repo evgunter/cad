@@ -100,16 +100,17 @@ off-by-one fixed. At the witness band, on main with U2p:
 
 - every cap pose at 1e-6 and 1e-4, and both caps, builds at its closed
   form;
-- a seam at 1e-6 builds ∪ and ∩. Its ∖ (`LaminaWedge`) and the seam
-  at 1e-4 (`SeamWedge`) are U-lever's (PR 5204); with U-lever merged
-  locally every one of them builds;
+- every seam pose at 1e-6 and 1e-4 builds every op at its closed form,
+  once U-lever (PR 5204) levers the short arcs' wedge at their faces'
+  reach; before it the seam's ∖ at 1e-6 read `LaminaWedge` and the seam
+  at 1e-4 `SeamWedge`;
 - 1e-8 is the witness band's escalation edge: poses there escalate in
   band (`Containment`, or the caps' `Coincidence(Sectors | SectorSide)`),
   and a single cap builds in some poses;
 - at ε 1e-12 the near-node caps refuse at a short ruling's pcurve
   (`work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`).
 
-What remains open here is that last pcert row and U-lever's merge.
+What remains open here is that last pcert row.
 
 ## The ring at oblique angles reaches further (PR 5192)
 
