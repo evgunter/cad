@@ -716,16 +716,18 @@ EdgeDescription =
                                              -- `pair` is the set {S₁, S₂}, unordered
   | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
+  | Declared { pair, pushforward }           -- a curve two distinct surfaces
+                                             -- UNDER-determine that a construction
+                                             -- DECLARED: the pushforward is the
+                                             -- defining data, symmetric in the pair
+                                             -- (sweep joins, loft rims and seams)
   | OnPair              { pair }             -- a curve two distinct surfaces
-                                             -- UNDER-determine: the carrier is the
-                                             -- defining data, lying on both
-                                             -- (smooth joins the must-carry rule
-                                             -- reads under-determined)
+                                             -- under-determine that nothing declared:
+                                             -- the carrier is the defining data, lying
+                                             -- on both; at rest only on an imported edge
   | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, same-surface splits,
-                                             -- rows a construction states on a
-                                             -- spline chart)
+                                             -- (iso-lines, seams, same-surface splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
@@ -734,26 +736,33 @@ The intrinsic variants describe loci determined by their surfaces; the
 conventional forms carry the defining data for loci the surfaces
 *under*-determine. A locus on two distinct surfaces that they do not
 select — a face split at a smooth profile join, where at a G2 join even
-`TangentIntersection` fails its margin, and rightly, or a tangent piece
-shorter than the second order resolves — is `OnPair { pair }`: the
-carrier is the defining data, its certificate is incidence on both
-surfaces, each read through that surface's own chart-image certificate
-(the one meter every pcurve carries, never a second implicit reading of
-the same fact), and no door chooses a chart, since a chart key there records
-nothing about the locus and each face's pcurve is its own derived
-cache. Whether the pair is smooth along it is not the certificate's
-claim; tier 3's must-carry predicate admits the arm exactly where it
-reads the join under-determined. A locus one chart defines
-(parameterization seams — infinite-order contact, the seam's position
-pure convention; iso-lines; splits whose two faces share one surface;
-a row or column a construction states on a spline chart, such as a
-loft's cap rim, the row its wall was skinned through, even where a
-second surface holds it too, since that chart's key records the locus
-exactly where an analytic chart's image of a curve lying in it records
-nothing) is `Chart`: one (surface, `Pcurve`) form covers all of them
-(PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
-not variants. A `MappedCurve` survives as the `Scaffold` payload and as
-the `EdgeAuthority` record — one authoritative source, never two peer
+`TangentIntersection` fails its margin, and rightly — is defined by
+what the construction knows of it: the profile vertex swept, the
+section placed, the section vertex skinned through a loft's sections.
+That is `Declared { pair, pushforward }`: the declared pushforward is
+the defining data, the carrier its certified cache, and the description
+names both surfaces and privileges neither chart. A locus two surfaces
+under-determine that no construction declared — an imported edge whose
+file gives two surfaces and a curve and nothing more — is
+`OnPair { pair }`: the carrier is the defining data, and tier 3 admits
+it at rest only on an edge whose authority says it was imported, as it
+admits no `Scaffold` at rest. Either form's certificate is incidence on
+both surfaces, each read through that surface's own chart-image
+certificate (the one meter every pcurve carries, never a second
+implicit reading of the same fact). Whether the pair is smooth along it
+is not the certificate's claim; tier 3's must-carry predicate admits
+these arms exactly where it reads the join under-determined, and where
+the surfaces determine the locus the intrinsic form describes it and the
+declaration is its witness and its provenance. The second-order reading
+that tells a tangency determinate is taken across the locus, over the
+faces, so a short piece of a tangency stays `TangentIntersection`. A
+locus one chart defines (parameterization seams — infinite-order
+contact, the seam's position pure convention; iso-lines; splits whose
+two faces share one surface) is `Chart`: one (surface, `Pcurve`) form
+covers all of them (PCURVE-UNIFY-DESIGN); the exact classes stay as
+certification lanes, not variants. A `MappedCurve` survives as the
+`Scaffold` payload, as `Declared`'s pushforward and as the
+`EdgeAuthority` record — one authoritative source, never two peer
 representations needing cross-reconciliation.
 
 **Deliberately omitted: an `Explicit` (extensional) variant.** Taken as

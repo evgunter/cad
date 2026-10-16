@@ -991,3 +991,10 @@ siblings went to WIRE and EMIT.
     - `FootPointInconclusive` at about 1e-13 is a stop criterion, not a miss;
     - the Dual attach gate refuses lane classes its f64 anchor certified, which surfaces as `PairingViolation::ResultArm`;
     - the `composite_form` exactness gate on a plane operand, for `Intersection`.
+- 2026-10-16: round 2 of the plane × spline rim fork (row 152), on Ev's pushback in PR 5216. Census of every site on main (f6730185) that rests a two-surface locus with no declaration:
+  - sweep joins and rims (extrude, revolve, loft rims) are already declared (`ExtrudedPoint`, `RevolvedPoint`, `PlacedSegment` through `Body::describe_at_rest`);
+  - loft wall–wall seams are undeclared `Chart` columns, and need a skinned-vertex source;
+  - fillet contacts and tangent section chords go undeclared through a lane gate: `must_carry_over_edge` files a `Determinate` reading outside `tangent_certificate_lane` as `UnderDetermined`;
+  - a short split piece of a `TangentIntersection` falls to the pair because `folded_lever_arm` folds the edge's chord extent into the second-order arm;
+  - `rest_locus`'s in-band coincidence and undecided-rung arms answer the pair (a D3 lane choice);
+  - STEP adoption declares lines and circles through a sketch made up from the carrier (`mapped_self_description`), and mints no `OnPair` today.
