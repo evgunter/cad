@@ -597,7 +597,11 @@ fn m10_9_what_the_registry_buys() {
 /// placements' two marks), and `frozen` +18, the marks' contradiction
 /// checks whose forms froze; the frame reads were proved, so froze
 /// nothing. With the wedge levered at its faces' extent as well, the two
-/// moves add: (1348, 1384, 3990), the wedge's +546 frozen on top.
+/// moves add: (1348, 1384, 3990), the wedge's +546 frozen on top. The
+/// placement's azimuth levered at the carrier's farthest reach from the
+/// axis at the span's ends and midpoint (PR 5225's one lever rule), not
+/// at one direction's length, builds its marks' forms from three points:
+/// frozen 3990 → 4098, every decision column held.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -631,7 +635,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1348, 1384, 3990), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1348, 1384, 4098), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

@@ -621,13 +621,18 @@ const PLATE_MAX_TERMS: usize = 28;
 /// With the wedge levered at its faces' extent as well, the calls and
 /// frozen counts are the placement's and the forms take both: Plain/Assertion
 /// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
-/// the largest form holds.
+/// the largest form holds. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) builds each mark's form from three points:
+/// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
+/// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
+/// Door/Decision 9469.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1032 forms 15912 frozen 324 digest 88364aa057b0d497e2bb24dce6439e74\n\
-     Plain/Assertion calls 726 forms 6081 frozen 417 digest 51027fbbc0bf84ed20a5111a9f5eb455\n\
-     Early/Decision calls 352 forms 8925 frozen 0 digest 97cf18df3dcefdc966f079463d5ae16e\n\
-     Early/Assertion calls 726 forms 7244 frozen 0 digest a7c7805193d992e57142257d5bfff8e8\n\
-     Door/Decision calls 468 forms 8231 frozen 0 digest 6897cdbe766db6961837137e83fbb074";
+     Plain/Decision calls 1032 forms 15888 frozen 324 digest 45346e81d13f598ae1c9a085c7f269c2\n\
+     Plain/Assertion calls 726 forms 6909 frozen 405 digest 5394b5fc25360d7893b7eeeb5bd8a4ff\n\
+     Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
+     Early/Assertion calls 726 forms 8108 frozen 0 digest a92b467a762680ac8b830ceb654ac390\n\
+     Door/Decision calls 468 forms 9469 frozen 0 digest 344f68bc278f5fb158c048115eb1f4c2";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
