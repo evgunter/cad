@@ -175,3 +175,56 @@ fn probe_seam_vertex_at_the_joint() {
     }
     assert!(bad.is_empty(), "{bad:#?}");
 }
+
+/// `probe_seam_vertex_at_the_joint` and `probe_seam_inside_a_narrow_window`
+/// with `a`'s span moved whole turns: `(2kπ, 2(k+1)π)` for k from −4 to 3,
+/// and half a turn on.
+#[test]
+fn probe_seam_at_far_turns() {
+    let mut bad = Vec::new();
+    let (t, rb, delta) = (1e-7_f64, 0.9_f64, 4e-3_f64);
+    let (s, c) = t.sin_cos();
+    let a = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, -s, c),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let j = Point3::new(1.0, 0.0, 0.0);
+    let pp = Point3::new(delta.cos(), -c * delta.sin(), 0.0);
+    let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
+    let chord = pp - j;
+    let half = 0.5 * chord.norm();
+    let n = Vec3::new(chord.y, -chord.x, 0.0).normalize();
+    let n = if n.dot(Point3::origin() - m) > 0.0 { n } else { n * -1.0 };
+    let centre = m + n * (rb * rb - half * half).sqrt();
+    let b = Curve3::Circle {
+        center: centre,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: rb,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let ang = |q: Point3<f64>| (q.y - centre.y).atan2(q.x - centre.x);
+    let (pj, pq) = (ang(j), ang(pp));
+    let want = [j, a.eval(TAU - delta)];
+    for k in -4..=3 {
+        for (shift, sl) in [(0.0, "vertex at seam"), (0.002, "seam 0.002 past J")] {
+            let t0 = f64::from(k) * TAU + shift;
+            for (el, ended) in [("ended", true), ("endless", false)] {
+                let s1 = Span::new(&a, (t0, t0 + TAU));
+                let s1 = if ended { s1 } else { s1.endless() };
+                let s2 = Span::new(&b, (pj.min(pq) - 0.3, pj.max(pq) + 0.3));
+                for (order, got) in [
+                    ("a first", meet(&s1, &s2, band())),
+                    ("b first", meet(&s2, &s1, band())),
+                ] {
+                    let l = format!("turn {k} {sl} {el}, {order}");
+                    if let Err(e) = verdict(&l, &got, &want) {
+                        bad.push(e);
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} bad: {bad:#?}", bad.len());
+}

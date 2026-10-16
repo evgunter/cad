@@ -760,10 +760,9 @@ mod r3_probes {
         };
         let js: Vec<_> = joints
             .iter()
-            .map(|&(ta, tb)| Joint {
+            .map(|&(ta, _tb)| Joint {
                 point: a.eval(ta),
                 ta,
-                tb,
             })
             .collect();
         w.holds_only(window, &js, band)
@@ -1065,5 +1064,121 @@ mod r3_oracle {
         }
         eprintln!("off {} on {} recedes {} unread {} (interval reads {})", counts[0], counts[1], counts[2], counts[3], counts[4]);
         assert!(bad.is_empty(), "{} readings contradicted: {:#?}", bad.len(), &bad[..bad.len().min(8)]);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+mod r3_seam_oracle {
+    use core::f64::consts::TAU;
+
+    use geom::Curve3;
+    use geom_core::{Band, Point3, Vec3};
+
+    use super::r3_probes::holds_at;
+
+    /// The seam family at random: `a` the unit circle tilted `t` about x̂
+    /// (its plane root at θ = 0), `b` a circle in z = 0 through `a(0)`
+    /// and through `a(−δ)`'s image, so `J = a(0)` and `P = a(−δ)` are two
+    /// meetings in two stretches; `J` given, `P` not. The span is moved
+    /// and cut at random. Wherever `P` lies on the span inside the window,
+    /// a `true` is a missed meeting.
+    #[test]
+    fn probe_holds_only_never_certifies_a_second_meeting_at_any_seam() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let mut x: u64 = 0x5227_00a3;
+        let mut rnd = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut bad, mut certified, mut with_p) = (Vec::new(), 0, 0);
+        for draw in 0..4000 {
+            let t = 10f64.powf(-7.5 + rnd() * 1.5);
+            let rb = 10f64.powf(-0.3 + rnd() * 0.8);
+            let delta = (0.1 + 0.4 * rnd()) * 1e-9 / t * if rnd() < 0.5 { 1.0 } else { -1.0 };
+            let (s, c) = t.sin_cos();
+            let a = Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::new(0.0, -s, c),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let j = Point3::new(1.0, 0.0, 0.0);
+            let pp = Point3::new(delta.cos(), c * delta.sin(), 0.0);
+            let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
+            let chord = pp - j;
+            let half = 0.5 * chord.norm();
+            let n = Vec3::new(chord.y, -chord.x, 0.0).normalize();
+            let inside = n.dot(Point3::origin() - m) > 0.0;
+            let n = if inside == (rb < 1.0) { n } else { n * -1.0 };
+            let b = Curve3::Circle {
+                center: m + n * (rb * rb - half * half).sqrt(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rb,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let w = (1e-8 / t).asin() * 1.05;
+            let k = (rnd() * 9.0).floor() - 4.0;
+            let turn = k * TAU;
+            // The span: a whole turn cut anywhere, or an open arc ending
+            // near the root on either side, or longer than a turn.
+            let kind = (rnd() * 4.0).floor();
+            let cut = (rnd() - 0.5) * 2.5 * w;
+            let span = match kind as i32 {
+                0 => (turn + cut, turn + cut + TAU),
+                1 => (turn + cut, turn + cut + TAU * (0.5 + 0.49 * rnd())),
+                2 => (turn + cut - TAU * (0.5 + 0.49 * rnd()), turn + cut),
+                _ => (turn + cut, turn + cut + TAU * (1.0 + 0.5 * rnd())),
+            };
+            let window_turn = ((rnd() * 5.0).floor() - 2.0) * TAU;
+            let joint_turn = ((rnd() * 9.0).floor() - 4.0) * TAU;
+            let window = (window_turn - w, window_turn + w);
+            let in_span = |th: f64| {
+                (-8..=8).any(|q| {
+                    let v = th + f64::from(q) * TAU;
+                    v >= span.0 && v <= span.1
+                })
+            };
+            if !in_span(0.0) {
+                continue;
+            }
+            // `P` a second meeting only where the two are parted by a
+            // point off the zero band between them.
+            let dist = |th: f64| {
+                let q = a.eval(th);
+                let Curve3::Circle { center, .. } = b else { unreachable!() };
+                let r = ((q.x - center.x).powi(2) + (q.y - center.y).powi(2)).sqrt();
+                (r - rb).hypot(q.z)
+            };
+            let parted = (1..400).any(|i| dist(delta * f64::from(i) / 400.0) > 1.2e-9);
+            let p_on = in_span(delta) && parted && dist(delta) < 0.9e-9;
+            // Each J inside the span is given (both ends of a closed cut).
+            let mut joints = Vec::new();
+            for q in -8..=8 {
+                let v = f64::from(q) * TAU;
+                if v >= span.0 && v <= span.1 {
+                    joints.push((v + joint_turn - joint_turn, 0.0));
+                }
+            }
+            if rnd() < 0.3 {
+                joints = vec![(joint_turn, 0.0)];
+            }
+            let got = holds_at((&a, span), &b, window, &joints, band);
+            if got {
+                certified += 1;
+                if p_on {
+                    bad.push(format!(
+                        "draw {draw}: t {t:e} rb {rb} δ {delta:e} span {span:?} window {window:?} joints {joints:?}"
+                    ));
+                }
+            }
+            if p_on {
+                with_p += 1;
+            }
+        }
+        eprintln!("certified {certified}, draws with P on the span {with_p}, bad {}", bad.len());
+        assert!(bad.is_empty(), "{:#?}", &bad[..bad.len().min(6)]);
     }
 }
