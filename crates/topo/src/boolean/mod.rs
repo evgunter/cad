@@ -5500,7 +5500,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &recl::Reversed::default(),
-            held_faces(&touches, c)?,
+            held_faces(&touches, c),
             &mut touched,
         )?;
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
@@ -5612,7 +5612,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &reversed,
-            held_faces(&touches, vv[i].record)?,
+            held_faces(&touches, vv[i].record),
             &mut retouched,
         )?;
         // A reversal moves a germ between flankers, after the touch is
@@ -5775,35 +5775,21 @@ fn touch_rows<T: Real>(
 }
 
 /// **Each operand's face through a vertex pair's point** that the other
-/// operand's vertex of the pair touches, A's then B's, with the side of
-/// it the face's solid's link lies on as the pair read it
-/// ([`recl::HeldFace`], `vtxfac::partner_side`).
+/// operand's vertex of the pair touches, A's then B's
+/// ([`recl::HeldFace`]).
 fn held_faces<T: Real>(
     touches: &std::collections::BTreeMap<(Operand, VertexKey), Touch<T>>,
     c: VvContact,
-) -> Result<[Option<recl::HeldFace<T>>; 2], BooleanError> {
-    let held = |operand, vertex, partner| -> Result<Option<recl::HeldFace<T>>, BooleanError> {
-        let Some(t) = touches.get(&(operand, vertex)) else {
-            return Ok(None);
-        };
-        let link = t
-            .pairs
-            .iter()
-            .find(|p| p.partner == partner)
-            .and_then(|p| p.side)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a touching vertex's pair has no side of the face read",
-            })?;
-        Ok(Some(recl::HeldFace {
+) -> [Option<recl::HeldFace<T>>; 2] {
+    [(Operand::B, c.b, c.a), (Operand::A, c.a, c.b)].map(|(operand, vertex, partner)| {
+        touches.get(&(operand, vertex)).map(|t| recl::HeldFace {
             datum: t.datum,
             operand,
             vertex,
             face: t.face,
             partner,
-            link,
-        }))
-    };
-    Ok([held(Operand::B, c.b, c.a)?, held(Operand::A, c.a, c.b)?])
+        })
+    })
 }
 
 /// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).

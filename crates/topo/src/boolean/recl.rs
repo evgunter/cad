@@ -637,8 +637,16 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   flanking faces; a face that holds the line bounds a half-turn,
 ///   where a bisector parts it on the ray, or, for a solid with no
 ///   mention on the ray, where the other's mentions were read On
-///   against it. Two crossings on the ray refuse typed
-///   ([`BooleanError::CrossingsAlongAContactLine`]).
+///   against it. A solid with an edge on the ray folds a plane face of
+///   its own holding the line into that edge's wedge ([`Folded`]), and
+///   meets a curved one on its own. Two crossings on the ray refuse
+///   typed ([`BooleanError::CrossingsAlongAContactLine`]), whether two
+///   wedge pairs cross or one composed material's boundary crosses
+///   twice.
+///
+/// `held` is each solid's face through the point that the other's
+/// vertex touches ([`HeldFace`]), read with every edge-edge meeting of
+/// that solid's wedges, as a folded face is.
 ///
 /// A group is every mention the first one reads on its ray; three or
 /// more must read so pairwise too, or the event refuses.
@@ -833,10 +841,12 @@ pub(super) fn recl_edges<T: Decide>(
             let line = group.iter().find(|m| m.real).unwrap_or(&group[0]);
             let line = (line.dir, line.reach);
             // A solid with an edge on the line folds a plane face of its
-            // own holding the line into that edge's wedge ([`Folded`]). A
-            // face whose plane the line leaves, at a definite side, holds
-            // none of it, and is met on its own as any other wedge; a
-            // curved face too (`work/tang/a-line-held-by-a-curved-touched-face-refuses-at-the-edge-edge-event.md`).
+            // own holding the line into that edge's wedge ([`Folded`]); a
+            // curved face is met on its own
+            // (`work/tang/a-line-held-by-a-curved-touched-face-refuses-at-the-edge-edge-event.md`).
+            // The face is here because its bisector was read on the
+            // line's ray, or the line read On it: a definite side of its
+            // plane contradicts that reading.
             let split = |ws: Vec<Wedge>,
                          secs: &[BoolSector<T>],
                          body: &Body<T>|
@@ -844,10 +854,21 @@ pub(super) fn recl_edges<T: Decide>(
                 let has_edge = ws.iter().any(|w| w.edge);
                 let (mut met, mut folded) = (Vec::new(), Vec::new());
                 for w in ws {
-                    let face = Folded::of(secs, body, w);
+                    let face = if has_edge && !w.edge {
+                        Folded::of(secs, body, w)?
+                    } else {
+                        None
+                    };
                     match face {
-                        Some(face) if has_edge && face.holds(line, band)? => folded.push(face),
-                        _ => met.push(w),
+                        Some(face) if face.datum.holds_line(line.0, line.1, band)? => {
+                            folded.push(face);
+                        }
+                        Some(_) => {
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "a face read on a contact line's ray lies off the line",
+                            });
+                        }
+                        None => met.push(w),
                     }
                 }
                 Ok((met, folded))
@@ -1219,13 +1240,9 @@ impl Half {
 ///
 /// The face is the solid's but no sector of its vertex's, since the
 /// vertex lies on its own face. Where the face holds a common line
-/// through the point, the solid's material about the line is read off
-/// both the wedge at its vertex and the half-turn under the face, by
-/// the side of the face the vertex's own link lies on
-/// (`vtxfac::partner_side`). Out of it (a pyramid lying on a plate), the
-/// material is the wedge or under the face. In it (a void below the
-/// top), the wedge is the void's complement and the material is the
-/// wedge and under the face ([`resolve_edge_edge`]).
+/// through the point, the solid's material about the line is its wedge
+/// composed with the half-turn under the face, as with a face of its
+/// own it folds ([`Folded`], [`resolve_edge_edge`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct HeldFace<T: geom_core::Real> {
     /// The face's datum at the point.
@@ -1238,8 +1255,6 @@ pub(super) struct HeldFace<T: geom_core::Real> {
     pub face: crate::entity::FaceKey,
     /// The face's solid's vertex at the point.
     pub partner: crate::entity::VertexKey,
-    /// The side of the face its link lies on, `In` or `Out`.
-    pub link: SideCode,
 }
 
 impl<T: Decide> HeldFace<T> {
@@ -1251,7 +1266,7 @@ impl<T: Decide> HeldFace<T> {
     /// (`PierceDatum::curved_along`), so a face that holds a line is a
     /// plane.
     fn holds(&self, axis: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
-        let on = self.datum.side(axis, reach, band)? == SideCode::On;
+        let on = self.datum.holds_line(axis, reach, band)?;
         match self.datum.curved_along(on) {
             Some(how) => Err(self.along(how)),
             None => Ok(on),
@@ -1267,6 +1282,22 @@ impl<T: Decide> HeldFace<T> {
             SideCode::In => Ok(true),
             SideCode::Out => Ok(false),
             SideCode::On => Err(self.along(super::AlongFace::Flush)),
+        }
+    }
+
+    /// The refusal of a touch whose vertex is read again by its pair
+    /// while the pair's own vertex touches a face of the touching
+    /// solid's: two solids each holding the line in a face the other's
+    /// vertex touches cross along it, and each touch's reading of the
+    /// other's material is blind to the other touch.
+    const fn read_twice(&self) -> BooleanError {
+        BooleanError::VertexReadTwice {
+            operand: self.operand,
+            vertex: self.vertex,
+            reads: [
+                super::SectorRead::Pierce(self.face),
+                super::SectorRead::Pair(self.partner),
+            ],
         }
     }
 
@@ -1294,28 +1325,24 @@ pub(super) struct Folded<T: geom_core::Real> {
 }
 
 impl<T: Decide> Folded<T> {
-    /// The face of non-edge wedge `w`, where it lies on a plane; `None`
-    /// for an edge's wedge or a curved face.
-    fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Option<Self> {
+    /// The face of the half-turn wedge `w` (no edge's), where it lies on
+    /// a plane; `None` for a curved face. A face with no carrier is an
+    /// invariant, as it is to the touch's partners.
+    fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Result<Option<Self>, BooleanError> {
         let sector = &secs[w.flankers[0]];
         let shape = crate::readback::face_carrier_kind(body, sector.face)
-            .ok()
-            .map(super::sectors::FaceShape::of_kind)?;
-        (!w.edge && shape == super::sectors::FaceShape::Plane).then(|| Self {
+            .map(super::sectors::FaceShape::of_kind)
+            .map_err(|_| BooleanError::ClassificationInvariant {
+                what: "a face holding a contact line has no carrier",
+            })?;
+        Ok((shape == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
                 normal: sector.normal,
                 shape,
                 lever: super::sectors::PierceLever::Everywhere(super::sectors::NO_CURVATURE()),
             },
-        })
-    }
-
-    /// Whether the face holds the line `(dir, reach)`: a decided zero
-    /// holds it, a definite side does not, and a reading within the band
-    /// refuses typed.
-    fn holds(&self, (dir, reach): Rep<T>, band: Band) -> Result<bool, BooleanError> {
-        Ok(self.datum.side(dir, reach, band)? == SideCode::On)
+        }))
     }
 }
 
@@ -1448,6 +1475,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         {
             *slot = Some(face);
         }
+    }
+    // Each solid holding the line in a face the other's vertex touches:
+    // the two cross along the line, and each touch's reading of the
+    // other's material is blind to the other touch.
+    if let [Some(face), Some(_)] = holding {
+        return Err(face.read_twice());
     }
     let ([fa_s, _], [fb_s, _]) = (aw.flankers, bw.flankers);
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
@@ -1627,13 +1660,15 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     };
     let a_fl = flanks(a_sectors, aw)?;
     let b_fl = flanks(b_sectors, bw)?;
-    // Each solid's own faces holding the line beside its wedge: their
-    // flanks; the side of the face its wedge lies on, read off the
-    // wedge's own bounds as the touch reads its partners'
-    // (`vtxfac::partner_side`); and whether the face's rays bound the
-    // composed material — out of the face always, in it only where the
-    // wedge is reflex, the face then splitting the wedge's material.
+    // Each solid's faces holding the line beside its wedge, held or
+    // folded: the side of each the wedge lies on, read off the wedge's
+    // own bounds as the touch reads its partners'
+    // (`vtxfac::PierceDatum::side`); for a folded face, its flanks, and
+    // whether its rays bound the composed material — out of the face
+    // always, in it only where the wedge is reflex, the face then
+    // splitting the wedge's material.
     let mut beside: [Vec<Part<T>>; 2] = [Vec::new(), Vec::new()];
+    let mut held_link = [None; 2];
     for (slot, (secs, w, fl, fs)) in [
         (a_sectors, aw, a_fl, faces[0]),
         (b_sectors, bw, b_fl, faces[1]),
@@ -1646,17 +1681,19 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             (secs[f_s].end, secs[f_s].end_reach),
             (secs[f_e].start, secs[f_e].start_reach),
         ];
+        let link_of = |datum: super::vtxfac::PierceDatum<T>| match bounds
+            .map(|(dir, reach)| datum.side(dir, reach, band))
+        {
+            [Ok(SideCode::In), Ok(SideCode::In)] => Ok(SideCode::In),
+            [Ok(SideCode::Out), Ok(SideCode::Out)] => Ok(SideCode::Out),
+            [Err(e), _] | [_, Err(e)] => Err(e),
+            _ => Err(BooleanError::ClassificationInvariant {
+                what: "a solid's wedge about a line lies across or on its own face holding the line",
+            }),
+        };
+        held_link[slot] = holding[slot].map(|face| link_of(face.datum)).transpose()?;
         for face in fs {
-            let link = match bounds.map(|(dir, reach)| face.datum.side(dir, reach, band)) {
-                [Ok(SideCode::In), Ok(SideCode::In)] => SideCode::In,
-                [Ok(SideCode::Out), Ok(SideCode::Out)] => SideCode::Out,
-                [Err(e), _] | [_, Err(e)] => return Err(e),
-                _ => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "a solid's wedge about a line lies across or on its own face holding the line",
-                    });
-                }
-            };
+            let link = link_of(face.datum)?;
             let bounding = link == SideCode::Out || wedge_is_reflex(secs, &fl, arm, band)?;
             beside[slot].push(Part {
                 fl: flanks(secs, face.wedge)?,
@@ -1664,10 +1701,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 bounding,
             });
         }
-        // Two faces of one solid holding one line through its vertex
-        // would be one plane with opposite normals, the solid touching
-        // itself face to face across the line: not a solid the door
-        // admits.
+        // Two faces of one solid holding one line through its vertex lie
+        // in one plane (the line and the vertex's wedge fix it): with
+        // opposite normals the solid touches itself face to face across
+        // the line, and with one normal they are one face left unmerged.
+        // Neither is a solid the door admits, and a held face's partner
+        // with a face on it refuses first (`AlongFace::FaceOnFace`).
         if beside[slot].len() + usize::from(holding[slot].is_some()) > 1 {
             return Err(BooleanError::ClassificationInvariant {
                 what: "two faces of one solid hold one line through its vertex",
@@ -1704,8 +1743,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 part.link,
             )?;
         }
-        if let Some(face) = holding[slot] {
-            compose(face.under(w, reach, band)?, face.link)?;
+        if let (Some(face), Some(link)) = (holding[slot], held_link[slot]) {
+            compose(face.under(w, reach, band)?, link)?;
         }
         Ok(any && all)
     };
@@ -2779,9 +2818,8 @@ mod tests {
         );
         let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         let body = crate::body::Body::<f64>::new();
-        // A's face through the point, its outward normal `n`, A's link
-        // on its `link` side.
-        let face = |n: Vec3<f64>, link| HeldFace {
+        // A's face through the point, its outward normal `n`.
+        let face = |n: Vec3<f64>| HeldFace {
             datum: PierceDatum {
                 normal: OutwardNormal::from_chart(n, true),
                 shape: FaceShape::Plane,
@@ -2791,7 +2829,6 @@ mod tests {
             vertex: crate::entity::VertexKey::default(),
             face: crate::entity::FaceKey::default(),
             partner: crate::entity::VertexKey::default(),
-            link,
         };
         let meet = |a: &[BoolSector<f64>], b: &[BoolSector<f64>], op, held| {
             let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
@@ -2814,12 +2851,12 @@ mod tests {
             .map(|()| touches.len())
         };
         let run = |op, held| meet(&above, &below, op, held);
-        let flat = face(Vec3::new(0.0, 1.0, 0.0), Out);
+        let flat = face(Vec3::new(0.0, 1.0, 0.0));
         for (op, wedges, under) in [(BooleanOp::Subtract, 0, 1), (BooleanOp::Union, 1, 0)] {
             assert_eq!(run(op, None).unwrap(), wedges, "{op:?} by the wedges");
             assert_eq!(run(op, Some(flat)).unwrap(), under, "{op:?} under the face");
             // Tipped so the line rises off the face at a definite slope.
-            let tipped = face(Vec3::new(0.0, 0.8, 0.6), Out);
+            let tipped = face(Vec3::new(0.0, 0.8, 0.6));
             assert_eq!(
                 run(op, Some(tipped)).unwrap(),
                 wedges,
@@ -2829,7 +2866,7 @@ mod tests {
         let mid = (band.zero() + band.escalate()) / 2.0;
         let err = run(
             BooleanOp::Subtract,
-            Some(face(Vec3::new(0.0, (1.0 - mid * mid).sqrt(), mid), Out)),
+            Some(face(Vec3::new(0.0, (1.0 - mid * mid).sqrt(), mid))),
         )
         .expect_err("a line within the band of the face refuses");
         let BooleanError::Escalated { decision, .. } = &err else {
@@ -2953,7 +2990,7 @@ mod tests {
         }
         // The void's corners are disjoint, under the face as by the
         // wedges.
-        let top = face(Vec3::new(0.0, 1.0, 0.0), In);
+        let top = face(Vec3::new(0.0, 1.0, 0.0));
         for (op, disjoint) in [(BooleanOp::Subtract, 0), (BooleanOp::Union, 1)] {
             for held in [None, Some(top)] {
                 assert_eq!(
@@ -2962,6 +2999,155 @@ mod tests {
                     "{op:?} in the void, the face {held:?}"
                 );
             }
+        }
+        // A corner over `lo°..hi°` about the line, counterclockwise.
+        let wedge = |lo: f64, hi: f64| {
+            let at = |deg: f64| {
+                let (s, c) = deg.to_radians().sin_cos();
+                Vec3::new(c, s, 0.0)
+            };
+            corner(at(hi), at(lo), at(hi + 90.0), at(lo - 90.0))
+        };
+        // Each solid holding the line in a face the other's vertex
+        // touches: A's wedge over 80°..100° with its face's half-turn
+        // under y = 0, B's over 120°..140° with its face's half-turn over
+        // 225°..405°. The two faces cross along the line, which neither
+        // touch reads: it refuses as a vertex read twice.
+        let b_face = HeldFace {
+            datum: PierceDatum {
+                normal: OutwardNormal::from_chart(
+                    Vec3::new(
+                        (135f64).to_radians().cos(),
+                        (135f64).to_radians().sin(),
+                        0.0,
+                    ),
+                    true,
+                ),
+                ..flat.datum
+            },
+            operand: Operand::A,
+            ..flat
+        };
+        let (wa, wb) = (wedge(80.0, 100.0), wedge(120.0, 140.0));
+        for op in [BooleanOp::Subtract, BooleanOp::Union, BooleanOp::Intersect] {
+            let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
+            let mut first_read = records.clone();
+            let err = recl_edges(
+                &mut records,
+                &mut first_read,
+                &wa,
+                &wb,
+                &body,
+                &body,
+                op,
+                &declared,
+                band,
+                &Reversed::default(),
+                [Some(flat), Some(b_face)],
+                &mut Vec::new(),
+            )
+            .expect_err("the faces cross along the line");
+            assert!(
+                matches!(err, BooleanError::VertexReadTwice { .. }),
+                "{op:?}: {err:?}"
+            );
+        }
+    }
+
+    /// **Two crossings along a contact line refuse typed**: A's edge's
+    /// wedge over 63°..117° above the plane `y = 0`, with a face of its
+    /// own on that plane (its half-turn below) folded in; B's corner over
+    /// 330°..90° crosses both the face's 0° ray and A's 63° flank, two
+    /// crossings of A's material's boundary along one line, which the
+    /// insertion does not place apart (`CrossingsAlongAContactLine`).
+    #[test]
+    fn two_crossings_of_a_composed_material_along_a_contact_line_refuse_typed() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{Glue, GluedPairs};
+        use crate::test_support_fixtures::prism_z;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let (pa, pb) = (
+            prism_z::<f64>(&square, 0.0, 1.0, tol),
+            prism_z::<f64>(&square, 0.0, 1.0, tol),
+        );
+        let he = |body: &crate::body::Body<f64>| body.half_edges.keys().next().unwrap();
+        let (ha, hb) = (he(&pa.body), he(&pb.body));
+        let chord = |d: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + d,
+        };
+        let sector = |he, start: Vec3<f64>, end: Vec3<f64>, normal: Vec3<f64>, face| BoolSector {
+            he,
+            start,
+            end,
+            start_reach: chord(start),
+            end_reach: chord(end),
+            face,
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            Vec3::new(c, s, 0.0)
+        };
+        let none = crate::entity::FaceKey::default();
+        let (lo, hi) = (63.0, 117.0);
+        let top = pa.side_faces[0];
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let own = [
+            sector(ha, z, at(lo), at(lo - 90.0), none),
+            sector(ha, at(hi), z, at(hi + 90.0), none),
+            BoolSector {
+                start_reach: Reach::Bisector(1.0),
+                ..sector(ha, z, x, y, top)
+            },
+            BoolSector {
+                end_reach: Reach::Bisector(1.0),
+                ..sector(ha, -x, z, y, top)
+            },
+        ];
+        let b = [
+            sector(hb, z, at(90.0), at(180.0), none),
+            sector(hb, at(330.0), z, at(240.0), none),
+        ];
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        for op in [BooleanOp::Subtract, BooleanOp::Union, BooleanOp::Intersect] {
+            let mut records = vec![
+                rec(0, 0, (On, Out), (On, Out)),
+                rec(2, 0, (On, Out), (On, Out)),
+            ];
+            let mut first_read = records.clone();
+            let err = recl_edges(
+                &mut records,
+                &mut first_read,
+                &own,
+                &b,
+                &pa.body,
+                &pb.body,
+                op,
+                &declared,
+                band,
+                &Reversed::default(),
+                [None, None],
+                &mut Vec::new(),
+            )
+            .expect_err("two crossings along the line");
+            let vertex = |body: &crate::body::Body<f64>, h| body.get_half_edge(h).unwrap().start;
+            let want = (vertex(&pa.body, ha), vertex(&pb.body, hb));
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::CrossingsAlongAContactLine { a_vertex, b_vertex }
+                        if (a_vertex, b_vertex) == want
+                ),
+                "{op:?}: {err:?}"
+            );
         }
     }
 

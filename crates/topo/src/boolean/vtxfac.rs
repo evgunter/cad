@@ -173,6 +173,18 @@ impl<T: Decide> PierceDatum<T> {
             .map(|read| read.code)
     }
 
+    /// Whether the face holds a line along `dir`, read off its bound
+    /// ([`Self::side`]): a decided zero holds it, a definite side does
+    /// not, and a reading within the band refuses typed.
+    pub(super) fn holds_line(
+        self,
+        dir: Vec3<T>,
+        reach: super::sectors::Reach<T>,
+        band: Band,
+    ) -> Result<bool, BooleanError> {
+        Ok(self.side(dir, reach, band)? == SideCode::On)
+    }
+
     /// The refusal of a bound lying on the face where its side is
     /// second order: on a curved face, a bound in the tangent plane
     /// leaves it by the two carriers' relative curvature.
@@ -231,15 +243,13 @@ pub(super) fn partner_side<T: Decide>(
         side = Some(*c);
     }
     let along = codes.iter().flatten().any(|&c| c == SideCode::On);
-    let refused = if let Some(how) = datum.curved_along(along) {
-        Some(how)
-    } else if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
-        Some(AlongFace::FaceOnFace)
-    } else if along && flush {
-        Some(AlongFace::Flush)
-    } else {
-        None
-    };
+    let refused = datum.curved_along(along).or_else(|| {
+        if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
+            Some(AlongFace::FaceOnFace)
+        } else {
+            (along && flush).then_some(AlongFace::Flush)
+        }
+    });
     Ok(match (refused, side) {
         (Some(how), _) => PartnerRead::Along(how),
         (None, Some(side)) => PartnerRead::Side { side, along },
