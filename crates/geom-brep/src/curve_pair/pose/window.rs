@@ -329,7 +329,14 @@ impl<T: Decide> Window<'_, T> {
         }
         let (t0, t1) = self.span_a;
         let level = level_on(self.a, self.b);
-        let turns = [-2.0, -1.0, 0.0, 1.0, 2.0].map(|k| T::tau() * T::from_f64(k));
+        let tau = T::tau();
+        let turns = [
+            T::zero() - tau - tau,
+            T::zero() - tau,
+            T::zero(),
+            tau,
+            tau + tau,
+        ];
         let mut anchored = false;
         for &turn in &turns {
             let (l, h) = ((lo + turn).max(t0), (hi + turn).min(t1));
