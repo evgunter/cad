@@ -580,7 +580,7 @@ impl<const C: usize> TensorChannels<'_, C> {
     }
 
     /// **Every channel refined** by cutting every nonempty span of each
-    /// direction into `splits` equal pieces ([`equal_split_plan`]), IN
+    /// direction into `splits` equal pieces ([`equal_split_plan`](super::algebra::equal_split_plan)), IN
     /// INTERVAL ARITHMETIC ([`TensorNet::refine_u`]), paired with the
     /// refined vectors. The insertion chains are built here, from these
     /// vectors, so no other vector's chain can reach the nets — the

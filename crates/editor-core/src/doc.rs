@@ -142,7 +142,7 @@ pub enum FreeVar {
         /// (`Expr::display_unit`), for the same reason: a parameter
         /// authored in millimetres should read back in millimetres.
         ///
-        /// Not optional, for [`crate::expr::Lit`]'s reason: a
+        /// Not optional, for `crate::expr::Lit`'s reason: a
         /// dimensionless parameter names the dimensionless row rather
         /// than declining to name one, so no reader has to invent a
         /// notation and no two readers can invent different ones.

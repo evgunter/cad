@@ -169,7 +169,7 @@ pub(crate) fn stopped_falling(
 /// # Errors
 ///
 /// [`fit_minimum`]'s refusals, the sized one bounded by `bounded_by`;
-/// [`SsiError::PolylineNotOneArc`] where a refined midpoint shows its
+/// `SsiError::PolylineNotOneArc` where a refined midpoint shows its
 /// gap does not hold one arc; a refusal the certificate does not locate
 /// (limb 3, a foot point, a limb whose margin is no number, the fit), as
 /// it is; and a located one that refinement cannot answer as

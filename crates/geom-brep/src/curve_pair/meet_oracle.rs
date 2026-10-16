@@ -30,7 +30,7 @@
 test_utils::gated_to![
     "crates/geom-brep/src/curve_pair.rs",
     "crates/geom-brep/src/curve_pair/",
-    "crates/geom-brep/src/carrier_speed.rs",
+    "crates/geom/src/carrier_speed.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
 ];

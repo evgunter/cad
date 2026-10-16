@@ -203,17 +203,218 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 
 /// **A node on an operand's edge is not this lane's** (U2): where a cap
 /// stands at the axes' meeting point, its rim circle passes through
-/// both nodes, tangent there to the partner wall. The crossing layer
-/// reads that tangency before any node is placed, and refuses it at its
-/// own door, in every operation, both poses.
+/// both nodes, tangent there to the partner wall. With one operand
+/// capped there the crossing layer refuses that tangency at its own
+/// door; with both, the rims meet at the nodes, which lie on both
+/// walls' boundaries, and the node pass refuses them. Every operation,
+/// both poses.
 #[test]
-fn a_rim_through_the_nodes_refuses_at_the_crossing_layer() {
+fn a_rim_through_the_nodes_refuses_typed() {
+    let tol = Tol::witness();
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    for (what, a, b, at_node) in [
+        ("B's cap", rod(-2.0, 2.0), across(&rod(0.0, 2.0)), false),
+        ("A's cap", rod(0.0, 2.0), across(&rod(-2.0, 2.0)), false),
+        ("both caps", rod(0.0, 2.0), across(&rod(0.0, 2.0)), true),
+    ] {
+        for (pose, a, b) in [
+            ("direct", a.clone(), b.clone()),
+            ("re-posed", repose(&a), repose(&b)),
+        ] {
+            let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+            for (op, r) in [
+                ("∪", topo::union(&a, &b, tol)),
+                ("∩", topo::intersect(&a, &b, tol)),
+                ("A∖B", topo::subtract(&a, &b, tol)),
+                ("B∖A", topo::subtract(&b, &a, tol)),
+            ] {
+                if at_node {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(topo::BooleanError::NodeUnbuilt {
+                                why: topo::NodeWhy::OnBoundary(_),
+                                ..
+                            })
+                        ),
+                        "{what}, {pose}, {op}: the node on both rims, got {r:?}"
+                    );
+                } else {
+                    assert!(
+                        matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
+                        "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// A unit rod about `z` over `z ∈ [z0, z1]`, its seam turned `phi`.
+fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
+    spin(&rod(z0, z1), Vec3::new(0.0, 0.0, 1.0), phi - PHI)
+}
+
+/// **An edge near a node crosses the partner wall through the bisector
+/// planes.** Two unit rods at right angles, `A` about `z` over
+/// `[−2, 2]` and `B` about `y`, nodes `±x̂`: in turn A's seam and B's
+/// seam turned `δ` off the node, A's cap and B's cap standing `δ` off
+/// the axes' meeting point. Each such edge meets the partner wall twice,
+/// one crossing on each bisector plane, `2δ` apart. Read through the
+/// wall's quadric they are a double root `δ²` deep, and every pose
+/// short of `√band` refused at the crossing layer; read through the
+/// planes:
+///
+/// - `δ` in the zero band: the two crossings are one, a node on the
+///   edge, which keeps the quadric's door;
+/// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
+///   (or, at a fragment's end, `VertexOnCurvedFace`);
+/// - `δ` beyond the band and short of `√band`: the crossing layer
+///   passes, and the pierce vertex's side reading refuses next, its
+///   sagitta charge `δ²/4` short of the band
+///   (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`);
+/// - `δ` past `√band`: every operation builds at its closed form.
+///
+/// Every operation, both operand orders, both poses, at every ε.
+#[test]
+fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (zero, escalate) = (band.zero(), band.escalate());
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let v_rod = 4.0 * PI;
+    // The Steinmetz solid's piece beyond `y = d` of B's axis.
+    let beyond = |d: f64| {
+        let s = (1.0 - d * d).sqrt();
+        2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    enum Want {
+        Door,
+        Escalates,
+        SideRefuses,
+        Builds,
+    }
+    for (delta, want) in [
+        (0.3 * zero, Want::Door),
+        (4.0 * zero, Want::Escalates),
+        (30.0 * escalate, Want::SideRefuses),
+        (5.0 * escalate.sqrt(), Want::Builds),
+    ] {
+        let poses = [
+            (
+                "A's seam",
+                rod_at(-2.0, 2.0, delta),
+                across(&rod(-2.0, 2.0)),
+            ),
+            (
+                "B's seam",
+                rod(-2.0, 2.0),
+                across(&rod_at(-2.0, 2.0, delta)),
+            ),
+            ("A's cap", rod(delta, 2.0), across(&rod(-2.0, 2.0))),
+            ("B's cap", rod(-2.0, 2.0), across(&rod(delta, 2.0))),
+        ];
+        for (what, a, b) in poses {
+            let capped = what.ends_with("cap");
+            let (va, vb) = match what {
+                "A's cap" => (PI * (2.0 - delta), v_rod),
+                "B's cap" => (v_rod, PI * (2.0 - delta)),
+                _ => (v_rod, v_rod),
+            };
+            let cap = if capped { beyond(delta) } else { 16.0 / 3.0 };
+            for (pose, a, b) in [
+                ("direct", a.clone(), b.clone()),
+                ("re-posed", repose(&a), repose(&b)),
+            ] {
+                let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+                for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+                    for (op, r, closed) in [
+                        ("∪", topo::union(x, y, tol), vx + vy - cap),
+                        ("∩", topo::intersect(x, y, tol), cap),
+                        ("∖", topo::subtract(x, y, tol), vx - cap),
+                    ] {
+                        let cut = format!("{what} δ = {delta:e}, {pose} ({order}), {op}");
+                        match want {
+                            Want::Door => assert!(
+                                matches!(
+                                    r,
+                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. })
+                                ),
+                                "{cut}: one crossing, the quadric's door, got {r:?}"
+                            ),
+                            Want::Escalates => assert!(
+                                matches!(
+                                    r,
+                                    Err(topo::BooleanError::Escalated {
+                                        decision: topo::BooleanDecision::VertexOnVertex
+                                            | topo::BooleanDecision::Coincidence(
+                                                topo::Coincide::VertexOnCurvedFace,
+                                                _
+                                            ),
+                                        ..
+                                    })
+                                ),
+                                "{cut}: the crossings' distance in band, got {r:?}"
+                            ),
+                            Want::SideRefuses => assert!(
+                                matches!(
+                                    r,
+                                    Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+                                ),
+                                "{cut}: past the crossing layer, the pierce's side, got {r:?}"
+                            ),
+                            Want::Builds => {
+                                let Ok(BooleanResult::Body(out)) = r else {
+                                    panic!("{cut}: builds, got {r:?}");
+                                };
+                                // A cap `δ` off the station leaves its disc two
+                                // lunes `δ²/2` wide beside the partner wall, which
+                                // the mesh does not triangulate at any chord tried
+                                // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`):
+                                // its volume is held to the certified bracket alone.
+                                if capped {
+                                    let m = topo::mass_properties(&out.body, tol).unwrap();
+                                    assert!(
+                                        (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                        "{cut}: volume {} ± {}, want {closed}",
+                                        m.volume,
+                                        m.volume_pad
+                                    );
+                                } else {
+                                    assert_volume(&out.body, closed, &cut);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **A rim vertex on a node refuses as a node on the boundary.** A branch
+/// rod capped at the axes' meeting point with its seam turned onto the
+/// node puts its rim's one vertex there, on both bisector planes: the
+/// crossing reads an operand vertex at a node, which no lane builds yet,
+/// and names it `NodeUnbuilt(OnBoundary)` with its recourse. The same
+/// branch capped `10·√band` off the station (`1e-3` at the witness
+/// band), its seam still at the node's angle, builds at its closed form. Both operand roles, both poses,
+/// every operation.
+#[test]
+fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
     let tol = Tol::witness();
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
     for (what, a, b) in [
-        ("B's cap", rod(-2.0, 2.0), across(&rod(0.0, 2.0))),
-        ("A's cap", rod(0.0, 2.0), across(&rod(-2.0, 2.0))),
-        ("both caps", rod(0.0, 2.0), across(&rod(0.0, 2.0))),
+        (
+            "A's rim vertex",
+            rod_at(0.0, 2.0, 0.0),
+            across(&rod(-2.0, 2.0)),
+        ),
+        (
+            "B's rim vertex",
+            rod(-2.0, 2.0),
+            across(&rod_at(0.0, 2.0, 0.0)),
+        ),
     ] {
         for (pose, a, b) in [
             ("direct", a.clone(), b.clone()),
@@ -227,8 +428,83 @@ fn a_rim_through_the_nodes_refuses_at_the_crossing_layer() {
                 ("B∖A", topo::subtract(&b, &a, tol)),
             ] {
                 assert!(
-                    matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
-                    "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                    matches!(
+                        r,
+                        Err(topo::BooleanError::NodeUnbuilt {
+                            why: topo::NodeWhy::OnBoundary(_),
+                            ..
+                        })
+                    ),
+                    "{what}, {pose}, {op}: a node at an operand vertex, got {r:?}"
+                );
+            }
+        }
+    }
+    let dz = 10.0 * geom_core::Band::linear(tol).unwrap().escalate().sqrt();
+    let (a, b) = (
+        finished("A", rod_at(dz, 2.0, 0.0), tol),
+        finished("B", across(&rod(-2.0, 2.0)), tol),
+    );
+    let s = (1.0 - dz * dz).sqrt();
+    let cap = 2.0 * (s.powi(3) / 3.0 - dz * dz.acos() + s);
+    let (va, vb) = (PI * (2.0 - dz), 4.0 * PI);
+    for (op, r, want) in [
+        ("∪", topo::union(&a, &b, tol), va + vb - cap),
+        ("∩", topo::intersect(&a, &b, tol), cap),
+        ("A∖B", topo::subtract(&a, &b, tol), va - cap),
+        ("B∖A", topo::subtract(&b, &a, tol), vb - cap),
+    ] {
+        let Ok(BooleanResult::Body(out)) = r else {
+            panic!("capped {dz:e} off, {op}: builds, got {r:?}");
+        };
+        // Its cap's lunes are the mesh's
+        // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
+        let m = topo::mass_properties(&out.body, tol).unwrap();
+        assert!(
+            (m.volume - want).abs() <= m.volume_pad + 1e-9,
+            "capped {dz:e} off, {op}: volume {} ± {}, want {want}",
+            m.volume,
+            m.volume_pad
+        );
+    }
+}
+
+/// **At oblique angles the pierce vertex's ring reaches further**
+/// (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`): A's
+/// seam turned `δ` off a node, at 35° with `r = 1` and at 60° with
+/// `r = 0.5`, crosses the partner wall at two pierces the bisector planes
+/// find, and each pierce's side reading escalates `PierceCurvature`. The
+/// offsets scale with `√band`, as the sagitta charge's margin does, so
+/// each pose stands at the same place in the ring at every ε. Every
+/// operation, both operand orders.
+#[test]
+fn an_oblique_seam_near_a_node_escalates_at_the_pierce() {
+    let tol = Tol::witness();
+    let root = geom_core::Band::linear(tol).unwrap().escalate().sqrt();
+    for (deg, r, delta) in [(35.0_f64, 1.0, 5.0 * root), (60.0, 0.5, 4.0 * root)] {
+        let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
+        let b = spin(
+            &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
+            Vec3::new(1.0, 0.0, 0.0),
+            deg.to_radians(),
+        );
+        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+        for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+            for (op, got) in [
+                ("∪", topo::union(x, y, tol)),
+                ("∩", topo::intersect(x, y, tol)),
+                ("∖", topo::subtract(x, y, tol)),
+            ] {
+                assert!(
+                    matches!(
+                        got,
+                        Err(topo::BooleanError::Escalated {
+                            decision: topo::BooleanDecision::PierceCurvature,
+                            ..
+                        })
+                    ),
+                    "{deg}°, r = {r}, δ = {delta:e} ({order}), {op}: the pierce's side \
+                     reading escalates, got {got:?}"
                 );
             }
         }
@@ -755,22 +1031,25 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 
 /// **A rod turned within a hair of its bore's axis answers the same in
 /// either operand order.** At `θ` this small the rod's wall lies within
-/// the band of the bore's along its whole length, and its seam ruling
-/// meets each rim at a turn the tilt spreads by about `1.3e-9` per
-/// `1e-8°`. The crossing's candidates on a rim gather round whichever of
-/// them the sweep split it at, and which that is follows the operand
-/// order: each order must read the cluster as one point, or neither.
-/// The orders agree on the outcome, and on the decision and margin of an
-/// escalation, at every band; which poses build is the band's.
+/// the band of the bore's along its whole length. Its rulings and the
+/// bore's are read as two lines where they can meet, their overlap
+/// (`geom_brep::curve_pair`'s line pose): the bore's block is four metres
+/// deep, so over it a `1e-8°` tilt moves the rod's ruling `7e-10` from
+/// the bore's, within the zero band, whichever of the two the sweep split
+/// and however. The orders agree on the outcome, and on the decision and
+/// margin of an escalation, at every band; which poses build is the
+/// band's.
 ///
 /// At the default band:
 ///
-/// - the rod along `y` turned to `1e-9°` reads the cluster as one point,
-///   and ∩ and ∪ build alike; at `1e-8°` the cluster spreads `1.29e-9`,
-///   in band, and both orders escalate it as the crossings' order;
-/// - the rod about `z` tilted `1e-8°`, its seam on the tilt's plane
-///   (turned `0` or `π`), escalates the same way in both orders, and with
-///   its seam a quarter turn off it builds alike;
+/// - the rod along `y` turned to `1e-9°` or `1e-8°` builds alike in ∩ and
+///   ∪: within the block it lies within `7e-10` of the bore, so it is
+///   glued, as at `1e-9°` (until 2026-10-15 the `1e-8°` pose escalated
+///   alike, the tilt levered by the rod's whole eight metres, and by the
+///   split's pieces in one order: the lever was how the sweep split the
+///   edge, not where the lines can meet);
+/// - the rod about `z` tilted `1e-8°` builds alike, its seam on the
+///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
 ///   (`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
@@ -834,19 +1113,19 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     type Pose = (String, topo::AtRestBody<f64>, bool, bool);
     let poses: Vec<Pose> = vec![
         ("along y, 1e-9°".into(), along_y(1e-9), true, true),
-        ("along y, 1e-8°".into(), along_y(1e-8), true, false),
+        ("along y, 1e-8°".into(), along_y(1e-8), true, true),
         ("along y, 1e-7°".into(), along_y(1e-7), false, false),
         (
             "about z, seam 0, 1e-8°".into(),
             about_z(0.0, 1e-8),
             true,
-            false,
+            true,
         ),
         (
             "about z, seam π, 1e-8°".into(),
             about_z(PI, 1e-8),
             true,
-            false,
+            true,
         ),
         (
             "about z, seam π/2, 1e-8°".into(),

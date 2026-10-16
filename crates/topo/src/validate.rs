@@ -2784,6 +2784,19 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         "its faces are not certainly crossing along it, so they do not fix where it runs";
     // The lead is this window's own.
     let why = match e {
+        // An arc rim's refusal reads as its exact image's check where
+        // that names a limb, and as its fitted path's otherwise, as its
+        // decision does (`CertifyError::decision`).
+        CertifyError::OnPairArcRim { iso, limb, bound } => {
+            let limb = iso
+                .and_then(geom_brep::PcurveCheck::incidence_limb)
+                .unwrap_or(*limb);
+            classify_certify(&CertifyError::PlaneNurbs(P::Limb {
+                limb,
+                margin: *bound,
+            }))
+            .0
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -2930,6 +2943,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
+            | CertifyError::OnPairArcRim { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -3387,7 +3401,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 /// corners, read at rest. Where an end of the arc lies definitely off
 /// both corners on a body certified at this band, the kernel's two
 /// readings of one end disagree, which no move of the geometry repairs;
-/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// otherwise the band alone parted the two passes (`K < 2`), and the arc
 /// end's own lever is the way through.
 fn arc_end_clear_of_corners(
     gaps: &crate::boolean::ArcEndGaps,
@@ -6826,13 +6840,20 @@ pub(crate) fn tier3_local_checks_marked<
         //
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the
-        // stored certificate.
-        match curve.recertify_via(
+        // stored certificate. It meters the chart image the body stores
+        // where the op metered it (`Body::stated_pair_image`, an
+        // `OnPair` rim's wall image), so rest and op read one image.
+        let stated = match curve.description() {
+            geom_brep::EdgeDescription::OnPair { pair } => body.stated_pair_image(edge_key, *pair),
+            _ => None,
+        };
+        match curve.recertify_via_stated(
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
             band,
             nurbs_lane,
+            stated.as_ref(),
         ) {
             Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
             Err(error) => errors.push(ValidationError::EdgeCertification {
@@ -14428,12 +14449,12 @@ mod tests {
                     verdict,
                     RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
                 ),
-                // The walk's one point-level row on a circle — the radial
-                // gap — is the predicate that speaks, not a ray's.
+                // The walk's one point-level row on a circle — the gap at
+                // the point's foot, `geom`'s on-carrier reading — speaks, not a ray's.
                 _ => matches!(
                     verdict,
                     RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
-                        if d.predicate == Some("point_in_arc_loop_conic_on")
+                        if d.predicate == Some("curve_carrier_gap")
                 ),
             };
             assert!(ok, "{name}: wrong verdict");

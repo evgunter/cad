@@ -256,9 +256,10 @@ impl<T: Decide> Body<T> {
     /// jet-determinate.
     ///
     /// Under-determined stores the conventional description where the
-    /// child rests ([`crate::rest_locus`]). A pair child is
-    /// asked again too ([`geom_brep::reask_pair`]): its extent is not
-    /// its parent's, and the verdict reads it.
+    /// child rests ([`crate::rest_locus`]). A pair child, and a child
+    /// image that is not a wrap, is asked again too
+    /// ([`geom_brep::reask_pair`], [`geom_brep::reask_chart`]): its
+    /// extent is not its parent's, and the verdict reads it.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
@@ -278,6 +279,21 @@ impl<T: Decide> Body<T> {
                 )
             })
         };
+        let refused = |refusal| match refusal {
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
+                escalation,
+            )) => EulerOpError::SplitSmoothEscalated {
+                edge,
+                diag: escalation.diag(),
+            },
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(diag)) => {
+                EulerOpError::SplitSmoothBendEscalated { edge, diag }
+            }
+            geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
+                edge,
+                mixed: Some(stations),
+            },
+        };
         let (pair, witness) = match spec.description {
             geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
                 (pair, witness)
@@ -291,27 +307,33 @@ impl<T: Decide> Body<T> {
                         declared,
                         band,
                     )
-                    .map_err(|refusal| match refusal {
-                        geom_brep::PairRefusal::InBand(
-                            geom_brep::MustCarryEscalation::FirstOrder(escalation),
-                        ) => EulerOpError::SplitSmoothEscalated {
-                            edge,
-                            diag: escalation.diag(),
-                        },
-                        geom_brep::PairRefusal::InBand(
-                            geom_brep::MustCarryEscalation::SecondOrder(diag),
-                        ) => EulerOpError::SplitSmoothBendEscalated { edge, diag },
-                        geom_brep::PairRefusal::Mixed(stations) => {
-                            EulerOpError::SplitSmoothRefuted {
-                                edge,
-                                mixed: Some(stations),
-                            }
-                        }
-                    })?;
+                    .map_err(refused)?;
                 return Ok(EdgeCurveSpec {
                     description,
                     ..spec
                 });
+            }
+            // A piece of an image is asked the same over its own span;
+            // it keeps the image where the rule still reads the join
+            // under-determined.
+            geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } => {
+                return Ok(
+                    match self
+                        .reask_chart_on(
+                            edge,
+                            &spec.carrier,
+                            (spec.param_start, spec.param_end),
+                            band,
+                        )
+                        .map_err(refused)?
+                    {
+                        Some(description) => EdgeCurveSpec {
+                            description,
+                            ..spec
+                        },
+                        None => spec,
+                    },
+                );
             }
             geom_brep::EdgeDescriptionSpec::Intersection { .. }
             | geom_brep::EdgeDescriptionSpec::Chart { .. }

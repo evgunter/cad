@@ -1927,6 +1927,13 @@ impl core::fmt::Display for PcurveCertifyError {
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
+    /// The check this refusal restates, or `None` for a refusal no check
+    /// of this door owns ([`Self::decided`]'s first half).
+    #[must_use]
+    pub fn refused_check(&self) -> Option<PcurveCheck> {
+        self.decided().map(|(check, _)| check)
+    }
+
     /// The check this refusal restates and the arm it refused on, or
     /// `None` for a refusal no check of this door owns: an unsupported
     /// class, a missing operand, a band the tolerance cannot form, a
@@ -2060,6 +2067,28 @@ impl PcurveCheck {
             | SsiLimb::HullValue
             | SsiLimb::ImageMiss
             | SsiLimb::Tube => None,
+        }
+    }
+
+    /// The plane × NURBS incidence limb this check of an exact image's
+    /// certificate restates, where `OnPair`'s lane reads its wall side
+    /// through that image ([`crate::plane_nurbs_incidence`]):
+    /// [`Self::of_fitted_limb`] read back. The map residual is
+    /// `|S(P(t)) − C(t)|` at a point, [`SsiLimb::HullValueChart`]'s
+    /// quantity, and the envelope (or one of its terms) bounds it over
+    /// the span, [`SsiLimb::HullSupChart`]'s. `None` for a check that
+    /// restates no limb.
+    #[must_use]
+    pub fn incidence_limb(self) -> Option<SsiLimb> {
+        match self {
+            Self::MapResidual => Some(SsiLimb::HullValueChart),
+            Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
+            Self::ParamSpan
+            | Self::ChartWinding
+            | Self::AzimuthPeriod
+            | Self::TubePeriod
+            | Self::ChartIncidence
+            | Self::Sector => None,
         }
     }
 }
@@ -2815,7 +2844,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 /// Its one producer is [`fitted_lane`], which runs limb 2's hull
 /// against the row's chart and nothing else: the composite refuses
 /// [`SsiError::UnsupportedCertificate`](crate::ssi::SsiError), and the
-/// limb's verdict a definite [`SsiError::CertificateLimb`] or an
+/// limb's verdict a definite [`SsiError::CertificateLimb`](crate::ssi::SsiError::CertificateLimb) or an
 /// escalated `CertificateEscalated`. Those are the arms written out.
 ///
 /// **Escalations leave by a different door.** They are the only

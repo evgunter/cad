@@ -3,7 +3,11 @@
 //! question").
 //!
 //! - **One point-on-span reading** ([`span`]): every candidate point any
-//!   method proposes is settled by [`Span::contact`] on both spans.
+//!   method proposes is settled by [`Span::contact`] on both spans, at its
+//!   foot on each ([`geom::Curve3::foot`], seeded by the candidate's own
+//!   parameter). It composes `geom`'s one-carrier reading with the
+//!   span's reading of its ends ([`Span::read`]), and decides nothing of
+//!   its own.
 //! - **One total table** ([`method`]): one exhaustive match over the two
 //!   carriers' [`CurveKind`]s, with no wildcard arm, fixing each pair's
 //!   method at write time. Line, circle and ellipse pairs are closed
@@ -32,7 +36,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
-pub use span::{Contact, Hit, Span};
+pub use span::{Hit, Place, Reading, Span, SpanEnd};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -96,6 +100,10 @@ pub struct Meeting<T: geom_core::Real> {
     pub on_a: Hit<T>,
     /// Where it sits on the second span.
     pub on_b: Hit<T>,
+    /// A point of the run about a meeting read at an end: within the band
+    /// of both spans, but no crossing or touch of its own
+    /// ([`pose::run_candidates`]).
+    pub run: bool,
 }
 
 /// What [`meet`] found.
@@ -106,8 +114,10 @@ pub struct Meetings<T: geom_core::Real> {
     /// point of the overlap meets; none read on both where the spans
     /// share no run of the curve, which is `Some` with no points.
     pub shared: Option<Sense>,
-    /// The meetings, each read on both spans. Two candidates polished onto
-    /// one crossing, by the walk or across planes, may repeat it.
+    /// The meetings, each read on both spans. A point the zero band puts
+    /// at a meeting already read is not one again, so a touch at a span's
+    /// end, which the pose and the span's end both propose, and a crossing
+    /// the walk reaches from several pieces, are each one meeting.
     pub points: Vec<Meeting<T>>,
 }
 
@@ -126,6 +136,13 @@ pub enum MeetFault {
     },
     /// A carrier is not of the kind its arm reads.
     Desync,
+    /// Two readings of the pose contradict each other, which their
+    /// definitions rule out but for rounding: a kernel fault, never a
+    /// pose.
+    Contradiction {
+        /// The readings.
+        readings: &'static str,
+    },
 }
 
 impl From<Indeterminate> for MeetFault {
@@ -172,6 +189,18 @@ pub fn meet<T: Decide>(
     }
 }
 
+/// Whether `point` is a meeting already read: within the zero band of
+/// one (`curve_pair_meet_same`). Only a definite `Zero` repeats it.
+fn repeats<T: Decide>(read: &[Meeting<T>], point: Point3<T>, band: Band) -> bool {
+    read.iter().any(|m| {
+        geom_core::k_stats::decide(
+            "curve_pair_meet_same",
+            geom_core::Margin::norm3(m.point - point),
+            band,
+        ) == Ok(geom_core::Sign::Zero)
+    })
+}
+
 /// The meetings a pose's candidates are: each read on both spans.
 fn outcome<T: Decide>(
     pose: &Pose<T>,
@@ -185,27 +214,62 @@ fn outcome<T: Decide>(
         Pose::Generic(cs) => (None, [cs.clone(), pose::end_candidates(a, b)].concat()),
         Pose::Concentric | Pose::Parallel | Pose::Apart => (None, Vec::new()),
     };
-    let mut points = Vec::new();
+    let base = candidates.len();
+    let mut points: Vec<Meeting<T>> = Vec::new();
     let mut held = None;
-    for c in &candidates {
-        let on_a = a.contact(c.point, c.ta, band).map(Contact::hit);
-        let on_b = b.contact(c.point, c.tb, band).map(Contact::hit);
+    let mut queue = candidates;
+    let mut read = 0;
+    // Each span end's run is read once, whichever candidate met there.
+    let mut ran = (false, false);
+    while let Some(c) = queue.get(read).copied() {
+        read += 1;
+        let run = read > base;
+        if repeats(&points, c.point, band) {
+            continue;
+        }
+        let on_a = a.contact(c.point, c.ta, band);
+        let on_b = b.contact(c.point, c.tb, band);
         match (on_a, on_b) {
             (Ok(None), _) | (_, Ok(None)) => {}
-            (Ok(Some(on_a)), Ok(Some(on_b))) => points.push(Meeting {
-                point: c.point,
-                on_a,
-                on_b,
-            }),
+            (Ok(Some(on_a)), Ok(Some(on_b))) => {
+                // A meeting at an end may stand on a run that reaches into
+                // the span; its run is read once, not its run's run.
+                let ends = (matches!(on_a, Hit::End(_)), matches!(on_b, Hit::End(_)));
+                if shared.is_none() && !run && ((ends.0 && !ran.0) || (ends.1 && !ran.1)) {
+                    ran = (ran.0 || ends.0, ran.1 || ends.1);
+                    queue.extend(pose::run_candidates(a, b, &c, band));
+                }
+                points.push(Meeting {
+                    point: c.point,
+                    on_a,
+                    on_b,
+                    run,
+                });
+            }
             (Err(diag), _) | (_, Err(diag)) => held = held.or(Some(diag)),
         }
     }
     match held {
         None => Ok(Meetings { shared, points }),
-        Some(diag) => Err(MeetRefusal {
-            fault: MeetFault::Escalated(diag),
+        Some(refusal) => Err(MeetRefusal {
+            fault: carrier_fault(refusal),
             found: points,
         }),
+    }
+}
+
+/// A point-on-span refusal as the meeting's: an escalation as itself, a
+/// spline's walk past its budget as unsettled, and a spline with no
+/// speed bound as a pose the reader does not serve.
+fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
+    match refusal {
+        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
+            MeetFault::Escalated(diag)
+        }
+        geom::CarrierRefusal::Exhausted => MeetFault::Unsettled(Unsettled::Exhausted),
+        geom::CarrierRefusal::Unbounded => MeetFault::Unsupported {
+            pose: "a spline whose speed bound is zero or poison",
+        },
     }
 }
 
@@ -213,5 +277,7 @@ fn outcome<T: Decide>(
 mod meet_oracle;
 #[cfg(test)]
 mod meet_rows;
+#[cfg(test)]
+mod one_curve_rows;
 #[cfg(test)]
 mod span_rows;

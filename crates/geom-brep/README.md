@@ -641,9 +641,14 @@ conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
-table, and every candidate it proposes is settled by one point-on-span
-reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
-are closed forms that solve in one conic's angle and measure in metres; a
+table, and every candidate it proposes is settled against each span by
+the point-on-span reading, which composes geom's one-carrier readings
+(the point's foot, and whether it lies on the carrier) with the span's
+reading of its ends, and decides nothing of its own; a point is decided
+off a carrier only on a lower bound on its distance to the whole
+carrier.
+Line, circle and ellipse pairs are closed forms that solve in one conic's
+angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
 is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under

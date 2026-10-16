@@ -143,6 +143,7 @@
 //! enclosure-containment test axes rely on exactly that.
 
 mod azimuth;
+pub mod carrier_speed;
 mod convention;
 pub mod curves;
 mod datum;
@@ -163,11 +164,12 @@ pub use convention::{
 };
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
-    Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind, CurveWindow2,
-    CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, MajorFrame,
-    NurbsCurve2, NurbsCurve3, Projection2, Projection3, ProjectionInconclusive, RefitSkip,
-    SeamSide, SpiricInvalid, compose_chain, spiric_curvature_sup, spiric_f_range,
-    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds,
+    CarrierRefusal, Clearance, Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind,
+    CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot,
+    MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier, Projection2, Projection3,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
+    spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds, spiric_radial,
+    spiric_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;

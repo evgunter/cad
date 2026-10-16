@@ -2057,7 +2057,7 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for the containment representative
         // (module docs): no representable f64 lies strictly inside it.
-        let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
+        let exact = Band::least();
 
         if loops_in.is_empty() {
             return Err(ProfileError::EmptyProfile);
