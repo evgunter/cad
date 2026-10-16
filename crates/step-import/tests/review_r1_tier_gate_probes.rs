@@ -569,16 +569,22 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// see (a wedge ANGLE, not a carrier residual). Whatever door refuses,
 /// it must refuse LOUDLY; a shipped wedge would mean an in-band
 /// dihedral passed the gate silently.
+///
+/// The wedge between two faces is levered at how far the faces run
+/// (`topo::wedge_reach`), not at the edge between them. The apex faces
+/// here are `leg × h` planes, so the dihedral margin is `alpha·leg`,
+/// and `alpha` is chosen FROM the ambient band to put it at 3/5/8·ε,
+/// inside (ε, Kε) on every hosted ε row. That margin is also the far
+/// edge's length, `leg·alpha`: two planes in band over their whole
+/// extent leave their far ends in band too, so the file's far face is
+/// a sliver and the attachment gate refuses it there, loudly, before
+/// the at-rest gate is asked. Where a refusal is the at-rest gate's,
+/// it must carry the sliver verdict.
 #[test]
 fn r1_in_band_dihedral_wedge_never_ships_silently() {
-    // Legs 10 m, apex edge h = 0.1 m. The dihedral margin is alpha*h,
-    // so alpha is chosen FROM the ambient band to put it at 3/5/8·ε —
-    // inside (ε, Kε) on every hosted ε row, not just the default one
-    // (where these are the recorded 3/5/8e-8 rad). The far edge's
-    // margin is alpha*leg = 100× that, decidedly positive throughout.
     let (leg, h) = (10.0_f64, 0.1_f64);
     let eps = geom_core::Tol::witness().get().eps;
-    for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
+    for alpha in [3.0 * eps / leg, 5.0 * eps / leg, 8.0 * eps / leg] {
         let text = sliver_wedge_step(alpha, leg, h);
         match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
@@ -603,6 +609,39 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
                 }
             }
         }
+    }
+}
+
+/// **The same wedge posed in band at its APEX EDGE's length is a
+/// corner** — this row's poses before the wedge was levered at its
+/// faces: `alpha·h` at 3/5/8·ε is `alpha·leg` at 300/500/800·ε, past
+/// `K·ε` on every hosted ε row, so the file is a valid solid of the
+/// wedge prism's volume, `½·leg²·sin(alpha)·h`.
+#[test]
+fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
+    let (leg, h) = (10.0_f64, 0.1_f64);
+    let eps = geom_core::Tol::witness().get().eps;
+    for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
+        let text = sliver_wedge_step(alpha, leg, h);
+        let Ok(StepImport::Solid { body, .. }) =
+            import_step(&text, &ImportOptions::default(), Tol::witness())
+        else {
+            panic!("alpha={alpha:e}: the wedge imports as a solid");
+        };
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "alpha={alpha:e}: the wedge is valid at rest"
+        );
+        let mp = topo::mass_properties(&body, Tol::witness())
+            .unwrap_or_else(|e| panic!("alpha={alpha:e}: mass properties: {e:?}"));
+        let exact = 0.5 * leg * leg * alpha.sin() * h;
+        let rel = (mp.volume - exact).abs() / exact;
+        assert!(
+            rel < 1e-6,
+            "alpha={alpha:e}: volume {:e} != exact {exact:e} (rel {rel:e})",
+            mp.volume
+        );
     }
 }
 
