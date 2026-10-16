@@ -32,8 +32,19 @@ it. One local pass of the workspace fast set (`cargo nextest run --profile ci
 TIER=all `test` job (job 116211764790, 10-15): 2388 tests of its 1e-12 pass.
 On the 68 tests both runs timed at ≥ 0.3 s locally, hosted/local has a median
 of 0.96. The spread is wide (0.66 median over every test ≥ 0.05 s, p90 1.23,
-one at 7.1), and the hosted pass ran at a different ε. So the bar for moving
-was local ≥ 0.7 s, plus every test the hosted tail timed at ≥ 0.7 s.
+one at 7.1), and the hosted pass ran at a different ε. The first bar for
+moving was local ≥ 0.7 s, plus every test the hosted tail timed at ≥ 0.7 s.
+
+The check's first hosted run (PR 5229, run 38872528628, job 116880316271)
+then failed three tests in the default-ε step, at 1.04–1.22 s hosted against
+0.62–0.68 s locally, a ratio of 1.6–1.9:
+
+- `editor-core::all review_pick3_r2_probes::the_t_interval_encloses_the_exact_crossing_and_the_clamped_point`, 1.038 s;
+- `sweep::all m6_surgery::the_pipped_cube_fillets_in_place_with_rings_carried`, 1.151 s;
+- `mesh nurbs_cert::tests::r1_rational_multiplicity_p_minus_one_dominated`, 1.216 s.
+
+No other fast-set test reached 1 s on that run. The bar was then lowered to
+local ≥ 0.5 s, which moved 81 more tests.
 
 ## Fixed
 
@@ -46,17 +57,23 @@ was local ≥ 0.7 s, plus every test the hosted tail timed at ≥ 0.7 s.
   has a `--selftest` in the lint job.
 - Nightly runs the `ci` profile with `--ignore-default-filter`, so it has no
   fast set to check.
-- The 302 tests below moved to the slow set (222 of them at ≥ 1 s locally).
-  The local fast set went from 1463 to 480 cpu-s.
+- The 383 tests under **Moved** went to the slow set.
 
 ## The margin after the move
 
-- The slowest fast-set test now takes 0.695 s locally.
-- 81 fast-set tests sit at 0.5–0.7 s locally. None sit at 0.7–1.0 s.
+- The slowest fast-set test now takes 0.496 s locally. At the worst ratio the
+  hosted run showed (1.9), that is 0.94 s hosted.
+- 183 fast-set tests sit at 0.3–0.5 s locally, 72 of them at 0.4–0.5 s. Those
+  72 are the ones a ratio near 2 could carry over the 1 s backstop.
+- Nothing remains at 0.5–1.0 s locally.
 - In the hosted tail (1e-12, before the move), 3 of 2388 tests sat at
   0.7–1.0 s and 14 at 0.5–1.0 s.
 
 ## Moved
+
+These 383 tests moved to the slow set: 222 at ≥ 1 s locally, 160 at 0.5–1.0 s
+locally, and 1 (0.10 s locally, 2.36 s hosted) by its hosted 1e-12 time. The local fast set went from
+1463 to 431 cpu-s.
 
 | local s | hosted 1e-12 s | binary | test |
 |---|---|---|---|
@@ -359,6 +376,87 @@ was local ≥ 0.7 s, plus every test the hosted tail timed at ≥ 0.7 s.
 | 0.70 |  | `editor-core::all` | `m10_5_r2_probes_interval::every_configuration_lands_in_one_arm_with_a_holding_receipt` |
 | 0.70 |  | `sweep::all` | `snowman::a_ball_inside_a_two_sphere_body_builds` |
 | 0.70 | 0.70 | `viewer::all` | `story_parametric::the_parametric_living_walk` |
+| 0.69 |  | `sweep::all` | `axis_lap::an_engraved_one_arc_c_builds_at_every_sweep` |
+| 0.69 |  | `topo` | `ring_path::tests::a_cone_path_crosses_an_island_by_the_oracle_parity` |
+| 0.69 |  | `geom-brep` | `pcurve_cache::period_rows::the_gallop_answers_as_the_step_walk_does_at_interval` |
+| 0.69 |  | `sweep::all` | `verbs_offc_consumer::the_props_lanes_verdict_is_the_same_either_side_of_the_map` |
+| 0.69 |  | `editor-core::all` | `docm9_range::a_budget_too_small_is_indeterminate_and_never_a_bound` |
+| 0.69 |  | `sweep::all` | `a_pierce_held_in_a_curved_face::a_ringed_wall_holding_the_pierce_refuses_typed_and_pocketing_last_builds` |
+| 0.68 |  | `sweep::all` | `verbs_offc_consumer::the_walls_a_placed_approx_capped_part_still_meets` |
+| 0.68 |  | `editor-core::all` | `docm9_range::the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it` |
+| 0.68 |  | `editor-core::all` | `m10_5_r1_probes_interval::the_fold_is_the_same_under_both_driver_schedules` |
+| 0.68 |  | `sweep::all` | `m6_surgery::the_pipped_cube_fillets_in_place_with_rings_carried` |
+| 0.68 |  | `geom-brep::all` | `offb_r1_probes::r1_a_slid_fit_s_tau_limb_never_under_reports` |
+| 0.67 |  | `sweep::all` | `snowman::two_cut_ins_on_one_face_build_in_either_order` |
+| 0.67 |  | `sweep::all` | `blend_band_reach_oracle::a_concave_cavity_meets_a_ball_island_where_the_oracle_says` |
+| 0.67 |  | `topo::all` | `three_solids_on_one_line::a_split_of_an_edge_lying_in_an_earlier_face_reads_its_vertex_against_it` |
+| 0.67 |  | `sweep::all` | `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op` |
+| 0.67 |  | `sweep::all` | `a_ruling_lying_on_a_wall::two_slanted_bottoms_crossing_on_one_wall_build_every_op` |
+| 0.66 |  | `sweep::all` | `reach_volume_backstop::an_open_sign_beyond_the_band_at_the_last_round_refuses` |
+| 0.66 |  | `topo` | `boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it` |
+| 0.66 |  | `sweep::all` | `m5_pr12_die::the_pip_caps_measure_through_the_closed_form` |
+| 0.66 |  | `editor-core::all` | `remap_reorders_ids::a_second_cut_of_a_union_seams_pieces_follows_it_too` |
+| 0.66 |  | `geom-brep::all` | `m5_pr7_ssi::the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set` |
+| 0.65 |  | `editor-core::all` | `eval10_section_reads_the_nominal::a_loft_on_a_face_frame_evaluates_at_dual_and_sym` |
+| 0.65 |  | `geom-brep::all` | `offb_r1_probes::r1_certify_offset_on_a_rational_fit_never_under_reports` |
+| 0.64 |  | `mesh::all` | `perf1_torus_sizing::torus_sizing_sweep_is_sound_tight_and_on_the_ideal` |
+| 0.64 |  | `sweep::all` | `rest_zip_admission::a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice` |
+| 0.64 |  | `editor-core::all` | `review_pick3_r2_probes::the_t_interval_encloses_the_exact_crossing_and_the_clamped_point` |
+| 0.64 |  | `geom-brep` | `patch_bound::tests::the_rational_cells_tile_each_span_at_the_second_orders_count` |
+| 0.64 |  | `sweep::all` | `near_tangent_pierce_poses::near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed` |
+| 0.63 |  | `topo::all` | `cleave_mint_doors::the_bare_wall_spec_certifies_at_f64` |
+| 0.63 |  | `geom-brep` | `props::quad::tests::hopeless_endpoint_brackets_refuse_at_the_budget` |
+| 0.63 |  | `geom-brep::all` | `m5_pr7_ssi::a_straight_branch_is_one_hermite_span_at_any_length` |
+| 0.63 |  | `topo` | `boolean::section_cert::section_cert_rows::every_torus_touch_holds_against_a_sampling_oracle` |
+| 0.62 |  | `editor-core::all` | `m4_pr3_names_ci::die_name_tables_are_golden` |
 | 0.62 | 0.82 | `topo::all` | `review_m3_pr55::d_die_21_pips_exact` |
+| 0.62 |  | `geom-brep::all` | `m5_pr7_ssi::shape_iii_bit_replay` |
+| 0.62 |  | `editor-core::all` | `fix_loop_polygon_expr::the_polygon_close_is_written_once_in_shipped_src` |
+| 0.62 |  | `geom-core::all` | `review_m5_pr7b_tensor::falsification_battery_no_finite_bound_undercuts_truth` |
+| 0.62 |  | `editor-core::all` | `docm9_range::the_certificate_is_inside_the_locally_valid_range` |
+| 0.62 |  | `sweep::all` | `join_reflex_wedge_probes::edge_edge_sites_at_a_reflex_wedge_build_sound` |
+| 0.62 |  | `mesh` | `nurbs_cert::tests::r1_rational_multiplicity_p_minus_one_dominated` |
+| 0.62 |  | `sweep::all` | `join_pierce_runs_sweep::a_strut_chain_at_a_shared_vertex_nests_another_pairs_strut_and_depth_three_hangs` |
+| 0.61 |  | `sweep::all` | `bool3_torus_doors::an_analytic_oracle_sweep_over_the_donut` |
+| 0.61 |  | `viewer::all` | `index_memo::the_gallery_ring_indexes_the_same_through_the_seam_across_edits` |
+| 0.61 |  | `editor-core::all` | `union_pinch_member_order::a_bridge_folded_after_both_wedges_seams_their_walls` |
+| 0.61 |  | `sweep::all` | `blend_band_reach::a_circular_band_meters_a_washer_through_its_ring_round_or_square` |
+| 0.60 |  | `sweep::all` | `m8_4_intersection_iso::a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row` |
+| 0.60 |  | `editor-core::all` | `m4_pr2_eval::a_side_flip_recomputes_its_cone_and_undo_restores_the_body` |
+| 0.60 |  | `sweep::all` | `m7_skin_integral::curved_path_sweep_body_builds_validates_and_brackets_pappus` |
+| 0.60 |  | `sweep::all` | `m5_pr12_die::the_pips_cut_in_one_group_operation_on_all_six_faces` |
+| 0.60 |  | `topo::all` | `a_vertex_read_by_two_sector_passes::a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op` |
+| 0.59 |  | `editor-core::all` | `m10_1_r2_probes::a_distribution_changes_no_content_key_naming_key_or_verdict` |
+| 0.59 |  | `editor-core::all` | `docm9_range::a_branch_change_is_a_decision_flip_and_names_the_predicate` |
+| 0.59 |  | `sweep::all` | `offc_r1_probes::a_skinned_base_approx_face_earns_the_germ_pair_refusal` |
+| 0.59 |  | `topo` | `ring_path::graze_rows::a_graze_at_a_smooth_vertex_never_decides_a_wrong_parity_at_any_scale` |
 | 0.58 | 3.94 | `topo::all` | `m5_pr7_split_meter::a_split_at_the_endpoint_band_escalates_or_refuses_in_metres` |
+| 0.58 |  | `sweep::all` | `bisector_nodes::the_family_re_posed_builds_the_same` |
+| 0.58 |  | `topo::all` | `records_cite_their_decision::an_operands_copies_on_one_key_stay_on_one_key_at_every_normal` |
+| 0.58 |  | `editor-core::all` | `docm9_range::a_decision_flips_within_contains_a_value_that_does_not_build` |
+| 0.58 |  | `sweep::all` | `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval` |
+| 0.57 |  | `geom-brep` | `props::quad::tests::q2_an_arc_trim_pads_its_lunes_and_the_pad_is_second_order` |
+| 0.57 |  | `viewer::all` | `display_budget::the_gallery_ring_at_the_starting_delta_is_inside_the_budget` |
+| 0.57 |  | `sweep::all` | `join_pierce_runs_sweep::three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch` |
+| 0.56 |  | `viewer` | `readout::tests::no_render_passes_the_character_bound` |
+| 0.56 |  | `viewer::all` | `display_budget::no_delta_renders_as_a_number_a_delta_cannot_be` |
+| 0.56 |  | `topo` | `ring_path::graze_rows::a_ruling_through_a_sections_vertex_reads_it_once` |
+| 0.56 |  | `sweep::all` | `pierce_tangent_off_face::a_brick_edge_touching_a_torus_inner_equator_in_its_mouth_builds` |
+| 0.56 |  | `sweep::all` | `join2_r1_probes::unions_through_ring_vertices_and_like_far_ends_build_sound` |
+| 0.55 |  | `topo` | `euler::tests::the_no_move_split_leaves_a_null_edge_at_rest_when_its_second_call_fails` |
+| 0.54 |  | `viewer::all` | `story_authoring::a_chess_rook_is_authored_probed_branched_and_reopened` |
+| 0.54 |  | `editor-core::all` | `m10_6_reports_interval::the_mc_tail_fraction_converges_on_the_accountings_tail` |
+| 0.54 |  | `sweep::all` | `far_thin_disc_sign::far_tilted_cut_discs_are_read_by_their_exact_volume` |
+| 0.53 |  | `editor-core::all` | `m10_3_driver_interval::a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined` |
+| 0.53 |  | `geom-brep` | `ssi::enclose::tests::the_derivative_box_dominates_the_dense_sampled_true_derivative` |
+| 0.53 |  | `stl::all` | `export::eps_rows_export_identical_bytes` |
+| 0.53 |  | `sweep::all` | `verbs_germarms2::seams_off_the_pinch_build_every_operation_at_the_closed_form` |
+| 0.52 |  | `editor-core::all` | `m10_4_r1_probes_interval::r1_rss_totality_and_the_fixed_parameter_door` |
+| 0.52 |  | `editor-core::all` | `msolve8_levered_clash::c2_parallel_boundary_through_doors` |
+| 0.52 |  | `sweep::all` | `join_pierce_runs_sweep::a_pinched_operands_pierces_of_one_point_mint_one_ring` |
+| 0.51 |  | `geom-brep::all` | `pcurve_general::a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_scalar` |
+| 0.51 |  | `editor-core::all` | `node_standing::every_node_result_reader_goes_through_usable_or_is_listed` |
+| 0.51 |  | `editor-core::all` | `docm4_evaluation_identity::a_matched_pair_gathers_bit_identically` |
+| 0.50 |  | `sweep::all` | `reach_split_gate_per_face::a_plane_missing_a_spline_body_returns_it_whole` |
+| 0.50 |  | `editor-core::all` | `decide_6_read_cost_interval::decide_6_the_profile_decides_nothing` |
 | 0.10 | 2.36 | `topo::all` | `a_seamless_pipe_cut_by_an_oblique_plane_measures::a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval` |
