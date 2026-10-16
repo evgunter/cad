@@ -140,15 +140,38 @@ fn joins_sound(what: &str, mut body: Body<f64>) {
 /// **A station cut either side of `sin θ · s = Kε` builds and joins
 /// back sound**, at `sin θ` = 0.5, 0.1 and 0.02: the piece's wedge is
 /// levered at its faces' extent, not at its own length, so neither cut
-/// mints a piece the band holds.
+/// mints a piece the band holds. The cut keeps the D ∩ brick's volume,
+/// the unit disc's segment beyond `x = c` (`θ − sin θ cos θ`) over the
+/// unit height, and its material: a point inside the segment is in, one
+/// on the D short of `x = c` out. The cut's `Transversality` refusal
+/// this row pinned before has no row now
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn a_station_on_the_line_edge_refuses_at_its_cut_under_k_eps_and_joins_past_it() {
+fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
+    use topo::SolidContainment::{In, Out};
     let k = band().escalate();
     for sin in [0.5, 0.1, 0.02] {
+        let theta = f64::asin(sin);
+        let c = theta.cos();
+        let exact = theta - sin * c;
         for frac in [0.95, 1.05] {
             let what = format!("sin θ = {sin}, sin θ · s = {frac} Kε");
             let cut = station(sin, frac * k / sin)
                 .unwrap_or_else(|e| panic!("{what}: the cut builds, got {e:?}"));
+            let v = topo::mass_properties(&cut, tol()).unwrap().volume;
+            assert!(
+                (v - exact).abs() <= 1e-9 * exact,
+                "{what}: the volume is the segment's, {v:e} vs {exact:e}"
+            );
+            let held = |p: Point3<f64>| topo::point_in_solid(&cut, p, band(), tol()).unwrap();
+            assert_eq!(
+                [
+                    held(Point3::new(0.5 * (c + 1.0), 0.0, 0.5)),
+                    held(Point3::new(0.5 * c, 0.0, 0.5)),
+                ],
+                [In, Out],
+                "{what}: the segment holds its material"
+            );
             joins_sound(&what, cut);
         }
     }

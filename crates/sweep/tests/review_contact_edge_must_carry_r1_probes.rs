@@ -461,9 +461,11 @@ fn pair_edges(body: &Body<f64>) -> usize {
 /// request builds, tier-3 valid, with every one of the 48 contact
 /// edges the intrinsic tangency (the vent's two chart edges are the
 /// boolean's). The radius is `8.7e-5` on the 4 m block at the default
-/// ε, the WHOLE fixture scaled with `ε` across the rows.
+/// ε, the WHOLE fixture scaled with `ε` across the rows. The arc's
+/// in-band and under-determined verdicts these poses reached have no
+/// row now (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts() {
+fn r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency() {
     let b = band();
     let scale = b.zero() / 1e-9;
     let r = 8.7e-5 * scale;

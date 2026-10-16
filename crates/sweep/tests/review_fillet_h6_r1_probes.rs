@@ -43,9 +43,12 @@ fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
 /// The worst admitted obliquity on the tightest admitted rim: every
 /// cap rim is the faces' corner. At K = 10 a rim levered at its own
 /// length would read in band at `f = 1.002` (9.97ε); run with
-/// `CAD_AMBIGUITY_K=1.1` it would read smooth.
+/// `CAD_AMBIGUITY_K=1.1` it would read smooth. The cap rim's
+/// `SliverRim` and at-rest `MaterialPairing` arms this row reached
+/// then have no row now
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
+fn worst_admitted_obliquity_on_a_tight_rim_is_the_faces_corner() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let w = Vec3::new(eps, 0.0, k * eps);

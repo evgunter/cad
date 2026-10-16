@@ -146,10 +146,17 @@ fn volume(body: &Body<f64>) -> f64 {
 /// ~10 m is up to ~1e-15 m³, measured on exact slivers at ε from 1e-6
 /// to 1e-12 (it returns half of a 4e-19 m³ tetrahedron with exact
 /// corners, and −3e-16 for a 6e-19 one). A thousand times that keeps
-/// the 1% check honest. Below it the corner set, which fixes the sliver
-/// and so its volume, is the oracle. The door's error is filed:
+/// a volume check honest. Below it the corner set, which fixes the
+/// sliver and so its volume, is the oracle. The door's error is filed:
 /// `work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`.
 const RESOLVED_VOLUME: f64 = 1e-12;
+
+/// How far a measured volume may stand from its closed form, in m³:
+/// ten times the volume door's measured absolute error on these
+/// fixtures ([`RESOLVED_VOLUME`]'s note), so a sliver is held to its
+/// closed form to about 1% of the smallest volume these rows trust, and
+/// far tighter on every larger one.
+const VOLUME_DOOR_ERROR: f64 = 1e-14;
 
 /// Every op on `(solid, tool)` answers: `solid ∩ tool` has exactly the
 /// sliver's `corners` (within the band) and, where the volume door
@@ -180,7 +187,7 @@ fn answers(
     if overlap >= RESOLVED_VOLUME {
         let v = volume(&meet);
         assert!(
-            (v - overlap).abs() <= 1e-2 * overlap,
+            (v - overlap).abs() <= VOLUME_DOOR_ERROR,
             "{what}: ∩ is the sliver: {v:e} vs {overlap:e}"
         );
     }
@@ -494,7 +501,7 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     has_corners(&cut, &corners, "tool − block");
     let v = volume(&cut);
     assert!(
-        (v - sliver).abs() <= 1e-2 * sliver,
+        (v - sliver).abs() <= VOLUME_DOOR_ERROR,
         "tool − block is the sliver: {v:e} vs {sliver:e}"
     );
     assert_eq!(
@@ -632,7 +639,7 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
     if sliver(e) >= RESOLVED_VOLUME {
         let v = volume(below);
         assert!(
-            (v - sliver(e)).abs() <= 1e-2 * sliver(e),
+            (v - sliver(e)).abs() <= VOLUME_DOOR_ERROR,
             "the below part is the sliver: {v} vs {}",
             sliver(e)
         );
