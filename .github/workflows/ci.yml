@@ -71,6 +71,7 @@ jobs:
       run_demos: ${{ steps.paths.outputs.demos }}
       run_tools: ${{ steps.paths.outputs.tools }}
       eps_extra: ${{ steps.paths.outputs.eps_extra }}
+      base: ${{ steps.base.outputs.sha }}
     steps:
       # A dispatch naming a PR gates that PR's test merge with its base, as
       # the PR's own pull_request run would, pinned by sha so every job reads
@@ -144,6 +145,11 @@ jobs:
             sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
           fi
           tee -a "$GITHUB_OUTPUT" < filter.out
+      # The test job's new-test bar diffs against this; an unscoped run has
+      # no base, and every test it runs meets the backstop.
+      - name: the base the diff is read against
+        id: base
+        run: if [ -f base.txt ]; then echo "sha=$(git rev-parse "$(cat base.txt)")" | tee -a "$GITHUB_OUTPUT"; fi
       - name: direct-path rows (the diff, not the closure)
         id: paths
         env:
@@ -241,6 +247,8 @@ jobs:
         run: |
           python3 scripts/slow_set.py --selftest
           python3 scripts/check-slow-set-names.py --selftest
+      - name: fast-set time check self-test
+        run: python3 scripts/check-fast-set-times.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
@@ -333,17 +341,31 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
+      - name: the tests this diff adds (the default-eps step holds them to the 0.5 s bar)
+        env:
+          BASE: ${{ needs.filter.outputs.base }}
+        run: |
+          touch "$RUNNER_TEMP/new-tests.txt"
+          if [ -n "$BASE" ]; then
+            git fetch -q --no-tags --depth=1 origin "$BASE"
+            scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
+          fi
+          echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
       - name: build
         id: build
         run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
-      - name: test (default eps)
+      - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           rc=0
           cargo nextest run --profile ci ${{ needs.filter.outputs.cargo_scope }} \
             ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
+          # Before nextest-failures.py, which deletes the junit report.
+          slow=0
+          scripts/check-fast-set-times.py "default eps" "$rc" "$RUNNER_TEMP/new-tests.txt" || slow=$?
           scripts/nextest-failures.py "default eps" "$rc"
+          [ "$rc" != 0 ] || rc=$slow
           exit $rc
       - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates and test files this diff touches)
         if: '!cancelled() && needs.filter.outputs.eps_extra != '''''
@@ -401,9 +423,9 @@ jobs:
           cargo nextest list --ignore-default-filter $SCOPE --message-format json \
             | python3 scripts/check-slow-set-names.py $complete
       # Last, so the failing rows close the log whatever ran after them.
-      - name: failing tests (name, panic, seed)
+      - name: failing tests (name, panic, seed) and slow fast-set tests
         if: failure()
-        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed or ran slow; the red is in another step"
 
   viewer:
     name: viewer app feature (eframe + wgpu, wasm32)
