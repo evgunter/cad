@@ -1678,9 +1678,15 @@ impl Doc {
     }
 
     /// The document's nodes in id order, which is the order they were
-    /// inserted in.
+    /// inserted in. The world (`Doc.world`) is no inserted node, so it
+    /// is not among them, as `node_count` does not count it.
     fn order(&self) -> Vec<NodeId> {
-        self.inner.ids().into_iter().map(NodeId).collect()
+        self.inner
+            .ids()
+            .into_iter()
+            .filter(|&id| id != d::RecipeNodeId::WORLD)
+            .map(NodeId)
+            .collect()
     }
 
     /// **The document's named free parameters**, by name, in

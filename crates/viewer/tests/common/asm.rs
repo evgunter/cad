@@ -265,7 +265,9 @@ pub fn copy(
 /// instance copies is authored into the file before a session opens it.
 pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeNodeId {
     let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
-    let mut doc = pncad::document::load(&text, tol).expect("the assembly loads").doc;
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
     let reads = members
         .iter()
         .map(|&member| copy(bench, &doc, member))
@@ -522,19 +524,30 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
 /// only the shelf's constraints read, keeps its own. Committed, each
 /// pumped.
 pub fn refuse_shelf(session: &mut DocSession, bench: &Bench) -> Refused {
-    unpin(session, bench.post_b);
+    refuse_shelf_chaining(session, bench, bench.post_b, bench.post_a)
+}
+
+/// [`refuse_shelf`] with `chained` seated under the shelf and the
+/// shelf's two rests on `rest_on`.
+pub fn refuse_shelf_chaining(
+    session: &mut DocSession,
+    bench: &Bench,
+    chained: RecipeNodeId,
+    rest_on: RecipeNodeId,
+) -> Refused {
+    unpin(session, chained);
     let sound = super::commit_mate(
         session,
         seat_op(
             bench,
-            bench.post_b,
+            chained,
             pncad::select::ContactClass::Rest,
             middle_seat_alignment(),
         ),
     );
     unpin(session, bench.shelf_i);
-    let held = super::commit_mate(session, shelf_rest_op(bench, bench.post_a, 0.0));
-    let offender = super::commit_mate(session, shelf_rest_op(bench, bench.post_a, 0.01));
+    let held = super::commit_mate(session, shelf_rest_op(bench, rest_on, 0.0));
+    let offender = super::commit_mate(session, shelf_rest_op(bench, rest_on, 0.01));
     Refused {
         sound,
         held,

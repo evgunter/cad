@@ -338,7 +338,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(
         common::world(session.committed_doc()),
         [carved],
-        "the world is one copy: the rook"
+        "the world is one copy: the rook: {:?}",
+        common::world(session.committed_doc())
+            .into_iter()
+            .map(|node| session.committed_doc().spoken(node).to_string())
+            .collect::<Vec<_>>()
     );
     let carved_doc = session.committed_doc().clone();
 

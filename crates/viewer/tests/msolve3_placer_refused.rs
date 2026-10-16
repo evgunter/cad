@@ -18,8 +18,8 @@ use pncad::document::ExtrudeSide;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
     Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    Mate, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SideRead, SlotId, evaluate,
+    Mate, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SideRead, SlotId, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -43,9 +43,8 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **The finding's document, through the tree the chrome draws.**
-/// The mate's row must state the direction refusal; the pattern's row
-/// is `Poisoned` through the mate, which is exactly why the row that
-/// names the cause has to be this one.
+/// The row of the placement the mate places must state the direction
+/// refusal and link to the pattern, whose own row fails beside it.
 #[test]
 fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let tol = Tol::witness();
@@ -77,15 +76,17 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         DocEdit::AddConstraint {
             placement: cap,
             mate: Box::new(Mate {
-                a: SideRead::Face((common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, leg_body, CapEnd::End).into(),
-                }],
-            }))
-            .into()),
+                a: SideRead::Face(
+                    (common::head(StableName {
+                        kind: EntityKind::Face,
+                        node: pattern,
+                        path: vec![RoleSeg::Instance {
+                            i: 1,
+                            of: in_part(legs, leg_body, CapEnd::End).into(),
+                        }],
+                    }))
+                    .into(),
+                ),
                 b: SideRead::Face(common::head(in_part(cap, top_body, CapEnd::Start)).into()),
                 class: ContactClass::Rest,
                 alignment: Alignment {
@@ -124,10 +125,11 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "Mate {} failed: the mate solve refused: this mate's a reference has no \
-             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
-             Pattern {p}",
+            "InstantiatePart {} failed: the mate solve refused: constraint {c} of this \
+             node's a reference has no derived pose: Pattern {p}, on its derivation, \
+             refuses. Recourse: repair Pattern {p}",
             test_utils::refusal::tag(mate.0.digest()),
+            c = crate::fixture::bundle(&doc, cap)[0].id,
             p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
@@ -149,19 +151,19 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         "the row carries the cause the evaluation typed, as its own line, in this document"
     );
 
-    // The compensation the old design rested on, measured: the
-    // pattern's own row cannot state the cause, because the mate
-    // fault poisoned it.
+    // The pattern's own row states its own cause too: the placement's
+    // fault reads the pattern, and a bundle's reads poison nothing
+    // upstream of them.
     let placer = common::row_of(&rows, pattern);
     assert!(
-        matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
-        "the pattern is poisoned through the mate: {:?}",
+        matches!(placer.status, RowStatus::Failed { .. }),
+        "the pattern fails on its own: {:?}",
         placer.status
     );
 
-    // So the mate's row LINKS to the pattern its words name: the node
-    // an author goes and fixes is one click from the words, and it is
-    // the only link any row draws beside a `Poisoned` pointer.
+    // And the placement's row LINKS to the pattern its words name: the
+    // node an author goes and fixes is one click from the words, and it
+    // is the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
         row.repair_at.as_ref().map(|at| at.id()),
         Some(pattern),

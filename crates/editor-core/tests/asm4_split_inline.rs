@@ -36,13 +36,12 @@ use std::sync::Arc;
 
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx` (the asm2a fixture).
-/// **Positions** in a `part` document's node order — the world every
-/// document holds first, then its sketch frame, the profile drawn on
-/// it, and the extrude that is its body. These index `doc.ids()`; they
-/// are not node ids.
-const PLANE_POSITION: usize = 1;
-const PROFILE_POSITION: usize = 2;
-const BODY_POSITION: usize = 3;
+/// **Positions** in a `part` document's node order — its sketch frame,
+/// the profile drawn on it, and the extrude that is its body. These
+/// index `doc.ids()`; they are not node ids.
+const PLANE_POSITION: usize = 0;
+const PROFILE_POSITION: usize = 1;
+const BODY_POSITION: usize = 2;
 
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());

@@ -3113,7 +3113,7 @@ fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
     let (landed_doc, _) = session.landed_pair().expect("a landed pair");
     assert_eq!(
         rows.len(),
-        landed_doc.ids().len(),
+        landed_doc.len(),
         "the tree describes the landed document, which is what is drawn"
     );
     session.pump();
@@ -3527,8 +3527,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // itself, which is the join's rule.
     let post = test_utils::refusal::tag(bench.post_b.0.digest());
     let mate_node = format!(
-        "constraint {} of InstantiatePart {}",
-        landed.id,
+        "a constraint of InstantiatePart {}",
         test_utils::refusal::tag(landed.placement.0.digest())
     );
     assert_eq!(

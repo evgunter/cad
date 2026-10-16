@@ -394,8 +394,8 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 /// tree names** — over one bundle refusal, the chained node the kernel
 /// reports as its own `Failed` and the node it poisons through it.
 ///
-/// The kernel's standing for `post_b` is `Failed` and for the union is
-/// poisoned through `post_b`; the tree draws both downstream of the
+/// The kernel's standing for `post_a` is `Failed` and for the union is
+/// poisoned through `post_a`; the tree draws both downstream of the
 /// refused shelf. The properties panel's verdict on a picked face, the
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
 /// door and the blend loader each carry a standing, and each must
@@ -413,13 +413,13 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
-    let boolean = common::asm::store_union(&bench, &[bench.post_b, bench.shelf_i], tol);
+    let boolean = common::asm::store_union(&bench, &[bench.post_a, bench.shelf_i], tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    // A face of post_b, selected and held while it still resolves.
+    // A face of post_a, selected and held while it still resolves.
     let face = FaceSelection {
-        name: common::asm::in_part(bench.post_b, &bench.post_top),
-        node: bench.post_b,
+        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        node: bench.post_a,
         body: 0,
     };
     let outcome = session.perform(SessionOp::Select(Selection::Face(face.clone())));
@@ -433,7 +433,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     mate_tool.pick(session.doc(), face.clone());
     let index = common::asm::index_of(&session);
 
-    common::asm::refuse_shelf(&mut session, &bench);
+    common::asm::refuse_shelf_chaining(&mut session, &bench, bench.post_a, bench.post_b);
     let offender = bench.shelf_i;
 
     let rows = session.tree_rows();
@@ -441,15 +441,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     // The premise that makes this row a test: the kernel's own standing
     // for each node is NOT the tree's.
     assert_eq!(
-        ev.usable(bench.post_b).err(),
-        Some(NodeStanding::Failed { node: bench.post_b }),
+        ev.usable(bench.post_a).err(),
+        Some(NodeStanding::Failed { node: bench.post_a }),
         "the kernel reports the chained instance as its own failure"
     );
     assert_eq!(
         ev.usable(boolean).err(),
         Some(NodeStanding::Poisoned {
             node: boolean,
-            through: bench.post_b
+            through: bench.post_a
         }),
         "and poisons the boolean through it"
     );
@@ -458,18 +458,18 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         RowStatus::Poisoned { through, .. } => NodeStanding::Poisoned { node: id, through },
         other => panic!("the tree draws {id:?} downstream, got {other:?}"),
     };
-    let post_b = drawn(bench.post_b);
+    let post_a = drawn(bench.post_a);
     assert_eq!(
-        post_b,
+        post_a,
         NodeStanding::Poisoned {
-            node: bench.post_b,
+            node: bench.post_a,
             through: offender
         },
-        "the tree points post_b at the refused shelf"
+        "the tree points post_a at the refused shelf"
     );
     let two_hop = drawn(boolean);
     assert_eq!(
-        tree::cause_row(bench.post_b, ev),
+        tree::cause_row(bench.post_a, ev),
         Some(offender),
         "cause_row"
     );
@@ -478,7 +478,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     match session.standing() {
         Standing::Face { resolution, .. } => assert_eq!(
             resolution.as_deref(),
-            Some(&indeterminate(post_b)),
+            Some(&indeterminate(post_a)),
             "the properties panel's verdict on the picked face"
         ),
         other => panic!("the face stays selected, got {other:?}"),
@@ -486,14 +486,14 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     match mate_tool.reconcile(doc, ev).as_slice() {
         [MateToolEvent::PickLost { resolution, .. }] => assert_eq!(
             **resolution,
-            indeterminate(post_b),
+            indeterminate(post_a),
             "the mate tool's dropped pick"
         ),
         other => panic!("the mate tool drops its one pick, got {other:?}"),
     }
     // Each refusal carrying the standing whole says its nodes as the
-    // document holds them: post_b by its kind, never `node <tag>`.
-    let post_b_said = doc.spoken(bench.post_b).to_string();
+    // document holds them: post_a by its kind, never `node <tag>`.
+    let post_a_said = doc.spoken(bench.post_a).to_string();
     let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
     match &seat {
         Err(
@@ -502,19 +502,19 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
                 ..
             },
         ) => {
-            assert_eq!(*standing, post_b, "the sketch-on-face seat");
+            assert_eq!(*standing, post_a, "the sketch-on-face seat");
             assert!(
-                fault.to_string().contains(&post_b_said),
-                "the seat's refusal speaks post_b: {fault}"
+                fault.to_string().contains(&post_a_said),
+                "the seat's refusal speaks post_a: {fault}"
             );
         }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(doc, ev, &bench.post_b.into(), tol) {
+    match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
-            assert_eq!(standing, post_b, "the duplicate door, post_b");
+            assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
-        other => panic!("the duplicate door refuses post_b, got {other:?}"),
+        other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
     match viewer::combine::duplicate_step(doc, ev, &boolean.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
@@ -523,23 +523,23 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
     }
     let target = BlendTarget {
-        node: bench.post_b,
+        node: bench.post_a,
         body: 0,
     };
     match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
-            assert_eq!(standing, post_b, "the blend loader");
+            assert_eq!(standing, post_a, "the blend loader");
         }
-        other => panic!("the blend loader refuses post_b, got {other:?}"),
+        other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The mate tool's frame read, on a pick of post_b and one of post_a.
+    // The mate tool's frame read, on a pick of post_a and one of post_b.
     let mut both = MateTool::new();
     both.pick(session.doc(), face.clone());
     both.pick(
         session.doc(),
         FaceSelection {
-            name: common::asm::in_part(bench.post_a, &bench.post_top),
-            node: bench.post_a,
+            name: common::asm::in_part(bench.post_b, &bench.post_top),
+            node: bench.post_b,
             body: 0,
         },
     );
@@ -550,10 +550,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
                 ..
             },
         ) => {
-            assert_eq!(*standing, post_b, "the mate tool's frame read");
+            assert_eq!(*standing, post_a, "the mate tool's frame read");
             assert!(
-                refused.to_string().contains(&post_b_said),
-                "the mate tool's refusal speaks post_b: {refused}"
+                refused.to_string().contains(&post_a_said),
+                "the mate tool's refusal speaks post_a: {refused}"
             );
         }
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
@@ -844,8 +844,8 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 #[test]
 fn child_band_refusal_rows() {
     use pncad::document::{
-        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, Node,
-        NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
+        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, NodeErrorKind,
+        ProfileDoc, RecipeNodeId, apply, content_pin,
     };
     use pncad::geom_core::Band;
     use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -882,13 +882,14 @@ fn child_band_refusal_rows() {
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    // A third instance, which no mate could touch: every instance is
-    // its own singleton group here, and the row that decides whether
-    // this refusal is a group's or the run's is that ALL of them
-    // refuse.
-    let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    // Each instance's bundle empty: even its world pin is a constraint,
+    // which the door refuses where no band exists (DOOR 2a).
+    let a = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
+    let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
+    // A third instance, which no mate could touch: the row that decides
+    // whether this refusal is one placement's or the run's is that ALL
+    // of them refuse.
+    let lone = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
     let face_of = |instance| {
         common::head(StableName {
             kind: EntityKind::Face,
@@ -1505,7 +1506,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
         common::row_of(&rows, bench.post_b).constraints,
         vec![ConstraintRow {
             mate: seat,
-            said: format!("rest mate {}", seat.id),
+            said: "constraint 1: Rest mate".to_owned(),
         }],
         "post_b's row carries the seat that places it"
     );
@@ -1514,7 +1515,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
         common::row_of(&rows, bench.shelf_i).constraints,
         vec![ConstraintRow {
             mate: pin,
-            said: format!("world pin {}", pin.id),
+            said: "constraint 1: world pin".to_owned(),
         }],
         "the shelf's row carries the pin it stands on"
     );

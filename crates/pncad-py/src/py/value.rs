@@ -950,6 +950,11 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
                 Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
+            // An instance's copies as one body — its part's world — carry
+            // the declarations that part's product minted.
+            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
+                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
+            }
             _ => Body::plain(Arc::clone(body)),
         }
     }
@@ -983,7 +988,7 @@ impl Value {
                 self.node,
             )),
             d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-                Ok(Body::plain(Arc::clone(&copies.bodies[0])))
+                Ok(self.recorded_body(&copies.bodies[0]))
             }
             other => Err(eval_err(
                 py,
@@ -1378,7 +1383,8 @@ impl Evaluation {
         self.inner.value(node.0).is_some()
     }
 
-    /// The evaluation order.
+    /// The evaluation order: every node the evaluation ran or would
+    /// run, the world (`Doc.world`) among them.
     fn order(&self) -> Vec<NodeId> {
         self.inner.order.iter().copied().map(NodeId).collect()
     }

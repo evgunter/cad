@@ -22,10 +22,9 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label,
-    Mate, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId,
-    SideRead, content_pin,
-    evaluate,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Mate,
+    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
+    content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -262,9 +261,11 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         .expect("the broken part stores");
 
     let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
+    // The instance's bundle empty, so it is no root of the bracket's
+    // product of its own: the transform's placement is.
     let inner = common::insert_into(
         &mut bracket,
-        Node::instantiate_part(reference(&broken, tol)),
+        crate::fixture::mated_instance(reference(&broken, tol)),
         tol,
     );
     let bracket_root = common::insert_into(

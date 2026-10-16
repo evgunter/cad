@@ -110,8 +110,9 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
 /// A document whose one instance, of `below`, it places in its world.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(below));
-    (fixture::place(doc, instance).0, instance)
+    // An instance is its own placement, pinned to the world: a `Place`
+    // over it would copy the whole part a second time at every level.
+    insert(doc, Node::instantiate_part(below))
 }
 
 /// A store holding the leaf and `levels` documents above it, each

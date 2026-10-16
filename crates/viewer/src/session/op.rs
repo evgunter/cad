@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, MateRef,
-    Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
+    MateRef, Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -459,7 +459,8 @@ pub enum SessionOp {
     /// the copy it places (`DocEdit::AddConstraint`, the placement
     /// `session::mate_placement` names) — the mate tool's single
     /// committed edit. A mate the bundle already fixes refuses at the
-    /// edit door (`MateFault::Overconstrained`) and is never dropped. Everything before it (the two
+    /// edit door (`MateFault::Overconstrained`, or `TargetsDiffer` beside
+    /// a world pin) and is never dropped. Everything before it (the two
     /// picks, the class choice, the derived frames) is tool state; the
     /// document transition is this op alone, entering at the same
     /// commit door as every other edit: one apply, one history state,
@@ -1093,8 +1094,7 @@ impl SessionOp {
     #[must_use]
     pub fn creates_a_node(&self) -> bool {
         match self {
-            Self::AddMate { .. }
-            | Self::AddDatum { .. }
+            Self::AddDatum { .. }
             | Self::AddProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1108,7 +1108,9 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
-            Self::Select(_)
+            // A mate is a constraint in a placement's bundle, no node.
+            Self::AddMate { .. }
+            | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }

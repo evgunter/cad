@@ -281,7 +281,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: PlaceInWorld "joined" ('
+        spoken = 'check connectedness: Place "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -396,7 +396,6 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
         )
-        doc.place(instance)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):

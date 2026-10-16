@@ -394,19 +394,22 @@ pub struct ConstraintRow {
     pub said: String,
 }
 
-/// **What a constraint is, as its child row says it**: `world pin 7`
-/// for a copy pinned to the world by its own frame, `rest mate 7` (its
-/// contact class's name) for any other.
-pub fn constraint_said(constraint: &Constraint) -> String {
+/// **What a constraint is, as its child row says it**: its 1-based
+/// position in its bundle (`at`), then `world pin` for a copy pinned to
+/// the world by its own frame, or its contact class's name and `mate`
+/// for any other — `constraint 1: world pin`, `constraint 2: Rest mate`.
+/// Never its minted id, which is an arena key and no word a person
+/// reads.
+pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     let mate = &constraint.mate;
     let pin = matches!(
         (&mate.a, &mate.b),
         (SideRead::World, SideRead::Copy) | (SideRead::Copy, SideRead::World)
     );
     if pin {
-        format!("world pin {}", constraint.id)
+        format!("constraint {at}: world pin")
     } else {
-        format!("{} mate {}", mate.class.name(), constraint.id)
+        format!("constraint {at}: {} mate", mate.class.name())
     }
 }
 
@@ -416,9 +419,10 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
     match node {
         Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
             .iter()
-            .map(|constraint| ConstraintRow {
+            .enumerate()
+            .map(|(at, constraint)| ConstraintRow {
                 mate: MateRef::new(id, constraint.id),
-                said: constraint_said(constraint),
+                said: constraint_said(at + 1, constraint),
             })
             .collect(),
         _ => Vec::new(),

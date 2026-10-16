@@ -630,7 +630,7 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
-    let target = part_doc.ids()[1];
+    let target = part_doc.ids()[0];
     match editor_core::apply(
         &part_doc,
         &DocEdit::AddConstraint {
@@ -1002,7 +1002,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"), Tol::witness());
         insert(doc, Node::instantiate_part(missing)).0
     };
-    let inner_root = broken.ids()[1];
+    let inner_root = broken.ids()[0];
     let placement = broken.placements()[0];
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);

@@ -412,15 +412,17 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         SessionOp::AddInstance { id: bench.post.id },
         "third post",
     );
-    run(
-        &mut session,
-        asm::seat_op(
+    // A mate is a constraint in a placement's bundle and makes no node,
+    // so it is no creation and takes no label.
+    assert!(
+        Creation::of(asm::seat_op(
             &bench,
             bench.post_b,
             ContactClass::Tangent,
             asm::middle_seat_alignment(),
-        ),
-        "seat",
+        ))
+        .is_err(),
+        "a mate creates no node"
     );
 
     let dir = common::tempdir("node-labels-every-creation-roster");

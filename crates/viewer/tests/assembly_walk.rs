@@ -68,10 +68,10 @@ fn the_exit_demo_walk() {
         "resolution is against the opened document's directory"
     );
 
-    // ── 3. RESOLVE: the tree shows the three instances and their
-    // world placements, every row ok.
+    // ── 3. RESOLVE: the tree shows the three instances, each its own
+    // placement, every row ok.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 6, "three instances, three placements");
+    assert_eq!(rows.len(), 3, "three instances, each its own placement");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -176,6 +176,11 @@ fn the_exit_demo_walk() {
     // instance's placement); the session commits exactly one edit —
     // and the SAME outcome reports the free-move superseded:
     // discarded, not zeroed.
+    // post_b's world pin comes off first, so the mate places post_b
+    // rather than refusing beside the pin; a copy no constraint names
+    // keeps its probe.
+    asm::unpin(&mut session, bench.post_b);
+    assert!(session.display().free_move_of(bench.post_b).is_some());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -304,10 +309,15 @@ fn the_exit_demo_walk() {
     let rows = reopened.tree_rows();
     assert_eq!(
         rows.len(),
-        7,
-        "three instances, their three placements and the mate"
+        3,
+        "three instances, the mate a child of post_b's row"
     );
-    assert!(rows.iter().any(|row| row.spoken.kind() == Some("Mate")));
+    assert!(
+        common::row_of(&rows, bench.post_b)
+            .constraints
+            .iter()
+            .any(|child| child.said.ends_with("Rest mate"))
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

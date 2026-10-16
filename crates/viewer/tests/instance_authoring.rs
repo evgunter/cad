@@ -134,8 +134,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The shipped mate tool's op takes them from here. Both instances
     // stand pinned, so the mate joins the shelf's bundle, which its pin
-    // already fixes: the door refuses it overconstrained, typed, and
-    // commits nothing — a mate beyond the pin is never dropped silently.
+    // already fixes: the door refuses it typed — overconstrained, or,
+    // while a bundle relates its copy to one target, as a second target
+    // beside the world — and commits nothing. A mate beyond the pin is
+    // never dropped silently.
     let seat = || {
         asm::seat_op_under(
             &bench,
@@ -155,10 +157,11 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
                     if matches!(
                         fault.as_ref(),
                         pncad::document::MateFault::Overconstrained { placement, .. }
+                        | pncad::document::MateFault::TargetsDiffer { placement, .. }
                             if *placement == shelf_i
                     )
             ),
-            "the shelf's bundle is overconstrained: {error}"
+            "the shelf's bundle refuses the mate beyond its pin: {error}"
         ),
         other => panic!("a mate beyond the pin refuses, got {other:?}"),
     }

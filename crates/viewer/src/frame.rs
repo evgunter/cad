@@ -3851,12 +3851,15 @@ mod tests {
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
         let one = superseded_text(&[constrained(3, &[5])]).expect("one supersession is news");
+        let (placement, _) = constraint_of(5);
         assert_eq!(
             one,
-            "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
-             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended"
+            format!(
+                "free move: a committed placement was discarded — \
+                 InstantiatePart 000000000003 is mate-constrained (a constraint of \
+                 {placement}): its pose is mate-derived, so the free-move probe refuses — \
+                 delete the mate(s) if free relative motion is intended"
+            )
         );
 
         let two = [constrained(3, &[5]), constrained(11, &[5])];

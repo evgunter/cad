@@ -1934,9 +1934,10 @@ walk ends on otherwise.
 
 **A mate beyond the pin refuses, typed.** An instance enters standing
 on one world pin, so a mate between two pinned copies joins a bundle
-the pin already fixes, and the edit door refuses it
-`MateFault::Overconstrained` (as `Refusal::Edit`), committing nothing;
-the mate is never dropped. Taking a pin off is
+the pin already fixes, and the edit door refuses it (as
+`Refusal::Edit`) — `MateFault::Overconstrained`, or `TargetsDiffer`
+while a bundle relates its copy to one target and its pin reads the
+world — committing nothing; the mate is never dropped. Taking a pin off is
 `SessionOp::RemoveConstraint`, one `DocEdit::RemoveConstraint`; a copy
 its bundle no longer pins is a loose copy in its own space, which is
 no refusal.

@@ -265,9 +265,9 @@ fn the_windmill_story() {
         "the slip's branch is still a child"
     );
     assert_eq!(
-        history.entry(abandoned).doc().ids().len(),
-        4,
-        "the abandoned two-tower document is intact, each tower placed"
+        history.entry(abandoned).doc().len(),
+        2,
+        "the abandoned two-tower document is intact, each tower its own placement"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
@@ -863,9 +863,9 @@ fn the_windmill_story() {
         clocked.committed
     );
     assert_eq!(
-        session.doc().ids().len(),
-        11,
-        "the history holds the four placed instances and three mates it held before"
+        session.doc().len(),
+        4,
+        "the history holds the four placed instances it held before, their mates in their bundles"
     );
     session.pump();
     for row in session.tree_rows() {

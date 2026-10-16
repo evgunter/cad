@@ -289,7 +289,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
-    assert!(session.committed_doc().ids().is_empty(), "back to empty");
+    assert!(session.committed_doc().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(
         at_root.refusal,
@@ -378,7 +378,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
         DocumentId::derive("fresh-part"),
         "the id is authored at creation from the typed name"
     );
-    assert!(doc.ids().is_empty(), "an empty document");
+    assert!(doc.is_empty(), "an empty document");
     assert_eq!(session.selection(), &Selection::None);
     assert!(session.hover().is_none(), "hover cleared");
     assert!(session.path().is_none(), "no backing file until saved");
@@ -1197,7 +1197,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         "the frame and the profile are one action's two edits"
     );
     let doc = session.committed_doc();
-    let order = doc.ids().to_vec();
+    let order = common::authored_ids(doc);
     assert_eq!(order.len(), 2, "two nodes and no more");
     let (frame, profile) = (order[0], order[1]);
     assert!(
@@ -1219,7 +1219,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        session.committed_doc().ids().is_empty(),
+        session.committed_doc().is_empty(),
         "one undo took the whole gesture, frame included"
     );
 }
@@ -1246,7 +1246,7 @@ fn a_refused_new_xy_profile_leaves_the_document_untouched() {
         outcome.committed
     );
     assert!(
-        session.committed_doc().ids().is_empty(),
+        session.committed_doc().is_empty(),
         "and no frame was left behind for the refusal to strand"
     );
 }
@@ -1270,7 +1270,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
         })],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let frame = session.committed_doc().ids()[0];
+    let frame = common::authored_ids(session.committed_doc())[0];
     session.pump();
     let ev = session.evaluation().expect("the document evaluated");
     let landed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
@@ -1319,7 +1319,7 @@ fn a_new_xy_action_mints_the_frame_before_the_profile() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    let order = doc.ids().to_vec();
+    let order = common::authored_ids(doc);
     assert_eq!(
         outcome.minted, order,
         "both ids, in the order the action applied them: {:?}",

@@ -59,10 +59,11 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Mate, Node, Operand, OperandSlot,
-    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SideRead, SitedFace,
-    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
-    parse_formula, product_recorded, run_checks_at_rest_on,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Mate, Node, Operand,
+    OperandSlot, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded,
+    Recording, SideRead, SitedFace, SlotId, StepId, Subject, VarId, VarName, apply,
+    assemble_gathered, cascade_delete_order, parse_formula, product_recorded,
+    run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2953,7 +2954,7 @@ impl DocSession {
         rotation_axis: [Formula; 3],
         rotation_angle: Formula,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
         }
         // Total, as the other lowerings are: slot dimensions are the
@@ -2986,7 +2987,7 @@ impl DocSession {
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
         }
         if let PatternRuleSpec::Circular { axis, .. } = rule
@@ -3176,6 +3177,22 @@ impl DocSession {
                 }),
             },
         }
+    }
+
+    /// **The gate a placer's input asks**: a body, or a placement's
+    /// copies, moved by transforms or not ([`moves_copies`]) — a
+    /// transform or a pattern of an instance places its copies, which
+    /// the kernel's placer seat admits
+    /// (`SlotKind::Placeable`). Anything else is refused as a body seat
+    /// refuses, naming the body it wanted.
+    fn require_placeable(&self, read: &Operand) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        let copies =
+            crate::world::read_output(doc, read).is_some_and(|(node, _)| moves_copies(doc, node));
+        if copies && admits_read(doc, read, NodeKindWanted::Instances) {
+            return Ok(());
+        }
+        self.require_read(read, NodeKindWanted::Body)
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3522,17 +3539,36 @@ impl DocSession {
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue
-/// 1): the slot door on each placement's body slot, in the action that
-/// authored `result`.
+/// 1): the slot door on each shape of each placement that copies the
+/// output of a node `result` reads, in the action that authored
+/// `result` — so a placement of the target copies the result in its
+/// place.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
     result: RecipeNodeId,
 ) -> Result<(), EditError> {
-    for placement in placements {
+    let doc = run.doc();
+    let read = doc.upstream(result);
+    let copies_read = |var: VarId| doc.operation_of(var).is_some_and(|at| read.contains(&at));
+    let edits: Vec<(RecipeNodeId, u32)> = placements
+        .into_iter()
+        .flat_map(|placement| {
+            let shapes: Vec<u32> = match doc.node(placement) {
+                Some(Node::Place { shapes, .. }) => (0_u32..)
+                    .zip(shapes)
+                    .filter(|(_, shape)| copies_read(shape.read))
+                    .map(|(index, _)| index)
+                    .collect(),
+                _ => Vec::new(),
+            };
+            shapes.into_iter().map(move |index| (placement, index))
+        })
+        .collect();
+    for (placement, index) in edits {
         run.apply(DocEdit::SetParam {
             node: placement,
-            slot: SlotId::Operand(OperandSlot::Body),
+            slot: SlotId::Operand(OperandSlot::Shape(index)),
             value: pncad::document::SlotValue::Read(result.into()),
             fresh: Vec::new(),
         })?;
@@ -3585,8 +3621,10 @@ fn combine_in_world(
 /// ([`pncad::document::member_of`]). The rule reads the bundles alone:
 /// what is drawn where, and any display-only frame, never enter it. A
 /// mate the chosen bundle already fixes is the edit door's
-/// [`pncad::document::MateFault::Overconstrained`] refusal, surfaced
-/// as every door refusal is.
+/// [`pncad::document::MateFault::Overconstrained`] refusal — or, while a
+/// bundle relates its copy to one target, its
+/// [`pncad::document::MateFault::TargetsDiffer`] when the bundle's pin
+/// reads the world — surfaced as every door refusal is.
 pub(crate) fn mate_placement(
     doc: &Doc<ProfileProgram>,
     a: &SitedFace,
@@ -3626,6 +3664,18 @@ pub(crate) fn mate_placement(
         a
     } else {
         b
+    }
+}
+
+/// **Whether `node`'s value is a placement's copies**, moved by nothing
+/// or by transforms only: a placement, or a transform of one.
+fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    match doc.node(node) {
+        Some(Node::InstantiatePart { .. } | Node::Place { .. }) => true,
+        Some(Node::Transform { input, .. }) => doc
+            .operation_of(*input)
+            .is_some_and(|input| moves_copies(doc, input)),
+        _ => false,
     }
 }
 
@@ -3810,10 +3860,7 @@ mod tests {
         );
         assert!(outcome.committed.is_empty(), "nothing is committed");
         assert_eq!(session.history().len(), before, "nothing is recorded");
-        assert!(
-            session.committed_doc().ids().is_empty(),
-            "neither frame landed"
-        );
+        assert!(session.committed_doc().is_empty(), "neither frame landed");
     }
 
     /// **The hide admission is asked of the document the op reads, not

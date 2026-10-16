@@ -41,8 +41,8 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
-    RecipeNodeId, assemble, class_admission, parse_formula,
+    ClassAdmission, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    assemble, class_admission, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, face_frame};
@@ -155,7 +155,9 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         "side b is the shelf's own underside"
     );
 
-    // The edit lands once and the document stays green.
+    // The edit lands once, into the post's bundle once its world pin
+    // is off, and the document stays green.
+    asm::unpin(&mut session, rot_post);
     common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
@@ -358,7 +360,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         "unhiding restores the probe's drawn marking"
     );
 
-    // Mate it: the probe is discarded and reported in the same outcome.
+    // Mate it, its world pin off: the probe is discarded and reported in
+    // the same outcome.
+    asm::unpin(&mut session, bench.post_b);
     let first = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
@@ -404,11 +408,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(
         second.refusal.is_some()
             || !all_ok
-            || rows
-                .iter()
-                .filter(|r| r.spoken.kind() == Some("Mate"))
-                .count()
-                == 2,
+            || common::row_of(&rows, bench.post_b).constraints.len() == 2,
         "a second mate on the same pair is either refused at the door or visible in \
          the tree; it is never invisible: refusal={:?} rows={rows:?}",
         second.refusal
@@ -516,8 +516,8 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     // win: no document is held hostage by a messy directory.
     assert_eq!(
         broken.tree_rows().len(),
-        6,
-        "the tree is whole: three instances and their placements"
+        3,
+        "the tree is whole: three instances, each its own placement"
     );
 }
 
@@ -629,7 +629,9 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     // A committed Tangent: green document, refused assembly.
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A Tangent mate commits: the insert door admits it.
+    // A Tangent mate commits, post_b's world pin off: the constraint
+    // door admits it.
+    asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
         asm::seat_op(
@@ -733,7 +735,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // because nothing substituted for a placement the document was
     // never asked for. The fault that killed it travels with it, so
     // the chrome can say why instead of the user learning it by
-    // starting another gesture and reading that refusal.
+    // starting another gesture and reading that refusal. post_b's world
+    // pin comes off first, so the mate places it.
+    asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -932,8 +936,8 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     assert_eq!(
         hidden_scene.stats().triangles,
         0,
-        "the pattern's copies are the document's ONLY drawn copies, so hiding its \
-         instance draws the honest empty picture — not the stale one"
+        "the instance and its pattern's copies are the document's ONLY drawn copies, \
+         so hiding the instance draws the honest empty picture — not the stale one"
     );
     // …and the pick index dropped it with the picture.
     {
@@ -989,8 +993,9 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let probed = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(
         probed.stats().probe_parts,
-        3,
-        "every placed copy — one drawn part per projected pattern copy — is marked"
+        4,
+        "the instance, a placement of its own, and every placed copy — one drawn \
+         part per projected pattern copy — are marked"
     );
     assert!(
         probed.flags().contains(&SceneMesh::FLAG_PROBE),

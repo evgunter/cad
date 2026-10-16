@@ -174,6 +174,7 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
         common::asm::seat_op(
@@ -419,7 +420,8 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
     let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
-    let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
+    // The instance stands on the world by its own pin.
+    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
@@ -430,7 +432,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
         },
         tol,
     );
-    let asm = common::placed(&common::placed(&asm, post, tol).0, extrude, tol).0;
+    let asm = common::placed(&asm, extrude, tol).0;
     let path = Workspace::open(&bench.dir)
         .expect("the bench's workspace opens")
         .create(&asm, tol)

@@ -330,7 +330,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
             ) || matches!(
                 edit,
                 DocEdit::SetParam {
-                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Body),
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
                     ..
                 } | DocEdit::DeleteNode { .. }
             ),

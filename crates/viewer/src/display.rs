@@ -231,7 +231,9 @@ impl core::fmt::Display for AdmissionFault {
             Self::MateConstrained { instance, mates } => {
                 let list: Vec<String> = mates
                     .iter()
-                    .map(|(placement, id)| format!("constraint {id} of {placement}"))
+                    // By its placement, never by its minted id, which is an
+                    // arena key and no word a person reads.
+                    .map(|(placement, _)| format!("a constraint of {placement}"))
                     .collect();
                 write!(
                     f,

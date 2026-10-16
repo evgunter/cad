@@ -42,8 +42,8 @@ call, so the guard READS ITS SOURCE and compares four things against
 * the flat-pack's placement literals — the post's rotation axis, its
   angle, its offset, the pattern's count and spacing, the shelf's
   offset — each by formula;
-* the stand's root offset and the seats its two mates are authored
-  against, in document order.
+* the near post's spot on the stand and the seats its two mates are
+  authored against, in document order.
 
 Four things the guard does NOT see, named rather than summarised:
 
@@ -56,8 +56,8 @@ Four things the guard does NOT see, named rather than summarised:
 2. The two differences between this scene and the tour's, which are
    `bench_scene`'s own subject: the tour's prisms are parametric where
    Python's are drawn from literals, and the tour stands its stand on
-   a turntable gauge and sets a crate on the shelf where Python stands
-   it on the world. The guard would red if it compared recipes, and it
+   a turntable and sets a crate on the shelf where Python pins it to
+   the world. The guard would red if it compared recipes, and it
    does not compare recipes. (The flat-pack's placed family used to be
    a third such difference; it is `Node.pattern` on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
@@ -113,9 +113,12 @@ from bench_scene import (
 from pncad import CapEnd, DocEdit, DocRef, Formula, Node, SegTag, Workspace, evaluate, m, mm
 
 #: The layout's nodes: the post instance, its pattern and the shelf
-#: instance, then each pattern copy projected and placed, then the
-#: shelf's placement.
-LAYOUT_NODES = 3 + 2 * PATTERN_COUNT + 1
+#: instance, then each pattern copy projected and placed.
+LAYOUT_NODES = 3 + 2 * PATTERN_COUNT
+
+#: What an evaluation of the layout orders and runs: its nodes, and the
+#: world the document holds.
+LAYOUT_ORDER = LAYOUT_NODES + 1
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -251,7 +254,7 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        instance, family, shelf, *_placed = evaluation.order()
+        instance, family, shelf, *_placed = docs["layout"].order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
         self.assertVolumes(
             volumes(evaluation, family), [POST_VOLUME] * PATTERN_COUNT
@@ -298,14 +301,14 @@ class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
     THREE arms are exercised here — `part_no_resolver` (the class
-    above), `part_pin_mismatch` and `part_unresolved` — and two more
-    below: `part_root_poisoned`, by `TestAPartWhoseRootFails` and
-    `TestAPartWhoseRootIsPoisoned`, and `part_product` by
+    above), `part_pin_mismatch` and `part_unresolved` — and three more
+    below: `part_root_failed`, by `TestAPartWhoseRootFails`, whose
+    part's root is an instance that fails on its own;
+    `part_root_poisoned`, by it one level down and by
+    `TestAPartWhoseRootIsPoisoned`; and `part_product` by
     `TestAPartWithAnEmptyWorld`. The rest of the family is typed and
     tagged but UNREACHED from Python today, each for its own reason, and
-    none of them is singled out: `part_root_failed` needs a part whose
-    world placement fails on its own rather than through what it reads;
-    `part_epsilon_seam` needs a stored document recording a different
+    none of them is singled out: `part_epsilon_seam` needs a stored document recording a different
     ε; `part_root_failure_unrecorded` and `part_not_entered` are
     kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
@@ -332,8 +335,8 @@ class TestTheResolutionRefusals(CorpusCase):
         refusals = failures(evaluate(docs["layout"], resolver=store))
         self.assertEqual(
             [(r.kind, r.reason) for r in refusals.values()],
-            [("part_pin_mismatch", "node_failed"), ("part_pin_mismatch", "poisoned")],
-            "only the shelf instance refuses, and its placement with it; the "
+            [("part_pin_mismatch", "node_failed")],
+            "only the shelf instance refuses — it is its own placement; the "
             "posts still resolve",
         )
         refusal = next(iter(refusals.values()))
@@ -393,9 +396,11 @@ class TestTheResolutionRefusals(CorpusCase):
 
 
 class TestAPartWhoseRootFails(unittest.TestCase):
-    """A part whose own product refuses because the node its world
-    placement reads failed, one document down and two: each level's
-    placement is poisoned through it (`part_root_poisoned`).
+    """A part whose own product refuses because its root failed, one
+    document down and two: the bracket's root is an instance of the
+    boss, a placement that fails on its own (`part_root_failed`), and
+    the boss's root is poisoned through its extrude
+    (`part_root_poisoned`).
 
     The instance's message is its own short sentence: it names the
     part's failed node and points at it, and never quotes that node's
@@ -423,11 +428,10 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
         self.store.create(boss)
         self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
-        # The bracket: its one placed body instantiates the boss.
+        # The bracket: its one placement is an instance of the boss.
         bracket = pncad.Doc("pncad-partroot-bracket")
         self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
         bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
-        bracket.place(self.bracket_root)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         self.assembly = pncad.Doc("pncad-partroot-assembly")
@@ -438,7 +442,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
         bracket_root, instance = self.bracket_root, self.instance
         refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_poisoned")
+        self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
         self.assertEqual(
@@ -579,7 +583,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, PlaceInWorld {tag(self.placed)}", text)
+        self.assertIn(f"its root, Place {tag(self.placed)}", text)
         self.assertIn(f"repair Extrude {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
@@ -606,11 +610,13 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
-        """A bracket whose root is a transform over an instance of the
-        part: the bracket's root is poisoned through that failed
-        instance, and the chain runs instance, instance, extrude."""
+        """A bracket whose root is a placement of a transform over an
+        instance of the part: the bracket's root is poisoned through
+        that failed instance, and the chain runs instance, instance,
+        extrude. The inner instance is loose, so it is no root of the
+        bracket's world itself."""
         bracket = pncad.Doc("pncad-partpoison-bracket")
-        inner = bracket.insert(Node.instantiate_part(self.part_ref))
+        inner = bracket.insert(Node.instantiate_part(self.part_ref, []))
         bracket.place(
             bracket.insert(
                 Node.transform(
@@ -670,7 +676,7 @@ try:
     first = None
     for level in range(1, levels + 1):
         doc = Doc(f"pncad-depth-level-{level}")
-        doc.place(doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)))))
+        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
         store.create(doc)
         first = first or doc
         below = doc
@@ -729,7 +735,7 @@ class TestNestingPastTheBound(unittest.TestCase):
             f"the interpreter survives the descent: {child.stderr[-2000:]}",
         )
         said = json.loads(child.stdout)
-        self.assertEqual(said["top"], "part_root_poisoned")
+        self.assertEqual(said["top"], "part_root_failed")
         self.assertEqual(
             said["causes"],
             LINKED_CAUSES,
@@ -788,8 +794,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         first = evaluate(docs["layout"], resolver=store)
         again = evaluate(docs["layout"], resolver=store, prior=first)
-        self.assertEqual((first.reused, first.recomputed), (0, LAYOUT_NODES))
-        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
+        self.assertEqual((first.reused, first.recomputed), (0, LAYOUT_ORDER))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_ORDER, 0))
 
     def test_the_two_counters_account_for_every_node_that_ran_or_was_reused(self):
         """The invariant is `reused + recomputed == len(order) -
@@ -818,14 +824,14 @@ class TestTheMemoIsObservable(CorpusCase):
     def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
         """The no-resolver layout: two instantiate nodes RUN and fail,
         and everything over them — the pattern, its projected copies
-        and every placement — is poisoned and never runs. So the sum is
-        2 against every node in `order()` — and the difference is
-        exactly the poisoning."""
+        and their placements — is poisoned and never runs; the world
+        runs. So the sum is 3 against every node in `order()` — and the
+        difference is exactly the poisoning."""
         _, docs = opened()
         refusing = evaluate(docs["layout"])
         self.assertEqual(poisoned(refusing), LAYOUT_NODES - 2)
-        self.assertEqual(len(refusing.order()), LAYOUT_NODES)
-        self.assertEqual((refusing.reused, refusing.recomputed), (0, 2))
+        self.assertEqual(len(refusing.order()), LAYOUT_ORDER)
+        self.assertEqual((refusing.reused, refusing.recomputed), (0, 3))
         self.assertEqual(
             refusing.reused + refusing.recomputed,
             len(refusing.order()) - poisoned(refusing),
@@ -839,7 +845,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(docs["layout"], resolver=store)
         self.assertEqual(first.part_evaluations, 2)
         again = evaluate(docs["layout"], prior=first)
-        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_ORDER, 0))
         self.assertEqual(again.part_evaluations, 0)
 
     def test_an_edit_recomputes_only_the_cone_below_it(self):
@@ -857,16 +863,17 @@ class TestTheMemoIsObservable(CorpusCase):
         _, docs = opened()
         post = docs["post"]
         first = evaluate(post)
-        frame, profile, extrude, placed = first.order()
+        frame, profile, extrude, placed = post.order()
         post.apply(DocEdit.delete_node(placed))
         post.apply(DocEdit.delete_node(extrude))
         post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))))
         again = evaluate(post, prior=first)
-        # TWO reused: the post's sketch frame and the section drawn on
-        # it are what the deleted extrude consumed, and neither moved;
-        # the new extrude and its placement run.
-        self.assertEqual(again.order()[:2], [frame, profile])
-        self.assertEqual((again.reused, again.recomputed), (2, 2))
+        # THREE reused: the world, and the post's sketch frame and the
+        # section drawn on it, which are what the deleted extrude
+        # consumed, and neither moved; the new extrude and its
+        # placement run.
+        self.assertEqual(post.order()[:2], [frame, profile])
+        self.assertEqual((again.reused, again.recomputed), (3, 2))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
@@ -941,7 +948,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         store, docs = opened(directory)
         before = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(before), {})
-        shelf_node = before.order()[2]
+        shelf_node = docs["layout"].order()[2]
         pinned_body = volumes(before, shelf_node)
 
         store.resave(bench_scene.shelf(thickness=SHELF_THICKNESS * 1.5))
@@ -950,7 +957,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         fresh = evaluate(docs["layout"], resolver=store)
         self.assertEqual(
             [r.kind for r in failures(fresh).values()],
-            ["part_pin_mismatch", "part_pin_mismatch"],
+            ["part_pin_mismatch"],
             "an evaluation that ASKS still refuses the moved pin",
         )
 
@@ -958,7 +965,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         self.assertEqual(
             failures(memoized), {}, "the memo never asks, so nothing refuses"
         )
-        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_ORDER, 0))
         self.assertEqual(memoized.part_evaluations, 0, "the seam is not crossed")
         self.assertVolumes(
             volumes(memoized, shelf_node),
@@ -986,7 +993,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
         self.assertEqual(failures(memoized), {})
-        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_ORDER, 0))
         self.assertEqual(memoized.part_evaluations, 0)
 
     def test_a_prior_evaluates_an_assembly_with_no_resolver_at_all(self):
@@ -996,7 +1003,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         before = evaluate(docs["layout"], resolver=store)
         after = evaluate(docs["layout"], prior=before)
         self.assertEqual(failures(after), {}, "no part_no_resolver either")
-        self.assertEqual((after.reused, after.recomputed), (LAYOUT_NODES, 0))
+        self.assertEqual((after.reused, after.recomputed), (LAYOUT_ORDER, 0))
         self.assertEqual(after.part_evaluations, 0)
 
 
@@ -1022,9 +1029,9 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=store)).values()
             ],
-            ["part_pin_mismatch", "part_pin_mismatch"],
+            ["part_pin_mismatch"],
             "the store a resave went through sees its own write: the shelf "
-            "instance, and its placement through it",
+            "instance, its own placement",
         )
 
     def test_a_create_before_the_call_is_inside_the_snapshot(self):
@@ -1063,18 +1070,20 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         its square section is y-z — the FLAT_PACK_GAP that stands it
         clear of the bench, and the pattern's extent along +y.
 
-        The whole family's box, through the tessellator the binding
-        already exposes. A pattern's value is PLURAL, so the outline is
-        taken over every body it denotes rather than over one fused
-        one — which is the same box, and the row below is what
-        separates the posts inside it.
+        The placed copies' box, through the tessellator the binding
+        already exposes: the pattern master is a loose copy in its
+        part's own coordinates, so the posts are read where each
+        pattern copy's world pin lays it, and the row below is what
+        separates the posts inside the box.
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
-        family = evaluation.order()[1]
+        # The posts' world copies: each pattern copy's placement.
+        posts = docs["layout"].placements()[2:]
         positions = [
             p
-            for body in evaluation.value(family).bodies()
+            for placed in posts
+            for body in evaluation.value(placed).bodies()
             for p in body.tessellate(5 * mm).positions
         ]
         axes = [[p[i].meters for p in positions] for i in range(3)]
@@ -1089,9 +1098,9 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         )
 
     def test_each_placed_post_answers_at_its_own_step(self):
-        """Where each post in the family actually IS, one cap frame per
-        placement — the COUNT and the SPACING, which an outline over
-        the whole family cannot separate.
+        """Where each post actually IS, one cap frame per placed copy —
+        the COUNT and the SPACING, which an outline over the whole
+        family cannot separate.
 
         The cap is the post's top in its own coordinates; lying down
         about +y puts it at the -x end, which is why every one of them
@@ -1099,14 +1108,15 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
-        family = evaluation.order()[1]
-        caps = evaluation.select(
-            family,
-            bench_scene.cap_selector(CapEnd.End, [SegTag.Instance, *bench_scene.PART_FACE]),
-        )
         read = sorted(
-            tuple(round(c.meters, 9) for c in evaluation.face_frame(family, cap).origin)
-            for cap in caps
+            tuple(round(c.meters, 9) for c in evaluation.face_frame(placed, cap).origin)
+            for placed in docs["layout"].placements()[2:]
+            for cap in evaluation.select(
+                placed,
+                bench_scene.cap_selector(
+                    CapEnd.End, [SegTag.Placed, SegTag.Instance, *bench_scene.PART_FACE]
+                ),
+            )
         )
         self.assertEqual(
             read,
@@ -1269,17 +1279,18 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         )
 
     def test_the_stands_placement_and_seats_still_match_the_tour(self):
-        """The root post's inset, and the seat each of the two mates
-        is authored against IN DOCUMENT ORDER — a swapped pair of seats
-        is a different bench that every volume in this file would
-        still accept."""
+        """The near post's inset — the spot its world pin sets it at on
+        the turntable — and the seat each of the two mates is authored
+        against IN DOCUMENT ORDER: a swapped pair of seats is a
+        different bench that every volume in this file would still
+        accept."""
         stand = self.body_of("stand_doc")
-        root = re.search(r"Frame::translation\((\[[^\]]*\])\)", stand)
-        self.assertIsNotNone(root, "the root post no longer carries a frame")
+        root = re.search(r"let spot = (\[[^\]]*\]);", stand)
+        self.assertIsNotNone(root, "the near post no longer stands at a spot")
         self.assertScene(
             tour_value(root.group(1)),
             (0.0, ROOT_OFFSET_Y, 0.0),
-            "the root post's offset",
+            "the near post's spot",
         )
         # A seat is an authored point (`mate_frame(NAME, tol)`) or the
         # side's own head face (`MateFrame::from_face()`, the post's

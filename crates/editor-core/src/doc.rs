@@ -1057,9 +1057,14 @@ impl<P> Doc<P> {
     /// **The live node ids, in id order**: the order the nodes were
     /// inserted in, which is what every tie between nodes breaks by.
     /// Topological except where `SetMembers` points a union forward
-    /// (see [`Doc`]).
+    /// (see [`Doc`]). The world aside, as [`Doc::len`] counts: every
+    /// document holds it and no edit inserts it.
     pub fn ids(&self) -> Vec<RecipeNodeId> {
-        self.nodes.keys().copied().collect()
+        self.nodes
+            .keys()
+            .copied()
+            .filter(|&id| id != RecipeNodeId::WORLD)
+            .collect()
     }
 
     /// **The placements** (D10), in document order: every `Place` and

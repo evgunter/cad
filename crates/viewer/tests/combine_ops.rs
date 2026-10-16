@@ -254,7 +254,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
-                    slot: pncad::document::SlotId::Operand(OperandSlot::Body),
+                    slot: pncad::document::SlotId::Operand(OperandSlot::Shape(0)),
                     value: pncad::document::SlotValue::Read(pncad::document::Operand::Node(read)),
                     ..
                 },

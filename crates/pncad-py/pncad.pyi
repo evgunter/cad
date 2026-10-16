@@ -3815,7 +3815,8 @@ class Doc:
         """The world: the node every document holds from its creation,
         which no edit deletes or writes (`world_is_undeletable`). A
         constraint side that reads the world (`Mate.world_pin`) pins its
-        copy to it; it is not among the document's nodes (`order`)."""
+        copy to it; it is not among the document's nodes (`order`,
+        `node_count`)."""
 
     def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate]]:
         """A placement's bundle: each constraint by its address, with
@@ -3948,7 +3949,10 @@ class Doc:
 
     @property
     def node_count(self) -> int: ...
-    def order(self) -> list[NodeId]: ...
+    def order(self) -> list[NodeId]:
+        """The document's nodes in id order, the order they were
+        inserted in. The world (`Doc.world`) is no inserted node, so it
+        is not among them, as `node_count` does not count it."""
     @property
     def params(self) -> dict[VarName, FreeVar]:
         """The document's named free parameters, by name, in
@@ -5288,7 +5292,9 @@ class Evaluation:
         about it. A node with no value raises as `value` does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
-    def order(self) -> list[NodeId]: ...
+    def order(self) -> list[NodeId]:
+        """The evaluation order: every node the evaluation ran or would
+        run, the world (`Doc.world`) among them."""
     def all_edges(self, node: NodeId) -> list[str]:
         """Every edge name of `node`'s output, as of THIS evaluation —
         the strings `Node.fillet` selects with. A MATERIALIZER: store

@@ -15,7 +15,6 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use viewer::session::BooleanSpec;
 
 use common::asm;
 use pncad::document::{Frame, RecipeNodeId, product};
@@ -65,7 +64,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     // The assembly actually evaluates: every row ok, and the product
     // gathers the three placed solids.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 6, "three instances and their three placements");
+    assert_eq!(rows.len(), 3, "three instances, each its own placement");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -273,10 +272,15 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let (mark, seat) = read(&session);
     assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
-    assert_eq!(
-        seat,
-        Err(FaceFrameFault::NotDrawn),
-        "the button would commit against a face nothing marks"
+    // The button commits nothing against it either way: an instance's
+    // value is its copies, which no face-frame seat reads as one body,
+    // and that refusal is said before the picture is asked.
+    assert!(
+        matches!(
+            seat,
+            Err(FaceFrameFault::NotDrawn | FaceFrameFault::NotOneBody { .. })
+        ),
+        "the button would commit against a face nothing marks: {seat:?}"
     );
 }
 
@@ -971,55 +975,17 @@ fn a_landing_mate_discards_the_probe_value() {
 /// says so** — the second half of what `DisplayState::prune` withdraws,
 /// and the half that used to be undone in silence.
 ///
-/// Both arms of `display_check` are here because they are different
-/// news and the fault is what tells them apart: a FUSE puts material
-/// the user took out of the picture back into it, and a DELETE takes
-/// the instance with the hide. A user who reports "the part I hid is
-/// visible again" is reporting the first one.
+/// The DELETE arm: the instance goes with the hide, and the outcome
+/// says the node is absent rather than of the wrong kind.
 #[test]
 fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     let tol = Tol::witness();
 
-    // ── The FUSE arm. The hidden post is unioned with the other one,
-    // so no display op can address it separately any more.
-    let bench = asm::bench("hidefused", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    assert!(
-        session
-            .perform(SessionOp::SetInstanceHidden {
-                instance: bench.post_b,
-                hidden: true,
-            })
-            .refusal
-            .is_none()
-    );
-    assert!(session.display().is_hidden(bench.post_b));
-
-    let outcome = session.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Union(vec![bench.post_b.into(), bench.post_a.into()]),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
-        panic!(
-            "the fuse drops exactly one hide: {:?}",
-            outcome.withdrawn.dropped_hides
-        )
-    };
-    assert_eq!(dropped.instance, bench.post_b);
-    assert!(
-        matches!(dropped.cause, AdmissionFault::FusedGeometry { .. }),
-        "and the outcome carries WHY the part is drawn again: {}",
-        dropped.cause
-    );
-    assert!(
-        !session.display().is_hidden(bench.post_b),
-        "the hide is gone from the state, not merely reported"
-    );
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "a dropped hide is not a supersession and does not ride that field"
-    );
-
+    // The FUSE arm — a union putting a hidden instance's material back
+    // into the picture — has no session door to reach it: the boolean
+    // form reads whole bodies and an instance's output is its copies.
+    // `fused_geometry_refuses_both_display_ops_typed` holds the fused
+    // refusal over a union authored in the file.
     // ── The DELETE arm. Same class of fact, different sentence: the
     // instance is not drawn again, it is gone.
     let bench = asm::bench("hidedeleted", tol);
