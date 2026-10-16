@@ -602,9 +602,11 @@ const PLATE_MAX_TERMS: usize = 28;
 /// rim circles centred on the axis no longer take the frame read of
 /// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
 /// and digests move on every line; the largest form holds.
+/// The placement's lever, the direction's length, squares by
+/// `powi(2)`: the `Plain/Assertion` digest, with every count held.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1032 forms 15912 frozen 324 digest 88364aa057b0d497e2bb24dce6439e74\n\
-     Plain/Assertion calls 726 forms 4870 frozen 417 digest 893eaaabbf1a3856d7beef3ba911eefe\n\
+     Plain/Assertion calls 726 forms 4870 frozen 417 digest 350b39390a6cf6f90133b53cded33525\n\
      Early/Decision calls 352 forms 8940 frozen 0 digest 34ae2c431ac12a43705a8dbd2b2846bc\n\
      Early/Assertion calls 726 forms 5791 frozen 0 digest ae586774ba4a2c927e7a337c24f6325d\n\
      Door/Decision calls 468 forms 7635 frozen 0 digest f9c3a497d34ad9013e727c0428b01675";
