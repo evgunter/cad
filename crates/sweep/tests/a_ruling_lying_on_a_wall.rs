@@ -730,8 +730,9 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// and 0.9 the rims are one curve within the band, and every op
 /// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
 /// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated` on the point-on-span
-/// reading's chord to that end (`curve_pair_span_end_chord`). At 30 and
+/// ruling's end, and every op refuses `Escalated`: the ruling's end,
+/// read against the rim first, lies in the band's gap of its carrier
+/// (`curve_carrier_gap`). At 30 and
 /// 80 the rims are definitely two curves, which no closed form here
 /// places, and every op refuses `CurvedPierceUnsupported`, but for the
 /// three with the first rod first at 80, which escalate on the sector
@@ -787,8 +788,8 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                 };
                 assert_eq!(
                     diag.predicate,
-                    Some("curve_pair_span_end_chord"),
-                    "{label}: on the span row"
+                    Some("curve_carrier_gap"),
+                    "{label}: on the end's reading"
                 );
             } else {
                 // Exactly the ops with the first rod first, at 80, reach the

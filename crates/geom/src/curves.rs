@@ -60,7 +60,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
-pub use on_carrier::{CarrierRefusal, Clearance, Foot, OnCarrier};
+pub use on_carrier::{CarrierRefusal, Clearance, Foot, OnCarrier, ellipse_level_clearance};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
 /// An analytic 3-D curve — a **complete locus**. Units, the

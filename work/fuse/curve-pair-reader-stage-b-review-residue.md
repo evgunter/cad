@@ -2,7 +2,9 @@
 id: curve-pair-reader-stage-b-review-residue
 kind: issue
 title: The curve-pair reader's stage (b) re-review residue: an unfiled touch refusal window, a misnamed basin floor, a minted straddle copy, and three tangency-floor spellings
-status: open
+status: closed
+closed: 2026-10-15
+branch: fuse/curve-pair-reader-c3
 opened: 2026-10-14
 priority: P2
 cost: M
@@ -49,3 +51,18 @@ These come from the re-review of the stage (b) fix pass, PRs 5118 and 5121, whic
 
 - Items 1–4: either decide those poses or file them on `curve-pair-polish-meters-refuse-shallow-meetings`, with the floor named as the code computes it. Make the touch row able to go red.
 - Items 5–9: fix them with the stage (c) caller moves, which touch these files anyway.
+
+## Closed — stage (c) (fuse/curve-pair-reader-c, -c3)
+
+- **Items 1 and 4** are on `work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`: the touch window, with its row that cannot go red, and `line_conic`'s tilt read where the swing is owed.
+- **Item 2:** that row names the floor as the meter computes it, a crossing angle of about `√(8κe)` ("the basin floor"). The walk's piece floor keeps the name tangency floor.
+- **Item 3:** the evidence is restated there. At ε = 1e-6, main's `common_line` placed crossings that `meet` refuses.
+- **Item 5:** the basin docs read `2(κ₁ + κ₂)·2(ℓ + e)` and "half the angle" (PR 5154).
+- **Item 6:** a polish that travels past twice its region refuses `Meter` on its own row, `curve_pair_pose_travel`, instead of reading "none".
+- **Item 7:** the oracle's `off_span` is the distance to the span, exact on a segment and an arc.
+- **Item 8:**
+  - `pose::constant` reads `roots::spread_readings`, beside `spread_signs`.
+  - `Side::ders` is `Curve3::ders1`, and `tangent` is gone.
+  - The floor prose has one meaning per name.
+  - The two first-harmonic readers are filed as `work/fuse/two-first-harmonic-root-readers.md`: unifying them moves every circle-root door row.
+- **Item 9:** `reduce`'s no-lane arm takes the refusals' path to `carrier_touch::off_face`, for lines and conics alike, and the runtime guard is gone.

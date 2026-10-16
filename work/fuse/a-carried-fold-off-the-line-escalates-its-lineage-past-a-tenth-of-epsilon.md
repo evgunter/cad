@@ -1,7 +1,7 @@
 ---
 id: a-carried-fold-off-the-line-escalates-its-lineage-past-a-tenth-of-epsilon
 kind: issue
-title: The carried fold of three prisms moved 0.5ε or 0.9ε off one line escalates SelfCheck(CarriedLineage) on pm_census_ve_line_gap; the span-first lineage is pinned at 0.1ε only
+title: The carried fold of three prisms moved 0.5ε or 0.9ε off one line escalates SelfCheck(CarriedLineage) on the census line lane's line gap; the span-first lineage is pinned at 0.1ε only
 status: closed
 opened: 2026-10-11
 priority: P2
@@ -32,10 +32,12 @@ Measured by PR 4740's review on its head: the same carried fold over
 It is identical on the merge-base, so not a regression of that PR, and
 it is loud (a typed escalation, no body shipped).
 
+**The row has since been retired.** The FUSE curve-pair reader's stage c3 (PR 5227) moved the census line lane (`census::on_edge_interior`) onto `geom_brep::curve_pair::Span::contact`. That reads the span first (`Span::place`, its ends by `curve_pair_span_end_chord`), then the line's gap at the foot (`curve_carrier_gap`, off by `curve_carrier_clear`). So `pm_census_ve_line_gap` is no longer read anywhere. The measurement above was taken before that move, and which row the fold escalates on now, if any, is to be measured again.
+
 `ops::ledger`'s vertex-on-edge split arm (the `stays` read, on
 `census::on_segment_interior` alone) did not get the span-first read:
 a vertex past the parent piece's span is read on that piece's infinite
-line, the reading `ee_lineage` was fixed for. `pm_census_ve_line_gap`
+line, the reading `ee_lineage` was fixed for. The line gap (`pm_census_ve_line_gap` then, `curve_carrier_gap` now)
 is that arm's question as well as `ee_lineage`'s vertex-on-piece one,
 so which of the two escalates is the first thing to measure.
 

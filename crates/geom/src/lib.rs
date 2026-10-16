@@ -168,8 +168,8 @@ pub use curves::{
     CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot,
     MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
-    spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds, spiric_radial,
-    spiric_rate_bounds,
+    ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds,
+    spiric_radial, spiric_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;
