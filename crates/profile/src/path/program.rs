@@ -2905,7 +2905,7 @@ impl<T: geom_core::spline::SpanLocate> ConstructedLoop<T> {
 
 impl ConstructedLoop<f64> {
     /// This loop at the scalar `U`, every value entered as the computed
-    /// value it is ([`Real::from_computed`](geom_core::Real::from_computed):
+    /// value it is ([`Real::from_computed`]:
     /// the same point, an unknown at `Sym`), the constructed joints
     /// kept, which hold of the points they were verified at.
     #[must_use]

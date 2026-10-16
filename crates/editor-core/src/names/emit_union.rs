@@ -86,7 +86,7 @@
 //! qualifiers. Neither may carry a fold-qualified member-edge piece: the
 //! declaration door admits no edge (`DeclareUnsupportedPair`), and a
 //! refusal that would carry one refuses as an emission bug instead
-//! ([`is_fold_qualified_member_edge`]).
+//! (`is_fold_qualified_member_edge`).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -452,7 +452,7 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 /// means: the stretch it keeps outside every set where it keeps one,
 /// else the least set listing it. Every one of those lies on the
 /// constituent's line, which is all its one reader asks of it
-/// ([`Flush::way_of`] reads only whether it lies on another edge's line).
+/// (`Flush::way_of` reads only whether it lies on another edge's line).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
     member: VarId,

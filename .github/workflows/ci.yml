@@ -248,6 +248,8 @@ jobs:
         run: python3 scripts/work.py lint
       - name: dual-review log self-test
         run: python3 scripts/dual-review-log.py --selftest
+      - name: slow-set name check self-test
+        run: python3 scripts/check-slow-set-names.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
@@ -328,13 +330,17 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: build
+        id: build
         run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
       - name: test (default eps)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
+          rc=0
           cargo nextest run --profile ci ${{ needs.filter.outputs.cargo_scope }} \
-            ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast
+            ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
+          scripts/nextest-failures.py "default eps" "$rc"
+          exit $rc
       - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates this diff seeds)
         if: '!cancelled() && needs.filter.outputs.eps_extra != '''''
         env:
@@ -345,26 +351,53 @@ jobs:
           rc=0
           for eps in 1e-6 1e-12; do
             echo "::group::eps=$eps: $EPS_EXTRA"
+            r=0
             CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
-              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast || rc=1
+              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast || r=$?
+            scripts/nextest-failures.py "eps $eps" "$r"
+            [ "$r" = 0 ] || rc=1
             echo "::endgroup::"
           done
           exit $rc
-      - name: test (the slow set of the crates this diff seeds)
-        if: '!cancelled() && needs.filter.outputs.seeds != '''''
+      - name: test (the slow set of the crates this diff seeds; every crate on a seedless all-tier diff)
+        if: '!cancelled() && (needs.filter.outputs.seeds != '''' || needs.filter.outputs.tier == ''all'')'
         env:
           SEEDS: ${{ needs.filter.outputs.seeds }}
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           # The `ci` profile skips the slow set; a crate's own slow tests still
-          # run when the diff touches that crate.
+          # run when the diff touches that crate. An `all`-tier diff that seeds
+          # no crate (a workflow, manifest, toolchain or nextest config change)
+          # can move every binary, so it runs the whole slow set.
           slow="$(python3 -c "import tomllib; f = tomllib.load(open('.config/nextest.toml', 'rb'))['profile']['ci']['default-filter'].strip(); assert f.startswith('not ('); print(f[4:])")"
-          pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
+          if [ -n "$SEEDS" ]; then
+            pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
+          else
+            pkgs="all()"
+          fi
+          echo "slow set over: $pkgs"
+          rc=0
           cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
-            -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass
+            -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
+          scripts/nextest-failures.py "slow set" "$rc"
+          exit $rc
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+      - name: the slow set names only tests that exist (the packages this run built)
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        env:
+          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+        run: |
+          set -o pipefail
+          case " $SCOPE " in *" --workspace "*) complete=--complete ;; *) complete= ;; esac
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo nextest list --ignore-default-filter $SCOPE --message-format json \
+            | python3 scripts/check-slow-set-names.py $complete
+      # Last, so the failing rows close the log whatever ran after them.
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
 
   viewer:
     name: viewer app feature (eframe + wgpu, wasm32)

@@ -285,7 +285,7 @@ fn guard_driven(
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
 /// [`pncad::document::StepArg`] on that step, and unmoved when its
-/// value is the committed one at the bits ([`Expr::bit_eq`]).
+/// value is the committed one at the bits (`Expr::bit_eq`).
 ///
 /// # Errors
 ///

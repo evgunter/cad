@@ -2413,7 +2413,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
-/// the carrier ladder ([`super::carrier_eq`]) over `extent` where it has
+/// the carrier ladder ([`super::carrier_eq`](mod@super::carrier_eq)) over `extent` where it has
 /// an arm for both, else datum by datum on their stored descriptions,
 /// each within the band (`bool_held_carrier_datum`). Anything undecided
 /// is `false`, which reads the face rather than passing it over.

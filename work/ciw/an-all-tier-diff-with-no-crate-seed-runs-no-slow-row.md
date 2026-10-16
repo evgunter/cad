@@ -2,8 +2,13 @@
 id: an-all-tier-diff-with-no-crate-seed-runs-no-slow-row
 kind: issue
 title: An all-tier diff that changes no crate (ci.yml, Cargo.toml, the toolchain) runs every gate row except the slow set
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+priority: P3
+cost: E
+branch: ciw/readable-reds
+pr: 5206
 refs: [all-tier-blanks-seeds-so-a-slow-set-edit-runs-no-slow-row, 5104]
 ---
 
@@ -43,3 +48,11 @@ wall at default ε on this tree (local, 496 tests), so CIW should weigh
 the latency against how rare these diffs are.
 
 — build-time lane (NURBS), 2026-10-14
+
+## Closed
+
+ci.yml's slow-set step now runs when `seeds != ''` or `tier == 'all'`.
+With no seed, its package expression is `all()`, so the whole slow set
+runs, and the step prints which set it took. `scripts/ci-filter.py` is
+unchanged. An `all`-tier diff that does seed crates still runs only their
+slow tests, as before.

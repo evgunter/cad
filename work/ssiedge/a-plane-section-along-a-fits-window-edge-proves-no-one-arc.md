@@ -56,3 +56,7 @@ main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-6` and green at 1e-12.
 ## 2026-10-14 — still red at 1e-6 on main (NURBS, fresh target)
 
 Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
+
+## 2026-10-15 — still red at 1e-6 on main
+
+Re-run by name at `CAD_TOLERANCE_EPS=1e-6` on main `8dc4a60767` by the FUSE curve-pair reader lane, after the dual review of PR 5154 found it red there: red with the same refusal on main and on the PR head, so it is not the PR's.
