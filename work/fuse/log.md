@@ -1057,3 +1057,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-16: the joined-edges designer pair converged after two rounds; fork-log row 151.
   - **Converged:** the reader takes no topology and reads ends first; a found meeting claims its run (the ring rule); a run holds exactly one decided meeting or escalates; the found root is deflated; the polish step is fixed; `Meeting::run` goes; the census is unchanged.
   - **For Ev:** the `[ev]` PR 5214 (stacked on c2) asks for one C5 sentence. Item `curve-pair-meetings-are-runs` sets `needs_ev: true`.
+- 2026-10-16: merged #5154 (curve-pair reader c1, the span/carrier split) at e9f703d.
+  - CI was green on 19b1a7e. main had moved by #5207 and #5213; the merge with main was clean, type-checked, and passed the gates, `work.py lint`, and 4576 of 4659 geom-brep + topo tests (the remaining 79 were cut off by a container restart, not failed).
+  - The lint red on c/c2 was the stale `from_f64(band.escalate())` allowlist count, fixed on both.
+  - #5162 (c2) retargeted to main; its merge with main is under the same local check.
