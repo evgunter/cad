@@ -2806,7 +2806,7 @@ type FittedDoor<'a, T, K> = &'a dyn Fn(&Walked<T, K>) -> Result<PcurveCache<T>, 
 
 /// **Pass 2 of the minting walk, for one face**: every image the walk
 /// derived certified against its carrier and chart, in walk order. The
-/// one home of that pass, shared by [`mint_face`] (the minting pass)
+/// one home of that pass, shared by `mint_face` (the minting pass)
 /// and [`site_rows`] (the Euler operators' site mint), so the rows the
 /// two write for one walk are one set of bits. A row's certificate
 /// reads that row alone; the loop's facts (its branches and winding)

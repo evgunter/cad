@@ -30,3 +30,7 @@ the directory is not.
 loud check that every committed cell (other than `montage-gui.png`) is one
 this pass produced. That check should report rather than delete, in keeping
 with the action's rule, so a rename shows up as an explicit retirement.
+
+## 2026-10-16 — the 8 orphans are retired (Ev, in chat: "please do delete those orphans")
+
+The 8 cells listed above are removed with `git rm`. Nothing else in the tree reads them: the one textual hit, `demos/check_render_provenance.py`'s selftest, writes its own placeholder PNG into a temp directory. Still owed: the loud check that every committed cell is one the pass produced. (CIW orchestrator)

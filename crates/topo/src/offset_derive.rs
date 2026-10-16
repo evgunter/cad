@@ -482,10 +482,10 @@ fn nearest<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
-    let reach = |c: &Curve3<T>| {
-        c.param_near(mid, T::zero())
-            .map(|t| c.eval(t).distance(mid))
-    };
+    // The distance at the foot ([`Curve3::foot`]): the unit-coordinate
+    // angle alone reads an ellipse's point up to `(1 + a/b)` times
+    // farther off. A carrier with no closed-form parameter is refused.
+    let reach = |c: &Curve3<T>| c.param_near(mid, T::zero()).map(|t| c.foot(mid, t).gap());
     let mut best: Option<(Curve3<T>, T)> = None;
     for c in candidates {
         let Some(r) = reach(&c) else {

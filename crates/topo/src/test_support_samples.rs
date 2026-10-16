@@ -283,8 +283,10 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
 
 /// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
 /// decided off both corners (`off_corner`, read only at a band finer
-/// than the run's), or every end at a corner (the band's own parting,
-/// `K ≤ 3`, the one the census reaches).
+/// than the run's), or every end at a corner (the band's own parting, the
+/// one the census reaches: the point within the zero band of the end's
+/// point and past the escalation from a corner within the zero band of
+/// it, so `K < 2`).
 #[must_use]
 pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     let (zero, off) = (

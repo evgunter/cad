@@ -149,7 +149,7 @@ pub(super) struct ContactAcc {
     /// Every edge split the sweep made, in split order.
     pub(super) splits: super::EdgeSplits,
     /// Every decision a push made, in decision order: the rows the
-    /// records cite ([`Backing::Decided`] names an index here until
+    /// records cite ([`Backing::Decided`](crate::Backing::Decided) names an index here until
     /// the result's carry renumbers it).
     pending: Vec<PendingRow>,
     seen_vv: std::collections::BTreeMap<(VertexKey, VertexKey), usize>,
@@ -2952,8 +2952,8 @@ impl<T: geom_core::Real> Interior<T> {
 /// The interior question, asked only of an edge the carrier-identity
 /// rung puts ON `face`'s carrier (`on_carrier`): where it crosses
 /// `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]); a carrier pair that module has no closed
-/// form for keeps the frontier door.
+/// ([`super::carrier_cross`]); a pair whose meetings that module cannot
+/// read keeps the frontier door.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -3028,13 +3028,13 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 /// through its plane crossings and the interior question leaves unread.
 ///
 /// The interior question's candidates overlap. On a surface of
-/// revolution a boundary ruling's end vertex projects onto the arc at
-/// the ruling's crossing, so the line closed form finds nothing the
-/// vertices do not. And where both of the arc's ends lie in this face, a
-/// circle boundary's crossing missed here is split by the other sweep
+/// revolution a boundary ruling's end vertex lies on the arc at the
+/// ruling's crossing, so the ruling's meeting finds nothing the vertices
+/// do not. And where both of the arc's ends lie in this face, a circle
+/// boundary's crossing missed here is split by the other sweep
 /// direction, when that boundary edge pierces the arc's parent face at
-/// it. Only the circle closed form for an arc that runs from this face
-/// into another is pinned alone
+/// it. Only a circle boundary's meeting with an arc that runs from this
+/// face into another is pinned alone
 /// (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
 /// `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`).
 ///
@@ -3517,11 +3517,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a wall root's carrier is neither a line nor a conic",
-            },
-        )
+        geom::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
+            what: "a wall root's carrier is neither a line nor a conic",
+        })
     };
     let found = match found {
         CircleRoots::Certified(found) => found,
@@ -6618,18 +6616,21 @@ mod contact_acc_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod arc_end_rows {
-    use super::{SpanVerdict, wall_crossing};
+    use super::wall_crossing;
     use crate::test_support_fixtures::half_disc_cap;
     use geom_core::{Band, Tol, Vec3};
 
-    /// **A wall root landing at an arc's end its corners disagree with
-    /// keeps the caller's door**, as the face door's other refusals that
-    /// are no escalation do here. A line from a sphere's centre crosses
-    /// it at the point the band `(ε, 1.25ε)` reads at the half-disc
-    /// cap's arc end and clear of its corner; the face read is the cap's,
-    /// so the root is placed against that boundary.
+    /// **A wall root landing beside an arc's end, in the band's own
+    /// parting, escalates.** A line from a sphere's centre crosses it at
+    /// a point `≈ 1.34·zero` from the half-disc cap's arc end and its
+    /// corner, which the band `(ε, 1.25ε)` reads clear of both: the
+    /// boundary reading puts a point at an end only on its raw chord, the
+    /// distance the vertex pass reads to the corner, so the two no longer
+    /// part. The point's foot lies within the zero band of the end along
+    /// the arc, which the side of the end cannot place beside a chord past
+    /// the band, so the root's placement escalates on that straddle.
     #[test]
-    fn a_root_at_an_arc_end_clear_of_its_corners_is_unsettled() {
+    fn a_root_beside_an_arc_end_in_the_bands_own_parting_escalates() {
         let tol = Tol::witness();
         let zero = Band::linear(tol).unwrap().zero();
         let (body, cap, end) = half_disc_cap(0.0, tol);
@@ -6648,8 +6649,9 @@ mod arc_end_rows {
         };
         let got = wall_crossing(&body, cap, &sphere, &line, 0.5 * reach, 1.5 * reach, narrow);
         assert!(
-            matches!(got, Ok(SpanVerdict::Unsettled)),
-            "the root is not placed, and the caller keeps its door: {got:?}"
+            matches!(&got, Err(crate::boolean::BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("curve_pair_span_end_straddle")),
+            "the root's placement escalates on the end's straddle: {got:?}"
         );
     }
 }

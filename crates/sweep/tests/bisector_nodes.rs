@@ -1031,22 +1031,25 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 
 /// **A rod turned within a hair of its bore's axis answers the same in
 /// either operand order.** At `θ` this small the rod's wall lies within
-/// the band of the bore's along its whole length, and its seam ruling
-/// meets each rim at a turn the tilt spreads by about `1.3e-9` per
-/// `1e-8°`. The crossing's candidates on a rim gather round whichever of
-/// them the sweep split it at, and which that is follows the operand
-/// order: each order must read the cluster as one point, or neither.
-/// The orders agree on the outcome, and on the decision and margin of an
-/// escalation, at every band; which poses build is the band's.
+/// the band of the bore's along its whole length. Its rulings and the
+/// bore's are read as two lines where they can meet, their overlap
+/// (`geom_brep::curve_pair`'s line pose): the bore's block is four metres
+/// deep, so over it a `1e-8°` tilt moves the rod's ruling `7e-10` from
+/// the bore's, within the zero band, whichever of the two the sweep split
+/// and however. The orders agree on the outcome, and on the decision and
+/// margin of an escalation, at every band; which poses build is the
+/// band's.
 ///
 /// At the default band:
 ///
-/// - the rod along `y` turned to `1e-9°` reads the cluster as one point,
-///   and ∩ and ∪ build alike; at `1e-8°` the cluster spreads `1.29e-9`,
-///   in band, and both orders escalate it as the crossings' order;
-/// - the rod about `z` tilted `1e-8°`, its seam on the tilt's plane
-///   (turned `0` or `π`), escalates the same way in both orders, and with
-///   its seam a quarter turn off it builds alike;
+/// - the rod along `y` turned to `1e-9°` or `1e-8°` builds alike in ∩ and
+///   ∪: within the block it lies within `7e-10` of the bore, so it is
+///   glued, as at `1e-9°` (until 2026-10-15 the `1e-8°` pose escalated
+///   alike, the tilt levered by the rod's whole eight metres, and by the
+///   split's pieces in one order: the lever was how the sweep split the
+///   edge, not where the lines can meet);
+/// - the rod about `z` tilted `1e-8°` builds alike, its seam on the
+///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
 ///   (`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
@@ -1110,19 +1113,19 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     type Pose = (String, topo::AtRestBody<f64>, bool, bool);
     let poses: Vec<Pose> = vec![
         ("along y, 1e-9°".into(), along_y(1e-9), true, true),
-        ("along y, 1e-8°".into(), along_y(1e-8), true, false),
+        ("along y, 1e-8°".into(), along_y(1e-8), true, true),
         ("along y, 1e-7°".into(), along_y(1e-7), false, false),
         (
             "about z, seam 0, 1e-8°".into(),
             about_z(0.0, 1e-8),
             true,
-            false,
+            true,
         ),
         (
             "about z, seam π, 1e-8°".into(),
             about_z(PI, 1e-8),
             true,
-            false,
+            true,
         ),
         (
             "about z, seam π/2, 1e-8°".into(),
