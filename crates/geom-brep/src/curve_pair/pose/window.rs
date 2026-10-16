@@ -677,6 +677,7 @@ mod r3_probes {
             ("seam at 0, window 0.1", (0.0, TAU), (-0.1, 0.1)),
             ("seam at 0, window 0.2", (0.0, TAU), (-0.2, 0.2)),
             ("seam at 0, window 0.34", (0.0, TAU), (-0.3398, 0.3398)),
+            ("open span, ends 0.002 and -0.003 either side of the root", (0.002, TAU - 0.003), (-0.02, 0.02)),
         ] {
             let got = holds_at((&a, span), &b, window, &[(th, tb)], band);
             eprintln!("{label}: holds_only = {got}");
@@ -686,5 +687,263 @@ mod r3_probes {
             rows.iter().all(|&(_, g)| !g),
             "a window holding a second meeting across the seam certified: {rows:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stderr,
+    clippy::too_many_lines,
+    clippy::many_single_char_names
+)]
+mod r3_oracle {
+    //! Each piece reading checked against a dense independent distance.
+
+    use geom::Curve3;
+    use geom_core::{Band, Point3, Vec3};
+
+    use super::{Read, Window, level_on};
+    use crate::Conic;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn range(&mut self, lo: f64, hi: f64) -> f64 {
+            lo + (hi - lo) * self.next()
+        }
+        fn log(&mut self, lo: f64, hi: f64) -> f64 {
+            10f64.powf(self.range(lo, hi))
+        }
+    }
+
+    fn root(r0: f64, z0: f64, z1: f64, mut g: f64) -> f64 {
+        let n0 = r0 * z0;
+        let mut s0 = z1 - 1.0;
+        let mut s1 = if g < 0.0 { 0.0 } else { n0.hypot(z1) - 1.0 };
+        let mut s = 0.0;
+        for _ in 0..1100 {
+            s = 0.5 * (s0 + s1);
+            if s == s0 || s == s1 {
+                break;
+            }
+            let (a, b) = (n0 / (s + r0), z1 / (s + 1.0));
+            g = a * a + b * b - 1.0;
+            if g > 0.0 {
+                s0 = s;
+            } else if g < 0.0 {
+                s1 = s;
+            } else {
+                break;
+            }
+        }
+        s
+    }
+
+    /// Eberly's distance from `(y0, y1)`, first quadrant, to the ellipse
+    /// with semi-axes `e0 ≥ e1`.
+    fn ellipse_distance(e0: f64, e1: f64, y0: f64, y1: f64) -> f64 {
+        if y1 > 0.0 {
+            if y0 > 0.0 {
+                let (z0, z1) = (y0 / e0, y1 / e1);
+                let g = z0 * z0 + z1 * z1 - 1.0;
+                if g == 0.0 {
+                    return 0.0;
+                }
+                let r0 = (e0 / e1).powi(2);
+                let sb = root(r0, z0, z1, g);
+                let (x0, x1) = (r0 * y0 / (sb + r0), y1 / (sb + 1.0));
+                (x0 - y0).hypot(x1 - y1)
+            } else {
+                (y1 - e1).abs()
+            }
+        } else {
+            let (n0, d0) = (e0 * y0, e0 * e0 - e1 * e1);
+            if n0 < d0 {
+                let x = n0 / d0;
+                (e0 * x - y0).hypot(e1 * (1.0 - x * x).sqrt())
+            } else {
+                (y0 - e0).abs()
+            }
+        }
+    }
+
+    /// Distance from `p` to the ellipse `(big_a, big_b)` about the origin in
+    /// `z = 0`, `u_ref = x̂`.
+    fn distance(p: Point3<f64>, (big_a, big_b): (f64, f64)) -> f64 {
+        let (x, y) = (p.x.abs(), p.y.abs());
+        let d = if big_a >= big_b {
+            ellipse_distance(big_a, big_b, x, y)
+        } else {
+            ellipse_distance(big_b, big_a, y, x)
+        };
+        d.hypot(p.z)
+    }
+
+    fn rot(v: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
+        let (s, c) = t.sin_cos();
+        v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c))
+    }
+
+    #[test]
+    fn probe_each_reading_holds_on_a_dense_distance() {
+        let seed: u64 = std::env::var("R3_SEED")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0x5227_0003);
+        let draws: usize = std::env::var("R3_DRAWS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300);
+        eprintln!("seed {seed:#x} draws {draws}");
+        let mut rng = Rng(seed);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let z = band.zero();
+        let (mut counts, mut bad) = ([0usize; 5], Vec::new());
+        for draw in 0..draws {
+            let scale = rng.log(-1.0, 2.0);
+            let big_a = scale * rng.range(0.5, 2.0);
+            let ratio = if rng.next() < 0.3 { 1.0 } else { rng.log(-1.5, 0.0) };
+            let big_b = big_a * ratio;
+            let b = Curve3::Ellipse {
+                center: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                semi_u: big_a,
+                semi_v: big_b,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let phi = rng.range(0.0, core::f64::consts::TAU);
+            let j = Point3::new(big_a * phi.cos(), big_b * phi.sin(), 0.0);
+            let tb = Vec3::new(-big_a * phi.sin(), big_b * phi.cos(), 0.0).normalize();
+            let psi = if rng.next() < 0.3 {
+                0.0
+            } else {
+                rng.log(-7.0, 0.0) * if rng.next() < 0.5 { -1.0 } else { 1.0 }
+            };
+            let zhat = Vec3::new(0.0, 0.0, 1.0);
+            let ta = rot(tb, zhat, psi);
+            let r = scale * rng.log(-1.0, 1.0);
+            let side = if rng.next() < 0.5 { 1.0 } else { -1.0 };
+            let inward = zhat.cross(ta) * side;
+            let kang = rng.range(0.0, core::f64::consts::PI);
+            let k = Vec3::new(kang.cos(), kang.sin(), 0.0);
+            let alpha = rng.log(-8.0, -2.0);
+            let lift = rng.range(-1.0, 1.0) * z * 0.9;
+            let centre = j + inward * r;
+            let a_centre = j + rot(centre - j, k, alpha) + zhat * lift;
+            let u = rot((j - centre).normalize(), k, alpha);
+            let ax = rot(zhat * side, k, alpha);
+            let a = if rng.next() < 0.5 {
+                Curve3::Circle {
+                    center: a_centre,
+                    axis: ax,
+                    radius: r,
+                    u_ref: u,
+                }
+            } else {
+                // An ellipse through the same point with the same tangent:
+                // semi-axis `r` along `u`, the other `r·q`; its tangent at
+                // θ = 0 lies along `ax × u`, as the circle's.
+                let q = rng.log(-1.0, 1.0);
+                Curve3::Ellipse {
+                    center: a_centre,
+                    axis: ax,
+                    semi_u: r,
+                    semi_v: r * q,
+                    u_ref: u,
+                }
+            };
+            let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+            let lever = ka.speed_hi().max(kb.speed_hi());
+            let o = Point3::origin();
+            let noise = crate::rounding_charge(
+                (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+            );
+            let w = Window {
+                a: &ka,
+                span_a: (-1.0, 1.0),
+                b: &kb,
+                carrier_b: &b,
+                height: super::super::height(&ka, kb.center, kb.axis),
+                noise,
+            };
+            let level = level_on(&ka, &kb);
+            let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
+            let (ia, ib) = (a.map_scalar(iv), b.map_scalar(iv));
+            let (ika, ikb) = (Conic::of(&ia).unwrap(), Conic::of(&ib).unwrap());
+            let iw = Window {
+                a: &ika,
+                span_a: (iv(-1.0), iv(1.0)),
+                b: &ikb,
+                carrier_b: &ib,
+                height: super::super::height(&ika, ikb.center, ikb.axis),
+                noise: iv(0.0),
+            };
+            let ilevel = level_on(&ika, &ikb);
+            for _ in 0..20 {
+                let m = rng.log(-10.0, -1.0) * if rng.next() < 0.5 { -1.0 } else { 1.0 };
+                let half = m.abs() * rng.log(-4.0, 0.0);
+                let away = if rng.next() < 0.85 { m > 0.0 } else { m < 0.0 };
+                let piece = (m - half, m + half);
+                let reads = [
+                    ("f64", w.read(piece, away, &level, band)),
+                    ("interval", iw.read((iv(piece.0), iv(piece.1)), away, &ilevel, band)),
+                ];
+                for (lane, read) in reads {
+                let Some(read) = read else {
+                    counts[3] += 1;
+                    continue;
+                };
+                if lane == "interval" { counts[4] += 1; }
+                let n = 4000;
+                let ds: Vec<f64> = (0..=n)
+                    .map(|i| {
+                        let t = piece.0 + (piece.1 - piece.0) * (i as f64) / (n as f64);
+                        distance(a.eval(t), (big_a, big_b))
+                    })
+                    .collect();
+                let tol = 1e-13 * scale.max(1.0);
+                let ok = match read {
+                    Read::Off => {
+                        counts[0] += 1;
+                        ds.iter().all(|&d| d > z - tol)
+                    }
+                    Read::On => {
+                        counts[1] += 1;
+                        ds.iter().all(|&d| d <= z + tol)
+                    }
+                    Read::Recedes => {
+                        counts[2] += 1;
+                        let seq: Vec<f64> =
+                            if away { ds.clone() } else { ds.iter().rev().copied().collect() };
+                        let mut hi = f64::NEG_INFINITY;
+                        let mut ok = true;
+                        for d in seq {
+                            if d < hi - tol {
+                                ok = false;
+                            }
+                            hi = hi.max(d);
+                        }
+                        ok
+                    }
+                };
+                if !ok {
+                    bad.push(format!(
+                        "draw {draw} {lane}: {read:?} on {piece:?} away {away}: a {a:?} b ({big_a}, {big_b}) d range [{:e}, {:e}]",
+                        ds.iter().copied().fold(f64::INFINITY, f64::min),
+                        ds.iter().copied().fold(0.0, f64::max)
+                    ));
+                }
+                }
+            }
+        }
+        eprintln!("off {} on {} recedes {} unread {} (interval reads {})", counts[0], counts[1], counts[2], counts[3], counts[4]);
+        assert!(bad.is_empty(), "{} readings contradicted: {:#?}", bad.len(), &bad[..bad.len().min(8)]);
     }
 }
