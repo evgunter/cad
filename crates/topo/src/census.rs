@@ -3014,23 +3014,20 @@ fn sweep_curved_edge_edge<T: Decide>(
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
 ) {
-    // Each edge's sides; a side read that refuses is passed by, as pass
-    // 2′'s and the snapshot's.
+    // Each edge's sides. `edge_sides` refuses only a dangling key, and
+    // the curved candidates are the body's own live keys.
     let sides = |ek: EdgeKey| {
         crate::readback::edge_sides(body, ek)
-            .ok()
-            .map(|s| s.faces())
+            .unwrap_or_else(|_| unreachable!("a curved candidate is a live edge"))
+            .faces()
     };
     let curved: Vec<_> = cands.curved.iter().map(|&ek| (ek, sides(ek))).collect();
     let lines: Vec<_> = geo
         .edges
         .iter()
-        .map(|e| (e.key, Some((e.f_plus, e.f_minus))))
+        .map(|e| (e.key, (e.f_plus, e.f_minus)))
         .collect();
     for (i, &(a, sides_a)) in curved.iter().enumerate() {
-        let Some(sides_a) = sides_a else {
-            continue;
-        };
         let query = cands.trees.curved.query(i);
         let others = cands
             .trees
@@ -3047,9 +3044,6 @@ fn sweep_curved_edge_edge<T: Decide>(
                     .map(|j| *candidate(&curved, j)),
             );
         for (b, sides_b) in others {
-            let Some(sides_b) = sides_b else {
-                continue;
-            };
             let before = errors.len();
             pair_curved_edge_edge(body, declared, band, (a, sides_a), (b, sides_b), errors);
             if let Some(t) = trace.as_deref_mut() {
