@@ -1177,29 +1177,34 @@ fn a_crossing_of_the_others_plane_at_a_found_meeting_is_not_polished() {
 
 /// **On a span with no ends, two meetings across the seam are next to
 /// each other.** A whole circle of radius `10⁻²` read with no ends, its
-/// seam at `(R, 0)`, and a segment crossing it at `±10⁻³` rad about the
-/// seam, `5·10⁻⁹` off it between the two: one stretch, across the seam,
-/// so it escalates. Read along the circle, the halfway point inside the
-/// span lies half a turn away and definitely off the segment. Red where
-/// the arc over the seam goes unread.
+/// seam at `(R, 0)`, and the chord between its points `±10⁻³` rad about
+/// the seam, `5·10⁻⁹` off the circle at its middle: the chord's ends are
+/// two meetings in one stretch, across the seam, so it escalates. Held
+/// at `10⁻³` and `2π − 10⁻³` along the circle, the halfway point inside
+/// the span's parameters lies half a turn away and definitely off the
+/// chord. Red where the arc over the seam goes unread.
 #[test]
 fn two_meetings_across_an_endless_spans_seam_escalate() {
     let r = 1e-2;
     let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
     let (lo, hi) = (c.eval(-1e-3), c.eval(1e-3));
-    let edge = line(
-        (lo - (hi - lo) * 0.5).to_array(),
-        (hi - lo).to_array(),
-    );
+    let chord = line(lo.to_array(), (hi - lo).to_array());
     let whole = Span::new(&c, (0.0, TAU)).endless();
-    let seg = Span::new(&edge, (0.0, 4.0 * (hi - lo).norm()));
+    let seg = Span::new(&chord, (0.0, (hi - lo).norm()));
+    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| {
+        matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2)
+    };
     for (order, got) in [
         ("circle first", meet(&whole, &seg, band())),
-        ("segment first", meet(&seg, &whole, band())),
+        ("chord first", meet(&seg, &whole, band())),
     ] {
-        assert!(
-            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)) && r.found.len() == 2),
-            "{order}: {got:?}"
-        );
+        assert!(escalated(&got), "{order}: {got:?}");
     }
+    let mut found = super::Found::default();
+    for (point, ta, tb) in [(hi, 1e-3, (hi - lo).norm()), (lo, TAU - 1e-3, 0.0)] {
+        found.read(&whole, &seg, super::Candidate { point, ta, tb }, band());
+    }
+    assert_eq!(found.points.len(), 2, "both chord ends meet the circle");
+    let got = found.finish(&whole, &seg, None, band());
+    assert!(escalated(&got), "held across the seam: {got:?}");
 }
