@@ -232,7 +232,8 @@ fn four_legs_framed(
     let (top_ref, top_body) = block_ref("fix-xs-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let doc = place_copies(doc, pattern, 4);
-    let reach = editor_core::mate_reach::<f64>(&legs_reach(), Tol::witness());
+    let opts = legs_reach();
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
     let (doc, mate) = fixture::at_the_door_of(
         &doc,
         &reach,

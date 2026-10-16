@@ -528,7 +528,8 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
     let opts = with_resolver(store);
 
     let own = run(&assembly, &opts);
-    if let Some(v) = own.value(ids[0]) {
+    let dbg_v = own.value(ids[0]);
+    if let Some(v) = dbg_v.as_ref() {
         for (n, _) in v.name_table.iter() {
             eprintln!("DBG {n:?}");
         }

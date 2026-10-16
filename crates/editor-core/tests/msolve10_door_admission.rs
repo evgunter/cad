@@ -976,7 +976,7 @@ fn corpus() -> Vec<Row> {
                 fixture::head(local_cap),
             ),
             MateSide::B,
-            ids[1],
+            ids[0],
             body,
         );
         ("msolve10-corpus-stranded", doc, opts)
