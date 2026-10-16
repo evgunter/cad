@@ -321,6 +321,12 @@ pub struct BooleanNaming {
     /// clone keys, as `reduction_contacts`. Read off the classification,
     /// so a path that never classifies has none.
     pub edge_classes: Vec<super::EdgePieceClass>,
+    /// Every vertex in one pair whose partner the classification read
+    /// nothing of, so it holds no [`Self::edge_classes`] row, with why
+    /// ([`UnreadPartner`](super::UnreadPartner)), sorted: the vertex in
+    /// clone keys as `edge_classes`. A reader that needs a class there
+    /// refuses naming the partner, not a missing row.
+    pub unread_partners: Vec<super::UnreadPartner>,
     /// The meridian edges a sphere cut-in minted in each operand before
     /// the op re-entered on the cut operands, A's then B's, in clone keys
     /// as `edge_classes`. Each divides one operand face into two of its
@@ -389,6 +395,7 @@ impl Default for BooleanNaming {
             discards: Default::default(),
             covered: Default::default(),
             edge_classes: Default::default(),
+            unread_partners: Default::default(),
             chart_cuts: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
@@ -869,6 +876,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
+    let unread_partners = red.unread_partners.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
@@ -992,6 +1000,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         carved_lineage: fin.carved_lineage,
         covered,
         edge_classes,
+        unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
@@ -2769,8 +2778,11 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .certified()
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
-        let (witness, extent) = (draft.witness, draft.extent);
-        match seam_reading(surf1, surf2, witness, extent, band)
+        let (carrier, interval) = draft.span();
+        let reach =
+            crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
+        let witness = draft.witness;
+        match seam_reading(surf1, surf2, witness, reach, band)
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
@@ -2823,7 +2835,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let (_, [sa, sb]) = geom_brep::SurfacePair::sorted(s1, surf1, s2, surf2);
-                    must_carry_reading(sa, sb, c.carrier(), t0, t1, extent, band).map_err(
+                    must_carry_reading(sa, sb, c.carrier(), t0, t1, reach, band).map_err(
                         |refusal| match refusal {
                             SeamRefusal::Undecided(reading, diag) => {
                                 DescribeRefusal::undecided(edge, reading, diag)
@@ -2884,30 +2896,30 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **A seam edge of the result, as its re-description reads it**: the
-/// dihedral of its two surfaces at `witness` over `extent`, whose arm
+/// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
 /// rung is the seam's own lever and whose reading is the seam's wedge.
 #[cfg(test)]
 pub(super) fn seam_class<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     witness: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    seam_reading(surf1, surf2, witness, extent, band)
+    seam_reading(surf1, surf2, witness, reach, band)
         .map_err(|(reading, diag)| seam_refusal(reading, diag))
 }
 
-/// [`seam_class`]'s reading, unworded: the rung that could not decide
+/// `seam_class`'s reading, unworded: the rung that could not decide
 /// and its diagnostics.
 fn seam_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     witness: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
-    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
+    geom_brep::classify_dihedral(surf1, surf2, witness, reach, band)
         .map_err(DihedralReading::of_lever)
 }
 
@@ -2966,22 +2978,22 @@ pub(super) fn seam_must_carry<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
-    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
+    must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
 /// Why a seam smooth at its witness has no description: a station
 /// undecided, with the reading that raised it and its diagnostics, or
-/// one that reads a corner ([`seam_must_carry`]).
+/// one that reads a corner (`seam_must_carry`).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum SeamRefusal {
     Undecided(DihedralReading, Indeterminate),
     Mixed(Option<geom_brep::MixedStations>),
 }
 
-/// What a seam smooth at its witness stores ([`seam_must_carry`]).
+/// What a seam smooth at its witness stores (`seam_must_carry`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SeamReading {
     /// The intrinsic tangency: the surfaces determine the locus.
@@ -2990,18 +3002,18 @@ pub(super) enum SeamReading {
     Conventional,
 }
 
-/// [`seam_must_carry`]'s verdict, unworded.
+/// `seam_must_carry`'s verdict, unworded.
 fn must_carry_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
-    match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
+    match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, reach, band) {
         MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
         MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),
@@ -5499,9 +5511,9 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
 /// The result gate where no at-rest gate ran (a dual's policy answers
 /// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
 /// tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest))
+/// ([`ValidationError::ScaffoldAtRest`])
 /// and its check 11 in `band`
-/// ([`ValidationError::JoinableVertexAtRest`](crate::ValidationError::JoinableVertexAtRest)),
+/// ([`ValidationError::JoinableVertexAtRest`]),
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
 /// construction that stopped half-way, and a joinable vertex one the
@@ -7049,6 +7061,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
                 edge_classes: red.edge_classes.clone(),
+                unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
@@ -7149,6 +7162,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),
@@ -7164,6 +7178,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),

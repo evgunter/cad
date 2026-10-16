@@ -738,7 +738,28 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                             [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
                             &carrier,
                             (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
                             declared,
+                            band,
+                        )
+                    },
+                    || {
+                        crate::offset_restate::re_ask_chart(
+                            edge,
+                            [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
+                            &carrier,
+                            (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
                             band,
                         )
                     },
@@ -2510,7 +2531,7 @@ fn forward_window<T: Decide>(
 }
 
 /// A periodic carrier's speed bounds `(floor, ceiling)` in metres per
-/// radian, [`geom_brep::carrier_speed::speed_range`]'s on the kinds the axial
+/// radian, [`geom::carrier_speed::speed_range`]'s on the kinds the axial
 /// offset moves an arc of: a circle's radius both ways, a spiric's minor
 /// radius to its whole-period bound. A decision whose Zero admits — two
 /// reads are one point — levers at the ceiling; one whose Positive
@@ -2520,7 +2541,7 @@ fn forward_window<T: Decide>(
 fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
     match carrier {
         Curve3::Circle { .. } | Curve3::Spiric { .. } => {
-            let (floor, ceiling) = geom_brep::carrier_speed::speed_range(carrier);
+            let (floor, ceiling) = geom::carrier_speed::speed_range(carrier);
             Some((floor.get(), ceiling.get()))
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,

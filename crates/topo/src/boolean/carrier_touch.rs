@@ -79,7 +79,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
 ) -> Result<bool, BooleanError> {
     let (Some(rho), Some((speed, bend))) = (
         reach(surface),
-        geom_brep::carrier_speed::speed_and_curvature_hi(carrier),
+        geom::carrier_speed::speed_and_curvature_hi(carrier),
     ) else {
         return Ok(false);
     };

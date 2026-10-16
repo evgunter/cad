@@ -438,6 +438,7 @@ fn chart_edge(
         start,
         end,
         |_| Some(plane(n)),
+        1.0,
         band,
     )
 }
@@ -510,7 +511,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             .unwrap_or_else(|e| panic!("{name}: forward certification refused {e:?}"));
         let (start, end) = (carrier.eval(t0), carrier.eval(t1));
         let rev = plane(-Vec3::unit_z());
-        let stale = fwd.recertify(start, end, |_| Some(rev.clone()), band);
+        let stale = fwd.recertify(start, end, |_| Some(rev.clone()), 1.0, band);
         assert!(
             matches!(
                 stale,
@@ -526,7 +527,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             .with_chart_v_mirrored()
             .unwrap_or_else(|| panic!("{name}: a plane-chart image reflects"));
         let fresh = mirrored
-            .recertify(start, end, |_| Some(rev.clone()), band)
+            .recertify(start, end, |_| Some(rev.clone()), 1.0, band)
             .unwrap_or_else(|e| panic!("{name}: mirrored refused on the reverted plane {e:?}"));
         assert_eq!(
             format!("{fresh:?}"),
@@ -575,6 +576,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
         start,
         end,
         |k| arena.get(k).cloned(),
+        1.0,
         band,
     )
     .expect("the line is the two planes' intersection");

@@ -582,7 +582,15 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let Ok(band) = geom_core::Band::linear_at(Tol::witness(), eps) else {
         return false;
     };
-    geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()
+    geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |k| body.get_surface(k).cloned(),
+        1.0,
+        band,
+    )
+    .is_ok()
 }
 
 /// **A moved wall's seam with a held spline wall, its measured verdict.**

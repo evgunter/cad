@@ -55,7 +55,6 @@
 
 mod carrier_net;
 pub mod carrier_resolution;
-pub mod carrier_speed;
 pub mod certify;
 pub mod conic_bend;
 pub mod curve_pair;
@@ -100,7 +99,8 @@ pub mod torus_convention;
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
+    IntersectionDraft, NurbsLane, StatedImage, edge_extent, folded_parallelism, sample_param,
+    schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -112,13 +112,14 @@ pub use dihedral::{
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
     SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
     classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_pair,
+    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
     second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3,
-    is_analytic, nurbs_pair_limbs, plane_nurbs_incidence, plane_nurbs_limbs,
+    IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
+    analytic_rung3, arc_rim_candidates, first_within, is_analytic, nurbs_pair_limbs, pick_arc_rim,
+    plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,

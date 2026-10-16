@@ -4,7 +4,7 @@
 //! A VOCABULARY module (`crates/viewer/README.md`, Module boundaries).
 //! [`Drafts`] is layer-3 state that never enters the document — an
 //! expression the user is typing is not an edit until they commit it —
-//! and its methods turn typed field values into [`Expr`]s and
+//! and its methods turn typed field values into [`Expr`](editor_core::Expr)s and
 //! [`LoopProgram`]s. Nothing here names `DocSession`, `ViewerApp` or
 //! `egui`; the panels write these fields and read nothing back.
 //!
