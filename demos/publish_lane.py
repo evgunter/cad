@@ -68,7 +68,7 @@ def plan(stage, names):
     wanted = set(names)
     missing = sorted(
         n for n in wanted
-        if not any(s in staged.get(n, {}) for s in FRAMES + (FAIL,))
+        if not any(s in staged.get(n, {}) for s in (*FRAMES, FAIL))
     )
     extra = sorted(set(staged) - wanted)
     if missing or extra:
