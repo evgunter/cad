@@ -1607,7 +1607,7 @@ pub fn sweep_places<T: Real>(
             Affine3::rotation_about_axis(
                 origin,
                 (axis / sin).map(T::from_computed),
-                T::from_computed(sin.atan2(cos)),
+                T::from_computed(<f64 as Real>::atan2(sin, cos)),
             )
         } else if cos > 0.0 {
             Affine3::identity()

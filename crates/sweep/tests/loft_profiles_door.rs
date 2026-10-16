@@ -251,7 +251,9 @@ fn a_value_that_is_not_finite_refuses_by_name_at_both_doors() {
 #[test]
 fn a_dual_forms_value_channel_is_its_f64_form() {
     let c = Dual64::constant;
-    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0)).value_channel();
+    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0))
+        .value_channel()
+        .expect("a Dual form's values are points");
     let nominal = validated(1.2, 0.2, 1.0);
     assert_eq!(format!("{dual:?}"), format!("{nominal:?}"));
 }

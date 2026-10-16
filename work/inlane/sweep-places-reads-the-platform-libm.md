@@ -2,10 +2,12 @@
 id: sweep-places-reads-the-platform-libm
 kind: issue
 title: sweep_places turns its stations by std's atan2, the platform libm D9 rules out; sweep's other f64 trig sites are unaudited
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 refs: [the-skin-computes-its-values-in-t]
+cost: E
+closed: 2026-10-16
 ---
 
 
@@ -39,3 +41,33 @@ Owed:
 
   A site whose receiver is `f64` moves to `Real`'s call, or says why
   it is exempt.
+
+## Closed
+
+`sweep_places`' turn angle is `<f64 as Real>::atan2` (`crates/sweep/src/skin.rs`), the pure-Rust `libm` D9 prescribes.
+
+The audit read sweep's production trig call sites one by one: every
+`.sin`, `.cos`, `.sin_cos`, `.tan`, `.atan`, `.atan2`, `.asin`,
+`.acos`, `.exp`, `.ln`, `.powf` and `.hypot` call outside a
+`#[cfg(test)]` module. Every site but `sweep_places` has a receiver of
+the function's generic `T`, so it is `Real`'s already:
+- `revolve/axis.rs` `classify_segment`'s `atan`;
+- `revolve/tube.rs` `build`'s window `sin_cos`;
+- `blend/arms.rs` `sheet_center`'s cone `sin_cos`;
+- `blend/surgery.rs` `piece_along`'s and `attach_contact`'s `atan2`;
+- `blend/reach.rs` `surface_distance`, `sheet_fn_own`, `sheet_fn` and
+  `sheet_clip`;
+- `swept.rs`'s `atan`;
+- `skin.rs` `segment_curve`.
+
+The rest (the `end_face` meter and its fuzz, `reach.rs`' and
+`surgery.rs`' fixtures, `axis.rs`'s rows) sit in test modules.
+
+A second pass looked for the free-function spellings (`f64::sin(..)`,
+`core::f64::..`) and found none.
+
+No swept body moved on this platform: sweep and profile pass in full,
+3566 rows, with their goldens unchanged. glibc's `atan2` agrees with
+`libm`'s on these inputs, which is why only a platform whose libm
+differed would have moved. Nothing holds the line in place for future
+code: `work/ciw/an-inherent-f64-transcendental-has-no-gate.md`.
