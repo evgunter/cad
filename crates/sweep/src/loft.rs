@@ -637,9 +637,12 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
                     .iter()
                     .map(ValidatedProfile::value_channel)
                     .collect::<Result<_, _>>()
-                    // Every value is a point here (`all_points`, or a
-                    // projective scalar past `build`'s finite check).
-                    .map_err(|_| LoftError::SectionStructure)?;
+                    .unwrap_or_else(|site| {
+                        unreachable!(
+                            "{site}: every value is a point here, by `all_points` at an \
+                             enclosure scalar and by `build`'s finite check at a projective one"
+                        )
+                    });
                 check_shapes(&canonical)
                     .map(|()| (canonical, Vec::new()))
                     .map_err(LoftError::Skin)

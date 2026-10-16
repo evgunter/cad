@@ -31,12 +31,16 @@ place for sweep or any other crate.
 Two options:
 - A gate in `scripts/gates/` that greps kernel `src/` outside
   `#[cfg(test)]` modules for `.sin(`, `.cos(`, `.sin_cos(`, `.tan(`,
-  `.atan(`, `.atan2(`, `.asin(`, `.acos(`, `.exp(`, `.ln(`, `.powf(`
-  and `.hypot(` on an `f64` receiver. A grep cannot see the receiver's
+  `.atan(`, `.atan2(`, `.asin(`, `.acos(`, `.sinh(`, `.cosh(`,
+  `.tanh(`, `.exp(`, `.exp2(`, `.exp_m1(`, `.ln(`, `.ln_1p(`,
+  `.log*(`, `.powf(`, `.cbrt(` and `.hypot(` on an `f64` receiver. A grep cannot see the receiver's
   type, so it would need an allowlist of generic sites, or the
   receiver's type read from a parser.
 - `clippy::disallowed_methods` on `f64::{sin, cos, ...}`, scoped to
   non-test code. Clippy applies it per crate and cannot exempt
   `#[cfg(test)]`, so test modules would need an `allow` each.
 
-Either way, the first run is the census of today's sites.
+Either way, the first run is the census of today's sites. One known
+population: `crates/sweep/src/test_support.rs` (the `test-support`
+feature) makes about forty such calls to build fixture inputs. A gate
+decides whether feature-shipped fixtures are in scope.

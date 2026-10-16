@@ -377,7 +377,10 @@ fn the_value_channel_refuses_a_value_with_no_single_point() {
     );
     let wide = Interval::from_bounds(2.5 - w, 2.5 + w);
     match quad(wide, Interval::from_f64(1.0)).value_channel() {
-        Err(ValueNotAPoint::Vertex { loop_index: 0, .. }) => {}
+        Err(ValueNotAPoint::Vertex {
+            loop_index: 0,
+            vertex: 2,
+        }) => {}
         other => panic!(
             "a wide corner refuses at its vertex, got {:?}",
             other.map(|_| ())
@@ -392,6 +395,42 @@ fn the_value_channel_refuses_a_value_with_no_single_point() {
         Err(ValueNotAPoint::Plane) => {}
         other => panic!(
             "a wide plane refuses as the plane, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **An arc whose carrier is no single point refuses at its segment.**
+/// A half-disc validated at `Interval` with its arc's bulge a point
+/// still holds a carrier computed from the bulge, a radius and sweep
+/// from `atan` that are enclosures: the mint names the arc's segment
+/// (canonical loop 0), where its vertices, both points, pass.
+#[test]
+fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
+    use profile::test_support::bulge_loop;
+    use profile::{Profile, ValueNotAPoint};
+    let p = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+    let form = Profile::new(
+        profile::SketchPlane::new(geom_core::Affine3::identity()),
+        vec![bulge_loop(vec![
+            (p(0.0, 0.0), Interval::zero()),
+            (p(2.0, 0.0), Interval::from_f64(0.5)),
+        ])],
+    )
+    .validate(Tol::witness())
+    .expect("the arc-capped chord validates at Interval");
+    let arc = form.loops()[0]
+        .segments()
+        .iter()
+        .position(|s| matches!(s.kind, SegmentKind::Arc { .. }))
+        .expect("the bulge is an arc");
+    match form.value_channel() {
+        Err(ValueNotAPoint::Segment {
+            loop_index: 0,
+            segment,
+        }) => assert_eq!(segment, arc, "the refusal names the arc's segment"),
+        other => panic!(
+            "an arc carrier with no point refuses at its segment, got {:?}",
             other.map(|_| ())
         ),
     }

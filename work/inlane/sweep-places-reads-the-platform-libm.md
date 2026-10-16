@@ -53,21 +53,31 @@ The audit read sweep's production trig call sites one by one: every
 the function's generic `T`, so it is `Real`'s already:
 - `revolve/axis.rs` `classify_segment`'s `atan`;
 - `revolve/tube.rs` `build`'s window `sin_cos`;
-- `blend/arms.rs` `sheet_center`'s cone `sin_cos`;
-- `blend/surgery.rs` `piece_along`'s and `attach_contact`'s `atan2`;
+- `blend/arms.rs` `Meridian::trace`'s cone `sin_cos`;
+- `blend/surgery.rs` `CircleFrame::past`'s and `attach_contact`'s `atan2`;
 - `blend/reach.rs` `surface_distance`, `sheet_fn_own`, `sheet_fn` and
   `sheet_clip`;
 - `swept.rs`'s `atan`;
 - `skin.rs` `segment_curve`.
 
-The rest (the `end_face` meter and its fuzz, `reach.rs`' and
-`surgery.rs`' fixtures, `axis.rs`'s rows) sit in test modules.
+The rest sit in test modules: the `end_face` meter and its fuzz,
+`reach.rs`' and `surgery.rs`' fixtures, `axis.rs`'s rows, and the
+item's `swept.rs` candidates, now inside `swept.rs`'s `mod tests`.
+
+`crates/sweep/src/test_support.rs` (under `test-support`, a dev
+feature) makes about forty bare-`f64` platform-libm calls (`tan`, `acos`,
+`asin`, `atan2`, `sin`, `cos`, `hypot`). They build fixture inputs, so
+they shape goldens per platform, but no kernel output. They are exempt
+here and named in the gate item's census.
 
 A second pass looked for the free-function spellings (`f64::sin(..)`,
 `core::f64::..`) and found none.
 
-No swept body moved on this platform: sweep and profile pass in full,
-3566 rows, with their goldens unchanged. glibc's `atan2` agrees with
-`libm`'s on these inputs, which is why only a platform whose libm
-differed would have moved. Nothing holds the line in place for future
+One swept body moved: the swept elbow. Of its nine stations, station
+6's turn angle is one ulp apart between glibc and `libm`
+(1.19383730525368592 against 1.19383730525368614), and the rest agree.
+`mesh`'s `d9_mesh_goldens` digests of the elbow at both δ moved, at all
+three ε rows, and were re-baselined. The old digests come back with the
+old call. sweep's and profile's own goldens do not see the elbow's
+mesh. Nothing holds the line in place for future
 code: `work/ciw/an-inherent-f64-transcendental-has-no-gate.md`.

@@ -44,15 +44,25 @@ The first shape. `ValidatedProfile::value_channel`
 `Result<ValidatedProfile<f64>, ValueNotAPoint>`. Each value is read
 through `SpanLocate::point_value`, and the first one with no single
 point refuses typed, naming its site: the plane, a vertex, or a
-segment (canonical indices). So no validated profile holding NaN can
-be minted.
+segment (canonical indices). So `value_channel` no longer mints a
+validated profile holding NaN.
+
+At `f64` a NaN plane is now a refusal (`Plane`), where the old mint
+passed it through. `Profile::validate` never reads the plane, so a form
+validated over a NaN plane still exists. That is
+`work/inlane/a-validated-profile-takes-its-plane-unvalidated.md`.
 
 The one production consumer is `sweep::loft_profiles` (`loft.rs`'s
 `SectionsAtT`):
 - its "every input is a point" test reads the mint's `is_ok`;
 - its channel read can no longer see a NaN.
 
-Pinned in `crates/profile/tests/interval_lane.rs`
-(`the_value_channel_refuses_a_value_with_no_single_point`): a point
-form mints value for value; a wide corner refuses at its vertex; a
-wide plane refuses as the plane.
+Pinned in `crates/profile/tests/interval_lane.rs`:
+- `the_value_channel_refuses_a_value_with_no_single_point`: a point
+  form mints its corner and plane; a wide corner refuses at vertex 2;
+  a wide plane refuses as the plane.
+- `the_value_channel_refuses_an_arc_carrier_at_its_segment`: an arc's
+  carrier from `atan` refuses at its segment.
+
+The consumer's arm for a refusal it cannot see is `unreachable!`, with
+the reason (D9's kernel-defect row).
