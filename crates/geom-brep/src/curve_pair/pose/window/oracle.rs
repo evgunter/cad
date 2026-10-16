@@ -443,7 +443,7 @@ fn seam_pose(
 /// span's seam and parameters lie**: the seam family (`seam_pose`), the
 /// tilt from `10⁻⁷·⁵` to `10⁻⁶`, the second meeting within the window,
 /// the span a whole turn cut anywhere near the root, an open arc ending
-/// near it on either side, or longer than a turn, moved by up to four
+/// near it on either side, or longer than a turn, moved by up to twenty
 /// turns either way; the window about the root at up to two turns, the
 /// found meetings at every turn of the root inside the span, or at one
 /// turn anywhere.
@@ -458,7 +458,7 @@ fn a_window_holding_a_second_meeting_is_never_certified_at_any_seam() {
         let sign = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
         let delta = (0.1 + 0.4 * rng.unit()) * band.zero() / t * sign;
         let w = (band.escalate() / t).asin() * 1.05;
-        let turn = (rng.unit() * 9.0).floor().mul_add(TAU, -4.0 * TAU);
+        let turn = (rng.unit() * 41.0).floor().mul_add(TAU, -20.0 * TAU);
         let cut = (rng.unit() - 0.5) * 2.5 * w;
         let span = match rng.below(4) {
             0 => (turn + cut, turn + cut + TAU),
@@ -475,7 +475,7 @@ fn a_window_holding_a_second_meeting_is_never_certified_at_any_seam() {
             continue;
         }
         if rng.unit() < 0.3 {
-            joints = vec![(rng.unit() * 9.0).floor().mul_add(TAU, -4.0 * TAU)];
+            joints = vec![(rng.unit() * 41.0).floor().mul_add(TAU, -20.0 * TAU)];
         }
         let window_at = (window_turn - w, window_turn + w);
         let (certified, p_on) = seam_pose((t, rb, delta), span, window_at, &joints, band);
