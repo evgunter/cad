@@ -7922,7 +7922,14 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// up to a turn, so a margin built on the read is a different expression
 /// in each, and is named by it ([`Frame::placement`]).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> (T, Frame) {
-    match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
+    // PROBE R1: the switch between the two formulas sits on the window's
+    // cut line (through ANGLE_WINDOW_START and its antipode), so the read
+    // lies in the window: the direct formula on the arc (a, a + pi), the
+    // turned one on (a + pi, a + tau). `across` is the direction's signed
+    // component across that line, positive on the direct arc.
+    let (sa, ca) = <f64 as Real>::sin_cos(ANGLE_WINDOW_START);
+    let across = y * T::from_f64(ca) - x * T::from_f64(sa);
+    match decide("pcurve_chart_azimuth_frame", Margin::of(across), band) {
         Ok(Sign::Negative) => (
             (T::zero() - y).atan2(T::zero() - x) + T::pi(),
             Frame::Turned,
@@ -7949,12 +7956,10 @@ impl Frame {
     /// and, where the channel's offset is itself built on a frame-lane
     /// read (the Villarceau circle's `t0`), an offset in `offset`.
     fn placement(self, offset: Frame) -> &'static str {
-        match (self, offset) {
-            (Frame::Direct, Frame::Direct) => "pcurve_chart_placement",
-            (Frame::Turned, Frame::Direct) => "pcurve_chart_placement_turned",
-            (Frame::Direct, Frame::Turned) => "pcurve_chart_placement_offset_turned",
-            (Frame::Turned, Frame::Turned) => "pcurve_chart_placement_both_turned",
-        }
+        // PROBE R1: one name; the read is the window copy whichever
+        // formula computed it.
+        let _ = (self, offset);
+        "pcurve_chart_placement"
     }
 }
 
