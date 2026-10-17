@@ -810,6 +810,18 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
     let plain = plain_distance_doc();
     let mut text = String::new();
+    // `plain_distance`'s analysed box varies no axis (its drive refuses
+    // `NothingVaries` before it builds a witness), so its collapsed box
+    // is the build's and its keys are the pinned lift's
+    // (`EvalOptions::profile_lift`); `min_clearance_neck`'s varies one,
+    // and its keys are the guided lift's, as its drive's witness is.
+    assert!(
+        ParamBox::of(&analyzed_box(&plain, &AnalysisPolicy::default()))
+            .varying()
+            .next()
+            .is_none(),
+        "plain_distance's box varies no axis"
+    );
     for (label, d) in [("min_clearance_neck", &doc), ("plain_distance", &plain)] {
         let ev = evaluate::<f64>(
             d,

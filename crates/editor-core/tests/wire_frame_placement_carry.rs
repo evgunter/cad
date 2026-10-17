@@ -439,17 +439,18 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     );
 }
 
-/// Row 6 — **an authored frame's profile is placed from the NOMINAL
-/// read, never from the frame's landed value.** That is what the
-/// carry's `Authored` arm is for, and it is invisible while the two
-/// agree — so this row drives the evaluation off the nominal with a
-/// degenerate `ParamBox` (`p ∈ nominal + [c, c]`, the shape
-/// `eval10_section_reads_the_nominal` uses), where they cannot.
-///
-/// A reader that answered "derived" for this authored frame would
-/// place its profile at the LANE and the body would sit `c` away.
+/// Row 6 — **under a box, an authored frame's profile is placed at the
+/// LANE, as the document moved there places it.** The build places a
+/// profile from the frame's nominal read (the carry's `Authored` arm),
+/// and a box that varies an axis makes the evaluation an analysis, whose
+/// profile lift is guided (`EvalOptions::profile_lift`): the profile is
+/// elaborated on the frame's landed value. So the boxed body is the body
+/// of the document authored at the offset nominal, point for point —
+/// where the pinned lift used to place it from the unmoved nominal and
+/// leave it `c` away
+/// (`work/inlane/the-pinned-profile-lift-launders-at-sym.md`).
 #[test]
-fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
+fn an_authored_frames_profile_places_at_the_boxed_lane() {
     let (doc, _frame, _profiles, extrude) = shared_frame_doc(0.0);
     let unboxed = eval(&doc, None);
     let boxed = evaluate::<f64>(
@@ -462,11 +463,17 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
         },
         Tol::witness(),
     );
+    let (moved, _, _, moved_extrude) = shared_frame_doc(5.0);
+    let moved = eval(&moved, None);
+    assert_ne!(
+        point_bits(&moved, moved_extrude),
+        point_bits(&unboxed, extrude),
+        "the offset moves the body, so the equality below is not vacuous"
+    );
     assert_eq!(
         point_bits(&boxed, extrude),
-        point_bits(&unboxed, extrude),
-        "the profile is placed from the frame's NOMINAL read, so a box that moves \
-         the lane off the nominal moves no point of it"
+        point_bits(&moved, moved_extrude),
+        "the boxed profile is placed at the lane, as the moved document places it"
     );
 }
 

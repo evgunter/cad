@@ -29,3 +29,12 @@ Owed:
 - Find where the endpoint residual's enclosure loses the box: is it the frame's landed placement, or the boss profile's carrier at the lane?
 - Make it decide, or refuse with recourse.
 - Pin the row under the guided lift.
+
+## Measured on the rungs (pinned-lift unit, after PR 5247)
+
+The row now pins this refusal under the guided lift. The two rungs differ:
+
+- **No rules (`SymRules::none()`):** the escalation above, with **12 decisions frozen** on the way (SymCounts: symbolic 480, numeric 314, checks_frozen 2).
+- **A0 alone (`const_fold`):** **nothing frozen**. The document reaches the boss's side plane and refuses at `newell_plane_residual` (clause 1, an invalid margin), as the row always said.
+
+So the [0, 0.32] enclosure appears only on the rung that freezes. The first thing to read is whether the endpoint residual's enclosure comes from a frozen form's numeric fallback. If so, the defect is the freeze reaching an attachment gate as an enclosure this wide, not the frame.

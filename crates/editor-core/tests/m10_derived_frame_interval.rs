@@ -570,18 +570,19 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     );
 }
 
-/// **The freeze population is not what refuses.** With every rule off
-/// the derived-frame document still freezes, and what refuses at
-/// `5e-2` is NOT one of the freezes: on the sign-hull construction the
+/// **The freeze population is not what refuses, with A0.** With A0's
+/// constant fold the derived-frame document freezes NOTHING, and what
+/// refuses at `5e-2` is clause 1's: on the sign-hull construction the
 /// gate's residual is a plain THEOREM — the opaque `Select` atoms of an
 /// axis-aligned frame cancel as `X − X` — so the document goes on to
 /// the boss's side plane, where the value channel's
 /// `newell_plane_residual` is `Invalid` and no tier is asked at all
 /// (`Decide for Sym<T>` turns a domain violation into no symbolic
-/// question). Neither the plain tier nor A0 alone freezes ANYTHING
-/// getting there, so what refuses is not a freeze either way, and no
-/// rule of the atom algebra stands between the derived frame and its
-/// authored twin. The ten forms that used to freeze at A0's rung sat
+/// question). With every rule off, under the guided lift, the plain
+/// tier freezes twelve forms and refuses earlier, at the boss extrude's
+/// start-endpoint certification over an enclosure of [0, 0.32]; whether
+/// those freezes are what widens it is
+/// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
 /// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
 /// CONSTANTS — and A0 decides those exactly now
 /// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
@@ -596,6 +597,13 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
+    // Under the guided lift (every analysis's, `EvalOptions::profile_lift`)
+    // the plain tier no longer reaches the side plane: it freezes twelve
+    // forms on the way and refuses earlier, at the boss extrude's
+    // start-endpoint certification, over an enclosure of [0, 0.32] —
+    // filed as a kernel defect reachable by input, with whether the
+    // freezes widen it the open question
+    // (`work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`).
     let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
     assert_eq!(
         plain_fails.len(),
@@ -603,15 +611,13 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("newell_plane_residual")
-            && plain_fails[0].contains("margin is invalid"),
-        "with no rule the gate is still a theorem and what refuses is clause 1's, on the \
-         boss's side plane: {plain_fails:?}"
+        plain_fails[0].contains("EndpointStart")
+            && plain_fails[0].contains("carrier_endpoint_start"),
+        "with no rule, the guided boss refuses its start-endpoint certification: {plain_fails:?}"
     );
     assert_eq!(
-        plain_counts.frozen, 0,
-        "and it freezes NOTHING getting there, so the refusal cannot be a freeze: \
-         {plain_counts:?}"
+        plain_counts.frozen, 12,
+        "and freezes twelve forms getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {
