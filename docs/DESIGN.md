@@ -1846,13 +1846,14 @@ asserted pair. An assertion speaks for nothing else, so a new contact
 or overlap anywhere else is loud until something says otherwise, and
 an overlap the kernel cannot bound is loud and nothing quiets it.
 
-**Families.** The bodies of a pattern's `Bodies` are examined like any
-others, and an assertion about each of them is written once, as a
-`map` over the `Bodies`: one assertion per member, each reading the
-one bound variable, as many as the pattern's `Count`. That quiets each
-member against another copy; an overlap between two members
-(neighbours in a ring) is quieted by a map over pairs of members,
-adjacent pairs or all pairs.
+**Families.** The members of a family are examined like any other
+copies, and an assertion about each of them is written once, as an
+assertion whose reads reach the family's index ([repetition]): one
+assertion per member, each reading the one bound variable, as many as
+the index's `Count`. That quiets each member against another copy. An
+overlap between two members is quieted by an assertion reading two of
+them: `c[k]` and `c[(k + 1) mod N]` for neighbours in a ring, or two
+indices, one `within` the other, for all pairs.
 
 ### Identity and naming `[identity]`
 
