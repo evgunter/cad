@@ -2,11 +2,13 @@
 `docs/INTENT-STAGE3-SPEC.md` §2).
 
 No pose is free and none is defined from nothing. Each row here reads
-one off geometry or constructs one from others, hands it to a split's
-tool, and reads what the split did: a face reads as its plane with the
-OUTWARD normal, a curved face has no plane, a frame through a point on
-its own axis has no roll to pick, and a seat holds its kind.
+one off geometry, moves one by a length or an angle, or constructs one
+from others, hands it to a split's tool, and reads what the split did:
+a face reads as its plane with the OUTWARD normal, a curved face has no
+plane, a frame through a point on its own axis has no roll to pick, a
+finer pose is read through its role, and a seat holds its kind.
 """
+
 
 import unittest
 
@@ -18,9 +20,11 @@ from pncad import (
     Formula,
     Node,
     PoseDef,
+    RoleRead,
     SurfaceKind,
     circle,
     evaluate,
+    deg,
     m,
 )
 
@@ -32,6 +36,11 @@ def cube(doc):
         plane=doc.sketch_frame(),
     ))
     return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
+
+
+def standoff(plane, by):
+    """`plane` slid along its own normal by `by`."""
+    return PoseDef.slide(plane, RoleRead(plane, "normal"), by)
 
 
 def face_at(ev, node, height):
@@ -58,7 +67,7 @@ class TestAFaceReadsAsItsPlane(unittest.TestCase):
             cap = face_at(evaluate(doc), body, height)
             cut = doc.insert(Node.split(
                 body,
-                PoseDef.standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m)),
+                standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m)),
             ))
             above, _ = evaluate(doc).value(cut).split()
             self.assertIsNotNone(above, f"z = {height}")
@@ -87,8 +96,8 @@ class TestAConstructionRefusesItsDegenerateCase(unittest.TestCase):
         edge = ev.all_edges(body)[0]
         refusals = []
         for v in ev.all_vertices(body):
-            cut = doc.insert(Node.split(body, PoseDef.project(
-                PoseDef.through(PoseDef.axis(body, edge), PoseDef.point(body, v)), "plane",
+            cut = doc.insert(Node.split(body, RoleRead(
+                PoseDef.through(PoseDef.axis(body, edge), PoseDef.point(body, v)), "xy",
             )))
             try:
                 evaluate(doc).value(cut)
@@ -107,12 +116,25 @@ class TestASeatHoldsItsKind(unittest.TestCase):
             doc.insert(Node.split(body, PoseDef.axis(body, edge)))
         self.assertEqual(caught.exception.variant, "slot_var_kind")
 
-    def test_a_projection_to_a_kind_it_does_not_reach_refuses_at_the_door(self):
+    def test_a_role_its_pose_does_not_offer_refuses_at_the_door(self):
+        """A plane offers its normal, not a frame's xy plane."""
         doc = Doc()
         body = cube(doc)
         cap = face_at(evaluate(doc), body, 1.0)
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.split(body, PoseDef.project(PoseDef.plane(body, cap), "axis")))
+            doc.insert(Node.split(body, RoleRead(PoseDef.plane(body, cap), "xy")))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
+
+    def test_a_slide_along_a_plane_refuses_at_the_door(self):
+        """A slide is along a direction or an axis: a frame's xy plane
+        is neither."""
+        doc = Doc()
+        body = cube(doc)
+        frame = doc.sketch_frame()
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.split(body, PoseDef.slide(
+                RoleRead(frame, "xy"), RoleRead(frame, "xy"), 0.5 * m,
+            )))
         self.assertEqual(caught.exception.variant, "pose_shape")
 
 
@@ -125,7 +147,7 @@ class TestTheConstructors(unittest.TestCase):
         body = cube(doc)
         ev = evaluate(doc)
         cap = face_at(ev, body, 1.0)
-        once = PoseDef.standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m))
+        once = standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m))
         plain = doc.insert(Node.split(body, once))
         twice = doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(once))))
         halves = evaluate(doc)
@@ -137,35 +159,64 @@ class TestTheConstructors(unittest.TestCase):
             doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(PoseDef.point(body, corner)))))
         self.assertEqual(caught.exception.variant, "slot_var_kind")
 
-    def test_a_kind_word_is_one_of_the_five(self):
+    def test_a_role_word_is_one_of_the_nine(self):
+        doc = Doc()
+        with self.assertRaises(ValueError):
+            RoleRead(doc.sketch_frame(), "line")
+
+    def test_a_frames_plane_slid_along_its_axis_splits(self):
+        """The sketch frame's xy plane slid half a metre along its own
+        z halves the cube."""
         doc = Doc()
         body = cube(doc)
-        cap = face_at(evaluate(doc), body, 1.0)
-        with self.assertRaises(ValueError):
-            PoseDef.project(PoseDef.plane(body, cap), "line")
-
-    def test_in_frame_takes_one_of_the_five_keyword_shapes(self):
-        doc = Doc()
         frame = doc.sketch_frame()
-        with self.assertRaises(ValueError):
-            PoseDef.in_frame(frame, normal=(0.0, 0.0, 1.0))
-        with self.assertRaises(ValueError):
-            PoseDef.in_frame(frame, origin=(0 * m, 0 * m, 0 * m), u=(1.0, 0.0, 0.0))
-
-    def test_a_plane_in_a_frame_splits(self):
-        doc = Doc()
-        body = cube(doc)
-        cut = doc.insert(Node.split(body, PoseDef.in_frame(
-            doc.sketch_frame(), origin=(0 * m, 0 * m, 0.5 * m), normal=(0.0, 0.0, 1.0),
+        cut = doc.insert(Node.split(body, PoseDef.slide(
+            RoleRead(frame, "xy"), RoleRead(frame, "z"), 0.5 * m,
         )))
         above, below = evaluate(doc).value(cut).split()
         self.assertAlmostEqual(above.mass_properties().volume, 0.5, delta=1e-12)
         self.assertAlmostEqual(below.mass_properties().volume, 0.5, delta=1e-12)
 
-    def test_a_position_coordinate_must_be_a_length(self):
+    def test_a_plane_spun_about_an_edge_tilts_the_cut(self):
+        """The top plane spun 45° about one of its own edges passes
+        through that edge and down the cube's diagonal: half the cube
+        lies on each side."""
         doc = Doc()
+        body = cube(doc)
+        ev = evaluate(doc)
+        cap = face_at(ev, body, 1.0)
+        edge = next(
+            e for e in ev.all_edges(body)
+            if abs(ev.edge_frame(body, e).origin[2].meters - 1.0) < 1e-12
+        )
+        cut = doc.insert(Node.split(body, PoseDef.spin(
+            PoseDef.plane(body, cap), PoseDef.axis(body, edge), 45 * deg,
+        )))
+        above, below = evaluate(doc).value(cut).split()
+        for half in (above, below):
+            self.assertAlmostEqual(half.mass_properties().volume, 0.5, delta=1e-9)
+
+    def test_a_point_in_a_frame_is_its_origin_slid(self):
+        """The plane through the sketch frame's z axis and the point
+        `(1, 0.5, 0)` in it cuts the cube's footprint along the line from
+        the origin through `(1, 0.5)`, leaving a quarter on one side."""
+        doc = Doc()
+        body = cube(doc)
+        frame = doc.sketch_frame()
+        through = PoseDef.through(
+            RoleRead(frame, "z"), PoseDef.point_in(frame, 1 * m, 0.5 * m, 0 * m),
+        )
+        cut = doc.insert(Node.split(body, RoleRead(through, "zx")))
+        above, below = evaluate(doc).value(cut).split()
+        volumes = sorted(half.mass_properties().volume for half in (above, below))
+        self.assertAlmostEqual(volumes[0], 0.25, delta=1e-9)
+        self.assertAlmostEqual(volumes[1], 0.75, delta=1e-9)
+
+    def test_a_slide_length_must_be_a_length(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
         with self.assertRaises((ValueError, TypeError, pncad.EditError)):
-            PoseDef.in_frame(doc.sketch_frame(), origin=(Formula.literal(0.0), 0 * m, 0 * m))
+            PoseDef.slide(RoleRead(frame, "origin"), RoleRead(frame, "x"), Formula.literal(0.5))
 
 
 if __name__ == "__main__":

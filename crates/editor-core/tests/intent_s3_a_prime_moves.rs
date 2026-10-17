@@ -99,7 +99,10 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
             near(got, want, &format!("{role} {what}"));
         }
     }
-    for (role, normal) in [(PoseRole::Yz, [0.0, 1.0, 0.0]), (PoseRole::Zx, [0.0, 0.0, 1.0])] {
+    for (role, normal) in [
+        (PoseRole::Yz, [0.0, 1.0, 0.0]),
+        (PoseRole::Zx, [0.0, 0.0, 1.0]),
+    ] {
         let Ok(PoseValue::Plane { normal: n, .. }) =
             bound_pose(&doc, &ev, OperandSlot::Tool, through(role), Tol::witness())
         else {
@@ -258,7 +261,10 @@ fn a_self_read_through_a_role_is_one_reader() {
         panic!("the tube");
     };
     let frame = *frame;
-    assert!(doc.var_name(frame).is_none(), "premise: the frame is unnamed");
+    assert!(
+        doc.var_name(frame).is_none(),
+        "premise: the frame is unnamed"
+    );
 
     let spun = pose(PoseDef::Spin {
         pose: RoleRead::plain(Operand::Var(frame)),
@@ -354,7 +360,11 @@ fn the_tilted_seat_plane_evaluates() {
     // plane about it, so both its ends stay on the plane.
     for end in [[0.0, 0.0, 1.0], [1.0, 0.0, 1.0]] {
         let p = geom_core::Point3::new(end[0], end[1], end[2]);
-        near((p - origin).dot(n), 0.0, "the plane passes through the front rim");
+        near(
+            (p - origin).dot(n),
+            0.0,
+            "the plane passes through the front rim",
+        );
     }
 }
 
@@ -370,7 +380,10 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
         panic!("the box");
     };
     let written = *distance;
-    assert!(!doc.lowers_to_constant(written), "a written length is a value");
+    assert!(
+        !doc.lowers_to_constant(written),
+        "a written length is a value"
+    );
     let typed = |doc: &ProfileDoc, formula: Formula| {
         let doc = editor_core::apply(
             doc,
@@ -397,12 +410,13 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
             panic!("{zero:?}: a defined variable");
         };
         assert!(expr.is_zero(), "{zero:?}: defined by the constant");
-        assert_eq!(expr.dim(), Dimension::Length, "{zero:?}: at the slot's dimension");
+        assert_eq!(
+            expr.dim(),
+            Dimension::Length,
+            "{zero:?}: at the slot's dimension"
+        );
     }
-    let (doc, var) = typed(
-        &doc,
-        Formula::length_in(0.0, quantity::MM).unwrap(),
-    );
+    let (doc, var) = typed(&doc, Formula::length_in(0.0, quantity::MM).unwrap());
     assert!(doc.free(var).is_some(), "`0 mm` mints a free length");
     assert!(!doc.lowers_to_constant(var));
 
@@ -418,10 +432,11 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
         doc,
         fixture::revolve_about(profile, (0.0, 0.0), fixture::along_x(), ang(1.0)),
     );
-    let heading = doc
-        .slot(revolve, SlotId::AxisHeading)
-        .expect("the heading");
-    assert!(doc.lowers_to_constant(heading), "a heading of `0` is a constant");
+    let heading = doc.slot(revolve, SlotId::AxisHeading).expect("the heading");
+    assert!(
+        doc.lowers_to_constant(heading),
+        "a heading of `0` is a constant"
+    );
     let built = eval(&doc);
     assert!(
         matches!(built.nodes.get(&revolve), Some(NodeResult::Ok(_))),

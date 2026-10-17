@@ -86,7 +86,7 @@ def axis_of(doc, frame):
     """The sketch frame's own +y through its origin."""
     return (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
 
 

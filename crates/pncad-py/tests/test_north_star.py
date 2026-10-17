@@ -156,7 +156,7 @@ class TestChute(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
@@ -546,16 +546,16 @@ class TestPlateParam(unittest.TestCase):
 
 def y_axis(doc, plane):
     """The sketch's own +y through its origin, as a revolve's axis: the
-    `(axis_origin, axis_direction)` pair a revolve writes in its
+    `(axis_through, axis_heading)` pair a revolve writes in its
     profile's frame, splatted into `Node.revolve`.
 
     An axis written in the profile's frame cannot leave its plane, so
-    the four numbers below are that frame's coordinates, not the
-    world's; `doc` and `plane` are kept for the callers' shape.
+    the point and the quarter-turn heading below are that frame's, not
+    the world's; `doc` and `plane` are kept for the callers' shape.
     """
     return (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
 
 
@@ -1667,7 +1667,7 @@ class DieScene:
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(sketch, *axis, Formula.angle_in(2.0 * math.pi, rad)))
 
@@ -2306,7 +2306,7 @@ class TestHollowring(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(360, deg)))
 
@@ -2442,7 +2442,7 @@ class TestKlein(unittest.TestCase):
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(band, *axis, Formula.angle_in(2 * math.pi, rad)))
 
@@ -2517,7 +2517,7 @@ class TestBudfillet(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
@@ -3685,7 +3685,7 @@ class TestMeshCrossCheck(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
