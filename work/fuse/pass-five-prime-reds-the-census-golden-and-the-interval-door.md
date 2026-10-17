@@ -62,8 +62,9 @@ tier 3′ with the same finding on two curved edges:
   `a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`:
   "Interval: tier 3′", on edges `1v3`, `16v1` and `17v1`.
 
-One more row in the same file failed the same way on PR 5225's merge at
-ε 1e-12, but nobody has run it on main alone:
+A third row, in the first file, fails the same way at ε 1e-12, and it is
+main's too: it fails identically on main alone, as PCERT's orchestrator
+reported (2026-10-17), not only on PR 5225's merge:
 `band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
 ("lean -2 scale 100 r 0.05 order [0, 1]: tier 3′", edges `8v3` and
 `20v1`). The full ε matrix runs nightly, so these show there, not in

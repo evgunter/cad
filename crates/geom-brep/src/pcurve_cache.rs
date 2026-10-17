@@ -4949,7 +4949,10 @@ impl<T: Decide> Azimuth<T> {
     /// names no angle, and every angle names its zero-length vector alike:
     /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
     /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis).
+    /// centre on the axis). At `Interval` the rule broadens the same way:
+    /// an enclosure of the length that straddles zero has no bounded
+    /// reciprocal, so it reads `0` too, although the direction it encloses
+    /// may have length.
     pub fn principal(self, band: Band) -> T {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
