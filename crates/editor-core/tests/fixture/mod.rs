@@ -372,8 +372,27 @@ pub fn pin(
         ),
         other => panic!("node {} is a placement, got {other:?}", placement.0),
     };
-    let mate = editor_core::pin_at(&doc, &copy, pose, o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+    let mate = match editor_core::pin_at(&doc, &copy, pose, o, Tol::witness()) {
+        Ok(mate) => mate,
+        // A copy that does not evaluate has no geometry to read a frame
+        // off: it is still placed in the world, by a rest of the cap its
+        // body would mint on the world's floor, which its placement
+        // never reaches (the placement is poisoned through its shape).
+        Err(
+            editor_core::PinRefusal::Unevaluated { node }
+            | editor_core::PinRefusal::NotABody { node },
+        ) => editor_core::Mate {
+            on: plane(editor_core::Operand::select(
+                copy.clone(),
+                vec![fname(node, RoleSeg::Cap(editor_core::CapEnd::Start))],
+            )),
+            to: editor_core::Target::World(
+                editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).flip(),
+            ),
+            class: editor_core::ContactClass::Rest,
+        },
+        Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
+    };
     constrain_at(doc, placement, mate).0
 }
 

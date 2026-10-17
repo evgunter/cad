@@ -57,6 +57,7 @@ from pncad import (
     ContactClass,
     Coord,
     Doc,
+    DocEdit,
     DocRef,
     EntityKind,
     Formula,
@@ -146,9 +147,15 @@ def prism(seed, width, depth, height):
             plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
-    body = doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    # A part with no height has no faces to read its seat off: it is
+    # authored standing a metre tall, its placement read off that, then
+    # edited flat — the part edited until it no longer builds.
+    built = height if height > 0 else 1.0
+    body = doc.insert(Node.extrude(profile, Formula.length_in(built, m)))
     placement = doc.place(body, [])
     on_floor(doc, placement, body, one(evaluate(doc).select(body, cap_selector(CapEnd.Start))))
+    if built != height:
+        doc.apply(DocEdit.set_param(body, "distance", Formula.length_in(height, m)))
     return doc
 
 

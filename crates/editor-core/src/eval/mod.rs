@@ -3485,6 +3485,10 @@ impl crate::mate::SolveScalar for geom_core::Interval {
             y.atan2(x)
         }
     }
+
+    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
+        true
+    }
 }
 
 /// The seed lane's solve: a refusal quotes the value channel — the
@@ -3513,6 +3517,18 @@ where
             deriv: angle.deriv,
         }
     }
+
+    /// Every entry's tangent is exactly zero: a pose the seed's
+    /// parameter moves keeps its derivative.
+    fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
+        let q = map.linear;
+        let t = map.translation;
+        [q.c0, q.c1, q.c2, t].iter().all(|v| {
+            [v.x, v.y, v.z]
+                .iter()
+                .all(|e| e.deriv.quoted() == 0.0 && e.deriv.upper() == 0.0)
+        })
+    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3539,6 +3555,12 @@ where
 
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Real::atan2(y, x)
+    }
+
+    /// A symbolic map records its expression, which the identity would
+    /// lose: it never settles.
+    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
+        false
     }
 }
 

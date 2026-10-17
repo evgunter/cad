@@ -21,7 +21,7 @@
 //! Free-move accepts only a **completely-unconstrained** instance: one
 //! that appears in NO constraint ([`mates_naming`] scans the recipe's
 //! own bundles — the authored data, not the solver's state — and passes
-//! the world pin an instance stands on). An instance any mate names refuses typed
+//! the world mate an instance stands on). An instance any mate names refuses typed
 //! ([`AdmissionFault::MateConstrained`], listing the mates), because its
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.

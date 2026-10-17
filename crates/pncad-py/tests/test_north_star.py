@@ -4153,7 +4153,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "add_constraint", "bind_count_param", "bind_instance_param",
+                "add_constraint", "add_value", "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
                 "delete_node", "delete_var",
                 "insert_node", "rebind", "remove_constraint", "rename_var",

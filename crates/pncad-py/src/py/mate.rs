@@ -148,12 +148,7 @@ impl WorldRead {
     }
 
     /// This read slid along `along` by the length `by`.
-    fn slide(
-        &self,
-        py: Python<'_>,
-        along: &Self,
-        by: super::expr::SlotArg,
-    ) -> PyResult<Self> {
+    fn slide(&self, py: Python<'_>, along: &Self, by: super::expr::SlotArg) -> PyResult<Self> {
         let by = move_by(py, &by, d::Dimension::Length, "slide")?;
         Ok(Self(self.0.clone().slide(along.0.clone(), by)))
     }
@@ -192,7 +187,11 @@ fn world_text(read: &d::WorldRead<d::Formula>) -> String {
     match read {
         d::WorldRead::Frame => "WorldRead.frame()".to_owned(),
         d::WorldRead::Role { pose, role } => {
-            format!("{}.role({:?})", world_text(pose), super::pose::role_word(*role))
+            format!(
+                "{}.role({:?})",
+                world_text(pose),
+                super::pose::role_word(*role)
+            )
         }
         d::WorldRead::Slide { pose, along, by } => {
             format!("{}.slide({}, {by})", world_text(pose), world_text(along))
@@ -1079,8 +1078,7 @@ impl MateFault {
         self.payload().value
     }
 
-    /// The lever's TILT, when a contradictory clash levered an
-    /// authored roll (the clocking rider's `mate_clocking_redundant`).
+    /// The lever's TILT, when a contradictory clash levered a roll.
     /// One of this and `lever_residual` is set on a levered clash,
     /// never both: which one says what kind of number the predicate
     /// measured.
@@ -1208,11 +1206,7 @@ fn pose_err(
 /// solve's, recorded over that version, so its words are spoken from it
 /// even after the document is edited.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct SolvedPoses(
-    d::SolvedPoses,
-    Arc<d::ProfileDoc>,
-    Arc<d::Evaluation<f64>>,
-);
+pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>, Arc<d::Evaluation<f64>>);
 
 #[pymethods]
 impl SolvedPoses {

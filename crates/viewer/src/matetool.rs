@@ -86,7 +86,7 @@ use pncad::select::{ContactClass, Resolution};
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
-use crate::vocab::partial_mirror;
+use crate::vocab::{partial_mirror, vocabulary};
 
 /// **The kinds a mate's face picks are read as**, with their labels: a
 /// face read as its plane (with its outward normal), or as its
@@ -100,16 +100,53 @@ use crate::vocab::partial_mirror;
 /// absent, with the reason.
 pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKind::Axis, "axis")];
 
-/// **Every freedom a mate's value can set**, in the order the mate
-/// panel draws them: the slides along the chart's `x`, `y` and `z`, and
-/// the spin. Which of them a mate leaves is its kind's
-/// (`Coord::admitted_by`), and the panel offers those alone.
-pub const MATE_FREEDOMS: [Coord; 4] = [
-    Coord::Slide(SlideAxis::X),
-    Coord::Slide(SlideAxis::Y),
-    Coord::Slide(SlideAxis::Z),
-    Coord::Spin,
-];
+vocabulary! {
+    /// **A freedom a mate's value can set**, as the mate panel offers
+    /// it: a slide along the chart's `x`, `y` or `z`, or the spin. Which
+    /// of them a mate leaves is its kind's (`Coord::admitted_by`), and
+    /// the panel offers those alone. It mirrors the kernel's [`Coord`]
+    /// both ways, by two exhaustive matches ([`Self::coord`],
+    /// [`Self::of`]), so a freedom the kernel grows does not build here
+    /// until the panel offers it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum MateFreedom {
+        /// A slide along the chart's `x`.
+        SlideX,
+        /// A slide along the chart's `y`.
+        SlideY,
+        /// A slide along the chart's `z`: the mated direction.
+        SlideZ,
+        /// The spin about the mated direction.
+        Spin,
+    }
+
+    /// Every freedom, in the order the mate panel draws them.
+    pub const ALL;
+}
+
+impl MateFreedom {
+    /// The kernel's freedom.
+    #[must_use]
+    pub fn coord(self) -> Coord {
+        match self {
+            Self::SlideX => Coord::Slide(SlideAxis::X),
+            Self::SlideY => Coord::Slide(SlideAxis::Y),
+            Self::SlideZ => Coord::Slide(SlideAxis::Z),
+            Self::Spin => Coord::Spin,
+        }
+    }
+
+    /// The panel's freedom for the kernel's.
+    #[must_use]
+    pub fn of(coord: Coord) -> Self {
+        match coord {
+            Coord::Slide(SlideAxis::X) => Self::SlideX,
+            Coord::Slide(SlideAxis::Y) => Self::SlideY,
+            Coord::Slide(SlideAxis::Z) => Self::SlideZ,
+            Coord::Spin => Self::Spin,
+        }
+    }
+}
 
 partial_mirror! {
     VarKind, labelled MATE_KINDS,

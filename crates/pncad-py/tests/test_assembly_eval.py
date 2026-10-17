@@ -557,8 +557,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                 plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
-        # No length to extrude, so the extrude refuses.
-        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.0, m)))
+        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
         self.root = part.insert(
             Node.transform(
                 self.extrude,
@@ -567,7 +566,10 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                 Formula.literal(0.0 * pncad.rad),
             )
         )
+        # Placed while it builds — the gesture reads the transform's
+        # faces — then edited to no length, so the extrude refuses.
         self.placed = part.place(self.root)
+        part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
         self.store.create(part)
         self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
@@ -610,8 +612,19 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         that failed instance, and the chain runs instance, instance,
         extrude. The inner instance is loose, so it is no root of the
         bracket's world itself."""
+        # The bracket is placed while the part builds — the gesture
+        # reads the transform's faces — and then pinned to the part as
+        # it stands, edited to no length.
+        def at_length(length):
+            self.part.apply(
+                DocEdit.set_param(self.extrude, "distance", Formula.length_in(length, m))
+            )
+            self.store.resave(self.part)
+            return pncad.content_pin(self.part)
+
+        building = DocRef(self.part.id, at_length(0.01))
         bracket = pncad.Doc("pncad-partpoison-bracket")
-        inner = bracket.insert(Node.instantiate_part(self.part_ref, []))
+        inner = bracket.insert(Node.instantiate_part(building, []))
         bracket.place(
             bracket.insert(
                 Node.transform(
@@ -620,8 +633,12 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                     (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
                     Formula.literal(0.0 * pncad.rad),
                 )
-            )
+            ),
+            resolver=self.store,
         )
+        flat = at_length(0.0)
+        for edit in pncad.update_references(bracket, self.part.id, flat):
+            bracket.apply(edit)
         self.store.create(bracket)
         bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         assembly = pncad.Doc("pncad-partpoison-deep-assembly")

@@ -1146,7 +1146,7 @@ mod tests {
             constraints: vec![
                 tree::ConstraintRow {
                     mate: constraint(8),
-                    said: "constraint 1: world pin".to_owned(),
+                    said: "constraint 1: world mate".to_owned(),
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
@@ -1162,7 +1162,7 @@ mod tests {
         let line = find(&painted, note);
         assert_under(kind, line);
         assert_eq!(line.ink, Some(voices.weak), "{note:?} said quietly");
-        let pin = find(&painted, "constraint 1: world pin");
+        let pin = find(&painted, "constraint 1: world mate");
         let mate = find(&painted, "constraint 2: Tangent mate");
         assert_under(line, pin);
         assert_under(pin, mate);
@@ -1171,7 +1171,7 @@ mod tests {
             vec![
                 "Mate 000000000007",
                 note,
-                "constraint 1: world pin",
+                "constraint 1: world mate",
                 super::REMOVE_CONSTRAINT,
                 "constraint 2: Tangent mate",
                 super::REMOVE_CONSTRAINT,

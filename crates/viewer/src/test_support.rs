@@ -278,10 +278,8 @@ pub fn pinned(
 /// pinned all the same — a plane mate on a face of the body by a bare
 /// name, which is never read, to the world's `xy` plane, and the three
 /// values naming it — so the placement stands against the world and
-/// is poisoned through its body, as the product reads it. A copy whose
-/// value is no body `pin_at` reads (a boolean's result is not one)
-/// stands loose: such a fixture is about the recipe, and where the copy
-/// stands is read by nothing. Any other refusal is the fixture's bug.
+/// is poisoned through its body, as the product reads it. Any other
+/// refusal is the fixture's bug.
 pub fn pin(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -324,7 +322,6 @@ pub fn pin(
             ];
             (mate, zero)
         }
-        Err(editor_core::PinRefusal::NotABody { .. }) => return doc.clone(),
         Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
     };
     let applied = apply(

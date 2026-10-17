@@ -621,7 +621,9 @@ fn a_drafted_wall_under_a_held_spin_turns_by_its_draft() {
 
 /// **Ruling C-1 — a prism's flat through angle zero.** The flat's
 /// normal turned by `φ` about `z` through −1°, 0° and 1°, under a held
-/// spin of 30°: the copy turns by about `φ`, continuously through 0.
+/// spin of 30°: the copy turns by a turn proportional to `φ` (the
+/// flat's own and the spin re-measured about the turned normal),
+/// continuously through 0.
 ///
 /// *Breaks if* the swung reference has a branch at `φ = 0` (the
 /// projection fork's), where the copy would jump.
@@ -631,8 +633,10 @@ fn a_prisms_flat_through_zero_turns_by_its_angle() {
     for roll in [1.0_f64, -1.0] {
         let rolled = box_on_the_wall(0.0, roll.to_radians());
         let turned = turn_between(rolled.linear, level.linear);
+        // The flat's turn and the spin's re-measure about the new normal
+        // compose to √2·φ at a small φ: proportional to φ, so no jump.
         assert!(
-            turned <= roll.abs().to_radians() * 1.000_001,
+            turned <= 2.0 * roll.abs().to_radians(),
             "a flat at {roll}° turns the copy by {}°",
             turned.to_degrees()
         );
@@ -751,16 +755,29 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
             let at = editor_core::face_frame(&ev, revolve, name).expect("a face's frame");
             let normal = at.axis * if at.sense { 1.0 } else { -1.0 };
             editor_core::face_carrier_kind(&ev, revolve, name) == Ok(geom::SurfaceKind::Plane)
-                && normal.z < -0.5
+                && normal.z.abs() > 0.5
                 && normal.y != 0.0
         })
-        .expect("an end face facing −z at a rounding-level tilt");
+        .expect("an end face along z at a rounding-level tilt");
     let (doc, placement) = placed(doc, revolve);
     let (mut doc, mate) = fixture::constrain_at(
         doc,
         placement,
         Mate {
-            on: plane_of(on_body(revolve, end)),
+            // Read flipped where the end face points up, so the copy's
+            // own mated direction is `−z` at the tilt either way.
+            on: {
+                let at = editor_core::face_frame(&ev, revolve, &end).expect("a face's frame");
+                let up = (at.axis * if at.sense { 1.0 } else { -1.0 }).z > 0.0;
+                let face = plane_of(on_body(revolve, end));
+                if up {
+                    pose(PoseDef::Flip {
+                        pose: RoleRead::plain(face),
+                    })
+                } else {
+                    face
+                }
+            },
             to: Target::World(world_floor_facing_down()),
             class: ContactClass::Rest,
         },

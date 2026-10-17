@@ -150,8 +150,9 @@ class EditError(PncadError):
       two attributes.
     - `mate` is a constraint's address (`MateRef`): the placement
       `node` names with the constraint the refusal is about — an id
-      the bundle does not hold (`unknown_constraint`), a non-finite
-      alignment, or the frame offset a refused step sits in, with
+      the bundle does not hold (`unknown_constraint`), a mate a value
+      names (`mate_named_by_value`), a non-finite alignment, or the
+      frame offset a refused step sits in, with
       `side` and `index`.
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
@@ -160,14 +161,12 @@ class EditError(PncadError):
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
     refusal it holds, and the fields inside it belong to that type's
-    own door. The one exception is `mate_refused`, the edit door
-    asking the solve's own per-mate admission of a mate being
-    inserted: `fault` carries the solve's `MateFault` about that mate
-    WHOLE — the value `SolvedPoses.fault` answers for a mate the solve
-    refuses on the same datum — so its lever, its clash and its
-    recourse are read off the type a caller already knows, and
-    `inner_variant` is that fault's word (`mate_table_lacks`,
-    `mate_contradictory`, …).
+    own door. The one exception is `mate_refused`, the edit door's
+    structural admission of a constraint being added: `fault` carries
+    its `MateFault` WHOLE — the type `SolvedPoses.fault` answers in —
+    so its payload and its recourse are read off the type a caller
+    already knows, and `inner_variant` is that fault's word
+    (`mate_kinds_differ`, `mate_not_a_freedom`, …).
     """
 
     variant: str
@@ -239,8 +238,8 @@ class EvaluationError(PncadError):
     A refusal that CARRIES another node's refusal — `part_root_failed`,
     a part whose world placement failed, `part_root_poisoned`, a part
     whose world placement never ran because a node upstream of it failed,
-    and `mate_placer_refused`, a mate whose poisoned placer could not
-    derive its pose — names the node that failed and points at it, and
+    and `mate_side_unevaluated`, a mate whose pose did not evaluate —
+    names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
     `EvaluationError` raised for that node as its own evaluation raises
     it, whose `node` is in the id space of its `document`: the part's
@@ -3933,13 +3932,11 @@ class Doc:
         `DocEdit.set_label`, both applied or neither. A text that is
         not a label raises EditError before anything is applied.
 
-        `resolver` is the document seam a mate's admission reads the
-        parts through: an insert is a Join at most (the survivor keeps
-        its root), so its maintenance never consults it, but a mate's
-        `from_face` side is resolved from the part's face at the door,
-        and its clocking rider on a frame coincidence is decided there
-        over the mated parts' extent, both read through `resolver` —
-        see `apply` for what a mate refuses here (`mate_refused`)."""
+        `resolver` is the document seam an edit door reads parts
+        through: an insert is a Join at most (the survivor keeps its
+        root), so its maintenance never consults it, and a mate's door
+        is structural — see `apply` for what a mate refuses here
+        (`mate_refused`)."""
     def measure(
         self,
         primitives: list[MeasurePrimitive],

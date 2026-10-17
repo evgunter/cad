@@ -863,8 +863,9 @@ pub enum SessionOp {
     /// reference into a store it has not got.
     ///
     /// **A creation, so its copies are placed** (A10): an instance is a
-    /// placement, inserted standing on the world at the identity (one
-    /// world pin in its bundle), with its reference and an empty
+    /// placement, inserted and placed at the identity by the "place
+    /// part" gesture (a mate to the world and its values,
+    /// [`OpOutcome::placed`]), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
     /// Hiding, the free-move probe and the mate tool take it from
     /// there.

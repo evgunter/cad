@@ -130,14 +130,14 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
+    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, FacePoseRefusal, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MeasureUnavailableAt, NoChartWhy, PinRefusal, PlacedBy, SlideAxis, WorldReadFault, Coord, MetaVersionError, MintRefusal,
-    NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault,
+    EvalError, FacePoseRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
+    MateFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass,
+    NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy,
     PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
-    RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError,
+    RefusedRef, Relation, ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError,
+    SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
@@ -460,12 +460,13 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// An operand is a slot too (D10): its word is the field's own
 /// ([`operand_slot_tag`]), `profile`, `target`, `input`.
 ///
-/// `program`, `placement_step` and `mate_frame_step` are the arms that
-/// stop one level, and they stop for the reason [`profile_error_tag`]'s
+/// `program`, `placement_step` and a constraint's `world_slide`,
+/// `world_spin`, `value_slide` and `value_spin` are the arms that stop
+/// one level, and they stop for the reason [`profile_error_tag`]'s
 /// family does: what is left below them — a profile program's loop
 /// index, step index and argument role; a later placement step's index
-/// and component; a mate side's offset step — holds an integer, and no
-/// `&'static str` carries one. A loft's `section` and a union's
+/// and component; a constraint's id and a world move's place — holds
+/// an integer, and no `&'static str` carries one. A loft's `section` and a union's
 /// `member` stop the same way, their position riding the payload's
 /// `index`. The address is in the refusal's prose; the word says which
 /// kind of slot it is.

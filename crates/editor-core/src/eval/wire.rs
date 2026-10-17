@@ -729,6 +729,9 @@ where
         .map_err(|f| fault(*f))?
     {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
+        crate::mate::solve::Folded::Pinned(rep) if crate::mate::solve::at_rest(&rep, reach, b) => {
+            Ok((None, target_space.unwrap_or(Space::World)))
+        }
         crate::mate::solve::Folded::Pinned(rep) => Ok((
             crate::mate::solve::marked(rep).rigid(b)?,
             target_space.unwrap_or(Space::World),

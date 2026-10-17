@@ -4939,7 +4939,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_tag",
         values: &["name_serialize", "param_name_not_an_identifier"],
-        delegates: &["label_fault_tag", "pin_refusal_tag", "placement_rule_fault_tag"],
+        delegates: &[
+            "label_fault_tag",
+            "pin_refusal_tag",
+            "placement_rule_fault_tag",
+        ],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -5636,7 +5640,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "witness_bifurcation",
             "wrong_operand",
         ],
-        delegates: &["node_error_tag", "resolve_fault_tag", "resolve_fault_tag", "resolve_fault_tag"],
+        delegates: &[
+            "node_error_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+        ],
     },
     TagEntry {
         function: "node_inner_kind_tag",

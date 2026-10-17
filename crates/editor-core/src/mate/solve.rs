@@ -89,6 +89,13 @@ pub trait SolveScalar: Decide {
     /// bits and its tangent is the dual's own; an interval's is an
     /// enclosure on a branch its arguments do not cross.
     fn solve_atan2(y: Self, x: Self) -> Self;
+
+    /// **Whether `map` carries no variation of the run's own** — no
+    /// tangent a seed run's parameter gives it, no symbol a symbolic
+    /// run records in it — so a map decided at the identity can be the
+    /// identity without losing what the run reads ([`at_rest`]). A
+    /// value lane's and a box lane's answer `true`.
+    fn carries_no_variation(map: &Affine3<Self>) -> bool;
 }
 
 impl SolveScalar for f64 {
@@ -106,6 +113,10 @@ impl SolveScalar for f64 {
 
     fn solve_atan2(y: f64, x: f64) -> f64 {
         f64::atan2(y, x)
+    }
+
+    fn carries_no_variation(_map: &Affine3<f64>) -> bool {
+        true
     }
 }
 
@@ -127,6 +138,10 @@ impl SolveScalar for geom_core::Probe {
 
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Probe(f64::atan2(y.0, x.0))
+    }
+
+    fn carries_no_variation(_map: &Affine3<Self>) -> bool {
+        true
     }
 }
 
@@ -421,6 +436,36 @@ where
 {
     let evaluation = crate::eval::evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
     SolvedPoses::of(doc, &evaluation)
+}
+
+/// **Whether a solved map is the identity at rest** (stage 3 C, fork
+/// C-5): no point of the copy moves further than the band's zero — its
+/// translation's length plus its turn's departure from the identity
+/// levered over the copy's `reach` (D4 ¶1), decided as
+/// [`SolvedPoses::at_identity`] decides it — and the run carries no
+/// variation in it ([`SolveScalar::carries_no_variation`]). A copy
+/// pinned over its geometry at the identity stands there to rounding;
+/// so decided, it is placed by no map, in every lane alike.
+pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
+    use geom_core::linalg::Vec3;
+    if !T::carries_no_variation(map) {
+        return false;
+    }
+    let (one, zero) = (T::one(), T::zero());
+    let q = map.linear;
+    let off = [
+        q.c0 - Vec3::new(one, zero, zero),
+        q.c1 - Vec3::new(zero, one, zero),
+        q.c2 - Vec3::new(zero, zero, one),
+    ];
+    let turn = (off[0].dot(off[0]) + off[1].dot(off[1]) + off[2].dot(off[2])).sqrt();
+    let moved = map.translation.norm() + turn * T::from_f64(reach);
+    geom_core::k_stats::decide(
+        "solve_copy_at_identity",
+        geom_core::predicate::Margin::of(moved),
+        band,
+    )
+    .is_ok_and(|sign| sign == geom_core::predicate::Sign::Zero)
 }
 
 /// **The solved map as the composition rule takes it**: the stored

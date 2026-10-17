@@ -2221,17 +2221,20 @@ fn place(
         },
     );
     let mate = applied.record.minted_constraints[0];
-    let doc = placed.values.into_iter().fold(applied.doc, |doc, (coord, by)| {
-        step(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .doc
-    });
+    let doc = placed
+        .values
+        .into_iter()
+        .fold(applied.doc, |doc, (coord, by)| {
+            step(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
+        });
     (doc, placement)
 }
 
@@ -3969,7 +3972,10 @@ fn asm_r2a_mated_assembly(
     let values = [
         (Coord::Slide(SlideAxis::X), length(30.0)),
         (Coord::Slide(SlideAxis::Y), length(0.0)),
-        (Coord::Spin, Formula::zero(pncad::document::Dimension::Angle)),
+        (
+            Coord::Spin,
+            Formula::zero(pncad::document::Dimension::Angle),
+        ),
     ];
     let doc = values.into_iter().fold(doc, |doc, (coord, by)| {
         pncad::document::apply(
@@ -4453,12 +4459,15 @@ fn asm4_split_and_inline_through_the_real_store() {
     };
 
     let cut = std::collections::BTreeSet::from([ids[1]]);
+    // The split reads the cut's copies through the store: it pins the
+    // instance it leaves behind over their geometry.
+    let store: std::sync::Arc<dyn d::PartResolver> = std::sync::Arc::new(ws.clone());
     let out = d::split(
         &doc,
         &cut,
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
-        None,
+        Some(&store),
     )
     .expect("legal");
     ws_mut
@@ -4524,12 +4533,14 @@ fn asm4_child_split_probe() {
     let part_ref = asm2a_part(&dir, "part.pncad", "asm4-probe-part");
     let (doc, ids) = asm2a_assembly(&dir, "asm4-probe-asm", part_ref, 2);
     let cut = std::collections::BTreeSet::from([ids[1]]);
+    let store: std::sync::Arc<dyn d::PartResolver> =
+        std::sync::Arc::new(pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean"));
     let split_out = d::split(
         &doc,
         &cut,
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
-        None,
+        Some(&store),
     )
     .expect("legal");
     let text = format!(
@@ -4560,27 +4571,30 @@ fn asm4_spawn_probe(tag: &str) -> String {
 
 // ---- ASM-UPD: the pin-update door through the real store ----
 
-/// Re-authors the document id `id`'s file with a `side`-wide square
-/// extruded 1.5 tall — the "the part changed on disk" move — and
-/// returns the store's new current pin for it.
+/// The part `label` derives, edited in place to stand `height` tall —
+/// the "the part changed on disk" move — resaved, and the store's new
+/// current pin for it. An edit, not a re-authoring: every node keeps
+/// its id, so every name an instance's pin reads stays the part's own.
 fn asm_upd_resave_part(
     ws: &mut pncad::workspace::Workspace,
-    id: pncad::document::DocumentId,
-    side: f64,
+    label: &str,
+    height: f64,
 ) -> pncad::document::ContentPin {
-    use pncad::document::Node;
-    let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, square(plane, side));
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.5),
-            side: ExtrudeSide::Along,
+    use pncad::document::{DocEdit, SlotId, SlotValue};
+    let (doc, _, part) = ws_doc_and_body(label);
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: part.body,
+            slot: SlotId::Distance,
+            value: SlotValue::Formula(len(height)),
+            fresh: Vec::new(),
         },
-    );
-    let (doc, _) = place(doc, body);
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the height edit is admitted")
+    .doc;
     ws.resave(&doc, Tol::witness()).expect("the part rewrites");
     pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes")
 }
@@ -4608,7 +4622,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     // The part changes on disk. The assembly is a self-contained
     // reproducible value, so nothing about it moves yet — that is A4,
     // and it is what makes an update an EDIT.
-    let new_pin = asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    let new_pin = asm_upd_resave_part(&mut ws, "asm-upd-e2e-part", 6.0);
     assert_ne!(new_pin, part_ref.pin, "the part's content really moved");
     let stale = asm2a_eval(&doc, &ws);
     match stale.result(ids[0]) {
@@ -4645,8 +4659,8 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
         after_ev.part_evaluations, 1,
         "both sites name one version again"
     );
-    // The square door's fixture is `side`-wide; 2.0 → 4.0 at the same
-    // 1.5 height is exactly four times the material, per instance.
+    // The same 2.0 square at 1.5 → 6.0 height is exactly four times the
+    // material, per instance.
     assert!(
         (after - 4.0 * before).abs() < 1e-9,
         "the new geometry is served: {before} → {after}"
@@ -4721,7 +4735,7 @@ fn asm_upd_child_update_probe() {
     let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-probe-part");
     let (doc, _) = asm2a_assembly(&dir, "asm-upd-probe-asm", part_ref, 2);
     let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    asm_upd_resave_part(&mut ws, "asm-upd-probe-part", 6.0);
     let edits = pncad::workspace::update_to_store(&doc, part_ref.id, &ws, Tol::witness())
         .expect("the elaboration holds");
     let mut updated = doc;
@@ -5013,10 +5027,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-/// - **The solve's per-placement split** (`solve_document_by_placement`):
-///   the solve with each placement's recorded decisions kept apart, for
-///   a check of how an evaluation shares them out. A consumer asks
-///   `solve_document`, carried, and reads each placement's own log.
+/// - **The "place part" gesture's answer** (`Placed`): the mate, its
+///   values and how the copy was placed, which `place_at` (carried)
+///   answers; a consumer reads its fields and never names the type.
 const NOT_CARRIED: [&str; 98] = [
     "AppearanceLoss",
     "AppearanceLossCause",
@@ -5061,6 +5074,7 @@ const NOT_CARRIED: [&str; 98] = [
     "NodeVerdicts",
     "PairingViolation",
     "ParamValue",
+    "Placed",
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
@@ -5113,7 +5127,6 @@ const NOT_CARRIED: [&str; 98] = [
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
-    "solve_document_by_placement",
     "std_deviation",
     "to_value",
     "verdict_summary",

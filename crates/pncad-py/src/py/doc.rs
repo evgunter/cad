@@ -775,11 +775,9 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 }
 
 /// A recipe node's identity within a document.
-/// The seam the document's edit door resolves parts through: the
-/// same one `evaluate(doc, resolver=)` crosses, so an inserted mate's
-/// clocking rider is decided over the mated parts' own extent. The
-/// reach is built over it by [`d::PartReach::with_resolver`] at each
-/// door.
+/// The seam the document's doors resolve parts through: the same one
+/// `evaluate(doc, resolver=)` crosses. The reach is built over it by
+/// [`d::PartReach::with_resolver`] at each edit door.
 pub(crate) fn seam(
     resolver: Option<&super::store::Workspace>,
 ) -> Option<std::sync::Arc<dyn d::PartResolver>> {

@@ -21,7 +21,7 @@ use crate::forms::{
     ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_FREEDOMS, MATE_KINDS, MateChoice, MateToolState, admitted_classes};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -682,7 +682,8 @@ impl ViewerBehavior<'_> {
         ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
         // The freedoms this kind leaves, each set only when ticked: an
         // unset freedom is free.
-        for (coord, (set, value)) in MATE_FREEDOMS.iter().zip(&mut self.drafts.mate_values) {
+        for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
+            let coord = freedom.coord();
             if coord.admitted_by(kind).is_err() {
                 continue;
             }
@@ -699,11 +700,12 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
-                let values: Result<Vec<_>, _> = MATE_FREEDOMS
+                let values: Result<Vec<_>, _> = MateFreedom::ALL
                     .iter()
+                    .map(|freedom| freedom.coord())
                     .zip(self.drafts.mate_values)
                     .filter(|(coord, (set, _))| *set && coord.admitted_by(kind).is_ok())
-                    .map(|(&coord, (_, value))| {
+                    .map(|(coord, (_, value))| {
                         match coord {
                             Coord::Slide(_) => self.notation.length_literal(value),
                             Coord::Spin => self.notation.angle_literal(value),

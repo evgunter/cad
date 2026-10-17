@@ -77,13 +77,13 @@ pub(crate) struct Drafts {
     /// The mate tool's choice, as widget state: an index into
     /// [`crate::matetool::admitted_classes`], an index into
     /// [`crate::matetool::MATE_KINDS`], the flip toggle, and for each
-    /// freedom of [`crate::matetool::MATE_FREEDOMS`] whether it is set and its number in
+    /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
     /// SI units. Draft chrome state only — the typed choice is minted
     /// at commit.
     pub(crate) mate_class: usize,
     pub(crate) mate_kind: usize,
     pub(crate) mate_flip: bool,
-    pub(crate) mate_values: [(bool, f64); 4],
+    pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// Create — a name in flight is a draft, not a document.
@@ -648,7 +648,7 @@ impl Default for Drafts {
             // Two picked faces rest against each other: the plain plane
             // mate equates outward normals, so a rest carries the flip.
             mate_flip: true,
-            mate_values: [(false, 0.0); 4],
+            mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
             profile_plane: None,
             datum_kind: DatumKindChoice::Plane,

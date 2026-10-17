@@ -117,7 +117,12 @@ impl PoseArg {
 }
 
 fn scalar(py: Python<'_>, slot: PoseSlot, arg: &SlotArg) -> PyResult<d::Formula> {
-    scalar_at(py, slot.dimension(), arg, &format!("pose's {}", slot.label()))
+    scalar_at(
+        py,
+        slot.dimension(),
+        arg,
+        &format!("pose's {}", slot.label()),
+    )
 }
 
 /// **A move's or a value's number at `expected`**: `arg` read at that
