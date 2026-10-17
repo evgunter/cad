@@ -595,9 +595,10 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         super::Placement::own(&carrier, &surface),
         band(),
     );
-    let Ok((Pcurve::Harmonic { p0: at_f64, .. }, Derivation::CylinderMeridian)) = derived else {
+    let Ok((image, Derivation::CylinderMeridian)) = &derived else {
         panic!("f64: the sub-band rim takes the meridian: {derived:?}")
     };
+    let (at_f64, ..) = image.harmonic_form().expect("a harmonic image");
     assert_eq!(
         at_f64.x - TAU * (at_f64.x / TAU).round(),
         0.0,
@@ -614,8 +615,10 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     assert!(
         matches!(
             &derived,
-            Ok((Pcurve::Harmonic { p0, .. }, Derivation::CylinderMeridian))
-                if p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
+            Ok((image, Derivation::CylinderMeridian))
+                if image.harmonic_form().is_some_and(|(p0, ..)| {
+                    p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
+                })
         ),
         "Interval: the sub-band rim takes the meridian on f64's copy {at_f64:?}: {derived:?}"
     );
