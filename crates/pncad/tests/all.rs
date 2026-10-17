@@ -311,7 +311,7 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // whose policy is the cut-off the tag's map assigns.
         CornerConfig::EndFace => "end_face",
         // Two of three edges requested: the mitre, built where the
-        // faces are symmetric about the third.
+        // two bands' feet on the third edge meet.
         CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }
@@ -360,8 +360,22 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::CapTransverse => "cap_transverse",
         BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
-        BlendDecision::TurnIsosceles => "turn_isosceles",
+        BlendDecision::TurnFeetGap => "turn_feet_gap",
+        BlendDecision::TurnOverrunChord => "turn_overrun_chord",
+        BlendDecision::TurnFeet => "turn_feet",
         BlendDecision::MitreSection => "mitre_section",
+    }
+}
+
+/// `BlendError::BodyNotIntact`'s breach: which way the body failed to
+/// hold together where the blend read it.
+fn breach_is_matchable(breach: Breach) -> &'static str {
+    match breach {
+        Breach::Unresolved => "unresolved",
+        Breach::Unwalked => "unwalked",
+        Breach::Disagrees => "disagrees",
+        Breach::Scaffolding => "scaffolding",
+        Breach::Degenerate => "degenerate",
     }
 }
 
@@ -605,6 +619,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         blend_decision_is_matchable(BlendDecision::CornerIndependence),
         "corner_independence"
     );
+    assert_eq!(breach_is_matchable(Breach::Unwalked), "unwalked");
 
     // Declarable vs categorically undeclarable, off the same refusal.
     assert!(census_contact_is_matchable(
@@ -745,16 +760,16 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
 /// **A tube is minted AND built from prelude names alone.** The frame
 /// witness made the tube doors take a type instead of three vectors,
 /// and the facade's claim is that this costs a modeller no module hop:
-/// `OrthoFrame::from_axis_and_reference` takes the two RAW directions
+/// `RigidMotion::from_axis_and_reference` takes the two RAW directions
 /// a program actually holds - there is no `UnitVec3` step to import -
-/// and `Band`, `Tol`, `Point3`, `Vec3`, `OrthoFrame`, `TubeWindow` and
+/// and `Band`, `Tol`, `Point3`, `Vec3`, `RigidMotion`, `TubeWindow` and
 /// `tube_along_arc` are all bare prelude names. Nothing below reaches
 /// through a module path, and adding one is the regression this row
 /// catches.
 #[test]
 fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     let tol = Tol::witness();
-    let frame = OrthoFrame::from_axis_and_reference(
+    let frame = RigidMotion::from_axis_and_reference(
         p3::<f64>(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 3.0),
         Vec3::new(2.0, 0.0, 1.0),
@@ -1481,7 +1496,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .and_then(|t| t.line_to(p2(x.0, y.1), Tol::witness()))
             .and_then(|t| t.line_to(Start, Tol::witness()))
             .expect("the slab rectangle authors");
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         let body = extrude(
             &profile,
@@ -4719,9 +4734,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   them: the split's and the inline's id rewrite of one name, for a
 ///   Rust caller carrying its own names across a `NodeMap`; the
 ///   Python surface holds no `NodeMap`, and the names a split or an
-///   inline carries reach it already rewritten. `Unmapped` is its
-///   refusal (a node or a profile step the maps do not cover), and
-///   goes where it goes.
+///   inline carries reach it already rewritten. `RemapError` is its
+///   refusal, `Unmapped` (a node or a profile step the maps do not
+///   cover) or a ranked run the maps reorder, and both go where it
+///   goes.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
 ///   value carries for the diagnosis ladder. A consumer can hold one
 ///   (`Evaluation::groups`) and make an empty one, and can read
@@ -4850,8 +4866,6 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
-///   `SectionScalar` (which scalars carry a loft or sweep section's
-///   placement off a derived frame — a lane fact, decided by the type),
 ///   `seed_env`, `std_deviation`, `sensitivities`,
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
@@ -4950,7 +4964,6 @@ const NOT_CARRIED: [&str; 97] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
-    "SectionScalar",
     "SeedScalar",
     "SlotPayload",
     "StructureFlip",
@@ -4987,6 +5000,7 @@ const NOT_CARRIED: [&str; 97] = [
     "is_axis",
     "rebind_suggestions",
     "remap_name",
+    "RemapError",
     "Unmapped",
     "resolve_with_prior",
     "seed_env",

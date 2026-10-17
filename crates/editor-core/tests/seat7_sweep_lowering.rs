@@ -1,6 +1,6 @@
 //! **The sweeps run on the verb substrate, the profile's own radius
-//! reaches the walls they mint, and a document's cyl×cyl pinch reads as
-//! its kernel-built twin's.**
+//! reaches the walls they mint, and a document's crossing cyl×cyl pair
+//! reads as its kernel-built twin's.**
 //!
 //! Three claims, three groups of rows, in that order.
 //!
@@ -26,11 +26,10 @@
 //!
 //! # 3. The germ, end to end from a document
 //!
-//! Two extruded circles at one declared `r`, spun off the pinch,
-//! unioned: the pinch refusal the kernel returns names the equal-radius
-//! configuration, exactly as the kernel-direct twin at bit-identical
-//! radii does — the margins decide the radii equal, and no recipe
-//! channel enters the decision.
+//! Two extruded circles at one declared `r`, spun off the section's
+//! nodes, unioned: the union records the radii decided equal, exactly
+//! as the kernel-direct twin at bit-identical radii does — the margins
+//! decide the radii equal, and no recipe channel enters the decision.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -49,7 +48,7 @@ use editor_core::{
 use fixture::digest::digest;
 use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use topo::{Body, BooleanError, FaceKey};
+use topo::{Body, FaceKey};
 
 /// The declared radius every document below draws its circles at,
 /// meters (dyadic).
@@ -58,7 +57,7 @@ const R: f64 = 1.0;
 const Q: f64 = 0.25;
 /// The extrusion half-height (dyadic).
 const H: f64 = 1.2;
-/// The spin that takes both seams off the pinch — the germ fixture's
+/// The spin that takes both seams off the nodes — the germ fixture's
 /// own angle (`sweep`'s `verbs_germarms2`).
 const PHI: f64 = PI / 4.0;
 
@@ -241,6 +240,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `boss_union` carry the two carrier loop forms (`circle` and
 /// `circle_split`), and `kitchen_sink` is the registry's revolve.
 ///
+/// The digest feeds every node id, each body's `Debug` (its carriers'
+/// stored fields and edge descriptions included) and each name table
+/// (`fixture::digest`'s module docs), so a re-minted id, a renamed field
+/// or a moved bit moves it. They are goldens in the ordinary sense —
+/// when one moves the question is whether the new behaviour is right,
+/// never how to restore the old number.
+///
 /// RE-MINTED when the digest moved to its one home
 /// (`fixture::digest`) and gained the boolean and split arms every
 /// suite now shares: each of these five documents carries a boolean
@@ -367,10 +373,10 @@ fn both_sweeps_evaluate_in_one_document() {
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x20d0_b806_b3a7_87fe),
-        ("corner_table", 0x0ff2_e6d5_8c6f_bdcd),
-        ("cut_cylinder", 0x17d8_7760_c728_b7f6),
-        ("boss_union", 0xa1a1_dffb_faca_cea6),
-        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
+        ("corner_table", 0x0e00_e0f5_df9e_d8b3),
+        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7d),
+        ("boss_union", 0xe75b_724b_9279_fbee),
+        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -859,19 +865,24 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
 fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+            tol(),
+        ),
         tol(),
     )
     .unwrap()
 }
 
-/// Whether a cyl×cyl pinch refusal decided its radii equal, or a loud
-/// failure.
-fn pinch_equal_radii(err: &BooleanError) -> bool {
-    match err {
-        BooleanError::GermFrameCylinderPinch { equal_radii, .. } => *equal_radii,
-        other => panic!("the equal-radius pair refused with {other:?}, not the pinch"),
-    }
+/// Whether a union's recorded coincidences decide the two walls' radii
+/// equal at the crossing-cylinder site: the row the node lane is
+/// decided from.
+fn decides_equal_radii<'c>(
+    mut rows: impl Iterator<Item = (&'c topo::Relation, &'c topo::DecisionSite)>,
+) -> bool {
+    rows.any(|(relation, site)| {
+        *relation == topo::Relation::SameRadius && *site == topo::DecisionSite::CrossingCylinders
+    })
 }
 
 /// **THE END-TO-END ROW**: one declared radius parameter, two extruded
@@ -880,22 +891,22 @@ fn pinch_equal_radii(err: &BooleanError) -> bool {
 ///
 /// The pose is the germ fixture's own (`sweep`'s `verbs_germarms2`):
 /// the classic Steinmetz pair never reaches the join at all, because
-/// both operands' seams sit ON the pinch points and die a layer earlier
-/// at the tangency door, so each operand is spun about its OWN axis —
-/// a motion a cylinder of revolution is invariant under, which moves
-/// the charts and not the surfaces.
+/// both operands' seams sit ON the section's nodes and die a layer
+/// earlier at the tangency door, so each operand is spun about its OWN
+/// axis — a motion a cylinder of revolution is invariant under, which
+/// moves the charts and not the surfaces.
 ///
-/// What the union RETURNS is a refusal: the equal-radius
-/// intersecting-axes locus is two ellipses crossing at two valence-4
-/// pinch vertices, which is not one conic and therefore has no frame
-/// to hand over. The refusal names which locus it is.
+/// The union BUILDS: the equal-radius intersecting-axes locus is two
+/// ellipses crossing at two nodes, each minted as a ring in both walls.
+/// The equal radii are a recorded coincidence, so the row reads that
+/// decision off both unions and holds their volumes to each other.
 #[test]
-fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
+fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does() {
     let doc = doc_with_r("seat7-germ");
     let (doc, a) = cylinder(doc, param("r"));
     let (doc, b) = cylinder(doc, param("r"));
     // B's axis becomes +y; then each is spun about its own axis to take
-    // the seams off the pinch.
+    // the seams off the nodes.
     let (doc, b) = spin(doc, b, [1.0, 0.0, 0.0], PI / 2.0);
     let (doc, a) = spin(doc, a, [0.0, 0.0, 1.0], PHI);
     let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
@@ -906,17 +917,15 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
         },
     );
     let ev = eval::<f64>(&doc);
-    let from_document = match ev.nodes.get(&union) {
-        Some(editor_core::NodeResult::Failed(e)) => match &e.kind {
-            editor_core::NodeErrorKind::Boolean(err) => pinch_equal_radii(err),
-            other => panic!("the union refused with {other:?}, not a boolean refusal"),
-        },
-        other => panic!("the union did not refuse: {other:?}"),
-    };
+    let value = ev.value(union).expect("the union builds");
     assert!(
-        from_document,
-        "one declared parameter's two walls must pinch as equal radii"
+        decides_equal_radii(value.coincidences.iter().map(|c| (&c.relation, &c.site))),
+        "one declared parameter's two walls must decide equal radii: {:?}",
+        value.coincidences
     );
+    let from_document = topo::mass_properties(body_of(&ev, union), tol())
+        .unwrap()
+        .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(
@@ -926,9 +935,17 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     );
     let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
     let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
-    let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
+    let raw = match topo::union(&raw_a, &raw_b, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => b,
+        other => panic!("the kernel-built twin builds: {other:?}"),
+    };
     assert!(
-        pinch_equal_radii(&raw),
-        "the kernel-built twin at bit-identical radii pinches as equal radii too"
+        decides_equal_radii(raw.coincidences.iter().map(|c| (&c.relation, &c.site))),
+        "the kernel-built twin at bit-identical radii decides equal radii too"
+    );
+    let raw_volume = topo::mass_properties(&raw.body, tol()).unwrap().volume;
+    assert!(
+        (from_document - raw_volume).abs() < 1e-9,
+        "the document's union {from_document} against its kernel twin's {raw_volume}"
     );
 }

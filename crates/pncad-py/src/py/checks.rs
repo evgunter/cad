@@ -51,7 +51,7 @@ use crate::tags::{check_evidence_tag, checks_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-use super::doc::{Doc, NodeId};
+use super::doc::{Doc, NodeId, Var};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
@@ -465,12 +465,13 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`,
-    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `on_carrier`, `common_foot`, `tangent`, `cusp`,
+    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet` or
+    /// `co_ruled`. A
     /// `profile_junction` row is `tangent` or `cusp` between two carriers
     /// and `same_oriented` where its pieces continue one; a
-    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
-    /// or `seam` (one face carried on into the other).
+    /// `tangent_witness` row is `surface_tangent`, claiming nothing of
+    /// the materials.
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
@@ -478,9 +479,9 @@ impl CheckEvidence {
 
     /// Where that coincidence was decided, on `unproven_coincidence`
     /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
-    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
-    /// `battery_support_axis`, `profile_junction`, `vertex_fusion` or
-    /// `census_at_rest`.
+    /// `coaxial_sphere`, `crossing_cylinders`, `split_on`, `battery_turn`,
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site
@@ -563,32 +564,46 @@ impl CheckFinding {
     }
 
     /// The root whose value carries the subject body; `None` for a
-    /// finding about a node.
+    /// finding about a node or two copies.
     #[getter]
     fn root(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
     /// Which output body of that root — 0 for a single-body root;
-    /// `None` for a finding about a node.
+    /// `None` for a finding about a node or two copies.
     #[getter]
     fn output_ix(&self) -> Option<u32> {
         match self.finding.subject {
             d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
     /// The node the finding is about, root or not; `None` for a finding
-    /// about a root output.
+    /// about a root output or two copies.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Node(node) => Some(NodeId(node)),
-            d::FindingSubject::Output { .. } => None,
+            d::FindingSubject::Output { .. } | d::FindingSubject::Copies { .. } => None,
+        }
+    }
+
+    /// The two copies the finding is about, earlier in gather order
+    /// first, each as its placement's output and its member there, as
+    /// `InterferenceFinding.a` spells one; `None` for any other subject.
+    #[getter]
+    fn copies(&self) -> Option<((Var, u32), (Var, u32))> {
+        match self.finding.subject {
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| (Var::of(&self.doc, c.var), c.member);
+                Some((copy(a), copy(b)))
+            }
+            d::FindingSubject::Output { .. } | d::FindingSubject::Node(_) => None,
         }
     }
 
@@ -618,6 +633,13 @@ impl CheckFinding {
                 format!("root {}, output {output_ix}", root.full())
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| match c.member {
+                    0 => format!("{}", c.var),
+                    member => format!("{} member {member}", c.var),
+                };
+                format!("copies {} and {}", copy(a), copy(b))
+            }
         };
         format!(
             "CheckFinding({}, {subject}, {:?})",
@@ -886,7 +908,7 @@ pub(crate) fn enforce_checks(
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
     d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::declared(body, contacts))
+        .map(|(body, contacts)| Body::recorded(body, contacts))
 }
 
 /// Register the advisory-check registry on the module.

@@ -868,7 +868,7 @@ fn a5_two_operands_over_one_instance_are_two_members() {
         assert!(
             findings
                 .iter()
-                .any(|f| matches!(&f.attribution, Attribution::Refuted(d) if d.mate == m2)),
+                .any(|f| matches!(&f.attribution, Some(Attribution::Refuted(d)) if d.mate == m2)),
             "A5 inconsistent: the refusal names the declaring mate the geometry \
              contradicts: {findings:?}"
         );

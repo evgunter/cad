@@ -14,7 +14,7 @@
 //! phase builds the loops with their runs collapsed ([`Collapsed`]), so
 //! a station inside a run has no entity.
 
-use geom_core::{Affine3, Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
@@ -43,9 +43,11 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
-    let far = Placing::turned(place, frame.o3, frame.a3, theta);
+    let far = Placing::turned(place, frame.o3, frame.axis, theta).map_err(RevolveError::Turn)?;
     let place_end = far.map();
-    let n_end = Affine3::rotation_about_axis(frame.o3, frame.a3, theta).linear * frame.n3;
+    let Some(n_end) = far.turn_vec(frame.n3) else {
+        unreachable!("a turned placing has a turn")
+    };
     let axis_c = turn_axis(
         if reverse {
             Sign::Positive
@@ -545,7 +547,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(body, fp);
         let k_next = face_surface_key(body, fnx);
         if k_prev == k_next {
-            body.describe_at_rest(strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;

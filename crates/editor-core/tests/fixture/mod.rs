@@ -1020,7 +1020,7 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
     };
     let (o, u, v) = (read(origin), read(u), read(v));
     profile::SketchPlane::from_frame(
-        geom_core::OrthoFrame::gram_schmidt(
+        geom_core::RigidMotion::gram_schmidt(
             geom_core::Point3::new(o.x, o.y, o.z),
             u,
             v,
@@ -2107,6 +2107,17 @@ pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
         .unwrap_or_else(|| panic!("{node} defines an output"))
 }
 
+/// The member a union-minted name came from, or `None` for a name that
+/// is not a carried (`From`) row. Read off the member's READ, which is
+/// the only thing that answers: the inner name's minting node is the
+/// PROTOTYPE's where a member is a placement of one.
+pub fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
+    match name.path.first() {
+        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
+        _ => None,
+    }
+}
+
 /// **One ENTITY of one member, in the UNION's own name space** — the
 /// row `member_view` puts into that member's operand table, and the
 /// shape a union's published table carries.
@@ -2148,24 +2159,39 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
     findings
         .iter()
         .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Carried {
+            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
+            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
+            Some(editor_core::Attribution::Carried {
                 declaration,
                 relation,
                 ..
-            } => (
+            }) => (
                 declaration.mate,
                 match relation {
                     editor_core::Relation::Refuted => "carried_refuted",
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => {
-                (RecipeNodeId::new(0, u64::MAX), "unattributed")
-            }
+            None => (RecipeNodeId::new(0, u64::MAX), "no declaration"),
         })
         .collect()
+}
+
+/// **The product's at-rest rows are all contacts between copies**, and
+/// there is at least one: a seat no mate speaks for is rows of the two
+/// copies it joins (D10), never a mate's.
+pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    let product =
+        editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
+    assert!(
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the seats are the copies' rows: {:?}",
+        product.coincidences
+    );
 }
 
 /// **No published merged face has a merged face among its
@@ -2257,7 +2283,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -2267,6 +2292,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             support: y,
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.as_ref()).collect(),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
@@ -2509,4 +2535,43 @@ pub fn continuous_vars(doc: &ProfileDoc) -> usize {
     doc.free_vars()
         .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
         .count()
+}
+
+/// `a`, `b` standing on `a`'s top raised by `lift` (0 glues `b`'s bottom
+/// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
+/// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
+/// `b`'s y = 0.25 bottom rim.
+pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    move |doc| {
+        let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
+        let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
+        (doc, vec![a, b, c])
+    }
+}
+
+/// An axis-aligned block on the xy plane at height `z0`, extruded `dz`:
+/// [`glued_rim`]'s members.
+fn glued_block(
+    doc: ProfileDoc,
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+            side: ExtrudeSide::Along,
+        },
+    )
 }

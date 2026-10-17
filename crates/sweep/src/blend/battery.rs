@@ -2,7 +2,7 @@
 //! the INPUTS before a single surface is minted.
 //!
 //! Each predicate below is a named Q1 trilean through the crate's
-//! [`super::decide`] funnel, with a margin in METERS at a named lever
+//! [`decide`](crate::swept::decide) funnel, with a margin in METERS at a named lever
 //! arm (never a raw dimensionless quantity — a sin or a determinant
 //! only becomes classifiable once it is folded against a length the
 //! user can reason about). `Positive` proceeds, `Zero` and `Negative`
@@ -45,7 +45,10 @@ use super::arms::{
     plane_sphere_blend,
 };
 use super::build::fan_at;
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::surgery::{
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, unbuilt_geometry,
+    unresolved, unwalked,
+};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
     classify_positive, classify_reported,
@@ -466,7 +469,7 @@ pub struct BatteryVerdict<T: Real> {
     /// links' edges, in walk order.
     pub joints: Vec<topo::Coincidence>,
     /// The open-chain ends predicate 6 classified
-    /// [`CornerConfig::Turn`], each decided isosceles once though two
+    /// [`CornerConfig::Turn`], each decided a mitre once though two
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
@@ -476,14 +479,14 @@ impl<T: Real> BatteryVerdict<T> {
     /// The coincidences the battery decided from values
     /// ([`topo::coincidence`]), predicate by predicate: each link's
     /// support coaxiality in walk order, each tangent junction, then
-    /// each isosceles turn in vertex order.
+    /// each mitred turn in vertex order.
     pub fn coincidences(&self) -> impl Iterator<Item = &topo::Coincidence> {
         self.chains
             .iter()
             .flat_map(Chain::links)
             .filter_map(|l| l.support_axis.as_ref())
             .chain(&self.joints)
-            .chain(self.turns.iter().map(|t| &t.coincidence))
+            .chain(self.turns.iter().filter_map(Turn::coincidence))
     }
 }
 
@@ -508,12 +511,15 @@ pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) ->
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
-/// The sample parameters of a link, and its carrier.
-pub(super) fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
-    let e = body.get_edge(edge)?;
-    let c = body.get_curve_geom(e.curve)?.certified()?;
+/// The sample parameters of an edge, and its carrier
+/// ([`certified_curve`]).
+pub(super) fn carrier_of<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<(Curve3<T>, T, T), BlendError> {
+    let c = certified_curve(body, edge)?;
     let (t0, t1) = c.params();
-    Some((c.carrier().clone(), t0, t1))
+    Ok((c.carrier().clone(), t0, t1))
 }
 
 /// Sample `i` of the battery's per-link parameter schedule — the
@@ -603,16 +609,16 @@ pub fn radius_headroom<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let Some(f) = body.get_face(face) else {
-        return Err(BlendError::BodyNotIntact {
-            at: EntityId::Face(face),
-            detail: "a link's support face, for the curvature headroom predicate",
-        });
+        return Err(unresolved(
+            EntityId::Face(face),
+            "a link's support face, for the curvature headroom predicate",
+        ));
     };
     let Some(s) = body.get_surface(f.surface) else {
-        return Err(BlendError::BodyNotIntact {
-            at: EntityId::Face(face),
-            detail: "a support face's stored surface, for the curvature headroom predicate",
-        });
+        return Err(unresolved(
+            EntityId::Face(face),
+            "a support face's stored surface, for the curvature headroom predicate",
+        ));
     };
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
@@ -964,8 +970,10 @@ pub fn face_clearance<T: Decide + Bounds>(
 /// [`face_clearance`] with its margin already formed: the door the
 /// surgery's planar strip meter decides through, whose margin is the
 /// closed form of the screen's `gap − setback` over a strip's bounding
-/// rectangle rather than one subtraction (`surgery::strip_clearance`).
-/// `gap` is the measurement the refusal reports beside it.
+/// rectangle rather than one subtraction (`surgery::strip_clearance`),
+/// and the reach's, whose margin is a support vertex's depth inside the
+/// strip its band replaces (`reach::screened`). `gap` is the
+/// measurement the refusal reports beside it.
 ///
 /// # Errors
 ///
@@ -1009,15 +1017,15 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (face_a, face_b) = sides.faces();
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
-    let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
+    let (carrier, t0, t1) = carrier_of(body, edge)?;
+    // The edge's own extent levers what is read ALONG the edge: the
+    // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
+    // pair's co-ruling.
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
-    // Predicate 5 first at the link level: the arm's side depends on
-    // the convexity, so the sign is established before any geometry.
-    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -1026,6 +1034,18 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
         .clone();
+    // Predicate 5 first at the link level: the arm's side depends on
+    // the convexity, so the sign is established before any geometry.
+    // The convexity is the wedge between the edge's two faces, levered
+    // as every reader of that wedge levers it: the faces' extent
+    // (`topo::wedge_reach`) folded with their curvature arms.
+    let wedge_arm = geom_brep::folded_lever_arm(
+        &sa,
+        &sb,
+        p,
+        topo::wedge_reach(body, [face_a, face_b], &carrier, (t0, t1)),
+    );
+    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, wedge_arm, edge, band)?;
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
     // radial, so `sense` says on which side of that sphere the material
@@ -1593,11 +1613,8 @@ fn chain_turns<T: Decide + Bounds>(
             [a, b].iter().all(|l| l.start == *v || l.end == *v),
             "a junction's two links both touch it: {j:?}"
         );
-        let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
-            (carrier_of(body, a.edge), carrier_of(body, b.edge))
-        else {
-            return Err(BlendError::ChainNotConnected { edge: a.edge });
-        };
+        let (ca, ta0, ta1) = carrier_of(body, a.edge)?;
+        let (cb, tb0, tb1) = carrier_of(body, b.edge)?;
         // Tangents taken at the junction END of each carrier, so
         // "not G1" means a genuine kink and not a parameterization
         // artefact: on each side pick the parameter whose point is
@@ -1662,9 +1679,7 @@ fn chain_turns<T: Decide + Bounds>(
     if matches!(chain.closure, ChainClosure::Closed) && chain.junctions.is_empty() {
         let l = chain.first();
         if l.start == l.end {
-            let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
-                return Err(BlendError::ChainNotConnected { edge: l.edge });
-            };
+            let (c, t0, t1) = carrier_of(body, l.edge)?;
             // One cell meeting itself is not a coincidence of two, so
             // its Zero records no row.
             chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
@@ -1826,9 +1841,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     if rolling_ball {
         for chain in &chains {
             for link in chain.links() {
-                let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
-                    return Err(BlendError::ChainNotConnected { edge: link.edge });
-                };
+                let (carrier, t0, t1) = carrier_of(body, link.edge)?;
                 for i in 0..CHAIN_SAMPLES {
                     let p = carrier.eval(chain_sample_at(t0, t1, i));
                     radius_headroom(body, link.face_a, link.convexity, p, r, band)?;
@@ -1907,7 +1920,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
                         let [l1, l2] = &*links;
-                        turns.push(turn_at(body, v, [l1, l2], third, band)?);
+                        turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
                     }
                     Some(EndVerdict::Turn(..)) | None => {}
                 }
@@ -2064,20 +2077,15 @@ pub enum EndSection<T: Real> {
     Ellipse(Curve3<T>),
 }
 
-/// The refusal for a turn whose trihedron is definitely not isosceles
-/// about its unrequested edge. It names what the verdict read, the two
-/// face angles beside that edge, and claims nothing about where the
-/// bands would meet: at supplementary face angles a chamfer's two feet
-/// on the edge coincide, and that turn refuses here too.
-pub const TURN_NOT_ISOSCELES: &str = "two requested edges turn at a vertex where they make \
-     different angles with its third edge; a mitre is built only where the two are equal";
-
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
-/// edges requested, the third, `edge`, not, and the trihedron decided
-/// isosceles about it ([`turn_at`]). The two bands meet along their
-/// intersection, from `crossing` on the face they share down to
-/// `foot`, where `edge` ends. The battery's reading of the trihedron is
-/// the only one: the planar band's plan carves from these fields.
+/// edges requested, the third, `edge`, not, and the two bands' feet on
+/// it decided one point or definitely apart ([`turn_at`]). The two
+/// bands meet along their intersection, from `crossing` on the face
+/// they share down to `edge`'s face that the nearer foot lies on; where
+/// the feet stand apart, the band reaching further is cut off past the
+/// mitre by that face ([`Overrun`]). `edge` ends at `foot`. The
+/// battery's reading of the turn is the only one: the planar band's
+/// plan carves from these fields.
 #[derive(Clone, Debug)]
 pub struct Turn<T: Real> {
     /// The vertex the two bands end at.
@@ -2095,57 +2103,276 @@ pub struct Turn<T: Real> {
     pub out: [Vec3<T>; 2],
     /// Where the two bands' trimlines on `shared` cross.
     pub crossing: Point3<T>,
-    /// Where `edge` ends: the midpoint of the two bands' feet on it,
-    /// which the verdict put within its zero band of each other.
+    /// Where `edge` ends: at a mitre the midpoint of the two bands'
+    /// feet on it, which the verdict put within its zero band of each
+    /// other; at an overrun the far band's foot.
     pub foot: Point3<T>,
-    /// The coincidence the verdict decided: the two requested edges
-    /// make equal angles with `edge`, so the mitre lands on it and four
-    /// edges meet there ([`topo::Relation::EqualAngles`], the margin
-    /// `fillet3_turn_isosceles` decided Zero).
-    pub coincidence: topo::Coincidence,
+    /// What the verdict decided of the feet.
+    pub run_out: TurnRunOut<T>,
 }
 
-/// **`fillet3_turn_isosceles`** — at a turn, is the trihedron isosceles
-/// about the unrequested edge `third`?
+/// **How a turn's mitre meets its third edge** ([`Turn::run_out`]).
+#[derive(Clone, Debug)]
+pub enum TurnRunOut<T: Real> {
+    /// The two bands' feet on the third edge are one point, so the mitre
+    /// lands on it and four edges meet there: the coincidence the
+    /// verdict decided ([`topo::Relation::CommonFoot`], the gap and the
+    /// chord both decided Zero).
+    Mitre(topo::Coincidence),
+    /// The feet stand definitely apart, both readings on one side: the
+    /// OVERRUN.
+    Overrun(Overrun<T>),
+}
+
+/// **A turn's overrun**: the mitre lands first on the near band's face
+/// of the third edge, at `end` on that band's trimline, and the far band
+/// `far` is cut off past it by that face, from `end` down to its own
+/// foot ([`Turn::foot`]) — band `far`'s cut-off at that face, clipped at
+/// `end`. A fillet's cut-off arc is tangent to the mitre at `end` and to
+/// the third edge at the far foot (the crate README's turn clause). A
+/// just-definite overrun leaves an edge from `end` to the far foot, a
+/// chord or an arc, barely longer than the band's `escalate` width.
+#[derive(Clone, Debug)]
+pub struct Overrun<T: Real> {
+    /// The far band, as an index into [`Turn::requested`].
+    pub far: usize,
+    /// The mitre's end `q`, on the near band's trimline on its face of
+    /// the third edge: the mitre's plane met with that trimline.
+    pub end: Point3<T>,
+    /// The far band's section by the near band's face of the third
+    /// edge: a chamfer's chord, a fillet's circle or ellipse as
+    /// `fillet3_cap_transverse` picks it for any cut-off.
+    pub section: EndSection<T>,
+}
+
+impl<T: Real> Overrun<T> {
+    /// The near band, as an index into [`Turn::requested`]: the one the
+    /// mitre is cut across, whose face of the third edge the far band's
+    /// cut-off runs on.
+    pub fn near(&self) -> usize {
+        1 - self.far
+    }
+}
+
+impl<T: Real> Turn<T> {
+    /// The coincidence a mitred turn recorded; an overrun records none.
+    pub fn coincidence(&self) -> Option<&topo::Coincidence> {
+        match &self.run_out {
+            TurnRunOut::Mitre(row) => Some(row),
+            TurnRunOut::Overrun(_) => None,
+        }
+    }
+
+    /// The overrun, where the feet stand apart.
+    pub fn overrun(&self) -> Option<&Overrun<T>> {
+        match &self.run_out {
+            TurnRunOut::Mitre(_) => None,
+            TurnRunOut::Overrun(o) => Some(o),
+        }
+    }
+
+    /// The band's foot on `face`, where its trimline there starts: the
+    /// turn foot, but on the near band's face at an overrun, the mitre's
+    /// end. `None` for a face not in [`Turn::others`].
+    pub fn foot_on(&self, face: FaceKey) -> Option<Point3<T>> {
+        let i = self.others.iter().position(|f| *f == face)?;
+        Some(match self.overrun() {
+            Some(o) if o.near() == i => o.end,
+            _ => self.foot,
+        })
+    }
+}
+
+/// **A turn's two readings** — do the two bands' feet on the
+/// unrequested edge `third` coincide, or stand clearly apart?
 ///
-/// Margin, in meters, the larger of two displacements:
-/// - the difference of the cosines of the two face angles at the
-///   vertex, each between a requested edge and `third` (their unit
-///   directions out of the vertex, dotted), levered at the longer
-///   link's extent;
-/// - the distance between the two bands' feet on `third`, each where
-///   its trimline on its own face of `third` crosses it.
+/// Each band's foot is where its trimline on its own face of `third`
+/// crosses it. Two readings, both lengths and both signed positive
+/// where the first requested edge's foot is further from the vertex:
+/// - `fillet3_turn_feet_gap`, the distance between the feet;
+/// - `fillet3_turn_overrun_chord`, the chord of the overrun the band
+///   reaching further, `k`, would build: from the mitre's end on the
+///   other band's trimline on its face of `third` to `k`'s foot. The
+///   mitre lies in band `k`'s plane for a chamfer, and for a fillet in
+///   the plane through the two axes' crossing whose normal is the
+///   difference of the requested edges' directions. Where the gap
+///   reads Zero no band is `k`, and the chord is the larger of the two
+///   bands' readings.
 ///
-/// Equal face angles are equal dihedrals at the requested edges, and
-/// then the two feet are one point for either verb, each band's
-/// setback being one function of its dihedral. The cosines alone do
-/// not bound the feet: the feet move as `cos φ / sin³φ` in the face
-/// angle `φ`, so at an acute angle a reading inside the band can leave
-/// them further apart than it. The second term is what puts the
-/// mitre's end, their midpoint, within half the band of each
-/// trimline. Zero builds the mitre and records the coincidence; a
-/// definite reading refuses ([`TURN_NOT_ISOSCELES`]); in band
-/// escalates.
+/// A chamfer's chord is the gap times `sin φ_j / sin θ`, `φ_j` the near
+/// band's face angle and `θ` the angle on its face of `third` between
+/// its edge and band `k`'s plane: at least `sin φ_j`, unbounded toward
+/// a T, so neither reading alone decides (the turn clause in
+/// `crates/sweep/README.md`). Both Zero builds the mitre and records
+/// the coincidence; both definite is the overrun on the side the sign
+/// picks, the far band's section by the near face picked as any
+/// cut-off's ([`cap_transverse`]); anything else escalates.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] for a definite reading;
-/// [`BlendError::Escalated`] in band; [`BlendError::BodyNotIntact`]
-/// when the two links share no support or a vertex does not read;
-/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
-fn turn_at<T: Decide>(
+/// [`BlendError::Escalated`] in band, or from [`cap_transverse`] at a
+/// fillet's overrun; [`BlendError::BodyNotIntact`] when the two links
+/// share no support or a vertex or a face does not read;
+/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line or
+/// a band is neither a plane nor a cylinder.
+fn turn_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
     links: [&Link<T>; 2],
     third: EdgeKey,
+    radius: T,
     band: Band,
+    kind: BlendKind,
 ) -> Result<Turn<T>, BlendError> {
+    let [l1, l2] = links;
+    let TurnReading {
+        shared,
+        others,
+        out,
+        crossing,
+        feet,
+        gap,
+        chords,
+        ends,
+    } = turn_reading(body, vertex, links, third)?;
+    let requested = [l1.edge, l2.edge];
+    let (foot, run_out) = match turn_verdict(vertex, gap, chords, band)? {
+        TurnVerdict::Mitre(margin) => (
+            feet[0] + (feet[1] - feet[0]) * T::from_f64(0.5),
+            TurnRunOut::Mitre(row(
+                requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+                topo::Relation::CommonFoot,
+                topo::DecisionSite::BatteryTurn,
+                margin,
+            )),
+        ),
+        TurnVerdict::Overrun { far } => {
+            // The far band's cut-off at the near band's face of `third`.
+            let near = others[1 - far];
+            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
+                unresolved(EntityId::Face(near), "an overrun's end face's stored plane")
+            })?;
+            let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
+            (
+                feet[far],
+                TurnRunOut::Overrun(Overrun {
+                    far,
+                    end: ends[far],
+                    section,
+                }),
+            )
+        }
+    };
+    Ok(Turn {
+        vertex,
+        requested,
+        edge: third,
+        shared,
+        others,
+        out,
+        crossing,
+        foot,
+        run_out,
+    })
+}
+
+/// What a turn's two readings decide ([`turn_verdict`]).
+#[derive(Debug, PartialEq)]
+pub(crate) enum TurnVerdict {
+    /// Both Zero: the feet are one point, and the coincidence records
+    /// this margin.
+    Mitre(MarginDiag),
+    /// Both definite on one side: band `far`'s foot is further.
+    Overrun { far: usize },
+}
+
+/// **The turn's verdict on its two readings** ([`turn_at`]), escalating
+/// where they do not decide one outcome.
+///
+/// # Errors
+///
+/// [`BlendError::Escalated`] on a reading in band, or on two readings
+/// decided on different sides of it (`fillet3_turn_feet`).
+pub(crate) fn turn_verdict<T: Decide>(
+    vertex: VertexKey,
+    gap: T,
+    chords: [T; 2],
+    band: Band,
+) -> Result<TurnVerdict, BlendError> {
+    let site = BlendSite::Joint { vertex };
+    let feet = classify_reported(site, BlendDecision::TurnFeetGap, Margin::of(gap), band)?;
+    let reach = match feet.sign {
+        Sign::Positive => chords[0],
+        Sign::Negative => -chords[1],
+        Sign::Zero => chords[0].max(chords[1]),
+    };
+    let overrun = classify_reported(
+        site,
+        BlendDecision::TurnOverrunChord,
+        Margin::of(reach),
+        band,
+    )?;
+    // Two lengths on one scale, read for one fact (the feet one point or
+    // apart): the straddle hulls their margins under the pair's name.
+    if feet.sign != overrun.sign {
+        let (lower, upper) = if feet.sign < overrun.sign {
+            (feet, overrun)
+        } else {
+            (overrun, feet)
+        };
+        return Err(super::straddle(
+            site,
+            BlendDecision::TurnFeet,
+            lower,
+            upper,
+            band,
+        ));
+    }
+    Ok(match feet.sign {
+        Sign::Zero => TurnVerdict::Mitre(feet.margin.jointly(overrun.margin)),
+        Sign::Positive => TurnVerdict::Overrun { far: 0 },
+        Sign::Negative => TurnVerdict::Overrun { far: 1 },
+    })
+}
+
+/// A turn's geometry and its two readings ([`turn_reading`]).
+pub(crate) struct TurnReading<T: Real> {
+    pub(crate) shared: FaceKey,
+    pub(crate) others: [FaceKey; 2],
+    pub(crate) out: [Vec3<T>; 2],
+    pub(crate) crossing: Point3<T>,
+    pub(crate) feet: [Point3<T>; 2],
+    /// `fillet3_turn_feet_gap`'s reading.
+    pub(crate) gap: T,
+    /// `fillet3_turn_overrun_chord`'s reading with band `k` the further.
+    pub(crate) chords: [T; 2],
+    /// The mitre's end with band `k` the further: on the other band's
+    /// trimline on its face of the third edge.
+    pub(crate) ends: [Point3<T>; 2],
+}
+
+/// **What a turn's verdict reads**, from the two links alone: the face
+/// they share and each one's other support, each requested edge's unit
+/// direction out of `vertex`, the trimlines' crossing on the shared
+/// face, each band's foot on `third`, the gap between the feet (signed
+/// positive where the first link's is further from `vertex`), and each
+/// band's overrun chord were it the further ([`turn_at`]).
+///
+/// # Errors
+///
+/// As [`turn_at`]'s, less its verdicts.
+pub(crate) fn turn_reading<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    links: [&Link<T>; 2],
+    third: EdgeKey,
+) -> Result<TurnReading<T>, BlendError> {
     let [l1, l2] = links;
     let shared = [l1.face_a, l1.face_b]
         .into_iter()
         .find(|f| *f == l2.face_a || *f == l2.face_b)
         .ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(vertex),
                 "a turn's two requested edges share no face",
             )
@@ -2164,7 +2391,7 @@ fn turn_at<T: Decide>(
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
             .map(|q| (*q - p).normalize())
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a turning edge's far end"))
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a turning edge's far end"))
     };
     let along = out(third)?;
     let dirs = [out(l1.edge)?, out(l2.edge)?];
@@ -2191,43 +2418,50 @@ fn turn_at<T: Decide>(
     let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
     let ((o1, d1), (o2, d2)) = (trimline(l1, shared)?, trimline(l2, shared)?);
     let crossing = line_meet(o1, d1, o2, d2, d1.cross(d2));
-    let angles = Margin::levered(
-        dirs[0].dot(along) - dirs[1].dot(along),
-        l1.arm_len.max(l2.arm_len),
-    )
-    .value();
-    let margin = Margin::of(angles.abs().max((y2 - y1).norm()));
-    let decided = classify_reported(
-        BlendSite::Joint { vertex },
-        BlendDecision::TurnIsosceles,
-        margin,
-        band,
-    )?;
-    match decided.sign {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(super::surgery::unbuilt_run_out(
-                EntityId::Vertex(vertex),
-                TURN_NOT_ISOSCELES,
-            ));
-        }
-    }
-    let requested = [l1.edge, l2.edge];
-    Ok(Turn {
-        vertex,
-        requested,
-        edge: third,
+    // The plane the mitre lies in, for the far band `k`: a chamfer's
+    // is that band's plane; a fillet's is one for both, through the
+    // axes' crossing, normal to `e₁ − e₂`.
+    let mitre_plane = |k: usize| match (&links[k].blend.surface, &links[1 - k].blend.surface) {
+        (Surface::Plane { origin, normal, .. }, _) => Ok((*origin, *normal)),
+        (
+            Surface::Cylinder {
+                origin: c1,
+                axis: a1,
+                ..
+            },
+            Surface::Cylinder {
+                origin: c2,
+                axis: a2,
+                ..
+            },
+        ) => Ok((
+            line_meet(*c1, *a1, *c2, *a2, a1.cross(*a2)),
+            dirs[0] - dirs[1],
+        )),
+        _ => Err(unbuilt_geometry(
+            EntityId::Edge(links[k].edge),
+            "a turning band is neither a plane nor a cylinder",
+        )),
+    };
+    // The overrun's chord with band `k` the further: from the mitre's
+    // end on band `j`'s trimline on its face of `third`, to `k`'s foot.
+    let feet = [y1, y2];
+    let end = |k: usize| -> Result<Point3<T>, BlendError> {
+        let j = 1 - k;
+        let (o, d) = trimline(links[j], others[j])?;
+        let (at, n) = mitre_plane(k)?;
+        Ok(o + d * ((at - o).dot(n) / d.dot(n)))
+    };
+    let ends = [end(0)?, end(1)?];
+    Ok(TurnReading {
         shared,
         others,
         out: dirs,
         crossing,
-        foot: y1 + (y2 - y1) * T::from_f64(0.5),
-        coincidence: row(
-            requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
-            topo::Relation::EqualAngles,
-            topo::DecisionSite::BatteryTurn,
-            decided.margin,
-        ),
+        feet,
+        gap: (y1 - y2).dot(along),
+        chords: [(feet[0] - ends[0]).norm(), (feet[1] - ends[1]).norm()],
+        ends,
     })
 }
 
@@ -2304,15 +2538,13 @@ pub fn cap_transverse<T: Decide + Bounds>(
                             source,
                         }
                     }
-                    // `major ≥ radius` by construction, and the radius
-                    // passed the size gate.
-                    EllipseInvalid::AxesSwapped | EllipseInvalid::MinorNotPositive => {
-                        BlendError::SurgeryInvariant {
-                            at: EntityId::Vertex(vertex),
-                            detail: "an oblique end face's ellipse came out with its axes \
-                                     swapped or a minor semi-axis that is not positive",
-                        }
-                    }
+                    // Its semi-axes are the radius and the radius over a
+                    // cosine, and the radius passed the size gate.
+                    EllipseInvalid::MinorNotPositive => BlendError::SurgeryInvariant {
+                        at: EntityId::Vertex(vertex),
+                        detail: "an oblique end face's ellipse came out with a semi-axis \
+                                     that is not positive",
+                    },
                 })
         }
     }
@@ -2380,7 +2612,7 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
         .and_then(|v| body.get_point(v.point))
         .copied()
         .ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Vertex(vertex),
                 "a chain end's vertex point, for its face normals",
             )
@@ -2399,8 +2631,8 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// ([`corner_independence`]). Any other link's end is classified as a
 /// trivalent vertex of one convexity with independent support normals,
 /// and then by how many of its three edges the request names: all
-/// three, the corner patch; two, the [`CornerConfig::Turn`], whose
-/// trihedron [`turn_at`] decides isosceles about the third edge;
+/// three, the corner patch; two, the [`CornerConfig::Turn`], whose two
+/// bands' feet on the third edge [`turn_at`] decides one point or apart;
 /// one, [`CornerConfig::EndFace`] — its end face a plane, cutting a
 /// chord from a chamfer and from a fillet the section
 /// [`cap_transverse`] picks. The uniform trihedron returns
@@ -2422,12 +2654,8 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    // An unresolved key at the corner is a body that does not hold
-    // together there, not a configuration: every such arm below
-    // refuses as `BodyNotIntact`.
-    let not_intact = |at: EntityId, detail: &'static str| BlendError::BodyNotIntact { at, detail };
     let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
-        not_intact(
+        unwalked(
             EntityId::Vertex(vertex),
             "a chain end's edge fan, for its corner configuration",
         )
@@ -2456,7 +2684,7 @@ fn corner_at<T: Decide + Bounds>(
         // (`cap_incidence`).
         let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
@@ -2482,7 +2710,7 @@ fn corner_at<T: Decide + Bounds>(
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
                 *slot = outward(body, f, p).ok_or_else(|| {
-                    not_intact(
+                    unresolved(
                         EntityId::Face(f),
                         "a ruled cap's face or its stored surface, for its outward normal",
                     )
@@ -2518,7 +2746,7 @@ fn corner_at<T: Decide + Bounds>(
         // (`cap_incidence`).
         let Some((_, _, end)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
@@ -2581,7 +2809,7 @@ fn corner_at<T: Decide + Bounds>(
     }
     for (i, f) in faces.iter().enumerate() {
         normals[i] = outward(body, *f, p).ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Face(*f),
                 "a corner's support face or its stored surface, for its outward normal",
             )
@@ -2609,20 +2837,45 @@ fn corner_at<T: Decide + Bounds>(
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
-        (1, Some(normal)) => match kind {
-            BlendKind::Chamfer => Ok(Some(EndVerdict::Section(EndSection::Chord))),
-            BlendKind::Fillet => {
-                let Surface::Cylinder { axis, .. } = link.blend.surface else {
-                    return Err(indeterminate());
-                };
-                cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
-                    .map(|s| Some(EndVerdict::Section(s)))
-            }
-        },
-        _ => Err(not_intact(
+        (1, Some(normal)) => cut_off_section(vertex, link, normal, radius, kind, band)
+            .map(|s| Some(EndVerdict::Section(s))),
+        _ => Err(disagrees(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
         )),
+    }
+}
+
+/// **A plane–plane band's section by a plane end face** of normal
+/// `normal`, at a chain's cut-off and at a turn's overrun alike: a
+/// chamfer's chord at any angle, a fillet's circle or ellipse as
+/// [`cap_transverse`] picks it about the band's axis, levered at the
+/// link's arm.
+///
+/// # Errors
+///
+/// [`cap_transverse`]'s; [`BlendError::UnsupportedCorner`]
+/// (`Indeterminate`) where a fillet's band is not a cylinder, the
+/// verdict disagreeing with itself.
+fn cut_off_section<T: Decide + Bounds>(
+    vertex: VertexKey,
+    link: &Link<T>,
+    normal: Vec3<T>,
+    radius: T,
+    kind: BlendKind,
+    band: Band,
+) -> Result<EndSection<T>, BlendError> {
+    match kind {
+        BlendKind::Chamfer => Ok(EndSection::Chord),
+        BlendKind::Fillet => {
+            let Surface::Cylinder { axis, .. } = link.blend.surface else {
+                return Err(super::surgery::unbuilt_corner_config(
+                    vertex,
+                    CornerConfig::Indeterminate,
+                ));
+            };
+            cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
+        }
     }
 }
 
@@ -2764,7 +3017,7 @@ fn consumption_sweep<T: Decide + Bounds>(
     };
     for face in faces {
         let fa = body.get_face(face).ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Face(face),
                 "a support face, for its boundary pairs",
             )
@@ -2829,7 +3082,7 @@ fn consumption_sweep<T: Decide + Bounds>(
             let p = body
                 .get_vertex(*v)
                 .and_then(|x| body.get_point(x.point))
-                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
+                .ok_or_else(|| unresolved(EntityId::Vertex(*v), "a joint's stored point"))?;
             let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
             let run_edges = members(link.edge);
             for (e, carrier, _) in &boundary {
@@ -2878,39 +3131,24 @@ fn screened_loop<T: Decide>(
 ) -> Result<Vec<ScreenedEdge<T>>, BlendError> {
     let l = body
         .get_loop(lp)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's loop"))?;
+        .ok_or_else(|| unresolved(EntityId::Loop(lp), "a support face's loop"))?;
     let topo::LoopBoundary::Cycle { first } = l.boundary else {
-        return Err(unbuilt_geometry(
+        return Err(scaffolding(
             EntityId::Loop(lp),
-            "a support face carries a lone-vertex cycle, which the face-clearance screen does \
-             not cover",
+            "a support face carries a lone-vertex cycle",
         ));
     };
     let cycle = body
         .loop_cycle(first)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's cycle"))?;
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support face's cycle"))?;
     cycle
         .into_iter()
         .map(|he| {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a support face's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a support face's boundary"))?
                 .edge;
-            let e = body.get_edge(edge).ok_or_else(|| {
-                not_intact(EntityId::Edge(edge), "a support face's boundary edge")
-            })?;
-            let c = body
-                .get_curve_geom(e.curve)
-                .ok_or_else(|| {
-                    not_intact(EntityId::Edge(edge), "a support boundary edge's curve row")
-                })?
-                .certified()
-                .ok_or_else(|| {
-                    unbuilt_geometry(
-                        EntityId::Edge(edge),
-                        "a support face's boundary edge carries no certified carrier",
-                    )
-                })?;
+            let c = certified_curve(body, edge)?;
             let (t0, t1) = c.params();
             let pts = core::array::from_fn(|i| c.carrier().eval(chain_sample_at(t0, t1, i as u32)));
             Ok((edge, c.carrier().clone(), pts))
@@ -2930,13 +3168,13 @@ fn touches_any<T: Decide>(
     let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
         let he = body
             .get_edge(e)
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a boundary edge, for its ends"))?
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge, for its ends"))?
             .he_plus;
         body.get_half_edge(he)
             .map(|h| h.start)
             .zip(body.half_edge_end(he))
             .map(|(s, t)| [s, t])
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a boundary edge's ends"))
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a boundary edge's ends"))
     };
     for x in xs {
         let ex = ends(*x)?;
@@ -2947,4 +3185,50 @@ fn touches_any<T: Decide>(
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod turn_verdict_rows {
+    use super::*;
+
+    /// **Both readings decide, or the turn escalates.** On readings
+    /// written down: both Zero is the mitre; both definite the overrun,
+    /// its far band the sign's; a reading in band escalates as itself;
+    /// the two decided on different sides of the band escalate as their
+    /// straddle — the gap Zero under a definite chord (the needle the gap
+    /// alone would build as a mitre), and the gap definite over a Zero
+    /// chord (an overrun edge inside the band).
+    #[test]
+    fn a_turn_builds_only_where_its_gap_and_chord_agree() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let v = VertexKey::default();
+        let (z, d) = (1e-10, 1e-6);
+        assert!(matches!(
+            turn_verdict(v, z, [z, 0.0], band),
+            Ok(TurnVerdict::Mitre(_))
+        ));
+        assert_eq!(
+            turn_verdict(v, d, [d, 1.0], band).unwrap(),
+            TurnVerdict::Overrun { far: 0 }
+        );
+        assert_eq!(
+            turn_verdict(v, -d, [1.0, d], band).unwrap(),
+            TurnVerdict::Overrun { far: 1 }
+        );
+        for (gap, chords, decision) in [
+            (5e-9, [d, d], BlendDecision::TurnFeetGap),
+            (d, [5e-9, d], BlendDecision::TurnOverrunChord),
+            (z, [d, z], BlendDecision::TurnFeet),
+            (z, [z, d], BlendDecision::TurnFeet),
+            (-d, [d, z], BlendDecision::TurnFeet),
+        ] {
+            match turn_verdict(v, gap, chords, band) {
+                Err(BlendError::Escalated { decision: got, .. }) => {
+                    assert_eq!(got, decision, "gap {gap:e}, chords {chords:?}");
+                }
+                other => panic!("gap {gap:e}, chords {chords:?}: escalates, got {other:?}"),
+            }
+        }
+    }
 }

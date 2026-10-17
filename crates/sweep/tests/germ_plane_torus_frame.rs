@@ -8,8 +8,11 @@
 //!
 //! - a plane through the axis, square to it, or parallel to it short of
 //!   the inner equator passes the frame, which serves each germ its own
-//!   loop's frame, and stops at the germ-pair dispatch, which has no
-//!   torus arm (`CurvedBooleanUnsupported` naming the torus);
+//!   loop's frame, and the germ-pair dispatch, which takes the torus as
+//!   a wall. The chord layer takes an arc of the meridian circle, the
+//!   concentric circle or the spiric oval the chord's sites lie on, and
+//!   the op builds, or stops past the join (`germ_plane_torus_chord` and
+//!   `germ_plane_torus_spiric` hold the bodies to the truth);
 //! - any other transverse plane cuts a general spiric quartic and
 //!   refuses at the frame, naming the loops the section certificate
 //!   reads (`GermSectionSpiric`);
@@ -24,7 +27,9 @@
 use crate::common::germ_pair::cyl;
 use crate::common::operands::{bar, framed_bar};
 use crate::conic_edge_curved_face::ball;
+use crate::germ_plane_torus_chord::{cap, volume_tol};
 use crate::revolve_common;
+use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
@@ -33,7 +38,7 @@ use sweep::{Revolution, revolve};
 use topo::{AtRestBody, BooleanError, BooleanOp, SpiricLoops};
 
 /// A ring torus about `y`, `R`, `r`, as one revolve.
-fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
+pub(crate) fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(big_r, -r), 1.0),
         (Point2::new(big_r, r), 1.0),
@@ -53,7 +58,7 @@ fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
 /// radius `r`, its vertex at profile angle `phase`, revolved whole. Its
 /// face closes on itself both ways, across the meridian through the
 /// vertex and the parallel through it.
-fn one_face_torus(big_r: f64, r: f64, phase: f64) -> AtRestBody<f64> {
+pub(crate) fn one_face_torus(big_r: f64, r: f64, phase: f64) -> AtRestBody<f64> {
     let lp = RawLoop::new([(
         Point2::new(big_r + r * phase.cos(), r * phase.sin()),
         profile::Segment::Arc(geom_core::Arc2 {
@@ -76,7 +81,7 @@ fn one_face_torus(big_r: f64, r: f64, phase: f64) -> AtRestBody<f64> {
 /// The torus `(R, r)` about `y` seamed on `y = 0`: two faces, above and
 /// below, meeting on the equators, each closed on itself across the
 /// meridian `z = 0`, `x > 0`.
-fn seamed_torus(big_r: f64, r: f64) -> AtRestBody<f64> {
+pub(crate) fn seamed_torus(big_r: f64, r: f64) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(big_r + r, 0.0), 1.0),
         (Point2::new(big_r - r, 0.0), 1.0),
@@ -93,13 +98,13 @@ fn seamed_torus(big_r: f64, r: f64) -> AtRestBody<f64> {
 }
 
 /// The donut `D`.
-fn donut() -> AtRestBody<f64> {
+pub(crate) fn donut() -> AtRestBody<f64> {
     torus(2.0, 0.5)
 }
 
 /// The half-space bounded by the plane through `o` with normal `n`, on
 /// the side `n` points to (`n` not along `y`).
-fn half_space(o: Point3<f64>, n: Vec3<f64>) -> AtRestBody<f64> {
+pub(crate) fn half_space(o: Point3<f64>, n: Vec3<f64>) -> AtRestBody<f64> {
     finished(
         "the half-space",
         framed_bar(o, n, 0.0, 12.0, 12.0),
@@ -108,26 +113,26 @@ fn half_space(o: Point3<f64>, n: Vec3<f64>) -> AtRestBody<f64> {
 }
 
 /// The half-space `y ≥ y0`.
-fn above(y0: f64) -> AtRestBody<f64> {
+pub(crate) fn above(y0: f64) -> AtRestBody<f64> {
     bar((-6.0, 6.0), (y0, y0 + 12.0), (-6.0, 6.0))
 }
 
 /// A `2w`-square bar along `z` across the hole of the torus `(R, r)`,
 /// cut to the length that puts its eight corners on the inner face.
-fn corner_bar(big_r: f64, r: f64, w: f64) -> AtRestBody<f64> {
+pub(crate) fn corner_bar(big_r: f64, r: f64, w: f64) -> AtRestBody<f64> {
     let rho = big_r - (r * r - w * w).sqrt();
     let z = (rho * rho - w * w).sqrt();
     bar((-w, w), (-w, w), (-z, z))
 }
 
-fn degrees(a: f64) -> f64 {
+pub(crate) fn degrees(a: f64) -> f64 {
     a.to_radians()
 }
 
 /// TANG's pose: the full torus `R = 2`, `r = 1` about `y`, and a tube of
 /// radius `2 + 1/√2` about `y` standing on it at `y = 1/√2`, its rim on
 /// the torus's 45° latitude.
-fn tang() -> (AtRestBody<f64>, AtRestBody<f64>) {
+pub(crate) fn tang() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.0, s),
@@ -146,11 +151,11 @@ fn tang() -> (AtRestBody<f64>, AtRestBody<f64>) {
     (torus(2.0, 1.0), finished("the tube", tube, Tol::witness()))
 }
 
-type Outcome = Result<topo::BooleanResult<f64>, BooleanError>;
+pub(crate) type Outcome = Result<topo::BooleanResult<f64>, BooleanError>;
 
 /// The six runs of a torus solid against a planar solid: each op's
 /// label, the op, and whether the planar solid is the first operand.
-const SIX: [(&str, BooleanOp, bool); 6] = [
+pub(crate) const SIX: [(&str, BooleanOp, bool); 6] = [
     ("T ∪ P", BooleanOp::Union, false),
     ("P ∪ T", BooleanOp::Union, true),
     ("T ∩ P", BooleanOp::Intersect, false),
@@ -171,7 +176,7 @@ fn run(op: BooleanOp, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> Outcome {
 
 /// The six runs of a torus solid `t` against a planar solid `p`, each
 /// labelled.
-fn six(t: &AtRestBody<f64>, p: &AtRestBody<f64>) -> Vec<(&'static str, Outcome)> {
+pub(crate) fn six(t: &AtRestBody<f64>, p: &AtRestBody<f64>) -> Vec<(&'static str, Outcome)> {
     SIX.iter()
         .map(|&(label, op, swap)| {
             let (x, y) = if swap { (p, t) } else { (t, p) };
@@ -191,6 +196,16 @@ pub(crate) enum TorusDoor {
     /// F2: the germ-pair dispatch, past a frame that served every germ
     /// and a matcher that consumed every one.
     Dispatch,
+    /// Past the join: the result's shells' sort or its volume, which
+    /// read no torus face an oval bounds (`germ_plane_torus_spiric`'s
+    /// stops, each filed on its owner).
+    Stopped,
+    /// Past every door: the op returned a result.
+    Built,
+    /// Past the chord, the result shell's role escalates on its volume
+    /// (`positive_volume_exact`): a body too thin for the run's band to
+    /// read.
+    Escalated,
 }
 
 /// The torus refusal's payload.
@@ -204,18 +219,28 @@ fn names_the_torus(e: &BooleanError) -> bool {
     )
 }
 
-/// **The door `op` on `x`, `y` refuses at**: the op names the torus,
-/// and the matcher, which runs the reduction and every germ's frame
-/// but not the dispatch, either refuses with that payload (the
-/// reduction raised it, F0) or consumes every germ (the dispatch raised
-/// it, F2). Anything else comes back described.
+/// **The door `op` on `x`, `y` refuses at**, or [`TorusDoor::Built`]
+/// where it returns: [`TorusDoor::Stopped`] past the join; or the op
+/// names the torus, and the matcher, which
+/// runs the reduction and every germ's frame but not the dispatch,
+/// either refuses with that payload (the reduction raised it, F0) or
+/// consumes every germ (the dispatch raised it, F2). Anything else
+/// comes back described.
 pub(crate) fn torus_door(
     op: BooleanOp,
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,
 ) -> Result<TorusDoor, String> {
     match run(op, x, y) {
+        Ok(_) => return Ok(TorusDoor::Built),
+        Err(BooleanError::Escalated {
+            decision: topo::BooleanDecision::ShellRole { .. },
+            diag,
+        }) if diag.predicate == Some("positive_volume_exact") => return Ok(TorusDoor::Escalated),
         Err(e) if names_the_torus(&e) => {}
+        Err(e) if crate::germ_plane_torus_spiric::stops_past_the_join(&e) => {
+            return Ok(TorusDoor::Stopped);
+        }
         other => {
             return Err(format!(
                 "the op: {:?}",
@@ -244,39 +269,6 @@ fn doors(
             (label, torus_door(op, x, y))
         })
         .collect()
-}
-
-/// **Every pose the frame serves passes it**, in every op, and stops at
-/// the dispatch: the meridian planes (M1, M2, and M3's box face), the
-/// planes square to the axis (P1, and P4's box face), the
-/// axis-parallel plane short of the inner equator (S1), the bars across
-/// the hole (B1) and through the tube (B2), and the corner bar on a fat
-/// torus (B5, B5′), whose end squares cut two spiric ovals.
-#[test]
-fn every_served_pose_passes_the_frame_to_the_dispatch() {
-    let d = donut();
-    let fat = torus(1.0, 0.6);
-    let m2 = Vec3::new(degrees(30.0).cos(), 0.0, degrees(30.0).sin());
-    for (pose, t, p) in [
-        ("M1", &d, half_space(Point3::origin(), Vec3::unit_x())),
-        ("M2", &d, half_space(Point3::origin(), m2)),
-        ("M3", &d, bar((0.0, 1.0), (-1.0, 1.0), (1.2, 2.8))),
-        ("P1", &d, above(0.2)),
-        ("P4", &d, bar((-1.0, 1.0), (0.2, 1.0), (1.2, 2.8))),
-        (
-            "S1",
-            &d,
-            half_space(Point3::new(0.3, 0.0, 0.0), Vec3::unit_x()),
-        ),
-        ("B1", &d, bar((-0.1, 0.1), (-0.1, 0.1), (-2.0, 2.0))),
-        ("B2", &d, bar((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0))),
-        ("B5", &fat, corner_bar(1.0, 0.6, 0.1)),
-        ("B5′", &fat, corner_bar(1.0, 0.6, 0.3)),
-    ] {
-        for (op, door) in doors(t, &p) {
-            assert_eq!(door, Ok(TorusDoor::Dispatch), "{pose}, {op}");
-        }
-    }
 }
 
 /// **A general pose refuses at its frame, by name, with the loops the
@@ -399,21 +391,34 @@ fn the_donuts_corner_bar_refuses_at_its_end_square() {
     }
 }
 
-/// **TANG's tube passes the frame** in every op, both member orders: the
-/// tube's rim is an edge lying on the torus, so past the frame its germ
-/// takes the edge-plane lane and stops at the wall side's section, which
-/// has no plane × torus arm.
+/// **The lily's stem glue passes the chord, undeclared, in both member
+/// orders, and stops at the interior-loop guard**: its germ pair is the
+/// stem's weld cap against the arch's tube wall, whose section is the
+/// arch's meridian circle on both sides. Past the join, the section
+/// certificate is asked about the stem's tube wall against the arch's,
+/// two tori whose axes are parallel and apart, a pose it has no arm for
+/// (`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
+/// No declaration is read.
 #[test]
-fn tangs_tube_passes_the_frame_to_the_wall_side_section() {
-    let (t, p) = tang();
-    for (op, r) in six(&t, &p) {
+fn the_lilys_stem_glue_passes_the_chord_to_the_interior_loop_guard() {
+    let (s, a) = (
+        crate::mate7a_r1_probes::stem(),
+        crate::mate7a_r1_probes::arch(),
+    );
+    for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
+        let r = topo::union(x, y, Tol::witness());
         assert!(
             matches!(
                 &r,
-                Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-                    if what.contains("plane×torus")
+                Err(BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Union),
+                    site: topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: geom::SurfaceKind::Torus,
+                    other_kind: geom::SurfaceKind::Torus,
+                    ..
+                })
             ),
-            "{op}: {:?}",
+            "{label}: {:?}",
             r.err()
         );
     }
@@ -511,6 +516,39 @@ fn every_segment_joins_two_sites_of_one_loop() {
     }
 }
 
+/// **The fat corner bar's eight corners pair corner to corner on one
+/// oval** (the spec's §1.4): B5 and B5′ against the fat torus `(1, 0.6)`,
+/// every op the matcher reads, both member orders. Each end square cuts
+/// two ovals, one each side of the axis's trace, each running from
+/// corner to corner, so each segment joins `(±w, w, ±z)` to
+/// `(±w, −w, ±z)`: one side `x = ±w`, one end `z = ±z`. Eight records,
+/// eight segments; the pairing is decided before any chord exists.
+#[test]
+fn the_fat_corner_bars_corners_pair_on_one_oval() {
+    let fat = torus(1.0, 0.6);
+    for (pose, w) in [("B5", 0.1), ("B5′", 0.3)] {
+        let b = corner_bar(1.0, 0.6, w);
+        for (op, swap) in ORDERS {
+            let what = format!("{pose}, {op:?}{}", if swap { " swapped" } else { "" });
+            let (x, y) = if swap { (&b, &fat) } else { (&fat, &b) };
+            let segments = segments(op, x, y, &what);
+            assert_eq!(segments.len(), 8, "{what}: eight corners, eight segments");
+            for [s, e] in segments {
+                let corner =
+                    |q: Point3<f64>| (q.x.abs() - w).abs() < 1e-9 && (q.y.abs() - w).abs() < 1e-9;
+                assert!(
+                    corner(s)
+                        && corner(e)
+                        && s.x.signum() == e.x.signum()
+                        && s.z.signum() == e.z.signum()
+                        && s.y.signum() != e.y.signum(),
+                    "{what}: a segment {s:?} → {e:?} is not one oval's, corner to corner"
+                );
+            }
+        }
+    }
+}
+
 /// **The coaxial cylinder × sphere pair never pairs across its two
 /// circles** (the spec's Q6, measured): its one frame serves both
 /// circles, and nothing in the frame tells them apart. A ball of radius
@@ -542,7 +580,7 @@ fn the_coaxial_cylinder_sphere_pair_keeps_each_circle_to_itself() {
 /// the planes square to the axis at `y = 0.2` and `y = −0.3`, and a box
 /// whose face `y = 0.2` holds both circles; the axis-parallel plane S1
 /// and a box whose face `x = 0.3` holds both ovals.
-fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
+pub(crate) fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
     let m2 = Vec3::new(degrees(30.0).cos(), 0.0, degrees(30.0).sin());
     vec![
         ("M1", half_space(Point3::origin(), Vec3::unit_x())),
@@ -556,8 +594,12 @@ fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
     ]
 }
 
-/// **Two one-site loops on one face pair reach the dispatch**, as the
-/// donut's two-site loops do, in every op. On the one-face torus (its
+/// **Two one-site loops on one face pair pass the dispatch to the
+/// chord**, as the donut's two-site loops do, in every op: built where
+/// the section is two meridian or concentric circles
+/// (`germ_plane_torus_chord` holds those bodies to the truth), built or
+/// stopped past the join where it is two spiric ovals
+/// (`germ_plane_torus_spiric` holds those). On the one-face torus (its
 /// vertex on the outer equator, off it, and on the inner equator) each
 /// loop of a meridian, concentric or spiric section crosses the face's
 /// wrap edges once, so the section's two loops are two one-site records
@@ -568,9 +610,9 @@ fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
 /// closed curve: a check that read one face pair's records as one loop
 /// takes the other loop's record for a second record of its own.
 #[test]
-fn two_one_site_loops_on_one_face_pair_reach_the_dispatch() {
+fn two_one_site_loops_on_one_face_pair_pass_the_dispatch() {
     let mut runs = Vec::new();
-    for phase in [0.0, 1.0, core::f64::consts::PI] {
+    for phase in [0.0, 1.0, PI] {
         let t = one_face_torus(2.0, 0.5, phase);
         for (pose, p) in two_loop_poses() {
             runs.push((
@@ -588,19 +630,28 @@ fn two_one_site_loops_on_one_face_pair_reach_the_dispatch() {
         runs.push((format!("seamed torus, {pose}"), doors(&seamed, &p)));
     }
     for (what, doors) in runs {
+        let spiric = ["meridian box", "S1", "spiric box"]
+            .iter()
+            .any(|pose| what.ends_with(pose));
         for (op, door) in doors {
-            assert_eq!(door, Ok(TorusDoor::Dispatch), "{what}, {op}");
+            assert!(
+                door == Ok(TorusDoor::Built) || spiric && door == Ok(TorusDoor::Stopped),
+                "{what}, {op}: {door:?}"
+            );
         }
     }
 }
 
 /// **A plane square to the axis just under the tube's top reaches the
-/// door the donut does**, at `y = 0.5 − δ`: past the frame to the
-/// dispatch where the run's band reads the two circles apart, at the
-/// on-carrier sector where it reads them one tangent circle. The
+/// door the donut does**, at `y = 0.5 − δ`: past the frame, the
+/// dispatch and the chord where the run's band reads the two circles
+/// apart, to a body or, where the cap is too thin for the run's band to
+/// read its shell, an escalation; at the on-carrier sector where the
+/// band reads them one tangent circle. The
 /// one-face torus and the torus seamed on `y = 0` carry both circles on
 /// one face pair, each crossing a wrap edge once; the donut carries
-/// them on its outer and inner faces.
+/// them on its outer and inner faces. Every body built is held to its
+/// closed-form volume and to tier 3.
 #[test]
 fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
     let (d, one, seamed) = (
@@ -611,10 +662,46 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
     for delta in [5e-7, 1e-6, 1e-5, 1e-3] {
         let p = bar((-3.0, 3.0), (0.5 - delta, 1.0), (-3.0, 3.0));
         let want = doors(&d, &p);
-        for (name, t) in [("one-face", &one), ("seamed", &seamed)] {
+        for (name, t) in [
+            ("the donut", &d),
+            ("the one-face torus", &one),
+            ("the seamed torus", &seamed),
+        ] {
             for ((op, door), (_, want)) in doors(t, &p).into_iter().zip(&want) {
                 assert!(want.is_ok(), "δ = {delta}, the donut, {op}: {want:?}");
-                assert_eq!(&door, want, "δ = {delta}, the {name} torus, {op}");
+                assert_eq!(&door, want, "δ = {delta}, {name}, {op}");
+            }
+            for ((op, got), &(_, kind, swap)) in six(t, &p).into_iter().zip(&SIX) {
+                let Ok(got) = got else { continue };
+                let (big_r, r, h) = (2.0, 0.5, 0.5 - delta);
+                let (torus_v, bar_v) = (2.0 * PI * PI * big_r * r * r, 36.0 * (0.5 + delta));
+                let meet = cap(big_r, r, h);
+                let (first, second) = if swap {
+                    (bar_v, torus_v)
+                } else {
+                    (torus_v, bar_v)
+                };
+                let truth = match kind {
+                    BooleanOp::Union => first + second - meet,
+                    BooleanOp::Intersect => meet,
+                    BooleanOp::Subtract => first - meet,
+                };
+                let b = &got
+                    .body()
+                    .unwrap_or_else(|| panic!("δ = {delta}, {name}, {op}: empty"))
+                    .body;
+                assert_eq!(
+                    topo::validate_geometric(b, Tol::witness()),
+                    Ok(()),
+                    "δ = {delta}, {name}, {op}: tier 3"
+                );
+                let v = topo::mass_properties(b, Tol::witness())
+                    .unwrap_or_else(|e| panic!("δ = {delta}, {name}, {op}: the volume: {e:?}"))
+                    .volume;
+                assert!(
+                    (v - truth).abs() <= volume_tol(truth),
+                    "δ = {delta}, {name}, {op}: volume {v} against the truth {truth}"
+                );
             }
         }
     }
@@ -626,9 +713,10 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
 /// passes the frame on every face, and where the matcher ranks a germ's
 /// candidates, two stand `3.2e-6 m` apart in the ranking's measure. Where
 /// that lies in the run's band (`ε = 1e-6`) every op escalates
-/// `bool_join_nearest` as a join coincidence; elsewhere every op reaches
-/// the dispatch. The ranking is the one every curved pair's germs take;
-/// this pose reaches it through the torus frame.
+/// `bool_join_nearest` as a join coincidence; elsewhere every op passes
+/// the join, to a body or a stop past it (`germ_plane_torus_spiric`
+/// holds them to the truth). The ranking is the one every curved pair's
+/// germs take; this pose reaches it through the torus frame.
 #[test]
 fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name() {
     let d = donut();
@@ -653,7 +741,11 @@ fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name() {
                 got.err()
             );
         } else {
-            assert_eq!(torus_door(op, a, b), Ok(TorusDoor::Dispatch), "{label}");
+            let door = torus_door(op, a, b);
+            assert!(
+                matches!(door, Ok(TorusDoor::Built | TorusDoor::Stopped)),
+                "{label}: {door:?}"
+            );
         }
     }
 }

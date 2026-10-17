@@ -35,9 +35,11 @@ offered. `BooleanNaming::fused_into` already folds every hop
 
 Read every dead key onto its final survivor (invert `fused_into()`),
 and pin a chain whose first dead key carries the only name. Check
-first whether a two-hop chain reaches this pass on any corpus scene:
-`fused-into-names-vertices-not-live-in-the-result` (FUSE) says some
-survivors are not live, which this pass would then also miss.
+first whether a two-hop chain reaches this pass on any corpus scene.
+`fused_into` settles each fused vertex on a live cell: its survivor, or
+the edge or face a later join or merge left its point inside (FUSE's
+`fused-into-names-vertices-not-live-in-the-result`), and only a
+`Cell::Vertex` survivor carries a vertex's names.
 
 ## Measured (PR 4116's delta review, 2026-10-06)
 

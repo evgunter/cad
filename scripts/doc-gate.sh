@@ -21,7 +21,7 @@
 #
 # --document-private-items is deliberate: much of the load-bearing prose
 # sits on private functions (span_offset, span_indices,
-# OrthoFrame::from_aim), and without the flag those are never rendered and
+# RigidMotion::from_aim), and without the flag those are never rendered and
 # never checked.
 #
 # WHY private_intra_doc_links IS ALLOWED. That lint fires when a public

@@ -138,6 +138,13 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// through the verb lowering — bodies on both sides and name tables —
 /// one committed number each.
 ///
+/// The digest feeds every node id, each body's `Debug` (its carriers'
+/// stored fields and edge descriptions included) and each name table
+/// (`fixture::digest`'s module docs), so a re-minted id, a renamed field
+/// or a moved bit moves it. They are goldens in the ordinary sense —
+/// when one moves the question is whether the new behaviour is right,
+/// never how to restore the old number.
+///
 /// The numbers were taken on this branch and re-taken on the extracted
 /// merge base with this file and the shared feed copied onto it; all
 /// three reproduce there. That differential is what "nothing observable moved" means;
@@ -262,9 +269,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x17d8_7760_c728_b7f6u64),
-        ("part_select", 0x76a5_5082_96be_0ddb),
-        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
+        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7du64),
+        ("part_select", 0x1613_0d79_3326_39ec),
+        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -342,6 +349,8 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// fixture drifts. With that, perturbing the digest's empty-side token
 /// reds THIS row while the three document constants stand, and a
 /// lowering that turned the typed empty into anything else — or an
+/// empty side into a phantom body — moves this number.
+///
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.

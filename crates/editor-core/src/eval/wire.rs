@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use geom_brep::OutwardNormal;
 use geom_core::{
-    Affine3, Band, Decide, Mat3, OrthoAxis, OrthoFrame, Point2, Point3, Sign, Tol, UnitVec3,
+    Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
 };
 use sweep::{Revolution, RevolveAxis};
@@ -48,6 +48,7 @@ use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
+use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{Axis3, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
@@ -193,17 +194,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
     /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile or section's program
-    /// resolution ([`section_of`]), the placement the pinned lift
-    /// embeds — so it is what a content key owes
+    /// ([`mint_frame_placement`]), a profile's program resolution,
+    /// the placement the pinned lift embeds — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
-    /// The E4 seed this evaluation carries, by its variable (`None` on
-    /// the build path). Consulted by the one place the lift cannot
-    /// reach: a C6/D9-pinned section refuses a seed it would otherwise
-    /// embed as a constant ([`section_of`]).
-    pub seed: Option<crate::var::VarId>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -236,8 +231,11 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
+/// inside the node's verdict frame and ahead of this op). `frame` is
+/// an instance's group frame ([`instance_frame`]), read there once for
+/// the content key and reused here, so its literal steps are decided
+/// once a node.
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
@@ -246,6 +244,7 @@ pub(crate) fn run_op<T>(
     vals: &SlotValues<T>,
     payload: Option<&super::Payload<T>>,
     profile_pre: Option<&ProfilePre>,
+    frame: Option<crate::placement::Motion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -259,7 +258,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
@@ -322,18 +320,12 @@ where
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(
-            id,
-            &all(O::Section, profiles)?,
-            doc,
-            results,
-            vals,
-            env.lane,
-            tol,
-        ),
+        Node::Loft { profiles, .. } => {
+            wire_loft(id, &all(O::Section, profiles)?, results, vals, tol)
+        }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
-            wire_sweep(profile, path, doc, results, vals, env.lane, tol)
+            wire_sweep(profile, path, results, vals)
         }
         Node::Tube { frame, window, .. } => {
             let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
@@ -470,13 +462,12 @@ where
             if let Some(fault) = env.poses.fault(id) {
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
-            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
-                .unwrap_or(crate::placement::Motion::Identity);
+            let frame = frame.unwrap_or(crate::placement::Motion::Identity);
             let pose = env
                 .poses
                 .pose(id)
                 .unwrap_or_else(crate::mate::solve::Pose::identity);
-            let map = pose.compose_around(frame).non_identity();
+            let map = pose.compose_around(frame).rigid(band(tol)?)?;
             wire_instantiate_part(id, doc_ref, interface, map, env, tol)
         }
         // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
@@ -550,7 +541,7 @@ fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
     interface: &crate::node::InterfaceRecord,
-    map: Option<geom_core::Affine3<T>>,
+    map: Option<RigidMotion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -564,7 +555,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     let part = env
@@ -669,7 +659,7 @@ where
 /// [`NodeErrorKind::Transform`].
 fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
-    map: Option<&Affine3<T>>,
+    map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> Result<Body<T>, NodeErrorKind> {
     match map {
@@ -682,7 +672,7 @@ fn place<T: Decide + topo::AtRestPolicy>(
 /// order: one placement of a pattern's master.
 fn place_each<T: Decide + topo::AtRestPolicy>(
     bodies: &[Arc<Body<T>>],
-    map: &Affine3<T>,
+    map: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
     bodies
@@ -759,48 +749,6 @@ fn operand<'v, T: Decide, R>(
 ) -> Result<R, NodeErrorKind> {
     let v = value_of(results, input)?;
     read(v).ok_or_else(|| wrong_operand(v, input, expected))
-}
-
-/// **The same question asked of a NODE** — the recipe-side door, for
-/// the roads that never hold a value. `found:` comes from
-/// [`super::node_value_kind`], which answers over node kinds in the
-/// same words as [`operand`] does over payloads.
-///
-/// # The two halves answer about the same node, except across a placer
-///
-/// `read` tests the node the reference NAMES; `found` walks a
-/// [`Node::Transform`] chain to its source. A `Transform` over a
-/// `Profile` would therefore refuse with `found: "profile"`, a refusal
-/// that states nothing. That is unreachable: `wire_transform` reads
-/// through [`placeable_operand`], which refuses a profile and poisons
-/// every dependent, so this door never sees such an id. A placer that
-/// became shape-preserving over profiles would break this.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingInput`] for a reference that names no live
-/// node; otherwise [`NodeErrorKind::WrongOperand`] naming the family
-/// the node lands in. [`super::node_value_kind`]'s own refusal seat is
-/// dropped because none can arrive: the reference is one of the
-/// consumer's INPUT edges, already evaluated `Ok`, and a transform
-/// there that could refuse would have poisoned the consumer first.
-fn node_operand<'d, P, R>(
-    doc: &'d crate::doc::Doc<P>,
-    input: RecipeNodeId,
-    expected: &'static str,
-    read: impl FnOnce(&'d Node<P>) -> Option<R>,
-) -> Result<R, NodeErrorKind> {
-    let node = doc
-        .node(input)
-        .ok_or(NodeErrorKind::MissingInput { input })?;
-    match read(node) {
-        Some(r) => Ok(r),
-        None => Err(operand_refusal(
-            input,
-            expected,
-            super::node_value_kind(doc, input).map_err(|seated| seated.1)?,
-        )),
-    }
 }
 
 /// [`operand`]'s refusal alone, for callers that already hold the
@@ -949,19 +897,21 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
-/// What one of this layer's decisions decides, in words
-/// (`crate::decision::words` reads them). `None` for a predicate this
-/// layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        EVAL_DIRECTION_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
-        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
-        PATTERN_SPACING => "whether the pattern spacing is positive",
-        PATTERN_STEP => "whether the pattern step is zero",
-        PATTERN_STEP_TURN => "how many whole turns the pattern step holds",
-        _ => return None,
-    })
-}
+/// What each of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them).
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (EVAL_DIRECTION_NORM, geom_core::DIRECTION_LENGTH_SUBJECT),
+    (
+        "revolve_full_vs_partial",
+        "whether the revolve makes a full turn",
+    ),
+    (PATTERN_SPACING, "whether the pattern spacing is positive"),
+    (PATTERN_STEP, "whether the pattern step is zero"),
+    (
+        PATTERN_STEP_TURN,
+        "how many whole turns the pattern step holds",
+    ),
+];
 
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
@@ -986,21 +936,49 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, EVAL_DIRECTION_NORM, band).map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+    let decision = Decision::DirectionNorm;
+    UnitVec3::new(v, decision.name(), band).map_err(|e| {
+        refusal(e, role, |source| {
+            if role == crate::placement::PLACEMENT_AXIS_ROLE {
+                NodeErrorKind::PlacementAxisEscalated {
+                    predicate: decision.name(),
+                    source,
+                }
+            } else {
+                escalated(decision)(source)
+            }
+        })
+    })
 }
 
 /// **The kernel refusal in this layer's vocabulary** — the ONE map for
-/// both funnel names, which is its parameter.
+/// every direction door.
 ///
 /// `role` names the vector the CALLER passed, which is what a user
-/// reads; `predicate` names the funnel site the length was decided
-/// under, which is what an escalation is comparable by.
-fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
+/// reads; `escalated` is the arm the door puts an escalation in: the
+/// evaluation's ([`NodeErrorKind::Escalated`]), a placement frame's
+/// rotation axis ([`NodeErrorKind::PlacementAxisEscalated`]), or a pose's
+/// or datum's direction ([`pose_direction_escalated`]).
+fn refusal(
+    e: UnitVec3Error,
+    role: &'static str,
+    escalated: impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind,
+) -> NodeErrorKind {
     match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::UnderflowedLength => NodeErrorKind::UnderflowedDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
+        UnitVec3Error::Escalated(source) => escalated(source),
+    }
+}
+
+/// A pose's or datum's direction length that could not be called,
+/// decided under [`DATUM_UNIT_NORM`]: the arm D10's pose ground keeps,
+/// [`NodeErrorKind::PoseDirectionEscalated`].
+fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
+    NodeErrorKind::PoseDirectionEscalated {
+        predicate: DATUM_UNIT_NORM,
+        source,
     }
 }
 
@@ -1079,7 +1057,7 @@ impl DirectionRefusal {
     /// is. `pub` because the carried refusal is: a consumer holding one
     /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
-        refusal(self.error, self.role, DATUM_UNIT_NORM)
+        refusal(self.error, self.role, pose_direction_escalated)
     }
 }
 
@@ -1108,7 +1086,7 @@ fn datum_unit<T: Decide>(
 /// carries it ([`FramePlacement::Unreadable`]).
 enum FrameRead<T: geom_core::Real> {
     /// The orthonormal frame.
-    Frame(OrthoFrame<T>),
+    Frame(RigidMotion<T>),
     /// The direction door refused `u`, or `v`'s residual.
     NoDirection(DirectionRefusal),
 }
@@ -1235,8 +1213,7 @@ pub(crate) fn mint_frame_placement(
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
 /// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
 /// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame because the section seam raises it on the
-/// loft; and [`NodeErrorKind::MissingInput`] for a reference with no
+/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
 /// value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1285,7 +1262,7 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame, through [`frame_value`].
+/// frame, through `frame_value`.
 pub(crate) fn frame_plane_lane<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -1306,7 +1283,7 @@ fn frame_pose<T: Decide>(
     frame: crate::VarId,
     env: &crate::expr::VarEnv<T>,
     tol: Tol,
-) -> Result<OrthoFrame<T>, NodeErrorKind> {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     match pose::eval_pose(doc, results, crate::OperandSlot::Frame, frame, env, tol)? {
         PoseValue::Frame(f) => Ok(f),
         other => unreachable!(
@@ -1314,16 +1291,6 @@ fn frame_pose<T: Decide>(
             other.kind()
         ),
     }
-}
-
-/// A lane-scalar placement carried across to `f64`, exactly, where the
-/// scalar is the `f64` lane — every component through
-/// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
-/// scalar. No component is inspected: the answer is the type's.
-pub(crate) fn pinned_plane<T: super::SectionScalar>(
-    plane: &profile::SketchPlane<T>,
-) -> Option<profile::SketchPlane<f64>> {
-    plane.try_map(|x| x.pinned_f64().ok_or(())).ok()
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -1340,8 +1307,8 @@ pub(crate) fn frame_axes<T: Decide>(
     u_raw: Vec3<T>,
     v_raw: Vec3<T>,
     band: Band,
-) -> Result<OrthoFrame<T>, DirectionRefusal> {
-    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+) -> Result<RigidMotion<T>, DirectionRefusal> {
+    RigidMotion::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
         DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -1483,8 +1450,7 @@ pub(crate) fn prepare_profile(
     let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let profile_f64 = replayed;
-    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
+    let naming = anchor::derive_naming(&validated_f64, replayed.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1494,7 +1460,6 @@ pub(crate) fn prepare_profile(
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
         .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
-        profile_f64,
         validated_f64,
         placement_f64: placement,
         naming,
@@ -1590,7 +1555,10 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
             };
-            pre.validated_f64.clone().lift_onto(plane)
+            pre.validated_f64
+                .clone()
+                .lift_onto(plane)
+                .map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
@@ -1745,7 +1713,7 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Kernel contract: exactly-full must SAY Full. Anything else wires
     // Partial and the kernel's own classification rules on it.
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
-    let revolution = match turns_off("revolve_full_vs_partial", angle, T::tau(), b)? {
+    let revolution = match turns_off(Decision::RevolveFullTurn, angle, T::tau(), b)? {
         Sign::Zero => Revolution::Full,
         _ => Revolution::Partial(angle),
     };
@@ -1767,14 +1735,14 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// frame datum's, and the window and wall verdicts stay the door's
 /// own; a check here would be a weaker second opinion.
 struct TubeArgs<T: geom_core::Real> {
-    frame: geom_core::OrthoFrame<T>,
+    frame: geom_core::RigidMotion<T>,
     major_radius: T,
     window: sweep::TubeWindow<T>,
     minor_radius: T,
 }
 
 fn tube_args<T: Decide>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
@@ -1808,7 +1776,7 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1847,7 +1815,7 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -2032,7 +2000,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///    mid-evaluation.
 ///
 /// Rungs 2 and 3 are ordered by the DOOR. The one-table doors ask 1,
-/// 2, 3. The declare door ([`resolve_declarations`]) asks 1 and 3 of
+/// 2, 3. The declare door (`resolve_declarations`) asks 1 and 3 of
 /// BOTH names, then its pair's kind question, then 2: a name that names
 /// nothing says so before any question about the pair, and a pair the
 /// vocabulary has no step for is unsupported however many entities
@@ -2343,7 +2311,7 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
     let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
-            NodeErrorKind::Escalated { predicate, source }
+            NodeErrorKind::MeasureEscalated { predicate, source }
         }
         super::measure::PrimitiveRefusal::NonFinite(source) => {
             NodeErrorKind::MeasureNonFinite { source }
@@ -2798,6 +2766,7 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let emitted = (verb.emitter)(
                 id,
+                BooleanOp::Subtract,
                 &out.body,
                 &naming,
                 &names::OperandCtx {
@@ -2866,7 +2835,7 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// step between the accumulation's faces that descend from its first
 /// face (the fold's lineage, [`names::UnionFold`]) and its second face,
 /// and the step decides no carrier pair of its own
-/// ([`topo::Verdicts::Given`]). A refusal only a step raises names the
+/// (`topo::Verdicts::Given`). A refusal only a step raises names the
 /// member that step folds in ([`NodeErrorKind::UnionFoldStep`]). Two
 /// members are one pair: their one step is the judgement, run and
 /// logged once, its refusals the pair's own.
@@ -2989,7 +2958,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut acc_table = Arc::clone(&views[0]);
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
-    // the certificate's one box door; a judged pair's body is discarded.
+    // the certificate's one box door; a judged pair's body is read only
+    // for where its classified edge pieces lie ([`names::UnionLinks`]).
     let hulls = members
         .iter()
         .map(|m| {
@@ -3020,10 +2990,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // The judgement's rows, named in the two members' own tables:
             // the node's coincidences are its pairwise judgement's (#4323:
             // the pass is its coincidence door, rows in member space),
-            // each pair's in the author's list order. A vertex identity
-            // is a row only where a record cites it (D1), and the
-            // judgement's records are not the node's: the fold step that
-            // keeps the touch publishes the row its record cites.
+            // each pair's in the author's list order. The judgement's
+            // records are not the node's, so its vertex identities are
+            // dropped: the fold step that keeps a touch publishes the row
+            // its record cites. A pinch's row, which no record cites, is
+            // published by no step
+            // (`work/wire/a-union-fold-publishes-no-pinch-row.md`).
             let judged: Vec<topo::Coincidence> = out
                 .coincidences
                 .iter()
@@ -3039,9 +3011,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
-            let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok(Some((naming, rows, verdicts))),
+                verbs::VerbRecord::Boolean {
+                    naming, verdicts, ..
+                } => Ok(Some((
+                    (naming, out.body),
+                    rows,
+                    pair_verdicts(p, q, &verdicts),
+                ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3108,6 +3085,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     kind,
                     contacts,
                     naming,
+                    verdicts: _,
                 } = out.record
                 else {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3127,7 +3105,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         },
                     )
                     .map_err(NodeErrorKind::Naming)?;
-                    links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
+                    links
+                        .judged(0, 1, &naming, &out.body)
+                        .map_err(NodeErrorKind::Naming)?;
                 }
                 // The step's records in the node's terms: a row the step
                 // decided is a fold row, named in the node's own space
@@ -3199,6 +3179,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 // member's own name when the chain is collapsed.
                 let emitted = (verb.emitter)(
                     id,
+                    op,
                     &out.body,
                     &naming,
                     &names::OperandCtx {
@@ -3216,7 +3197,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
-                fold.step(step + 1, &naming, &out.body, &emitted.senses)
+                fold.step(step + 1, &naming, &out.body)
                     .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3342,7 +3323,7 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// carrying a declaration is run whatever its boxes: the declaration is
 /// a claim to verify, and verifying it here keeps the verdict
 /// independent of whether the fold fed the pair or consumed its face
-/// ([`drop_consumed`]), and tells a mistyped name from a consumed one.
+/// (`drop_consumed`), and tells a mistyped name from a consumed one.
 ///
 /// **Whether it refuses depends on the members, never on their
 /// order**: every pair that touches or carries a declaration is judged,
@@ -3362,14 +3343,14 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
-fn judge_pairwise_contact(
+fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
     mut judge: impl FnMut(
         usize,
         usize,
     ) -> Result<
         Option<(
-            topo::BooleanNaming,
+            (topo::BooleanNaming, topo::AtRestBody<T>),
             Vec<crate::coincide::NamedCoincidence>,
             Vec<PairVerdict>,
         )>,
@@ -3377,7 +3358,7 @@ fn judge_pairwise_contact(
     >,
 ) -> Result<
     Option<(
-        names::UnionLinks,
+        names::UnionLinks<T>,
         Vec<crate::coincide::NamedCoincidence>,
         Vec<PairVerdict>,
     )>,
@@ -3393,10 +3374,12 @@ fn judge_pairwise_contact(
             if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let Some((naming, judged, glued)) = judge(p, q)? else {
+            let Some(((naming, body), judged, glued)) = judge(p, q)? else {
                 return Ok(None);
             };
-            links.judged(p, q, &naming).map_err(NodeErrorKind::Naming)?;
+            links
+                .judged(p, q, &naming, &body)
+                .map_err(NodeErrorKind::Naming)?;
             rows.extend(judged);
             verdicts.extend(glued);
         }
@@ -3404,46 +3387,26 @@ fn judge_pairwise_contact(
     Ok(Some((links, rows, verdicts)))
 }
 
-/// **One carrier pair a union's pairwise judgement glued**: a face of
-/// each of two members, by member index, and the relation it decided.
+/// **One carrier pair a union's pairwise judgement glued**: the
+/// kernel's verdict and the two members it judged, by member index.
 /// The fold reads it through lineage ([`given_pairs`]) and decides
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member's face: `(member index, face)`.
-    a: (usize, topo::FaceKey),
-    /// The other member's face.
-    b: (usize, topo::FaceKey),
-    /// The relation the judgement decided.
-    relation: topo::Relation,
+    /// The listed-first member, the judgement's operand A.
+    p: usize,
+    /// The other member, its operand B.
+    q: usize,
+    /// The verdict, in the two members' keys.
+    verdict: topo::GlueVerdict,
 }
 
 /// The carrier pairs the judgement of members `p` (operand A) and `q`
-/// (operand B) glued, read off its rows: each face pair of the two
-/// operands a row relates as one carrier or a tangency.
-fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
-    rows.iter()
-        .filter_map(|row| {
-            let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
-                return None;
-            };
-            row.relation.glued_class()?;
-            Some(PairVerdict {
-                a: (p, fa),
-                b: (q, fb),
-                relation: row.relation,
-            })
-        })
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
+fn pair_verdicts(p: usize, q: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
+    verdicts
+        .iter()
+        .map(|&verdict| PairVerdict { p, q, verdict })
         .collect()
 }
 
@@ -3463,22 +3426,22 @@ fn given_pairs<T: Decide>(
     member: usize,
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
-) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
+) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::Relation> =
+    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
         std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.b.0 == member) {
-            if !parents.contains(&v.a) {
+        for v in verdicts.iter().filter(|v| v.q == member) {
+            if !parents.contains(&(v.p, v.verdict.a())) {
                 continue;
             }
-            match given.entry((f, v.b.1)) {
+            match given.entry((f, v.verdict.b())) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert(v.relation);
+                    slot.insert(v.verdict);
                 }
                 std::collections::btree_map::Entry::Occupied(held) => {
-                    if *held.get() != v.relation {
+                    if held.get().relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -3487,7 +3450,7 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, b), relation)| topo::GivenPair { a, b, relation })
+        .map(|((a, _), verdict)| verdict.given_at(a))
         .collect())
 }
 
@@ -3504,17 +3467,7 @@ fn given_pairs<T: Decide>(
 fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
     if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
-            if let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            {
+            if let Some((fa, fb)) = row.face_pair() {
                 debug_assert!(
                     false,
                     "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
@@ -3571,14 +3524,20 @@ pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 /// by the same arithmetic.
 ///
 /// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
-/// translate. [`Mat3::rotation_about`] re-normalizes the already-unit
-/// axis, which on a unit input changes no bit the format holds exactly.
+/// translate: a rigid motion by construction
+/// ([`RigidMotion::rotation_then_translation`]), so an angle widened to
+/// a box is carried rather than re-decided from the entries.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] naming an angle or translation that is
+/// not a finite number.
 pub(crate) fn transform_map<T: Decide>(
     translation: Vec3<T>,
     axis: UnitVec3<T>,
     angle: T,
-) -> Affine3<T> {
-    Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    RigidMotion::rotation_then_translation(axis, angle, translation).map_err(NodeErrorKind::Motion)
 }
 
 /// **The transform node**: ONE rigid map, its placement's motion
@@ -3599,7 +3558,11 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
-    let map = placement.motion(vals, band(tol)?)?;
+    let band = band(tol)?;
+    let map = placement
+        .motion_kept(vals, band)?
+        .rigid(band)?
+        .unwrap_or_else(RigidMotion::identity);
     let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
     Ok(OpOut::plain(payload, read_table(value)).carrying(value.parts))
 }
@@ -3661,7 +3624,8 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     let table = read_table(value)
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
+    let band = band(tol)?;
+    let map = pose.motion_kept(vals, band)?.rigid(band)?;
     let placed = place(&body, map.as_ref(), tol)?;
     let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut {
@@ -3700,19 +3664,21 @@ pub(crate) use stepped::{
 /// radial extent the angle sweeps at, is the kernel's for the revolve
 /// and not in hand for the pattern's derived offset.
 fn turns_off<T: Decide>(
-    predicate: &'static str,
+    decision: Decision,
     angle: T,
     whole: T,
     band: Band,
 ) -> Result<Sign, NodeErrorKind> {
-    geom_core::k_stats::decide_flagged(predicate, angle.max(-angle) - whole, band, "F14")
-        .map_err(escalated(predicate))
+    geom_core::k_stats::decide_flagged(decision.name(), angle.max(-angle) - whole, band, "F14")
+        .map_err(escalated(decision))
 }
 
-/// A decision under `predicate` that could not be called, as the
-/// node's refusal.
-fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
-    move |source| NodeErrorKind::Escalated { predicate, source }
+/// `decision`, which could not be called, as the node's refusal.
+fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
+    move |source| NodeErrorKind::Escalated {
+        predicate: decision.name(),
+        source,
+    }
 }
 
 /// [`stepped_rule_map`] behind the evaluation's slot reads, which stay
@@ -3738,7 +3704,7 @@ fn stepped_map<T: Decide>(
     i: i64,
     vals: &SlotValues<T>,
     tol: Tol,
-) -> Result<Affine3<T>, NodeErrorKind> {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     let ops = match kind {
         // An explicit rule's frames ARE the maps.
         PatternKind::Explicit(_) => {
@@ -3746,7 +3712,7 @@ fn stepped_map<T: Decide>(
                 crate::node::PlacementRuleFault::CountSpelling { shape: listed },
             ));
         }
-        _ if i == 0 => return Ok(Affine3::identity()),
+        _ if i == 0 => return Ok(RigidMotion::identity()),
         PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
@@ -3774,7 +3740,7 @@ fn stepped_map<T: Decide>(
             )?
         }
     };
-    Ok(stepped_rule_map(&ops, i))
+    stepped_rule_map(&ops, i)
 }
 
 /// **The pattern node**: a stepped rule over its input's value,
@@ -3862,8 +3828,18 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, input)?;
-    let maps: Vec<Affine3<T>> = match kind.placements() {
-        Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),
+    let maps: Vec<RigidMotion<T>> = match kind.placements() {
+        // Listed frames are literal: each is admitted at the decided
+        // door.
+        Some(frames) => {
+            let band = band(tol)?;
+            frames
+                .iter()
+                .map(|f| {
+                    RigidMotion::check_rigid(&f.affine::<T>(), band).map_err(NodeErrorKind::Motion)
+                })
+                .collect::<Result<_, _>>()?
+        }
         None => {
             let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Count,
@@ -3885,9 +3861,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .collect::<Result<_, _>>()?
         }
     };
+    let affines: Vec<Affine3<T>> = maps.iter().map(|m| m.to_affine()).collect();
     topo::Separation::of(body.as_ref(), tol)
         .map_err(NodeErrorKind::Boolean)?
-        .certify(&maps)
+        .certify(&affines)
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
@@ -3922,82 +3899,20 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
-/// A loft section of loops the path lattice constructed (the replay's).
-type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
-
-/// One section of a loft, taken from the RECIPE's own `f64`
-/// description rather than from the evaluated `T` payload.
-///
-/// Structure selection is `f64` (C6/D9): the skinned surface's knots,
-/// degrees and control bits must be identical in every scalar lane, so
-/// taking the `f64` description is the only way the Interval lane
-/// encloses the SAME surface the `f64` lane defines.
-fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// **A loft section: the section operand's Profile value at `T`**, as
+/// an extrude reads its profile ([`wire_swept`]): the canonical form
+/// the profile node validated at this scalar, on its own sketch plane
+/// (the section's placement), and the pass-1 pieces its walls and
+/// seams are named by. Nothing is re-resolved; the profile node's
+/// errors are the operand's own.
+fn section_value<T: Decide>(
     results: &Results<T>,
     id: RecipeNodeId,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
-) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
-    let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
-        Node::Profile(program) => Some(program),
+) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
+    operand(results, id, super::family::PROFILE, |v| match &v.payload {
+        ValuePayload::Profile(vp) => Some(Arc::clone(vp)),
         _ => None,
-    })?;
-    // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
-    // a parameter this program reads would arrive at the skinned
-    // surface as a constant — a finite, wrong zero tangent.
-    // Keyed by the variable, which is what the program's readers read.
-    if let Some(param) = lane.seed
-        && program.reads(param)
-    {
-        return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
-    }
-    // LIB-SWITCH §4b: the section is the node's program RESOLVED at
-    // `LaneEnv::nominal` and REPLAYED through `prepare_profile`, the
-    // profile node's own pipeline, so a bad section reads as a profile
-    // error at the NODE (the §2 compatibility contract).
-    let resolved = program
-        .resolve(lane.nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    // DM1c: a section on a DERIVED frame takes the by-value placement,
-    // which crosses to `f64` only where the scalar IS `f64`
-    // (`SectionScalar`); anywhere else it refuses typed rather than
-    // placing on a fabricated point of the frame's bracket.
-    let frame = program.frame;
-    let plane = match profile_plane_f64(doc, results, id, frame)? {
-        Some(authored) => authored,
-        None => {
-            let lane_plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
-                profile: id,
-                frame: doc.operation_of(frame),
-            })?
-        }
-    };
-    let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
-    // The lift's second pass runs here too, as a GATE only: the
-    // section stays f64, but the certify-or-abort answer must not
-    // depend on which node consumes the profile.
-    if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(
-            program,
-            frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            lane,
-            &pre,
-            tol,
-        )?;
-    }
-    // `Some` by construction: both arms above passed a placement.
-    let place = pre
-        .placement_f64
-        .ok_or(NodeErrorKind::DerivedFrameSection {
-            profile: id,
-            frame: doc.operation_of(frame),
-        })?
-        .placement;
-    // The REPLAYED loops in program order (LIB-U3), and the canonical
-    // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
+    })
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -4006,29 +3921,30 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
     usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
 }
 
-/// The Loft node: the §10.3 walls and their solid assembly.
-fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
+/// The Loft node: the §10.3 walls and their solid assembly, over its
+/// sections' Profile values at `T` ([`section_value`]): a section that
+/// is a function of the document's variables lofts into walls that are
+/// functions of them, and the structure is selected on the sections'
+/// value channel (`sweep::loft_profiles`). At `Interval` a section wider
+/// than a point lofts the family it spans.
+fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
-    let mut sections = Vec::with_capacity(profiles.len());
-    let mut places = Vec::with_capacity(profiles.len());
-    let mut pieces = Vec::with_capacity(profiles.len());
-    for pid in profiles {
-        let (chain, place, named) = section_of::<T>(doc, results, *pid, lane, tol)?;
-        sections.push(chain);
-        places.push(place);
-        pieces.push(named);
-    }
+    let values = profiles
+        .iter()
+        .map(|pid| section_value(results, *pid))
+        .collect::<Result<Vec<_>, _>>()?;
+    let sections: Vec<profile::ValidatedProfile<T>> =
+        values.iter().map(|v| v.validated.clone()).collect();
+    let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
-    let built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+    let built = sweep::loft_profiles::<T>(&sections, v_degree, tol).map_err(|e| match e {
         sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
         other => NodeErrorKind::Loft(other),
     })?;
@@ -4045,88 +3961,24 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
 /// The Sweep node: ONE honest arm.
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
-/// operands through [`section_of`] — because a Sweep on a datum, or
-/// with a bad Count, is a recipe error and must read as one. The
-/// geometry is out of reach: see [`SWEEP_FRONTIER`].
-fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
+/// operands read as profiles ([`section_value`]) — because a Sweep on a
+/// datum, or with a bad Count, is a recipe error and must read as one.
+/// The geometry is out of reach: see [`SWEEP_FRONTIER`].
+fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
 ) -> OpResult<T> {
     // Each door runs for its refusal alone; what it answers has no
     // reader, because the geometry that would read it does not exist.
     need_count(vals, SlotId::Stations)?;
     need_count(vals, SlotId::VDegree)?;
-    section_of::<T>(doc, results, profile, lane, tol)?;
-    section_of::<T>(doc, results, path, lane, tol)?;
+    section_value(results, profile)?;
+    section_value(results, path)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
-}
-
-/// **The lane → `f64` crossing, read directly.** What
-/// [`pinned_plane`] carries across where the lane IS `f64`, and what
-/// it refuses everywhere else. An evaluation shows only the typed
-/// refusal a consumer eventually reports; the crossing's own answer —
-/// which twelve components came back, in which places — is readable
-/// only here.
-#[cfg(test)]
-mod pinned_plane_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::pinned_plane;
-    use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
-    use profile::SketchPlane;
-
-    /// Twelve distinct components and no symmetry, so a crossing that
-    /// transposed a column or dropped the translation could not hide
-    /// behind an axis coincidence.
-    fn distinct() -> SketchPlane<f64> {
-        SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(
-                Vec3::new(1.0, 2.0, 3.0),
-                Vec3::new(4.0, 5.5, -6.0),
-                Vec3::new(-7.25, 0.5, 8.0),
-            ),
-            Vec3::new(10.0, 11.0, 12.0),
-        ))
-    }
-
-    /// Where the lane IS `f64`, the crossing is exact and structural:
-    /// all twelve components come back in their places, bit for bit.
-    ///
-    /// The comparison is [`SketchPlane::bit_eq`], which IS that
-    /// twelve-component reading — by bits, in their places, off an
-    /// irrefutable destructuring of the placement rather than through
-    /// any walk. A readout spelled again here would be a second copy of
-    /// it, and the transposed-column mutation reds this row through
-    /// `bit_eq` exactly as it would through one.
-    #[test]
-    fn a_f64_lane_placement_crosses_bit_for_bit_in_its_places() {
-        let plane = distinct();
-        let crossed = pinned_plane(&plane).expect("f64 is the pinned lane");
-        assert!(
-            plane.bit_eq(&crossed),
-            "the crossing keeps the columns and the translation in place"
-        );
-    }
-
-    /// An analysis scalar refuses, and the refusal is the TYPE's, not
-    /// a number's: the placement here is the very one the row above
-    /// crossed successfully, lifted component for component, so every
-    /// value that pinned at `f64` is present and still unpinnable. No
-    /// number is inspected anywhere on the path, and the first
-    /// component refuses, so nothing downstream sees a partly-crossed
-    /// placement.
-    #[test]
-    fn an_analysis_scalar_refuses_the_very_placement_f64_crossed() {
-        let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
-        assert!(pinned_plane(&lane).is_none());
-    }
 }
 
 #[cfg(test)]
@@ -4213,7 +4065,12 @@ mod stepped_operand_tests {
             for i in 1..6 {
                 assert_eq!(
                     bits(mirrored(i).components()),
-                    bits(stepped_rule_map(&followed, i).components()),
+                    bits(
+                        stepped_rule_map(&followed, i)
+                            .unwrap()
+                            .to_affine()
+                            .components()
+                    ),
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }

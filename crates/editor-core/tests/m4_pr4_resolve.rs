@@ -532,6 +532,141 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     }
 }
 
+// ---- Vanished: a merged name's retired constituents are no cascade ----
+
+/// Dropping a member from a union whose caps glued: the merged cap
+/// vanishes, and neither constituent is the cause. Each constituent
+/// retired into the merge (N3) and was never a row of the union, so the
+/// cascade rung does not read one as an operand that vanished first;
+/// the ladder goes on to the edit at the union, which is on the path.
+#[test]
+fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent() {
+    let s = slide_union(0.5);
+    let ev1 = run(&s.doc, None);
+    let merged = crate::fixture::table(&ev1, s.union)
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
+                .then(|| n.clone())
+        })
+        .expect("the flush caps glue into one merged face");
+    let (doc2, _) = step(
+        s.doc.clone(),
+        DocEdit::SetMembers {
+            node: s.union,
+            members: editor_core::Bodies::Spelled(vec![s.a.into()]),
+        },
+    );
+    let ev2 = run(&doc2, Some(&ev1));
+    let res = crate::fixture::resolve_with_prior_at_mint(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &s.doc,
+            eval: &ev1,
+        },
+        &merged,
+    );
+    let Resolution::Failed(f) = res else {
+        panic!("the merged cap no longer resolves: {res:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: s.union }
+        },
+        "the cause is the SetMembers at the union, not a retired constituent"
+    );
+}
+
+/// The same at a union over that union: `U2 = U1 ∪ c`, with c flush
+/// on the glued caps, merges U1's merged cap with c's, listing U1's
+/// constituents re-wrapped (N3's flat set). Beneath each of U2's
+/// constituents sits one U1 retired, held by a `From` rather than a
+/// set. Dropping c from U2 vanishes every merged face of U2, and each
+/// is diagnosed at that edit, not through a name U1 retired.
+#[test]
+fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
+    let s = slide_union(0.5);
+    let (doc, c0) = block(s.doc.clone(), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = insert(
+        doc,
+        Node::transform(
+            c0,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+    );
+    let (doc, u2) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![s.union.into(), c.into()]),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let merged: Vec<StableName> = crate::fixture::table(&ev1, u2)
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)])
+        })
+        .map(|(n, _)| n.clone())
+        .collect();
+    // The shape this pins: a U2 constituent wrapping a name U1 minted.
+    assert!(
+        merged.iter().any(|m| {
+            let [RoleSeg::Merged(cs)] = m.path.as_slice() else {
+                return false;
+            };
+            cs.iter().any(
+                |c| matches!(c.path.as_slice(), [RoleSeg::From { of, .. }] if of.node == s.union),
+            )
+        }),
+        "a U2 merge lists U1's constituents re-wrapped: {merged:#?}"
+    );
+    let (doc2, _) = step(
+        doc.clone(),
+        DocEdit::SetMembers {
+            node: u2,
+            members: editor_core::Bodies::Spelled(vec![s.union.into()]),
+        },
+    );
+    let ev2 = run(&doc2, Some(&ev1));
+    for m in &merged {
+        let res = crate::fixture::resolve_with_prior_at_mint(
+            RunCtx {
+                doc: &doc2,
+                eval: &ev2,
+            },
+            RunCtx {
+                doc: &doc,
+                eval: &ev1,
+            },
+            m,
+        );
+        let Resolution::Failed(f) = res else {
+            panic!("{m:?} no longer resolves at U2: {res:?}");
+        };
+        let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+            panic!("expected Vanished for {m:?}, got {:?}", f.error);
+        };
+        assert_eq!(
+            *diagnosis,
+            Diagnosis::RecipeEdit {
+                edit: RecipeEditRef::NodeChanged { node: u2 }
+            },
+            "{m:?}: the cause is the SetMembers at U2, not a name U1 retired"
+        );
+    }
+}
+
 // ---- Vanished: StructuralParam diagnosis ----
 
 #[test]
@@ -891,7 +1026,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -902,6 +1036,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
+        RoleSeg::EdgeCrossing(run) => run.iter().any(|l| under(&l.line)),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // A source edge (derivation) and the band that crossed or slit
         // it (a discriminator, like a piece's wall).

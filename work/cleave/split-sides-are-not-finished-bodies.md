@@ -4,7 +4,7 @@ kind: issue
 title: The split's sides are plain bodies: its door takes a finished operand but hands back sides no at-rest gate read
 status: open
 opened: 2026-10-06
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -55,3 +55,50 @@ poses answers moves with rounding in the pose's construction. The gate
 (`crates/sweep/tests/split_through_a_ruling.rs`) takes every one of these poses and asserts
 what the split promises: tiers 1 and 2, and no wrong certified volume. Gating the sides at
 tier 3 would turn these ten into refusals.
+
+## Evidence: a cut at the zero-band edge of a tangency (PR 4394's review)
+
+The rounded shoulder (`crates/sweep/tests/wedge_end_doors.rs`, `shoulder(h)`: unit quarter arc
+below a 2 × 2 block, extruded `h`), cut by `y = 1 − δ`, normal `−y`. The cut is tangent to the
+wall to within the zero band, so the section table answers `TangentLine` and the split mints the
+seam on the cut plane, `|δ|` off the cylinder. At `δ = −ε`, or a hair inside it, the split returns
+`Ok` with a side that tier 3 refuses (the `y < 1` side):
+
+| ε | δ | h = c·√(2ε) | seam stored | tier 3 on that side |
+|---|---|---|---|---|
+| 1e-6 | −1.0·ε | c ∈ {0.5, 0.9} | `Chart` on the cut plane | `VolumeUncomputable` on the wall: `props_meridian_on_surface` enclosure [9.99999999947e-7, 1.0000000001e-6] |
+| 1e-12 | −0.9999·ε | c ∈ {0.5, 0.9, 8} | `Chart` (c < 1), `TangentIntersection` (c = 8) | `VolumeUncomputable` on the wall: `props_loop_closed` enclosure [9.9964e-13, 1.0002e-12] |
+
+The 1e-12, c = 8 row (the intrinsic route) does the same on main before PR 4394. The `Chart` rows
+are PR 4394's: that PR routes the tangent chord through the must-carry rule, and a chart image is
+metered against the plane it is charted on only, so the carrier's ε offset from the wall shows up
+first at the props walk. At 1e-6 the intrinsic route (c = 8) refuses typed instead
+(`Join(Euler(Certification { Escalated { TangentGap } }))`, which meters both surfaces); at
+`|δ| ≥ 1.0001·ε` the reduction refuses `SliverVertex`, and every other `|δ| ≤ 0.9999·ε` row is
+tier-3 valid. Gating the sides at tier 3 would turn these rows into typed refusals. The reviewer's
+probe is `probe_band_edge_offsets` on branch `tang/split-chord-review-probes`
+(`crates/sweep/tests/tang_split_chord_review_probes.rs`).
+
+## Note from `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (2026-10-14)
+
+Branch `cleave/seam-split-invalid-ok` (PR 5100) gates each side at the
+scalar's at-rest gate (`AtRestPolicy::gate_at_rest`), typed as the Boolean
+types it (`SplitFinishError::ResultNotAtRest`, `ResultEscalated`). So at a
+certifying scalar a split no longer returns a side tier 3 refuses.
+
+What was measured there: the seam-vertex witness family turns from invalid
+`Ok`s into `ResultNotAtRest`, with 30 such poses at 1e-9 and 21 at 1e-12. The
+frustum poses above were not re-measured as refusals: PR 5100's review ran
+the gate over `split_through_a_ruling` (90 gate calls) and found no invalid
+`Ok` among them; why they no longer reach one was not measured.
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly` now
+asserts tier 3 on every side it gets back. The shoulder rows were not
+re-measured.
+
+**What this row keeps, and why it is now P2: the double pay.** The sides are
+still plain `Body` values, so the verdict the split just derived is dropped.
+Every consumer pays tier 3 again: `editor-core`'s `finished_operand`
+(`eval/wire.rs`) re-gates every side a later node consumes, measured by PR
+5100's review at 0.15–0.39 s per side on `revalue_cut_cylinder`. Handing the
+sides back as `AtRestBody`, so the verdict rides with them, is the only
+cheaper gate that stays honest.

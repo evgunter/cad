@@ -220,7 +220,7 @@ fn a_refused_pose_carries_the_arms_own_grounds() {
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_cone_section(&hyperbola, &cone, 4.0, band())
+        plane_cone_section(&hyperbola, &cone, &at_apex(4.0), band())
     else {
         panic!("the arm refuses this pose");
     };
@@ -292,14 +292,15 @@ fn an_in_band_pose_escalates() {
 fn a_right_angled_cone_refuses_the_axis_normal_division() {
     let cone = cone_z(core::f64::consts::FRAC_PI_2);
     let cut = plane(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z());
-    let got = plane_cone_section(&cut, &cone, 1.0, band());
+    let got = plane_cone_section(&cut, &cone, &at_apex(1.0), band());
     assert!(
         matches!(got, Err(SectionError::DegenerateOperand { .. })),
         "the cos alpha division must be decided first, got {got:?}"
     );
     // The in-band twin escalates on the guard's own name.
     let cone = cone_z((3.0 * eps()).acos());
-    let Err(SectionError::Escalated(diag)) = plane_cone_section(&cut, &cone, 1.0, band()) else {
+    let Err(SectionError::Escalated(diag)) = plane_cone_section(&cut, &cone, &at_apex(1.0), band())
+    else {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
@@ -313,20 +314,21 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
 fn a_closed_cone_refuses_the_apex_lane_division() {
     let cone = cone_z(1e-300);
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 1e-17));
-    let got = plane_cone_section(&through, &cone, 1.0, band());
+    let got = plane_cone_section(&through, &cone, &at_apex(1.0), band());
     assert!(
         matches!(got, Err(SectionError::DegenerateOperand { .. })),
         "the sin alpha division must be decided first, got {got:?}"
     );
     let cone = cone_z((3.0 * eps()).asin());
-    let Err(SectionError::Escalated(diag)) = plane_cone_section(&through, &cone, 1.0, band())
+    let Err(SectionError::Escalated(diag)) =
+        plane_cone_section(&through, &cone, &at_apex(1.0), band())
     else {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_sin"));
     // A cone well inside its convention keeps its lanes.
     assert!(matches!(
-        plane_cone_section(&through, &cone_z(PI_6), 1.0, band()),
+        plane_cone_section(&through, &cone_z(PI_6), &at_apex(1.0), band()),
         Ok(PlaneConeSection::ApexLinePair { .. })
     ));
 }
@@ -370,9 +372,9 @@ fn an_unclassified_pose_is_not_served() {
 fn the_aperture_guard_is_levered_by_extent() {
     let cone = cone_z(20.0 * eps());
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x());
-    assert!(plane_cone_section(&through, &cone, 1.0, band()).is_ok());
+    assert!(plane_cone_section(&through, &cone, &at_apex(1.0), band()).is_ok());
     assert!(matches!(
-        plane_cone_section(&through, &cone, 0.01, band()),
+        plane_cone_section(&through, &cone, &at_apex(0.01), band()),
         Err(SectionError::DegenerateOperand { .. })
     ));
 }

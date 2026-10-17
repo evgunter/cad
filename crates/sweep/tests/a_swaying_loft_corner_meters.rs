@@ -53,8 +53,13 @@ fn a_swaying_loft_builds_closed() {
         let at = format!("v-degree {v_degree}, a = {a}");
         let lofted = loft_body::<f64>(&sections, &places, v_degree, Tol::witness())
             .unwrap_or_else(|e| panic!("{at}: {e:?}"));
-        let lofted_i = loft_body::<Interval>(&sections, &places, v_degree, Tol::witness())
-            .unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
+        let lofted_i = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            v_degree,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
         let f64_meters = corner_meters(&lofted.body, &at, |c| c.speed_lower_bound().get());
         let interval_meters =
             corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo());

@@ -2,10 +2,11 @@
 id: split-edge-cannot-carry-a-fitted-or-general-pcurve-row
 kind: issue
 title: split_edge carries only the Decide-door pcurve lanes; a Fitted/General row is left as found because its certification doors carry the PcurveFittedLane bound
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: H
+closed: 2026-10-09
 ---
 
 
@@ -117,3 +118,48 @@ general circle is deleted. `crates/topo/tests/m6_2_fitted_at_rest.rs`,
 **Still open:** `Fitted` and `General` rows on a spline chart certify
 over their own knot domains, and `split_cache` still leaves them as
 found.
+
+## Closed (branch `pcert/split-edge-fitted-rows`, 2026-10-09)
+
+`split_cache` carries a `Fitted` or `General` row the way it carries
+every other row. The parent's image is restricted to each child's
+sub-interval and re-certified through `restate`, with the fitted door
+passed in from `split_edge`'s `AtRestPolicy`. The children keep the
+parent's carrier (`EdgeCurve::split_specs` cuts only the interval), and
+a fitted-grade image is a function of that carrier's parameter. Its
+check 4 (`ssi::certify_rung3`) bounds the whole carrier against the
+operand pair, which covers each child's span. No bound moved.
+`crates/sweep/tests/split_edge_fitted_rows.rs` pins a minted `General`
+row and an attached `Fitted` row on a spline chart, both carried, with
+the pcurve phase of tier 3 (`validate_pcurves`) clean after the split,
+at `f64` and `Interval`. The full `validate_geometric` is not the claim:
+the fixture is already `Err` before the split, from the unvouched
+surface surgery that builds it.
+
+Check 4 reads the whole carrier against the pair, and a split keeps
+every input it reads, so at the band the parent's row was certified at
+each child's certificate is the parent's, bit for bit. The rows pin
+that. At that band a split child is refused at check 4 only if its
+parent's own row already fails it, so the whole-domain read causes no
+false refusal on a split of an at-rest body. At a tighter band check 4
+can refuse a child, typed (`EulerOpError::PcurveSplit`), never with a
+false certificate.
+
+Residue, filed:
+
+- The trimmed quadrature lane refuses a carried `General` child's
+  sub-range (`QuadratureUnsupported`), where it measured the unsplit
+  body. Before this carry the split left the face rowless, which the
+  lane refused too, so this is no regression, but `split_edge` is now a
+  standing producer of the sub-range shape. Added as the third producer
+  on `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`,
+  with a live witness row.
+- The joint between a fitted-grade row's children is the identity shift
+  on every chart a fixture reaches, so no row can tell the decision
+  from a hard-coded identity:
+  `work/pcert/a-split-joint-on-a-fitted-grade-row-has-no-reachable-non-identity-witness.md`.
+
+Not residue: `mint_pcurves` on the split body re-derives the carried
+`General` rows bit for bit (pinned), so the iso rim arms' frontier
+(`work/iso/iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain.md`)
+does not reach a fitted-grade row.

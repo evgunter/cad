@@ -8,11 +8,13 @@
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p topo --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
@@ -27,7 +29,6 @@ use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
 const FIXED: &[&str] = &[
-    "props_rim_level_group",
     "props_rim_side",
     "bool_join_facing",
     "bool_strut_order",
@@ -197,11 +198,13 @@ fn silent_fixed_predicates_scale_linearly() {
     };
     let mm = run(1e-3);
     let m = run(1.0);
-    for pred in [
-        "bool_plane_orient",
-        "split_join_frame_arm",
-        "split_section_area",
-        "bool_strut_order",
+    // The first three are the sites this probe exists to pin, so a
+    // silence there is a red; `bool_strut_order` stays optional (header).
+    for (pred, required) in [
+        ("bool_plane_orient", true),
+        ("split_join_frame_arm", true),
+        ("split_section_area", true),
+        ("bool_strut_order", false),
     ] {
         match (mm.get(pred), m.get(pred)) {
             (Some(a), Some(b)) => {
@@ -216,7 +219,16 @@ fn silent_fixed_predicates_scale_linearly() {
                 );
                 assert!(worst < 1e-9, "{pred} margins do not scale linearly");
             }
-            _ => println!("SILENT {pred} in flush+split configs"),
+            (mm_hit, m_hit) => {
+                assert!(
+                    !required,
+                    "{pred} fired no decisive sample (mm: {}, m: {}): the \
+                     linearity check for it is vacuous",
+                    mm_hit.is_some(),
+                    m_hit.is_some()
+                );
+                println!("SILENT {pred} in flush+split configs");
+            }
         }
     }
 }

@@ -2,7 +2,7 @@
 id: a-keel-in-the-plane-wrapped-round-at-both-ends-refuses-a-degenerate-section
 kind: issue
 title: A split whose plane holds a valley edge that the material above wraps round at both ends refuses DegenerateSection
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
@@ -54,3 +54,24 @@ Either build it, Below's strut loop killed whole and Above's
 two-chord slit nested as a ring of the square's section face (tier 3
 has to accept a zero-area ring, which is a design question), or refuse
 it with a payload that names the self-touch along the edge.
+
+## Notes from the radial-edges fork (2026-10-14)
+
+Both designers keep the manifold model; see 4795's round 2. Things the
+build owes or should check:
+- **Mesh.** `crates/mesh/src/validate.rs` counts edges by vertex-index
+  pair. Two coincident straight edges sharing both end vertices count
+  4, so the ring may hit `NonManifoldEdge`. Measure when the ring lands.
+- **Lineage.** The split turns one keel into two coincident edges, each
+  holding the whole line. That is neither "divided" nor "substituted".
+  See how 4622's slit form records it, and NAMING's policy for crease
+  copies.
+- **Shared curve.** Both edges can share one curve entry. Today only
+  null-scaffold curves are barred from sharing (validate.rs pass 13).
+  Sharing makes the doubled line structural, as fork-log row 45 did for
+  shared point keys.
+- **If Ev rules B's representability question:** `NonManifoldResult`'s
+  "permanent" claim for two pinches crossing on one line falls. That
+  covers `boolean/insert.rs` `reconcile_shared`, the variant doc, and
+  `union_flush_onto_edge_contact.rs`. File it on the boolean's slate
+  then.

@@ -706,7 +706,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     let (doc, [_, profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
+    let e = tag(extrude.0.digest());
     let plate = format!("Extrude \"base plate\" ({e})");
 
     let unknown_slot = derive(
@@ -737,23 +737,19 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{not_a_measure}"
     );
 
-    let pinned = Sensitivity {
+    let unlifted = Sensitivity {
         document: doc.id(),
         param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
-            refusal: LiftRefusal::PinnedSection {
-                section: profile,
-                param: editor_core::VarId::new(0, 7),
-            },
+            refusal: LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
         },
     };
     assert_eq!(
-        render_sensitivity(&pinned, &doc),
+        render_sensitivity(&unlifted, &doc),
         format!(
-            "unliftable at {plate}: {} feeds the section of Profile \"sketch\" ({p}), which \
-             stays f64 (C6/D9)",
-            doc.spoken_var(editor_core::VarId::new(0, 7))
+            "unliftable at {plate}: the guided elaboration could not re-confirm loop 0 step 1 at \
+             this pass's scalar"
         )
     );
 
@@ -863,10 +859,7 @@ fn a_report_rendered_from_another_document_fails_loud() {
         param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
-            refusal: editor_core::LiftRefusal::PinnedSection {
-                section: extrude,
-                param: editor_core::VarId::new(0, 7),
-            },
+            refusal: editor_core::LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
         },
     };
     let _ = render_sensitivity(&entry, &other);

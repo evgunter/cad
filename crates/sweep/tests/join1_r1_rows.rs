@@ -44,7 +44,7 @@ fn prism(pts: &[(f64, f64)], z: (f64, f64)) -> AtRestBody<f64> {
     .body;
     let placed = topo::transform_rigid(
         &body,
-        &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, z.0)),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 0.0, z.0)).unwrap(),
         tol(),
     )
     .unwrap();

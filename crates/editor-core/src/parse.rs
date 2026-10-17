@@ -52,7 +52,7 @@
 //! acquires a continuous dimension other than `Scalar`. Count→Scalar
 //! promotion is spelled `scalar(n)` — the one call not in the trig/
 //! minmax family, chosen as the round-trip fixed point for
-//! [`Expr::count_to_scalar`].
+//! [`Expr::count_to_scalar`](crate::expr::ExprTree::count_to_scalar).
 //!
 //! A minus sign directly before a number is that number's own sign:
 //! `-25 mm` is the quantity −25 mm, and the negation of 25 mm is
@@ -63,7 +63,7 @@
 //! Functions are `sin cos tan` (Angle→Scalar), `atan2 min max`
 //! (binary), `scalar` (Count→Scalar). `-` is both unary and binary
 //! with standard precedence; child order is argument order, matching
-//! [`Expr::child`]'s indices (persisted `ExprPath`s depend on it —
+//! [`Expr::child`](crate::expr::ExprTree::child)'s indices (persisted `ExprPath`s depend on it —
 //! pinned by descend tests).
 //!
 //! Param refs resolve against the caller's name→dimension table (the

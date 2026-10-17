@@ -141,7 +141,7 @@ use pncad::document::{
     UpdateError,
 };
 use pncad::geom_core::{
-    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
+    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
     UnitVec3Error,
 };
 use pncad::mesh::TessellateError;
@@ -879,7 +879,7 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
 }
 
 /// The stable tag for a FRAME WITNESS mint's refusal
-/// (`geom_core::OrthoFrame::gram_schmidt`), which is what the sketch
+/// (`geom_core::RigidMotion::gram_schmidt`), which is what the sketch
 /// plane door raises.
 ///
 /// Two axes times the direction door's three definite facts, plus the
@@ -890,7 +890,7 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
 /// help. The escalated arm carries the classifier payload on the
 /// exception's own fields rather than in the word, exactly as
 /// [`frame_error_tag`]'s degenerate arm does.
-pub fn ortho_frame_error_tag(err: &OrthoFrameError) -> &'static str {
+pub fn orthonormalize_error_tag(err: &OrthonormalizeError) -> &'static str {
     match (err.axis, err.error) {
         (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
         (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
@@ -953,6 +953,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Chamfer => "chamfer",
         C::Boolean => "boolean",
         C::Transform => "transform",
+        C::Motion => "motion",
         C::Skin => "skin",
         C::Loft => "loft",
         C::CurvedSolidFrontier => "curved_solid_frontier",
@@ -977,11 +978,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "seed at a scalar with a tangent channel" (or
         // name a continuous parameter), not the box's.
         C::Seed => "seed",
-        // The seed stopped at a C6/D9-pinned section: its own tag,
-        // because the recourse ("this parameter cannot be seeded
-        // through a loft or sweep section") is neither the box's nor
-        // the scalar's.
-        C::SeedPinnedSection => "seed_pinned_section",
         C::WrongOperand => "wrong_operand",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
@@ -1025,11 +1021,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Shell => "shell",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
         // The derived sketch frame's refusals (DOCM-1): one
-        // carrier-kind refusal, one read-back refusal, and the section
-        // refusal DM1c adds.
+        // carrier-kind refusal and one read-back refusal.
         C::FaceFrameNotPlanar => "face_frame_not_planar",
         C::FaceFrameReadback => "face_frame_readback",
-        C::DerivedFrameSection => "derived_frame_section",
         // **No new word.** A carried frame refusal is the SAME fact
         // as the one raised at the frame itself, and the arm exists to
         // add the frame's id to the prose, not to split the fact in
@@ -1151,6 +1145,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
         NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
+        NodeErrorKind::Motion(inner) => Some(rigid_motion_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
         NodeErrorKind::CurvedSolidFrontier { .. } => None,
@@ -1158,7 +1153,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
-        NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
@@ -1179,7 +1173,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
-        NodeErrorKind::Escalated { .. } => None,
+        NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. } => None,
         NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",
@@ -1202,7 +1199,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
         NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
-        NodeErrorKind::DerivedFrameSection { .. } => None,
         NodeErrorKind::FrameDirection { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
         NodeErrorKind::Part { .. } => None,
@@ -1388,6 +1384,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
         ProfileError::EmptyProfile => "empty_profile",
+        ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",
@@ -1466,6 +1463,8 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
+        RevolveError::PlacedAxis { .. } => "placed_axis",
+        RevolveError::Turn(_) => "turn",
         RevolveError::DegenerateAngle => "degenerate_angle",
         RevolveError::FullRangeAngle => "full_range_angle",
         RevolveError::AngleEscalated { .. } => "angle_escalated",
@@ -1539,6 +1538,11 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        // A side refused only on in-band shells is the Boolean's
+        // `Escalated` on the same decision, so it carries the Boolean's word.
+        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
+            boolean_error_tag(BooleanErrorKind::Escalated)
+        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1575,6 +1579,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
+        BlendError::WhollyInside { .. } => "wholly_inside",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
@@ -1586,13 +1591,10 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 ///
 /// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
 /// It is `BooleanError::kind`, and this map keys off it — the
-/// [`path_error_tag`] shape — so the word does not depend on holding
-/// the error itself. Two doors publish it and they hold different
-/// things: the evaluation ladder's `inner_kind` has the whole
-/// `BooleanError` behind [`node_inner_kind_tag`], and the advisory
-/// checks' `separation_unavailable` evidence has only the class,
-/// because a finding is `Clone + PartialEq` and the error is neither.
-/// One map answers both.
+/// [`path_error_tag`] shape. Two doors publish it: the evaluation
+/// ladder's `inner_kind` behind [`node_inner_kind_tag`], and the
+/// advisory checks' `separation_unavailable` evidence. One map answers
+/// both.
 ///
 /// Over `BooleanErrorKind`'s arms rather than `..`, so a new kernel
 /// refusal stops this build instead of acquiring a silent tag. A kind
@@ -1627,14 +1629,16 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
-        BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
-        BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
+        BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
-        BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
+        BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
+        BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
+        BooleanErrorKind::PartnerAlongFace => "partner_along_face",
+        BooleanErrorKind::NestingUnread => "nesting_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1645,15 +1649,19 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
-        BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
+        BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::RestPieceUnread => "rest_piece_unread",
+        BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::LineageRow => "lineage_row",
+        BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
+        BooleanErrorKind::MixedSeam => "mixed_seam",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
@@ -1669,6 +1677,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
+        BooleanErrorKind::Revert => "revert",
     }
 }
 
@@ -1679,14 +1688,23 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::Pcurve { .. } => "pcurve",
         TransformError::Band(_) => "band",
         TransformError::Certify { .. } => "certify",
-        TransformError::NotRigid { .. } => "not_rigid",
-        TransformError::NonFiniteMap { .. } => "non_finite_map",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
+    }
+}
+
+/// The stable tag for a placement's rigid motion refusing — the inner
+/// arm of [`NodeErrorKind::Motion`].
+pub fn rigid_motion_error_tag(err: &pncad::geom_core::RigidMotionError) -> &'static str {
+    use pncad::geom_core::RigidMotionError as E;
+    match err {
+        E::NonFinite(_) => "non_finite",
+        E::NotRigid { .. } => "not_rigid",
+        E::Undecided { .. } => "undecided",
     }
 }
 
@@ -1703,6 +1721,9 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
+        SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
+        SkinError::ArcWeightNotAPoint { .. } => "arc_weight_not_a_point",
+        SkinError::IncompatibleAtEnclosure { .. } => "incompatible_at_enclosure",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
@@ -1720,6 +1741,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::PlacementNotFinite { .. } => "placement_not_finite",
+        LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1761,7 +1784,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
-        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
+        NamingError::Settle(_) => "unsettled_vertex",
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
@@ -1773,6 +1796,8 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
+        NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
+        NamingError::PartnerUnread { .. } => "partner_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1804,6 +1829,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Pcurve { .. } => "pcurve",
+        ShellError::RimSeamMixed { .. } => "rim_seam_mixed",
         ShellError::Join { refusal } => join_refusal_tag(refusal),
         ShellError::NotValid { .. } => "not_valid",
     }
@@ -2127,6 +2153,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
+        StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
@@ -2536,7 +2563,6 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
             relation: Relation::Declined,
             ..
         } => "carried_declined",
-        Attribution::Unattributed => "unattributed",
     }
 }
 
@@ -2576,6 +2602,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        SplitError::RankedRunReordered { .. } => "ranked_run_reordered",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2615,6 +2642,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -2988,12 +3016,13 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOriented => "same_oriented",
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
-        R::EqualAngles => "equal_angles",
+        R::CommonFoot => "common_foot",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
-        R::TangentContact { seam: false } => "tangent_contact",
-        R::TangentContact { seam: true } => "seam",
+        R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
+        R::SameRadius => "same_radius",
+        R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
     }
 }
@@ -3007,6 +3036,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
         S::CoaxialSphere => "coaxial_sphere",
+        S::CrossingCylinders => "crossing_cylinders",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",
@@ -3022,8 +3052,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
 pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
     match rung {
         pncad::document::Rung::SameConstruction => "same_construction",
-        pncad::document::Rung::CarrierVerdict(_) => "carrier_verdict",
-        pncad::document::Rung::MarginIdentity(_) => "margin_identity",
+        pncad::document::Rung::CarrierVerdict => "carrier_verdict",
+        pncad::document::Rung::MarginIdentity => "margin_identity",
     }
 }
 
@@ -3124,6 +3154,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
         ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::MixedDihedral { .. } => "mixed_dihedral",
         ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
@@ -3134,6 +3165,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::NegativeVolume { .. } => "negative_volume",
+        ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",

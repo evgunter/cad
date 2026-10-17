@@ -30,12 +30,12 @@ use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, p3, polygon, v3, validated};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{AtRestBody, Body, BooleanResult, Curve3, EdgeDescription};
+use pncad::topo::{AtRestBody, Body, BooleanResult, EdgeDescription};
 
 use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
@@ -193,7 +193,7 @@ fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol)
 
 /// The xy sketch plane at height `z`.
 fn level<S: Scalar>(z: f64) -> SketchPlane<S> {
-    SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z)))
+    SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z)))
 }
 
 /// The scene's bodies.
@@ -264,9 +264,12 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
         let Some(curve) = body.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let Curve3::Ellipse { major, minor, .. } = *curve.carrier() else {
+        // The section's semi-axes in either stored order: its seam sits
+        // at whichever principal vertex is nearest the arc.
+        let Some(frame) = curve.carrier().major_frame() else {
             continue;
         };
+        let (major, minor) = (frame.major, frame.minor);
         assert!(
             (major - R / PHI.cos()).abs() < 1e-12 && (minor - R).abs() < 1e-12,
             "{label}: section semi-axes must be the closed form \

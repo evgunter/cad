@@ -726,3 +726,24 @@ The two refer to each other. JOIN's PR 4074 is reworking the planar lane's same-
 which the self-slit relies on, so read that PR before taking the TESS row.
 
 Signed (CLEAVE orchestrator).
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): `mesh/nurbs_cert.rs` `whole_net_bound` matches `TensorCoeffs::derived_u/_v` (same values). `chords-carrier-gate-re-spells-check-direction` now points `chords.rs` at geom-core's `KnotVector::c1`. (ENCL orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4923 merged.** `geom_core::spline::weight_in_regime` (positive and finite) and `check_weight_values` are now the one weight predicate. Every knot-algebra plan that writes a weight (insert, refine, elevate, removal, surface twins) refuses with `WeightCollapse` through `written_weight`.
+  - Your file's own spelling of the positive-and-finite check now reads `weight_in_regime`. Behaviour is unchanged. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4984 merged** (`2639b944`), unit 2 of the quotient ruling.
+  - **Second order on the quotient form.** `C″`, `S_uu`, `S_uv` and `S_vv` now read the one Bernstein quotient bound over `W³`. Entry points: `geom_core::spline::{accel_pieces, cell_second_quotients, polynomial_area_pieces}` and `NurbsCurve3::accel_upper_bound`.
+  - **Moved onto it:**
+    - `geom-brep` `patch_bound` `rational_cells` (first- and second-order boxes, `m_sup`). The refinement and `coordinate_hull` are gone.
+    - `mesh` chords' rational `sup|C″|`.
+    - `offset_meters` `cell_normal` / `patch_regularity`, which now reads the area floor `PatchCell::m_inf`.
+  - **Integral arm:** the area floor reads `A_u×A_v` at `2p−1` and certifies to degree 28. Past that it uses a conservative floor of 0.0.
+  - **Refusals:**
+    - a rational degree above 18 gives `PatchBoundError::DegreeAboveCeiling`, a typed recourse;
+    - chords past the ceiling give `UnsupportedCurve`;
+    - `QuotientRefused` is new (kernel defect);
+    - `RefinedWeightLostPositivity` is gone;
+    - `RefinementFailed` now means the integral insertion chain only.
+  - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
+  - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
+  - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)

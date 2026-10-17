@@ -172,6 +172,8 @@ mod seal;
 mod sketch_plane;
 #[path = "table_arcs_inside_scene_resolution.rs"]
 mod table_arcs_inside_scene_resolution;
+#[path = "table_guided_validation.rs"]
+mod table_guided_validation;
 #[path = "tangent_joints.rs"]
 mod tangent_joints;
 #[path = "validate_ok.rs"]

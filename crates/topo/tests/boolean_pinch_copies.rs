@@ -100,8 +100,20 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     ]
 }
 
+/// Each pinch passes tiers 2 and 3′ with its own records, and records
+/// each touch along a line: a subtraction's pinch keeps both edges,
+/// each between a face of each operand, and the kissing cube's two
+/// bottom edges lie along the L's notch rim. Red if the reduction
+/// writes the edge-edge row only where both wedges read Out.
 fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (name, r) in pinches::<T>() {
+        let lines = if name == "reflex_vertex_kiss" { 2 } else { 1 };
+        assert_eq!(
+            r.contacts.edge_edge().count(),
+            lines,
+            "{name}: edge-edge rows: {:?}",
+            r.contacts
+        );
         assert_eq!(validate_closed(&r.body), Ok(()), "{name}: tier 2");
         assert_eq!(
             validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
@@ -112,7 +124,8 @@ fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
 }
 
 /// At each pinch, one vertex per point: the copies were fused or
-/// killed, or (where two operands meet there) declared.
+/// killed, or (where two operands meet there) recorded, and then on one
+/// point key with the vertex their record ties them to.
 #[test]
 fn pinch_copies_do_not_reach_rest() {
     assert_pinches_pass::<f64>();
@@ -125,14 +138,26 @@ fn pinch_copies_do_not_reach_rest() {
             .count()
     };
     for (name, r) in pinches::<f64>() {
-        let shared = {
-            let mut seen = std::collections::HashSet::new();
-            r.body
-                .vertices()
-                .filter(|(_, v)| !seen.insert(v.point))
-                .count()
-        };
-        assert_eq!(shared, 0, "{name}: no two vertices on one point");
+        let recorded: std::collections::HashSet<_> = r
+            .contacts
+            .vertex_vertex()
+            .flat_map(|(a, b)| [a, b])
+            .collect();
+        let mut on_key: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new();
+        for (k, v) in r.body.vertices() {
+            on_key.entry(v.point).or_default().push(k);
+        }
+        let copies: Vec<_> = on_key
+            .values()
+            .filter(|vs| vs.len() > 1)
+            .flatten()
+            .filter(|k| !recorded.contains(k))
+            .collect();
+        assert_eq!(
+            copies,
+            Vec::<&topo::VertexKey>::new(),
+            "{name}: no two vertices on one point key but those a record ties"
+        );
         let expected = match name {
             // Cross-operand: the L's vertex and the cube's, declared.
             "reflex_vertex_kiss" => 2,

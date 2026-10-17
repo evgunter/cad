@@ -47,55 +47,6 @@ const DISCS: [(&str, Loop); 2] = [
 /// a control inside the polygon.
 const HOLES: [(f64, f64); 4] = [(1.6, 0.8), (-1.6, 0.8), (1.35, 0.8), (0.8, 0.4)];
 
-/// The one ε at which the oblique cut's lower piece was measured not to
-/// finish (CI, `CAD_TOLERANCE_EPS=1e-6`): a face's quadrature lands its
-/// convergence margin in the band
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).
-const QUAD_ESCALATES_AT: f64 = 1e-6;
-
-/// `body` finished for the split; at [`QUAD_ESCALATES_AT`], `None`
-/// after asserting the at-rest gate refuses it with exactly that
-/// escalation, and nothing else. There the split's second cut is not
-/// asserted: the split serves finished bodies, and this piece does not
-/// finish. The pin goes red when QUAD's fix lands, and then the row's
-/// assertions come back at that ε. Any other refusal, or one at another
-/// ε, fails the row.
-fn finished_unless_quad_escalates(what: &str, body: Body<f64>) -> Option<topo::AtRestBody<f64>> {
-    if tol().eps() != QUAD_ESCALATES_AT {
-        return Some(finished(what, body, tol()));
-    }
-    let errors = match <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body, tol()) {
-        Ok(_) => panic!(
-            "{what} finishes at eps = {QUAD_ESCALATES_AT:e}: the convergence escalation is \
-             gone, so drop this pin and assert the second split here too"
-        ),
-        Err(errors) => errors,
-    };
-    assert!(
-        matches!(
-            errors.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::Escalated {
-                        check: geom_brep::props::PropsCheck::Converged,
-                        ..
-                    },
-                    ..
-                },
-                ..
-            }]
-        ),
-        "{what} at eps = {QUAD_ESCALATES_AT:e}: want the one convergence escalation, got \
-         {errors:?}"
-    );
-    test_utils::vacuity::stood_down(
-        &format!("{what} at eps = {QUAD_ESCALATES_AT:e}"),
-        "it does not finish (its quadrature's convergence margin lands in the band), so the \
-         split's ring re-homing over it is not asserted",
-    );
-    None
-}
-
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -312,12 +263,11 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         // integrates to zero over a half symmetric in y), less the bore's
         // column of height 0.5 − 0.2·cy on the half that holds it.
         let column = PI * BORE * BORE * (0.2f64.mul_add(-cy, 0.5));
-        let Some(lower) = finished_unless_quad_escalates(
+        let lower = finished(
             &format!("bore at ({cx}, {cy}): the lower piece"),
             lower,
-        ) else {
-            continue;
-        };
+            tol(),
+        );
         for nx in [1.0, -1.0] {
             let row = format!("bore at ({cx}, {cy}), plane normal x = {nx}");
             let plane = topo::test_support::split_plane(

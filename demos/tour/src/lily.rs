@@ -150,8 +150,7 @@
 use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
-use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
-use pncad::prelude::SurfaceKind;
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -159,9 +158,7 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
-};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
@@ -962,19 +959,19 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The skinning lane's own door is `f64` (`sweep_body` takes an
-    // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = authored_frame(base, u, v, tol).to_affine();
-    sweep_body::<S>(
-        &section.outline(tol),
-        place,
-        &path,
-        LEAF_STATIONS,
-        BLADE_V_DEGREE,
-        tol,
-    )
-    .expect("the leaf sweeps along its spine")
-    .body
+    // The outline and the frame are built in `f64`, so they enter `S`
+    // as the computed values they are.
+    let place = authored_frame(base, u, v, tol)
+        .to_affine()
+        .map(S::from_computed);
+    let outline: Vec<_> = section
+        .outline(tol)
+        .iter()
+        .map(|lp| lp.lift_computed())
+        .collect();
+    sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
+        .expect("the leaf sweeps along its spine")
+        .body
 }
 
 // ---------------------------------------------------------------
@@ -1356,6 +1353,12 @@ fn loft_plan<S: Scalar>(
         sections.push(said(plan.at(s)));
         places.push(authored_frame(p, uu, vv, tol).to_affine());
     }
+    // Built in `f64`, so they enter `S` as the computed values they are.
+    let sections: Vec<Vec<_>> = sections
+        .iter()
+        .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
+        .collect();
+    let places: Vec<Affine3<S>> = places.iter().map(|p| p.map(S::from_computed)).collect();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
 }
 
@@ -2232,24 +2235,24 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    other tube's carrier only outside that face's window, which
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) reads its frame off
-    //    that rim and has no join arm: the join refuses on the arch's
-    //    wall.
+    //    torus, the arch's rim lying in the cap) takes the plane × wall
+    //    arm and its chord, an arc of the arch's meridian circle. Past
+    //    the join, the section certificate's interior-loop guard refuses
+    //    the stem's tube wall against the arch's: two tori with parallel
+    //    axes apart, which it has no arm for.
     wall(
         1,
         "glue the two stem arcs into one stem (coincident-planar mate)",
         crate::booleans::try_union(stem, arch, tol),
         |e| {
             matches!(
-                *e,
-                BooleanError::CurvedBooleanUnsupported {
-                    operand: Operand::B,
-                    face,
-                    kind: SurfaceKind::Torus,
-                } if matches!(
-                    arch.get_face(face).and_then(|f| arch.get_surface(f.surface)),
-                    Some(pncad::geom::Surface::Torus { .. })
-                )
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
+                    ..
+                }
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -2298,7 +2301,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
@@ -2331,8 +2334,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // 4. A bud is an OVOID, not a ball: a sphere scaled along its own
     //    axis. There is no ellipsoid surface and no non-uniform map —
-    //    `transform_rigid` is the only body map, and it decides
-    //    rigidity rather than trusting it.
+    //    a body moves only by a `RigidMotion`, and a matrix becomes one
+    //    only through the door that decides its rigidity.
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's band");
     let stretch = Affine3::from_parts(
         Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
         v3(0.0, 0.0, 0.0),
@@ -2340,10 +2344,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        pncad::topo::transform_rigid(lant, &stretch, tol),
+        RigidMotion::check_rigid(&stretch, band)
+            .map(|stretch| pncad::topo::transform_rigid(lant, &stretch, tol)),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
-        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
+        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
         "model buds as spheroids",
     );
 
@@ -2357,10 +2362,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
-        pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol),
+        RigidMotion::check_rigid(&mirror, band)
+            .map(|mirror| pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol)),
         // A reflection's columns ARE unit and orthogonal; only the
         // determinant catches it, and that is the whole point.
-        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
+        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
         "author leaves once and mirror them",
     );
 
@@ -2610,6 +2616,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 #[cfg(test)]
 mod review_probes {
     use super::*;
+    use pncad::prelude::SurfaceKind;
     use pncad::topo::Surface;
 
     fn pieces() -> Vec<Piece<f64>> {
@@ -3168,8 +3175,8 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding, and it runs the
-    /// other way: a swept lens skin costs nearly SEVEN times the stem
-    /// tube at the same δ (5_576 against 828 at 2e-3). Part of that
+    /// other way: a swept lens skin costs about six and a half times the
+    /// stem tube at the same δ (5_374 against 828 at 2e-3). Part of that
     /// is geometry — the lens is curved across, where a straight-sided
     /// section is flat — and part is the sizing lane: a rational wall
     /// is sized per cell of the 16 × 16 refinement its certified bound
@@ -3202,9 +3209,15 @@ mod review_probes {
             ("lily_lantern", 2e-3, 2_556),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
-            // and 5_992 -> 5_164.
-            ("lily_leaf_b", 2e-3, 5_576),
-            ("lily_leaf_c", 2e-3, 5_164),
+            // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
+            // second-order quotient for rational bounds): the blade
+            // face's certified second-derivative sups tighten (`muu`
+            // 0.138 -> 0.126, `muv` 0.043 -> 0.023 on leaf b), so its
+            // per-cell grid drops 96 cells — 5_576 -> 5_374 and
+            // 5_164 -> 4_962. The sampled |S − Π| stays under 8.5e-5
+            // against the face's 1e-3.
+            ("lily_leaf_b", 2e-3, 5_374),
+            ("lily_leaf_c", 2e-3, 4_962),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -4108,29 +4121,25 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate and the crossing layer.** The
-        // circle × torus root lane certifies each seam's crossing of the
-        // other tube's carrier as lying outside that face's window, so
-        // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) reads its frame
-        // off the arch's rim lying in the cap and has no join arm: it
-        // refuses on the arch's wall. Unconditional: an `if let` here
-        // would go quiet exactly when the refusal's shape changes.
-        let BooleanError::CurvedBooleanUnsupported {
-            operand: Operand::B,
-            face,
-            kind: SurfaceKind::Torus,
-        } = glued
-        else {
-            panic!("wall 1 stops at the join's plane × torus arm: {glued:?}");
-        };
+        // **Wall 1 is past the gate, the crossing layer and the
+        // join.** The circle × torus root lane certifies each seam's
+        // crossing of the other tube's carrier as lying outside that
+        // face's window, so the glue reaches the join, whose germ pair
+        // of the stem's weld cap against the arch's wall (plane × torus)
+        // takes the plane × wall arm and its chord. Past the join, the
+        // interior-loop guard refuses the stem's tube wall against the
+        // arch's, two tori with parallel axes apart.
         assert!(
             matches!(
-                arch.get_face(face)
-                    .and_then(|f| arch.get_surface(f.surface)),
-                Some(Surface::Torus { .. })
+                glued,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
+                    ..
+                }
             ),
-            "the arch's face is its tube wall: {glued:?}"
+            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
         );
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius

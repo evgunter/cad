@@ -14,7 +14,10 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol};
-use topo::{AtRestBody, BooleanDecision, BooleanError, ShellRole, classify_shells, intersect};
+use topo::{
+    AtRestBody, BooleanDecision, BooleanError, Coincide, ContainDecision, LoopDecision, ShellRole,
+    ValidationError, classify_shells, intersect,
+};
 
 use crate::common;
 
@@ -210,9 +213,8 @@ fn stood_down_off_1e9(tol: Tol) -> bool {
     false
 }
 
-/// The refusal a result whose in-band shell is alone in its solid
-/// earns: `Escalated` on its shell role, the certified `V/A` wholly in
-/// band.
+/// The refusal a result holding one in-band shell earns: `Escalated`
+/// on its shell role, the certified `V/A` wholly in band.
 fn assert_refuses_in_band(what: &str, refusal: Result<(), BooleanError>) {
     let Err(BooleanError::Escalated {
         decision: BooleanDecision::ShellRole { others: 0, .. },
@@ -227,36 +229,72 @@ fn assert_refuses_in_band(what: &str, refusal: Result<(), BooleanError>) {
     );
 }
 
-/// **A result that is only a sliver refuses**: the `notch307` piece
-/// beyond its notch, ∩ the census witness cube (`nt e0 a3`), leaves one
-/// lump, a wedge less than a band thick, as the only shell of its
-/// solid. At d = 1e-8 and 3e-8 its certified `V/A` lies wholly in band,
-/// and the ∩ refuses it as the operands' ill-conditioning (D10,
-/// Booleans); at d = 3.05e-8 it is past the band and the ∩ builds;
-/// at d = −1e-8 the cube misses the piece and the ∩ is empty.
+/// The census over a built result's own contacts.
+fn census(
+    what: &str,
+    result: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
+    let result = result.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
+    let body = result
+        .body()
+        .unwrap_or_else(|| panic!("{what}: is not empty"));
+    body.body.validate_pseudomanifold(&body.contacts, tol)
+}
+
+/// **A needle ships with an in-band edge pair until the door runs the
+/// census**: the `notch307` piece beyond its notch, ∩ the census witness
+/// cube (`nt e0 a3`), leaves one lump, a wedge whose certified `V/A`
+/// lies in band (3.29e-9 at d = 1e-8, 9.87e-9 at d = 3e-8), alone in its
+/// solid. Its `V/A` judges nothing (D10, Booleans), so every order
+/// builds. At d = 3e-8, cube first, every pair the census reads is
+/// definite. The others hold an edge pair whose span the census reads
+/// in band (`pm_census_ee_span`), which the door, running no census,
+/// does not read: these rows turn red when it does
+/// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+/// At d = −1e-8 the cube misses the piece and the ∩ is empty.
 #[test]
-fn a_result_that_is_only_a_sliver_refuses_in_band() {
+fn a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census() {
     let tol = Tol::witness();
     if stood_down_off_1e9(tol) {
         return;
     }
     let corner = [2.0, 1.0, 1.0];
     let edge = [2.0, 1.0, 0.0];
-    for d in [1e-8, 3e-8] {
+    for (d, cube_first, pairs_definite) in [
+        (1e-8, false, false),
+        (1e-8, true, false),
+        (3e-8, false, false),
+        (3e-8, true, true),
+        (3.05e-8, false, true),
+    ] {
         let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
-        let refusal = topo::intersect(&piece, &cube, tol).map(|_| ());
-        assert_refuses_in_band(&format!("d = {d:e}"), refusal);
+        let (what, meet) = if cube_first {
+            (
+                format!("d = {d:e}, cube ∩ piece"),
+                intersect(&cube, &piece, tol),
+            )
+        } else {
+            (
+                format!("d = {d:e}, piece ∩ cube"),
+                intersect(&piece, &cube, tol),
+            )
+        };
+        match census(&what, meet, tol) {
+            Ok(()) => assert!(pairs_definite, "{what}: the census reads an in-band pair"),
+            Err(findings) => assert!(
+                !pairs_definite
+                    && findings.iter().all(|f| matches!(
+                        f,
+                        ValidationError::CensusEscalated { cause }
+                            if cause.predicate == Some("pm_census_ee_span")
+                    )),
+                "{what}: every pair is definite, or the census escalates only an edge pair's span: {findings:?}"
+            ),
+        }
     }
-    let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, 3.05e-8, tol);
-    let meet = topo::intersect(&piece, &cube, tol)
-        .unwrap_or_else(|e| panic!("d = 3.05e-8: the ∩ builds, got {e:?}"));
-    assert_eq!(
-        shells_per_solid(meet.body().expect("d = 3.05e-8: the ∩ is not empty")),
-        [1],
-        "d = 3.05e-8: one lump"
-    );
     let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, -1e-8, tol);
-    let meet = topo::intersect(&piece, &cube, tol)
+    let meet = intersect(&piece, &cube, tol)
         .unwrap_or_else(|e| panic!("d = -1e-8: the ∩ builds, got {e:?}"));
     assert!(meet.body().is_none(), "d = -1e-8: the ∩ is empty");
 }
@@ -266,7 +304,7 @@ fn a_result_that_is_only_a_sliver_refuses_in_band() {
 /// from it inside the cube, two solids, ∩ the cube at d = 1e-8. The
 /// block comes through whole, and the pieces sort leaves the wedge,
 /// whose role does not read, in the block's solid, where check 10
-/// reads it (the path before check 7's was read at the door).
+/// reads it.
 #[test]
 fn a_wedge_sharing_a_lumps_solid_refuses_through_check_10() {
     let tol = Tol::witness();
@@ -313,48 +351,165 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<f6
 fn slab(t: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
     let b = brick((-1.0, 2.0), (-1.0, 2.0), (1.0 - t, 2.0), tol);
-    topo::intersect(&a, &b, tol)
+    intersect(&a, &b, tol)
 }
 
-/// **A slab is a sliver below twice the band**: its only shell's
-/// certified `V/A` is about `t/2`, so at t = 1e-8 it lies in band
-/// (1e-9 to 1e-8) and the ∩ refuses it as an in-band shell (D10,
-/// Booleans), and at t = 2.1e-8 it is past the band and builds.
-#[test]
-fn a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds() {
-    let tol = Tol::witness();
-    if stood_down_off_1e9(tol) {
-        return;
-    }
-    assert_refuses_in_band("slab t = 1e-8", slab(1e-8, tol).map(|_| ()));
-    let meet = slab(2.1e-8, tol).unwrap_or_else(|e| panic!("slab t = 2.1e-8 builds, got {e:?}"));
-    assert_eq!(
-        shells_per_solid(meet.body().expect("slab t = 2.1e-8 is not empty")),
-        [1],
-        "slab t = 2.1e-8: one lump"
-    );
-}
-
-/// **A thin-walled hollow ships today**: a unit brick less a brick
-/// inset δ = 1e-8 on every side is one solid of two shells, each role
-/// definite, while its wall is as thin as the slab
-/// [`a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds`]
-/// refuses. Pinned as it stands, the question open in
-/// `work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`.
-#[test]
-fn a_thin_walled_hollow_ships_while_a_slab_as_thin_refuses() {
-    let tol = Tol::witness();
-    if stood_down_off_1e9(tol) {
-        return;
-    }
-    let d = 1e-8;
+/// A unit brick less a brick inset `d` on every side: a hollow whose
+/// wall is `d` thick, one solid of two shells.
+fn hollow(d: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
     let core = brick((d, 1.0 - d), (d, 1.0 - d), (d, 1.0 - d), tol);
-    let hollow = topo::subtract(&a, &core, tol)
-        .unwrap_or_else(|e| panic!("the hollow builds today, got {e:?}"));
-    assert_eq!(
-        shells_per_solid(hollow.body().expect("the hollow is not empty")),
-        [2],
-        "one solid, its outer shell and its cavity"
+    topo::subtract(&a, &core, tol)
+}
+
+/// A unit brick with a fin `t` thick standing half a metre out of its
+/// top: the brick ∪ a block 0.2 m thick, less a cutter that leaves `t`
+/// of the block above the top. A fin is cut rather than placed, so it
+/// reaches below the thinnest brick the prism door builds.
+fn fin(t: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let block = brick((0.5, 0.7), (0.25, 0.75), (0.5, 1.5), tol);
+    let both = topo::union(&a, &block, tol).expect("the brick and the block unite");
+    let both = &both.body().expect("the union is not empty").body;
+    let cutter = brick((0.5 + t, 1.0), (0.0, 1.0), (1.0, 2.0), tol);
+    topo::subtract(both, &cutter, tol)
+}
+
+/// A wall `t` thick, built by a boolean.
+type Wall = fn(f64, Tol) -> Result<topo::BooleanResult<f64>, BooleanError>;
+
+/// The thicknesses in ε below the band's top `Kε` (= 10ε) that each wall
+/// refuses at, and the ones in `(Kε, 2Kε)` that it builds at, where its
+/// `V/A` is still in band.
+const BELOW_K: [f64; 3] = [3.0, 6.0, 9.9];
+const ABOVE_K: [f64; 6] = [10.5, 11.0, 11.5, 12.0, 15.0, 19.0];
+
+/// `refusal` is the near-coincidence of a pair of cells `t` apart: a
+/// vertex and a face, or a vertex and a loop's boundary, whichever
+/// question the op asks of the wall first.
+fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError>) -> f64 {
+    let Err(BooleanError::Escalated { decision, diag }) = &refusal else {
+        panic!("{what}: refuses Escalated, got {refusal:?}");
+    };
+    assert!(
+        matches!(
+            decision,
+            BooleanDecision::Coincidence(Coincide::VertexOnFace, _)
+                | BooleanDecision::Containment {
+                    decision: Some(ContainDecision::Loop(LoopDecision::Boundary)),
+                    ..
+                }
+        ),
+        "{what}: the refusal's subject is a pair of cells: {decision:?}"
     );
+    let gap = diag.margin.diagnostic_f64_for_error_text().value();
+    assert!(
+        gap.is_some_and(|g| (g.abs() - t).abs() < 1e-3 * t),
+        "{what}: the pair is the wall's two sides, {t:e} apart: {diag:?}"
+    );
+    gap.map_or(t, f64::abs)
+}
+
+/// A wall built `t` thick: `shells` shells in one solid, and every pair
+/// the census reads definite.
+fn assert_builds(
+    what: &str,
+    shells: usize,
+    built: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) {
+    let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
+    assert_eq!(
+        shells_per_solid(meet.body().expect("the wall is not empty")),
+        [shells],
+        "{what}: shells per solid"
+    );
+    assert_eq!(
+        census(what, Ok(meet), tol),
+        Ok(()),
+        "{what}: every pair is definite"
+    );
+}
+
+/// **Every thin wall refuses on a pair below `Kε` and builds above it**
+/// (D10, Booleans): a slab alone in its solid, the wall of a hollow (a
+/// solid of two shells), and a fin on a brick. Below `Kε` the op refuses
+/// the pair of cells across the wall; in `(Kε, 2Kε)` each builds, its
+/// `V/A` in band and every pair the census reads definite. At `Kε`
+/// itself the pair's margin rounds either way (it builds at ε = 1e-9,
+/// and refuses at 1e-6 on a margin a hair under `Kε`). The poses scale
+/// with ε, and run at 1e-9 and 1e-6.
+#[test]
+fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
+    let tol = Tol::witness();
+    if ![1e-9, 1e-6]
+        .iter()
+        .any(|e| (tol.eps() - e).abs() < 1e-3 * e)
+    {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-9 or 1e-6",
+            "the wall rows were measured at 1e-9 and 1e-6",
+        );
+        return;
+    }
+    let k_eps = geom_core::Band::linear(tol)
+        .expect("the band forms")
+        .escalate();
+    let walls: [(&str, Wall, usize); 3] =
+        [("slab", slab, 1), ("hollow", hollow, 2), ("fin", fin, 1)];
+    for (wall, build, shells) in walls {
+        for m in BELOW_K {
+            let t = m * tol.eps();
+            assert_refuses_on_a_pair(&format!("{wall} {m}ε"), t, build(t, tol).map(|_| ()));
+        }
+        let what = format!("{wall} at Kε");
+        match build(k_eps, tol) {
+            Err(refusal) => {
+                let gap = assert_refuses_on_a_pair(&what, k_eps, Err(refusal));
+                assert!(
+                    gap < k_eps,
+                    "{what}: refuses only on a margin under Kε: {gap:e}"
+                );
+            }
+            built => assert_builds(&what, shells, built, tol),
+        }
+        for m in ABOVE_K {
+            let t = m * tol.eps();
+            assert_builds(&format!("{wall} {m}ε"), shells, build(t, tol), tol);
+        }
+    }
+}
+
+/// **A body mostly thin but nowhere in doubt builds**: a 1 mm cube
+/// standing flush on a 1 m² plate 1.5e-8 thick, at ε = 1e-9. The
+/// union's `V/A` is 8e-9, in band, while the plate's two faces are a
+/// definite pair; it builds in both orders.
+#[test]
+fn a_millimetre_cube_on_a_thin_plate_builds() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let cube = brick((0.0, 1e-3), (0.0, 1e-3), (0.0, 1e-3), tol);
+    let plate = brick((-0.5, 0.5), (-0.5, 0.5), (-1.5e-8, 0.0), tol);
+    for (order, a, b) in [
+        ("cube ∪ plate", &cube, &plate),
+        ("plate ∪ cube", &plate, &cube),
+    ] {
+        let both = topo::union(a, b, tol).unwrap_or_else(|e| panic!("{order}: builds, got {e:?}"));
+        let body = both.body().expect("the union is not empty");
+        let m = topo::mass_properties(&body.body, tol).expect("the union measures");
+        let va = m.volume / m.surface_area;
+        let band = geom_core::Band::linear(tol).expect("the band forms");
+        assert!(
+            va > band.zero() && va < band.escalate(),
+            "{order}: V/A = {va:e} lies in the band"
+        );
+        assert_eq!(shells_per_solid(body), [1], "{order}: one lump");
+        assert_eq!(
+            census(order, Ok(both), tol),
+            Ok(()),
+            "{order}: every pair is definite"
+        );
+    }
 }

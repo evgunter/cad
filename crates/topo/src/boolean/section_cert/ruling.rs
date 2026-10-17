@@ -89,8 +89,9 @@
 //! where its resolution (the largest of the harmonics' noise and the
 //! clearance's running bound round the turn, in metres)
 //! is not inside the band's zero, or where the same reading with its
-//! rounding uncharged (no harmonic noise, the residual's value, no slack
-//! meter or slacks) answers. Otherwise it refuses under the row that
+//! rounding uncharged (no harmonic noise, no slack meter or slacks, and
+//! the residual's value, read on the surface where its running bound
+//! covers it or it changes sign between neighbouring scalars) answers. Otherwise it refuses under the row that
 //! refused.
 //!
 //! `p₂`'s roots (cone against cone) are decided on `p₂` times the
@@ -102,10 +103,10 @@ use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::sign;
-use crate::boolean::circle_roots::{
-    CircleRoots, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    rounding_charge,
+use geom_brep::half_angle::{
+    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
+use geom_brep::rounding_charge;
 
 /// A vector `x₀ + x₁ cos θ + x₂ sin θ`; `turning` false, a constant
 /// `x₀` (`x₁ = x₂ = 0`).
@@ -171,7 +172,7 @@ impl<T: Real> Wave<T> {
     }
 
     fn poly(self) -> TrigPoly<T> {
-        TrigPoly::second(self.k, self.c1, self.s1, self.c2, self.s2)
+        DegreeTwo::new(self.k, self.c1, self.s1, self.c2, self.s2).poly()
     }
 }
 
@@ -349,13 +350,42 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                Rounded::exact(r) - quotient(reach, running::dot(m, m).sqrt())
+                Rounded::exact(r) - reach.quotient(running::dot(m, m).sqrt())
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                quotient(e, apart * Rounded::exact(T::from_f64(16.0)))
+                e.quotient(apart * Rounded::exact(T::from_f64(16.0)))
+            }
+        }
+    }
+
+    /// A function of the point `x` vanishing on the carrier, and its
+    /// slope along `w`: the distance from the axis less the radius
+    /// against a cylinder, `ρ cos α − |h| sin α` (`h` along the axis
+    /// from the apex, `ρ` off it) against a cone. Read at `x` itself, it
+    /// rounds as `|x − P|` does, where the form rounds as its square.
+    fn level(&self, x: Point3<T>, w: Vec3<T>) -> (T, T) {
+        match *self {
+            Self::Cylinder { o, d, r } => {
+                let m = (x - o).cross(d);
+                let rho = m.norm();
+                (rho - r, m.dot(w.cross(d)) / rho)
+            }
+            Self::Cone {
+                apex,
+                a,
+                sc: (s, c),
+            } => {
+                let y = x - apex;
+                let (h, aw) = (y.dot(a), w.dot(a));
+                let p = a.cross(y.cross(a));
+                let rho = p.norm();
+                (
+                    rho * c - h.abs() * s,
+                    c * p.dot(w) / rho - h.select_le_zero(T::zero() - aw, aw) * s,
+                )
             }
         }
     }
@@ -371,21 +401,15 @@ impl<T: Real> Quadric<T> {
     }
 }
 
-/// `n / d` with its running bound, `d`'s magnitude past its own bound.
-fn quotient<T: Real>(n: Rounded<T>, d: Rounded<T>) -> Rounded<T> {
-    let value = n.value / d.value;
-    let room = d.value.abs() - d.error;
-    Rounded {
-        value,
-        error: (n.error + value.abs() * d.error) / room
-            + T::from_f64(geom_core::UNIT_ROUNDOFF) * value.abs(),
-    }
-}
-
 /// `E = p₁² − 4p₂p₀`.
 fn discriminant<T: Real, S: Ring<T>>([p2, p1, p0]: [S; 3]) -> S {
     let minus_four = S::of(Rounded::exact(T::from_f64(-4.0)));
     p1.times(p1).plus(minus_four.times(p2.times(p0)))
+}
+
+/// `|x|` less its rounding bound, at least zero.
+fn room<T: Real>(x: Rounded<T>) -> T {
+    (x.value.abs() - x.error).max(T::zero())
 }
 
 /// The value with its rounding bound taken off its magnitude, so that a
@@ -394,8 +418,19 @@ fn shrunk<T: Real>(x: Rounded<T>, charged: bool) -> T {
     if !charged {
         return x.value;
     }
-    let mag = (x.value.abs() - x.error).max(T::zero());
+    let mag = room(x);
     x.value.select_le_zero(T::zero() - mag, mag)
+}
+
+/// A walk's residual at `θ` with its rounding uncharged: its value, read
+/// on the surface where its running bound covers it or where it changes
+/// sign between `θ`'s neighbouring scalars, nearer than which no angle
+/// stands to the root.
+fn uncharged<T: Real>(residual: &dyn Fn(T) -> Rounded<T>, theta: T) -> T {
+    let at = residual(theta);
+    let step = theta.abs() * T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let straddle = residual(theta - step).value * residual(theta + step).value;
+    room(at).min(straddle).select_le_zero(T::zero(), at.value)
 }
 
 /// A family of lines `B(θ) + t·v(θ)` ruling a carrier, one of `B`, `v`
@@ -461,7 +496,8 @@ struct Walk<'a, T: Real> {
 /// The walk's certified roots, in increasing order on `[−π, π]`, each
 /// within the band's zero of the true one (the [`RootSlack`] meter);
 /// `charged` false, the walk with its rounding uncharged (no harmonic
-/// noise, the residual's value, no slack meter).
+/// noise, no slack meter, and the residual's value as [`uncharged`]
+/// reads it).
 fn roots<T: Decide>(
     walk: &Walk<'_, T>,
     speed: T,
@@ -484,7 +520,13 @@ fn roots<T: Decide>(
         residual: walk.residual,
         f_per_metre_hi: walk.per_metre,
     };
-    let residual = |theta: T| shrunk((walk.residual)(theta), charged);
+    let residual = |theta: T| {
+        if charged {
+            shrunk((walk.residual)(theta), true)
+        } else {
+            uncharged(walk.residual, theta)
+        }
+    };
     let found = match certified_subdivision(
         &walk.f,
         &residual,
@@ -493,9 +535,9 @@ fn roots<T: Decide>(
         charged.then_some(&slack),
         band,
     ) {
-        Ok(CircleRoots::Miss) => Vec::new(),
-        Ok(CircleRoots::Certified { count, thetas }) => thetas[..count].to_vec(),
-        _ => return Err(walk.row),
+        Ok(geom_brep::roots::Roots::Miss) => Vec::new(),
+        Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
+        Err(_) => return Err(walk.row),
     };
     let slacks = slacks(charged, band);
     let mut out: Vec<T> = Vec::with_capacity(found.len());
@@ -686,7 +728,11 @@ fn reading<T: Decide>(
     }
     // A point of branch `σ` at `θ` (`None`: the root nearer `B`), by the
     // root form that does not cancel: `q = −(p₁ + sign(p₁)√E)/2`, roots
-    // `q/p₂` and `p₀/q`.
+    // `q/p₂` and `p₀/q`. The form's coefficients round as `|B − P|²`
+    // and `p₂` as one, which a far root multiplies by `t²`; so the root
+    // is polished on the partner's [`Quadric::level`], each step kept
+    // within a quarter of the roots' gap (on its branch) and only where
+    // it lowers the level.
     let point = |theta: T, branch: Option<Sign>| {
         let (b, w) = chart.line(theta);
         let [p2, p1, p0] = at_line(theta).map(|x| x.value);
@@ -694,11 +740,25 @@ fn reading<T: Decide>(
         let q = (p1 + p1.select_le_zero(T::zero() - root, root)) / (T::zero() - two);
         let (wide, narrow) = (q / p2, p0 / q);
         // `p₁ ≤ 0`: `q/p₂` is `σ = +`; otherwise it is `σ = −`.
-        let t = match branch {
+        let mut t = match branch {
             Some(Sign::Positive) => p1.select_le_zero(wide, narrow),
             Some(_) => p1.select_le_zero(narrow, wide),
             None => narrow,
         };
+        let reach = (wide - narrow).abs() / four;
+        for _ in 0..2 {
+            let (level, slope) = partner.level(b + w * t, w);
+            let step = (level / slope).max(T::zero() - reach).min(reach);
+            let next = t - step;
+            let after = partner.level(b + w * next, w).0;
+            // A step through the partner's axis (its apex, for a cone)
+            // reads a 0/0 slope; a poisoned comparison keeps the
+            // closed-form root rather than passing NaN on.
+            let gain = after.abs() - level.abs();
+            if !gain.is_poison() {
+                t = gain.select_le_zero(next, t);
+            }
+        }
         b + w * t
     };
     let side = |theta: T| {

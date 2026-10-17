@@ -142,40 +142,26 @@ fn check_payload(source: &geom_core::Indeterminate, margin: f64) {
     }
 }
 
-/// **The extrude strut across the whole band, not at three points.**
-/// A row that pins one in-band margin cannot tell a rule that
-/// escalates on the band from one that escalates on everything below
-/// `K·ε`; this walks the ladder and asserts the answer changes exactly
-/// at ε and at `K·ε`.
+/// **The extrude strut at every rung's height.** The block's walls
+/// run its profile, so the wedge between them is levered at the fillet
+/// radius (`topo::wedge_reach`) whatever the height the ladder derives:
+/// every rung stores the intrinsic tangency on all eight struts. The
+/// band is walked through the revolve twin below, whose arm is a
+/// radius.
 #[test]
-fn an_extrude_strut_answers_the_whole_ladder_conventional_then_refused_then_intrinsic() {
-    for (margin, want) in ladder() {
-        let got = match filleted_block(free_length_for(margin)) {
-            Ok(body) => {
-                if intrinsic_edges(&body) == 8 {
-                    Answer::Intrinsic
-                } else {
-                    assert_eq!(
-                        intrinsic_edges(&body),
-                        0,
-                        "a body's eight struts answer the rule the same way at margin {margin:e}"
-                    );
-                    Answer::Conventional
-                }
-            }
-            Err(ExtrudeError::SliverJoin { ref source, .. }) => {
-                check_payload(source, margin);
-                Answer::RefusedInBand
-            }
-            Err(other) => panic!("unexpected refusal at margin {margin:e}: {other}"),
-        };
-        assert_eq!(got, want, "the strut's answer at margin {margin:e}");
+fn an_extrude_strut_reads_its_walls_at_every_rungs_height() {
+    for (margin, _) in ladder() {
+        let body = filleted_block(free_length_for(margin)).expect("the block builds");
+        assert_eq!(
+            intrinsic_edges(&body),
+            8,
+            "the height for margin {margin:e}: every strut stores the intrinsic tangency"
+        );
     }
 }
 
-/// The revolve twin: the same ladder through the other verb, so a
-/// policy that drifts on one of them shows up as a disagreement
-/// between two rows built from one list.
+/// The revolve twin: the ladder through the other verb, whose arm is
+/// the bore's radius, so the band is walked.
 #[test]
 fn a_revolve_latitude_join_answers_the_whole_ladder_the_same_way() {
     for (margin, want) in ladder() {

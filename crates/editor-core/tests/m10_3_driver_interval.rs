@@ -540,6 +540,14 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
          different predicate means the mechanism that sets the ceiling moved, and the \
          doc above is then wrong rather than the number: {why:?}"
     );
+    // That read is the extrude's first-order wall join, `SliverJoin`,
+    // an arm no point input reaches since the wedge is levered at its
+    // faces (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`):
+    // this row is where it is reached.
+    assert!(
+        why.iter().any(|f| f.contains("SliverJoin")),
+        "just past the ceiling the one-leaf replay refuses at the extrude's wall join: {why:?}"
+    );
     let wide = slab(1.0, 0.5);
     let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
     assert!(
@@ -661,7 +669,7 @@ fn a_macroscopic_box_certifies_at_the_shipped_depth_budget() {
     // symbolically, everything else numerically.
     let d = v.decisions();
     assert!(
-        d.symbolic_zero > 0 && d.numeric > 0,
+        d.symbolic > 0 && d.numeric > 0,
         "both tiers are live on this drive: {d:?}"
     );
 }

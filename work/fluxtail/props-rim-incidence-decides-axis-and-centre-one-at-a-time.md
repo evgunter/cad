@@ -41,3 +41,13 @@ centre's offset and the radius's difference: a circle's points stand off
 the sphere by up to their sum. Found by the sweep of
 `section-cert-axis-pose-decides-tilt-and-offset-one-at-a-time` (branch
 `cleave/section-cert-axis-pose`).
+
+## A third site (FLUX cone-tail unit, 2026-10-11)
+
+The cone's vector-area lane decides its own circle incidence
+(`require_on_cone`, `crates/geom-brep/src/props/curved.rs`), each term
+at the true distance from the cone: `props_rim_fit`,
+`props_cone_circle_tilt` (`r·(sin θ·sin α + (1 − cos θ)·cos α)`) and
+`props_cone_circle_off_axis` (`o·cos α`), one row each. Each is the
+exact distance with the other two held, and the three can sum to up to
+three times the band.

@@ -114,9 +114,8 @@ on a face, which a sketch on the face reads, is the `FaceFrame` above.
   `crates/editor-core/README.md`, which carries the same rule) does not apply
   to it. A profile on a derived frame is placed at the lane scalar through
   the by-value reader (`frame_plane_lane`) under every lift, its 2-D
-  structure record staying f64-pinned as PP1 says; a loft or sweep section on
-  a derived frame refuses typed at any scalar but f64, since a section's
-  geometry stays f64. An authored frame's profile is unchanged. The two
+  structure record staying f64-pinned as PP1 says. An authored frame's
+  profile is unchanged. The two
   placement paths are keyed by frame kind because the two kinds differ in
   where their numbers come from.
 - **In the chrome**, "on a new XY frame" is two inserts in one committed

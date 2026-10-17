@@ -4,6 +4,8 @@ kind: issue
 title: a lane's neutral re-baseline check lands on its own commit, which a later lane's commit supersedes as the PR head
 status: open
 opened: 2026-10-02
+cost: E
+priority: P4
 ---
 
 Each lane of `render.yml` commits its own cells and posts its

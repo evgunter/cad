@@ -122,3 +122,10 @@ point touch, which D1 ships as two solids and a record. The row now
 excludes every frustum support, and an excluded ∪ that records no
 contact is still wrong. It is green at all three ε, and a mutant that
 drops edge–face records reds it.
+
+## Closed
+
+Fixed on main by CLEAVE's PR 4707 ("the support-plates row's ∪
+exclusion predates #4604's recorded rim touches"). It was bisected to
+#4604 and filed independently by CONTACTHOLD (PR 4695). This row was a
+duplicate.

@@ -2638,6 +2638,7 @@ NOT_BOUND = {
     "RevolveAxis": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
+    "RunLine": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
@@ -2742,9 +2743,11 @@ NOT_BOUND = {
     # caller to branch on. Not a `gap:` either: the debt is the blend
     # door being unprojected, which is #1479's row and not a missing
     # binding for these types. `BlendDecision` (`Escalated`'s decision)
-    # joined them on the same terms.
+    # joined them on the same terms, and so did `Breach`
+    # (`BodyNotIntact`'s cause).
     "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
+    "Breach": INTERIOR,
     # The boolean doors' operand type: the evaluator finishes each
     # operand at the boolean seat, so Python hands it no body to finish.
     "AtRestBody": INTERIOR,
@@ -2979,16 +2982,19 @@ NOT_BOUND = {
     # one. The refusal crosses as `coincident_shell` plus prose, and the
     # prose names the shortfall.
     "ShellOrientation": INTERIOR,
-    # The frame WITNESS — an origin and a right-handed orthonormal
-    # triple, minted where its axes were decided. Python never holds
-    # one: `SketchPlane.from_frame` takes the two directions a caller
-    # means and mints the frame behind the door, and `Node.tube` /
+    # The rigid-motion WITNESS — a frame's origin and right-handed
+    # orthonormal triple, minted where its axes were decided or by a
+    # construction that keeps it rigid. Python never holds one:
+    # `SketchPlane.from_frame` takes the two directions a caller means
+    # and mints the frame behind the door, `Node.tube` /
     # `Node.hollow_tube` take the spine datum and a reference triple
-    # and mint it at `evaluate`. What crosses is the refusal when the
-    # pair spans no plane (`FrameError.variant`, `ortho_frame_error_tag`
-    # / `degenerate_direction`) and the placement the frame becomes
-    # (`SketchPlane`'s four accessors) — never the witness itself.
-    "OrthoFrame": INTERIOR,
+    # and mint it at `evaluate`, and a placement's steps are minted or
+    # decided at `evaluate`. What crosses is the refusal when the pair
+    # spans no plane (`FrameError.variant`, `orthonormalize_error_tag` /
+    # `degenerate_direction`), a placement's motion refusal (`motion`),
+    # and the placement the frame becomes (`SketchPlane`'s four
+    # accessors) — never the witness itself.
+    "RigidMotion": INTERIOR,
     # The evaluation environment, and the entry that had been on the
     # WRONG side of the line: it was listed as a `G1` gap on the
     # reasoning that "`select_where` takes one, so a caller who cannot
@@ -3121,6 +3127,10 @@ NOT_BOUND = {
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
+    # Whose decision a row is (a mate, or two copies), interior with
+    # its row: the lint's finding says it (`CheckFinding.node`,
+    # `CheckFinding.copies`).
+    "AtRestBy": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -3629,7 +3639,6 @@ MEMBERS_BOUND_AS = {
     "Attribution::Refuted": "Attribution.relation",
     "Attribution::Declined": "Attribution.relation",
     "Attribution::Carried": "Attribution.relation",
-    "Attribution::Unattributed": "Attribution.relation",
     # The registry's evidence, a value: which resident found what.
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
@@ -3814,6 +3823,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
+    "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
@@ -3949,6 +3959,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
+    "SplitError::RankedRunReordered": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -3973,6 +3984,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
@@ -4038,6 +4050,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SliverDihedral": "ValidationFinding.variant",
     "ValidationError::NoDihedralArm": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
+    "ValidationError::MixedDihedral": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::JoinableVertexAtRest": "ValidationFinding.variant",
     "ValidationError::JoinUndecidedAtRest": "ValidationFinding.variant",
@@ -4046,6 +4059,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
+    "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
     "ValidationError::VolumeSignUnresolved": "ValidationFinding.variant",
     "ValidationError::Pcurve": "ValidationFinding.variant",

@@ -18,8 +18,8 @@ use crate::corpus::body_of;
 use crate::fixture::{edge_of, out, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
-    StableName, VarId,
+    CapEnd, EntityKind, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    VarId,
 };
 use geom_core::Tol;
 
@@ -287,13 +287,6 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
     );
 }
 
-/// **No order of the review probe's documents refuses
-/// `SharedRim { found: Several }`, and none refuses with an
-/// `Emission`.** The documents are PR 3112's review corpus: `a` and
-/// `b` flush on all four families, plus one to three slabs,
-/// every member order. On main, 62 of its cells refused
-/// `SharedRim(Several)`; every chord there lay within exactly one
-/// piece. What the other orders refuse with is other rows' subject.
 /// PR 3112's review corpus: `a` and `b` flush on all four
 /// families, plus one to three slabs; `(label, blocks, creation order)`.
 pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
@@ -330,35 +323,15 @@ pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
     docs
 }
 
-/// The emitter's two open residues the probe corpus reaches, by the
-/// cases that reach them:
-/// - `row` and `rowids`, where `a` and `h` (their x = 1 walls glued)
-///   fold before `b` joins across them, reach the unenumerated
-///   seam-vertex residue
-///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`);
-/// - `cross` reaches the held-edge residue of a face held as several
-///   borders
-///   (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const RESIDUES: [(&str, &str); 3] = [
-    (
-        "row",
-        "seam vertex parentage underdetermined from incident edges",
-    ),
-    (
-        "rowids",
-        "seam vertex parentage underdetermined from incident edges",
-    ),
-    (
-        "cross",
-        "a piece of a face held as several borders no recorded discard between them",
-    ),
-];
-
+/// **Every order of the review probe's documents fuses**, and each
+/// member edge lies on its source. The documents are PR 3112's review
+/// corpus ([`probe_corpus`]), every member order: 282 cells. On main, 62
+/// of them once refused `SharedRim(Several)`; every chord there lay
+/// within exactly one piece.
 #[test]
 fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
     let docs = probe_corpus();
     let mut fused = 0;
-    let mut residue = Vec::new();
     for (label, blocks, creation) in docs {
         let (doc, ids) = document(&blocks, &creation);
         for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
@@ -366,11 +339,6 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             match failure(&ev, union) {
-                Some(NodeErrorKind::Naming(NamingError::Emission { what }))
-                    if RESIDUES.contains(&(&*label, *what)) =>
-                {
-                    residue.push(format!("{label} {order:?}"));
-                }
                 None => {
                     every_member_edge_lies_on_its_source(
                         &docx,
@@ -381,50 +349,11 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
                     );
                     fused += 1;
                 }
-                Some(e @ NodeErrorKind::Naming(NamingError::SharedRim { .. }))
-                | Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
-                    panic!("{label} {order:?}: {e}")
-                }
-                Some(_) => {}
+                Some(e) => panic!("{label} {order:?}: {e}"),
             }
         }
     }
-    // 256 cells fuse. In the eight orders of `row` and `rowids` that fold
-    // `a` and `h` before `b`, and in ten of `cross`, the emitter reaches a
-    // residue ([`RESIDUES`]).
-    assert_eq!(fused, 256, "cells fused");
-    assert_eq!(
-        residue,
-        [
-            "row [0, 2, 3, 1]",
-            "row [0, 3, 1, 2]",
-            "row [0, 3, 2, 1]",
-            "row [2, 0, 3, 1]",
-            "row [2, 3, 0, 1]",
-            "row [3, 0, 1, 2]",
-            "row [3, 0, 2, 1]",
-            "row [3, 2, 0, 1]",
-            "rowids [0, 2, 3, 1]",
-            "rowids [0, 3, 1, 2]",
-            "rowids [0, 3, 2, 1]",
-            "rowids [2, 0, 3, 1]",
-            "rowids [2, 3, 0, 1]",
-            "rowids [3, 0, 1, 2]",
-            "rowids [3, 0, 2, 1]",
-            "rowids [3, 2, 0, 1]",
-            "cross [0, 1, 2, 3]",
-            "cross [0, 2, 1, 3]",
-            "cross [0, 2, 3, 1]",
-            "cross [0, 3, 2, 1]",
-            "cross [1, 0, 2, 3]",
-            "cross [1, 2, 0, 3]",
-            "cross [2, 0, 1, 3]",
-            "cross [2, 0, 3, 1]",
-            "cross [2, 1, 0, 3]",
-            "cross [3, 0, 2, 1]",
-        ],
-        "the orders that reach a residue"
-    );
+    assert_eq!(fused, 282, "cells fused");
 }
 
 /// **A reference to a retired rim piece is offered the joined edge.**

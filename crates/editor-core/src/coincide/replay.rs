@@ -144,15 +144,15 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && let Some(how) = carrier_verdict(ev, row, band)
+        && carrier_verdict(ev, row, band)
     {
-        return Ok(Ok(Rung::CarrierVerdict(how)));
+        return Ok(Ok(Rung::CarrierVerdict));
     }
     if cancel.is_canceled() {
         return Err(Canceled);
     }
     Ok(match deferred::discharge_or_why(replayed.margin) {
-        Ok(how) => Ok(Rung::MarginIdentity(how)),
+        Ok(()) => Ok(Rung::MarginIdentity),
         Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
             Err((Unreplayed::Numeric, Recourse::Assert))
         }
@@ -175,23 +175,25 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 }
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
-/// the row decided two faces one carrier: the theorem that decided
-/// every Zero it stands on, or `None` where it is not one.
+/// the row decided two faces one carrier: whether every Zero it stands
+/// on is proven.
 fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-) -> Option<geom_core::Theorem> {
+) -> bool {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
-        _ => return None,
+        _ => return false,
     };
     let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
-    let ((a, fa), (b, fb)) = (a?, b?);
+    let (Some((a, fa)), Some((b, fb))) = (a, b) else {
+        return false;
+    };
     match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
-        _ => None,
+        _ => false,
     }
 }
 

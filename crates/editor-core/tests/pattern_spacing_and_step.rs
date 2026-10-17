@@ -231,7 +231,7 @@ fn a_circular_step_is_a_signed_angle_within_a_turn() {
 }
 
 /// **The full-turn band**: a step a band-sized hair off a whole turn
-/// is too close to call, on either side of it and of either sign.
+/// is undecided, on either side of it and of either sign.
 #[test]
 fn a_step_a_hair_off_a_turn_escalates() {
     use std::f64::consts::TAU;

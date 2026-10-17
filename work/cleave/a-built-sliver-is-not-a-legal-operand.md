@@ -152,3 +152,14 @@ point's distance to the boundary. That would be the same family as
 (closed by PR 3866). If so, a body thin everywhere is not a legal
 operand because of a measuring defect, not because of its geometry.
 FLUSH's fork row 113 depends on the answer.
+
+## Measured (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
+
+The FLUSH hypothesis above is the at-infinity reading
+(`solid_contain.rs` `at_infinity_side`, margin `V/A`), as
+`a-missed-ray-reads-the-solids-volume-sign-for-its-side` traced it. On
+that branch, where the volume does not decide, a ray aimed at a planar
+face reads the side. The slab and the thin-walled hollow are sided at
+every ε, and `hollow ∪ brick` builds (`crates/topo/tests/missed_ray_side.rs`).
+The sphere lens has no planar face, so it keeps the volume's reading,
+and this row still waits on FLUXTAIL.

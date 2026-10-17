@@ -21,9 +21,9 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, SplitError, StableName, member_of,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Formula,
+    MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    SitedFace, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -249,16 +249,11 @@ fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let ev = run(&f.doc, &s.opts);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
-    match gate(&f.doc, &ev) {
-        Err(AssemblyError::AtRest { findings }) => assert!(
-            !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Unattributed)),
-            "A1(a): each seat is an unattributed contact: {findings:?}"
-        ),
-        other => panic!("A1(a): the undeclared seats refuse at rest, got {other:?}"),
-    }
+    assert!(
+        gate(&f.doc, &ev).is_ok(),
+        "A1(a): the unmated seats do not refuse"
+    );
+    crate::fixture::assert_copies_rows_alone(&f.doc, &ev);
 }
 
 // ---- A1 (b): a transform above the operand ----

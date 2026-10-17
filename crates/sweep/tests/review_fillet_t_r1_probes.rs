@@ -113,10 +113,10 @@ fn every_kef_in_the_blend_surgery_goes_through_the_door() {
         .collect();
     let sites: usize = per_file.iter().map(|(_, n)| n).sum();
     assert_eq!(
-        sites, 10,
-        "the `kef` site census: ten `kef_minted` calls (edge-strip, corner-strut, joint-strut, \
-         turn-strut, rim, rim strut, annulus rim, annulus seam-crossing, ruled crease, cap \
-         sliver), summed \
+        sites, 12,
+        "the `kef` site census: twelve `kef_minted` calls (edge-strip, corner-strut, \
+         joint-strut, turn-strut, rim, rim strut, annulus rim, annulus seam-crossing, ruled \
+         crease, cap sliver, consumed feature, consumed feature into its cap), summed \
          over every file under blend/ as {per_file:?}; a change in the count is a change to \
          re-take the census for, not to absorb"
     );

@@ -378,13 +378,19 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
     let o = geom_core::Point3::origin();
     let turned = topo::transform_rigid(
         &bar,
-        &Affine3::rotation_about_axis(o, Vec3::new(1.0, 0.0, 0.0), 0.3),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(o, Vec3::new(1.0, 0.0, 0.0), 0.3),
+            tol,
+        ),
         tol,
     )
     .expect("a rigid pose");
     let bar = topo::transform_rigid(
         &turned,
-        &Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), 0.5),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), 0.5),
+            tol,
+        ),
         tol,
     )
     .expect("a rigid pose");
@@ -698,10 +704,13 @@ fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&
     );
     let bar = topo::transform_rigid(
         &bar,
-        &Affine3::rotation_about_axis(
-            geom_core::Point3::new(cx, cy + 0.45, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            theta,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                geom_core::Point3::new(cx, cy + 0.45, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                theta,
+            ),
+            tol,
         ),
         tol,
     )

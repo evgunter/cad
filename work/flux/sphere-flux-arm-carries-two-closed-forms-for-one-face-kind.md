@@ -69,7 +69,8 @@ tier 3's check 4 reads material pairing only on `Smooth` edges.
 - **What retires from the flux arm.** The iso-rectangle branch goes:
   `SphereFluxSide`, `sphere_rim_only_pole_level`,
   `require_rim_interior_sides`, `require_band_opposite`,
-  `sphere_wedge_azimuth`, the sphere's use of `du_of_rims`, and the
+  `sphere_wedge_azimuth`, the sphere's use of `du_of_rims` (deleted
+  outright once the cone's iso premise retired, PR 4696), and the
   pole fold. The iso parse survives only in `require_iso_rectangle`,
   which is mesh's door.
 - **Rings and lineage pieces.** `topo::props::face_flux` hands a sphere

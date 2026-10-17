@@ -31,6 +31,15 @@ pub(super) struct StableName {
     pub(super) path: Vec<RoleSeg>,
 }
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RunLine {
+    pub(super) line: NameRef,
+    pub(super) sense: Option<Sense>,
+}
+
 /// The shared handle: its name's rendering, order, hash and wire form.
 #[derive(Clone)]
 pub(super) struct NameRef(Arc<StableName>);
@@ -138,12 +147,7 @@ pub(super) enum RoleSeg {
         face: NameRef,
         sense: Sense,
     },
-    EdgeCrossing {
-        a: NameRef,
-        a_sense: Sense,
-        b: NameRef,
-        b_sense: Sense,
-    },
+    EdgeCrossing(Vec<RunLine>),
     Merged(Vec<StableName>),
     Fragment(Qualifier),
 

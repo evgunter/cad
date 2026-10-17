@@ -76,3 +76,13 @@ cross-PR semantic conflict that only a probe-suite execution can see,
 and the PR gate runs none. Fixed in
 `work/cleave/a-sweep-row-fails-under-all-features-on-main.md`'s PR; the
 gap it went through is this row's first bullet above.
+
+## A fifth instance (PCERT, 2026-10-12)
+
+Seven `geom-brep` probe rows (`m8_f67_r1_probes` ×2,
+`span_meter_dim_twins` ×5) went red on main when #4791 made the
+lane-free `EdgeCurve::certify` refuse `NurbsLaneNotSupplied` for an
+analytic rung-3 edge; the rows certified that class lane-free. Found by
+PR 4846's `--all-features` run, fixed by PR 4876
+(`work/pcert/probe-rows-refuse-nurbs-lane-not-supplied-at-the-lane-free-door.md`).
+The gap is this row's first bullet again.

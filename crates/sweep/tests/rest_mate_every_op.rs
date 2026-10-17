@@ -98,7 +98,12 @@ fn volume(b: &Body<f64>) -> f64 {
 }
 
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, pose, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(pose, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// `b` finished, a boolean operand.
@@ -366,7 +371,7 @@ fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
         let c = placed(&collar_of(0.5, 1.5, 0.0, 1.0, 1.0), &pose);
         let pebble = topo::transform_rigid(
             &ball(0.2),
-            &Affine3::translation(Vec3::new(1.0, 0.0, 1.5)),
+            &geom_core::RigidMotion::translation(Vec3::new(1.0, 0.0, 1.5)).unwrap(),
             tol,
         )
         .unwrap();

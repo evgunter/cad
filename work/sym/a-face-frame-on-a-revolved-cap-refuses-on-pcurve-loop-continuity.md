@@ -2,10 +2,11 @@
 id: a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity
 kind: issue
 title: A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: H
+closed: 2026-10-13
 ---
 
 
@@ -100,3 +101,30 @@ this item's to measure.
 ## Note (INTENT stage 3 A, 2026-10-10)
 
 `fixture::axis_in_plane` is gone: INTENT stage 3 A wrote the revolve's axis on the node, `fixture::revolve_about(profile, (0,0), (0,1), angle)`; the fixture's geometry is unchanged.
+
+## Re-taken on `main` and closed (2026-10-13)
+
+Measured on `main` at `621e036e19` (`tiltV revolved-cap` in
+`sym5_the_reach_on_documents_the_unit_did_not_build`, release):
+
+| lift | rule E off | rule E on |
+| --- | --- | --- |
+| `Pinned` | certifies, 33.0 s | certifies, 34.7 s |
+| `Guided` | 4 refusals, frozen 3 | **1 refusal**, frozen 897 |
+
+**The revolve no longer refuses.** PCERT's retirement of
+`pcurve_loop_continuity` holds here, so point 1 of this row ("the
+refusal is not the tier's to remove") is gone, and with it the
+question of who owns that refusal.
+
+**What refuses now is the boss.** Its `carrier_endpoint_start` at the
+attachment gate reads `[0, 1.398e-1]`, the same shape as the rest of
+the derived-frame family. The tier is now what moves it: with rule E
+on, 4 refusals become 1. So point 2 ("rule E costs this document 300×
+the freezes for no decision") no longer holds either, because the rule
+now buys three nodes.
+
+The remaining refusal moves to
+`derived-frame-guided-boss-residue-after-rules-e-and-f` (SYM, P2),
+beside tilt-UV and the stacked pair. This row, a P0 about a refusal on
+a predicate that no longer exists, closes.

@@ -182,7 +182,7 @@ fn a_ring_that_winds_the_axis_refuses() {
         assert!(
             matches!(
                 got,
-                Err(PropsError::NotIsoRectangle {
+                Err(PropsError::ConeLoop {
                     what: "props_cone_ring_contractible"
                 })
             ),

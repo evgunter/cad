@@ -1,21 +1,21 @@
 //! **S81: "these two rim levels are the same level" is one rule.**
 //!
-//! `props/curved.rs` decided it twice — once to GROUP a rim's arcs in
-//! `du_of_rims`, once to place every rim at an extreme in
-//! `require_rims_at_extremes` — and the two disagreed on three things:
-//! the metric (componentwise `Δsin`/`Δcos` against the Euclidean chord
-//! `√(Δs² + Δc²)`), the lever arm on the torus (`major` against
-//! `minor`, on consecutive lines of `torus()`), and the direction a
-//! structurally impossible input fails in. Both now go through
-//! `level_coincides`, at the arm the level's own dimension names.
+//! `props/curved.rs` decided it twice — once to GROUP a rim's arcs,
+//! once to place every rim at an extreme in `require_rims_at_extremes`
+//! — and the two disagreed on three things: the metric (componentwise
+//! `Δsin`/`Δcos` against the Euclidean chord `√(Δs² + Δc²)`), the lever
+//! arm on the torus (`major` against `minor`), and the direction a
+//! structurally impossible input fails in. What remains of it is
+//! `level_coincides`, at the arm the level's own dimension names; no
+//! flux arm groups rims any longer.
 //!
 //! **Which arm won: `minor`, the exact one.** A `RimLevel::Unit` pair
 //! on the torus is a pair of MINOR-circle directions; the point
 //! deviation an angular difference between them induces is that
 //! difference at the minor radius, because that is the radius the
 //! direction turns about. `major` is the azimuthal lever — right for a
-//! Δu angle and for a ±1 traversal-direction difference, which is why
-//! `du_of_rims` still meters those at `major`, and wrong for a level.
+//! Δu angle and for a ±1 traversal-direction difference, and wrong
+//! for a level.
 //! It overstated by `major / minor`; on the gasket below that is 1000,
 //! and the row is what the overstatement costs.
 //!
@@ -135,7 +135,7 @@ fn a_rim_arc_split_within_epsilon_of_its_level_measures_at_its_own_level() {
 /// **The floor.** Ten times the run's own ESCALATE threshold off its
 /// level, the split arc's ends no longer meet its neighbours' at any ε
 /// and any K: the loop does not close, and the reader refuses it
-/// (`props_loop_closed`) rather than integrate a boundary that bounds
+/// ([`PropsError::ChartLoopOpen`]) rather than integrate a boundary that bounds
 /// nothing.
 #[test]
 fn a_rim_arc_well_outside_the_band_is_still_refused() {
@@ -144,9 +144,7 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_loop_closed"
-            })
+            Err(PropsError::ChartLoopOpen)
         ),
         "a rim decisively off its level leaves the loop open"
     );

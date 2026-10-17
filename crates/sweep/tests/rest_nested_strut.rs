@@ -12,7 +12,7 @@
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
-use topo::{AtRestBody, Body, BooleanBody, BooleanResult, CarriedRecord, VvContact};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,9 +33,9 @@ fn prism(pts: &[(f64, f64, f64)], z0: f64) -> AtRestBody<f64> {
 
 /// The pinch: the block, notched from 60° to 120° up to y = 1.5 with
 /// its top corners filleted at radius 0.1, and the wedge from 75° to
-/// 105° in the notch, folded into one body; and its v-v records,
-/// carried.
-fn pinch() -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
+/// 105° in the notch, folded into one body; and its v-v and edge-edge
+/// records, carried.
+fn pinch() -> (BooleanBody<f64>, topo::OperandRecords) {
     let mx = 1.5 / 60f64.to_radians().tan();
     let block = prism(
         &[
@@ -59,7 +59,11 @@ fn pinch() -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
     let Ok(BooleanResult::Body(pinch)) = topo::union(&block, &wedge, tol()) else {
         panic!("the wedge folds into the notch");
     };
-    let rows = pinch.contacts.carried().vv;
+    let rows = topo::OperandRecords {
+        vf: Vec::new(),
+        ve: Vec::new(),
+        ..pinch.contacts.carried()
+    };
     (pinch, rows)
 }
 
@@ -98,10 +102,7 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
         } else {
             (&top, &pinch)
         };
-        let carried = topo::OperandRecords {
-            vv: rows.clone(),
-            ..Default::default()
-        };
+        let carried = rows.clone();
         let inputs = if pinch_first {
             topo::BooleanInputs {
                 records_a: carried,

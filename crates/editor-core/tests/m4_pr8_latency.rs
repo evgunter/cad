@@ -84,8 +84,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use editor_core::{
-    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeVar, ProfileDoc, Subject, VarName, apply,
-    evaluate, product_recorded, run_checks, run_checks_on,
+    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeValue, ProfileDoc, Subject, VarName,
+    apply, evaluate, product_recorded, run_checks, run_checks_on,
 };
 
 use corpus::{cone, documents, eval, failures};
@@ -402,19 +402,23 @@ const SPLIT_FINS: i64 = 160;
 /// its own subject and the gather was inside the figure. The subject
 /// door separated them, and this is what re-takes them:
 ///
-/// - `gather_ms` — [`product_recorded`] alone, from nothing.
+/// - `gather_ms` — [`product_recorded`] alone, from nothing. It
+///   includes the tier-3' census since the gather runs it
+///   (`an-unattributed-contact-at-rest-is-a-finding`), so the series
+///   steps up there by the census's passes.
 /// - `checks_ms` — the registry over a subject already in hand.
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
-/// - `census_ms` — the tier-3' census over the SAME aggregate, the
-///   term this resident exists instead of: the assembly gate
-///   (`gate_at_rest_declared`) over the product's kept tier-3 verdict,
-///   which is the census alone. Entries before the change that kept
-///   the verdict (`gather/assemble-single-local-battery`) timed the
-///   local battery plus the census, so the series steps down there by
-///   the battery's share. Fewer reps than the others ([`CENSUS_REPS`])
-///   because it is the slowest term, and it REFUSES on this document
-///   (the fins meet the base), so it is the cost of a refusing run.
+/// - `census_ms` — one pass of the tier-3' census over the SAME
+///   aggregate and its records (`gate_at_rest_declared` over the
+///   product's kept tier-3 verdict, which is the census alone): the
+///   term this resident exists instead of, and the unit of what the
+///   gather now pays. Entries before the change that kept the verdict
+///   (`gather/assemble-single-local-battery`) timed the local battery
+///   plus the census, so the series steps down there by the battery's
+///   share. Fewer reps than the others ([`CENSUS_REPS`]) because it is
+///   the slowest term, and it returns findings on this document (the
+///   fins overlap the base), so it is the cost of a finding run.
 struct Split {
     solids: usize,
     faces: usize,
@@ -445,9 +449,9 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         .expect("the corpus carries the heat sink");
     let driven = apply(
         &entry.doc,
-        &DocEdit::DeclareVar {
-            name: VarName::from_static("fins"),
-            def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("fins").into(),
+            value: FreeValue::Count(fins),
         },
         tol,
         &editor_core::RefusingReach,

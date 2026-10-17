@@ -107,7 +107,7 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
     CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
     RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
@@ -139,8 +139,7 @@ pub use eval::{
     ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
     NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
-    ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
-    mate_reach,
+    ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -186,7 +185,7 @@ pub use names::{
     Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError, LeafRole,
     MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
+    RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
     SelectRefusal, Selector, Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat,
     all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
     band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
@@ -222,8 +221,8 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, Unmapped,
-    inline, remap_name, split,
+    InlineError, InlineOutcome, NodeMap, RemapError, SplitError, SplitOutcome, StepMap, Uncarried,
+    Unmapped, inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

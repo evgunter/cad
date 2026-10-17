@@ -6348,9 +6348,7 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNRECORDED contact, the hard error by
-        definition).
+        either way).
 
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
@@ -6359,9 +6357,9 @@ class Attribution:
         `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]:
-        """The declaration named, `None` for `unattributed`. Under a
-        `carried_*` relation its `mate` is a node of `of`."""
+    def declaration(self) -> MintedDeclaration:
+        """The declaration named. Under a `carried_*` relation its
+        `mate` is a node of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6394,7 +6392,9 @@ class AtRestFinding:
     own story, which carries its own recourse."""
 
     @property
-    def attribution(self) -> Attribution: ...
+    def attribution(self) -> Optional[Attribution]:
+        """Which declaration the finding names, and in what relation;
+        `None` where it names none."""
 
 class MintRefusal:
     """One mate whose declaration the gather could not mint — a row of
@@ -6978,17 +6978,17 @@ class Coincidence:
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
-    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
-    `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
-    `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    `battery_joint`, `battery_support_axis`, `profile_junction`,
-    `vertex_fusion` or `census_at_rest`. A
-    `profile_junction` row is `tangent` or `cusp` between two carriers
-    and `same_oriented` where its two pieces continue one carrier; a
-    `tangent_witness` row is `tangent_contact` (the outward sides
-    opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
-    it structural (`same_construction`, `carrier_verdict` or
+    `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
+    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
+    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
+    `battery_turn`, `battery_joint`, `battery_support_axis`,
+    `profile_junction`, `vertex_fusion` or
+    `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`
+    between two carriers and `same_oriented` where its two pieces
+    continue one carrier; a `tangent_witness` row is `surface_tangent`,
+    claiming nothing of the materials. `rung` is the door's rung that
+    proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
     symbol made of the row."""
@@ -7007,8 +7007,10 @@ class Coincidence:
 class CheckFinding:
     """One finding of one check on one subject: a copy a placement
     defines, attributed as `(root, output_ix)` with `root` the placement,
-    or a node of the document (`node`) — the node that decided an
-    unproven coincidence. Whichever it is not answers `None`.
+    a node of the document (`node`) — the node that decided an unproven
+    coincidence — or two copies the at-rest census found touching with
+    no mate between them (`copies`). Whichever it is not answers
+    `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7024,15 +7026,21 @@ class CheckFinding:
     @property
     def root(self) -> NodeId | None:
         """The root whose value carries the subject body; `None` for a
-        finding about a node."""
+        finding about a node or two copies."""
     @property
     def output_ix(self) -> int | None:
         """Which output body of that root; `None` for a finding about a
-        node."""
+        node or two copies."""
     @property
     def node(self) -> NodeId | None:
         """The node the finding is about, root or not; `None` for a
-        finding about a root output."""
+        finding about a root output or two copies."""
+    @property
+    def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
+        """The two copies the finding is about, earlier in gather order
+        first, each as its placement's output and its member there (as
+        `InterferenceFinding.a` spells one); `None` for any other
+        subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...

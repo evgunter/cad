@@ -73,7 +73,7 @@ fn moved(body: &Body<f64>, map: &Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         "the moved body",
-        topo::transform_rigid(body, map, tol).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol), tol).unwrap(),
         tol,
     )
 }

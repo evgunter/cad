@@ -359,12 +359,12 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            Attribution::Carried {
+            Some(Attribution::Carried {
                 route,
                 declaration,
                 relation: editor_core::Relation::Refuted,
                 ..
-            } if route.through == instances[0]
+            }) if route.through == instances[0]
                 && route.of == inner_id
                 && route.via.is_empty()
                 && declaration.mate == inner_mate
@@ -373,9 +373,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
          the instance it arrived through: {findings:?}"
     );
     assert!(
-        findings
-            .iter()
-            .all(|f| !matches!(f.attribution, Attribution::Unattributed)),
+        findings.iter().all(|f| f.attribution.is_some()),
         "and nothing here is anonymous any more: {findings:?}"
     );
 }
@@ -431,7 +429,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     assert!(
         findings
             .iter()
-            .any(|f| matches!(&f.attribution, Attribution::Refuted(m) if m.mate == mate)),
+            .any(|f| matches!(&f.attribution, Some(Attribution::Refuted(m)) if m.mate == mate)),
         "naming the mate that declared it: {:?}",
         findings.iter().map(|f| &f.attribution).collect::<Vec<_>>()
     );
@@ -867,7 +865,11 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let [row] = product.coincidences.as_slice() else {
         panic!("one row: {:?}", product.coincidences);
     };
-    assert_eq!(row.mate, mate, "the row is the mate's pair's");
+    assert_eq!(
+        row.by,
+        editor_core::AtRestBy::Mate(mate),
+        "the row is the mate's pair's"
+    );
     assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
     assert_eq!(row.row.relation, topo::Relation::SameOpposite);
     assert!(

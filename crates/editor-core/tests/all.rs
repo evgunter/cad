@@ -151,12 +151,16 @@ mod docm9_range;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "e6_drive_over_a_loft_at_interval.rs"]
+mod e6_drive_over_a_loft_at_interval;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
 #[path = "edit_blend_one_box_of_two.rs"]
 mod edit_blend_one_box_of_two;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
+#[path = "edit_concave_bar.rs"]
+mod edit_concave_bar;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -167,6 +171,8 @@ mod edit_has_minted;
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
+#[path = "edit_one_cycle_members.rs"]
+mod edit_one_cycle_members;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
@@ -175,6 +181,8 @@ mod edit_pair_apply_names;
 mod edit_placement_corpus_bits;
 #[path = "edit_placement_type.rs"]
 mod edit_placement_type;
+#[path = "edit_planar_carve.rs"]
+mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -183,6 +191,8 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "emit_ball_cut_by_brick.rs"]
+mod emit_ball_cut_by_brick;
 #[path = "emit_boolean_vertex_keys.rs"]
 mod emit_boolean_vertex_keys;
 #[path = "emit_union_member_order.rs"]
@@ -197,6 +207,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "face_face_touch_carry.rs"]
+mod face_face_touch_carry;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
@@ -712,6 +724,8 @@ mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
 
+#[path = "a_mate_on_a_full_turn_bore_names.rs"]
+mod a_mate_on_a_full_turn_bore_names;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
@@ -724,6 +738,8 @@ mod decide_7_rule_g_cost_interval;
 mod edit_refusal_recourse;
 #[path = "emit_crossing_sense.rs"]
 mod emit_crossing_sense;
+#[path = "emit_curved_rim_chord.rs"]
+mod emit_curved_rim_chord;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
 #[path = "emit_nested_union_flat.rs"]
@@ -736,12 +752,16 @@ mod emit_seam_edge_merged;
 mod emit_seam_junction;
 #[path = "emit_shared_rim_several.rs"]
 mod emit_shared_rim_several;
+#[path = "emit_sphere_cut_in_cap.rs"]
+mod emit_sphere_cut_in_cap;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
 #[path = "emit_split_edge_lineage.rs"]
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_curved_flush.rs"]
+mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]

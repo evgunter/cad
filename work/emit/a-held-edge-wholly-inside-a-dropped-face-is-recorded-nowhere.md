@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P3
 cost: M
+design: true
 ---
 
 
@@ -70,3 +71,75 @@ corpus document needed. It also blocks any fixture that wants a building union
 whose admission rests on a pair the fold never meets (a contact a third member
 covers), which is how both reviewers tried to exercise the pairwise verdicts.
 Worth re-weighing the priority.
+
+## `cross` no longer reaches it; the three-box reproducer still does (branch `emit/union-order`, 2026-10-13)
+
+`cross`'s 10 refusing orders were not this residue. They were a chase
+that stopped at a seam a later fold step had joined away: the join was
+not followed, and the joined-away edge's split lineage had left the
+finished body. `Obstacles` now follows both
+(`work/emit/a-merged-face-pieces-borders-in-a-union-depend-on-member-order.md`,
+closed). All 24 orders of `cross` fuse and publish one table, and the
+corpus pins (`emit_shared_rim_several`'s `RESIDUES`,
+`emit_union_flush_names`'s `KNOWN_REFUSING`,
+`union_member_orders_decide_alike`'s `EMIT_RESIDUES`) are gone. No
+corpus case reaches this row now.
+
+The three-box reproducer is unchanged on that branch. `[a, m, c]`,
+`[c, m, a]`, `[m, a, c]` and `[m, c, a]` still refuse "a piece of a
+face held as several borders...", and `[a, c, m]` and `[c, a, m]`
+build. Read in `[a, m, c]`, the parent is `a`'s top merged with `c`'s.
+The pairwise judgement of `a` and `c` links them. The fold loses the
+parent's region to two discards:
+- `a`'s top over x 0.5..1, discarded when `m` folds in;
+- `c`'s top over x 1..1.5, discarded when `c` folds in.
+
+The two meet along x = 1. Each dies with its own member's rim there,
+`a`'s and `c`'s, two distinct edges that no step ever glued, because
+`m` covered the contact before `c` arrived. Nothing in the rows joins
+the two discards. Each borders one piece, so neither divides.
+Linking them needs a reading of coincidence that the fold never
+performs: the `(a, c)` judgement's glue of those rims, or geometry.
+That choice is this row's open question.
+
+
+## The pocket case, built (2026-10-14)
+
+`editor-core`
+`emit_union_borders::a_pocket_floor_held_inside_a_dropped_face_names_alike`
+is `#[ignore]`d; its attribute gives the run command.
+
+**The shape.**
+- `a` = the plate [0,3]×[0,2]×[0,1] less the pocket
+  [1,2]×[0.8,1.2]×[0.5,2]. The pocket's floor is at z 0.5.
+- `b` = [0.5,2.5]×[−1,3]×[0,0.5]. Its top is flush with the floor and
+  wider than it, so the floor's four edges lie inside `b`'s top, both
+  ends at vertex-on-face contacts.
+
+**Measured.**
+- The pair union `a ∪ b` refuses `Naming(Emission)` "a piece of a face
+  held as several borders no recorded discard between them".
+- The union in order `[a, b]` refuses the same way.
+- The union in order `[b, a]` builds. It names the merged parent
+  `a:z=0.50+b:z=0.50` as three pieces:
+  - {`a:x=1.00`, `a:x=2.00`, `a:y=0.80`, `a:y=1.20`}, the floor;
+  - {`a:y=0.00`};
+  - {`a:y=2.00`}.
+
+So the row's pocket case is reached in editor-core and decides by
+member order, on two members.
+
+**Why this is stopped here, not fixed.** A record-only fix has to say
+which fragment of the dropped face takes each floor edge. Along the
+floor's outline, `b`'s top is two discarded fragments:
+- the covered one, under the floor, whose region the floor holds;
+- the annulus inside `a`'s material, which is the region actually lost.
+
+Both are bounded by the outline. "The fragment holding the entry
+vertex" (`HeldInto`) would therefore give the edge to both, and only
+the annulus borders it as lost region. This part is reasoned from the
+shape; the row records were not dumped for it. Telling them apart takes a
+rule: the fragment the classification dropped as inside the other
+operand, as against the covered copy. That is step 2 of **Next**,
+still open, and the three-box reproducer's question above is the same
+one.

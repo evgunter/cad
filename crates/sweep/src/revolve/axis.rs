@@ -10,14 +10,20 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
-    is_underflowed_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
+    is_finite_length, is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
-use super::{RevolveAxis, RevolveError, SweptSeg};
+use super::{ClearanceDecision, RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
+
+/// The K funnel name of the placed revolve axis's length: the sketch
+/// axis decided in the plane, carried through the sketch placement,
+/// and decided again as a direction in space before the revolve turns
+/// about it.
+pub(super) const REVOLVE_PLACED_AXIS: &str = "revolve_placed_axis";
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -34,8 +40,12 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) place: Affine3<T>,
     /// Placed axis origin.
     pub(super) o3: Point3<T>,
-    /// Placed unit axis direction (the rotation axis).
+    /// Placed unit axis direction.
     pub(super) a3: Vec3<T>,
+    /// [`Self::a3`] decided into a witness: the axis the revolve turns
+    /// about. The placement is a general map, so `a3` is unit only by
+    /// convention until this decision.
+    pub(super) axis: UnitVec3<T>,
     /// Placed unit radial direction (the seam meridian; `u_ref` of
     /// every revolution surface).
     pub(super) u3: Vec3<T>,
@@ -128,12 +138,15 @@ impl<T: Decide> AxisFrame<T> {
         let o3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
         let a3 = place.linear * Vec3::new(dir_sk.x, dir_sk.y, T::zero());
         let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
+        let turn_axis = UnitVec3::new(a3, REVOLVE_PLACED_AXIS, band)
+            .map_err(|error| RevolveError::PlacedAxis { error })?;
         Ok(Self {
             origin_sk: axis.origin,
             dir_sk,
             place,
             o3,
             a3,
+            axis: turn_axis,
             u3,
             n3: place.linear.c2,
         })
@@ -421,10 +434,21 @@ fn classify_segment<T: Decide>(
     reverse: bool,
     band: Band,
 ) -> Result<WallClass<T>, RevolveError> {
-    let escalated = |source| RevolveError::SliverAxisClearance {
-        loop_index,
-        segment_index: s.canonical_segment,
-        source,
+    let classify = |decision: ClearanceDecision, margin: Margin<T>| {
+        let name = decision.predicate();
+        decide(name, margin, band).map_err(|source| {
+            debug_assert_eq!(
+                source.predicate,
+                Some(name),
+                "the escalation names its decision"
+            );
+            RevolveError::SliverAxisClearance {
+                loop_index,
+                segment_index: s.canonical_segment,
+                decision,
+                source,
+            }
+        })
     };
     // A stored sign in the CANONICAL basis: the swept reversal negated
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
@@ -437,8 +461,8 @@ fn classify_segment<T: Decide>(
             // Radial and axial deltas of the chord (meters).
             let dr = vb.r - va.r;
             let dz = frame.axial(s.b) - frame.axial(s.a);
-            let sr = decide("axis_line_radial", Margin::of(dr), band).map_err(escalated)?;
-            let sz = decide("axis_line_axial", Margin::of(dz), band).map_err(escalated)?;
+            let sr = classify(ClearanceDecision::LineRadial, Margin::of(dr))?;
+            let sz = classify(ClearanceDecision::LineAxial, Margin::of(dz))?;
             // Line walls' sense (doc above): cylinder and cone read
             // the canonical axial direction, the plane annulus the
             // canonical radial one.
@@ -475,7 +499,7 @@ fn classify_segment<T: Decide>(
             // the same body extrude's cylinder walls read.
             let sense = crate::swept::centre_on_material_side(canonical(turn));
             let rc = frame.r(centre);
-            match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
+            match classify(ClearanceDecision::ArcCenter, Margin::of(rc))? {
                 Sign::Zero => {
                     // Sphere class. Arc-interior half-plane checks: the
                     // r ≥ 0 half of an on-axis-centered carrier is
@@ -484,7 +508,7 @@ fn classify_segment<T: Decide>(
                     // does, before its zero chord is read; the apex pins
                     // which half-circle branch the arc occupies.
                     let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
-                    match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
+                    match classify(ClearanceDecision::ArcSpan, span_margin)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
                             return Err(RevolveError::ArcCrossesAxis {
@@ -494,7 +518,7 @@ fn classify_segment<T: Decide>(
                         }
                     }
                     let r_apex = frame.r(arc.apex(s.a, s.b));
-                    match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
+                    match classify(ClearanceDecision::ArcApex, Margin::of(r_apex))? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing
                         // interior contact.
@@ -516,9 +540,7 @@ fn classify_segment<T: Decide>(
                 Sign::Positive => {
                     // Ring-torus clearance: the tube must stay
                     // definitely clear of the axis (D3 convention).
-                    match decide("axis_arc_clearance", Margin::of(rc - radius), band)
-                        .map_err(escalated)?
-                    {
+                    match classify(ClearanceDecision::ArcClearance, Margin::of(rc - radius))? {
                         Sign::Positive => Ok(WallClass::Wall {
                             kind: WallKind::Torus {
                                 center_sk: centre,

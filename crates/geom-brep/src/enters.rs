@@ -49,7 +49,8 @@
 //! A normal that **defines** a side convention rather than carrying
 //! one — a splitting plane's, an operation input belonging to no face
 //! and with no sense to fold in — is the separate [`ReferenceNormal`],
-//! which [`enters_material_order2`] takes. They are two types because
+//! which [`enters_material_order2`] and [`crate::conic_bend_side`]
+//! take. They are two types because
 //! they are two claims: one asserts a face's material side, the other
 //! declares the operation's convention, and only the first has a sense
 //! to get wrong.
@@ -119,7 +120,9 @@ impl LeverEscalation {
 
     /// Whether [`LeverEscalation::quoting_reading`] may re-quote this
     /// escalation: the arm's rung, refused with a tolerance that decides
-    /// it. An exact zero or a poisoned margin is a verdict no smaller
+    /// it, an admissible one above `EPS_MIN`
+    /// ([`Indeterminate::offers_tolerance`](geom_core::Indeterminate::offers_tolerance)).
+    /// An exact zero or a poisoned margin is a verdict no smaller
     /// tolerance re-decides, and the reading's rung meters nothing
     /// further. A door asks this before it reads the metered quantity.
     #[must_use]
@@ -283,8 +286,8 @@ impl<T: Real> ReferenceNormal<T> {
     }
 
     /// The reference normal as a plain vector — crate-internal, for
-    /// the predicate's own dot product.
-    fn vec(self) -> Vec3<T> {
+    /// the predicates' own dot products.
+    pub(crate) fn vec(self) -> Vec3<T> {
         self.0
     }
 }
@@ -475,11 +478,9 @@ fn sense_margin<T: Decide>(
 /// the second derivative (raw carrier parameter), `speed_sq` =
 /// `‖deriv‖²` (normalizing the parameterization out — the margin is
 /// per arc length squared), `reference_normal` the reference side's
-/// unit normal as a [`ReferenceNormal`] — its one caller passes a
-/// SPLITTING PLANE's normal, which defines the Above/Below convention
-/// and carries no face sense; a caller holding a FACE's normal mints
-/// an [`OutwardNormal`] and converts, so the sense is applied there —
-/// `arm` the caller-named lever arm in meters. The
+/// unit normal as a [`ReferenceNormal`] (a caller holding a FACE's
+/// normal mints an [`OutwardNormal`] and converts, so the sense is
+/// applied there), `arm` the caller-named lever arm in meters. The
 /// margin is the **displacement the curvature difference induces at
 /// the lever arm** (D4 ¶1, lever arm 1/κ discipline):
 /// `½ · (deriv2·n̂ / speed_sq) · arm²` — the curvature COMPARISON of

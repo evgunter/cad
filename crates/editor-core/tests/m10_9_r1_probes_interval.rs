@@ -120,8 +120,8 @@ fn r1_the_refusal_walk_past_the_plates_ceiling() {
         for (label, r) in rows() {
             let (shapes, _, counts) = replay(&doc, &box_, r, tol);
             println!(
-                "   x{mult:<7} {label}: reg={} num={}\n{}",
-                counts.registered,
+                "   x{mult:<7} {label}: sym={} num={}\n{}",
+                counts.symbolic,
                 counts.numeric,
                 crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
                     &shapes
@@ -419,8 +419,8 @@ fn r1_the_pads_over_band_set_at_multiples_of_its_ceiling() {
         for (label, r) in rows() {
             let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), r, tol);
             println!(
-                "   pad x{mult} {label}: reg={}\n{}",
-                counts.registered,
+                "   pad x{mult} {label}: sym={}\n{}",
+                counts.symbolic,
                 crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
                     &shapes
                 ))

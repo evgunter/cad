@@ -480,8 +480,9 @@ BOUNDS_ALLOWLIST=(
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
   # its two readers carry the bound to call it: `decided_declarations`,
-  # which hands each pair to the carrier ladder, and `coaxial_rows`,
-  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # which hands each pair to the carrier ladder, and `frame_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame and the
+  # cylinder pairs' crossing one. None
   # reads a bracket of its own beyond the box builders'.
   'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
@@ -514,7 +515,12 @@ BOUNDS_ALLOWLIST=(
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
   # so the door can time and meter the call around it. 17 + 4 = 21.
-  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
+  # Two more carry ∖'s reading of its operand's coincident edges to
+  # `census::collinear_overlaps`, the edge-edge pass's tree over the
+  # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
+  # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
+  # bracket of its own. 21 + 2 = 23.
+  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -540,7 +546,12 @@ BOUNDS_ALLOWLIST=(
   # in this file already reaches through, ratified for the same
   # seam. The added occurrence is the caller spelling that header,
   # not a new bracket read: nothing in `wire_shell` reads a bound.
-  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  # 17 -> 14: the loft section seam left. `section_of`, `wire_loft`
+  # and `wire_sweep` spelled `Decide + Bounds + SectionScalar`; a loft
+  # now reads its sections' profile values
+  # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
+  # the three read a bound, so the headers go with the seam.
+  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -622,7 +633,12 @@ BOUNDS_ALLOWLIST=(
   # as before), and `face_clearance_margin` is `face_clearance` with its
   # margin formed by the caller, the door the surgery's strip meter
   # refuses through; both decide only through `classify`.
-  'crates/sweep/src/blend/battery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 18 -> 20: `turn_at` picks a fillet overrun's far-band section through
+  # `cut_off_section`, which a chain end's cut-off picks its section
+  # through too: both reach `cap_transverse`, the cut-off's own
+  # kind-picker (`classify` and the ellipse door), and read no bracket of
+  # their own.
+  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -656,7 +672,9 @@ BOUNDS_ALLOWLIST=(
   # `seam_split_param`'s window test as before — and the planar band's
   # `cut_off_plan` calls the shared plan. The same seam, and the same
   # reads, moved and shared; no new decision reads a bracket.
-  'crates/sweep/src/blend/open/planar.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # `turn_plan` plans a chamfer overrun's far band through
+  # `cut_off_plan`, for its sliver, and reads no bracket of its own.
+  'crates/sweep/src/blend/open/planar.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
   # lands on its rim (`split_param_in_span`'s window test, worded as the
@@ -690,7 +708,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
+  'crates/geom-brep/src/ssi/certify.rs 18 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -702,7 +720,7 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 12 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -750,7 +768,10 @@ BOUNDS_ALLOWLIST=(
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
-  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
+  # over the same edge boxes, lifted out for ∖'s reading of coincident
+  # edges.
+  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the

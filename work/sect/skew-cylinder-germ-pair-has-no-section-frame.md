@@ -38,7 +38,7 @@ split (the section table's `cc_axes_coplanar`, which the frame asks;
 `NoArm`).
 Placement 0 (parallel axes) passes the frame and stops at the lane
 (`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031); placement 4
-meets the pinch door (`GermFrameCylinderPinch`).
+meets the crossing pair's nodes (built since TANG U1; `NodeUnbuilt` where a node is not).
 
 ## What a fix has to supply
 

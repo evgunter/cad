@@ -220,9 +220,6 @@ pub(crate) enum TrimRefusal<T: Real> {
     /// An in-band or poisoned fit margin (doubled-back corners and
     /// zero legs land here).
     Escalated(Indeterminate),
-    /// The exact-order band could not be formed (unreachable for the
-    /// built-in band).
-    Band(BandError),
 }
 
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
@@ -254,7 +251,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let len2 = v2.norm_squared().sqrt();
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(TrimRefusal::Band)?;
+    let exact = Band::least();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
         match decide("fillet_leg_fit", Margin::of(len - setback), exact) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
@@ -533,7 +530,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     let band = Band::linear(tol).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;
+    let exact = Band::least();
     let leg_in = Leg::at_corner(incoming, corner, head, FilletLeg::Incoming);
     let leg_out = Leg::at_corner(outgoing, corner, next, FilletLeg::Outgoing);
 
@@ -836,6 +833,29 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// guarantee stated one ulp too wide is not a guarantee. Correcting
 /// the claim is the fix; adding an angle branch to evaluation code to
 /// widen it would not be (Q1).
+///
+/// **No window here: the result's sign IS the branch.** It lies in
+/// `[−π, π)`, and its readers read its sign:
+/// - `fillet_leg_reach` (a Zero is corner-side);
+/// - `fillet_leg_fit` (`extent − setback`, the `f64` identity above);
+/// - the path corner gates `path_corner_advance_arc` /
+///   `path_corner_reach_arc` (only Positive passes).
+///
+/// At `d = ±π` both fold to `−π`, so a point exactly half a turn ahead
+/// reads behind. The verdict there is the branch's, and its soundness is
+/// the configuration argument above: a tangent point diametrically
+/// opposite the corner, which the reach and fit gates classify long
+/// before.
+///
+/// Over the scalars:
+/// - `ProfileLift::Guided` replays this at the evaluation scalar, through
+///   the coincidence door at `Sym<f64>` and the drive's symbolic leaf at
+///   `Sym<Interval>`;
+/// - at `Sym` a `floor` folds only on a zero-form argument (the exact
+///   tie), and the fit gate's two floors, `⌊d/τ⌋` and `⌊d/τ + ½⌋`, are
+///   different atoms, so the gate is decided numerically there;
+/// - at `Interval` a `d` straddling `±π` spans both signs, and the gates
+///   escalate or refuse on it.
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic_centred(T::tau())
 }

@@ -91,6 +91,21 @@ fn records(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
     )
 }
 
+/// The `(vertex, edge)` rows `rows`, and the edge-edge record of
+/// `edge_touch`'s overlap, as records of `body`: the overlap is a pair
+/// whose interiors meet, owed its own record (D1), which its two
+/// bounds' records confirm.
+fn with_overlap(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
+    let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let c_edge = edge_between(body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]);
+    common::records(
+        body,
+        rows.iter()
+            .map(|r| (Cell::Vertex(r.vertex), Cell::Edge(r.edge)))
+            .chain([(Cell::Edge(a_edge), Cell::Edge(c_edge))]),
+    )
+}
+
 /// The two records `edge_touch` needs, in the order its bounds come.
 fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
     let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -102,9 +117,10 @@ fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
 }
 
 /// **Unrecorded direction.** With no records, both resting vertices
-/// and the overlap between them refuse; with both records the body
-/// certifies; with one, its own event and the overlap it bounds refuse
-/// and the other event does not. Red when pass 2, or the overlap's
+/// and the overlap between them refuse; with both records and the
+/// overlap's own the body certifies, and without the overlap's the
+/// overlap refuses; with one, its own event and the overlap it bounds
+/// refuse and the other event does not. Red when pass 2, or the overlap's
 /// one-vertex bound, reads only the face rung and never the record.
 #[test]
 fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
@@ -150,15 +166,21 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
         "no records: the overlap refuses: {none:?}"
     );
 
-    let both = records(&body, &[at_a, at_c]);
+    let both = with_overlap(&body, &[at_a, at_c]);
     assert_eq!(
         errors(&body, &both),
         vec![],
         "both records: the body certifies"
     );
+    let bounds_alone = errors(&body, &records(&body, &[at_a, at_c]));
+    assert_eq!(
+        (overlaps(&bounds_alone), bounds_alone.len()),
+        (1, 1),
+        "both bounds but no edge-edge record: the overlap refuses: {bounds_alone:?}"
+    );
 
     for (kept, dropped) in [(at_a, at_c), (at_c, at_a)] {
-        let one = records(&body, &[kept]);
+        let one = with_overlap(&body, &[kept]);
         let es = errors(&body, &one);
         assert_eq!(
             on_edge(&es),
@@ -201,7 +223,7 @@ fn a_vertex_on_edge_record_without_its_event_is_stale() {
             ve(vertex_at(&body, [0.5, -1.0, -1.0]), a_edge),
         ),
     ] {
-        let set = self::records(body, &[records.as_slice(), &[bad]].concat());
+        let set = with_overlap(body, &[records.as_slice(), &[bad]].concat());
         let es = errors(body, &set);
         assert_eq!(
             es,
@@ -331,7 +353,6 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let y = joined_edge_touch(tol);
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
         ..y.contacts.carried()
     };
     for (at, rim, slab, piece) in [
@@ -432,7 +453,6 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
     );
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
         ..y.contacts.carried()
     };
     let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {
@@ -688,19 +708,19 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
     }
 }
 
-/// **A split that lands on the other edge's end turns the edge-edge
-/// record into a vertex-vertex record.** Two boxes touching along a
-/// collinear overlap: `a`'s top-front edge runs x∈[0, 1] and `b`'s
-/// bottom-back edge x∈[0.5, 1.5], both on y = 0, z = 1, and the union
-/// leaves both edges whole with a vertex-on-edge record at each bound.
-/// Its bound at (0.5, 0, 1) and the overlap's edge-edge record are
-/// carried into a union with a thin plate tilted off the axes whose face passes
-/// through `a`'s end (1, 0, 1) and that enters only `b`: the plate
-/// splits `b`'s edge there, and the split's vertex meets `a`'s end
-/// vertex. The record lands as a vertex-vertex record between them,
-/// and the result certifies 3′. Red when split lineage drops a minted
-/// vertex that meets the other piece's end (3′ refuses `VertexVertex`
-/// there).
+/// **A split that lands on the other edge's end turns that end's
+/// vertex-on-edge record into a vertex-vertex record.** Two boxes
+/// touching along a collinear overlap: `a`'s top-front edge runs
+/// x∈[0, 1] and `b`'s bottom-back edge x∈[0.5, 1.5], both on y = 0,
+/// z = 1, and the union leaves both edges whole with a vertex-on-edge
+/// record at each bound and the overlap's edge-edge record. All three
+/// are carried into a union with a thin plate tilted off the axes whose
+/// face passes through `a`'s end (1, 0, 1) and that enters only `b`: the
+/// plate splits `b`'s edge there, and the split's vertex meets `a`'s end
+/// vertex. The bound at (1, 0, 1) lands on that pair, citing the bound's
+/// own record (the minted vertex is an image of `b`'s edge, D1), and the
+/// result certifies 3′. Red when the carry reads the split edge's
+/// pieces alone (3′ refuses `VertexVertex` there).
 #[test]
 fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
     let tol = Tol::witness();
@@ -717,8 +737,6 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
     let topo::BooleanResult::Body(y) = topo::union(&a, &b, tol).expect("a ∪ b") else {
         panic!("a ∪ b came back empty");
     };
-    let a_edge = edge_between(&y.body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]);
-    let b_edge = edge_between(&y.body, [0.5, 0.0, 1.0], [1.5, 0.0, 1.0]);
     assert_eq!(
         y.contacts.vertex_edge().count(),
         2,
@@ -756,28 +774,17 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         ),
         tol,
     );
-    // The overlap's bound at (0.5, 0, 1) is carried; the one at (1, 0, 1)
-    // is left to the edge-edge record, so only its lineage can place it.
-    let far: Vec<topo::CarriedRecord<VeContact>> = y
+    let near_end = y
         .contacts
-        .carried()
-        .ve
-        .into_iter()
-        .filter(|r| same(point(&y.body, r.contact.vertex), [0.5, 0.0, 1.0]))
-        .collect();
-    assert_eq!(far.len(), 1, "the bound at (0.5, 0, 1)");
+        .rows()
+        .iter()
+        .position(|r| {
+            matches!(r.cells(), [topo::Cell::Vertex(v), topo::Cell::Edge(_)]
+                if same(point(&y.body, v), [1.0, 0.0, 1.0]))
+        })
+        .expect("the bound at (1, 0, 1)");
     let inputs = topo::BooleanInputs {
-        records_a: topo::OperandRecords {
-            ve: far,
-            ee: vec![topo::CarriedRecord {
-                contact: topo::EeContact {
-                    a: a_edge,
-                    b: b_edge,
-                },
-                record: 0,
-            }],
-            ..topo::OperandRecords::default()
-        },
+        records_a: y.contacts.carried(),
         ..topo::BooleanInputs::default()
     };
     let topo::BooleanResult::Body(out) = united(&y.body, &plate, &inputs, tol).expect("y ∪ plate")
@@ -785,11 +792,16 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         panic!("y ∪ plate came back empty");
     };
     let at_end = |k: VertexKey| same(point(&out.body, k), [1.0, 0.0, 1.0]);
+    let record = u32::try_from(near_end).unwrap();
     assert!(
-        out.contacts
-            .vertex_vertex()
-            .any(|(a, b)| at_end(a) && at_end(b)),
-        "a vertex-vertex record at (1, 0, 1): {:?}",
+        out.contacts.rows().iter().any(|r| {
+            matches!(r.cells(), [topo::Cell::Vertex(a), topo::Cell::Vertex(b)]
+                if at_end(a) && at_end(b))
+                && r.cites
+                    .iter()
+                    .any(|c| c == topo::Backing::Carried { input: 0, record })
+        }),
+        "a vertex-vertex record at (1, 0, 1) citing the bound there: {:?}",
         out.contacts
     );
     assert_eq!(
