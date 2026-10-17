@@ -29,3 +29,5 @@ It is the same class: a decision exactly 0 at the nominal that flips under the m
 - **Repro:** `REVALUE_DETAIL=1 REVALUE_DOC=declared_tangency cargo nextest run -p editor-core --run-ignored only -E 'test(=revalue_corpus::revalue_census)' --no-capture` (the census line lists `flips`).
 
 The row allows these flips today. A row with no `flips` entry asserts nothing about flips that leave the re-valued margins in agreement. So nothing pins this instance, and it goes away, or moves, unseen.
+
+**Evidence, PCERT B1 (PR 5225, 2026-10-17):** declared_tangency's two flips came from the old frame lane's landmark cut. `pcurve_chart_azimuth_frame` decided an azimuth's formula on `x`'s sign, and these two directions sit exactly on `x = 0`. B1 decides the frame across the window's cut line (`pcurve_chart_cut_side`), so a direction on `x = 0` reads one expression on either side. Re-run with the repro above: `flips []`, all 2,989 decisions compared, nothing laundered, nothing re-valued away. This second instance is closed by that PR. The plate_param instance above is untouched.

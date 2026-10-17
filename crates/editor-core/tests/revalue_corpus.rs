@@ -409,7 +409,7 @@ rows! {
     revalue_plate_param: "plate_param", InStep, 3938, [];
     // In step: moved apart, its `bool_pair_gap` margins are decided in
     // another order and the builds part after decision 3996, the first
-    // difference at #3997 (`pcurve_chart_azimuth_frame`)
+    // difference at #3997 (then `pcurve_chart_azimuth_frame`)
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
     // which NOTHING here pins). In step, a branch angle on its cut at the
     // nominal flips, owed below.

@@ -379,13 +379,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// bundle of mates), which re-blessed these rows by its new mint chain:
 /// `cut_cylinder`, `kitchen_sink` moved by this unit as well, and
 /// their merged values are neither tree's; every other row is main's.
+///
+/// RE-BLESSED, `boss_union` only, when the frame was decided across the
+/// window's cut (PCERT B1, PR 5225): the rim directions on the old
+/// frame's cut (`x ≡ 0`) read the other expression, and the digest
+/// moved with what is stored from those reads. No point moved
+/// (`m10_p_fence` held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x093b_121e_cf25_d2bb),
         ("corner_table", 0x0dab_8120_ac1a_23b9),
         ("cut_cylinder", 0x2346_bf6f_fea8_eda4),
-        ("boss_union", 0xb1d9_d2ed_e8ae_2ffb),
+        ("boss_union", 0x5c5c_f4d1_6f39_a329),
         ("kitchen_sink", 0x210d_f516_2a4c_c228),
     ];
     let mut moved: Vec<String> = Vec::new();

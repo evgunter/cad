@@ -642,13 +642,17 @@ const PLATE_MAX_TERMS: usize = 28;
 /// Door/Decision 9469. Main's final non-finite check and the placement
 /// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
 /// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
-/// every other line is the placement's.
+/// every other line is the placement's. The frame decided across the
+/// window's cut builds the cut-side margin's form in place of `x`'s:
+/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
+/// Door/Decision 9469 → 9545, and their digests; every call and frozen
+/// count holds.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 987 forms 15839 frozen 324 digest 04d4c1ba4b5642ca49c5cecc33637690\n\
-     Plain/Assertion calls 726 forms 6946 frozen 405 digest 2d3f8fc68253564d8245eefc0e944c13\n\
+     Plain/Assertion calls 726 forms 7020 frozen 405 digest 7ac76e11189bac7ff161e0dbc9d23c35\n\
      Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
-     Early/Assertion calls 726 forms 8108 frozen 0 digest a92b467a762680ac8b830ceb654ac390\n\
-     Door/Decision calls 468 forms 9469 frozen 0 digest 344f68bc278f5fb158c048115eb1f4c2";
+     Early/Assertion calls 726 forms 8182 frozen 0 digest a5fe34682216bf66fc159334803f12a4\n\
+     Door/Decision calls 468 forms 9545 frozen 0 digest 875c1ba5bed1ebcfaef22c011ee2d4b8";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

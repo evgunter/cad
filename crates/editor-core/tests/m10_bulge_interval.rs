@@ -118,6 +118,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
 ///
+/// **The frame decided across the window's cut** renames one row and
+/// moves no count: `pcurve_chart_azimuth_frame` 0/0/0/26 ->
+/// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
+/// cut line each of the 26 azimuths lies on.
+///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
 /// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
@@ -191,7 +196,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("path_junction_turn", [0, 4]),
     ("pcurve_azimuth_period", [0, 12]),
     ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [0, 26]),
+    ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
@@ -320,7 +325,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("path_junction_turn", [0, 2]),
             ("pcurve_azimuth_period", [0, 12]),
             ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [0, 26]),
+            ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
             ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),

@@ -569,7 +569,9 @@ fn sym_9_what_each_retry_recovers() {
 /// link −35, the pad's leaf −61) from the placement's, `numeric` the
 /// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
 /// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
-/// with the ladder.
+/// with the ladder. The frame decided across the window's cut sends the
+/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
+/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -699,7 +701,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1291, 1380, 4],
+        [1287, 1384, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -711,7 +713,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1287, 1384, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1283, 1388, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

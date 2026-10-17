@@ -69,3 +69,7 @@ reported (2026-10-17), not only on PR 5225's merge:
 ("lean -2 scale 100 r 0.05 order [0, 1]: tier 3′", edges `8v3` and
 `20v1`). The full ε matrix runs nightly, so these show there, not in
 per-PR CI, unless a diff touches the rows' files.
+
+## §2 on main at `3200e6df83` (PCERT B1, PR 5225, 2026-10-17)
+
+Built and run in place on main `3200e6df83` with its own target directory, the row still fails on boss_union, as above. With a temporary probe (not committed), **`die_pips` refuses at `Interval` too**: the same `curve_pair_pose_one_curve` `Invalid` margin. `die_pips` was re-cut by A′ (`c17bcbd769`). With §2's prescribed fix applied locally (both self-dots of `frame_gap` read through `norm_squared`, `crates/geom-brep/src/curve_pair/pose.rs:975-976`), boss_union certifies at `Interval`. `die_pips` then escalates at `curve_pair_pose_root_gap` over the enclosure `[0, 0.228]`, twice. So the `norm_squared` fix is necessary but not sufficient: the row stays red on die_pips' root gap, a second fault, after it.

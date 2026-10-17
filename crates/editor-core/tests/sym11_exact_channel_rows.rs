@@ -120,13 +120,15 @@ use crate::m10_9_pins_interval::measured_studies;
 /// fired. Main's final non-finite check and the placement add: `symbolic`
 /// falls by main's count on each (plate −45, annulus −27, link −33,
 /// bracket −61, pad −57) from the placement's; `numeric` and `frozen` are
-/// the placement's.
+/// the placement's. The frame decided across the window's cut moves
+/// `frozen` alone, the cut-side margin's forms: bracket 2110 → 2112, pad
+/// 3558 → 3566. No decision moved and no dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [987, 726, 729]),
     ("r1_annulus", [523, 471, 940]),
     ("r2_link", [315, 295, 542]),
-    ("r2_filleted_bracket", [1372, 1096, 2110]),
-    ("r2_rounded_pad", [1248, 1211, 3558]),
+    ("r2_filleted_bracket", [1372, 1096, 2112]),
+    ("r2_rounded_pad", [1248, 1211, 3566]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
