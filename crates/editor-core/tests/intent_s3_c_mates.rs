@@ -1188,3 +1188,81 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     assert_eq!(x.value.to_bits(), 0.0_f64.to_bits(), "{x:?}");
     assert_eq!(x.deriv.to_bits(), 1.0_f64.to_bits(), "{x:?}");
 }
+
+/// **Fork C-5 — a seeded copy at rest has the value lane's bits and
+/// its own tangent.** A box on the world floor spun by `t`, declared at
+/// a whole turn: the `f64` lane's map is the identity to rounding, and
+/// the fold places the copy by no map. A dual run seeded at `t` places
+/// it by a map whose value channel is the identity's exact bits — the
+/// `f64` lane's answer — and whose tangent is the spin's: the turn
+/// about `z` moves the copy's `x` along `y` at unit rate.
+///
+/// *Breaks if* the dual lane keeps the unsnapped map (its value channel
+/// rounds off the `f64` lane's), or snaps the map whole (the tangent is
+/// lost).
+#[test]
+fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
+    let (doc, body) = a_box("s3c_spun_at_rest", 1.0);
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("t").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Angle,
+                std::f64::consts::TAU,
+            )),
+        },
+    );
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let (doc, placement) = placed(doc, body);
+    let (mut doc, mate) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, bottom)),
+            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            class: ContactClass::Rest,
+        },
+    );
+    let turn = Formula::named(
+        editor_core::VarName::new("t").expect("a name"),
+        editor_core::Dimension::Angle,
+    );
+    for (coord, by) in [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, turn),
+    ] {
+        doc = add_value(doc, placement, mate.id, coord, by)
+            .expect("a plane mate leaves the freedom")
+            .0;
+    }
+    assert!(
+        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
+        "a whole turn is at rest in the value lane"
+    );
+    let seeded = EvalOptions {
+        seed: doc.var_named("t"),
+        ..EvalOptions::default()
+    };
+    let map = motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement)
+        .expect("a seeded pose keeps its map")
+        .to_affine();
+    let entries =
+        [map.linear.c0, map.linear.c1, map.linear.c2, map.translation].map(|c| [c.x, c.y, c.z]);
+    let identity = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
+    ];
+    for (column, want) in entries.iter().zip(identity) {
+        for (e, w) in column.iter().zip(want) {
+            assert_eq!(e.value.to_bits(), f64::to_bits(w), "{map:?}");
+        }
+    }
+    assert!(
+        (entries[0][1].deriv - 1.0).abs() < 1e-12 && (entries[1][0].deriv + 1.0).abs() < 1e-12,
+        "the turn's tangent moves x along y: {map:?}"
+    );
+}
