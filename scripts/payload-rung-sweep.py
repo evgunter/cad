@@ -242,6 +242,8 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                    "as `pose_degenerate`'s inner word, crates/pncad-py/src/tags.rs"),
     "PoseAdmits": ("argued", "`document::pose`, re-exported whole; Python says the arm as "
                              "`pose_admits_tag`, crates/pncad-py/src/errors.rs"),
+    "PoseRole": ("argued", "`document::pose`, re-exported whole; Python writes the role "
+                           "as `RoleRead`'s word, crates/pncad-py/src/py/pose.rs"),
 
     # Blind spot (k)'s rows: a discriminant behind an uncurated struct
     # payload, reported under the carrier `via` the struct.
