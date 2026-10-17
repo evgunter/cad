@@ -39,7 +39,7 @@ pub(crate) struct RoleRead {
 }
 
 /// The role words a read names.
-fn role_of(word: &str) -> PyResult<PoseRole> {
+pub(crate) fn role_of(word: &str) -> PyResult<PoseRole> {
     Ok(match word {
         "x" => PoseRole::X,
         "y" => PoseRole::Y,
@@ -60,7 +60,7 @@ fn role_of(word: &str) -> PyResult<PoseRole> {
 }
 
 /// The word a role is named by in Python ([`role_of`]'s inverse).
-fn role_word(role: PoseRole) -> &'static str {
+pub(crate) fn role_word(role: PoseRole) -> &'static str {
     match role {
         PoseRole::X => "x",
         PoseRole::Y => "y",
@@ -117,18 +117,27 @@ impl PoseArg {
 }
 
 fn scalar(py: Python<'_>, slot: PoseSlot, arg: &SlotArg) -> PyResult<d::Formula> {
-    let expected = slot.dimension();
+    scalar_at(py, slot.dimension(), arg, &format!("pose's {}", slot.label()))
+}
+
+/// **A move's or a value's number at `expected`**: `arg` read at that
+/// dimension, a lone `0` the constant zero of it (VR6). `what` names
+/// the slot in the refusal.
+pub(crate) fn scalar_at(
+    py: Python<'_>,
+    expected: d::Dimension,
+    arg: &SlotArg,
+    what: &str,
+) -> PyResult<d::Formula> {
     let formula = arg.formula(py, expected)?;
     if formula.dim() == expected {
         return Ok(formula);
     }
-    // A lone `0` is the constant zero of the slot's dimension (VR6).
     if formula.is_zero() {
         return Ok(d::Formula::zero(expected));
     }
     Err(pyo3::exceptions::PyValueError::new_err(format!(
-        "the pose's {} reads a {}, not a {}",
-        slot.label(),
+        "the {what} reads a {}, not a {}",
         expected,
         formula.dim()
     )))

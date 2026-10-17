@@ -202,11 +202,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::RemainderReadUncarried { reader, why: _ } => {
             (none(), id(reader), none(), none(), none(), none())
         }
-        // The placement is the subject, and the constraint whose frame
-        // crosses rides `mate` (below); which side is in the message.
-        E::MateFrameCrosses { placement, .. } => {
-            (id(placement), none(), none(), none(), none(), none())
-        }
+        // Why the instance could not be pinned rides `inner_variant`
+        // (below).
+        E::InstanceUnpinned { .. } => (none(), none(), none(), none(), none(), none()),
         E::UncutVarReference {
             var,
             cut_node,
@@ -248,17 +246,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             (none(), none(), none(), none(), none(), none())
         }
     };
-    let mate = match err {
-        E::MateFrameCrosses {
-            placement,
-            constraint,
-            ..
-        } => Py::new(
-            py,
-            super::mate::MateRef(d::MateRef::new(placement.id(), *constraint)),
-        )
-        .map(|v| v.into_any())
-        .unwrap_or_else(|_| py.None()),
+    let inner_variant = match err {
+        E::InstanceUnpinned { refusal } => text(crate::tags::pin_refusal_tag(refusal)),
         _ => none(),
     };
     // A definition tied across the cut: the variable it reads that
@@ -285,7 +274,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("param", param),
             ("name", name),
             ("id", doc_id),
-            ("mate", mate),
+            ("inner_variant", inner_variant),
             ("moving", moving),
             ("staying", staying),
         ],
@@ -550,17 +539,25 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        // The placement is the subject, and the constraint rides
-        // `mate` (below); which side is in the message.
-        E::MateFrameCrosses { placement, .. } | E::SideLeavesAnInstance { placement, .. } => (
-            id(placement),
+        // The instance whose pin did not solve, or reads a variable;
+        // the variable rides `param`.
+        E::InstanceUnsolved { instance } => {
+            (id(instance), none(), none(), none(), none(), none(), none())
+        }
+        E::PinReadsVariable { instance, var } => (
+            id(instance),
             none(),
             none(),
-            none(),
+            text(&var.to_string()),
             none(),
             none(),
             none(),
         ),
+        // The part placement is the subject, and the value rides `mate`
+        // (below).
+        E::ValueOnAMovedWorld { placement, .. } => {
+            (id(placement), none(), none(), none(), none(), none(), none())
+        }
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
@@ -572,15 +569,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),
     };
     let mate = match err {
-        E::MateFrameCrosses {
+        E::ValueOnAMovedWorld {
             placement,
-            constraint,
-            ..
-        }
-        | E::SideLeavesAnInstance {
-            placement,
-            constraint,
-            ..
+            value: constraint,
         } => Py::new(
             py,
             super::mate::MateRef(d::MateRef::new(placement.id(), *constraint)),

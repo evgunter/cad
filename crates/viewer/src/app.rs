@@ -4916,7 +4916,7 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement on its own, standing on the world.
+        // Each instance is a placement of its own.
         let a = insert(&mut doc, Node::instantiate_part(part));
         let b = insert(&mut doc, Node::instantiate_part(part));
         let union = fused.then(|| {
@@ -4930,7 +4930,9 @@ mod properties_pane_tests {
                     members: Bodies::Spelled(vec![copy(a), copy(b)]),
                 },
             );
-            crate::test_support::edit_into(&mut doc, DocEdit::place_in_world(union, None), tol);
+            // Placed, loose: the part never resolves, so no pose is
+            // read off its copies to pin it by.
+            insert(&mut doc, Node::place(vec![BodyRead::plain(union.into())]));
             union
         });
         let mut session = crate::session::DocSession::inline(doc, tol);

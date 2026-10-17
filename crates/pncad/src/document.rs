@@ -407,18 +407,21 @@ pub use editor_core::{
 };
 
 // Mates: a placement's constraints (`Constraint`, addressed by a
-// `MateRef`), each a `Mate` of two `SideRead`s over the authored
-// payload (`Alignment` over two `MateFrame`s — each a `FrameBase`, the
-// part frame, the head's own face or the world, composed with an
-// offset `Placement` — a `MatePrimitive`, an `AxisSense`), the solve's
-// outcome (`SolvedPoses`, the residual `Subgroup`, each copy's `Space`),
-// and `MateFault` — the typed refusal every door carries. `member_of` is A11's member vocabulary itself, which
-// an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer); `member_reading` is the same
-// walk with the name it reached at the member's instance, and
-// `head_face` the face of the member's part a head names, which a face
-// frame reads. `OVERCONSTRAINED_RECOURSE` and `CONTRADICTORY_RECOURSE`
-// are the two recourse sentences the solve's own refusals end on.
+// `MateRef`), each a `Mate` of two poses of one kind — `on` read off
+// the copy's geometry, `to` a `Target`: a pose of the space the copy
+// joins, or the world read inside the mate (`WorldRead`) — or a
+// `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
+// mate leaves. The solve's outcome (`SolvedPoses`, the residual
+// `Subgroup`, each copy's `Space`), and `MateFault` — the typed refusal
+// every door carries. `pin_at` pins a copy to the world at a pose over
+// its own geometry; `place_at` is the "place part" gesture's
+// constraints (`Placed`, and `PlacedBy` saying whether the copy had a
+// planar face to rest). `member_of` is A11's member vocabulary itself
+// (`Member` is its answer); `member_reading` is the same walk with the
+// name it reached at the member's instance, and `head_face` the face
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
+// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
+// own refusals end on.
 /// Why a part's face did not read to a pose through a part cache
 /// ([`MateReach::face_pose`]), by the same payload rule: the part does
 /// not resolve, the part's table has no row for the name or ties it,
@@ -447,10 +450,10 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever, Mate,
     MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PartReach, PinRefusal, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    PartReach, PinRefusal, Placed, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Value,
     WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of, member_reading, pin_at,
-    reference_about, relative_freedom_components, solve_document,
+    place_at, reference_about, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

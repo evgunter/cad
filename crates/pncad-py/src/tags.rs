@@ -132,8 +132,8 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    EvalError, FacePoseRefusal, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MeasureUnavailableAt, NoChartWhy, PinRefusal, PlacedBy, SlideAxis, WorldReadFault, Coord, MetaVersionError, MintRefusal,
     NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault,
     PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
     RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
@@ -379,7 +379,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
-        BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
+        BoundaryEdit::Pin(refusal) => pin_refusal_tag(refusal),
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
         BoundaryEdit::Label(fault) => label_fault_tag(fault),
     }
@@ -392,7 +392,7 @@ pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str
     match refusal {
         BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
         BoundaryEdit::NameSerialize
-        | BoundaryEdit::MateHead(_)
+        | BoundaryEdit::Pin(_)
         | BoundaryEdit::ParamName(_)
         | BoundaryEdit::Label(_) => None,
     }
@@ -529,7 +529,10 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Operand(operand) => operand_slot_tag(operand),
         SlotId::Index { .. } => "index",
         SlotId::PlacementStep { .. } => "placement_step",
-        SlotId::MateFrameStep { .. } => "mate_frame_step",
+        SlotId::WorldSlide { .. } => "world_slide",
+        SlotId::WorldSpin { .. } => "world_spin",
+        SlotId::ValueSlide { .. } => "value_slide",
+        SlotId::ValueSpin { .. } => "value_spin",
     }
 }
 
@@ -685,6 +688,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::WorldIsUndeletable { .. } => "world_is_undeletable",
         EditError::ConstraintOnNonPlacement { .. } => "constraint_on_non_placement",
         EditError::UnknownConstraint { .. } => "unknown_constraint",
+        EditError::MateNamedByValue { .. } => "mate_named_by_value",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -1056,9 +1060,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
-        C::MateFrame => "mate_frame_degenerate",
         C::MateClassNotAdmitted => "mate_class_not_admitted",
-        C::MateTableLacks => "mate_table_lacks",
         C::MateIndeterminate => "mate_indeterminate",
         C::MatePoseOutOfRange => "mate_pose_out_of_range",
         C::MateBand => "mate_band",
@@ -1066,15 +1068,13 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOverconstrained => "mate_overconstrained",
         C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
-        C::MateSideBase => "mate_side_base",
-        C::MateSideUnresolved => "mate_side_unresolved",
-        C::MateDanglingHead => "mate_dangling_head",
-        C::MatePlacerRefused => "mate_placer_refused",
-        C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
-        C::MateSelf => "mate_self",
         C::MateUnleverable => "mate_unleverable",
-        C::MateFaceUnresolved => "mate_face_unresolved",
-        C::MateFrameUnevaluated => "mate_frame_unevaluated",
+        C::MateKindsDiffer => "mate_kinds_differ",
+        C::MateWorldRead => "mate_world_read",
+        C::MateSideUnevaluated => "mate_side_unevaluated",
+        C::MateValueNamesNoMate => "mate_value_names_no_mate",
+        C::MateNotAFreedom => "mate_not_a_freedom",
+        C::MateNoChart => "mate_no_chart",
         C::CrossingUnverified => "crossing_unverified",
         // A node reading two spaces: a loose copy's beside the world's,
         // or two loose copies'.
@@ -1181,6 +1181,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",
             pncad::document::pose::PoseConstruction::Meet => "meet",
+            pncad::document::pose::PoseConstruction::Chart => "chart",
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
@@ -1320,6 +1321,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::WorldIsUndeletable { .. } => None,
         EditError::ConstraintOnNonPlacement { .. } => None,
         EditError::UnknownConstraint { .. } => None,
+        EditError::MateNamedByValue { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -1871,24 +1873,64 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     node_error_tag(NodeErrorClass::of_mate(fault))
 }
 
-/// The stable tag for a face refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a face base's
-/// face answered no pose through the mated part's own
-/// evaluation. The reach's own refusal is spelled by its own map
-/// ([`face_pose_refusal_tag`]).
-///
-/// The map is exhaustive rather than a constant so a new way for a
-/// face to refuse arrives here as a compile error.
-pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
-    match refusal {
-        FaceRefusal::Reach { refusal, .. } => face_pose_refusal_tag(refusal),
-        FaceRefusal::NotAnInstance { .. } => "not_an_instance",
-        FaceRefusal::NoPartFace { .. } => "no_part_face",
+/// The stable tag for which freedom a value sets (`Coord`): a slide
+/// along the chart's `x`, `y` or `z`, or the spin.
+pub fn coord_tag(coord: Coord) -> &'static str {
+    match coord {
+        Coord::Slide(SlideAxis::X) => "slide_x",
+        Coord::Slide(SlideAxis::Y) => "slide_y",
+        Coord::Slide(SlideAxis::Z) => "slide_z",
+        Coord::Spin => "spin",
     }
 }
 
-/// The stable tag for the reach's refusal of a face's pose, which a
-/// [`FaceRefusal`] carries. Exhaustive, as every map here is.
+/// The stable tag for why a value's freedom has no chart — the `why`
+/// of `mate_no_chart`.
+pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
+    match why {
+        NoChartWhy::PointRotation => "point_rotation",
+        NoChartWhy::TwoBodies => "two_bodies",
+    }
+}
+
+/// The stable tag for why a mate's world read is no pose — the inner
+/// arm of `mate_world_read`.
+pub fn world_read_fault_tag(fault: &WorldReadFault) -> &'static str {
+    match fault {
+        WorldReadFault::Role { .. } => "role",
+        WorldReadFault::Along => "along",
+        WorldReadFault::SlidDirection => "slid_direction",
+        WorldReadFault::About => "about",
+        WorldReadFault::FlippedPoint => "flipped_point",
+    }
+}
+
+/// The stable tag for why a copy could not be pinned over its
+/// geometry (`pin_at`, `place_at`): the inner arm of a split's
+/// `instance_unpinned`, and the `EditError.variant` the "place part"
+/// gesture (`Doc.place_at`) raises under.
+pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
+    match refusal {
+        PinRefusal::NoNode => "pin_no_node",
+        PinRefusal::Unevaluated { .. } => "pin_unevaluated",
+        PinRefusal::NotABody { .. } => "pin_not_a_body",
+        PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
+        PinRefusal::NoFrame { .. } => "pin_no_frame",
+        PinRefusal::Band => "pin_band",
+    }
+}
+
+/// The stable tag for how the "place part" gesture placed a copy:
+/// resting a planar face, or pinned over a frame read off its geometry.
+pub fn placed_by_tag(by: PlacedBy) -> &'static str {
+    match by {
+        PlacedBy::PlanarFace => "planar_face",
+        PlacedBy::Pin => "pin",
+    }
+}
+
+/// The stable tag for the reach's refusal of a face's pose
+/// (`MateReach::face_pose`). Exhaustive, as every map here is.
 pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
     match refusal {
         FacePoseRefusal::PartUnresolved { .. } => "part_unresolved",
@@ -1909,7 +1951,7 @@ pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
         LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
-        LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+        LeverRefusal::Shape { refusal, .. } => reach_refusal_tag(refusal),
         LeverRefusal::OutOfRange { .. } => "out_of_range",
         LeverRefusal::BelowZeroBand { .. } => "below_zero_band",
     }
@@ -2003,7 +2045,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
         SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
-        SnapshotError::MateAlignment { .. } => "mate_alignment",
+        SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::PlacementRule { .. } => "placement_rule",
         SnapshotError::InputList { .. } => "input_list",
         SnapshotError::ObservedRead { .. } => "observed_read",
@@ -2545,7 +2587,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
-        SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
+        SplitError::InstanceUnpinned { .. } => "instance_unpinned",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
@@ -2582,8 +2624,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
         InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
-        InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        InlineError::SideLeavesAnInstance { .. } => "side_leaves_an_instance",
+        InlineError::PinReadsVariable { .. } => "pin_reads_variable",
+        InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
+        InlineError::InstanceUnsolved { .. } => "instance_unsolved",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -3345,17 +3388,6 @@ pub fn ring_pair_contact_tag(contact: &RingPairContact) -> &'static str {
         RingPairContact::OtherVertexOnEdge { .. } => "vertex_on_ring_edge",
         RingPairContact::EdgesMeet { .. } => "edge_edge_point",
         RingPairContact::Circles { .. } => "circle_circle",
-    }
-}
-
-/// The stable tag for a mate PRIMITIVE — which alignment the authored
-/// mate asks for, before any solve.
-pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
-    match primitive {
-        MatePrimitive::FrameCoincidence => "frame_coincidence",
-        MatePrimitive::Coaxial => "coaxial",
-        MatePrimitive::PlanarRest { .. } => "planar_rest",
-        MatePrimitive::Clocking => "clocking",
     }
 }
 

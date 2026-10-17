@@ -144,7 +144,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             post_i,
             shelf_i,
             ContactClass::Rest,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         )
     };
     let refused = session.perform(seat());

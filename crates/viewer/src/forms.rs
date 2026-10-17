@@ -18,16 +18,14 @@
 //! verbs not even that — `profile::Verb`'s `Display` is its word). What
 //! no compiler holds is a DELIBERATELY PARTIAL list, which claims no
 //! completeness and so cannot be held to it.
-//! Both partial mirrors on this page are held to the weaker thing that
-//! IS true of them: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
+//! The partial mirror on this page is held to the weaker thing that
+//! IS true of it: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
 //! classifies every variant of the mirrored enum as offered here or as
-//! deliberately absent with its reason, so neither `MatePrimitive` nor
-//! `DatumSpec` can grow past this form in silence. The two take
-//! different shapes of that one macro, because what they offer differs:
-//! `MATE_PRIMITIVES` is a hand-written list and its roster holds a seat
-//! per offered entry, while `DatumKindChoice` is an enum whose `ALL` is
-//! projected, so its roster names a counterpart and has no seat to
-//! hold. Each says so at its own site. (Code spans rather
+//! deliberately absent with its reason, so `DatumSpec` cannot grow
+//! past this form in silence (`crate::matetool::MATE_KINDS` is held the
+//! same way, beside the tool that reads it). `DatumKindChoice` is an
+//! enum whose `ALL` is projected, so its roster names a counterpart and
+//! has no seat to hold. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
@@ -37,7 +35,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Dimension, MatePrimitive};
+use pncad::document::Dimension;
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
 use pncad::topo::BooleanOp;
@@ -397,40 +395,3 @@ impl FieldWriting {
     }
 }
 
-/// The primitives the chrome offers, with their labels. The op
-/// vocabulary accepts any [`MatePrimitive`]; these are the three the
-/// panel can spell without a numeric field (`PlanarRest`'s offset is
-/// authored 0 — a flush rest; a standoff is typed through the tree's
-/// ordinary property doors once the node exists).
-///
-/// **Deliberately partial**, which is why it is hand-written and not
-/// projected: [`MatePrimitive`] has a fourth variant (`Clocking`) that
-/// the kernel represents so it can REFUSE it, and a form offering it
-/// would be offering a refusal. Completeness is exactly what this list
-/// does not claim, so a mechanism that forced it would be forcing the
-/// wrong thing — mapping this form over a published `ALL` the way the
-/// boolean buttons are mapped is precisely the wrong fix here.
-///
-/// **A decision per variant, and the compiler holds the decision.**
-/// Nothing here forces the list to be COMPLETE — completeness is what
-/// it does not claim. What the `partial_mirror!` invocation below
-/// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
-/// every [`MatePrimitive`] variant is either offered at a seat of this
-/// list or named below as deliberately absent, with the reason it is
-/// absent.
-pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
-    (MatePrimitive::FrameCoincidence, "frame coincidence"),
-    (MatePrimitive::Coaxial, "coaxial"),
-    (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
-];
-
-partial_mirror! {
-    MatePrimitive, labelled MATE_PRIMITIVES,
-    offered [FrameCoincidence, Coaxial, PlanarRest { .. }],
-    absent [
-        Clocking => "the kernel represents it so it can REFUSE it \
-                     (`mate::solve` faults `TableLacks` on a standalone \
-                     clocking), and a form offering it would be offering \
-                     a refusal",
-    ],
-}

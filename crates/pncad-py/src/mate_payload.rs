@@ -30,11 +30,8 @@
 //! # The flattening
 //!
 //! One attribute per CONCEPT. [`MateFaultPayload::error`] is the
-//! PLACER's evaluation refusal, as the tag every node failure crosses
-//! with; the kernel's `Frame` and `Band` arms name their own inner
-//! refusals `error` too, and those are different types that do not
-//! share this attribute — their `inner_variant` is the word they
-//! cross under and their prose is in `str(fault)`.
+//! evaluation's own refusal for a pose that did not evaluate, as the
+//! tag every node failure crosses with.
 //!
 //! [`MateFaultPayload::predicate`] is one concept and therefore one
 //! attribute: the predicate that DECIDED. A contradictory pair names
@@ -45,11 +42,11 @@
 //!
 //! A NESTED REFUSAL crosses as its own word rather than being
 //! flattened into this record's other attributes:
-//! [`MateFaultPayload::inner_variant`] is the frame ladder's tag on
-//! `Frame`, the band constructor's on `Band` and the lever refusal's
-//! on `Unleverable`. `Indeterminate` carries a STRUCT rather than an
-//! enum, so it has no inner word at all and its shape is which margin
-//! attribute is set.
+//! [`MateFaultPayload::inner_variant`] is the band constructor's word
+//! on `Band`, the lever refusal's on `Unleverable` and the world
+//! read's on `WorldRead`. `Indeterminate` carries a STRUCT rather than
+//! an enum, so it has no inner word at all and its shape is which
+//! margin attribute is set.
 //!
 //! # The classifier's words are the frame door's words
 //!
@@ -58,26 +55,18 @@
 //! rather than re-spelled: the escalation a mate reports and the one
 //! a frame constructor reports are the same value, and a caller that
 //! learned the words at one door reads them at the other. The fork
-//! itself is [`crate::escalation`], which both doors call.
-//!
-//! Two arms feed those attributes and neither is a second concept: a
-//! mate's own escalation (`Indeterminate`), and the escalation inside
-//! the frame refusal a mate's datum wrapped
-//! (`Frame`'s `FrameError::Degenerate`). `field` / `value` are the
-//! band arm's, at the same door, reached through `Frame`'s
-//! `FrameError::Band` as well as through `Band` itself.
+//! itself is [`crate::escalation`], which both doors call. `field` /
+//! `value` are the band arm's, at the same door.
 
 use pncad::document::{
-    Clash, ConstraintId, DocumentId, FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal,
-    MateFault, MateRef, MateSide, ReachRefusal, RecipeNodeId, Subgroup,
+    Clash, ConstraintId, Coord, DocumentId, Lever, LeverRefusal, MateFault, MateRef, MateSide,
+    NoChartWhy, ReachRefusal, RecipeNodeId, Subgroup, VarKind,
 };
-use pncad::geom_core::{BandError, FrameError, Indeterminate};
-use pncad::prelude::StableName;
+use pncad::geom_core::{BandError, Indeterminate};
 
 use crate::escalation::escalation;
 use crate::tags::{
-    band_error_tag, band_field_tag, face_refusal_tag, frame_error_tag, lever_refusal_tag,
-    node_error_tag,
+    band_error_tag, band_field_tag, lever_refusal_tag, node_error_tag, world_read_fault_tag,
 };
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -85,36 +74,28 @@ use crate::tags::{
 /// Every field is a plain kernel value: the Python wrappers are built
 /// at the accessor, so this record is what the no-interpreter build
 /// tests. Borrowed from the fault for the one field that is not
-/// `Copy` — the face a face-based side read.
+/// `Copy` — the constraints a bundle's fault names.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MateFaultPayload<'a> {
     /// The mate the fault is ABOUT, by its address.
     pub mate: Option<MateRef>,
-    /// Which side of the mate refused.
+    /// Which pose of the mate refused.
     pub side: Option<MateSide>,
-    /// The instantiate node a dangling reference head claims.
-    pub head: Option<RecipeNodeId>,
-    /// The placer whose pose could not be derived.
-    pub placer: Option<RecipeNodeId>,
-    /// **The evaluation's own refusal for that placer**, as the tag
-    /// every node failure crosses with
+    /// **The evaluation's own refusal for a pose that did not
+    /// evaluate**, as the tag every node failure crosses with
     /// ([`crate::tags::node_error_tag`]).
     pub error: Option<&'static str>,
-    /// The instance a self-mate names twice, or the instance whose
-    /// part a lever or a face frame was asked of.
+    /// The instance whose part a lever's reach was asked of.
     pub instance: Option<RecipeNodeId>,
+    /// The node whose copied body a lever's reach was asked of.
+    pub shape: Option<RecipeNodeId>,
     /// The placement a bundle's fault is about: the one a constraint
-    /// over-constrains, or whose constraints target different copies.
+    /// over-constrains, or whose constraints target different spaces.
     pub placement: Option<RecipeNodeId>,
     /// The constraints of [`Self::placement`] the fault names: each
     /// whose removal leaves the bundle's codimension unchanged, or the
     /// bundle's constraints whose targets differ.
     pub constraints: Option<&'a [ConstraintId]>,
-    /// The frame base a side carries that its read does not admit.
-    pub base: Option<FrameBase>,
-    /// **The face a face-based side read**: its head's face in the part's own
-    /// spelling, or the head itself where it names no face of the part.
-    pub face: Option<&'a StableName>,
     /// What the rest of an over-constrained bundle already holds the
     /// copy to.
     pub residual: Option<Subgroup>,
@@ -128,25 +109,18 @@ pub struct MateFaultPayload<'a> {
     /// which outcome it names.
     pub predicate: Option<&'static str>,
     /// The measured clash, in metres: a length verbatim, a lever's
-    /// product, and `None` for the structural refusal
-    /// (`mate_member_empty`), which measures nothing.
+    /// product, and `None` for the structural refusal, which measures
+    /// nothing.
     pub clash: Option<f64>,
-    /// The `Part` node whose index expression disagrees with the copy
-    /// the reference's name names.
-    pub part: Option<RecipeNodeId>,
-    /// The copy that reference's NAME names.
-    pub named: Option<u32>,
-    /// What the `Part`'s index expression evaluates to instead.
-    pub selected: Option<i64>,
-    /// What the coset table was asked for, in its own words.
+    /// What a lever's unbounded face is, in its own words.
     pub what: Option<&'static str>,
     /// The document whose placement was asked for.
     pub expected_document: Option<DocumentId>,
     /// The document the solve is of.
     pub found_document: Option<DocumentId>,
-    /// **The nested refusal's own word**: the frame ladder's tag, the
-    /// band constructor's, or the lever refusal's. An arm whose
-    /// payload is a struct rather than an enum has none.
+    /// **The nested refusal's own word**: the band constructor's, the
+    /// lever refusal's, or the world read's. An arm whose payload is a
+    /// struct rather than an enum has none.
     pub inner_variant: Option<&'static str>,
     /// The in-band margin, in metres, when the classifier saw a
     /// value.
@@ -168,7 +142,7 @@ pub struct MateFaultPayload<'a> {
     /// band constructor.
     pub value: Option<f64>,
     /// The lever's TILT, in radians, when a contradictory clash
-    /// levered an authored roll (`Lever::Roll`). One of this and
+    /// levered a roll (`Lever::Roll`). One of this and
     /// `lever_residual` is set on a levered clash, never both: which
     /// one says what kind of number the predicate measured.
     pub lever_tilt: Option<f64>,
@@ -177,13 +151,27 @@ pub struct MateFaultPayload<'a> {
     /// named by `predicate` — when a contradictory clash levered one
     /// (`Lever::Residual`).
     pub lever_residual: Option<f64>,
-    /// Its ARM, in metres: an upper bound on the two mated parts'
-    /// extent together from the datum — each part's reach from its
-    /// own origin plus its frame's distance, plus the authored lengths
-    /// — and NOT a contact feature, so it names the parts' scale and
-    /// nothing else in the model. The set half times `lever_arm` is
-    /// the `clash` beside it.
+    /// Its ARM, in metres: an upper bound on the two mated bodies'
+    /// extent together from the datum, and NOT a contact feature, so
+    /// it names the bodies' scale and nothing else in the model. The
+    /// set half times `lever_arm` is the `clash` beside it.
     pub lever_arm: Option<f64>,
+    /// The kind of pose a mate's `on` reads, where the two kinds
+    /// differ.
+    pub on_kind: Option<VarKind>,
+    /// The kind of pose its `to` reads.
+    pub to_kind: Option<VarKind>,
+    /// **The value a value's fault is about**, by its address.
+    pub value_ref: Option<MateRef>,
+    /// The constraint id a value names that is no mate of its bundle.
+    pub named: Option<ConstraintId>,
+    /// The freedom a value sets.
+    pub coord: Option<Coord>,
+    /// The kind of the mate whose kind alone fixes the freedom a value
+    /// sets.
+    pub mate_kind: Option<VarKind>,
+    /// Why a value's freedom has no chart.
+    pub why: Option<NoChartWhy>,
 }
 
 impl<'a> MateFaultPayload<'a> {
@@ -193,26 +181,20 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 32] {
+    pub fn presence(&self) -> [(&'static str, bool); 33] {
         let Self {
             mate,
             side,
-            head,
-            placer,
             error,
             instance,
+            shape,
             placement,
             constraints,
-            base,
-            face,
             residual,
             held,
             added,
             predicate,
             clash,
-            part,
-            named,
-            selected,
             what,
             expected_document,
             found_document,
@@ -227,26 +209,27 @@ impl<'a> MateFaultPayload<'a> {
             lever_tilt,
             lever_residual,
             lever_arm,
+            on_kind,
+            to_kind,
+            value_ref,
+            named,
+            coord,
+            mate_kind,
+            why,
         } = self;
         [
             ("mate", mate.is_some()),
             ("side", side.is_some()),
-            ("head", head.is_some()),
-            ("placer", placer.is_some()),
             ("error", error.is_some()),
             ("instance", instance.is_some()),
+            ("shape", shape.is_some()),
             ("placement", placement.is_some()),
             ("constraints", constraints.is_some()),
-            ("base", base.is_some()),
-            ("face", face.is_some()),
             ("residual", residual.is_some()),
             ("held", held.is_some()),
             ("added", added.is_some()),
             ("predicate", predicate.is_some()),
             ("clash", clash.is_some()),
-            ("part", part.is_some()),
-            ("named", named.is_some()),
-            ("selected", selected.is_some()),
             ("what", what.is_some()),
             ("expected_document", expected_document.is_some()),
             ("found_document", found_document.is_some()),
@@ -261,6 +244,13 @@ impl<'a> MateFaultPayload<'a> {
             ("lever_tilt", lever_tilt.is_some()),
             ("lever_residual", lever_residual.is_some()),
             ("lever_arm", lever_arm.is_some()),
+            ("on_kind", on_kind.is_some()),
+            ("to_kind", to_kind.is_some()),
+            ("value_ref", value_ref.is_some()),
+            ("named", named.is_some()),
+            ("coord", coord.is_some()),
+            ("mate_kind", mate_kind.is_some()),
+            ("why", why.is_some()),
         ]
     }
 
@@ -277,22 +267,16 @@ impl<'a> MateFaultPayload<'a> {
     pub const NONE: Self = Self {
         mate: None,
         side: None,
-        head: None,
-        placer: None,
         error: None,
         instance: None,
+        shape: None,
         placement: None,
         constraints: None,
-        base: None,
-        face: None,
         residual: None,
         held: None,
         added: None,
         predicate: None,
         clash: None,
-        part: None,
-        named: None,
-        selected: None,
         what: None,
         expected_document: None,
         found_document: None,
@@ -307,6 +291,13 @@ impl<'a> MateFaultPayload<'a> {
         lever_tilt: None,
         lever_residual: None,
         lever_arm: None,
+        on_kind: None,
+        to_kind: None,
+        value_ref: None,
+        named: None,
+        coord: None,
+        mate_kind: None,
+        why: None,
     };
 }
 
@@ -348,33 +339,14 @@ fn with_band<'a>(base: MateFaultPayload<'a>, error: &BandError) -> MateFaultPayl
     }
 }
 
-/// The frame ladder's refusal: its own word, and whatever the arm
-/// under it carries.
-///
-/// `inner_variant` is ONE level in — the word `FrameError` crosses
-/// under at the frame door itself, `band` included. A band refusal
-/// two levels down is what `field`, `value`, `zero` and `escalate`
-/// then say, which is the whole of its payload.
-fn with_frame<'a>(base: MateFaultPayload<'a>, error: &FrameError) -> MateFaultPayload<'a> {
-    let base = MateFaultPayload {
-        inner_variant: Some(frame_error_tag(error)),
-        ..base
-    };
-    match error {
-        // A definite zero carries no classification: the arm refused
-        // outright rather than landing in the band.
-        FrameError::Degenerate {
-            indeterminate: None,
-            ..
-        } => base,
-        FrameError::Degenerate {
-            indeterminate: Some(diag),
-            ..
-        } => with_escalation(base, diag),
-        // Neither format arm carries a classification: both refused
-        // before any margin reached the funnel.
-        FrameError::NonFiniteLength { .. } | FrameError::UnderflowedLength { .. } => base,
-        FrameError::Band(inner) => with_band(base, inner),
+/// The word a reach refusal's unbounded face names its kind by.
+fn unbounded(refusal: &ReachRefusal) -> Option<&'static str> {
+    match refusal {
+        ReachRefusal::FaceUnbounded { kind, .. } => Some(kind.name()),
+        ReachRefusal::PartUnresolved { .. }
+        | ReachRefusal::MalformedBody { .. }
+        | ReachRefusal::NoExtent
+        | ReachRefusal::NoFiniteBound => None,
     }
 }
 
@@ -404,22 +376,12 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             error,
         ),
-        // `error` here is the frame ladder's refusal, a different
-        // type from the placer refusal this record's `error` carries:
-        // it crosses as `inner_variant` and the classifier's own
-        // words, never on that attribute.
-        MateFault::Frame { mate, side, error } => with_frame(
+        MateFault::ClassNotAdmitted { mate } | MateFault::NotOnTheCopy { mate } => {
             MateFaultPayload {
                 mate: Some(*mate),
-                side: Some(*side),
                 ..none
-            },
-            error,
-        ),
-        MateFault::ClassNotAdmitted { mate } => MateFaultPayload {
-            mate: Some(*mate),
-            ..none
-        },
+            }
+        }
         // A struct, not an enum: the escalation has no inner WORD,
         // and its shape is which margin attribute is set.
         MateFault::Indeterminate { mate, diag } => with_escalation(
@@ -429,81 +391,31 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             diag,
         ),
-        // No lever could be formed. A part's reach not in hand names
-        // the instance it is about beside the refusal's word, and a
-        // face that cannot be bounded names its kind in `what`; an
-        // out-of-range lever is the pair's, and names no instance.
+        // No lever could be formed. A reach not in hand names the
+        // instance or the copied shape it is about beside the refusal's
+        // word, and a face that cannot be bounded names its kind in
+        // `what`; an out-of-range lever is the pair's, and names
+        // neither.
         MateFault::Unleverable { mate, refusal } => {
-            let (instance, what) = match refusal.as_ref() {
+            let (instance, shape, what) = match refusal.as_ref() {
                 LeverRefusal::Reach {
                     instance, refusal, ..
-                } => (
-                    Some(*instance),
-                    match refusal {
-                        ReachRefusal::FaceUnbounded { kind, .. } => Some(kind.name()),
-                        ReachRefusal::PartUnresolved { .. }
-                        | ReachRefusal::MalformedBody { .. }
-                        | ReachRefusal::NoExtent
-                        | ReachRefusal::NoFiniteBound => None,
-                    },
-                ),
-                LeverRefusal::NotAnInstance { node } => (Some(*node), None),
+                } => (Some(*instance), None, unbounded(refusal)),
+                LeverRefusal::Shape { shape, refusal } => (None, Some(*shape), unbounded(refusal)),
                 LeverRefusal::OutOfRange { .. } | LeverRefusal::BelowZeroBand { .. } => {
-                    (None, None)
+                    (None, None, None)
                 }
             };
             MateFaultPayload {
                 mate: Some(*mate),
                 inner_variant: Some(lever_refusal_tag(refusal)),
                 instance,
+                shape,
                 what,
                 ..none
             }
         }
-        MateFault::TableLacks { mate, what } => MateFaultPayload {
-            mate: Some(*mate),
-            what: Some(what),
-            ..none
-        },
-        // A face base's face answered no pose. The instance it
-        // is about rides beside the refusal's word, the face it named
-        // where the refusal names one, and a wrong-kind row names what
-        // it holds in `what` (`entity_kind_tag`'s word), as a lever's
-        // unbounded face names its kind there.
-        MateFault::FaceUnresolved {
-            mate,
-            side,
-            refusal,
-        } => {
-            let (instance, what) = match refusal.as_ref() {
-                FaceRefusal::Reach {
-                    instance, refusal, ..
-                } => (
-                    *instance,
-                    match refusal {
-                        FacePoseRefusal::NotAFace { found } => {
-                            Some(crate::tags::entity_kind_tag(*found))
-                        }
-                        FacePoseRefusal::PartUnresolved { .. }
-                        | FacePoseRefusal::NoSuchName
-                        | FacePoseRefusal::Ambiguous { .. }
-                        | FacePoseRefusal::Readback(_) => None,
-                    },
-                ),
-                FaceRefusal::NotAnInstance { node } => (*node, None),
-                FaceRefusal::NoPartFace { instance, .. } => (*instance, None),
-            };
-            MateFaultPayload {
-                mate: Some(*mate),
-                side: Some(*side),
-                inner_variant: Some(face_refusal_tag(refusal)),
-                instance: Some(instance),
-                face: refusal.face().map(|face| face.as_ref()),
-                what,
-                ..none
-            }
-        }
-        // The lever is the mated parts' own extent rather than
+        // The lever is the mated bodies' own extent rather than
         // anything in the model, and `clash` is the PRODUCT of its
         // two halves. The kind of number levered is which half is
         // set — a roll's tilt or a residual — and a length measured
@@ -556,36 +468,38 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             constraints: Some(constraints),
             ..none
         },
-        MateFault::NotOnTheCopy { mate } => MateFaultPayload {
+        MateFault::KindsDiffer { mate, on, to } => MateFaultPayload {
             mate: Some(*mate),
+            on_kind: Some(*on),
+            to_kind: Some(*to),
             ..none
         },
-        MateFault::SideBase { mate, side, base } => MateFaultPayload {
+        // The world read's own refusal crosses as its word.
+        MateFault::WorldRead { mate, fault } => MateFaultPayload {
             mate: Some(*mate),
-            side: Some(*side),
-            base: Some(*base),
+            inner_variant: Some(world_read_fault_tag(fault)),
             ..none
         },
-        // The side's read rides the sentence; the payload names the
-        // mate and the side.
-        MateFault::SideUnresolved {
-            mate,
-            side,
-            read: _,
-        } => MateFaultPayload {
-            mate: Some(*mate),
-            side: Some(*side),
+        // A value's faults: the value is the subject, by its address.
+        MateFault::ValueNamesNoMate { value, mate } => MateFaultPayload {
+            value_ref: Some(*value),
+            named: Some(*mate),
             ..none
         },
-        MateFault::DanglingHead { mate, side, head } => MateFaultPayload {
-            mate: Some(*mate),
-            side: Some(*side),
-            head: Some(*head),
+        MateFault::NotAFreedom { value, coord, kind } => MateFaultPayload {
+            value_ref: Some(*value),
+            coord: Some(*coord),
+            mate_kind: *kind,
             ..none
         },
-        // The offset's own refusal crosses as its class's word, as a
-        // placer's does.
-        MateFault::FrameUnevaluated {
+        MateFault::NoChart { value, why } => MateFaultPayload {
+            value_ref: Some(*value),
+            why: Some(*why),
+            ..none
+        },
+        // The pose's own refusal crosses as its class's word, as every
+        // node failure does.
+        MateFault::SideUnevaluated {
             mate,
             side,
             refusal,
@@ -593,38 +507,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             mate: Some(*mate),
             side: Some(*side),
             error: Some(node_error_tag(refusal.kind().class())),
-            ..none
-        },
-        MateFault::PlacerRefused {
-            mate,
-            side,
-            placer,
-            error,
-            ..
-        } => MateFaultPayload {
-            mate: Some(*mate),
-            side: Some(*side),
-            placer: Some(*placer),
-            error: Some(node_error_tag(error.kind().class())),
-            ..none
-        },
-        MateFault::PartSelectsAnotherCopy {
-            mate,
-            side,
-            part,
-            named,
-            selected,
-        } => MateFaultPayload {
-            mate: Some(*mate),
-            side: Some(*side),
-            part: Some(*part),
-            named: Some(*named),
-            selected: Some(*selected),
-            ..none
-        },
-        MateFault::SelfMate { mate, instance } => MateFaultPayload {
-            mate: Some(*mate),
-            instance: Some(*instance),
             ..none
         },
     }

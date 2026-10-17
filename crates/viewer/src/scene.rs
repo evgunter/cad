@@ -33,7 +33,8 @@ use std::collections::BTreeSet;
 use bvh::Aabb;
 use pncad::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
-    LoopProgram, Node, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply, evaluate,
+    LoopProgram, Node, Operand, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply,
+    evaluate,
     held_by, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
@@ -862,13 +863,46 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         },
         tol,
     )?;
-    // The plate is the product because it is placed (A10).
-    let DocEdit::InsertNode { node: placed, .. } =
-        DocEdit::<ProfileProgram>::place_in_world(extrude, None)
-    else {
-        unreachable!("`DocEdit::place_in_world` is an insert")
+    // The plate is the product because it is placed (A10): a placement
+    // of it, placed at the identity by the "place part" gesture's mate
+    // and values.
+    let (doc, placement) = insert(
+        doc,
+        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(extrude))]),
+        tol,
+    )?;
+    let placed = editor_core::place_at(
+        &doc,
+        &Operand::from(extrude),
+        &pncad::document::Frame::IDENTITY,
+        &EvalOptions::default(),
+        tol,
+    )
+    .map_err(SceneDocError::Place)?;
+    let (doc, record) = edit(
+        doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+        tol,
+    )?;
+    let [mate] = record.minted_constraints[..] else {
+        unreachable!("an AddConstraint mints one constraint id")
     };
-    let (doc, _) = insert(doc, *placed, tol)?;
+    let doc = placed.values.into_iter().try_fold(doc, |doc, (coord, by)| {
+        edit(
+            doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(pncad::document::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+            tol,
+        )
+        .map(|(doc, _)| doc)
+    })?;
     Ok((doc, extrude))
 }
 
@@ -882,11 +916,13 @@ pub enum SceneDocError {
     /// An insert did not mint a node id — an `apply` postcondition,
     /// carried as a value rather than asserted away.
     NoNodeMinted,
+    /// The plate could not be placed over its geometry.
+    Place(pncad::document::PinRefusal),
 }
 
 impl core::fmt::Display for SceneDocError {
-    /// Both payload arms forward to the document layer's own
-    /// `Display`; only the postcondition arm is this layer's sentence.
+    /// Each payload arm forwards to the document layer's own `Display`;
+    /// only the postcondition arm is this layer's sentence.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Dimension(error) => write!(f, "{error}"),
@@ -895,6 +931,7 @@ impl core::fmt::Display for SceneDocError {
                 "an insert minted no node id, so the authored node cannot be referred \
                  to",
             ),
+            Self::Place(refusal) => write!(f, "{refusal}"),
         }
     }
 }
@@ -1537,21 +1574,31 @@ fn insert(
     node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    // The scene's document has no instance, and its one constraint
-    // pins the plate to the world, which reads no part: the refusing
-    // reach is never asked.
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
+    let (doc, record) = edit(
+        doc,
+        DocEdit::InsertNode {
             node: Box::new(node),
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .map_err(SceneDocError::Edit)?;
-    let minted = applied.record.minted.ok_or(SceneDocError::NoNodeMinted)?;
-    Ok((applied.doc, minted))
+    )?;
+    let minted = record.minted.ok_or(SceneDocError::NoNodeMinted)?;
+    Ok((doc, minted))
+}
+
+/// `edit` applied to `doc`, answering the document and the edit's
+/// record.
+fn edit(
+    doc: Doc<ProfileProgram>,
+    edit: DocEdit<ProfileProgram>,
+    tol: Tol,
+) -> Result<(Doc<ProfileProgram>, pncad::document::EditRecord), SceneDocError> {
+    // The scene's document has no instance, and its constraints place
+    // the plate against the world, which reads no part: the refusing
+    // reach is never asked.
+    let applied = apply(&doc, &edit, tol, &pncad::document::RefusingReach)
+        .map_err(SceneDocError::Edit)?;
+    Ok((applied.doc, applied.record))
 }
 
 /// The three corner points of one triangle, or `None` when an index

@@ -38,20 +38,17 @@ pub mod corpus_pick;
 
 use bvh::Aabb;
 use editor_core::ExtrudeSide;
-use pncad::document::{SolvedPoses, mate_reach, solve_document};
+use pncad::document::{SolvedPoses, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
 
-/// **The mate solve of `doc` under `session`'s own seam** — the lever
-/// is each mated part's extent, resolved through the session's
-/// resolver the way its landed evaluation resolved it
-/// (`DocSession::eval_options`), built through the kernel's public
-/// door. `doc` is the session's landed document, or one derived from
-/// it that resolves against the same directory.
+/// **The placements of `doc` solved under `session`'s own seam** —
+/// each mated part resolved through the session's resolver the way its
+/// landed evaluation resolved it (`DocSession::eval_options`), through
+/// the kernel's public door. `doc` is the session's landed document, or
+/// one derived from it that resolves against the same directory.
 pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
-    let opts = session.eval_options();
-    let reach = mate_reach::<f64>(&opts, tol);
-    solve_document(doc, &reach, tol)
+    solve_document(doc, &session.eval_options(), tol)
 }
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 
@@ -350,9 +347,10 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
     node
 }
 
-/// **Every mate `doc` holds**: each constraint whose two sides are
-/// faces, by its address, in placement order and bundle order within
-/// one — the recipe's own mates, without the world pins.
+/// **Every mate `doc` holds between two copies**: each mate whose
+/// target is a pose rather than the world, by its address, in placement
+/// order and bundle order within one — the recipe's own mates, without
+/// the world pins and without the values.
 pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
     doc.placements()
         .into_iter()
@@ -360,25 +358,28 @@ pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
             crate::fixture::bundle(doc, placement)
                 .into_iter()
                 .filter(|constraint| {
-                    matches!(constraint.mate.a, pncad::document::SideRead::Face(_))
-                        && matches!(constraint.mate.b, pncad::document::SideRead::Face(_))
+                    constraint
+                        .mate()
+                        .is_some_and(|mate| matches!(mate.to, pncad::document::Target::Pose(_)))
                 })
                 .map(move |constraint| pncad::document::MateRef::new(placement, constraint.id))
         })
         .collect()
 }
 
-/// **Commit a mate through the session**, pump, and answer the
-/// constraint it added — the op's one committed edit checked to BE an
-/// `AddConstraint`, and the constraint read back by its address, because
-/// that address is what the solve keys a fault by (its placement's).
+/// **Commit a mate through the session**, pump, and answer the mate it
+/// added — the op's first committed edit checked to BE an
+/// `AddConstraint` and the rest its values, and the mate read back by
+/// its address, because that address is what the solve keys a fault by
+/// (its placement's).
 ///
 /// A row that authors two mates into ONE evaluation does not pump
 /// between them, and so takes [`add_mate`] instead.
 ///
 /// # Panics
 ///
-/// If the op refuses, or commits anything but one `AddConstraint`.
+/// If the op refuses, or commits anything but one `AddConstraint` and
+/// its `AddValue`s.
 pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
     let mate = add_mate(session, op);
     session.pump();
@@ -390,12 +391,20 @@ pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::Mat
     let before = session.committed_doc().clone();
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [DocEdit::AddConstraint { placement, .. }] = outcome.committed.as_slice() else {
-        panic!("the op adds one constraint: {:?}", outcome.committed)
+    let [DocEdit::AddConstraint { placement, .. }, values @ ..] = outcome.committed.as_slice()
+    else {
+        panic!("the op adds one mate: {:?}", outcome.committed)
     };
+    assert!(
+        values
+            .iter()
+            .all(|edit| matches!(edit, DocEdit::AddValue { .. })),
+        "the rest are its values: {values:?}"
+    );
     let held = |doc: &Doc<ProfileProgram>| {
         crate::fixture::bundle(doc, *placement)
             .into_iter()
+            .filter(|constraint| constraint.mate().is_some())
             .map(|constraint| constraint.id)
             .collect::<Vec<_>>()
     };
@@ -405,7 +414,7 @@ pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::Mat
         .filter(|id| !was.contains(id))
         .collect::<Vec<_>>()[..]
     else {
-        panic!("the op minted one constraint on {placement:?}")
+        panic!("the op minted one mate on {placement:?}")
     };
     pncad::document::MateRef::new(*placement, id)
 }

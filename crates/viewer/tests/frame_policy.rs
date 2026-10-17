@@ -1022,7 +1022,7 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
@@ -3410,7 +3410,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

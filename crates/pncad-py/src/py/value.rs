@@ -118,6 +118,54 @@ fn node_failure(
     with_carried(py, err, error.kind.carried_chain(), Some(doc))
 }
 
+/// **`node`'s standing in `evaluation` raised**, with the REAL typed
+/// cause: a failed node's own error, a poisoned one's standing followed
+/// by its nearest failed ancestor's, and a node with no entry as its
+/// standing alone. Asked only of a node with no value.
+pub(crate) fn standing_err(
+    py: Python<'_>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    node: NodeId,
+) -> PyErr {
+    match evaluation.usable(node.0) {
+        Ok(_) => unreachable!("a standing is asked of a node with no value"),
+        Err(standing) => standing_raise(py, doc, evaluation, node, standing),
+    }
+}
+
+/// [`standing_err`] over a standing already read.
+fn standing_raise(
+    py: Python<'_>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    node: NodeId,
+    standing: d::NodeStanding,
+) -> PyErr {
+    // `node_error` answers a failed node's own error and a poisoned
+    // one's nearest failed ancestor's.
+    let root = evaluation.node_error(node.0);
+    match (standing, root) {
+        (d::NodeStanding::Failed { .. }, Some(error)) => {
+            node_failure(py, doc, evaluation, node, error)
+        }
+        (d::NodeStanding::Poisoned { node, through }, root) => {
+            poisoning(py, doc, evaluation, node, through, root)
+        }
+        (
+            d::NodeStanding::Failed { .. }
+            | d::NodeStanding::NotEvaluated { .. }
+            | d::NodeStanding::NotInDocument { .. },
+            _,
+        ) => eval_err(
+            py,
+            standing.spoken(doc),
+            EvalReason::Standing(standing),
+            node,
+        ),
+    }
+}
+
 /// [`node_failure`]'s one exception, over a kind, its rendering and the
 /// document its node is in (`None` for the evaluated document's own),
 /// with no cause: what one level of a carried chain is.
@@ -1308,28 +1356,7 @@ impl Evaluation {
             }
             Err(standing) => standing,
         };
-        // `node_error` answers a failed node's own error and a poisoned
-        // one's nearest failed ancestor's.
-        let root = self.inner.node_error(node.0);
-        Err(match (standing, root) {
-            (d::NodeStanding::Failed { .. }, Some(error)) => {
-                node_failure(py, &self.doc, &self.inner, *node, error)
-            }
-            (d::NodeStanding::Poisoned { node, through }, root) => {
-                poisoning(py, &self.doc, &self.inner, node, through, root)
-            }
-            (
-                d::NodeStanding::Failed { .. }
-                | d::NodeStanding::NotEvaluated { .. }
-                | d::NodeStanding::NotInDocument { .. },
-                _,
-            ) => eval_err(
-                py,
-                standing.spoken(&self.doc),
-                EvalReason::Standing(standing),
-                *node,
-            ),
-        })
+        Err(standing_raise(py, &self.doc, &self.inner, *node, standing))
     }
 
     /// **Whether this run was CANCELED** — the Python shape of the

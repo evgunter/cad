@@ -522,7 +522,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
     match session.at_rest() {
@@ -667,7 +667,7 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
     // Both mate participants refuse, naming the mate.
@@ -914,7 +914,7 @@ fn a_landing_mate_discards_the_probe_value() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);

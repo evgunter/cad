@@ -124,7 +124,7 @@ fn a_bundle_refusal_reaches_the_placement_that_evaluated_before_it() {
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
     assert_eq!(sound.placement, bench.post_b);
