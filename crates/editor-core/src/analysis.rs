@@ -926,7 +926,7 @@ impl ParamBox {
     /// `[0, 0]`, every fixed one stays fixed, in the same order. Its
     /// values are the nominal's, but it still varies its axes, so an
     /// evaluation over it reads the document as the box's own leaves do
-    /// ([`crate::EvalOptions::profile_lift`]): a drive's witness and a
+    /// ([`crate::EvalOptions::profile_lift_over`]): a drive's witness and a
     /// Monte Carlo run's nominal build, whose verdicts the leaves' and
     /// the samples' are read against.
     #[must_use]
@@ -1203,6 +1203,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
 ) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    let mut binds_symbols = false;
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
         let v = match *p {
@@ -1213,6 +1214,7 @@ pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
                         lo: 0.0,
                         hi: 0.0,
                     })?;
+                binds_symbols |= T::BINDS_IDENTITIES;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,
@@ -1226,7 +1228,7 @@ pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
-        binds_symbols: true,
+        binds_symbols,
     };
     doc.bind_definitions(&mut env);
     Ok(env)

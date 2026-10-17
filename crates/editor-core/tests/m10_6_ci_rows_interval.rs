@@ -827,14 +827,8 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
             d,
             None,
             &CancelToken::new(),
-            // The witness's own options: the analysed box collapsed to
-            // the nominal (`ParamBox::at_nominal`), as the drive builds it.
-            &EvalOptions {
-                param_box: Some(std::sync::Arc::new(
-                    ParamBox::of(&analyzed_box(d, &AnalysisPolicy::default())).at_nominal(),
-                )),
-                ..EvalOptions::default()
-            },
+            // The witness's own options, as the drive builds them.
+            &editor_core::drive::witness_options(&analyzed_box(d, &AnalysisPolicy::default())),
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);

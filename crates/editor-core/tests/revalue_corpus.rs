@@ -145,11 +145,7 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
 /// tier and recorder alone. A unit row evaluates no document, so the
 /// options the session hands over are not read.
 fn session<R>(f: impl FnOnce() -> R) -> R {
-    let symbols = EvalOptions {
-        symbols: true,
-        ..EvalOptions::default()
-    };
-    editor_core::coincide::with_replay_session(symbols, |_| f()).0
+    editor_core::coincide::with_replay_session(EvalOptions::default(), |_| f()).0
 }
 
 /// `doc`'s decisions under the box `at`, in the door's replay session

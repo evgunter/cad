@@ -1281,6 +1281,22 @@ impl core::fmt::Display for DriveRefusal {
 
 impl core::error::Error for DriveRefusal {}
 
+/// **The WITNESS build's options**: the document at its nominals, over
+/// the analysed box collapsed to the nominal (`ParamBox::at_nominal`),
+/// so its profile lift is the leaves' (guided) and the two verdict
+/// vectors are comparable — guided elaboration at f64 IS plain
+/// elaboration at f64, bit for bit (the lift's own differential pin),
+/// so this changes the build it produces in no way and makes the two
+/// passes the same code. [`drive`] evaluates its witness at f64 under
+/// exactly these.
+#[must_use]
+pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    }
+}
+
 /// **Drives the document over the analyzed box** (E6).
 ///
 /// Read-only: `doc` is shared, the result is a value, and nothing on
@@ -1312,18 +1328,13 @@ pub fn drive(
         });
     }
 
-    // The WITNESS build: the document at its nominals, at f64, over the
-    // root box collapsed to the nominal (`ParamBox::at_nominal`), so its
-    // profile lift is the leaves' (guided) and the two vectors are
-    // comparable — guided elaboration at f64 IS plain elaboration at
-    // f64, bit for bit (the lift's own differential pin), so this
-    // changes the build it produces in no way and makes the two passes
-    // the same code.
-    let witness_opts = EvalOptions {
-        param_box: Some(Arc::new(root.at_nominal())),
-        ..lane_opts()
-    };
-    let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &witness_opts, tol);
+    let witness: Evaluation<f64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &witness_options(analyzed),
+        tol,
+    );
     if let Some(standing) = witness
         .order
         .iter()

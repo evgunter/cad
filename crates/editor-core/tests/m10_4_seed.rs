@@ -255,30 +255,45 @@ fn every_node_refuses_seed(ev: &Evaluation<impl geom_core::Decide>, expect: impl
 
 // --------------------------------------------------------- unseeded
 
-/// `seed: None` IS the default, and an explicit `None` is the default
-/// evaluation node for node — same keys, same reuse accounting. The
-/// corpus-wide bit-identity differential against the pre-seed build
-/// path is `m10_p_fence.rs`, which this unit leaves untouched.
+/// **An unseeded evaluation is the build.** The default options carry
+/// no seed and read the pinned lift, and holding every continuous
+/// variable `Fixed` at its nominal changes no node's key: a box seam
+/// that varies nothing is not an analysis. The corpus-wide bit-identity
+/// differential against the pre-seed build path is `m10_p_fence.rs`,
+/// which this unit leaves untouched.
 #[test]
-fn an_unseeded_evaluation_is_the_default_options_evaluation() {
+fn an_unseeded_evaluation_is_the_build() {
     assert!(EvalOptions::default().seed.is_none());
+    assert_eq!(
+        EvalOptions::default().profile_lift(),
+        ProfileLift::Pinned,
+        "the default options are the build's"
+    );
     for doc in corpus::documents() {
+        let held: std::collections::BTreeMap<_, _> = doc
+            .doc
+            .free_vars()
+            .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
+            .map(|(id, _)| (id, editor_core::analysis::BoxAxis::Fixed))
+            .collect();
         let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
-        let explicit = run::<f64>(
+        let fixed = run::<f64>(
             &doc.doc,
             None,
             &EvalOptions {
-                seed: None,
+                param_box: Some(std::sync::Arc::new(
+                    editor_core::analysis::ParamBox::from_axes(held),
+                )),
                 ..EvalOptions::default()
             },
         );
-        assert_eq!(default.order, explicit.order, "{}", doc.name);
+        assert_eq!(default.order, fixed.order, "{}", doc.name);
         for id in &default.order {
-            let (a, b) = (default.value(*id), explicit.value(*id));
+            let (a, b) = (default.value(*id), fixed.value(*id));
             assert_eq!(
                 a.map(|v| v.content_key),
                 b.map(|v| v.content_key),
-                "{}: node {} keyed differently under an explicit `seed: None`",
+                "{}: node {} keyed differently under an all-`Fixed` box",
                 doc.name,
                 id.0
             );
@@ -374,25 +389,22 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
     let m = measure_node(&doc);
     let f = run::<f64>(&doc, None, &EvalOptions::default());
     let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
-    {
-        let lift = ProfileLift::Guided;
-        let on_r = measured(
-            &doc,
-            &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
-            m,
-        );
-        assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits(), "{lift:?}");
-        assert_eq!(on_r.value.to_bits(), web.to_bits(), "{lift:?}");
-        let on_d = measured(
-            &doc,
-            &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"))),
-            m,
-        );
-        assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits(), "{lift:?}");
-        assert_eq!(on_d.value.to_bits(), web.to_bits(), "{lift:?}");
-        let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None)), m);
-        assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits(), "{lift:?}");
-    }
+    let on_r = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
+        m,
+    );
+    assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits());
+    assert_eq!(on_r.value.to_bits(), web.to_bits());
+    let on_d = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"))),
+        m,
+    );
+    assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits());
+    assert_eq!(on_d.value.to_bits(), web.to_bits());
+    let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None)), m);
+    assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits());
 }
 
 /// D9 at the evaluation level: a seeded pass's tangent is the same bits

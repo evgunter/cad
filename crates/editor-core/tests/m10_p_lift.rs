@@ -7,8 +7,8 @@
 //! nothing — profile geometry reached every lane as f64 bits. These
 //! rows are what changed and what did not.
 //!
-//! - **Off is off.** The build is `Pinned` (the lift is read off the
-//!   environment, `EvalOptions::profile_lift`) and the whole build
+//! - **Off is off.** The build is `Pinned` (the lift is read off what
+//!   the evaluation binds, `EvalOptions::profile_lift_over`) and the whole build
 //!   path runs there; `m10_p_fence.rs` digests that against the
 //!   pre-lift tree. Here the narrower claim: the guided lift at `f64`,
 //!   asked for by a box varying every continuous variable over `[0, 0]`

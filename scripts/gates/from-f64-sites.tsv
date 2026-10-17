@@ -5,7 +5,7 @@ crates/editor-core/src/analysis.rs	4	constant	value	a free variable's authored n
 crates/editor-core/src/clearance.rs	1	constant	c	the authored clearance, at the concrete Interval (never Sym)
 crates/editor-core/src/clearance.rs	2	constant	x	a query cell's f64 corner, at the concrete Interval: never Sym
 crates/editor-core/src/doc.rs	1	constant	value	a free variable's authored nominal, bound unvaried
-crates/editor-core/src/eval/wire.rs	1	constant	<fn>	the pinned lift: the build's f64 elaboration of profile geometry, run only where every variable is bound at its nominal (EvalOptions::profile_lift), so a function of constants
+crates/editor-core/src/eval/wire.rs	1	constant	<fn>	the pinned lift: the build's f64 elaboration of profile geometry, run only where every variable is bound at its nominal (EvalOptions::profile_lift_over), so a function of constants
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's index
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
@@ -105,7 +105,7 @@ crates/profile/src/path.rs	1	constant	n as f64	a circle's split count
 crates/profile/src/seg.rs	1	constant	band.escalate() / (ulps * f64::EPSILON)	a resolution threshold from the band and an ulp count
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	constant	<fn>	the pinned lift: the build's f64 elaboration of profile geometry, run only where every variable is bound at its nominal (EvalOptions::profile_lift), so a function of constants
+crates/profile/src/validate.rs	4	constant	<fn>	the pinned lift: the build's f64 elaboration of profile geometry, run only where every variable is bound at its nominal (EvalOptions::profile_lift_over), so a function of constants
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count

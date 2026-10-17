@@ -68,7 +68,7 @@ const BUDGET: SymBudget = SymBudget {
 /// discharge), on `base`, the caller's environment — which binds every
 /// variable a symbol or varies a box, so its profile geometry is
 /// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
-/// the environment by [`EvalOptions::profile_lift`]). Every
+/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
 /// reader of a replay opens it here — the door (`symbols`), its census,
 /// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
 /// its own degenerate boxes) — so the instrument reads exactly what
@@ -84,11 +84,6 @@ pub fn with_replay_session<R>(
     base: EvalOptions,
     f: impl FnOnce(&EvalOptions) -> R,
 ) -> (R, geom_core::SymCounts) {
-    debug_assert_eq!(
-        base.profile_lift(),
-        crate::eval::ProfileLift::Guided,
-        "a replay binds every variable a symbol or varies a box, so its lift is guided"
-    );
     deferred::with_deferred_session(
         BUDGET,
         SymRules::shipped(),

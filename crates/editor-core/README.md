@@ -221,11 +221,12 @@ DUAL-DESIGN DL2), so a seeded or widened profile parameter cannot alias the
 nominal memo entry. Keys never persist.
 
 **PP6 — Scope and the bit-identity fence.** The evaluator chooses the lift
-from the evaluation's environment (`EvalOptions::profile_lift`); no caller
-sets it. The build is `ProfileLift::Pinned`, at any scalar: profile geometry
+from what the evaluation binds (`EvalOptions::profile_lift_over`: the
+options' half, `EvalOptions::profile_lift`, and the environment's,
+`VarEnv::binds_symbols`); no caller sets it. The build is `ProfileLift::Pinned`, at any scalar: profile geometry
 is the f64 elaboration embedded through `from_f64`, unchanged. An analysis —
-an evaluation whose box varies an axis, which carries a seed, or which binds
-every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
+an evaluation whose box varies an axis (`[0, 0]` included), which carries a
+seed, or which binds every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
 witness over the root box collapsed to the nominal, `ParamBox::at_nominal`),
 the E4 sensitivities (`src/stackup.rs`), Monte Carlo (`src/mc.rs`) and the
 coincidence door's symbolic replay. The lift follows what the environment

@@ -706,7 +706,8 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             symbols: self.symbols,
         };
         // No profile lift is set here, because none is inherited: it is
-        // read off the environment (`EvalOptions::profile_lift`), and with
+        // read off what the evaluation binds
+        // (`EvalOptions::profile_lift_over`), and with
         // no box and no seed a referenced document runs at its own
         // nominal, so it is built as its instantiator's build would build
         // it — pinned, with its own variables' values.

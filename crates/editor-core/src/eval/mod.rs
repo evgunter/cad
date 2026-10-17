@@ -3488,30 +3488,20 @@ pub struct EvalOptions {
 }
 
 impl EvalOptions {
-    /// **Where this evaluation's profile geometry comes from**, read off
-    /// its environment rather than chosen: an ANALYSIS — an evaluation
-    /// whose variables are not their nominal values, because its
-    /// [`param_box`](Self::param_box) varies an axis, it carries a
-    /// [`seed`](Self::seed), or it binds every variable a
-    /// [`symbol`](Self::symbols) — elaborates its profiles at its own
-    /// scalar ([`ProfileLift::Guided`]); every other evaluation is the
-    /// build, at any scalar ([`ProfileLift::Pinned`]). A box of only
+    /// **What the options say about the profile lift** — half of the
+    /// rule [`profile_lift_over`](Self::profile_lift_over) reads, the
+    /// half that needs no environment: guided where the
+    /// [`param_box`](Self::param_box) varies an axis (a degenerate
+    /// `Varying { lo: 0, hi: 0 }` included, the nominal asked for as an
+    /// analysis — `ParamBox::at_nominal`), where it carries a
+    /// [`seed`](Self::seed), or where it binds every variable a
+    /// [`symbol`](Self::symbols); pinned otherwise. A box of only
     /// [`Fixed`](crate::analysis::BoxAxis::Fixed) axes, or none, holds
-    /// every variable it names at its nominal, so at a numeric scalar it
-    /// is the build too, and an unused box seam changes no decision. The pinned lift
-    /// reads the profile at the nominal, so in an analysis it would
-    /// enter profile geometry as constants of a function the document
-    /// does not compute; with the variables at their nominal, the two
-    /// lifts read the same values and the pinned one is the build's own
-    /// bits.
+    /// every variable it names at its nominal, so an unused box seam
+    /// changes no decision. `Guided` here is the evaluation's lift
+    /// whatever the environment; `Pinned` here is the evaluation's lift
+    /// only where the environment binds no symbol.
     #[must_use]
-    ///
-    /// This is what the OPTIONS say. The evaluation also reads the
-    /// environment it built: one that binds a variable as a parameter
-    /// symbol ([`crate::expr::VarEnv::binds_symbols`] — at `Sym`, a
-    /// toleranced variable under any box, named or not, as VR8 has it)
-    /// is guided whatever this answers, because its variables are not
-    /// bound to their nominal values.
     pub fn profile_lift(&self) -> ProfileLift {
         let varies = self.param_box.as_ref().is_some_and(|b| {
             b.axes()
@@ -3524,10 +3514,35 @@ impl EvalOptions {
             ProfileLift::Pinned
         }
     }
+
+    /// **Where this evaluation's profile geometry comes from**, read off
+    /// what it binds rather than chosen: an ANALYSIS — one whose
+    /// [`options`](Self::profile_lift) vary an axis, seed or ask for
+    /// symbols, or whose environment `env` binds a variable as a
+    /// parameter symbol ([`crate::expr::VarEnv::binds_symbols`]: at
+    /// `Sym`, a toleranced variable under any box, named or not, as VR8
+    /// has it) — elaborates its profiles at its own scalar
+    /// ([`ProfileLift::Guided`]); every other evaluation binds each
+    /// variable to its nominal as a constant and is the build, at any
+    /// scalar ([`ProfileLift::Pinned`]). The pinned lift reads the
+    /// profile at the nominal, so in an analysis it would enter profile
+    /// geometry as constants of a function the document does not
+    /// compute; with every variable a constant at its nominal, the two
+    /// lifts read the same values and the pinned one is the build's own
+    /// bits. The evaluator takes exactly this lift.
+    #[must_use]
+    pub fn profile_lift_over<T>(&self, env: &crate::expr::VarEnv<T>) -> ProfileLift {
+        if env.binds_symbols {
+            ProfileLift::Guided
+        } else {
+            self.profile_lift()
+        }
+    }
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar
-/// ([`EvalOptions::profile_lift`] reads which, off the environment).
+/// ([`EvalOptions::profile_lift_over`] reads which, off what the
+/// evaluation binds).
 ///
 /// The document's parameters feed two kinds of slot, and until the
 /// lift they behaved differently: a node's MAGNITUDE argument (an
@@ -3992,13 +4007,7 @@ where
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
-            // The options' lift, or guided where the environment binds
-            // a symbol whatever its box's shape (`VarEnv::binds_symbols`).
-            lift: if env.binds_symbols {
-                ProfileLift::Guided
-            } else {
-                opts.profile_lift()
-            },
+            lift: opts.profile_lift_over(&env),
             params: &env,
             nominal: &nominal_env,
         },

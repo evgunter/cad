@@ -220,11 +220,15 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     let (doc, assertion) = straddling_assertion();
-    // The drive's own witness: the analysed box collapsed to the nominal
-    // (`ParamBox::at_nominal`), so it elaborates under the leaves' lift.
+    // The drive's own witness, under its own options.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let witness: editor_core::Evaluation<f64> =
-        eval_over(&doc, Some(ParamBox::of(&analyzed).at_nominal()));
+    let witness: editor_core::Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &editor_core::drive::witness_options(&analyzed),
+        Tol::witness(),
+    );
     let full = VerdictVector::of(&witness);
     let certifying = certifying_vector(&doc, &witness);
     assert_ne!(
