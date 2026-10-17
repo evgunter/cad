@@ -45,7 +45,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "ea1ce7f968a62d47/88"),
-    ("kitchen_sink", "e6fec2fe2d687b79/196"),
+    ("kitchen_sink", "86db5c9ee0cedea5/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),

@@ -651,8 +651,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(1.0), scl(0.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::zero(Dimension::Angle),
             angle: ang(1.0),
         },
         Node::Tube {

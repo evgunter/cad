@@ -220,7 +220,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// shrank. Re-taken merged over main at `8612ce48e8`, and again over
 /// INTENT stage 3 B (#5232), whose placement kind word moved: the merged
 /// digest and the full total are neither tree's.
-const SAID_DIGEST: u64 = 0xe76b_67ac_c47e_8509;
+///
+/// INTENT stage 3 A′ (a pose is moved by lengths and angles) moved it in
+/// `kitchen_sink` alone, by ids: a revolve holds one slot fewer and a
+/// lone `0` is the constant, so the mint chain re-draws. No total moved.
+const SAID_DIGEST: u64 = 0x9d2e_ab73_95e9_894f;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

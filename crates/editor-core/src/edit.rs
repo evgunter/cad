@@ -956,8 +956,15 @@ impl Lowering {
     /// minted for it.
     fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, SlotFault> {
         let root = formula.slot_root();
-        if let SlotRoot::Value(free) = root {
-            return mint_anonymous(new, WrittenDef::Free(free)).map_err(SlotFault::Mint);
+        match root {
+            SlotRoot::Value(free) => {
+                return mint_anonymous(new, WrittenDef::Free(free)).map_err(SlotFault::Mint);
+            }
+            SlotRoot::Zero(dim) => {
+                return mint_anonymous(new, WrittenDef::Defined(Expr::zero(dim)))
+                    .map_err(SlotFault::Mint);
+            }
+            _ => {}
         }
         // Every fault is asked before anything is minted for the
         // formula's quantities: a formula that does not lower, or reads
@@ -970,7 +977,9 @@ impl Lowering {
             .lower_with(&|name| new.lowering_scope(name), &self.fresh, &minted)
             .map_err(SlotFault::Lower)?;
         match (root, expr.as_var()) {
-            (SlotRoot::Value(_), _) => unreachable!("a value is minted above"),
+            (SlotRoot::Value(_) | SlotRoot::Zero(_), _) => {
+                unreachable!("a value and a zero are minted above")
+            }
             (SlotRoot::Formula, _) => {
                 self.defined.set(true);
                 mint_anonymous(new, WrittenDef::Defined(expr)).map_err(SlotFault::Mint)
@@ -1100,6 +1109,7 @@ fn lower_node<P: crate::ProfilePayload>(
     tol: Tol,
     spoken: impl Fn() -> SpokenNode,
 ) -> Result<Node<P>, EditError> {
+    let node = &zero_at_its_slots(node);
     let rows: Vec<(ExprSite, &Formula)> = node
         .rows()
         .into_iter()
@@ -1140,6 +1150,28 @@ fn lower_node<P: crate::ProfilePayload>(
     })
 }
 
+/// **`node` with each lone `0` at a slot read at that slot's
+/// dimension** (VR6): the constant zero takes the dimension of the slot
+/// it stands in, whatever dimension it was written at.
+fn zero_at_its_slots<P: Clone + crate::program::SlotPayload<Formula>>(
+    node: &Node<P, Formula>,
+) -> Node<P, Formula> {
+    let mut node = node.clone();
+    for (slot, formula) in node.rows_mut() {
+        zero_at(slot, formula);
+    }
+    node
+}
+
+/// A lone `0` at `slot`, read at the slot's dimension (VR6).
+fn zero_at(slot: SlotId, formula: &mut Formula) {
+    if let Some(dim) = slot.dimension()
+        && formula.is_zero()
+    {
+        *formula = Formula::zero(dim);
+    }
+}
+
 /// **Every operand of an authored node as the door writes it**, in the
 /// walk order of [`Node::try_map_slots`] ([`lower_operand`] each). A
 /// placer re-pointed in place keeps its output's kind: `fixed` is that
@@ -1160,6 +1192,18 @@ fn lower_reads<P: crate::ProfilePayload>(
                 _ => node.seat_kind(slot),
             };
             let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, expected)?;
+            // A read through a role reads the kind the role yields.
+            if let Some((at, found)) = node.seat_role_fault()
+                && at == slot
+            {
+                return Err(EditError::SlotVarKind {
+                    var: Box::new(doc.spoken_var(var)),
+                    node: spoken(),
+                    slot: SlotId::Operand(slot),
+                    found,
+                    expected: slot.kind(),
+                });
+            }
             reads.push(var);
             Ok(var)
         },
@@ -1268,20 +1312,22 @@ fn lower_read<P: crate::ProfilePayload>(
 
 /// **A pose defined at a seat, minted** (D10): each read lowered at the
 /// kinds it admits, as an operand of the seat (a selection authored in
-/// it minted there), each formula to the scalar its slot stores at the
-/// slot's dimension, and one anonymous pose variable minted for the
-/// seat to read, of the definition's kind (a flip's is its read's). A
-/// flip of a flip is the pose it flips, normalised here rather than
-/// minted; a projection with no arm refuses ([`EditError::PoseShape`]).
-/// A pose defined at two seats is two variables; a seat shares one by
-/// reading it by id or name.
+/// it minted there), a read through a role at the kind that offers the
+/// role, each formula to the scalar its slot stores at the slot's
+/// dimension, and one anonymous pose variable minted for the seat to
+/// read, of the definition's kind (a move's, a flip's or a carried
+/// pose's is its read's). A flip of a flip is the pose it flips,
+/// normalised here rather than minted; a role whose projection the read
+/// does not admit refuses ([`EditError::PoseShape`]). A pose defined at
+/// two seats is two variables; a seat shares one by reading it by id or
+/// name.
 fn mint_pose<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     def: &crate::pose::PoseDef<crate::Operand, Formula>,
 ) -> Result<VarId, EditError> {
-    use crate::pose::{PoseDef, PoseFault};
+    use crate::pose::{PoseDef, PoseFault, RoleRead};
     let shape = |fault| EditError::PoseShape {
         node: spoken(),
         slot,
@@ -1292,27 +1338,59 @@ fn mint_pose<P: crate::ProfilePayload>(
     // lowered where the inner flip's read would have been, at what a
     // flip admits — a point, which has no sense, still refuses.
     if let PoseDef::Flip {
-        pose: crate::Operand::Pose(inner),
+        pose:
+            RoleRead {
+                read: crate::Operand::Pose(inner),
+                role: None,
+            },
     } = def
-        && let PoseDef::Flip { pose: twice } = inner.as_ref()
+        && let PoseDef::Flip {
+            pose: RoleRead {
+                read: twice,
+                role: None,
+            },
+        } = inner.as_ref()
     {
         let sensed = crate::SlotKind::Pose(crate::pose::PoseAdmits::Sensed);
         return lower_operand(doc, spoken, slot, twice, sensed);
     }
-    let admits: Vec<crate::SlotKind> = def.reads().into_iter().map(|(_, _, k)| k).collect();
-    let mut at = admits.into_iter();
+    let reads: Vec<_> = def
+        .reads()
+        .into_iter()
+        .map(|(which, _, role, admits)| (which, role, admits))
+        .collect();
+    let mut at = reads.iter();
     // Two passes, the reads then the formulas, each holding the document
     // alone: the reads mint first, as a node's operands do.
     let read: PoseDef<VarId, Formula> = def.try_map(
         &mut |_, read| {
-            let expected = at
+            let &(which, role, admits) = at
                 .next()
                 .unwrap_or_else(|| unreachable!("one admitted kind per read, in one order"));
-            lower_operand(doc, spoken, slot, read, expected)
+            let Some(role) = role else {
+                return lower_operand(doc, spoken, slot, read, admits);
+            };
+            let var = lower_operand(doc, spoken, slot, read, crate::SlotKind::Is(role.of()))?;
+            if crate::pose::role_kind(role.of(), role, admits).is_none() {
+                return Err(shape(PoseFault::Role {
+                    read: which,
+                    role,
+                    found: role.of(),
+                    expected: admits,
+                }));
+            }
+            Ok(var)
         },
         &mut |_, formula| Ok::<_, EditError>(formula.clone()),
     )?;
     let stored: PoseDef = read.try_map(&mut |_, &var| Ok(var), &mut |pose_slot, formula| {
+        let zero;
+        let formula = if formula.is_zero() {
+            zero = Formula::zero(pose_slot.dimension());
+            &zero
+        } else {
+            formula
+        };
         let var = Lowering::none()
             .slot(doc, formula)
             .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
@@ -1329,44 +1407,60 @@ fn mint_pose<P: crate::ProfilePayload>(
         }
         Ok(var)
     })?;
-    let kind = match &stored {
-        PoseDef::Flip { pose } => {
-            // A flip of a flip defined elsewhere is its read, the same
-            // normalisation over a variable.
-            if let Some(VarDef::Pose(PoseDef::Flip { pose: twice })) = doc.var(*pose).map(Var::def)
-            {
-                return Ok(*twice);
-            }
-            doc.var(*pose)
-                .map(Var::kind)
-                .unwrap_or_else(|| unreachable!("a lowered read is live"))
+    // A flip of a flip defined elsewhere, read plainly, is its read: the
+    // same normalisation over a variable.
+    if let PoseDef::Flip {
+        pose: RoleRead {
+            read: pose,
+            role: None,
+        },
+    } = &stored
+        && let Some(VarDef::Pose(PoseDef::Flip {
+            pose: RoleRead {
+                read: twice,
+                role: None,
+            },
+        })) = doc.var(*pose).map(Var::def)
+    {
+        return Ok(*twice);
+    }
+    // One whose inner flip reads through a role is that pose read
+    // through the role, which only a read can say: refused, not stored.
+    if let PoseDef::Flip {
+        pose: RoleRead {
+            read: pose,
+            role: None,
+        },
+    } = &stored
+        && let Some(VarDef::Pose(PoseDef::Flip {
+            pose: RoleRead { role: Some(_), .. },
+        })) = doc.var(*pose).map(Var::def)
+    {
+        return Err(shape(PoseFault::DoubleFlip));
+    }
+    // A copy carries the pose: what it reads as the copy is a
+    // placement's copies.
+    if let PoseDef::Carried { copy, .. } = &stored
+        && !matches!(
+            doc.operation_of(*copy).and_then(|at| doc.node(at)),
+            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        )
+    {
+        return Err(shape(PoseFault::NotACopy { var: *copy }));
+    }
+    let kind = match (stored.kind(), stored.kept()) {
+        (Some(kind), _) => kind,
+        (None, Some(kept)) => kept.role.map_or_else(
+            || {
+                doc.var(kept.read)
+                    .map(Var::kind)
+                    .unwrap_or_else(|| unreachable!("a lowered read is live"))
+            },
+            crate::pose::PoseRole::kind,
+        ),
+        (None, None) => {
+            unreachable!("every arm but a move, a flip and a carried pose states its kind")
         }
-        PoseDef::Project { of, to } => {
-            let from = doc
-                .var(*of)
-                .map(Var::kind)
-                .unwrap_or_else(|| unreachable!("a lowered read is live"));
-            if !crate::pose::projects(from, *to) {
-                return Err(shape(PoseFault::Projection { from, to: *to }));
-            }
-            *to
-        }
-        // A copy carries the pose: what it reads as the copy is a
-        // placement's copies.
-        PoseDef::Carried { copy, pose } => {
-            if !matches!(
-                doc.operation_of(*copy).and_then(|at| doc.node(at)),
-                Some(Node::Place { .. } | Node::InstantiatePart { .. })
-            ) {
-                return Err(shape(PoseFault::NotACopy { var: *copy }));
-            }
-            doc.var(*pose)
-                .map(Var::kind)
-                .unwrap_or_else(|| unreachable!("a lowered read is live"))
-        }
-        other => other.kind().unwrap_or_else(|| {
-            unreachable!("every arm but a flip and a carried pose states its kind")
-        }),
     };
     mint_anonymous(doc, WrittenDef::Pose(kind, stored))
 }
@@ -1586,14 +1680,17 @@ pub fn selection_into<P>(
 #[allow(clippy::expect_used)]
 pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
     let kind = def.kind().unwrap_or_else(|| {
-        let (crate::pose::PoseDef::Flip { pose } | crate::pose::PoseDef::Carried { pose, .. }) =
-            &def
-        else {
-            unreachable!("every arm but a flip and a carried pose states its kind")
-        };
-        doc.var(*pose)
-            .map(Var::kind)
-            .expect("a flip or a carried pose reads a live pose")
+        let kept = def.kept().unwrap_or_else(|| {
+            unreachable!("every arm but a move, a flip and a carried pose states its kind")
+        });
+        kept.role.map_or_else(
+            || {
+                doc.var(kept.read)
+                    .map(Var::kind)
+                    .expect("a move, a flip or a carried pose reads a live pose")
+            },
+            crate::pose::PoseRole::kind,
+        )
     });
     let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
@@ -1683,6 +1780,12 @@ fn lower_loops<P>(
 ) -> Result<Vec<crate::LoopProgram>, EditError> {
     let mut lowered = Vec::with_capacity(loops.len());
     for (li, lp) in loops.iter().enumerate() {
+        let mut lp = lp.clone();
+        for ((step, arg), formula) in lp.rows_mut() {
+            let loop_ = crate::program::program_index(li);
+            zero_at(SlotId::Profile { loop_, step, arg }, formula);
+        }
+        let lp = &lp;
         let rows: Vec<(SlotId, &Formula)> = lp
             .rows()
             .into_iter()
@@ -2049,8 +2152,10 @@ pub enum EditError {
     },
     /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
     /// not one the document can store ([`crate::pose::PoseFault`]): a
-    /// projection its source has no arm to. (A flip of a flip is the
-    /// pose it flips, which the door normalises rather than refuses.) A
+    /// read through a role its pose does not offer, or whose kind the
+    /// read does not admit, or a flip of a flip read through a role. (A
+    /// flip of a plainly read flip is the pose it flips, which the door
+    /// normalises rather than refuses.) A
     /// read of a kind the definition does not admit is the read's own
     /// [`EditError::SlotVarKind`].
     PoseShape {
@@ -3426,8 +3531,9 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "project a frame to its plane, axis or origin, or a plane or an axis to \
-                         its direction"
+                        "read a frame through its axes, origin or planes, a plane through its \
+                         normal, or an axis through its direction, where the read admits that \
+                         kind; slide along a direction or an axis, and spin about an axis"
                     ),
                 )
             }
@@ -5689,6 +5795,11 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     if let Some(body) = rewritten.body_read_mut(slot) {
         body.key = key.cloned();
     }
+    // A re-point replaces the read whole, so a role the old read was
+    // read through goes with it.
+    if let Some(role) = rewritten.seat_role_mut(slot) {
+        *role = None;
+    }
     let expected = match (&rewritten, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => rewritten.seat_kind(slot),
@@ -7539,6 +7650,9 @@ fn lower_index<P>(
     slot: SlotId,
     formula: &Formula,
 ) -> Result<VarId, EditError> {
+    let mut formula = formula.clone();
+    zero_at(slot, &mut formula);
+    let formula = &formula;
     if let Some(SlotDimensionFault {
         slot,
         expected,
@@ -7588,6 +7702,9 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     if !holds {
         return Err(EditError::UnknownSlot { id: spoken, slot });
     }
+    let mut formula = formula.clone();
+    zero_at(slot, &mut formula);
+    let formula = &formula;
     // D6's comparison, from its one home (`SlotId::dimension_fault`) —
     // the same rule the node-wide walk asks, of a formula the node
     // does not hold yet.

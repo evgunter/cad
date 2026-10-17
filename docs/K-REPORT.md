@@ -2032,10 +2032,9 @@ axis output and decides the lifted 3-D vector under `datum_unit_norm`
 (`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
 `sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
-`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
-two names, because the frame's axes are orthonormal and
-`|lift(d)| = |d|`. `Revolve`'s field doc says why it carries both
-spellings. So "one length, two funnel names, split by road" is a
+`revolve_axis_direction` (`revolve/axis.rs`) — one authored heading,
+its `(cos h, sin h)` decided under two names, because the frame's axes
+are orthonormal and `|lift(d)| = |d|`. So "one length, two funnel names, split by road" is a
 SHAPE in this workspace rather than a one-off, and the ruling below is
 about which layer names a decision, not about ever having only one
 name for a value.

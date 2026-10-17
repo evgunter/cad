@@ -667,7 +667,7 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     let rev = r.insert(fixture::revolve_about(
         p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::PI),
     ));
     r.insert(Node::Datum(Datum::FaceFrame {

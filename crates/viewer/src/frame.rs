@@ -2389,7 +2389,7 @@ fn coincidence_cells(
                 };
                 Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => {
+            NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
                 Some((by.node(node).to_string(), Selection::Node(node)))
             }

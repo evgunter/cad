@@ -94,6 +94,9 @@ pub enum NamedCell {
     Tool {
         /// The tool read.
         input: crate::VarId,
+        /// The role the tool is read through, `None` for a plane read
+        /// plainly.
+        role: Option<crate::pose::PoseRole>,
     },
     /// A piece of the deciding profile itself: a junction's two
     /// segments, each named by the piece it is (`names/README.md`, "N1,
@@ -213,9 +216,10 @@ pub enum Origin {
     /// piece qualifiers dropped, since every piece of an entity lies on
     /// its one carrier.
     Minted(StableName),
-    /// A datum node's own plane: a split's tool, and every section face
-    /// the split mints on it.
-    Datum(RecipeNodeId),
+    /// A datum node's plane, read through the role the split's tool
+    /// reads it through (`None` for its own plane): a split's tool, and
+    /// every section face the split mints on it.
+    Datum(RecipeNodeId, Option<crate::pose::PoseRole>),
     /// A profile's piece: the step of that profile that drew it, and
     /// its role there.
     Piece(RecipeNodeId, ProfileEdgeRef),
@@ -465,10 +469,10 @@ fn constructions<P>(
 ) -> [Result<Construction, Unwalked>; 2] {
     row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input } => doc
+        NamedCell::Tool { input, role } => doc
             .operation_of(*input)
             .ok_or(Unwalked::Unread(*input))
-            .and_then(|at| datum(doc, at, Vec::new())),
+            .and_then(|at| datum(doc, at, *role, Vec::new())),
         NamedCell::Piece { profile, piece } => Ok(Construction {
             origin: Origin::Piece(*profile, *piece),
             placed: Vec::new(),
@@ -525,7 +529,7 @@ pub fn construction<P>(
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
                     (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => {
-                        datum(doc, operation(doc, at, *tool)?, placed)
+                        datum(doc, operation(doc, at, tool.read)?, tool.role, placed)
                     }
                     (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
@@ -609,6 +613,7 @@ fn carried_read<P>(
 fn datum<P>(
     doc: &crate::doc::Doc<P>,
     mut at: RecipeNodeId,
+    role: Option<crate::pose::PoseRole>,
     mut placed: Vec<Placed>,
 ) -> Result<Construction, Unwalked> {
     loop {
@@ -619,7 +624,7 @@ fn datum<P>(
             }
             _ => {
                 return Ok(Construction {
-                    origin: Origin::Datum(at),
+                    origin: Origin::Datum(at, role),
                     placed,
                 });
             }
@@ -636,7 +641,7 @@ pub(crate) struct RowInputs<'a> {
     /// Operand B's, for an operation that reads two bodies.
     pub b: Option<(crate::VarId, &'a NameTable)>,
     /// The tool read, for an operation that cuts with one.
-    pub tool: Option<crate::VarId>,
+    pub tool: Option<crate::pose::RoleRead<crate::VarId>>,
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input
@@ -657,7 +662,10 @@ pub(crate) fn name_rows(
         match *cell {
             topo::RowCell::Tool => inputs
                 .tool
-                .map(|input| NamedCell::Tool { input })
+                .map(|read| NamedCell::Tool {
+                    input: read.read,
+                    role: read.role,
+                })
                 .ok_or_else(unnamed),
             topo::RowCell::Result { .. } => Err(unnamed()),
             topo::RowCell::Input { input, cell } => {

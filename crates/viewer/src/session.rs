@@ -1737,10 +1737,10 @@ impl DocSession {
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
-                axis_origin,
-                axis_direction,
+                axis_through,
+                axis_heading,
                 angle,
-            } => self.add_revolve(profile, axis_origin, axis_direction, angle),
+            } => self.add_revolve(profile, axis_through, axis_heading, angle),
             SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
@@ -2891,8 +2891,8 @@ impl DocSession {
     fn add_revolve(
         &mut self,
         profile: RecipeNodeId,
-        axis_origin: [Formula; 2],
-        axis_direction: [Formula; 2],
+        axis_through: [Formula; 2],
+        axis_heading: Formula,
         angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
@@ -2900,8 +2900,8 @@ impl DocSession {
         }
         self.create_placed(Node::Revolve {
             profile: profile.into(),
-            axis_origin,
-            axis_direction,
+            axis_through,
+            axis_heading,
             angle,
         })
     }

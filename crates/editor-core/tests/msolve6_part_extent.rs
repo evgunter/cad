@@ -128,7 +128,12 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     );
     let (doc, body) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     placed_part(doc, body)
 }

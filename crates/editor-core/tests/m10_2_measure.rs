@@ -1261,7 +1261,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     );
     let (doc, rev) = mint(
         &doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+        fixture::revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), ang(1.0)),
     );
     let body = gathers(&doc, rev);
     // The cusp joint (h, h) revolves about the sketch's y axis to the
