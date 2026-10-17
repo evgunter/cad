@@ -23,3 +23,15 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 29.5 points.
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
 
 - 2026-10-10 — CONTACTHOLD claimed `census-backstop-separates-curved-pairs-only-along-world-axes` (moved by git mv) after measuring it through its tube-rim row; ORBIT's twin closed as a duplicate. (CONTACTHOLD orchestrator)
+
+## 2026-10-17 — picked up
+
+An orchestrator holds the track (`status: active`). Load on pickup:
+45.5 against 30, 18 rows dispatchable. Read against the D10 hold
+(`d10-one-way-to-say-intent-is-unbuilt`; DESIGN.md "State of the
+build") and the live [ev] PR 4666 (the census records what it
+decides): the five P0 near-band rows, `at-infinity-probe-…`,
+`torus-face-bounded-by-an-oblique-circle-…`, `a-split-whose-notch-floor-…`
+and the two P3 numeric rows stand clear of it. First dispatch: the
+crossing lane and the edge-on-face lane (plan.md, Order).
+— (RESTREAD orchestrator)
