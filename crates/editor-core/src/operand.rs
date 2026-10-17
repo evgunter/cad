@@ -709,62 +709,64 @@ impl<S: crate::expr::Slot> serde::Serialize for BodyRead<S> {
     }
 }
 
+/// A map whose first key was read to tell a bare read from its
+/// spelled-out form, handed on whole to the bare read's own
+/// deserializer: one forward pass, no retry (`persist::refusal`'s
+/// premise). [`BodyRead`] and [`crate::pose::RoleRead`] read through it.
+pub(crate) struct Prepended<A> {
+    pub(crate) first: Option<String>,
+    pub(crate) rest: A,
+}
+
+impl<'de, A: serde::de::MapAccess<'de>> serde::de::MapAccess<'de> for Prepended<A> {
+    type Error = A::Error;
+    fn next_key_seed<K: serde::de::DeserializeSeed<'de>>(
+        &mut self,
+        seed: K,
+    ) -> Result<Option<K::Value>, A::Error> {
+        match self.first.take() {
+            Some(key) => seed
+                .deserialize(serde::de::value::StringDeserializer::<A::Error>::new(key))
+                .map(Some),
+            None => self.rest.next_key_seed(seed),
+        }
+    }
+    fn next_value_seed<V: serde::de::DeserializeSeed<'de>>(
+        &mut self,
+        seed: V,
+    ) -> Result<V::Value, A::Error> {
+        self.rest.next_value_seed(seed)
+    }
+}
+
+/// A bare read spelled as a string, handed on to the read's own
+/// deserializer: a newtype around a string (a [`VarId`]) reads
+/// through it as the string.
+pub(crate) struct Spelled<'a, E>(pub(crate) &'a str, pub(crate) core::marker::PhantomData<E>);
+
+impl<'de, E: serde::de::Error> serde::Deserializer<'de> for Spelled<'_, E> {
+    type Error = E;
+    fn deserialize_any<V: serde::de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
+        visitor.visit_str(self.0)
+    }
+    fn deserialize_newtype_struct<V: serde::de::Visitor<'de>>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, E> {
+        visitor.visit_newtype_struct(self)
+    }
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct seq tuple
+        tuple_struct map struct enum identifier ignored_any
+    }
+}
+
 impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        use serde::de::value::{MapAccessDeserializer, StringDeserializer};
+        use serde::de::value::MapAccessDeserializer;
         use serde::de::{Error as _, MapAccess, Visitor};
-
-        /// A map whose first key was read to tell the two forms apart,
-        /// handed on whole to the bare read's own deserializer.
-        struct Prepended<A> {
-            first: Option<String>,
-            rest: A,
-        }
-
-        impl<'de, A: MapAccess<'de>> MapAccess<'de> for Prepended<A> {
-            type Error = A::Error;
-            fn next_key_seed<K: serde::de::DeserializeSeed<'de>>(
-                &mut self,
-                seed: K,
-            ) -> Result<Option<K::Value>, A::Error> {
-                match self.first.take() {
-                    Some(key) => seed
-                        .deserialize(StringDeserializer::<A::Error>::new(key))
-                        .map(Some),
-                    None => self.rest.next_key_seed(seed),
-                }
-            }
-            fn next_value_seed<V: serde::de::DeserializeSeed<'de>>(
-                &mut self,
-                seed: V,
-            ) -> Result<V::Value, A::Error> {
-                self.rest.next_value_seed(seed)
-            }
-        }
-
-        /// A bare read spelled as a string, handed on to the read's own
-        /// deserializer: a newtype around a string (a [`VarId`]) reads
-        /// through it as the string.
-        struct Spelled<'a, E>(&'a str, core::marker::PhantomData<E>);
-
-        impl<'de, E: serde::de::Error> serde::Deserializer<'de> for Spelled<'_, E> {
-            type Error = E;
-            fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
-                visitor.visit_str(self.0)
-            }
-            fn deserialize_newtype_struct<V: Visitor<'de>>(
-                self,
-                _name: &'static str,
-                visitor: V,
-            ) -> Result<V::Value, E> {
-                visitor.visit_newtype_struct(self)
-            }
-            serde::forward_to_deserialize_any! {
-                bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-                bytes byte_buf option unit unit_struct seq tuple
-                tuple_struct map struct enum identifier ignored_any
-            }
-        }
 
         struct Either<S>(core::marker::PhantomData<S>);
 

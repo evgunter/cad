@@ -704,3 +704,41 @@ fn a_repoint_replaces_the_read_and_its_role() {
         "{refused:?}"
     );
 }
+
+/// **A read's two wire forms are told apart in one forward pass**
+/// (`persist::refusal`'s premise; the `persist-no-backtracking` gate): a
+/// plain read is written bare, and a read through its role as
+/// `{"read": …, "role": …}`, told apart by the map's first key, so an
+/// operand read (itself a map) still reads back bare. A role read that
+/// lacks its role, names a role no pose offers, or carries a third field
+/// refuses naming that field, never "no variant matched".
+#[test]
+fn a_reads_wire_forms_read_back_and_refuse_by_field() {
+    let (_, frame) = turned_frame(ProfileDoc::empty_derived("wire", Tol::witness()));
+    let plain: RoleRead<Operand> = RoleRead::plain(Operand::Var(frame));
+    let through: RoleRead<Operand> = RoleRead::through(Operand::Var(frame), PoseRole::Zx);
+    for read in [&plain, &through] {
+        let text = serde_json::to_string(read).expect("a read serializes");
+        let back: RoleRead<Operand> = serde_json::from_str(&text).expect("and reads back");
+        assert_eq!(&back, read, "{text}");
+    }
+    let bare = serde_json::to_value(&plain).expect("a plain read serializes");
+    assert_eq!(
+        bare,
+        serde_json::to_value(Operand::Var(frame)).expect("an operand serializes")
+    );
+    let var = serde_json::to_value(Operand::Var(frame)).expect("an operand serializes");
+    for (text, names) in [
+        (serde_json::json!({ "read": var }), "role"),
+        (serde_json::json!({ "read": var, "role": "line" }), "line"),
+        (
+            serde_json::json!({ "read": var, "role": "zx", "at": [] }),
+            "at",
+        ),
+    ] {
+        let err = serde_json::from_value::<RoleRead<Operand>>(text.clone())
+            .expect_err("a malformed role read refuses")
+            .to_string();
+        assert!(err.contains(names), "{text}: {err}");
+    }
+}

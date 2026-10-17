@@ -481,24 +481,47 @@ impl<R: serde::Serialize> serde::Serialize for RoleRead<R> {
 
 impl<'de, R: serde::Deserialize<'de>> serde::Deserialize<'de> for RoleRead<R> {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        #[derive(serde::Deserialize)]
-        #[serde(untagged)]
-        #[serde(bound(deserialize = "R: serde::Deserialize<'de>"))]
-        enum Spelled<R> {
-            Through(Through<R>),
-            Plain(R),
+        use crate::operand::{Prepended, Spelled};
+        use serde::de::value::MapAccessDeserializer;
+        use serde::de::{Error as _, MapAccess, Visitor};
+
+        /// Told apart by the first key, in one forward pass: a map whose
+        /// first key is `read` or `role` is the read through its role,
+        /// and anything else is the bare read, handed on whole.
+        struct Either<R>(core::marker::PhantomData<R>);
+
+        impl<'de, R: serde::Deserialize<'de>> Visitor<'de> for Either<R> {
+            type Value = RoleRead<R>;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("a read, or a read through its role (`{\"read\": …, \"role\": …}`)")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                R::deserialize(Spelled::<E>(v, core::marker::PhantomData)).map(RoleRead::plain)
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let first = map.next_key::<String>()?;
+                if !matches!(first.as_deref(), Some("read" | "role")) {
+                    let rest = Prepended { first, rest: map };
+                    return R::deserialize(MapAccessDeserializer::new(rest)).map(RoleRead::plain);
+                }
+                let (mut read, mut role) = (None, None);
+                let mut next = first;
+                while let Some(k) = next {
+                    match k.as_str() {
+                        "read" if read.is_none() => read = Some(map.next_value::<R>()?),
+                        "role" if role.is_none() => role = Some(map.next_value::<PoseRole>()?),
+                        "read" | "role" => return Err(A::Error::duplicate_field("read or role")),
+                        other => return Err(A::Error::unknown_field(other, &["read", "role"])),
+                    }
+                    next = map.next_key::<String>()?;
+                }
+                let read = read.ok_or_else(|| A::Error::missing_field("read"))?;
+                let role = role.ok_or_else(|| A::Error::missing_field("role"))?;
+                Ok(RoleRead::through(read, role))
+            }
         }
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        #[serde(bound(deserialize = "R: serde::Deserialize<'de>"))]
-        struct Through<R> {
-            read: R,
-            role: PoseRole,
-        }
-        Ok(match Spelled::<R>::deserialize(de)? {
-            Spelled::Through(Through { read, role }) => Self::through(read, role),
-            Spelled::Plain(read) => Self::plain(read),
-        })
+
+        de.deserialize_any(Either(core::marker::PhantomData))
     }
 }
 
