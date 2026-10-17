@@ -395,13 +395,14 @@ macro_rules! rows {
     )*};
 }
 
-/// The item that owes a decision exactly zero at the nominal that the
-/// move flips.
-const EXACT_ZERO_AT_THE_NOMINAL: &str = "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md";
+/// The item that owes `declared_tangency`'s two exact-zero azimuth-frame
+/// flips.
+const DECLARED_TANGENCY_FLIP: &str = "work/inlane/under-the-guided-lift-declared-tangencys-pcurve-chart-azimuth-frame-flips-from-an-exact-zero.md";
 
 rows! {
-    // In step: moved apart, a point sits exactly on a loop at the nominal
-    // (`point_in_loop_arm`, margin 0, decision 6035), so the builds
+    // In step: moved apart, the ray-schedule gate's margin is exactly 0
+    // at the nominal (`point_in_loop_arm`, an axis-aligned face normal on
+    // a schedule member, decision 6035), so the builds
     // part after it, from decision 6036 of 15539
     // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
     revalue_plate_param: "plate_param", InStep, 3938, [];
@@ -424,8 +425,8 @@ rows! {
     // flip, and nothing re-values away after them, owed below.
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
         flips [
-            ("pcurve_chart_azimuth_frame", EXACT_ZERO_AT_THE_NOMINAL),
-            ("pcurve_chart_azimuth_frame", EXACT_ZERO_AT_THE_NOMINAL)
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP)
         ],
         after [];
 }

@@ -44,13 +44,19 @@
 //!
 //! **The composition** ([`Span::read`]): a point the carrier reads off is
 //! off the span ([`Reading::Off`]) wherever its foot sits, so its place
-//! is not read: no end can be within the band of a point the whole
-//! carrier is past the band from, and a foot need not be defined to say
-//! so (a point on a circle's axis has every parameter for its foot, and
-//! a place read there would decide sides of a half turn the point does
-//! not have). Otherwise, at an end is [`Reading::End`]; inside, the
-//! carrier's reading decides, on ([`Reading::On`]) or undecided (its
-//! refusal); past, the point is off the span, on the carrier
+//! is not read. No end can be within the band of a point the whole
+//! carrier is past the band from: the chord to an end is at least the
+//! distance to the carrier. That holds exactly, and certified at an
+//! enclosing scalar; at a point scalar it holds where rounding stays
+//! inside the band's gap, which is the session's admissible box (D4 ¶4)
+//! and not beyond it (a circle of radius 1e8 read at ε = 1e-9 can read
+//! an end point off). And a foot need not be defined to say so: on a
+//! circle's axis every parameter is a foot, and the one found is the
+//! seed turned by the signs of two zeros ([`geom::Curve3::foot`]), so a
+//! place read there would decide sides of a half turn the point does not
+//! have. Otherwise, at an end is [`Reading::End`]; inside, the carrier's
+//! reading decides, on ([`Reading::On`]) or undecided (its refusal);
+//! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
 //! the band cannot read is a refusal: the carrier's where it refused
@@ -339,8 +345,9 @@ impl<'a, T: Decide> Span<'a, T> {
     /// own. The carrier is read first, and a point it reads off is off
     /// the span with no place read. Otherwise its reading goes on the
     /// frame after the place's, so a refusal of the carrier's is the last
-    /// on the frame; at an end, which no carrier reading decides, its
-    /// escalation is superseded.
+    /// on the frame; at an end, and past the span beside a carrier that
+    /// refused, its escalation is superseded, since neither answer rests
+    /// on it.
     ///
     /// # Errors
     ///
@@ -348,31 +355,31 @@ impl<'a, T: Decide> Span<'a, T> {
     pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
         let foot = self.carrier.foot(q, near);
         let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
-        if on == Ok(OnCarrier::Off) {
-            k_stats::splice(carrier);
-            return Ok(Reading::Off);
-        }
+        let on = match on {
+            Ok(OnCarrier::Off) => {
+                k_stats::splice(carrier);
+                return Ok(Reading::Off);
+            }
+            Ok(OnCarrier::On { margin }) => Ok(margin),
+            Err(refused) => Err(refused),
+        };
         let place = self.place_at(&foot, band);
-        if matches!(place, Ok(Place::End(_))) {
+        // An end, and a past beside a carrier that refused, are answers
+        // the carrier's reading does not decide: its escalation is
+        // superseded.
+        if matches!(place, Ok(Place::End(_))) || (matches!(place, Ok(Place::Past)) && on.is_err()) {
             k_stats::splice_superseded(carrier);
         } else {
             k_stats::splice(carrier);
         }
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
-            Ok(Place::Inside { t }) => match on? {
-                OnCarrier::On { margin } => Reading::On { t, margin },
-                OnCarrier::Off => Reading::Off,
-            },
+            Ok(Place::Inside { t }) => Reading::On { t, margin: on? },
             Ok(Place::Past) => match on {
-                Ok(OnCarrier::On { .. }) => Reading::Carrier,
-                Ok(OnCarrier::Off) | Err(_) => Reading::Off,
+                Ok(_) => Reading::Carrier,
+                Err(_) => Reading::Off,
             },
-            Err(refused) => match on {
-                Ok(OnCarrier::Off) => Reading::Off,
-                Ok(OnCarrier::On { .. }) => return Err(refused),
-                Err(carrier) => return Err(carrier),
-            },
+            Err(refused) => return Err(on.err().unwrap_or(refused)),
         })
     }
 
