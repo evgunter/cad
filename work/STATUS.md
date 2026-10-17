@@ -3090,6 +3090,7 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `horn-and-spindle-tori-have-no-representation` | 2026-10-14 | Surface::Torus represents only ring tori (R > r > 0); horn and spindle tori, which ACIS-family kernels represent, have none |
 | `tier-3-does-not-check-maximal-faces` | 2026-10-14 | Tier 3 does not check maximal faces; the boolean door does, so a split's coplanar artifact is valid at rest and refused as an operand |
 | `the-in-solid-walk-reads-no-outside-of-a-body-with-a-ringed-cylinder-wall` | 2026-10-15 | point_in_solid leaves every outside probe of a body with a ringed cylinder wall unread (VolumeUncertified) |
+| `a-mean-width-or-thickness-is-not-a-distance-margin` | 2026-10-16 | Margins metered as a mean width (2A/P) or mean thickness (V/A) are not distances within which a point is right to ε |
 
 ## Blocked
 
