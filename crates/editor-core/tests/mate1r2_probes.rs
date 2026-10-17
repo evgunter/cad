@@ -559,7 +559,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_the_solve() {
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref.clone()));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, top2) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = constrain(
         doc,

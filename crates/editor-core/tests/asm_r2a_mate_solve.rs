@@ -72,9 +72,9 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
     let mut ids = Vec::new();
     for i in 0..n {
         let node = if i == 0 {
-            Node::instantiate_part(doc_ref.clone())
+            Node::instantiate_part(doc_ref)
         } else {
-            fixture::mated_instance(doc_ref.clone())
+            fixture::mated_instance(doc_ref)
         };
         let (next, id) = insert(doc, node);
         doc = next;

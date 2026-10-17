@@ -205,8 +205,8 @@ fn scene(label: &str) -> Scene {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref.clone()));
-    let (doc, cap) = insert(doc, fixture::mated_instance(top_ref.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, cap) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
         opts,
@@ -896,7 +896,7 @@ fn a1c_three_levels_deep_seat() {
 #[test]
 fn a4b_a_part_mismatch_is_checked_per_reference() {
     let s = scene("msolve2-a4b");
-    let (doc, cap2) = insert(s.doc.clone(), fixture::mated_instance(s.top_ref.clone()));
+    let (doc, cap2) = insert(s.doc.clone(), fixture::mated_instance(s.top_ref));
     let (doc, pattern) = insert(doc, linear(s.top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
     // `part2` agrees with the name at insert — the constraint door
