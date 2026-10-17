@@ -1,0 +1,3 @@
+fork: value-chart (s3 C: FORK C-1 value chart directions, FORK C-2 how a value names its freedom)
+byte: 83
+mapping: even -> A = Opus, B = Fable; odd -> A = Fable, B = Opus
