@@ -543,7 +543,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
             body: 0,
         },
     );
-    match &both.proposal(doc, ev, common::asm::seat_choice()) {
+    match &both.proposal(doc, common::asm::seat_choice()) {
         Err(
             refused @ MateToolError::Frame {
                 error: InterrogateError::Standing(standing),

@@ -183,7 +183,7 @@ fn the_exit_demo_walk() {
     assert!(session.display().free_move_of(bench.post_b).is_some());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

@@ -62,7 +62,7 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
@@ -149,7 +149,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
 
@@ -273,7 +273,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, asm::seat_choice()),
+            tool.proposal(doc, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
                 if head.id() == bench.post_b
         ),
@@ -299,7 +299,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
     tool.pick(session.doc(), b.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
@@ -389,7 +389,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -437,7 +437,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {

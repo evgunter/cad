@@ -231,13 +231,13 @@ fn bundle_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> MateFault {
 }
 
 /// The refusal `mate`'s target met where its placement evaluated.
-fn target_refusal(ev: &Evaluation<f64>, mate: MateRef) -> NodeErrorKind {
+fn target_refusal(ev: &Evaluation<f64>, mate: MateRef) -> Box<editor_core::NodeRefusal> {
     match bundle_fault(ev, mate.placement) {
         MateFault::SideUnevaluated {
             mate: m,
             side: MateSide::To,
             refusal,
-        } if m == mate => refusal.kind().clone(),
+        } if m == mate => refusal,
         other => panic!("expected the target unevaluated, got {other:?}"),
     }
 }
@@ -561,7 +561,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
     let refusal = target_refusal(&ev, mate);
     assert!(
         matches!(
-            refusal,
+            refusal.kind(),
             NodeErrorKind::PoseRead {
                 pose: VarKind::Plane,
                 fault: PoseReadFault::NotPlanar { .. },
@@ -599,7 +599,7 @@ fn a_tied_face_refuses_where_its_reader_evaluates() {
     let (ev, mate) = rest_on_the_face("msolve9-tie", part, &tied);
     let refusal = target_refusal(&ev, mate);
     assert!(
-        matches!(refusal, NodeErrorKind::SelectResolve { .. }),
+        matches!(refusal.kind(), NodeErrorKind::SelectResolve { .. }),
         "a tied face has no one pose: {refusal:?}"
     );
 }
@@ -708,7 +708,7 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(
-            target_refusal(&ev, bogus_mate),
+            target_refusal(&ev, bogus_mate).kind(),
             NodeErrorKind::SelectResolve { .. }
         ),
         "the part has no such face: {:?}",
@@ -741,7 +741,7 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(
-            target_refusal(&ev, s.mate),
+            target_refusal(&ev, s.mate).kind(),
             NodeErrorKind::SelectResolve { .. }
         ),
         "the face is gone: {:?}",
@@ -756,7 +756,7 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
     let ev = run(&loaded.doc, &s.opts);
     assert!(
         matches!(
-            target_refusal(&ev, s.mate),
+            target_refusal(&ev, s.mate).kind(),
             NodeErrorKind::SelectResolve { .. }
         ),
         "the loaded seat refuses where it evaluates: {:?}",

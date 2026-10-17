@@ -151,11 +151,14 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
 }
 
 /// **A creation gesture places what it made, in the same action**
-/// (A10): the extrude and its identity world placement are one
-/// recorded action — the world is `[extrude]`, the tree badges the
-/// extrude, and ONE undo takes both. Breaks if the gesture leaves the
-/// body unplaced (nothing is drawn), records the placement as a second
-/// action, or places something else.
+/// (A10): the extrude and its world placement — a plane mate on the
+/// extrude's planar face to the world and the three values naming it,
+/// solved to the identity — are one recorded action: the world is
+/// `[extrude]`, the tree badges the extrude, the outcome says the copy
+/// was placed on a planar face, and ONE undo takes both. Breaks if the
+/// gesture leaves the body unplaced (nothing is drawn), pins it with no
+/// values to move it by, places it anywhere but where it was made,
+/// records the placement as a second action, or places something else.
 #[test]
 fn a_creation_gesture_places_what_it_made_in_one_action() {
     let tol = Tol::witness();
@@ -174,17 +177,52 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     };
     let doc = session.committed_doc();
     assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
+    let Some(Node::Place {
+        shapes,
+        constraints,
+    }) = doc.node(placement)
+    else {
+        panic!("the extrude's placement: {:?}", doc.node(placement))
+    };
     assert!(
-        matches!(
-            doc.node(placement),
-            Some(Node::Place { shapes, constraints })
-                if matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0))
-                    && matches!(constraints.as_slice(), [pin]
-                        if pin.mate.bit_eq(&pncad::document::Mate::world_pin(
-                            pncad::document::Placement::IDENTITY,
-                        )))
-        ),
-        "the extrude's identity placement"
+        matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0)),
+        "the placement copies the extrude: {shapes:?}"
+    );
+    let [mate, values @ ..] = constraints.as_slice() else {
+        panic!("a mate and its values: {constraints:?}")
+    };
+    assert!(
+        mate.mate()
+            .is_some_and(|m| matches!(m.to, pncad::document::Target::World(_))),
+        "the mate reads the world: {mate:?}"
+    );
+    {
+        use pncad::document::{Coord, SlideAxis};
+        assert_eq!(
+            values
+                .iter()
+                .map(|c| c.value().map(|v| (v.mate, v.coord)))
+                .collect::<Vec<_>>(),
+            vec![
+                Some((mate.id, Coord::Slide(SlideAxis::X))),
+                Some((mate.id, Coord::Slide(SlideAxis::Y))),
+                Some((mate.id, Coord::Spin)),
+            ],
+            "the three freedoms a plane mate leaves, each set"
+        );
+    }
+    assert_eq!(
+        outcome.placed,
+        vec![viewer::session::PlaceReport {
+            placement,
+            by: Ok(editor_core::PlacedBy::PlanarFace),
+        }],
+        "the outcome says how the copy was placed"
+    );
+    let band = pncad::geom_core::predicate::Band::linear(tol).expect("a band");
+    assert!(
+        common::solve(&session, doc, tol).at_identity(placement, band),
+        "the copy stands where it was made"
     );
     assert_eq!(common::world(doc), [extrude], "what was made is the world");
     let rows = session.tree_rows();

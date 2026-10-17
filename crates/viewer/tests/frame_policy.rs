@@ -3786,7 +3786,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
-                side: MateSide::B,
+                side: MateSide::To,
                 node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 pick: FaceSelection {
                     name: face.clone(),

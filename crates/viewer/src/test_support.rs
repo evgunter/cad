@@ -233,15 +233,28 @@ pub fn placed(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    placed_read(
+        doc,
+        pncad::document::Operand::from(body),
+        &EvalOptions::default(),
+        tol,
+    )
+}
+
+/// [`placed`] of any body read — an operation's port, an instance's
+/// copies — evaluated under `opts` to read the pin off it.
+pub fn placed_read(
+    doc: &Doc<ProfileProgram>,
+    read: pncad::document::Operand,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, placement) = inserted(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(pncad::document::Operand::from(body))]),
+        Node::place(vec![pncad::document::BodyRead::plain(read)]),
         tol,
     );
-    (
-        pinned(&doc, placement, &EvalOptions::default(), tol),
-        placement,
-    )
+    (pinned(&doc, placement, opts, tol), placement)
 }
 
 /// [`pin`] at the identity.

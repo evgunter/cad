@@ -23,8 +23,7 @@
 
 use bvh::Aabb;
 use editor_core::{
-    HitTestError, InterrogateError, MateSide, NameLookupError, NodePickError, NodeStanding,
-    UnnamedEntity,
+    HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity,
 };
 use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
 use pncad::mesh::TessellateError;
@@ -219,19 +218,23 @@ fn scene_error_forwards_its_tessellation_arm() {
     prose(&outer, "InvalidChordalTolerance");
 }
 
-/// A picked face whose frame cannot be derived carries the
-/// interrogation door's own refusal, plus the side this layer knows.
+/// A value on a freedom the mate's kind fixes names the kind and the
+/// freedom, in the kernel's own words for each — never a variant name.
 #[test]
-fn mate_tool_error_forwards_its_frame_arm() {
-    let inner = InterrogateError::NoSuchName;
-    let outer = MateToolError::Frame {
-        side: MateSide::A,
-        error: inner,
-        held: pncad::document::HeldNodes::default(),
+fn mate_tool_error_names_the_freedom_a_kind_fixes() {
+    use pncad::document::{Coord, FreedomRefusal, SlideAxis, VarKind};
+    let outer = MateToolError::NotAFreedom {
+        coord: Coord::Slide(SlideAxis::X),
+        kind: VarKind::Axis,
+        refusal: FreedomRefusal::NotAFreedom,
     }
     .to_string();
-    assert!(outer.contains(&inner.to_string()), "{outer}");
-    prose(&outer, "NoSuchName");
+    assert!(outer.contains(&VarKind::Axis.to_string()), "{outer}");
+    assert!(
+        outer.contains(Coord::Slide(SlideAxis::X).name()),
+        "{outer}"
+    );
+    prose(&outer, "NotAFreedom");
 }
 
 #[test]

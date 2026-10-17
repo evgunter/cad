@@ -389,7 +389,7 @@ fn assert_target_unresolved(ev: &Evaluation<f64>, cap: RecipeNodeId, what: &str)
                     side: MateSide::To,
                     refusal,
                     ..
-                } => refusal.kind().clone(),
+                } => refusal.kind(),
                 other => panic!("{what}: expected the target unevaluated, got {other:?}"),
             },
             other => panic!("{what}: expected a mate refusal, got {other:?}"),

@@ -296,16 +296,8 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         pncad::document::DocumentId::derive(&format!("gui4-{tag}")),
         tol,
     );
-    let a = common::insert_into(
-        &mut doc,
-        pncad::document::Node::instantiate_part(bench.post),
-        tol,
-    );
-    let b = common::insert_into(
-        &mut doc,
-        pncad::document::Node::instantiate_part(bench.post),
-        tol,
-    );
+    let a = asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol);
+    let b = asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol);
     let members = vec![asm::copy(&bench, &doc, a), asm::copy(&bench, &doc, b)];
     let weld = common::insert_into(
         &mut doc,
@@ -314,11 +306,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         },
         tol,
     );
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::place_in_world(weld, None),
-        tol,
-    );
+    let doc = common::placed_read(&doc, weld.into(), &bench.opts(), tol).0;
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
@@ -381,13 +369,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             tol,
         );
         let members: Vec<RecipeNodeId> = (0..n)
-            .map(|_| {
-                common::insert_into(
-                    &mut doc,
-                    pncad::document::Node::instantiate_part(bench.post),
-                    tol,
-                )
-            })
+            .map(|_| asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol))
             .collect();
         let reads = members
             .iter()
@@ -400,11 +382,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             },
             tol,
         );
-        common::edit_into(
-            &mut doc,
-            pncad::document::DocEdit::place_in_world(union, None),
-            tol,
-        );
+        let doc = common::placed_read(&doc, union.into(), &bench.opts(), tol).0;
         (doc, members, union)
     };
     let (doc, members, union) = fused(4);

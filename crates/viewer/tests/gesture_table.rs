@@ -96,8 +96,8 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, MateFrame,
-    MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, Node, ProfileProgram, RecipeNodeId,
+    SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -145,27 +145,14 @@ fn face(node: RecipeNodeId) -> StableName {
     }
 }
 
-/// A seat for the mate door — well-formed and never evaluated here.
-fn alignment() -> Alignment<Formula> {
-    Alignment {
-        a: MateFrame::authored(
-            [0.0; 3],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        b: MateFrame::authored(
-            [0.0; 3],
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
+/// A mate for the mate door — well-formed and never evaluated here: a
+/// rest of `node`'s face on itself.
+fn seat(node: RecipeNodeId) -> pncad::document::Mate<Formula> {
+    crate::fixture::rest(
+        common::head(face(node)),
+        common::head(face(node)),
+        ContactClass::Rest,
+    )
 }
 
 /// One sample of every `SessionOp` variant, in `expected`'s order.
@@ -258,10 +245,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::CommitFreeMove { instance: node },
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
-            a: common::head(face(node)),
-            b: common::head(face(node)),
-            class: ContactClass::Rest,
-            alignment: alignment(),
+            placement: node,
+            mate: Box::new(seat(node)),
+            values: Vec::new(),
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),

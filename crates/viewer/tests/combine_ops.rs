@@ -2862,16 +2862,11 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
         },
     );
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
-    let applied = pncad::document::apply(
+    let (doc, placed) = common::placed_read(
         session.committed_doc(),
-        &pncad::document::DocEdit::place_in_world(below.clone(), None),
+        below.clone(),
+        &pncad::document::EvalOptions::default(),
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the half places");
-    let (doc, placed) = (
-        applied.doc,
-        applied.record.minted.expect("a placement mints its node"),
     );
 
     // A pick on the placed half's copy seats the half it places.
@@ -3343,11 +3338,13 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let whole_box = common::copy_of(&doc, body);
     common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
     for port in [0, 1] {
-        common::edit_into(
-            &mut doc,
-            DocEdit::place_in_world(pncad::document::Operand::output(split, port), None),
+        doc = common::placed_read(
+            &doc,
+            pncad::document::Operand::output(split, port),
+            &pncad::document::EvalOptions::default(),
             tol,
-        );
+        )
+        .0;
     }
     let mut session = DocSession::inline(doc, tol);
     session.pump();

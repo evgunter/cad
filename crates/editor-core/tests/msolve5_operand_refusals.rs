@@ -195,7 +195,7 @@ fn assert_on_selection_refuses(ev: &Evaluation<f64>, mate: MateRef, what: &str) 
                     mate: m,
                     side: MateSide::On,
                     refusal,
-                } if *m == mate => refusal.kind().clone(),
+                } if *m == mate => refusal.kind(),
                 other => panic!("{what}: expected the copy's pose unevaluated, got {other:?}"),
             },
             other => panic!("{what}: expected a mate refusal, got {other:?}"),

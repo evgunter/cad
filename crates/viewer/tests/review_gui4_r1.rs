@@ -137,7 +137,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
@@ -825,7 +825,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, asm::seat_choice()) {
+    match tool.proposal(doc, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head.id(), bench.post_b, "said as the picked copy");
         }

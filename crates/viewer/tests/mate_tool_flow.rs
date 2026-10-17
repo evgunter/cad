@@ -55,7 +55,7 @@ fn two_picks_one_choice_one_committed_edit() {
     // name, resolved by the solve at every evaluation.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     assert_eq!(proposal.class, ContactClass::Rest);
     assert_eq!(proposal.admission, ClassAdmission::Mints);
@@ -117,7 +117,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // No picks yet: NotTwoPicks.
     let tool = MateTool::new();
     assert!(matches!(
-        tool.proposal(doc, eval, asm::seat_choice()),
+        tool.proposal(doc, asm::seat_choice()),
         Err(MateToolError::NotTwoPicks)
     ));
 
@@ -127,7 +127,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), post_top.clone());
     assert!(matches!(
-        tool.proposal(doc, eval, asm::seat_choice()),
+        tool.proposal(doc, asm::seat_choice()),
         Err(MateToolError::SamePick { head }) if head.id() == bench.post_b
     ));
 
@@ -144,7 +144,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     session2.pump();
     let (doc2, eval2) = session2.landed_pair().expect("landed");
     assert!(matches!(
-        tool.proposal(doc2, eval2, asm::seat_choice()),
+        tool.proposal(doc2, asm::seat_choice()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..
@@ -182,12 +182,12 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     let mut choice = asm::seat_choice();
     choice.primitive = MatePrimitive::PlanarRest { offset: 0.0 };
     choice.clocking = Some(0.3);
-    let Err(MateToolError::TableRefused { what: rest }) = tool.proposal(doc, eval, choice) else {
+    let Err(MateToolError::TableRefused { what: rest }) = tool.proposal(doc, choice) else {
         panic!("a rider on a planar rest refuses at the tool");
     };
     let mut choice = asm::seat_choice();
     choice.primitive = MatePrimitive::Clocking;
-    let Err(MateToolError::TableRefused { what: clocking }) = tool.proposal(doc, eval, choice)
+    let Err(MateToolError::TableRefused { what: clocking }) = tool.proposal(doc, choice)
     else {
         panic!("a standalone clocking refuses at the tool");
     };
@@ -195,7 +195,7 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     // And a choice the table has a row for reaches the pick door,
     // which is what "before any geometry" means here.
     assert!(matches!(
-        tool.proposal(doc, eval, asm::seat_choice()),
+        tool.proposal(doc, asm::seat_choice()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..
@@ -357,7 +357,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("a pattern copy is a member");
 
     // The reference is read at the copy's projection, `Instance(i)`-
@@ -386,7 +386,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     zero.pick(session.doc(), copy_pick(&session, 0));
     zero.pick(session.doc(), shelf_bottom.clone());
     let from_zero = zero
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("copy 0 is a member too");
     assert_eq!(
         asm::face_side(doc, &from_zero.alignment.a, &from_zero.a),
@@ -462,7 +462,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     tool.pick(session.doc(), shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("a pattern copy over a transform carries a member");
     assert_eq!(
         proposal.a.at, parts[1],
@@ -550,7 +550,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     tool.pick(session.doc(), shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("a pick on a union of instances proposes");
     assert_eq!(proposal.a.at, union, "the reference is read at the union");
     let member = pncad::document::member_of(doc, &proposal.a).expect("a member");
@@ -664,7 +664,7 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
         let mut tool = MateTool::new();
         tool.pick(session.doc(), copy.clone());
         tool.pick(session.doc(), shelf_bottom.clone());
-        tool.proposal(doc, eval, asm::seat_choice())
+        tool.proposal(doc, asm::seat_choice())
             .expect("a pattern copy is a member")
     };
     let spun = proposal_of(&copy_one);
@@ -846,7 +846,7 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("a nested copy is a member");
 
     // The reference wears one `Instance(i)` per level, outermost
@@ -918,7 +918,7 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("a Part-selected copy is a member");
 
     // Read AT the `Part`, under the PATTERN's own name: the Part
@@ -995,7 +995,7 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         "the premise: the landed pair predates it"
     );
     let refused = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect_err("one instance is no pair");
     let said = refused.respoken(session.doc()).to_string();
     let spoken = format!(

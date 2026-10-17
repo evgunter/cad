@@ -462,7 +462,7 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, asm::seat_choice())
+        tool.proposal(doc, asm::seat_choice())
             .expect("the seat proposes")
     };
     // The hub's world pin off, so the seat places the hub.
@@ -638,7 +638,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, asm::seat_choice())
+        tool.proposal(doc, asm::seat_choice())
             .expect("the first sail proposes")
     };
     // The first sail's world pin off, so its mate places it.
@@ -689,7 +689,7 @@ fn the_windmill_story() {
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, asm::seat_choice())
+            .proposal(doc, asm::seat_choice())
             .expect("the second sail proposes");
         // Turn the roll: of the wall's own reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is
