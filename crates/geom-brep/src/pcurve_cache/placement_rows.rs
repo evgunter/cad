@@ -662,3 +662,108 @@ fn a_placements_margin_is_one_expression_per_name_across_a_frame_flip() {
         }
     }
 }
+// ---- review 5225 r2 probes ----
+
+fn r2_villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {
+    let (major, minor) = (2.0, 0.7);
+    let axis = Vec3::unit_z();
+    let u_ref = Vec3::unit_x();
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref,
+    };
+    let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+    let tilt = (minor / major).asin();
+    let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+    let c = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0) + d * minor,
+        axis: d.cross(lean),
+        radius: major,
+        u_ref: d * psi.cos() + lean * psi.sin(),
+    };
+    (torus, c)
+}
+
+fn report(name: &str, surface: &Surface<f64>, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Vec<String> {
+    let band = band();
+    let mut bad = vec![];
+    let base = chart_pcurve_over(carrier, t0, t1, surface, band).unwrap();
+    for k in [-3.0, -1.0, 0.0, 1.0, 3.0] {
+        let (a, b) = (t0 + k * TAU, t1 + k * TAU);
+        let image = chart_pcurve_over(carrier, a, b, surface, band).unwrap();
+        let m = image.eval(0.5 * (a + b));
+        let q = base.eval(0.5 * (t0 + t1));
+        eprintln!("{name} k={k}: mid {m:?} (base {q:?})");
+        if !(in_window(m.x)) { bad.push(format!("{name} k={k}: u {} out of window", m.x)); }
+        if (m.y - q.y).abs() > 1e-9 { bad.push(format!("{name} k={k}: v {} vs base {}", m.y, q.y)); }
+        if (m.x - q.x).abs() > 1e-9 { bad.push(format!("{name} k={k}: u {} vs base {}", m.x, q.x)); }
+    }
+    bad
+}
+
+#[test]
+fn r2_villarceau_v_channel() {
+    let (torus, c) = r2_villarceau(0.7, 1.0, 0.3);
+    let bad = report("villarceau", &torus, &c, (0.4, 1.6));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+#[test]
+fn r2_spiric_wall_v_channel() {
+    let (r, rr, d) = (0.09375, 0.0703125, 0.0078125);
+    let c = Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+        major_radius: r,
+        minor_radius: rr,
+        offset: d,
+    };
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: r,
+        minor_radius: rr,
+        u_ref: Vec3::unit_x(),
+    };
+    let t = 0.8911225078866529;
+    let bad = report("spiric wall", &torus, &c, (-t, t));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+#[test]
+fn r2_sphere_meridian_south() {
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    // meridian in the xz plane; circle(o, -y, 1, x): t=0 at +x, t=π/2 at ?
+    let c = circle(Point3::new(0.0, 0.0, 0.0), -Vec3::unit_y(), 1.0, Vec3::unit_x());
+    let band = band();
+    for (t0, t1) in [(0.2, 1.0), (-1.5, -1.1), (-1.4, -0.9), (4.9, 5.2)] {
+        let image = chart_pcurve_over(&c, t0, t1, &sphere, band).unwrap();
+        let old = super::chart_pcurve(&c, &sphere, band).unwrap();
+        eprintln!("sphere meridian [{t0},{t1}]: mid {:?}, ends {:?} {:?}; spanless mid {:?}", image.eval(0.5*(t0+t1)), image.eval(t0), image.eval(t1), old.eval(0.5*(t0+t1)));
+        let cert = PcurveCache::certify(image.clone(), t0, t1, &c, &sphere, band);
+        eprintln!("  certifies: {:?}", cert.as_ref().map(|c| c.certificate().envelope));
+    }
+}
+
+#[test]
+fn r2_cone_focal_u() {
+    let cone = Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle: 0.4,
+        u_ref: Vec3::unit_x(),
+    };
+    // an oblique plane z = 1 + 0.2 x cuts an ellipse
+    let n = Vec3::new(-0.2, 0.0, 1.0).normalize();
+    // find ellipse via intersect? build directly: param the section numerically is hard; use geom's plane-cone section if any
+    let _ = (cone, n);
+}

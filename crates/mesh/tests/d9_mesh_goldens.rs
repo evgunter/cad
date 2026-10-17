@@ -423,3 +423,27 @@ fn the_corpus_digests_the_same_bytes_at_one_and_four_threads() {
         moved.join("\n  ")
     );
 }
+
+#[test]
+fn review_5225_dump_tilted() {
+    let out = std::env::var("R5225_DUMP").unwrap_or_default();
+    if out.is_empty() { return; }
+    let (a, b) = tilted_halves();
+    let mut s = String::new();
+    for (name, body) in [("above", a), ("below", b)] {
+        for delta in [0.1, 0.01] {
+            match mesh::tessellate(&body, delta, Tol::witness()) {
+                Ok(m) => {
+                    s.push_str(&format!("MESH {name} {delta} npos {} npatch {}\n", m.positions.len(), m.patches.len()));
+                    for p in &m.positions { s.push_str(&format!("P {name} {delta} {:.17e} {:.17e} {:.17e}\n", p.x, p.y, p.z)); }
+                    for q in &m.patches {
+                        s.push_str(&format!("F {name} {delta} {:?} ntri {}\n", q.face, q.triangles.len()));
+                        for t in &q.triangles { s.push_str(&format!("T {name} {delta} {:?} {} {} {}\n", q.face, t[0], t[1], t[2])); }
+                    }
+                }
+                Err(e) => s.push_str(&format!("ERR {name} {delta} {e:?}\n")),
+            }
+        }
+    }
+    std::fs::write(out, s).unwrap();
+}
