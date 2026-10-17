@@ -1382,6 +1382,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
         ProfileError::EmptyProfile => "empty_profile",
+        ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",

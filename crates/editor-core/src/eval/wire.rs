@@ -1532,7 +1532,10 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
             };
-            pre.validated_f64.clone().lift_onto(plane)
+            pre.validated_f64
+                .clone()
+                .lift_onto(plane)
+                .map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
