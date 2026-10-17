@@ -119,7 +119,6 @@ from pncad import (
     Mate,
     MatePrimitive,
     Node,
-    PartSelect,
     PatternKind,
     Placement,
     SegTag,
@@ -1342,7 +1341,7 @@ class TestMateFaultPayload(BenchWorkspace):
         """The three are `None`, not zeroes: an arm whose decision
         measured no lever names no lever at all — here a mate the rest
         of its bundle already fixes, refused over-constrained."""
-        doc, (post_a, shelf_i, _), (mate_1, _) = TestBenchStand.stand(self)
+        doc, (_, shelf_i, _), _ = TestBenchStand.stand(self)
         [(_, seated)] = doc.bundle(shelf_i)
         with self.assertRaises(pncad.EditError) as caught:
             doc.constrain(shelf_i, seated, resolver=self.ws)
