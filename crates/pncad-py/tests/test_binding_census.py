@@ -2326,6 +2326,11 @@ NOT_BOUND = {
     # `output_signature` and its sentence, and the subgroup family is
     # the value-free name of a `Subgroup.variant` Python already reads.
     "OutputFault": SHAPE,
+    # The deepest world read a mate holds: Python meets the bound as the
+    # world read's `too_deep` refusal (`MateFault.inner_variant` of a
+    # `mate_world_read`), with the depth in its sentence, and never
+    # passes the number itself.
+    "MAX_WORLD_READ_DEPTH": SHAPE,
     # A split's half: Python reads a half by its port
     # (`Doc.output(split, 0 | 1)`), and that read is the half's own name
     # table, so the half is never a separate argument.
