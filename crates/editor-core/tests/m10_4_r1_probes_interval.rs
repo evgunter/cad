@@ -283,7 +283,10 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
                 &doc,
                 None,
                 &CancelToken::new(),
-                &opts(&doc, None),
+                &EvalOptions {
+                    seed: None,
+                    ..EvalOptions::default()
+                },
                 Tol::witness(),
             );
             assert_eq!(d.order, e.order, "{}", stringify!($t));

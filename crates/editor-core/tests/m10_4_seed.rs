@@ -264,7 +264,14 @@ fn an_unseeded_evaluation_is_the_default_options_evaluation() {
     assert!(EvalOptions::default().seed.is_none());
     for doc in corpus::documents() {
         let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
-        let explicit = run::<f64>(&doc.doc, None, &opts(&doc.doc, None));
+        let explicit = run::<f64>(
+            &doc.doc,
+            None,
+            &EvalOptions {
+                seed: None,
+                ..EvalOptions::default()
+            },
+        );
         assert_eq!(default.order, explicit.order, "{}", doc.name);
         for id in &default.order {
             let (a, b) = (default.value(*id), explicit.value(*id));
