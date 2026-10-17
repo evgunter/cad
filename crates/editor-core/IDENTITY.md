@@ -11,12 +11,11 @@ symbol beside them; the symbol is the stable half.
 
 ## 0. Grounding (committed elsewhere)
 
-- **Identity and version are distinct** (`crates/editor-core/ASSEMBLY.md`
-  A4): `DocumentId` answers which part and survives every edit;
-  `ContentPin` is the SHA-256 of the canonical bytes and answers which
-  version; `DocRef` pairs them. The store returns a document only when its
-  bytes hash to the pin (`crates/pncad/src/workspace.rs`), and moving a pin
-  is a recorded edit (A13, `UpdateReference`).
+- **Identity and version are distinct** (DESIGN `[assemblies.pins]`):
+  `DocumentId` says which document, `ContentPin` which version, `DocRef`
+  pairs them. The store returns a document only when its bytes hash to
+  the pin (`crates/pncad/src/workspace.rs`), and moving a pin is a
+  recorded edit (ASSEMBLY A13, `UpdateReference`).
 - **The document is a value and undo is keeping the old value** (G1,
   `crates/viewer/README.md`). `viewer::history` retains every `Doc` an
   action produced and never replays (`history.rs`); undo and redo move a
@@ -33,6 +32,9 @@ symbol beside them; the symbol is the stable half.
   (`display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
+
+DESIGN `[assemblies.pairing]` states the rule for every holder; this is
+why it holds and what it covers.
 
 `RecipeNodeId` is a digest of the document's mint chain (N1): the chain
 digests every minting edit since the empty document, and an insert's id
@@ -97,7 +99,8 @@ vocabulary), `document-seam-no-in-session-change-detection`.*
 
 ## DI3 — An evaluation carries its document's identity
 
-**`Evaluation` carries `document: DocumentId`**, stamped by `evaluate` from
+The rule is DESIGN `[assemblies.pairing]`; this is how an evaluation
+keeps it. **`Evaluation` carries `document: DocumentId`**, stamped by `evaluate` from
 `doc.id()`. A pairing door takes a document plus a value that must be of that
 document; without the stamp nothing could check the pairing, and a
 mispairing would misbehave silently. Every door that takes the pair refuses
@@ -118,7 +121,8 @@ than mined for coincidental hits.
 
 ## DI4 — Saving at a path never forks identity; forking is its own act
 
-Identity is the document's, not the file's (A4), so a save cannot mint a
+The rule is DESIGN `[assemblies.saving]`. Identity is the document's,
+not the file's, so a save cannot mint a
 fresh id without forking. And a directory holding one id under two filenames
 refuses `DuplicateId` for every resolution through it (`workspace.rs`), so
 writing the same `DocumentId` to a second file beside the original is not a
@@ -140,6 +144,12 @@ existing, requested }`, and `Workspace::save_as_new_document`, with a random
 id.*
 
 ## DI5 — Releasing a free-move gesture is the placement edit
+
+*Stale since INTENT stage 3 B: the edit this clause names,
+`DocEdit::SetOffset`, and the gauge and offset it sets are gone (DESIGN
+`[placement]`), and nothing in the code commits a free-move (below).
+What a release records in the new model, a value of the copy's
+placement, is the stage-3 unit's that builds the commit to state.*
 
 The viewer records a free-moved placement persistently, under G1's
 preview-versus-commit rule: the gesture's previews stay display frames, and
