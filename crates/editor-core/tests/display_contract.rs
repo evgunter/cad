@@ -18,12 +18,12 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
-    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
-    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
-    UnnamedEntity, VarName,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateRef, MateSide,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
+    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
+    StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -140,6 +140,18 @@ fn face_name() -> StableName {
 /// minting node as an extrude.
 fn spoken_face_name() -> SpokenName {
     editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
+}
+
+/// Constraint `n` of placement `n`, which a sentence with no document
+/// at hand says as `constraint <n>:<digest> of node <tag>`.
+fn mref(n: u64) -> MateRef {
+    MateRef::new(
+        RecipeNodeId::new(0, tagged(n)),
+        editor_core::ConstraintId(editor_core::MintId::new(
+            u32::try_from(n).expect("a small ordinal"),
+            0,
+        )),
+    )
 }
 
 /// A stable name renders as its role and the feature that made it, in
@@ -991,7 +1003,6 @@ test_utils::f6_variants! {
         NodeNotMinted,
         OperandUnminted,
         SlotVarKind,
-        ReadsWorldCopy,
         SelectionShape,
         SelectionBody,
         PoseShape,
@@ -1014,8 +1025,7 @@ test_utils::f6_variants! {
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
-        NotAGauge,
-        GaugeCycle,
+        ConstraintNotMinted,
         PlacementNonFinite,
         PlacementImproper,
         PlacementNonRigid,
@@ -1114,14 +1124,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "Extrude \"base plate\" (000000000005)'s target reads #9:",
                 "which is a profile, where it takes a body",
             ],
-        ),
-        (
-            SnapshotError::ReadsWorldCopy {
-                node: node(),
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::From),
-                placement: absent(9),
-            },
-            vec!["reads the world copy", "no construction reads"],
         ),
         (
             SnapshotError::SelectionShape {
@@ -1401,29 +1403,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::NotAGauge {
-                node: held(5, "InstantiatePart"),
-                gauge: held(2, "Extrude"),
+            SnapshotError::ConstraintNotMinted {
+                node: held(5, "Place"),
+                constraint: editor_core::ConstraintId(editor_core::MintId::new(
+                    3,
+                    0x3fa9_c1d2_a0b1_c3d4,
+                )),
             },
             vec![
-                "InstantiatePart 000000000005's gauge reference names Extrude 000000000002, \
-                 which is not a gauge",
+                "Place 000000000005's constraint #3 was minted as no \
+                 constraint's id, or is held twice",
             ],
         ),
         (
-            SnapshotError::GaugeCycle {
-                node: held(5, "Gauge"),
-                gauge: held(2, "Gauge"),
-            },
-            vec!["Gauge 000000000005 sits on Gauge 000000000002, which sits on it"],
-        ),
-        (
             SnapshotError::PlacementNonFinite {
-                node: held(5, "InstantiatePart"),
-                at: editor_core::FrameSite::Step { index: 0 },
+                node: held(5, "Place"),
+                at: editor_core::FrameSite::MateStep {
+                    constraint: editor_core::ConstraintId(editor_core::MintId::new(
+                        3,
+                        0x3fa9_c1d2_a0b1_c3d4,
+                    )),
+                    side: MateSide::B,
+                    index: 0,
+                },
             },
             vec![
-                "step 1 of InstantiatePart 000000000005's placement",
+                "step 1 of constraint #3 of Place 000000000005's b frame offset",
                 "non-finite coordinate",
             ],
         ),
@@ -1452,10 +1457,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::MateAlignment {
-                node: held(5, "Mate"),
+                node: held(5, "Place"),
+                constraint: editor_core::ConstraintId(editor_core::MintId::new(
+                    3,
+                    0x3fa9_c1d2_a0b1_c3d4,
+                )),
             },
             vec![
-                "Mate 000000000005's alignment datum",
+                "Place 000000000005's constraint #3's alignment datum",
                 "non-finite coordinate",
             ],
         ),
@@ -2041,7 +2050,7 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
     let phrase = face_name().to_string();
 
     let reference = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
+        mate: mref(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
@@ -2061,19 +2070,21 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
     let unevaluated = mint(MintRefusal::Unevaluated {
-        mate: RecipeNodeId::new(0, tagged(2)),
+        mate: mref(2),
         standing: editor_core::NodeStanding::Failed {
             node: RecipeNodeId::new(0, tagged(2)),
         },
     });
     assert_f6(
         &unevaluated,
-        &["mate 000000000002 declares nothing about the product, since it has no value"],
+        &[
+            "constraint #2 of node 000000000002 declares nothing about the product, since it has no value",
+        ],
         &["Unevaluated", "Failed"],
     );
 
     let tied = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
+        mate: mref(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
@@ -2081,7 +2092,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     assert_f6(
         &tied,
         &[
-            "mate 000000000002's a reference",
+            "constraint #2 of node 000000000002's a reference",
             "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
@@ -2136,14 +2147,14 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
 fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
     let row = MintRefusal::NoAtRestRecord {
-        mate: RecipeNodeId::new(0, tagged(5)),
+        mate: mref(5),
         class: ContactClass::Tangent,
         why,
     };
     assert_f6(
         &row,
         &[
-            "mate 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -2152,7 +2163,7 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     assert_f6(
         &mint(row),
         &[
-            "mate 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -2178,13 +2189,13 @@ fn the_mint_arms_render_every_refusal_they_hold() {
     let raised = AssemblyError::Mint {
         refusals: vec![
             MintRefusal::Reference {
-                mate: RecipeNodeId::new(0, tagged(2)),
+                mate: mref(2),
                 side: MateSide::A,
                 name: Box::new(face_name()),
                 why: RefusedRef::Ambiguous { width: 2 },
             },
             MintRefusal::NoAtRestRecord {
-                mate: RecipeNodeId::new(0, tagged(5)),
+                mate: mref(5),
                 class: ContactClass::Tangent,
                 why,
             },
@@ -2201,8 +2212,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &raised,
         &[
             &counted,
-            "mate 000000000002's a reference",
-            "mate 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #2 of node 000000000002's a reference",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["Reference", "NoAtRestRecord"],
     );
@@ -2217,7 +2228,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
             CarriedRefusal {
                 route: route.clone(),
                 refusal: MintRefusal::Reference {
-                    mate: RecipeNodeId::new(0, tagged(2)),
+                    mate: mref(2),
                     side: MateSide::A,
                     name: Box::new(face_name()),
                     why: RefusedRef::Ambiguous { width: 2 },
@@ -2227,7 +2238,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
             CarriedRefusal {
                 route,
                 refusal: MintRefusal::NoAtRestRecord {
-                    mate: RecipeNodeId::new(0, tagged(5)),
+                    mate: mref(5),
                     class: ContactClass::Tangent,
                     why,
                 },
@@ -2247,8 +2258,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &carried,
         &[
             &counted,
-            "mate 000000000002's a reference",
-            "mate 000000000005's class Tangent has no at-rest kernel record",
+            "constraint #2 of node 000000000002's a reference",
+            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
     );
@@ -2275,15 +2286,15 @@ fn the_mint_arms_render_every_refusal_they_hold() {
 #[test]
 fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     let pair = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(3)),
-        added: RecipeNodeId::new(0, tagged(5)),
+        held: mref(3),
+        added: mref(5),
         predicate: "mate_member_translation_zero",
         clash: Clash::Length { metres: 0.01 },
     };
     assert_f6(
         &pair,
         &[
-            "mate 000000000003 and mate 000000000005 cannot both hold",
+            "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
             "a clash of 0.01 m",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2295,8 +2306,8 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     );
 
     let itself = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(6)),
-        added: RecipeNodeId::new(0, tagged(6)),
+        held: mref(6),
+        added: mref(6),
         predicate: "mate_clocking_redundant",
         clash: Clash::Levered(Lever::Roll {
             radians: core::f64::consts::FRAC_PI_2,
@@ -2306,7 +2317,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &itself,
         &[
-            "mate 000000000006 contradicts itself",
+            "constraint #6 of node 000000000006 contradicts itself",
             "the clocking disagrees with the roll the coincidence already pins",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2315,7 +2326,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert!(
         !itself
             .to_string()
-            .contains("mate 000000000006 and mate 000000000006"),
+            .contains("constraint #6 of node 000000000006 and constraint #6 of node 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2327,8 +2338,8 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
 #[test]
 fn a_levered_clash_prints_only_a_product_that_is_the_product() {
     let fault = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(6)),
-        added: RecipeNodeId::new(0, tagged(6)),
+        held: mref(6),
+        added: mref(6),
         predicate: "mate_clocking_redundant",
         clash: Clash::Levered(Lever::Roll {
             radians: core::f64::consts::FRAC_PI_2,
@@ -2362,8 +2373,8 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
 #[test]
 fn a_residual_clash_prints_its_pure_number_and_the_product() {
     let fault = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(3)),
-        added: RecipeNodeId::new(0, tagged(5)),
+        held: mref(3),
+        added: mref(5),
         predicate: "mate_member_rotation_identity",
         clash: Clash::Levered(Lever::Residual {
             value: 0.25,
@@ -2372,7 +2383,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     };
     let shown = fault.to_string();
     for want in [
-        "mate 000000000003 and mate 000000000005 cannot both hold",
+        "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
         "the relative rotation is not the identity",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",
@@ -2401,8 +2412,8 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
 #[test]
 fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     let empty = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(3)),
-        added: RecipeNodeId::new(0, tagged(5)),
+        held: mref(3),
+        added: mref(5),
         predicate: "mate_member_empty",
         clash: Clash::Structural,
     };
@@ -2422,8 +2433,8 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         ("+inf", f64::INFINITY),
     ] {
         let fault = MateFault::Contradictory {
-            held: RecipeNodeId::new(0, tagged(3)),
-            added: RecipeNodeId::new(0, tagged(5)),
+            held: mref(3),
+            added: mref(5),
             predicate: "mate_member_translation_zero",
             clash: Clash::Length { metres: clash },
         };
@@ -2445,8 +2456,8 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     // A lever whose roll is not finite is still levered: the sentence
     // keeps its halves and prints the product they make.
     let levered = MateFault::Contradictory {
-        held: RecipeNodeId::new(0, tagged(6)),
-        added: RecipeNodeId::new(0, tagged(6)),
+        held: mref(6),
+        added: mref(6),
         predicate: "mate_clocking_redundant",
         clash: Clash::Levered(Lever::Roll {
             radians: f64::INFINITY,
@@ -2526,7 +2537,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
     );
     assert_f6(
         &LeverRefusal::NotAnInstance { node: instance },
-        &["node 000000000007", "not a live instantiate node"],
+        &["node 000000000007", "is not an instance's copy"],
         &["NotAnInstance"],
     );
     assert_f6(
@@ -2911,12 +2922,10 @@ fn a_program_fault_states_its_lattice_coordinate() {
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
     const MAINTENANCE: Maintenance = [
-        OffsetCleared,
         Strand,
         StrandedSelection,
         StrandedAppearance,
         StrandedRead,
-        LabelDropped,
         AnonymousVarRemoved,
     ];
 }
@@ -2924,8 +2933,6 @@ test_utils::f6_variants! {
 /// **What an accepted edit DID reads as prose too** — the strand count
 /// beside the cascade count is rendered from these sentences.
 ///
-/// The offset arm names the instance whose offset the mate door
-/// cleared, and why: the mate placed its group on the one it joined.
 /// The strand sentence's relative clause binds to the NODE: the name
 /// is what survives a strand, so a sentence reading "a name, which
 /// this edit deleted" would name the wrong casualty.
@@ -2937,16 +2944,6 @@ test_utils::f6_variants! {
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let cases = [
-        (
-            Maintenance::OffsetCleared {
-                instance: held(3, "InstantiatePart"),
-                offset: editor_core::Placement::IDENTITY,
-            },
-            vec![
-                "InstantiatePart 000000000003's group",
-                "InstantiatePart 000000000003's offset was cleared",
-            ],
-        ),
         (
             Maintenance::Strand {
                 node: held(5, "Datum frame (on face)"),
@@ -2997,16 +2994,6 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Fillet 000000000005's target reads #0:0000000000070000",
                 "this edit deleted with its operation",
                 "until the target reads a live value",
-            ],
-        ),
-        (
-            Maintenance::LabelDropped {
-                gauge: held(4, "Gauge"),
-                label: editor_core::Label::new("bench").expect("a label"),
-            },
-            vec![
-                "the fold took Gauge 000000000004 out of the document",
-                "its label \"bench\" went with it",
             ],
         ),
         (
@@ -3381,7 +3368,6 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 var: Box::new(spoken.clone()),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
-                promote: false,
             }
             .to_string(),
         ),
@@ -3523,7 +3509,7 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
 /// **An edit refusal does not say a noun its spoken node already
 /// says.** A spoken node opens with its kind (`Measure 000000000004`),
 /// so a template that still names the thing before it reads
-/// "a length measure (Measure …)" or "the mate Mate …". Every arm that
+/// "a length measure (Measure …)" or "the placement Place …". Every arm that
 /// names a held node is rendered over a node of the kind it really
 /// names, and the word before each spoken node must not be its kind.
 #[test]
@@ -3558,9 +3544,11 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
         ),
         (
             EditError::NonFiniteAlignment {
-                node: held(6, "Mate"),
+                node: held(6, "Place"),
+                constraint: editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
+                position: 1,
             },
-            vec![held(6, "Mate")],
+            vec![held(6, "Place")],
         ),
         (
             EditError::UpdateOnNonInstance {
@@ -3569,85 +3557,33 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(3, "Profile")],
         ),
         (
-            EditError::OffsetOnNonInstance {
+            EditError::WorldIsUndeletable {
+                node: editor_core::test_support::spoken(RecipeNodeId::WORLD, Some("World")),
+            },
+            vec![editor_core::test_support::spoken(
+                RecipeNodeId::WORLD,
+                Some("World"),
+            )],
+        ),
+        (
+            EditError::ConstraintOnNonPlacement {
                 node: held(3, "Profile"),
             },
             vec![held(3, "Profile")],
         ),
         (
-            EditError::GaugeOnNonPlaced {
-                node: held(3, "Profile"),
+            EditError::UnknownConstraint {
+                node: held(4, "Place"),
+                constraint: editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
             },
-            vec![held(3, "Profile")],
+            vec![held(4, "Place")],
         ),
         (
-            EditError::GaugeNotLive {
-                node: held(3, "InstantiatePart"),
-                gauge: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            EditError::CopyReadOffBodySeat {
+                node: held(5, "Fillet"),
+                slot: editor_core::SlotId::Radius,
             },
-            vec![
-                held(3, "InstantiatePart"),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            ],
-        ),
-        (
-            EditError::NotAGauge {
-                node: held(3, "InstantiatePart"),
-                gauge: held(4, "Extrude"),
-            },
-            vec![held(3, "InstantiatePart"), held(4, "Extrude")],
-        ),
-        (
-            EditError::GaugeCycle {
-                node: held(1, "Gauge"),
-                gauge: held(2, "Gauge"),
-            },
-            vec![held(1, "Gauge"), held(2, "Gauge")],
-        ),
-        (
-            EditError::WouldStartPlacing {
-                mate: held(6, "Mate"),
-            },
-            vec![held(6, "Mate")],
-        ),
-        (
-            EditError::PromoteOnNonInstance {
-                node: held(6, "Mate"),
-            },
-            vec![held(6, "Mate")],
-        ),
-        (
-            EditError::PromoteWithoutOffset {
-                node: held(4, "InstantiatePart"),
-            },
-            vec![held(4, "InstantiatePart")],
-        ),
-        (
-            EditError::PromoteNonRoot {
-                node: held(5, "InstantiatePart"),
-                root: held(4, "InstantiatePart"),
-            },
-            vec![held(5, "InstantiatePart"), held(4, "InstantiatePart")],
-        ),
-        (
-            EditError::PromoteMemberOffset {
-                node: held(4, "InstantiatePart"),
-                member: held(5, "InstantiatePart"),
-            },
-            vec![held(4, "InstantiatePart"), held(5, "InstantiatePart")],
-        ),
-        (
-            EditError::FoldOnNonGauge {
-                node: held(4, "InstantiatePart"),
-            },
-            vec![held(4, "InstantiatePart")],
-        ),
-        (
-            EditError::FoldWouldStartPlacing {
-                node: held(3, "Gauge"),
-                mate: held(6, "Mate"),
-            },
-            vec![held(3, "Gauge"), held(6, "Mate")],
+            vec![held(5, "Fillet")],
         ),
         (
             EditError::UnresolvedInput {

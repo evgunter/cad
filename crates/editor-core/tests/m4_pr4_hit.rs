@@ -51,10 +51,15 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .enumerate()
             .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
             .collect(),
+        // A placement's copies: the bodies its name table indexes.
+        ValuePayload::Copies(c) => c
+            .bodies
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
+            .collect(),
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Mate(_)
-        | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
         // invert.
         | ValuePayload::Measure { .. }
@@ -280,14 +285,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, gauge) = insert(
-        doc,
-        Node::gauge(
-            None,
-            editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
-        ),
-    );
-    let ev2 = run(&doc2);
+    // The sketch frame denotes no body, so its table is empty.
+    let frame = doc.ids()[0];
+    let ev2 = run(&doc);
     let some_face = ev2
         .value(ext2)
         .unwrap()
@@ -299,9 +299,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         })
         .unwrap();
     assert_eq!(
-        entity_name(&ev2, gauge, some_face),
+        entity_name(&ev2, frame, some_face),
         Err(HitTestError::Unnamed(UnnamedEntity {
-            node: gauge,
+            node: frame,
             entity: some_face
         }))
     );
@@ -417,13 +417,13 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         ),
         (
             HitTestError::AcrossSpaces {
-                group: node,
-                cause: editor_core::Unplaced::NoOffset,
+                a: editor_core::Space::World,
+                b: editor_core::Space::Loose { root: node },
             },
             vec![
                 "different spaces",
-                "node 000000000007",
-                "no instance in it carries an offset",
+                "the world's space",
+                "the space of the loose copy node 000000000007",
                 "Recourse:",
             ],
         ),

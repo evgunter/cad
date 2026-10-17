@@ -978,7 +978,7 @@ impl<P> Doc<P> {
         Self {
             id,
             mint: crate::Mint::empty(),
-            nodes: BTreeMap::new(),
+            nodes: BTreeMap::from([(RecipeNodeId::WORLD, Node::World)]),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
             epsilon: tol.eps(),
@@ -1057,24 +1057,30 @@ impl<P> Doc<P> {
     /// **The live node ids, in id order**: the order the nodes were
     /// inserted in, which is what every tie between nodes breaks by.
     /// Topological except where `SetMembers` points a union forward
-    /// (see [`Doc`]).
+    /// (see [`Doc`]). The world aside, as [`Doc::len`] counts: every
+    /// document holds it and no edit inserts it.
     pub fn ids(&self) -> Vec<RecipeNodeId> {
-        self.nodes.keys().copied().collect()
+        self.nodes
+            .keys()
+            .copied()
+            .filter(|&id| id != RecipeNodeId::WORLD)
+            .collect()
     }
 
-    /// **The world placements** (A10), in document order: the nodes
-    /// whose copies are the product.
+    /// **The placements** (D10), in document order: every `Place` and
+    /// every instance, the nodes whose copies the product is made of
+    /// wherever their space reaches the world.
     pub fn placements(&self) -> Vec<RecipeNodeId> {
         self.nodes
             .iter()
-            .filter(|(_, node)| matches!(node, Node::PlaceInWorld { .. }))
+            .filter(|(_, node)| matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
             .map(|(&id, _)| id)
             .collect()
     }
 
     /// **The unplaced bodies** (A10): every live `Body` or `Bodies`
-    /// output no world placement reads, a placement's own copy aside,
-    /// in document order. What a door needing a product names when the
+    /// output no placement copies, a placement's own copies aside, in
+    /// document order. What a door needing a product names when the
     /// world is empty ([`crate::ProductError::EmptyProduct`]); a
     /// `Bodies` output (a pattern's) is placed through a `Part` pick of
     /// one of its bodies.
@@ -1082,14 +1088,18 @@ impl<P> Doc<P> {
         let placed: std::collections::BTreeSet<VarId> = self
             .nodes
             .values()
-            .filter_map(|node| match node {
-                Node::PlaceInWorld { body, .. } if !body.is_indexed() => Some(body.read),
-                _ => None,
+            .flat_map(|node| match node {
+                Node::Place { shapes, .. } => shapes
+                    .iter()
+                    .filter(|shape| !shape.is_member())
+                    .map(|shape| shape.read)
+                    .collect(),
+                _ => Vec::new(),
             })
             .collect();
         self.nodes
             .iter()
-            .filter(|(_, node)| !matches!(node, Node::PlaceInWorld { .. }))
+            .filter(|(_, node)| !matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
             .flat_map(|(&id, _)| self.outputs(id))
             .filter(|var| {
                 self.vars.get(var).is_some_and(|v| {
@@ -1099,14 +1109,17 @@ impl<P> Doc<P> {
             .collect()
     }
 
-    /// Number of live nodes.
+    /// Number of live nodes, the world aside: every document holds it.
     pub fn len(&self) -> usize {
-        self.nodes.len()
+        self.nodes
+            .keys()
+            .filter(|&&id| id != RecipeNodeId::WORLD)
+            .count()
     }
 
-    /// Whether the document has no live nodes.
+    /// Whether the document has no live nodes but its world.
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.len() == 0
     }
 
     /// **Every faulty variable leaf of one expression**, in pre-order:
@@ -1883,11 +1896,18 @@ impl<P> Doc<P> {
     {
         self.nodes
             .get(&node)
-            .map_or_else(Vec::new, |n| self.upstream_of(n))
+            .map_or_else(Vec::new, |n| self.upstream_of(node, n))
     }
 
-    /// [`Self::upstream`] of a node read in this document, live or not.
-    pub(crate) fn upstream_of(&self, node: &Node<P>) -> Vec<RecipeNodeId>
+    /// [`Self::upstream`] of a node read in this document at `id`, live
+    /// or not.
+    ///
+    /// **One read is no input**: an instance's constraint reading its
+    /// copy side through its own output (`mate::solve::reads_own_copy`).
+    /// What the solve reads through it is the copied shape in the part's
+    /// own coordinates, off the part, never the copy the instance
+    /// defines, so it is no dependency on the instance's own value.
+    pub(crate) fn upstream_of(&self, id: RecipeNodeId, node: &Node<P>) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
     {
@@ -1900,6 +1920,7 @@ impl<P> Doc<P> {
         let at = node
             .operand_rows()
             .into_iter()
+            .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(self, id, seat, var))
             .flat_map(|(_, var)| self.read_ports(var))
             .map(|(at, _)| at)
             .chain(observed);
@@ -1913,32 +1934,18 @@ impl<P> Doc<P> {
 
     /// **What is wrong with reading `held` at a seat admitting
     /// `expected`** (D10), if anything: a kind the seat does not admit
-    /// ([`crate::SlotKind::admits`]); or, for a reader that
-    /// constructs, a world placement's copy, read directly or through a
-    /// selection of it (D10: construction never reads the world; a
-    /// measure observes a copy's placed geometry). Asked of a live read
-    /// by every door that writes or loads one — the edit doors' lowering
-    /// and the load door's operand walk — so the rule is stated once;
-    /// liveness is each door's own question, asked before.
+    /// ([`crate::SlotKind::admits`]). Asked of a live read by every door
+    /// that writes or loads one — the edit doors' lowering and the load
+    /// door's operand walk — so the rule is stated once; liveness is
+    /// each door's own question, asked before. The world defines no
+    /// variable, so no read reaches it (D10).
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
-        reader: Reader,
+        _reader: Reader,
     ) -> Option<ReadFault> {
-        if !expected.admits(held) {
-            return Some(ReadFault::Kind { found: held.kind() });
-        }
-        // A selection reads its body: constructing from a face of a copy
-        // reads the copy, whichever seat minted the selection.
-        if let (Reader::Constructs, Some(select)) = (reader, held.def().select()) {
-            let (body, _) = self.var(select.body)?.def().output()?;
-            return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
-                .then_some(ReadFault::WorldCopy { placement: body });
-        }
-        let (from, _) = held.def().output()?;
-        (reader == Reader::Constructs && matches!(self.node(from), Some(Node::PlaceInWorld { .. })))
-            .then_some(ReadFault::WorldCopy { placement: from })
+        (!expected.admits(held)).then_some(ReadFault::Kind { found: held.kind() })
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2001,15 +2008,22 @@ impl<P> Doc<P> {
                     crate::PortKind::Of(kind) => kind,
                     // A placer has the shape of what it reads: `Bodies`
                     // over a `Bodies`, `Body` otherwise.
-                    crate::PortKind::Placed => {
-                        let Node::Transform { input, .. } = node else {
-                            unreachable!("only a transform's port is placed")
-                        };
-                        match self.vars.get(input)?.kind() {
+                    crate::PortKind::Placed => match node {
+                        Node::Transform { input, .. } => match self.vars.get(input)?.kind() {
                             crate::VarKind::Bodies => crate::VarKind::Bodies,
                             _ => crate::VarKind::Body,
-                        }
-                    }
+                        },
+                        // One shape's shape: a member read is a body.
+                        Node::Place { shapes, .. } => match shapes.as_slice() {
+                            [one] if !one.is_member() => match self.vars.get(&one.read)?.kind() {
+                                crate::VarKind::Bodies => crate::VarKind::Bodies,
+                                _ => crate::VarKind::Body,
+                            },
+                            [_] => crate::VarKind::Body,
+                            _ => crate::VarKind::Bodies,
+                        },
+                        _ => unreachable!("only a placer's port is placed"),
+                    },
                 };
                 Some((port.name, kind))
             })
@@ -2585,68 +2599,13 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
 // ---------------------------------------------------------------
 // What a node id held in the document may name.
 //
-// A gauge reference names a gauge, and a witness names a sketch. Both
-// rules are asked twice, by the edit door that writes the reference
-// and by the save/load validator that re-reads it, so both live here,
-// where a `Doc` is in scope. A predicate that needs only the node is a
-// `Node` method instead (`Node::input_fault` and its siblings); these
-// need the document to resolve the id at all.
+// A witness names a sketch. The rule is asked twice, by the edit door
+// that writes the witness and by the save/load validator that re-reads
+// it, so it lives here, where a `Doc` is in scope. A predicate that
+// needs only the node is a `Node` method instead (`Node::input_fault`
+// and its siblings); this one needs the document to resolve the id at
+// all.
 // ---------------------------------------------------------------
-
-/// What makes a gauge reference inadmissible ([`gauge_ref_fault`]) —
-/// one vocabulary for the edit doors and the load door.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GaugeRefFault {
-    /// The id was minted and its node deleted. A LEGAL state at rest —
-    /// A11 (2) keeps a reference to a deleted gauge so the group it
-    /// unplaces can name its cause — and refused only where an edit
-    /// writes one, as a reference to nothing.
-    Deleted,
-    /// The id was never minted in this document.
-    NeverMinted,
-    /// The id names a live node that is not a [`Node::Gauge`].
-    NotAGauge,
-    /// The reference closes a loop: the gauge would sit on itself
-    /// through its own chain.
-    Cycle,
-}
-
-/// **A gauge reference's admission rule, stated once**: `gauge`, read
-/// by `node` (an instance's gauge or a gauge's parent), names a live
-/// [`Node::Gauge`] whose chain does not reach `node`. `None` (the
-/// world) is always admitted.
-///
-/// Asked by every door that writes a reference — `InsertNode` and
-/// [`crate::DocEdit::SetGauge`] — and by the load door's walk, each
-/// naming the answer in its own vocabulary. The load door admits
-/// [`GaugeRefFault::Deleted`], which no edit writes and every delete
-/// leaves.
-pub(crate) fn gauge_ref_fault<P>(
-    doc: &Doc<P>,
-    node: RecipeNodeId,
-    gauge: Option<RecipeNodeId>,
-) -> Option<GaugeRefFault> {
-    let mut at = gauge;
-    let mut seen: BTreeSet<RecipeNodeId> = BTreeSet::new();
-    let first = gauge?;
-    while let Some(id) = at {
-        if id == node || !seen.insert(id) {
-            return Some(GaugeRefFault::Cycle);
-        }
-        match doc.nodes.get(&id) {
-            None if !doc.mint.has_node(id) => return Some(GaugeRefFault::NeverMinted),
-            // Only the reference itself is this rule's subject: a
-            // deleted gauge further up the chain is the chain's state,
-            // not this reference's fault.
-            None if id == first => return Some(GaugeRefFault::Deleted),
-            None => return None,
-            Some(Node::Gauge { parent, .. }) => at = *parent,
-            Some(_) if id == first => return Some(GaugeRefFault::NotAGauge),
-            Some(_) => return None,
-        }
-    }
-    None
-}
 
 /// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
 /// — one vocabulary for the witness edit doors and the load door's
@@ -2667,10 +2626,9 @@ pub(crate) enum WitnessSiteFault {
 /// One predicate with one home, asked by every door that writes a row
 /// — [`crate::DocEdit::ReWitness`] and
 /// [`crate::DocEdit::ReWitnessBulk`] — and by the load door's walk over
-/// the store, each naming the answer in its own vocabulary. It is the
-/// same shape as [`gauge_ref_fault`], and for the same reason: an id
-/// held in the document names a node of a required kind, and the two
-/// doors must agree on which ids are admitted.
+/// the store, each naming the answer in its own vocabulary: an id held
+/// in the document names a node of a required kind, and the two doors
+/// must agree on which ids are admitted.
 pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<WitnessSiteFault> {
     match doc.nodes.get(&node) {
         None => Some(WitnessSiteFault::NoSuchNode),
@@ -2848,8 +2806,7 @@ mod tests {
                             .expect("the fixture spells a face"),
                     }],
                 },
-                gauge: None,
-                offset: Some(crate::placement::Placement::IDENTITY),
+                constraints: Vec::new(),
             },
         );
         for key in [&painted_b, &painted_a] {
@@ -2987,10 +2944,5 @@ pub(crate) enum ReadFault {
     Kind {
         /// The variable's kind.
         found: crate::VarKind,
-    },
-    /// The variable is a world placement's copy.
-    WorldCopy {
-        /// The placement.
-        placement: RecipeNodeId,
     },
 }

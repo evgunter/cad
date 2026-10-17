@@ -1,22 +1,21 @@
-//! **A mate's memo key carries the solve's answer.**
+//! **A placement's memo key carries the solve's answer.**
 //!
-//! A mate's value IS the solve's answer for it: a role when the solve
-//! placed it, a typed refusal when the solve faulted it. The solve
-//! runs afresh on every evaluation and a mate is a DAG leaf, so a key
-//! of the mate's recipe payload alone would serve last evaluation's
-//! answer into this one — an unedited mate reading `Ok` in the very
-//! evaluation whose fault names it, or carrying a role an edit
-//! elsewhere has since taken away from it.
+//! A placement's value carries the solve's answer for its bundle: the
+//! copy at its solved pose in its space, or a typed refusal when the
+//! solve faulted it. The solve runs afresh on every evaluation, so a
+//! key of the placement's recipe payload alone would serve last
+//! evaluation's answer into this one — an unedited placement reading
+//! `Ok` in the very evaluation whose fault reaches it, or carrying a
+//! space an edit elsewhere has since changed.
 //!
-//! Every row here goes through ordinary doors — `DocEdit::InsertNode`,
-//! `DocEdit::DeleteNode`, `evaluate` with the previous evaluation as
-//! the prior — and reads the answer off the evaluation and off
+//! Every row here goes through ordinary doors — `DocEdit::AddConstraint`,
+//! `DocEdit::RemoveConstraint`, `evaluate` with the previous evaluation
+//! as the prior — and reads the answer off the evaluation and off
 //! `solve_document`, never off the key function.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
@@ -24,8 +23,8 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, MateFault, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, RecipeNodeId, SitedFace, ValuePayload, evaluate,
+    Evaluation, Mate, MateFault, MateFrame, MatePrimitive, MateRef, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, SitedFace, Space, evaluate,
 };
 use fixture::{insert, len, on_frame, solve, step};
 use geom_core::Tol;
@@ -109,29 +108,29 @@ fn seat(
     a_frame: MateFrame<Formula>,
     b_frame: MateFrame<Formula>,
     primitive: MatePrimitive,
-) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+) -> Mate<Formula> {
+    fixture::mate(
+        a,
+        b,
+        ContactClass::Rest,
+        Alignment {
             a: a_frame,
             b: b_frame,
             primitive,
             sense: AxisSense::Opposed,
             clocking: None,
         },
-    }
+    )
 }
 
-/// A wide base slab and three blocks, each instantiated through the
-/// resolver — the document every row below edits, and the ids it
-/// edits by.
+/// A wide base slab pinned to the world and three blocks with empty
+/// bundles, each instantiated through the resolver — the document
+/// every row below edits, and the ids it edits by.
 ///
-/// Three blocks, because the per-mate row needs TWO groups that do
-/// not touch: `base` and one block on one side, two blocks on the
-/// other. A block no mate reaches is a singleton group and changes
-/// no other row's answer.
+/// Three blocks, because the per-placement row needs TWO spaces that
+/// do not touch: `base` and one block on one side, two blocks stacked
+/// on each other on the other. A block no constraint pins is a loose
+/// copy of its own and changes no other row's answer.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -156,9 +155,9 @@ fn scene(label: &str) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top_a) = insert(doc, crate::fixture::mated_instance(block_ref));
-    let (doc, top_b) = insert(doc, crate::fixture::mated_instance(block_ref));
-    let (doc, top_c) = insert(doc, crate::fixture::mated_instance(block_ref));
+    let (doc, top_a) = insert(doc, fixture::mated_instance(block_ref));
+    let (doc, top_b) = insert(doc, fixture::mated_instance(block_ref));
+    let (doc, top_c) = insert(doc, fixture::mated_instance(block_ref));
     Scene {
         doc,
         opts,
@@ -172,46 +171,56 @@ fn scene(label: &str) -> Scene {
 }
 
 impl Scene {
-    /// Inserts `node`, answering its id.
-    fn add(&mut self, node: AuthoredNode) -> RecipeNodeId {
-        let (doc, id) = insert(self.doc.clone(), node);
+    /// Adds `mate` to the bundle of the copy it places, answering its
+    /// address.
+    fn add(&mut self, mate: Mate<Formula>) -> MateRef {
+        let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
+        let (doc, id) = fixture::constrain_with(self.doc.clone(), &reach, mate);
         self.doc = doc;
         id
     }
 
-    /// A mate seating `block`'s bottom cap on the base's top cap at
-    /// `(x, y)`, under `primitive`.
+    /// A constraint seating `block`'s bottom cap on the base's top cap
+    /// at `(x, y)`, under `primitive`, in `block`'s bundle.
     fn seat_on_base(
         &mut self,
         block: RecipeNodeId,
         x: f64,
         y: f64,
         primitive: MatePrimitive,
-    ) -> RecipeNodeId {
-        let node = seat(
-            crate::fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End)),
-            crate::fixture::head_at(block, in_part(block, self.block_body, CapEnd::Start)),
+    ) -> MateRef {
+        let mate = seat(
+            fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End)),
+            fixture::head_at(block, in_part(block, self.block_body, CapEnd::Start)),
             base_frame(x, y),
             block_bottom(),
             primitive,
         );
-        self.add(node)
+        self.add(mate)
     }
 
-    /// A mate seating `upper`'s bottom cap on `lower`'s top cap.
-    fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> RecipeNodeId {
-        let node = seat(
-            crate::fixture::head_at(lower, in_part(lower, self.block_body, CapEnd::End)),
-            crate::fixture::head_at(upper, in_part(upper, self.block_body, CapEnd::Start)),
+    /// A constraint seating `upper`'s bottom cap on `lower`'s top cap,
+    /// in `upper`'s bundle.
+    fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> MateRef {
+        let mate = seat(
+            fixture::head_at(lower, in_part(lower, self.block_body, CapEnd::End)),
+            fixture::head_at(upper, in_part(upper, self.block_body, CapEnd::Start)),
             block_top(),
             block_bottom(),
             MatePrimitive::FrameCoincidence,
         );
-        self.add(node)
+        self.add(mate)
     }
 
-    fn delete(&mut self, id: RecipeNodeId) {
-        let (doc, _) = step(self.doc.clone(), DocEdit::DeleteNode { id });
+    /// Removes `mate` from its placement's bundle.
+    fn remove(&mut self, mate: MateRef) {
+        let (doc, _) = step(
+            self.doc.clone(),
+            DocEdit::RemoveConstraint {
+                placement: mate.placement,
+                constraint: mate.id,
+            },
+        );
         self.doc = doc;
     }
 
@@ -240,25 +249,22 @@ fn row_fault(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> MateFault {
     }
 }
 
-/// The role a mate's VALUE carries, panicking on any other status.
-fn row_role(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> MateRole {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Mate(role) => *role,
-            other => panic!("{what}: expected a mate payload, got {other:?}"),
-        },
-        other => panic!("{what}: expected an Ok row, got {other:?}"),
-    }
+/// Asserts a node's row is `Ok`.
+fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
+    assert!(
+        matches!(ev.result(id), Some(NodeResult::Ok(_))),
+        "{what}: expected an Ok row, got {:?}",
+        ev.result(id)
+    );
 }
 
 /// **Whether `later` SERVED `id` from `earlier`** rather than running
 /// its op again — the memo's own witness, per node.
 ///
 /// A memo hit returns the prior `NodeValue` cloned, so its name table
-/// is the same allocation; every op that runs mints a fresh one (the
-/// empty table a mate carries is `Arc::new`'d per call, so even it is
-/// a new pointer). The document-wide `reused` counter cannot say
-/// WHICH node, which is the whole question here.
+/// is the same allocation; every op that runs mints a fresh one. The
+/// document-wide `reused` counter cannot say WHICH node, which is the
+/// whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
         (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
@@ -275,200 +281,173 @@ fn key(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> editor_core::Conte
 
 // ---- the rows ----
 
-/// **A contradiction added around an already-evaluated mate faults it
-/// too, and its row carries the solve's own blame.**
+/// **A contradiction added to an already-evaluated bundle faults its
+/// placement, and the row carries the solve's own blame.**
 ///
-/// The finding's second observed shape: two mates on ONE pair, the
-/// fault saying they cannot both hold while the first reads `Ok` off
-/// a memo its key never invalidated.
+/// Two coaxials on one bundle about parallel, distinct axes: the
+/// first leaves the block a slide (a loose copy, evaluated `Ok`), the
+/// second admits at the door — the bundle did not yet pin its copy —
+/// and the fold of the two is empty.
 #[test]
-fn a_contradiction_faults_the_mate_that_evaluated_before_it() {
+fn a_contradiction_faults_the_placement_that_evaluated_before_it() {
     let mut s = scene("msolve4-contradiction");
-    let held = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
-    // The first mate lands and EVALUATES: the memo now holds an `Ok`
-    // for it, and the solve calls it determining.
+    let held = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    // The first constraint lands and EVALUATES: the memo now holds an
+    // `Ok` for the placement.
     let first = s.eval(None);
-    assert_eq!(
-        row_role(&first, held, "the lone mate"),
-        MateRole::Determining
-    );
+    assert_ok(&first, s.top_a, "the placement of one coaxial");
 
-    // A second mate on the same pair, seating the same block a metre
-    // away: the pair's fold cannot hold both.
-    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::FrameCoincidence);
+    // A second coaxial on the same bundle, a metre away: the fold
+    // cannot hold both.
+    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
     let second = s.eval(Some(&first));
 
     let poses = solve(&s.doc, &s.opts, Tol::witness());
-    for (mate, what) in [
-        (held, "the mate that evaluated first"),
-        (added, "the mate that broke the pair"),
-    ] {
-        let row = row_fault(&second, mate, what);
-        assert!(
-            matches!(
-                row,
-                MateFault::Contradictory {
-                    held: h,
-                    added: a,
-                    ..
-                } if h == held && a == added
-            ),
-            "{what}: expected the pair's contradiction naming both, got {row:?}"
-        );
-        // Blame and row agree — the consistency the whole unit is for.
-        assert_eq!(
-            Some(&row),
-            poses.fault(mate),
-            "{what}: the solve's blame and the row's own result disagree"
-        );
-    }
-    // The instance the pair could not place carries it too.
+    let row = row_fault(&second, s.top_a, "the placement");
     assert!(
-        matches!(second.result(s.top_a), Some(NodeResult::Failed(_))),
-        "the instance the refusal reached: {:?}",
-        second.result(s.top_a)
+        matches!(
+            row,
+            MateFault::Contradictory {
+                held: h,
+                added: a,
+                ..
+            } if h == held && a == added
+        ),
+        "expected the bundle's contradiction naming both constraints, got {row:?}"
+    );
+    // Blame and row agree — the consistency the whole unit is for.
+    assert_eq!(
+        Some(&row),
+        poses.fault(s.top_a),
+        "the solve's blame and the row's own result disagree"
     );
 }
 
-/// **A refusal elsewhere in the group faults the unedited mate that
-/// is nowhere in the fault's words.**
+/// **A refusal upstream faults the unedited placement pinned to it.**
 ///
-/// The finding's first observed shape: a sound mate evaluates, a
-/// second mate then breaks the group around it, and the sound
-/// mate's row read `Ok` in the evaluation whose fault every instance
-/// of its group reports. The fault here names only the offender —
-/// [`MateFault::Under`] names one mate — so nothing about the sound
-/// mate's own words changed; only the solve's answer for it did.
+/// A block stacked on a loose block evaluates `Ok` in the lower
+/// block's space; a contradiction then lands in the LOWER block's
+/// bundle. The upper block's bundle is untouched, and nothing in the
+/// fault's words is its own; only the solve's answer for it changed.
 #[test]
-fn a_group_refusal_faults_the_sound_mate_that_evaluated_before_it() {
-    let mut s = scene("msolve4-cluster");
-    let sound = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+fn an_upstream_refusal_faults_the_unedited_placement_pinned_to_it() {
+    let mut s = scene("msolve4-chain");
+    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    s.stack(s.top_a, s.top_b);
     let first = s.eval(None);
+    assert_ok(&first, s.top_b, "the upper block");
     assert_eq!(
-        row_role(&first, sound, "the sound mate"),
-        MateRole::Determining
+        first.space(s.top_b),
+        Space::Loose { root: s.top_a },
+        "the premise: the upper block lives in the lower block's space"
     );
 
-    // A second block, mated `Coaxial`: the residual is cylindrical, so
-    // the tree edge does not determine and the whole group refuses.
-    let offender = s.seat_on_base(s.top_b, 3.0, 1.0, MatePrimitive::Coaxial);
+    let offender = s.seat_on_base(s.top_a, 3.0, 1.0, MatePrimitive::Coaxial);
     let second = s.eval(Some(&first));
 
-    let offence = row_fault(&second, offender, "the offending mate");
+    let offence = row_fault(&second, s.top_a, "the lower block");
     assert!(
-        matches!(offence, MateFault::Under { mate, .. } if mate == offender),
-        "the offending mate carries the under-determination: {offence:?}"
+        matches!(offence, MateFault::Contradictory { added, .. } if added == offender),
+        "the lower block carries the contradiction: {offence:?}"
     );
-    // The sound mate is not in the fault's words at all, and it is
+    // The upper block is not in the fault's words at all, and it is
     // faulted all the same, with the blame the solve recorded.
     let poses = solve(&s.doc, &s.opts, Tol::witness());
-    let carried = row_fault(&second, sound, "the sound mate");
+    let carried = row_fault(&second, s.top_b, "the upper block");
     assert_eq!(
         Some(&carried),
-        poses.fault(sound),
-        "the solve's blame and the sound mate's row disagree"
+        poses.fault(s.top_b),
+        "the solve's blame and the upper block's row disagree"
     );
-    assert_eq!(
-        poses.role(sound),
-        Some(MateRole::Refused),
-        "the solve took the sound mate's role away"
+    assert!(
+        !reused_value(&first, &second, s.top_b),
+        "the unedited upper block must not be served from the memo"
     );
-    for instance in [s.base, s.top_a, s.top_b] {
-        assert!(
-            matches!(second.result(instance), Some(NodeResult::Failed(_))),
-            "every instance in the refused group reports it: {:?}",
-            second.result(instance)
-        );
-    }
 }
 
-/// **The reverse direction: deleting the contradiction lets the
-/// faulted mate evaluate `Ok` again.**
+/// **The reverse direction: removing the contradiction lets the
+/// faulted placement evaluate `Ok` again.**
 ///
-/// A faulted mate is never memoized — the memo serves `Ok` priors
+/// A faulted node is never memoized — the memo serves `Ok` priors
 /// only — so this direction was never broken. It is here because the
-/// key now carries the fault flag, and a key that moved the wrong way
+/// key carries the fault flag, and a key that moved the wrong way
 /// would strand the repair as easily as the break.
 #[test]
-fn deleting_the_contradiction_returns_the_faulted_mate_to_ok() {
+fn removing_the_contradiction_returns_the_faulted_placement_to_ok() {
     let mut s = scene("msolve4-repair");
-    let held = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
-    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::FrameCoincidence);
+    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
     let broken = s.eval(None);
     assert!(
-        matches!(broken.result(held), Some(NodeResult::Failed(_))),
-        "the premise: the pair refuses"
+        matches!(broken.result(s.top_a), Some(NodeResult::Failed(_))),
+        "the premise: the bundle refuses"
     );
 
-    s.delete(added);
+    s.remove(added);
     let repaired = s.eval(Some(&broken));
-    assert_eq!(
-        row_role(&repaired, held, "the surviving mate"),
-        MateRole::Determining,
-        "the repaired document evaluates the mate on its own solve"
+    assert_ok(
+        &repaired,
+        s.top_a,
+        "the repaired document evaluates the placement on its own solve",
     );
     assert!(
-        solve(&s.doc, &s.opts, Tol::witness()).fault(held).is_none(),
+        solve(&s.doc, &s.opts, Tol::witness())
+            .fault(s.top_a)
+            .is_none(),
         "and the solve records no blame against it"
     );
 }
 
-/// **A role change on an unedited mate reaches its value through the
-/// memo, and moves its content key.**
+/// **A space change on an unedited placement reaches its value through
+/// the memo, and moves its content key.**
 ///
-/// The stack mate is a tree edge while its two blocks are a group of
-/// their own; seating both blocks on the base makes the base the
-/// root, both base mates tree edges, and the stack mate a non-tree
-/// edge that declares. Its references, class and alignment never
-/// change.
+/// The upper block is stacked on a loose lower block, so it lives in
+/// the lower block's space; seating the lower block on the base puts
+/// both in the world's. The upper block's bundle never changes.
 #[test]
-fn a_role_change_on_an_unedited_mate_reaches_its_value() {
-    let mut s = scene("msolve4-role");
-    let stacked = s.stack(s.top_a, s.top_b);
+fn a_space_change_on_an_unedited_placement_reaches_its_value() {
+    let mut s = scene("msolve4-space");
+    s.stack(s.top_a, s.top_b);
     let first = s.eval(None);
     assert_eq!(
-        row_role(&first, stacked, "the stack mate, alone in its group"),
-        MateRole::Determining,
-        "the pair's only mate is the tree edge that places the upper block"
+        first.space(s.top_b),
+        Space::Loose { root: s.top_a },
+        "the upper block lives in the loose lower block's space"
     );
 
-    // Both blocks now hang off the base, which becomes the root: the
-    // tree reaches each of them directly and the stack mate is the
-    // cycle's non-tree edge.
     s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
-    s.seat_on_base(s.top_b, 3.0, 1.0, MatePrimitive::FrameCoincidence);
     let second = s.eval(Some(&first));
 
     assert_eq!(
-        solve(&s.doc, &s.opts, Tol::witness()).role(stacked),
-        Some(MateRole::Declaring),
-        "the premise: the solve moved the unedited mate off the tree"
+        solve(&s.doc, &s.opts, Tol::witness()).space(s.top_b),
+        Some(Space::World),
+        "the premise: the solve moved the unedited placement into the world"
     );
     assert_eq!(
-        row_role(&second, stacked, "the stack mate, after the base joined"),
-        MateRole::Declaring,
-        "the unedited mate's VALUE carries the new role, not the memo's old one"
+        second.space(s.top_b),
+        Space::World,
+        "the unedited placement's evaluation carries the new space, not the memo's old one"
     );
     assert_ne!(
-        key(&first, stacked, "before"),
-        key(&second, stacked, "after"),
+        key(&first, s.top_b, "before"),
+        key(&second, s.top_b, "after"),
         "and its content key moved with the answer"
     );
 }
 
-/// **A mate whose payload AND whose solve answer are unchanged is
+/// **A placement whose payload AND whose solve answer are unchanged is
 /// still reused** — the key carries an answer, not a nonce.
 #[test]
-fn an_unchanged_mate_is_reused() {
+fn an_unchanged_placement_is_reused() {
     let mut s = scene("msolve4-reuse");
-    let held = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
     let first = s.eval(None);
     let second = s.eval(Some(&first));
 
     assert_eq!(
-        key(&first, held, "the first evaluation"),
-        key(&second, held, "the second"),
-        "an unedited mate over an unchanged solve keys identically"
+        key(&first, s.top_a, "the first evaluation"),
+        key(&second, s.top_a, "the second"),
+        "an unedited placement over an unchanged solve keys identically"
     );
     assert_eq!(
         second.recomputed, 0,
@@ -482,68 +461,54 @@ fn an_unchanged_mate_is_reused() {
     );
 }
 
-/// **A mate's key is per mate, not per document**: when one mate's
-/// answer changes, a mate in ANOTHER group — untouched, and with
-/// the same answer as before — is still served from the memo.
+/// **A placement's key is per placement, not per document**: when one
+/// placement's answer changes, a placement in ANOTHER space —
+/// untouched, and with the same answer as before — is still served
+/// from the memo.
 ///
-/// The two groups are disjoint on purpose. A refusal reaches every
-/// node of ITS group and stops there (GQ2), so `far`'s answer is
-/// genuinely unchanged while `near`'s is not; a key that carried
-/// anything document-global would re-run `far` too, and no row that
-/// only counts recomputations would notice.
+/// The two spaces are disjoint on purpose. A refusal reaches the
+/// placements pinned to the refused one and stops there, so the far
+/// stack's answer is genuinely unchanged while the near block's is
+/// not; a key that carried anything document-global would re-run the
+/// far stack too, and no row that only counts recomputations would
+/// notice.
 #[test]
-fn a_mate_in_another_group_is_untouched_by_a_refusal() {
-    let mut s = scene("msolve4-per-mate");
-    // Group one: two blocks stacked, nowhere near the base.
-    let far = s.stack(s.top_b, s.top_c);
-    // Group two: a block seated on the base.
-    let near = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+fn a_placement_in_another_space_is_untouched_by_a_refusal() {
+    let mut s = scene("msolve4-per-placement");
+    // Space one: two blocks stacked, nowhere near the base.
+    s.stack(s.top_b, s.top_c);
+    // Space two: a block coaxial on the base.
+    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
     let first = s.eval(None);
-    for (mate, what) in [(far, "the far mate"), (near, "the near mate")] {
-        assert_eq!(row_role(&first, mate, what), MateRole::Determining);
+    for (id, what) in [(s.top_c, "the far stack"), (s.top_a, "the near block")] {
+        assert_ok(&first, id, what);
     }
 
-    // A contradiction around `near` only.
-    s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::FrameCoincidence);
+    // A contradiction in the near block's bundle only.
+    s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
     let second = s.eval(Some(&first));
     assert!(
-        matches!(second.result(near), Some(NodeResult::Failed(_))),
-        "the premise: the near pair refuses"
+        matches!(second.result(s.top_a), Some(NodeResult::Failed(_))),
+        "the premise: the near bundle refuses"
     );
 
-    // The far mate: same answer, same key, and SERVED — its value is
+    // The far stack: same answer, same key, and SERVED — its value is
     // the prior's value, not an equal one built again.
+    assert_ok(&second, s.top_c, "the far stack after the break");
     assert_eq!(
-        row_role(&second, far, "the far mate after the break"),
-        MateRole::Determining,
-        "a refusal in another group does not reach this mate"
-    );
-    assert_eq!(
-        key(&first, far, "before"),
-        key(&second, far, "after"),
+        key(&first, s.top_c, "before"),
+        key(&second, s.top_c, "after"),
         "an unchanged answer keys identically"
     );
-    assert!(
-        reused_value(&first, &second, far),
-        "the far mate was rebuilt rather than served from the memo"
-    );
-    // The far group's instances are served too: nothing about them
-    // moved either.
     for (id, what) in [(s.top_b, "the lower block"), (s.top_c, "the upper block")] {
         assert!(
             reused_value(&first, &second, id),
-            "{what} of the untouched group must come off the memo"
+            "{what} of the untouched space must come off the memo"
         );
     }
-    // And the near group's nodes did NOT: the mate whose answer
-    // changed, and the instance the refusal left without a pose.
-    for (id, what) in [
-        (near, "the mate whose answer changed"),
-        (s.top_a, "the instance the refusal left unplaced"),
-    ] {
-        assert!(
-            !reused_value(&first, &second, id),
-            "{what} must not be served from the memo"
-        );
-    }
+    // And the near block did NOT: its answer changed.
+    assert!(
+        !reused_value(&first, &second, s.top_a),
+        "the placement whose answer changed must not be served from the memo"
+    );
 }

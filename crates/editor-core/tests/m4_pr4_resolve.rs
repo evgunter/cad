@@ -376,7 +376,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
+            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
             name_table: Arc::new(table),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -387,6 +387,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,
+            motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -394,8 +395,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     );
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
+        loose: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order: vec![node],
@@ -1528,10 +1528,7 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
 /// A node with no inputs and no evaluated body, for a doc whose
 /// evaluation is hand-built.
 fn leaf() -> AuthoredNode {
-    Node::gauge(
-        None,
-        editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
-    )
+    fixture::xy_frame()
 }
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie
@@ -1545,7 +1542,7 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
+            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
             name_table: Arc::new(t),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -1556,6 +1553,7 @@ fn one_node_eval(
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,
+            motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1563,8 +1561,7 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
+        loose: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],

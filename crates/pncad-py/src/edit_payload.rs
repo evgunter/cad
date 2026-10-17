@@ -36,8 +36,8 @@
 //! that type's own door.
 
 use pncad::document::{
-    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, VarName,
-    VarRef,
+    ConstraintId, ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId,
+    VarName, VarRef,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -106,14 +106,17 @@ pub struct EditPayload<'a> {
     pub offered: Option<FreeValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
-    /// Which of a node's placement frames: a step of a transform's, a
-    /// gauge's or an instance offset's chain, or an explicit rule's
+    /// Which of a node's placement frames: a step of a transform's or
+    /// a constraint side's frame offset's chain, or an explicit rule's
     /// listed placement.
     pub index: Option<usize>,
     /// Which side of a mate a placement frame sits on — `"a"` or
     /// `"b"`, beside [`Self::index`], for a step of a mate side's frame
     /// offset.
     pub side: Option<&'static str>,
+    /// The constraint of the placement [`Self::node`] the refusal is
+    /// about: with the node, the constraint's address (`MateRef`).
+    pub constraint: Option<ConstraintId>,
     /// The AST child indices of an expression address, from the
     /// slot's root.
     pub path: Option<&'a [u8]>,
@@ -138,7 +141,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 23] {
+    pub fn presence(&self) -> [(&'static str, bool); 24] {
         let Self {
             node,
             input,
@@ -159,6 +162,7 @@ impl EditPayload<'_> {
             determinant,
             index,
             side,
+            constraint,
             path,
             value_path,
             pin,
@@ -184,6 +188,7 @@ impl EditPayload<'_> {
             ("determinant", determinant.is_some()),
             ("index", index.is_some()),
             ("side", side.is_some()),
+            ("constraint", constraint.is_some()),
             ("path", path.is_some()),
             ("value_path", value_path.is_some()),
             ("pin", pin.is_some()),
@@ -221,6 +226,7 @@ impl EditPayload<'_> {
         determinant: None,
         index: None,
         side: None,
+        constraint: None,
         path: None,
         value_path: None,
         pin: None,
@@ -229,8 +235,8 @@ impl EditPayload<'_> {
 }
 
 /// The position a placement frame's site names — a step of a
-/// transform's, a gauge's, an instance offset's or a mate side's frame
-/// offset's chain, or an explicit rule's listed placement.
+/// transform's or a constraint side's frame offset's chain, or an
+/// explicit rule's listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
         FrameSite::Listed { index }
@@ -239,11 +245,20 @@ fn frame_index(at: FrameSite) -> Option<usize> {
     }
 }
 
-/// The mate side a placement frame's site names, for a step of a mate
-/// side's frame offset.
+/// The mate side a placement frame's site names, for a step of a
+/// constraint side's frame offset.
 fn frame_side(at: FrameSite) -> Option<&'static str> {
     match at {
         FrameSite::MateStep { side, .. } => Some(side.name()),
+        FrameSite::Listed { .. } | FrameSite::Step { .. } => None,
+    }
+}
+
+/// The constraint a placement frame's site names, for a step of a
+/// constraint side's frame offset.
+fn frame_constraint(at: FrameSite) -> Option<ConstraintId> {
+    match at {
+        FrameSite::MateStep { constraint, .. } => Some(constraint),
         FrameSite::Listed { .. } | FrameSite::Step { .. } => None,
     }
 }
@@ -264,25 +279,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(id.id()),
             ..none
         },
-        // A gauge reference: the node it is written on is the
-        // subject, and the id it names is the node it names.
-        EditError::GaugeNotLive { node, gauge }
-        | EditError::NotAGauge { node, gauge }
-        | EditError::GaugeCycle { node, gauge } => EditPayload {
-            node: Some(node.id()),
-            input: Some(gauge.id()),
-            ..none
-        },
         // The mate is the subject, and the solve's fault about it
         // crosses whole: `inner_variant` says which arm, `fault` is
         // the arm's own payload.
         EditError::MateRefused { node, fault, held } => EditPayload {
             node: Some(node.id()),
             fault: Some((fault, held)),
-            ..none
-        },
-        EditError::WouldStartPlacing { mate } => EditPayload {
-            node: Some(mate.id()),
             ..none
         },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
@@ -295,15 +297,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::SetExtrudeSideOnNonExtrude { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
-        | EditError::OffsetOnNonInstance { node }
-        | EditError::GaugeOnNonPlaced { node }
-        | EditError::PromoteOnNonInstance { node }
-        | EditError::PromoteWithoutOffset { node }
-        | EditError::FoldOnNonGauge { node }
+        | EditError::WorldIsUndeletable { node }
+        | EditError::ConstraintOnNonPlacement { node }
         | EditError::PlacementRuleMismatch { node, shape: _ }
         | EditError::EmptyPlacementList { node }
-
-        | EditError::NonFiniteAlignment { node }
         | EditError::UpdateOnNonInstance { node }
         | EditError::LabelUnchanged { node } => EditPayload {
             node: Some(node.id()),
@@ -320,17 +317,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(input.id()),
             ..none
         },
-        // A promote or a fold names its target and the one other node
-        // the refusal is about: the group's root, the member carrying
-        // an offset, or the mate that would start placing.
-        EditError::PromoteNonRoot { node, root: other }
-        | EditError::PromoteMemberOffset {
-            node,
-            member: other,
-        }
-        | EditError::FoldWouldStartPlacing { node, mate: other } => EditPayload {
+        // A constraint's address: the placement is the subject, and the
+        // id beside it names the constraint.
+        EditError::UnknownConstraint { node, constraint }
+        | EditError::NonFiniteAlignment {
+            node, constraint, ..
+        } => EditPayload {
             node: Some(node.id()),
-            input: Some(other.id()),
+            constraint: Some(*constraint),
             ..none
         },
         EditError::AssertionDimension {
@@ -397,7 +391,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
+        EditError::CopyReadOffBodySeat { node, slot } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),
             index: operand_index(slot),
@@ -663,6 +657,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             determinant: Some(*determinant),
             index: frame_index(*at),
             side: frame_side(*at),
+            constraint: frame_constraint(*at),
             ..none
         },
         EditError::NonFinitePlacement { node, at }
@@ -670,6 +665,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             index: frame_index(*at),
             side: frame_side(*at),
+            constraint: frame_constraint(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,

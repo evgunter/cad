@@ -23,3 +23,28 @@ The migration restates each corpus bundle that overconstrains as one mate plus v
 Closes `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion` (with A11 (4)), `a-box-over-a-solved-clocking-widens-thirty-thousandfold` and `an-identically-zero-margin-escalates-at-a-fine-eps`. Re-reads `a-far-meeting-point-fails-membership-by-its-own-rounding` and `a-box-independent-mate-fault-bisects-the-whole-leaf-budget`.
 
 Waits on C (`a-mate-relates-two-poses`), whose table F reads by pose kind. It also waits on stage 4 C (`carriers-compare-in-canonical-form`). That rung, with stage 4 D's (`the-door-s-third-rung-is-the-symbolic-tier`, merged), proves the contacts F's refusals leave behind.
+
+## Two B interims F closes (INTENT stage 3 B's review, PR 5232, 2026-10-17)
+
+Both reviewers of B raised these, and F's rule ends both. Each is
+recorded here so that F's rows pin the close.
+
+- **The door's verdict depends on the order constraints arrive in.**
+  B's door checks each constraint against the bundle already held
+  (`bundle[..k]`, `crates/editor-core/src/edit.rs`'s
+  `admit_written_constraint`; `mate/solve.rs`'s `admit_constraint`).
+  - A frame coincidence after a coaxial is admitted, and the solve then
+    refuses `Overconstrained`.
+  - The same two in the other order refuse at the door.
+  - This is the spec's B letter (the door checks "already `Trivial`"). F's
+    "any of whose equations the bundle already fixes" decides the
+    constraint whatever order it arrives in.
+- **A copy's space turns on a value.**
+  - B's `solve_placement` (`mate/solve.rs`) makes a copy loose when the
+    fold's subgroup is not determined. The fold decides its case splits
+    over measured values, so two coaxial world mates are world-pinned
+    at a tilt θ = 0.5 and loose at θ = 0.
+  - At θ = 0 the copy leaves the product with no refusal; on main,
+    `MateFault::Under` refused it.
+  - Spec §1 decides kinds from the recipe. F's codimension rule decides
+    determination by codimension alone, which ends this.

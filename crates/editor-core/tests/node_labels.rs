@@ -14,8 +14,8 @@ use std::sync::Arc;
 use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
-    inline, load, save,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, Uncarried,
+    content_pin, evaluate, inline, load, save,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -632,31 +632,33 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    // The instance's bundle is empty: placed by no world pin, so only
+    // a part whose one world placement is an instance at the identity
+    // could take it, and this part's is a copy of a body.
+    let (host, inst) = insert(host, fixture::mated_instance(doc_ref));
     let host = set_label(host, inst, Some("left bracket"));
 
-    let (placed, _) = step(
-        host.clone(),
-        DocEdit::SetOffset {
-            instance: inst,
-            offset: Some(editor_core::Placement::literal(
-                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
-    let InlineError::UnplaceableFrame { root } = &refused else {
-        panic!("the frame is not expressible, got {refused:?}");
+    let refused = inline(&host, inst, &resolver, tol).expect_err("a loose plain part");
+    let InlineError::UnplaceablePart {
+        instance,
+        why: Uncarried::NotAnInstance { placement },
+    } = &refused
+    else {
+        panic!("the part's placement takes no bundle, got {refused:?}");
     };
     assert_eq!(
-        (root.id(), root.label()),
+        (instance.id(), instance.label()),
+        (inst, Some(&label("left bracket"))),
+        "the instance is the host's, spoken from the host"
+    );
+    assert_eq!(
+        (placement.id(), placement.label()),
         (body, Some(&label("bracket"))),
         "the placement is the part's, spoken from the part"
     );
     assert!(
         refused.to_string().contains(&format!(
-            "part placement PlaceInWorld \"bracket\" ({})",
+            "Place \"bracket\" ({}) copies recipe content",
             tag(body.0.digest())
         )),
         "{refused}"
@@ -681,8 +683,8 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         .expect_err("a reader of a two-body world has no one body to read");
     assert!(
         refused.to_string().starts_with(&format!(
-            "inline: Transform \"offset\" ({b}) reads the instance, and the referenced \
-             document places 2 bodies",
+            "inline: Transform \"offset\" ({b}) reads the instance's copies, and the world \
+             in question places 2 copies",
             b = tag(by.0.digest())
         )),
         "{refused}"
@@ -906,8 +908,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     let spoken = report.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check separation: PlaceInWorld \"base\" ({b}) output 0: not certifiably \
-             disjoint from PlaceInWorld \"boss\" ({o}) output 0"
+            "check separation: Place \"base\" ({b}) output 0: not certifiably \
+             disjoint from Place \"boss\" ({o}) output 0"
         )),
         "the separation finding speaks both placements from the document: {spoken}"
     );
@@ -927,7 +929,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     let spoken = refusal.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check connectedness: PlaceInWorld \"base\" ({b}) output 0:"
+            "check connectedness: Place \"base\" ({b}) output 0:"
         )),
         "the refusal speaks its placement from the document: {spoken}"
     );
@@ -1144,7 +1146,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
-        MateFault, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, Unplaced, spoken_by,
+        MateFault, MateRef, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
     let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
     let (doc, [_, _, body]) = block(doc, 0.0);
@@ -1174,19 +1176,16 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         "{measured}"
     );
 
-    // A placement refusal's own kind is about the placement's node.
-    let placement = PoseRefusal::Placement {
-        node: body,
-        error: NodeRefusal::from(NodeErrorKind::Unplaced {
-            group: body,
-            cause: Unplaced::NoOffset,
-        }),
+    // A pose refusal names the placement it is about once.
+    let placement = PoseRefusal::Loose {
+        placement: body,
+        root: body,
     };
     let said = placement.spoken(&doc);
     assert!(
         said.starts_with(&format!(
-            "the placement at {spoken} does not evaluate: this reads the group rooted at this \
-             node,"
+            "{spoken} has no world pose: its bundle pins less than its body needs, so it is \
+             a loose copy"
         )),
         "{said}"
     );
@@ -1195,17 +1194,24 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     // A mate fault recorded against an instance names the instance once,
     // by its noun where it has one and as `this node` where it has none.
     let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
-        mate: RecipeNodeId::new(0, 7),
+        mate: MateRef::new(
+            RecipeNodeId::new(0, 7),
+            editor_core::ConstraintId(editor_core::MintId::new(0, 8)),
+        ),
         instance: body,
     })));
     let line = self_mate.line_at(body, Speaker::of(&doc));
     assert!(
-        line.starts_with(&format!("{spoken} failed: the mate solve refused: mate "))
-            && line.contains("(it stands on this instance)"),
+        line.starts_with(&format!(
+            "{spoken} failed: the mate solve refused: constraint "
+        )) && line.contains("(it stands on this instance)"),
         "{line}"
     );
     let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
-        mate: RecipeNodeId::new(0, 7),
+        mate: MateRef::new(
+            RecipeNodeId::new(0, 7),
+            editor_core::ConstraintId(editor_core::MintId::new(0, 8)),
+        ),
         side: MateSide::A,
         head: body,
     })));

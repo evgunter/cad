@@ -1473,6 +1473,7 @@ EDIT_ATTRS = (
     "offered",
     "determinant",
     "index",
+    "mate",
     "path",
     "value_path",
     "pin",

@@ -144,13 +144,21 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// or a moved bit moves it. They are goldens in the ordinary sense —
 /// when one moves the question is whether the new behaviour is right,
 /// never how to restore the old number.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7du64),
-        ("part_select", 0x1613_0d79_3326_39ec),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("cut_cylinder", 0xd297_b835_12d9_3db5u64),
+        ("part_select", 0x3e62_aeb1_faf1_79ba),
+        ("kitchen_sink", 0xf6fd_a061_6aa7_4584),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

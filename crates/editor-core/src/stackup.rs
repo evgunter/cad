@@ -956,9 +956,16 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::Mate(_) => d.u64(21),
-        ValuePayload::Gauge => d.u64(26),
+        // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        // The material the table indexes; its copies are the same
+        // material read copy by copy.
+        ValuePayload::Copies(copies) => {
+            d.u64(29);
+            d.u64(copies.bodies.len() as u64);
+            for b in &copies.bodies {
+                d.body(b);
+            }
+        }
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -993,7 +1000,8 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
+    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
 
 // ------------------------------------------------- the verdict's tie
 

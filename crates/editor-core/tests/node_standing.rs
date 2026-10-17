@@ -22,7 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, insert, len, minted, on_frame, scl, step};
+use crate::fixture::{self, insert, len, minted, on_frame, step};
 use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
@@ -338,38 +338,15 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
         "{refusal}"
     );
 
-    // A failed placement, of a body that builds: its pose's rotation
-    // axis has no direction.
-    let (doc, profile) = on_frame(
+    // A failed placement: an instance, its own placement, whose part
+    // this evaluation has no resolver to fetch.
+    let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::instantiate_part(editor_core::DocRef {
+            id: editor_core::DocumentId::derive("node_standing_checks_part"),
+            pin: editor_core::ContentPin([7; 32]),
+        }),
     );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let (doc, placement) = step(
-        doc,
-        DocEdit::place(
-            body,
-            Some(
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(0.0)],
-                    angle: ang(1.0),
-                }
-                .into(),
-            ),
-        ),
-    );
-    let placement = placement.expect("a placement mints its node");
     let ev = run(&doc, &CancelToken::new());
     let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
@@ -561,15 +538,16 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        25,
+        23,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        7,
+        8,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port copies the standing entries and writes the half it projects \
-         (`split_ports_projected`), every read still through `value_of`",
+         (`split_ports_projected`), every read still through `value_of`; a placement's solve \
+         fault reads whether its placer FAILED, a standing and not a value (`placement_fault`)",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

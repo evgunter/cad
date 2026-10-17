@@ -614,6 +614,74 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
     );
 }
 
+/// **A world whose gather refuses**: a cube instance pinned to the
+/// world and a second placed on it by a constraint whose side names a
+/// face the part does not have, so that placement fails and the gather
+/// refuses it typed. Answers the document, the options that resolve its
+/// part, and the failed placement.
+fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
+    use editor_core::{
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive, RoleSeg,
+        StableName,
+    };
+    let mut store = fixture::resolver::PartStore::default();
+    let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, body) = insert(
+        part,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (part_ref, body) = store.insert_part((part, body), Tol::witness());
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
+    let nowhere = StableName {
+        kind: EntityKind::Face,
+        node: base,
+        path: vec![RoleSeg::InPart {
+            of: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 99),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
+        }],
+    };
+    let frame = || {
+        MateFrame::authored(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            Tol::witness(),
+        )
+        .expect("a definite frame")
+    };
+    let mate = fixture::mate(
+        fixture::head(nowhere),
+        fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
+        ContactClass::Rest,
+        Alignment {
+            a: frame(),
+            b: frame(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    );
+    let (doc, _) = fixture::constrain_at(doc, placed, mate);
+    (doc, fixture::resolver::with_resolver(store), placed)
+}
+
 #[test]
 fn separation_off_is_visibly_skipped_and_independent() {
     let (doc, _, _) = two_roots(0.0);
@@ -646,17 +714,19 @@ fn separation_off_is_visibly_skipped_and_independent() {
 
     // **And `Off` means the subject is never derived**, which is the
     // half a document that gathers cannot show: a document whose
-    // gather REFUSES still reports, because with the only
-    // subject-reading resident off there is nothing to gather for.
-    // An instance whose group nothing places, placed: the world holds
-    // no copy and the gather refuses, while the copy evaluates.
-    let (doc, opts) = fixture::unplaced_world("dsc-checks-unplaced");
+    // gather REFUSES still reports, because with the subject-reading
+    // residents off there is nothing to gather for. A placement whose
+    // constraint names no face fails, and the gather refuses it.
+    // Connectedness reads every placement's value and would refuse the
+    // failed one on its own, so it is off here too.
+    let (doc, opts, _) = failed_placement_world("dsc-checks-unplaced");
     let ev = fixture::run(&doc, &opts);
     assert!(
         editor_core::product_recorded(&doc, &ev, Tol::witness()).is_err(),
         "the premise: this document's gather refuses"
     );
     let off = ChecksConfig {
+        connectedness: Severity::Off,
         separation: Advisory::Off,
         unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
@@ -666,14 +736,22 @@ fn separation_off_is_visibly_skipped_and_independent() {
     assert_eq!(
         report.skipped,
         vec![
+            CheckId::Connectedness,
             CheckId::ChartCoherence,
             CheckId::UnprovenCoincidence,
             CheckId::Separation
         ]
     );
-    // …and with it on, the same document refuses on the subject.
+    // …and with separation on, the same document refuses on the subject.
+    let on = ChecksConfig {
+        separation: Advisory::Warn,
+        ..off
+    };
     assert!(
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).is_err(),
+        matches!(
+            run_checks(&doc, &ev, &on, Tol::witness()),
+            Err(ChecksError::Product { .. })
+        ),
         "the control: the resident that reads the subject is what needs one"
     );
 }

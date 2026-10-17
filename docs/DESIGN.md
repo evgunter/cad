@@ -30,11 +30,13 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
 
 - **Built:** variables (stage 1); operations that read and define
   variables, selections as definitions, the product as a list
-  (stage 2); booleans gluing on a Zero verdict and the boolean
-  declare surface retired (stage 4 E and F).
-- **Not built:** spaces and placement (stage 3 — `Transform`,
-  `Datum`, gauges, offsets and the mates' spanning tree still exist in
-  the tree); the rest of the coincidence door and its lint (stage 4);
+  (stage 2); a placement as the bundle of its mates, the world a
+  node and spaces as kinds, with gauges, offsets and the mates'
+  spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
+  and the boolean declare surface retired (stage 4 E and F).
+- **Not built:** the rest of placement (stage 3 — `Transform` and
+  `Datum` still exist in the tree, and a constraint is still a mate's
+  payload); the rest of the coincidence door and its lint (stage 4);
   assertions and the at-rest lints (stage 5); tangency constructions
   (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
@@ -48,9 +50,8 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   DS2's identification grade; the axis declaration channel;
   `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
   `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's sink rule, A11 (2)'s
-  gauges and offsets, A11 (4)'s declaring mates and A12's reading
-  edges; and A5's at-rest gate (`assemble` and its refusal), whose
+  stored tangent-joint flags; ASSEMBLY A3, A10's sink rule and A12's
+  reading edges; and A5's at-rest gate (`assemble` and its refusal), whose
   census becomes a check, with DISCIPLINES DS6's product-separation
   resident (`Separation`).
 

@@ -729,8 +729,8 @@ fn the_wire_refuses_an_emptied_placement_list() {
 }
 
 /// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test `SetOffset` applies to an instance offset,
-/// and the same typed refusals (review MINOR-2). A non-finite frame no
+/// finite-and-proper test a literal constraint frame is held to, and
+/// the same typed refusals (review MINOR-2). A non-finite frame no
 /// longer reads as a separation failure; it says what it is.
 #[test]
 fn placement_frames_are_held_to_the_group_frame_bar() {

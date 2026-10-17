@@ -675,7 +675,7 @@ fn hand_eval(
 ) -> Evaluation<f64> {
     let value = |table: NameTable, log: Vec<Verdict>| {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
+            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
             name_table: Arc::new(table),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -686,6 +686,7 @@ fn hand_eval(
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,
+            motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -702,8 +703,7 @@ fn hand_eval(
     let recomputed = order.len();
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
+        loose: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order,

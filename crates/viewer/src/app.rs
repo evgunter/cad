@@ -3915,7 +3915,7 @@ mod properties_pane_tests {
         });
         // A pick is on the drawn copy, and says so.
         let line = format!(
-            "pick a: face of PlaceInWorld {}; pick b: —",
+            "pick a: face of Place {}; pick b: —",
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -4892,7 +4892,7 @@ mod properties_pane_tests {
 
     /// A session over two instances of one part, and the two instance
     /// ids in document order: placed in the world through one union
-    /// when `fused`, each placed on its own otherwise. Also the union's
+    /// when `fused`, and each its own placement either way. Also the union's
     /// id, when there is one.
     ///
     /// The part is never resolved: the display admission is a question
@@ -4906,7 +4906,8 @@ mod properties_pane_tests {
         Option<RecipeNodeId>,
     ) {
         use pncad::document::{
-            Bodies, ContentPin, DocRef, DocumentId, Node, Placement, ProfileDoc,
+            Bodies, BodyRead, ContentPin, CopyKey, DocEdit, DocRef, DocumentId, Node, Operand,
+            ProfileDoc, RecipeNodeId, VarId,
         };
         let tol = pncad::tolerance::witness();
         let part = DocRef {
@@ -4915,26 +4916,23 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
+        // Each instance is a placement on its own, standing on the world.
         let a = insert(&mut doc, Node::instantiate_part(part));
         let b = insert(&mut doc, Node::instantiate_part(part));
-        let union = if fused {
+        let union = fused.then(|| {
+            // The part is never resolved, so its one copy's key is
+            // spelled here: the edges are what the admission reads.
+            let key = CopyKey::part(RecipeNodeId::new(1, 1), CopyKey::Read(VarId::new(1, 2)));
+            let copy = |instance| BodyRead::keyed(Operand::Node(instance), key.clone());
             let union = insert(
                 &mut doc,
                 Node::Union {
-                    members: Bodies::Spelled(vec![a.into(), b.into()]),
+                    members: Bodies::Spelled(vec![copy(a), copy(b)]),
                 },
             );
-            insert(&mut doc, Node::place_in_world(union, Placement::IDENTITY));
-            Some(union)
-        } else {
-            for instance in [a, b] {
-                insert(
-                    &mut doc,
-                    Node::place_in_world(instance, Placement::IDENTITY),
-                );
-            }
-            None
-        };
+            crate::test_support::edit_into(&mut doc, DocEdit::place_in_world(union, None), tol);
+            union
+        });
         let mut session = crate::session::DocSession::inline(doc, tol);
         session.pump();
         (session, [a, b], union)
@@ -5874,7 +5872,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of PlaceInWorld"),
+            refused_said.contains("of Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -6136,11 +6134,13 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
         let plinth = format!(
-            "PlaceInWorld \"plinth\" ({})",
+            "Place \"plinth\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
+        // Both picks are caps of the one copy, so the commit refuses
+        // the pair as one member, naming that member's placement.
         assert!(
-            said.contains(&format!("pick a is on {plinth}")),
+            said.contains(&format!("(head: {plinth})")),
             "the refusal says the kept label: {said}"
         );
     }

@@ -326,11 +326,11 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
         assert!(
             matches!(
                 edit,
-                DocEdit::InsertNode { node, .. } if matches!(**node, Node::PlaceInWorld { .. })
+                DocEdit::InsertNode { node, .. } if matches!(**node, Node::Place { .. })
             ) || matches!(
                 edit,
                 DocEdit::SetParam {
-                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Body),
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
                     ..
                 } | DocEdit::DeleteNode { .. }
             ),
@@ -350,33 +350,64 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
     node
 }
 
-/// **Commit a mate through the session's insert door**, pump, and
-/// answer the node it minted — checked to BE a mate, because that id
-/// is what the solve keys a fault by.
-///
-/// A pattern node, a `Part` node or an instance is NOT such a key:
-/// `SolvedPoses::fault` maps refusing MATES and the instances of a
-/// group that consequently has no pose, so `fault(pattern)` answers
-/// `None` for every document ever written and asserts nothing. The
-/// kind check is what keeps a row's `fault(mate).is_none()` from
-/// passing on an id it could never fail on.
+/// **Every mate `doc` holds**: each constraint whose two sides are
+/// faces, by its address, in placement order and bundle order within
+/// one — the recipe's own mates, without the world pins.
+pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
+    doc.placements()
+        .into_iter()
+        .flat_map(|placement| {
+            crate::fixture::bundle(doc, placement)
+                .into_iter()
+                .filter(|constraint| {
+                    matches!(constraint.mate.a, pncad::document::SideRead::Face(_))
+                        && matches!(constraint.mate.b, pncad::document::SideRead::Face(_))
+                })
+                .map(move |constraint| pncad::document::MateRef::new(placement, constraint.id))
+        })
+        .collect()
+}
+
+/// **Commit a mate through the session**, pump, and answer the
+/// constraint it added — the op's one committed edit checked to BE an
+/// `AddConstraint`, and the constraint read back by its address, because
+/// that address is what the solve keys a fault by (its placement's).
 ///
 /// A row that authors two mates into ONE evaluation does not pump
-/// between them, and so takes [`session_insert`] instead.
+/// between them, and so takes [`add_mate`] instead.
 ///
 /// # Panics
 ///
-/// If the op refuses, commits anything but one insert, or inserts a
-/// node that is not a `Node::Mate`.
-pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let mate = session_insert(session, op);
-    assert!(
-        matches!(session.committed_doc().node(mate), Some(Node::Mate { .. })),
-        "the op inserts a mate: {:?}",
-        session.committed_doc().node(mate)
-    );
+/// If the op refuses, or commits anything but one `AddConstraint`.
+pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let mate = add_mate(session, op);
     session.pump();
     mate
+}
+
+/// [`commit_mate`] without the pump.
+pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let before = session.committed_doc().clone();
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [DocEdit::AddConstraint { placement, .. }] = outcome.committed.as_slice() else {
+        panic!("the op adds one constraint: {:?}", outcome.committed)
+    };
+    let held = |doc: &Doc<ProfileProgram>| {
+        crate::fixture::bundle(doc, *placement)
+            .into_iter()
+            .map(|constraint| constraint.id)
+            .collect::<Vec<_>>()
+    };
+    let was = held(&before);
+    let [id] = held(session.committed_doc())
+        .into_iter()
+        .filter(|id| !was.contains(id))
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("the op minted one constraint on {placement:?}")
+    };
+    pncad::document::MateRef::new(*placement, id)
 }
 
 /// **A rectangle profile through the session**: the chrome's rectangle
@@ -634,12 +665,16 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 }
 
 /// **The one world placement of `body`**: the node its drawn copy is
-/// picked on (A10).
+/// picked on (A10) — an instance itself, which is a placement.
 ///
 /// # Panics
 ///
 /// Unless exactly one placement places `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
+    // An instance is a placement: its copies are drawn on it.
+    if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
+        return body;
+    }
     let [copy] = viewer::world::placements_of(doc, body)[..] else {
         panic!("{body:?} is placed once")
     };

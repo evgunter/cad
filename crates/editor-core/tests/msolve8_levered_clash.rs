@@ -22,15 +22,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
-    ProfileDoc, RecipeNodeId, mate_reach,
+    EvalOptions, Lever, Mate, MateFault, MateFrame, MatePrimitive, MateReach, MateRef, Node,
+    NodeErrorClass, ProfileDoc, RecipeNodeId, Space, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
@@ -69,10 +68,10 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// `n` instances of one part, the options that resolve them, the
 /// reference the reach is asked through, and the part's body. Only the
-/// first carries an offset — the rest sit where their mates put them —
-/// so the first roots every group the rows' mates make, whichever way
-/// round a mate is authored, and an inverted authored order inverts
-/// the pair the fold reads and nothing else.
+/// first is pinned to the world — the rest have empty bundles, filled
+/// by the rows' mates — so a mate between the first and another is the
+/// other's, whichever way round it is authored, and an inverted
+/// authored order inverts the pair the fold reads and nothing else.
 struct Rig {
     doc: ProfileDoc,
     ids: Vec<RecipeNodeId>,
@@ -87,19 +86,13 @@ fn rig(label: &str, n: usize) -> Rig {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..n {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        let node = if i == 0 {
+            Node::instantiate_part(doc_ref)
+        } else {
+            fixture::mated_instance(doc_ref)
+        };
+        let (next, id) = insert(doc, node);
         doc = next;
-        if i > 0 {
-            doc = crate::fixture::step(
-                doc,
-                editor_core::DocEdit::SetOffset {
-                    instance: id,
-                    offset: None,
-                    fresh: Vec::new(),
-                },
-            )
-            .0;
-        }
         ids.push(id);
     }
     Rig {
@@ -149,25 +142,42 @@ fn mate(
     a: RecipeNodeId,
     b: RecipeNodeId,
     alignment: Alignment<Formula>,
-) -> AuthoredNode {
-    Node::Mate {
-        a: fixture::head(in_part(a, body, CapEnd::Start)).into(),
-        b: fixture::head(in_part(b, body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
+) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head(in_part(a, body, CapEnd::Start)),
+        fixture::head(in_part(b, body, CapEnd::Start)),
+        ContactClass::Rest,
         alignment,
-    }
+    )
 }
 
-/// Inserts `node`, unwrapping the id every insert here mints.
-fn add(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(
+/// Adds `mate` to the bundle of the copy it places, through the store's
+/// reach — the door folds the bundle it joins over the parts' lever.
+fn add(doc: ProfileDoc, o: &EvalOptions, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
+    fixture::constrain_with(doc, &mate_reach::<f64>(o, Tol::witness()), mate)
+}
+
+/// **`mate` added to `placement`'s bundle as a load adds it**: through
+/// the replay door (`editor_core::apply_replayed`), which decides no
+/// bundle, so the bundle is a state the live door never saw and its
+/// verdict is the solve's.
+fn as_loaded(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    mate: Mate<Formula>,
+) -> (ProfileDoc, MateRef) {
+    let applied = editor_core::apply_replayed(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
             fresh: Vec::new(),
         },
-    );
-    (doc, id.expect("the insert minted an id"))
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the replay door adds the constraint: {e}"));
+    let id = applied.record.minted_constraints[0];
+    (applied.doc, MateRef::new(placement, id))
 }
 
 /// The part's reach, through the evaluation's own door.
@@ -215,35 +225,45 @@ fn bits3(v: Vec3<f64>) -> [u64; 3] {
 }
 
 /// Two mates on one instance pair, authored `(first, second)` or the
-/// other way round, and the added mate's fault.
+/// other way round, both in the second instance's bundle, and the
+/// added mate's fault.
 fn two_mates(
     label: &str,
     first: Alignment<Formula>,
     second: Alignment<Formula>,
     reversed: bool,
-) -> (Rig, RecipeNodeId, RecipeNodeId, Option<(Site, MateFault)>) {
+) -> (Rig, MateRef, Option<MateRef>, Option<(Site, MateFault)>) {
     let r = rig(label, 2);
     let (a, b) = if reversed {
         (r.ids[1], r.ids[0])
     } else {
         (r.ids[0], r.ids[1])
     };
-    let (doc, held) = add(r.doc, mate(r.body, a, b, first));
+    let (doc, held) = add(r.doc, &r.o, mate(r.body, a, b, first));
     // The second mate meets its own admission at the door and the
-    // pair's verdict at the solve: whichever refuses is the fault.
+    // pair's verdict at the solve: whichever refuses is the fault. A
+    // first mate that already pins the copy leaves the door nothing to
+    // admit beside it, so there the pair's verdict is reached as a
+    // loaded document reaches it, at the solve.
+    let second = mate(r.body, a, b, second);
+    let solved = |doc: ProfileDoc, added: MateRef| {
+        let fault = solve(&doc, &r.o, Tol::witness())
+            .fault(added.placement)
+            .cloned()
+            .map(|fault| (Site::Solve, fault));
+        (doc, Some(added), fault)
+    };
     let (doc, added, fault) = match at_the_door(
         &doc,
         &mate_reach::<f64>(&r.o, Tol::witness()),
-        mate(r.body, a, b, second),
+        second.clone(),
     ) {
-        Ok((doc, added)) => {
-            let fault = solve(&doc, &r.o, Tol::witness())
-                .fault(added)
-                .cloned()
-                .map(|fault| (Site::Solve, fault));
-            (doc, added, fault)
+        Ok((doc, added)) => solved(doc, added),
+        Err((_, MateFault::Overconstrained { .. })) => {
+            let (doc, added) = as_loaded(&doc, held.placement, second);
+            solved(doc, added)
         }
-        Err((added, fault)) => (doc, added, Some((Site::Door, fault))),
+        Err((_, fault)) => (doc, None, Some((Site::Door, fault))),
     };
     (Rig { doc, ..r }, held, added, fault)
 }
@@ -342,7 +362,7 @@ fn c1_rotation_identity_value_and_arm() {
     else {
         unreachable!()
     };
-    assert_eq!((*h, *a), (held, added));
+    assert_eq!((*h, Some(*a)), (held, added));
 }
 
 /// **`mate_member_axis_fixed` levers `‖Q·n − n‖`.** A frame
@@ -554,7 +574,7 @@ fn c1_length_none_and_roll_arm() {
 }
 
 /// **A transported direction never refuses, and the clash it reaches
-/// is levered.** The spanning tree reads the pair from the root, so
+/// is levered.** The fold reads the pair from the target, so
 /// a mate authored `(second, first)` is INVERTED before the fold —
 /// its directions transported by the representative's rotation and
 /// re-minted under the band. The three documents above, authored the
@@ -813,7 +833,7 @@ fn c2_parallel_boundary_direct() {
 /// found by search over the raw axes, with the arm realised as the
 /// FOLD forms it (both parts' reach plus the first mate's `a` origin)
 /// — solve to the verdict the one spelling gives: the prismatic
-/// residual (UNDER) where the levered vector's norm clears K·ε, the
+/// residual (a loose copy) where the levered vector's norm clears K·ε, the
 /// escalation under `mate_axes_parallel` where it lands inside the
 /// band. Never a contradiction, never an escalation under another
 /// name; the two spellings differ by at most two ulps at every
@@ -912,8 +932,8 @@ fn c2_parallel_boundary_through_doors() {
             .to_bits(),
             arm.to_bits()
         );
-        let (doc, _) = add(r.doc, mate(r.body, r.ids[0], r.ids[1], first));
-        let (doc, added) = add(doc, mate(r.body, r.ids[0], r.ids[1], second));
+        let (doc, _) = add(r.doc, &r.o, mate(r.body, r.ids[0], r.ids[1], first));
+        let (doc, added) = add(doc, &r.o, mate(r.body, r.ids[0], r.ids[1], second));
         let want = one_spelling(w1, w2, arm, band);
         let sine_times_arm = w1.cross(w2).norm() * arm;
         let levered_norm = (w1.cross(w2) * arm).norm();
@@ -921,10 +941,17 @@ fn c2_parallel_boundary_through_doors() {
             (sine_times_arm - levered_norm).abs() <= 2.0 * f64::EPSILON * escalate,
             "the two spellings differ by ulps: {sine_times_arm:e} vs {levered_norm:e}"
         );
-        match solve(&doc, &r.o, tol).fault(added) {
-            Some(MateFault::Under { residual, .. }) => {
+        let poses = solve(&doc, &r.o, tol);
+        match poses.fault(added.placement) {
+            None => {
                 assert_eq!(want, "line", "candidate {i}");
-                assert_eq!(residual.name(), "prismatic");
+                assert_eq!(
+                    poses.space(added.placement),
+                    Some(Space::Loose {
+                        root: added.placement
+                    }),
+                    "candidate {i}: the line leaves the copy loose"
+                );
                 under += 1;
             }
             Some(MateFault::Indeterminate { diag, .. }) => {
@@ -947,8 +974,9 @@ fn c2_parallel_boundary_through_doors() {
 /// document's verdict is the direct document's. A frame the ladder
 /// refuses — the `1e-150` axis at every ε, a reference the band
 /// cannot tell from the axis at a coarse one — refuses where it is
-/// authored; every other one solves or is UNDER both ways, because a
-/// proper rotation keeps a witness's length one within rounding.
+/// authored; every other one solves both ways — the copy pinned or
+/// loose, never refused — because a proper rotation keeps a witness's
+/// length one within rounding.
 #[test]
 fn c2_inverted_coset_never_refuses() {
     let tol = Tol::witness();
@@ -1009,7 +1037,7 @@ fn c2_inverted_coset_never_refuses() {
                         ),
                     ) {
                         Ok((doc, m)) => solve(&doc, &r.o, tol)
-                            .fault(m)
+                            .fault(m.placement)
                             .cloned()
                             .map(|fault| (Site::Solve, fault)),
                         Err((_, fault)) => Some((Site::Door, fault)),
@@ -1017,10 +1045,6 @@ fn c2_inverted_coset_never_refuses() {
                 };
                 match (verdict(false), verdict(true)) {
                     (None, None) => solved += 1,
-                    (
-                        Some((Site::Solve, MateFault::Under { .. })),
-                        Some((Site::Solve, MateFault::Under { .. })),
-                    ) => {}
                     (direct, inverted) => {
                         panic!("{f:?} {prim:?} {sense:?}: direct {direct:?}, inverted {inverted:?}")
                     }
@@ -1037,9 +1061,10 @@ fn c2_inverted_coset_never_refuses() {
 
 // ---- C4: the two mate-less arms, measured ----
 
-/// Five instances on a reference no store resolves — a document
-/// built WITHOUT the part doors, which decide under the band and so
-/// refuse before a solve when it does — and the mate an author then
+/// Five instances on a reference no store resolves, each with an empty
+/// bundle — a document built WITHOUT the part doors and without a world
+/// pin, which decide under the band and so refuse before a solve when
+/// it does — and the mate an author then
 /// tries to add: the edit door asks the solve's own admission, which
 /// begins with the band, so under a tolerance that admits none the
 /// mate is refused `Band` at the insert door.
@@ -1054,7 +1079,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (next, id) = step(
             doc,
             DocEdit::InsertNode {
-                node: Box::new(Node::instantiate_part(doc_ref)),
+                node: Box::new(fixture::mated_instance(doc_ref)),
                 fresh: Vec::new(),
             },
         );
@@ -1093,14 +1118,15 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
             .apply(
-                &DocEdit::InsertNode {
-                    node: Box::new(Node::Mate {
-                        a: cap(ids[x]).into(),
-                        b: cap(ids[y]).into(),
-                        class: ContactClass::Rest,
+                &DocEdit::AddConstraint {
+                    placement: ids[y],
+                    mate: Box::new(fixture::mate(
+                        cap(ids[x]),
+                        cap(ids[y]),
+                        ContactClass::Rest,
                         // A literal step: no band forms to author
                         // vectors through.
-                        alignment: al(
+                        al(
                             MatePrimitive::FrameCoincidence,
                             AxisSense::Aligned,
                             MateFrame::on_part(editor_core::Placement::IDENTITY),
@@ -1109,7 +1135,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             )),
                             None,
                         ),
-                    }),
+                    )),
                     fresh: Vec::new(),
                 },
                 tol,
@@ -1130,15 +1156,16 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     assert!(
         doc.ids()
             .iter()
+            .filter(|&&id| id != RecipeNodeId::WORLD)
             .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
-        "the document holds its five instances and nothing else"
+        "the document holds its world, its five instances and nothing else"
     );
     // And the solve of what the document does hold: `Band` reaches
-    // EVERY instance — each its own singleton group — and nothing
-    // else, since no band means no verdict for any of them.
+    // EVERY instance and nothing else, since no band means no verdict
+    // for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;
-    for id in doc.ids() {
+    for id in doc.placements() {
         assert!(
             matches!(poses.fault(id), Some(MateFault::Band { .. })),
             "{id:?}: {:?}",
@@ -1175,6 +1202,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let ids = r.ids.clone();
     let (doc, _) = add(
         r.doc,
+        &r.o,
         mate(
             r.body,
             ids[0],
@@ -1190,6 +1218,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     );
     let (doc, _) = add(
         doc,
+        &r.o,
         mate(
             r.body,
             ids[2],
@@ -1203,20 +1232,12 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         ),
     );
-    // The rig offsets only the first instance; the second group's
-    // root and the lone fifth instance take one back, so every
-    // instance places against its own document.
+    // The rig pins only the first instance to the world; the copy the
+    // fourth is pinned against and the lone fifth instance are pinned
+    // too, so every instance places against its own document.
     let mut doc = doc;
     for &id in &[ids[2], ids[4]] {
-        doc = crate::fixture::step(
-            doc,
-            editor_core::DocEdit::SetOffset {
-                instance: id,
-                offset: Some(editor_core::Placement::IDENTITY),
-                fresh: Vec::new(),
-            },
-        )
-        .0;
+        doc = fixture::constrain_at(doc, id, Mate::world_pin(editor_core::Placement::IDENTITY)).0;
     }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
@@ -1289,6 +1310,7 @@ fn kstats_aim_decided_twice_per_mate() {
         for _ in 0..n {
             let (next, _) = add(
                 doc,
+                &r.o,
                 mate(
                     r.body,
                     r.ids[0],
@@ -1309,10 +1331,7 @@ fn kstats_aim_decided_twice_per_mate() {
         let b = Bracket::open();
         let poses = editor_core::solve_document(&doc, &reach, tol);
         let rec = b.finish();
-        assert!(matches!(
-            poses.fault(r.ids[1]),
-            None | Some(MateFault::Under { .. })
-        ));
+        assert_eq!(poses.fault(r.ids[1]), None);
         (
             decided(&rec, "frame_point_at_aim"),
             decided(&rec, "frame_point_at_roll_offset"),
@@ -1338,7 +1357,7 @@ fn kstats_aim_decided_twice_per_mate() {
 /// distance, because the rest's `a` plane now belongs to the other
 /// instance. The V-block (two planar rests at a right angle, the
 /// planes' line minted by the parallel verdict) still leaves the
-/// prismatic residual along that line.
+/// prismatic residual along that line, so its copy is loose.
 #[test]
 fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let mut poses_seen = Vec::new();
@@ -1355,6 +1374,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         };
         let (doc, _) = add(
             r.doc,
+            &r.o,
             mate(
                 r.body,
                 a,
@@ -1370,6 +1390,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         );
         let (doc, rest) = add(
             doc,
+            &r.o,
             mate(
                 r.body,
                 a,
@@ -1385,9 +1406,9 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         );
         let poses = solve(&doc, &r.o, Tol::witness());
         assert!(
-            poses.fault(rest).is_none() && poses.fault(second).is_none(),
+            poses.fault(rest.placement).is_none() && poses.space(second) == Some(Space::World),
             "{label}: the exemplar is DETERMINED: {:?}",
-            poses.fault(rest)
+            poses.fault(rest.placement)
         );
         poses_seen.push(
             poses
@@ -1416,6 +1437,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
     for axis in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
         let (next, _) = add(
             doc,
+            &r.o,
             mate(
                 r.body,
                 first,
@@ -1431,16 +1453,11 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         );
         doc = next;
     }
-    let fault = solve(&doc, &r.o, Tol::witness())
-        .fault(second)
-        .expect("the V-block is UNDER")
-        .clone();
-    let MateFault::Under { residual, .. } = &fault else {
-        panic!("expected UNDER, got {fault:?}");
-    };
-    assert_eq!(residual.name(), "prismatic");
-    assert!(
-        fault.to_string().contains("translation along [0, 0, 1]"),
-        "the planes' line is the parallel verdict's own mint: {fault}"
+    let poses = solve(&doc, &r.o, Tol::witness());
+    assert_eq!(poses.fault(second), None, "the V-block refuses nothing");
+    assert_eq!(
+        poses.space(second),
+        Some(Space::Loose { root: second }),
+        "the V-block leaves its copy loose"
     );
 }

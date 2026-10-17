@@ -119,7 +119,16 @@ fn box_doc(
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(doc, Node::place_in_world(body, Placement::IDENTITY));
+    let (doc, _) = insert(
+        doc,
+        Node::Place {
+            shapes: vec![body.into()],
+            constraints: vec![pncad::document::Constraint {
+                id: pncad::document::ConstraintId(pncad::document::MintId::new(0, 0)),
+                mate: pncad::document::Mate::world_pin(Placement::IDENTITY),
+            }],
+        },
+    );
     (doc, profile, body)
 }
 // END box-document fixture twin
@@ -210,6 +219,7 @@ fn pose_admits_tags_are_stable() {
         (A::Centre, "centre"),
         (A::Sensed, "sensed"),
         (A::Projected, "projected"),
+        (A::Carried, "carried"),
     ] {
         assert_eq!(crate::errors::pose_admits_tag(admits), word);
         assert_eq!(crate::errors::slot_kind_tag(SlotKind::Pose(admits)), word);
@@ -812,8 +822,8 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 
 /// **Every `MateFault` arm's payload, built and read.**
 ///
-/// The arm table, executable and TOTAL: all thirteen arms are built
-/// here and every field each carries is read.
+/// The arm table, executable and TOTAL: every arm is built here and
+/// every field each carries is read.
 /// `crate::mate_payload::mate_payload` is the projection
 /// `MateFault`'s Python attributes are read off, and this
 /// pin says what each arm puts on the wire: the exact set it CARRIES,
@@ -831,8 +841,8 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        Clash, DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind,
-        NodeRefusal, RecipeNodeId, Subgroup,
+        Clash, ConstraintId, DocumentId, FrameBase, Lever, LeverRefusal, MateFault as F, MateRef,
+        MateSide, MintId, NodeErrorKind, NodeRefusal, RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
         Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
@@ -840,6 +850,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     };
 
     let id = |n| RecipeNodeId::new(0, n);
+    // A constraint's address: constraint `n` of placement `n`.
+    let m = |n: u32| MateRef::new(id(u64::from(n)), ConstraintId(MintId::new(n, u64::from(n))));
     let carries = |fault: &F, want: &[&str]| {
         assert_eq!(
             mate_payload(fault).present(),
@@ -860,11 +872,11 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["expected_document", "found_document"],
     );
-    carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    carries(&F::ClassNotAdmitted { mate: m(1) }, &["mate"]);
     carries(
         &F::PoseOutOfRange {
-            held: id(1),
-            added: id(2),
+            held: m(1),
+            added: m(2),
         },
         &["held", "added"],
     );
@@ -881,7 +893,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     };
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::A,
             error: FrameError::Degenerate {
                 input: FrameInput::Aim,
@@ -902,7 +914,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // band, so there is no classification to publish.
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             error: FrameError::Degenerate {
                 input: FrameInput::Tangent,
@@ -920,7 +932,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // the unit found silently returning a degenerate frame.
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             error: FrameError::NonFiniteLength {
                 input: FrameVector::RollReference,
@@ -930,7 +942,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     assert_eq!(
         mate_payload(&F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             error: FrameError::NonFiniteLength {
                 input: FrameVector::RollReference,
@@ -943,7 +955,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // value, the `MarginDiag` fork the frame door publishes.
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::A,
             error: FrameError::Degenerate {
                 input: FrameInput::RollReference,
@@ -969,7 +981,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // the band still crosses.
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::A,
             error: FrameError::Degenerate {
                 input: FrameInput::MirrorNormal,
@@ -988,7 +1000,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // under — and the band's payload is what the numbers say.
     carries(
         &F::Frame {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             error: FrameError::Band(BandError::InvalidValue {
                 field: BandField::Escalate,
@@ -1025,14 +1037,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // its shape is which margin attribute is set.
     carries(
         &F::Indeterminate {
-            mate: id(1),
+            mate: m(1),
             diag: Box::new(escalated(Some("mate_clocking_redundant"))),
         },
         &["mate", "predicate", "margin", "zero", "escalate"],
     );
     carries(
         &F::Unleverable {
-            mate: id(1),
+            mate: m(1),
             refusal: Box::new(LeverRefusal::Reach {
                 instance: id(0),
                 part: pncad::document::DocRef {
@@ -1051,8 +1063,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // — and one measured without a lever carries none of the three.
     carries(
         &F::Contradictory {
-            held: id(1),
-            added: id(1),
+            held: m(1),
+            added: m(1),
             predicate: "mate_clocking_redundant",
             clash: Clash::Levered(Lever::Roll {
                 radians: 0.25,
@@ -1070,8 +1082,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     carries(
         &F::Contradictory {
-            held: id(1),
-            added: id(2),
+            held: m(1),
+            added: m(2),
             predicate: "mate_member_axis_fixed",
             clash: Clash::Levered(Lever::Residual {
                 value: 0.25,
@@ -1091,8 +1103,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // structural refusal measures nothing and carries no clash.
     carries(
         &F::Contradictory {
-            held: id(1),
-            added: id(2),
+            held: m(1),
+            added: m(2),
             predicate: "mate_member_translation_zero",
             clash: Clash::Length { metres: 0.01 },
         },
@@ -1100,26 +1112,25 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     carries(
         &F::TableLacks {
-            mate: id(1),
+            mate: m(1),
             what: "clocking on a planar rest",
         },
         &["mate", "what"],
     );
     carries(
         &F::Contradictory {
-            held: id(1),
-            added: id(2),
+            held: m(1),
+            added: m(2),
             predicate: "mate_member_empty",
             clash: Clash::Structural,
         },
         &["held", "added", "predicate"],
     );
     carries(
-        &F::Under {
-            mate: id(1),
-            parent: id(2),
-            child: id(3),
-            residual: Subgroup::Planar {
+        &F::Overconstrained {
+            placement: id(1),
+            constraints: vec![ConstraintId(MintId::new(2, 2))],
+            held: Subgroup::Planar {
                 normal: UnitVec3::new(
                     pncad::authoring::v3(0.0, 0.0, 1.0),
                     "pncad_py_test_normal",
@@ -1128,11 +1139,30 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
                 .expect("a unit normal"),
             },
         },
-        &["mate", "parent", "child", "residual"],
+        &["placement", "constraints", "residual"],
+    );
+    carries(
+        &F::TargetsDiffer {
+            placement: id(1),
+            constraints: vec![
+                ConstraintId(MintId::new(2, 2)),
+                ConstraintId(MintId::new(3, 3)),
+            ],
+        },
+        &["placement", "constraints"],
+    );
+    carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
+    carries(
+        &F::SideBase {
+            mate: m(1),
+            side: MateSide::A,
+            base: FrameBase::World,
+        },
+        &["mate", "side", "base"],
     );
     carries(
         &F::DanglingHead {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             head: id(2),
         },
@@ -1140,7 +1170,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     carries(
         &F::PlacerRefused {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::A,
             placer: id(2),
             error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
@@ -1150,7 +1180,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     carries(
         &F::PartSelectsAnotherCopy {
-            mate: id(1),
+            mate: m(1),
             side: MateSide::B,
             part: id(2),
             named: 3,
@@ -1160,29 +1190,47 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     carries(
         &F::SelfMate {
-            mate: id(1),
+            mate: m(1),
             instance: id(2),
         },
         &["mate", "instance"],
     );
 
-    // The node roles answer with the ids they were given, not with
-    // the first id repeated: the roles are what a caller acts on.
-    let under = F::Under {
-        mate: id(4),
-        parent: id(9),
-        child: id(16),
-        residual: Subgroup::Trivial,
+    // The roles answer with the ids they were given, not with the
+    // first id repeated: the roles are what a caller acts on.
+    let over = F::Overconstrained {
+        placement: id(4),
+        constraints: vec![
+            ConstraintId(MintId::new(9, 9)),
+            ConstraintId(MintId::new(16, 16)),
+        ],
+        held: Subgroup::Trivial,
     };
-    let payload = mate_payload(&under);
-    assert_eq!(payload.mate, Some(id(4)));
-    assert_eq!(payload.parent, Some(id(9)));
-    assert_eq!(payload.child, Some(id(16)));
+    let payload = mate_payload(&over);
+    assert_eq!(payload.placement, Some(id(4)));
+    assert_eq!(
+        payload.constraints,
+        Some(
+            &[
+                ConstraintId(MintId::new(9, 9)),
+                ConstraintId(MintId::new(16, 16))
+            ][..]
+        )
+    );
+    assert_eq!(payload.residual, Some(Subgroup::Trivial));
+    let contradictory = F::Contradictory {
+        held: m(9),
+        added: m(16),
+        predicate: "mate_member_empty",
+        clash: Clash::Structural,
+    };
+    let payload = mate_payload(&contradictory);
+    assert_eq!((payload.held, payload.added), (Some(m(9)), Some(m(16))));
 
     // The placer arm's `error` is the evaluation layer's own tag,
     // unaltered — the vocabulary `EvaluationError.kind` speaks.
     let placer = F::PlacerRefused {
-        mate: id(1),
+        mate: m(1),
         side: MateSide::A,
         placer: id(2),
         error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
@@ -1205,14 +1253,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // branches on one vocabulary whether the refusal reached them
     // from this door or from the door that owns it.
     let frame_band = F::Frame {
-        mate: id(1),
+        mate: m(1),
         side: MateSide::A,
         error: FrameError::Band(BandError::InvalidLeverArm { value: 0.0 }),
     };
     assert_eq!(mate_payload(&frame_band).inner_variant, Some("band"));
     assert_eq!(mate_payload(&frame_band).value, Some(0.0));
     let degenerate = F::Frame {
-        mate: id(1),
+        mate: m(1),
         side: MateSide::A,
         error: FrameError::Degenerate {
             input: FrameInput::Aim,
@@ -1224,7 +1272,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         Some("degenerate_aim")
     );
     let unleverable = F::Unleverable {
-        mate: id(1),
+        mate: m(1),
         refusal: Box::new(LeverRefusal::Reach {
             instance: id(0),
             part: pncad::document::DocRef {
@@ -1243,7 +1291,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // The classifier's numbers are the ones the band and the margin
     // held, on the frame door's own names.
     let escalation = F::Indeterminate {
-        mate: id(1),
+        mate: m(1),
         diag: Box::new(escalated(Some("mate_member_empty"))),
     };
     let payload = mate_payload(&escalation);
@@ -1262,8 +1310,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // residual the residual; the other half is `None`, and which is
     // set is how the kind crosses.
     let levered = F::Contradictory {
-        held: id(1),
-        added: id(1),
+        held: m(1),
+        added: m(1),
         predicate: "mate_clocking_redundant",
         clash: Clash::Levered(Lever::Roll {
             radians: 0.25,
@@ -1280,8 +1328,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.clash, Some(tilt * arm));
     assert_eq!(payload.lever_residual, None);
     let levered = F::Contradictory {
-        held: id(1),
-        added: id(2),
+        held: m(1),
+        added: m(2),
         predicate: "mate_rotation_two_axis_reachable",
         clash: Clash::Levered(Lever::Residual {
             value: 0.75,
@@ -1301,8 +1349,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // the three halves — `None` rather than zeroes claiming a
     // measurement nothing made.
     let structural = F::Contradictory {
-        held: id(1),
-        added: id(2),
+        held: m(1),
+        added: m(2),
         predicate: "mate_member_empty",
         clash: Clash::Structural,
     };
@@ -2390,6 +2438,9 @@ fn node_error_tags_are_the_published_words() {
         ParamBox => "param_box",
         Seed => "seed",
         WrongOperand => "wrong_operand",
+        NoSuchCopy => "no_such_copy",
+        CopyShape => "copy_shape",
+        CopiesShareAKey => "copies_share_a_key",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         SelectKind => "select_kind",
@@ -2452,20 +2503,20 @@ fn node_error_tags_are_the_published_words() {
         MatePoseOutOfRange => "mate_pose_out_of_range",
         MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
-        MateUnder => "mate_under",
+        MateOverconstrained => "mate_overconstrained",
+        MateTargetsDiffer => "mate_targets_differ",
+        MateNotOnTheCopy => "mate_not_on_the_copy",
+        MateSideBase => "mate_side_base",
         MateSideUnresolved => "mate_side_unresolved",
         MateDanglingHead => "mate_dangling_head",
         MatePlacerRefused => "mate_placer_refused",
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         MateSelf => "mate_self",
         MateUnleverable => "mate_unleverable",
-        MateOffsetDisagrees => "mate_offset_disagrees",
-        MateOffsetUnchecked => "mate_offset_unchecked",
         MateFaceUnresolved => "mate_face_unresolved",
         MateFrameUnevaluated => "mate_frame_unevaluated",
         CrossingUnverified => "crossing_unverified",
-        Unplaced => "unplaced",
-        PlacementRefused => "placement_refused",
+        SpaceMismatch => "space_mismatch",
         MeasureRefUnreadable => "measure_ref_unreadable",
         MeasureNonFinite => "measure_non_finite",
         MeasureNotParallel => "measure_not_parallel",
@@ -2768,58 +2819,17 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
-    carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
-    carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
-    carries(&E::PromoteOnNonInstance { node: sp(1) }, &["node"]);
-    carries(&E::PromoteWithoutOffset { node: sp(1) }, &["node"]);
-    carries(&E::FoldOnNonGauge { node: sp(1) }, &["node"]);
-    // A promote or a fold names its target and the other node the
-    // refusal is about.
+    carries(&E::WorldIsUndeletable { node: sp(1) }, &["node"]);
+    carries(&E::ConstraintOnNonPlacement { node: sp(1) }, &["node"]);
+    // A constraint's address: the placement and the constraint's id.
+    let constraint = pncad::document::ConstraintId(pncad::document::MintId::new(3, 3));
     carries(
-        &E::PromoteNonRoot {
+        &E::UnknownConstraint {
             node: sp(1),
-            root: sp(2),
+            constraint,
         },
-        &["node", "input"],
+        &["node", "constraint"],
     );
-    carries(
-        &E::PromoteMemberOffset {
-            node: sp(1),
-            member: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
-        &E::FoldWouldStartPlacing {
-            node: sp(1),
-            mate: sp(2),
-        },
-        &["node", "input"],
-    );
-    // A gauge reference names the node it is written on and the id it
-    // names.
-    carries(
-        &E::GaugeNotLive {
-            node: sp(1),
-            gauge: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
-        &E::NotAGauge {
-            node: sp(1),
-            gauge: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
-        &E::GaugeCycle {
-            node: sp(1),
-            gauge: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
     carries(
         &E::PlacementRuleMismatch {
             node: sp(1),
@@ -2835,14 +2845,34 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "index"],
     );
-    carries(&E::NonFiniteAlignment { node: sp(1) }, &["node"]);
+    carries(
+        &E::NonFiniteAlignment {
+            node: sp(1),
+            constraint,
+            position: 1,
+        },
+        &["node", "constraint"],
+    );
+    // A step of a constraint side's frame offset names the constraint
+    // beside the side and the step.
+    carries(
+        &E::NonFinitePlacement {
+            node: sp(1),
+            at: pncad::document::FrameSite::MateStep {
+                constraint,
+                side: pncad::document::MateSide::B,
+                index: 1,
+            },
+        },
+        &["node", "index", "side", "constraint"],
+    );
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
     carries(
         &E::MateRefused {
             node: sp(1),
             fault: Box::new(pncad::document::MateFault::TableLacks {
-                mate: id(1),
+                mate: pncad::document::MateRef::new(id(1), constraint),
                 what: "a clocking rider on a planar rest",
             }),
             held: pncad::document::HeldNodes::default(),
@@ -2897,15 +2927,20 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["input", "slot"],
     );
 
-    // The two-node arms answer with the ids they were given, not with
-    // the first id twice: the roles are what a caller acts on.
-    let twice = E::GaugeNotLive {
+    // A constraint's address answers with the ids it was given: the
+    // placement and the constraint are what a caller acts on.
+    let unknown = E::UnknownConstraint {
         node: sp(4),
-        gauge: sp(9),
+        constraint: pncad::document::ConstraintId(pncad::document::MintId::new(9, 9)),
     };
-    let payload = edit_payload(&twice);
+    let payload = edit_payload(&unknown);
     assert_eq!(payload.node, Some(id(4)));
-    assert_eq!(payload.input, Some(id(9)));
+    assert_eq!(
+        payload.constraint,
+        Some(pncad::document::ConstraintId(pncad::document::MintId::new(
+            9, 9
+        )))
+    );
 
     // ---- slots and dimensions ----
     carries(
@@ -3729,7 +3764,8 @@ fn check_registry_tags_are_stable() {
         checks_error_tag(&ChecksError::Product {
             refusal: Some(
                 pncad::document::ProductError::EmptyProduct {
-                    unplaced: Vec::new()
+                    unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into()
             )
@@ -4363,9 +4399,10 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // The words an address is not completed by: a profile
             // program's expression is reached by a loop index, a step
             // index and an argument role, a later placement step's by a
-            // step index and a component, a mate offset's by a side, a
-            // step index and a component, a list's entry by its
-            // position, a mate's side by which side, and an indexed
+            // step index and a component, a mate offset's by its
+            // constraint, a side, a step index and a component, a list's
+            // entry by its position, a constraint's side by its
+            // constraint and which side, and an indexed
             // read's index by its seat, none of which the word carries.
             None => assert!(
                 matches!(
@@ -4375,6 +4412,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "mate_frame_step"
                         | "section"
                         | "member"
+                        | "shape"
                         | "index"
                         | "measured"
                         | "side"
@@ -4719,7 +4757,10 @@ fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
             why: "the table's own reason"
         }),
         mint_refusal_tag(&MintRefusal::NoAtRestRecord {
-            mate: RecipeNodeId::new(0, 0),
+            mate: pncad::document::MateRef::new(
+                RecipeNodeId::new(0, 0),
+                pncad::document::ConstraintId(pncad::document::MintId::new(0, 0)),
+            ),
             class: ContactClass::Tangent,
             why: "the table's own reason",
         }),
@@ -5080,8 +5121,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "appearance_not_set",
             "appearance_wrong_kind",
             "assertion_dimension",
+            "constraint_on_non_placement",
             "construction_reads_observed",
             "continuous_var_cannot_be_count",
+            "copy_read_off_body_seat",
             "declare_names_missing_node",
             "defines_nothing",
             "definition_cycle",
@@ -5095,14 +5138,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
-            "fold_on_non_gauge",
-            "fold_would_start_placing",
             "fresh_kind",
             "fresh_unheld",
             "fresh_unread",
-            "gauge_cycle",
-            "gauge_not_live",
-            "gauge_on_non_placed",
             "improper_placement",
             "indexed_read",
             "invalid_distribution",
@@ -5120,9 +5158,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_var",
             "non_rigid_placement",
             "not_a_free_var",
-            "not_a_gauge",
             "not_structural_slot",
-            "offset_on_non_instance",
             "operand_unresolved",
             "path_off_tree",
             "payload_unknown_var_name",
@@ -5133,12 +5169,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_rule_mismatch",
             "pose_shape",
             "profile_program_refused",
-            "promote_member_offset",
-            "promote_non_root",
-            "promote_on_non_instance",
-            "promote_without_offset",
             "read_site_missing_node",
-            "reads_world_copy",
             "rebind_appearance_collision",
             "rebind_identity",
             "rebind_kind_mismatch",
@@ -5157,6 +5188,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_var_kind",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "unknown_constraint",
             "unknown_node",
             "unknown_slot",
             "unknown_var",
@@ -5171,8 +5203,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "var_unit_mismatch",
             "var_value_kind_mismatch",
             "witness_on_non_sketch",
+            "world_is_undeletable",
             "would_cycle",
-            "would_start_placing",
         ],
         delegates: &[],
     },
@@ -5237,13 +5269,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "empty_boolean",
+            "loose",
             "node_failed",
             "not_a_body",
             "poisoned",
             "step_refused",
             "unknown_node",
-            "unplaced",
-            "unplaced_below",
         ],
         delegates: &["product_error_tag"],
     },
@@ -5344,6 +5375,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "inline_error_tag",
         values: &[
+            "construction_reads_copy",
+            "copy_pinned_to_construction",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
@@ -5351,20 +5384,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "instance_output_uncarried",
             "instance_read_uncarried",
             "mate_frame_crosses",
-            "mate_pair_splits",
-            "mate_placed",
-            "moved_member_offset",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "part_dead_gauge",
-            "placement_pose_crosses",
             "ranked_run_reordered",
+            "side_leaves_an_instance",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
-            "unplaceable_frame",
-            "unplaced",
+            "unplaceable_part",
             "unresolved_var_crosses_cut",
             "var_name_conflict",
         ],
@@ -5445,8 +5473,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "maintenance_tag",
         values: &[
             "anonymous_var_removed",
-            "label_dropped",
-            "offset_cleared",
             "strand",
             "stranded_appearance",
             "stranded_read",
@@ -5539,6 +5565,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "boolean",
             "chamfer",
             "chamfer_selection_empty",
+            "copies_share_a_key",
+            "copy_shape",
             "crossing_unverified",
             "curved_solid_frontier",
             "degenerate_direction",
@@ -5566,16 +5594,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_degenerate",
             "mate_frame_unevaluated",
             "mate_indeterminate",
-            "mate_offset_disagrees",
-            "mate_offset_unchecked",
+            "mate_not_on_the_copy",
+            "mate_overconstrained",
             "mate_part_selects_another_copy",
             "mate_placer_refused",
             "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_self",
+            "mate_side_base",
             "mate_side_unresolved",
             "mate_table_lacks",
-            "mate_under",
+            "mate_targets_differ",
             "mate_unleverable",
             "measure_clearance_refused",
             "measure_non_finite",
@@ -5587,6 +5616,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "motion",
             "naming",
             "negative_spacing",
+            "no_such_copy",
             "non_finite_direction",
             "non_finite_placement",
             "non_positive_count",
@@ -5601,7 +5631,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_root_failure_unrecorded",
             "part_root_poisoned",
             "payload_expr",
-            "placement_refused",
             "placement_rule_mismatch",
             "placements_uncertified",
             "pose_degenerate",
@@ -5620,6 +5649,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shell",
             "shell_lane_unsupported",
             "skin",
+            "space_mismatch",
             "split",
             "tolerance_conflict",
             "transform",
@@ -5627,7 +5657,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_direction",
             "unfinished_operand",
             "union_fold_step",
-            "unplaced",
             "unresolved_read",
             "unschedulable_cycle",
             "verb_arity",
@@ -5655,7 +5684,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "interrogate_error_tag",
             "loft_error_tag",
             "naming_error_tag",
-            "node_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
             "placement_rule_inner_tag",
@@ -5697,17 +5725,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "offset_check_tag",
-        values: &[
-            "indeterminate",
-            "placement_refused",
-            "unleverable",
-            "unmeasurable",
-            "unreached",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "operand_slot_tag",
         values: &[
             "axis",
@@ -5726,6 +5743,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "section",
             "selection",
+            "shape",
             "side",
             "target",
             "tool",
@@ -5853,6 +5871,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cycle",
             "double_flip",
             "kind",
+            "not_a_copy",
             "projection",
             "read_kind",
             "scalar_kind",
@@ -5878,7 +5897,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "root_poisoned",
             "stranded_placement",
             "unknown_node",
-            "unplaced",
         ],
         delegates: &[],
     },
@@ -6200,12 +6218,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "anonymous_var_unread",
             "assertion_bound",
+            "constraint_not_minted",
             "definition_cycle",
             "definition_reads_unminted_var",
             "definition_too_large",
             "definition_var_kind",
             "epsilon_invalid",
-            "gauge_cycle",
             "input_list",
             "label_on_missing_node",
             "mate_alignment",
@@ -6215,7 +6233,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_read_not_minted",
             "name_step_not_minted",
             "node_not_minted",
-            "not_a_gauge",
             "observed_read",
             "operand_unminted",
             "output_signature",
@@ -6227,7 +6244,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_shape",
             "read_cycle",
             "reader_of_unminted_var",
-            "reads_world_copy",
             "selection_body",
             "selection_shape",
             "shared_var_needs_name",
@@ -6250,7 +6266,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "split_error_tag",
         values: &[
             "body_name_crosses_cut",
-            "dead_gauge_reference",
+            "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
             "mate_frame_crosses",
@@ -6261,21 +6277,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
-            "placing_mate_left",
             "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
-            "severed_gauge",
             "split_pin",
-            "torn_group",
-            "two_anchors",
             "uncut_var_reference",
             "unknown_cut_node",
-            "unplaceable_root",
-            "unplaced_alone",
             "unresolved_var_crosses_cut",
-            "would_start_placing",
         ],
         delegates: &[],
     },
@@ -6463,11 +6472,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         // Twice on purpose: one word for two arms, and the multiset is
         // what says the two are held equal here rather than by prose.
         values: &["unclassified", "unclassified"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "unplaced_tag",
-        values: &["dead_gauge", "no_offset"],
         delegates: &[],
     },
     TagEntry {
@@ -6698,14 +6702,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another kind.
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
-    // One fact at two doors: a gauge that would sit on itself, refused
-    // at the edit door and at the load door.
-    ("gauge_cycle", 2),
     ("improper_placement", 2),
-    // Three: a checked offset's check (`offset_check_tag`) lands in
-    // the ambiguity band exactly as a resolution or a profile's
-    // structure does — the same verdict, undecided at this ε.
-    ("indeterminate", 3),
+    // Two: a resolution lands in the ambiguity band exactly as a
+    // profile's structure does — the same verdict, undecided at this ε.
+    ("indeterminate", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::InsideOut`) found material wound negative.
     ("inside_out_operand", 2),
@@ -6729,8 +6729,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    // The same pair of doors for a gauge reference naming a non-gauge.
-    ("not_a_gauge", 2),
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
@@ -6749,9 +6747,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb. The profile program's word is a coincidence.
     ("pieces", 3),
-    // One fact: a placement on an instance's frame did not evaluate —
-    // the instance's own row, and why its checked offset went unchecked.
-    ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),
     // One fact at the edit and load doors: a pose definition of a shape
@@ -6768,9 +6763,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),
-    // One fact at the edit and load doors: a slot reads a world
-    // placement's copy.
-    ("reads_world_copy", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
@@ -6780,6 +6772,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
+    // A coincidence: a placement's shape operand (`operand_slot_tag`)
+    // and a step-id list of another shape than its program's.
+    ("shape", 2),
     // One fact (VR2) at the edit and load doors: a variable with no
     // name that more than one reader reads.
     ("shared_var_needs_name", 2),
@@ -6814,11 +6809,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // definition's read.
     ("unminted", 3),
     ("unnamed", 3),
-    // One fact (A11 (2)): a group nothing places — the node that read
-    // across its space, the inline that has no frame to splice at, the
-    // STEP export that writes one world, and the world gather a
-    // document of unplaced material alone leaves empty.
-    ("unplaced", 4),
     ("unreadable", 2),
     // One fact at the two doors that cross a document seam: a split's
     // part and an inline's host would have to point a reader at a
@@ -6839,9 +6829,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact, as `circle_circle`.
     ("vertex_on_ring_edge", 2),
     ("vertex_vertex", 4),
-    // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn
-    // placing — split's anchor and the compound door's copied gauge.
-    ("would_start_placing", 2),
     ("wrong_kind", 2),
 ];
 
@@ -8492,10 +8479,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "pose_admits_tag",
-        literals: 4,
+        literals: 5,
         held_by: &[Holder::Test {
             name: "pose_admits_tags_are_stable",
-            holds: "the four words",
+            holds: "the five words",
         }],
     },
     MintingItem {
@@ -10545,16 +10532,14 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "datum",
     "extrude",
     "fillet",
-    "gauge",
     "hollow_tube",
     "instantiate_part",
     "intersect",
     "loft",
-    "mate",
     "measure",
     "part",
     "pattern",
-    "place_in_world",
+    "place",
     "placed_union",
     "profile",
     "revolve",
@@ -10565,6 +10550,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "transform",
     "tube",
     "union",
+    "world",
 ];
 
 /// **The node-kind words are a public Python contract**, pinned whole.
@@ -10836,7 +10822,7 @@ mod product_memo_rows {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
                     .expect_err("a document with nothing placed has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced } if unplaced.is_empty()),
+                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, loose } if unplaced.is_empty() && loose.is_empty()),
                     "a sketch places nothing and defines no body: {refusal:?}"
                 );
             }
@@ -10908,22 +10894,6 @@ mod product_memo_rows {
     }
 }
 
-/// **The unplaced words are the kernel's**: `unplaced_tag` spells them
-/// as literals for the tag inventory, and they are `Unplaced::word`,
-/// which the clearance goldening form prints.
-#[test]
-fn the_unplaced_tag_is_the_kernels_word() {
-    use pncad::document::{RecipeNodeId, Unplaced};
-    for cause in [
-        Unplaced::NoOffset,
-        Unplaced::DeadGauge {
-            gauge: RecipeNodeId::new(0, 7),
-        },
-    ] {
-        assert_eq!(crate::tags::unplaced_tag(&cause), cause.word(), "{cause:?}");
-    }
-}
-
 /// **A split's node map reaches Python in document order**: the list
 /// the helper hands Python follows the source document and the part
 /// alike, each in id order, which is the order its nodes were placed.
@@ -10938,9 +10908,9 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
-    // One placed instance gives the cut its material (a cut of frames
-    // alone refuses `no_material`, and so does one of unplaced
-    // material); the frames give it its many ids.
+    // One instance, pinned to the world, gives the cut its material (a
+    // cut of frames alone refuses `no_material`); the frames give it
+    // its many ids.
     let material = || {
         let (doc, instance) = insert(
             ProfileDoc::empty_derived("place-node-map", Tol::witness()),
@@ -10949,11 +10919,7 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
                 pin: pncad::document::ContentPin([0u8; 32]),
             }),
         );
-        let (doc, placement) = insert(
-            doc,
-            Node::place_in_world(instance, pncad::document::Placement::IDENTITY),
-        );
-        (doc, vec![instance, placement])
+        (doc, vec![instance])
     };
     let (doc, cut) = (0..4u32).fold(material(), |(doc, mut cut), i| {
         let (doc, id) = insert(doc, frame(f64::from(i)));
@@ -10977,7 +10943,11 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
     );
     assert_eq!(
         listed.iter().map(|&(_, to)| to).collect::<Vec<_>>(),
-        out.part.ids(),
-        "the targets, as the part holds them"
+        out.part
+            .ids()
+            .into_iter()
+            .filter(|&id| id != RecipeNodeId::WORLD)
+            .collect::<Vec<_>>(),
+        "the targets, as the part holds them (its world is its own, mapped from nothing)"
     );
 }

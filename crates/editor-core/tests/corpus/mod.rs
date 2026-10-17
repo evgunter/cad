@@ -103,12 +103,13 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(body.read)
-                .and_then(|picked| doc.node(picked))
-                .is_some_and(|picked| {
-                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                }),
+            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
+                doc.operation_of(shape.read)
+                    .and_then(|picked| doc.node(picked))
+                    .is_some_and(|picked| {
+                        matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                    })
+            }),
             _ => false,
         })
         .count();
@@ -360,12 +361,13 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-/// The single body a node evaluated to (`Body` payload or a boolean's
-/// nonempty body).
+/// The single body a node evaluated to (`Body` payload, a boolean's
+/// nonempty body, or an instance's copies read as its part product).
 pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
@@ -394,10 +396,13 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
+/// - `World`: the world defines no variable and is scheduled nowhere
+///   (`eval::schedule`); a constraint reads it as a side, never as a
+///   value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -415,7 +420,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -472,17 +477,21 @@ pub const NODE_KINDS: [&str; 22] = [
     // direction.
     "Measure",
     "Assertion",
-    // The world placement: every document's product is its copies.
-    "PlaceInWorld",
+    // The placement: every document's product is its copies.
+    "Place",
+    // The world: in every document, authored by none, so it reads zero
+    // here and is exempt through `NEVER_EVALUATES`.
+    "World",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold` and `UpdateReference`
-/// are arms of `DocEdit` that no corpus document authors, and listing
-/// them here would report six permanent misses rather
+/// `AddConstraint`, `RemoveConstraint`, `RenameVar`, `DeleteVar` and
+/// `UpdateReference` are arms of `DocEdit` that no corpus document
+/// authors (a corpus placement holds its constraints from its insert),
+/// and listing them here would report six permanent misses rather
 /// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -612,14 +621,13 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Shell { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. } => Vec::new(),
+        | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
 
@@ -643,17 +651,16 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Transform { .. } => "Transform",
-        Node::PlaceInWorld { .. } => "PlaceInWorld",
+        Node::Place { .. } => "Place",
+        Node::World => "World",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
-        Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -683,10 +690,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetTolerance { .. } => "SetTolerance",
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
-        DocEdit::SetOffset { .. } => "SetOffset",
-        DocEdit::SetGauge { .. } => "SetGauge",
-        DocEdit::Promote { .. } => "Promote",
-        DocEdit::Fold { .. } => "Fold",
+        DocEdit::AddConstraint { .. } => "AddConstraint",
+        DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

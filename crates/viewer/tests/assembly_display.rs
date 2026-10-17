@@ -15,7 +15,6 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use viewer::session::BooleanSpec;
 
 use common::asm;
 use pncad::document::{Frame, RecipeNodeId, product};
@@ -31,16 +30,21 @@ use viewer::session::{
 };
 use viewer::tree::RowStatus;
 
-/// Every `Node::Mate` the session's document holds, document order —
-/// read off the recipe rather than off `display::mates_naming`, so a
-/// row asserting a fault's `mates` payload is not checking that
-/// function against itself.
-fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
-    let doc = session.doc();
-    doc.ids()
+/// Every mate the session's document holds — each constraint between
+/// two faces, by its address, in placement order — read off the recipe
+/// rather than off `display::mates_naming`, so a row asserting a fault's
+/// `mates` payload is not checking that function against itself.
+fn mate_nodes(session: &DocSession) -> Vec<pncad::document::MateRef> {
+    common::mates_in(session.doc())
+}
+
+/// A `MateConstrained` payload's constraints, by their addresses.
+fn addresses(
+    mates: &[(pncad::document::SpokenNode, pncad::document::ConstraintId)],
+) -> Vec<pncad::document::MateRef> {
+    mates
         .iter()
-        .copied()
-        .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
+        .map(|(placement, id)| pncad::document::MateRef::new(placement.id(), *id))
         .collect()
 }
 
@@ -60,7 +64,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     // The assembly actually evaluates: every row ok, and the product
     // gathers the three placed solids.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 6, "three instances and their three placements");
+    assert_eq!(rows.len(), 3, "three instances, each its own placement");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -183,7 +187,7 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
         .pick_for(eval, &at_post_b, &session.display_view())
         .expect("the pick answers")
         .expect("post_b is under the ray");
-    assert_eq!(hit.node, bench.post_b_copy);
+    assert_eq!(hit.node, bench.post_b);
 
     // Hide it.
     let outcome = session.perform(SessionOp::SetInstanceHidden {
@@ -207,8 +211,8 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     // The ids of the still-drawn instances are unchanged: hide edits
     // what is emitted, never what an id means.
     assert_eq!(
-        index.ids_in(bench.post_a_copy, 0),
-        asm::index_of(&session).ids_in(bench.post_a_copy, 0)
+        index.ids_in(bench.post_a, 0),
+        asm::index_of(&session).ids_in(bench.post_a, 0)
     );
     // The tree KEEPS the row, and the document is untouched.
     assert!(
@@ -242,7 +246,7 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     let mut session = asm::open_bench(&bench, tol);
     let index = asm::index_of(&session);
     let face = asm::pick_face(&session, &asm::over_post_b());
-    assert_eq!(face.node, bench.post_b_copy, "the pick is on post_b");
+    assert_eq!(face.node, bench.post_b, "the pick is on post_b");
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
@@ -268,10 +272,15 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let (mark, seat) = read(&session);
     assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
-    assert_eq!(
-        seat,
-        Err(FaceFrameFault::NotDrawn),
-        "the button would commit against a face nothing marks"
+    // The button commits nothing against it either way: an instance's
+    // value is its copies, which no face-frame seat reads as one body,
+    // and that refusal is said before the picture is asked.
+    assert!(
+        matches!(
+            seat,
+            Err(FaceFrameFault::NotDrawn | FaceFrameFault::NotOneBody { .. })
+        ),
+        "the button would commit against a face nothing marks: {seat:?}"
     );
 }
 
@@ -297,16 +306,17 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         pncad::document::Node::instantiate_part(bench.post),
         tol,
     );
+    let members = vec![asm::copy(&bench, &doc, a), asm::copy(&bench, &doc, b)];
     let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: Bodies::Spelled(vec![a.into(), b.into()]),
+            members: Bodies::Spelled(members),
         },
         tol,
     );
-    common::insert_into(
+    common::edit_into(
         &mut doc,
-        pncad::document::Node::place_in_world(weld, pncad::document::Placement::IDENTITY),
+        pncad::document::DocEdit::place_in_world(weld, None),
         tol,
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
@@ -379,16 +389,20 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
                 )
             })
             .collect();
+        let reads = members
+            .iter()
+            .map(|&member| asm::copy(&bench, &doc, member))
+            .collect();
         let union = common::insert_into(
             &mut doc,
             pncad::document::Node::Union {
-                members: Bodies::Spelled(members.clone().into_iter().map(Into::into).collect()),
+                members: Bodies::Spelled(reads),
             },
             tol,
         );
-        common::insert_into(
+        common::edit_into(
             &mut doc,
-            pncad::document::Node::place_in_world(union, pncad::document::Placement::IDENTITY),
+            pncad::document::DocEdit::place_in_world(union, None),
             tol,
         );
         (doc, members, union)
@@ -501,6 +515,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
+    asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
         asm::seat_op(
@@ -517,13 +532,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         ),
         other => panic!("a Tangent mate must turn the badge red, got {other:?}"),
     }
-    // …and the mate's own tree row says why, independent of any run.
-    let note = session
-        .tree_rows()
-        .into_iter()
-        .find(|row| row.spoken.kind() == Some("Mate"))
-        .expect("the mate row exists")
+    // …and the row of the placement holding the mate says why,
+    // independent of any run.
+    let note = common::row_of(&session.tree_rows(), bench.post_b)
         .note
+        .clone()
         .expect("a Tangent mate carries its standing note");
     assert!(note.contains("Tangent"), "{note}");
 }
@@ -567,15 +580,8 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    let mate = common::commit_mate(
-        &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Tangent,
-            asm::middle_seat_alignment(),
-        ),
-    );
+    let datum = common::xy_frame_in(&mut session);
+    session.pump();
     let doc = session.doc();
 
     assert_eq!(
@@ -584,9 +590,9 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a live InstantiatePart is admitted"
     );
     assert_eq!(
-        display::instance_check(doc, mate),
+        display::instance_check(doc, datum),
         Err(AdmissionFault::NotAnInstance {
-            node: doc.spoken(mate)
+            node: doc.spoken(datum)
         }),
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
@@ -609,8 +615,8 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let absent_says = display::instance_check(doc, absent)
         .expect_err("absent refuses")
         .to_string();
-    let wrong_kind_says = display::instance_check(doc, mate)
-        .expect_err("a mate is not an instance")
+    let wrong_kind_says = display::instance_check(doc, datum)
+        .expect_err("a datum is not an instance")
         .to_string();
     assert_eq!(
         absent_says, "node 00000000270f is not in the document",
@@ -618,10 +624,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     );
     assert_eq!(
         wrong_kind_says,
-        format!(
-            "Mate {} is not a part instance",
-            test_utils::refusal::tag(mate.0.digest())
-        ),
+        format!("{} is not a part instance", doc.spoken(datum)),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );
@@ -656,8 +659,9 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     let tol = Tol::witness();
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // Constrain post_a by mating it to the shelf.
-    let mate = common::commit_mate(
+    // Constrain post_a by mating it to the shelf, its world pin off.
+    asm::unpin(&mut session, bench.post_a);
+    common::commit_mate(
         &mut session,
         asm::seat_op(
             &bench,
@@ -688,10 +692,12 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CancelFreeMove);
-    // A node that EXISTS and is not an instance — the mate authored
-    // above — refuses for being the wrong KIND. That is the arm the
-    // block below was labelled for and never drove.
-    let outcome = session.perform(SessionOp::BeginFreeMove { instance: mate });
+    // A node that EXISTS and is not an instance — the world — refuses
+    // for being the wrong KIND. That is the arm the block below was
+    // labelled for and never drove.
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: RecipeNodeId::WORLD,
+    });
     assert!(
         matches!(
             outcome.refusal,
@@ -771,7 +777,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let probe_corners: usize = index
         .parts()
         .iter()
-        .filter(|part| part.node() == bench.post_b_copy)
+        .filter(|part| part.node() == bench.post_b)
         .flat_map(|part| part.mesh().patches.iter())
         .map(|patch| patch.triangles.len() * 3)
         .sum();
@@ -802,7 +808,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         .pick_for(eval, &asm::down_at(centre[0] + 0.05, centre[1]), &view)
         .expect("the pick answers")
         .expect("the probed instance is under the moved ray");
-    assert_eq!(hit.node, bench.post_b_copy);
+    assert_eq!(hit.node, bench.post_b);
     assert!(
         index
             .pick_for(eval, &asm::over_post_b(), &view)
@@ -897,6 +903,10 @@ fn a_landing_mate_discards_the_probe_value() {
         instance: bench.post_b,
     });
     assert!(session.display().free_move_of(bench.post_b).is_some());
+    // Its world pin off: a copy no constraint names is still free to
+    // probe, so the probe value survives.
+    asm::unpin(&mut session, bench.post_b);
+    assert!(session.display().free_move_of(bench.post_b).is_some());
 
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
@@ -933,7 +943,7 @@ fn a_landing_mate_discards_the_probe_value() {
         "the fault names the same instance"
     );
     assert_eq!(
-        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        addresses(mates),
         mate_nodes(&session),
         "and names the mate that landed, read off the recipe"
     );
@@ -965,55 +975,17 @@ fn a_landing_mate_discards_the_probe_value() {
 /// says so** — the second half of what `DisplayState::prune` withdraws,
 /// and the half that used to be undone in silence.
 ///
-/// Both arms of `display_check` are here because they are different
-/// news and the fault is what tells them apart: a FUSE puts material
-/// the user took out of the picture back into it, and a DELETE takes
-/// the instance with the hide. A user who reports "the part I hid is
-/// visible again" is reporting the first one.
+/// The DELETE arm: the instance goes with the hide, and the outcome
+/// says the node is absent rather than of the wrong kind.
 #[test]
 fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     let tol = Tol::witness();
 
-    // ── The FUSE arm. The hidden post is unioned with the other one,
-    // so no display op can address it separately any more.
-    let bench = asm::bench("hidefused", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    assert!(
-        session
-            .perform(SessionOp::SetInstanceHidden {
-                instance: bench.post_b,
-                hidden: true,
-            })
-            .refusal
-            .is_none()
-    );
-    assert!(session.display().is_hidden(bench.post_b));
-
-    let outcome = session.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Union(vec![bench.post_b.into(), bench.post_a.into()]),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
-        panic!(
-            "the fuse drops exactly one hide: {:?}",
-            outcome.withdrawn.dropped_hides
-        )
-    };
-    assert_eq!(dropped.instance, bench.post_b);
-    assert!(
-        matches!(dropped.cause, AdmissionFault::FusedGeometry { .. }),
-        "and the outcome carries WHY the part is drawn again: {}",
-        dropped.cause
-    );
-    assert!(
-        !session.display().is_hidden(bench.post_b),
-        "the hide is gone from the state, not merely reported"
-    );
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "a dropped hide is not a supersession and does not ride that field"
-    );
-
+    // The FUSE arm — a union putting a hidden instance's material back
+    // into the picture — has no session door to reach it: the boolean
+    // form reads whole bodies and an instance's output is its copies.
+    // `fused_geometry_refuses_both_display_ops_typed` holds the fused
+    // refusal over a union authored in the file.
     // ── The DELETE arm. Same class of fact, different sentence: the
     // instance is not drawn again, it is gone.
     let bench = asm::bench("hidedeleted", tol);

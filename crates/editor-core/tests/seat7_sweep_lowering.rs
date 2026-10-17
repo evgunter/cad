@@ -246,14 +246,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// or a moved bit moves it. They are goldens in the ordinary sense —
 /// when one moves the question is whether the new behaviour is right,
 /// never how to restore the old number.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x20d0_b806_b3a7_87fe),
-        ("corner_table", 0x0e00_e0f5_df9e_d8b3),
-        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7d),
-        ("boss_union", 0xe75b_724b_9279_fbee),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("die", 0x093b_121e_cf25_d2bb),
+        ("corner_table", 0x0dab_8120_ac1a_23b9),
+        ("cut_cylinder", 0xd297_b835_12d9_3db5),
+        ("boss_union", 0xb1d9_d2ed_e8ae_2ffb),
+        ("kitchen_sink", 0xf6fd_a061_6aa7_4584),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -58,7 +58,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each placed in the world.
+/// An assembly instantiating `refs` in order, each pinned to the world.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -67,7 +67,29 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
+}
+
+/// `placement` pinned to the world at `pose`: its bundle replaced by
+/// one world pin.
+fn pinned_at(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    pose: editor_core::Placement<Formula>,
+) -> ProfileDoc {
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
 }
 
 /// The part's one Profile node.
@@ -114,27 +136,16 @@ const EXTRUDE_LOG: usize = 655;
 
 /// Two instances, both placed, so both ops do the same work.
 fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
-    let (doc, _) = step(
+    let doc = pinned_at(
         doc,
-        DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                0.0, 9.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
     );
-    let (doc, _) = step(
+    pinned_at(
         doc,
-        DocEdit::SetOffset {
-            instance: ids[1],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                9.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
-    );
-    doc
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
+    )
 }
 
 fn logs(ev: &Evaluation<f64>, ids: &[RecipeNodeId]) -> Vec<usize> {

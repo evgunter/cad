@@ -22,3 +22,7 @@ assertions seems worse than either". D10 (ruling
 `one-way-to-say-dependency-and-intent`) retires both with A11 (4): a
 placing statement on a pinned copy refuses as an overconstraint.
 Found by the ruling's designer pair.
+
+## The offset half, closed by INTENT stage 3 B (PR #5232)
+
+Offsets retired with gauges. There is no `InstantiatePart.offset`, and `check_offsets`, `MateFault::OffsetDisagrees`, `OffsetUnchecked` and `OffsetCheck` are gone. A copy's world pose is a world pin, one constraint in its bundle. A second placing statement on a pinned copy refuses `MateFault::Overconstrained`, never a check. What this row still waits on is the rest of `a-mate-on-a-pinned-copy-refuses`.

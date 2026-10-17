@@ -9,9 +9,10 @@
 //! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
 //! owns that. What the rows are FOR now is what each one says below.
 //!
-//! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
-//!         (claims 2 and 3): first bad mate in document order wins,
-//!         and the mint refusal preempts the declared gate.
+//! P1/P2 — refusal precedence with MULTIPLE bad mates (claims 2 and
+//!         3): a bad reference fails its placement, and that failure
+//!         preempts the mint rows and the declared gate in either
+//!         document order.
 //! P3 — the checks resident over the ×3-stand seam document
 //!         (claims 4/6): declared-pair suppression across the seam.
 //! P4 — the checks resident over a single correctly-mated document
@@ -23,17 +24,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocRef, DocumentId,
+    EntityKind, Frame, MateFrame, MatePrimitive, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, assemble, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, step};
+use fixture::{constrain, constrain_at, insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
 fn block(
@@ -92,49 +92,49 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
         .expect("a definite frame")
 }
 
-fn mate_node(a: StableName, b: StableName, class: ContactClass, seat: f64) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
+/// A frame-coincidence mate seating `b`'s copy at height `seat` on
+/// `a`'s, declaring `class`.
+fn mate_node(
+    a: StableName,
+    b: StableName,
+    class: ContactClass,
+    seat: f64,
+) -> editor_core::Mate<Formula> {
+    fixture::mate(
+        fixture::head(a),
+        fixture::head(b),
         class,
-        alignment: Alignment {
+        Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
             b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
         },
-    }
+    )
 }
 
-/// Two instances of `part`, whose body is `body`, seated at `seat`.
+/// Two instances of `part`, whose body is `body`: the first pinned to
+/// the world, the second seated on it at `seat` by the stand's mate.
 fn stand(
     label: &str,
     part: DocRef,
     body: RecipeNodeId,
     seat: f64,
-) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let mut ids = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
-        doc = next;
-        ids.push(id);
-    }
-    doc = crate::fixture::place_all(doc, &ids);
-    let (doc, mate) = step(
+) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, lower) = insert(doc, Node::instantiate_part(part));
+    let (doc, upper) = insert(doc, mated_instance(part));
+    let (doc, mate) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Rest,
-                seat,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            in_part(lower, body, CapEnd::End),
+            in_part(upper, body, CapEnd::Start),
+            ContactClass::Rest,
+            seat,
+        ),
     );
-    (doc, ids, mate.expect("the mate inserts"))
+    (doc, vec![lower, upper], mate)
 }
 
 fn row_of(
@@ -146,26 +146,19 @@ fn row_of(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..count {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
+        let (next, id) = insert(doc, mated_instance(part));
+        #[allow(clippy::cast_precision_loss)]
+        let dx = spacing * i as f64;
+        let (next, _) = constrain_at(
+            next,
+            id,
+            editor_core::Mate::world_pin(editor_core::Placement::literal(&Frame::translation([
+                dx, 0.0, 0.0,
+            ]))),
+        );
         doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = spacing * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
-            doc = next;
-        }
         ids.push(id);
     }
-    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -195,102 +188,96 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
     }
 }
 
-/// P1: a stand whose declaration is FALSE (seat 1.5 — would refuse at
-/// the declared gate), plus a bad-reference mate, plus a Tangent mate,
-/// in that document order. Both bad mates are refused, and the bad
-/// reference — first in document order — heads the list, on both
-/// trees.
-#[test]
-fn p1_both_bad_mates_refuse_badref_heading_the_list() {
-    let mut store = PartStore::default();
-    let (part, body) = store.insert_part(cube_part("m6r2-p1-cube"), Tol::witness());
-    let (doc, ids, _) = stand("m6r2-p1-stand", part, body, 1.5);
-    let (doc, _) = step(
+/// The stand at `seat`, and two more copies of the cube, each placed on
+/// the stand's lower cube by one bad mate: a bad-reference mate and a
+/// Tangent mate, their placements in `order` (the bad reference first
+/// when `badref_first`). Answers the document and the placement the bad
+/// reference is in.
+fn stand_with_two_bad_mates(
+    label: &str,
+    store: &mut PartStore,
+    badref_first: bool,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (part, body) = store.insert_part(cube_part(&format!("{label}-cube")), Tol::witness());
+    let (doc, ids, _) = stand(&format!("{label}-stand"), part, body, 1.5);
+    let (doc, first) = insert(doc, mated_instance(part));
+    let (doc, second) = insert(doc, mated_instance(part));
+    let (badref, tangent) = if badref_first {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    let (doc, _) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                vanished(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Rest,
-                1.5,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            vanished(ids[0]),
+            in_part(badref, body, CapEnd::Start),
+            ContactClass::Rest,
+            1.5,
+        ),
     );
-    let (doc, _) = step(
+    let (doc, _) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Tangent,
-                1.5,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(tangent, body, CapEnd::Start),
+            ContactClass::Tangent,
+            1.5,
+        ),
     );
-    let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    println!("P1: {}", headline(&result));
-    assert!(matches!(
-        &result,
-        Err(AssemblyError::Mint { refusals })
-            if matches!(
-                refusals.as_slice(),
-                [
-                    editor_core::MintRefusal::Unevaluated { .. },
-                    editor_core::MintRefusal::NoAtRestRecord { .. },
-                ]
-            )
-    ));
+    (doc, badref)
 }
 
-/// P2: same document, the two bad mates in the OPPOSITE order. The
-/// same two refusals, with the Tangent's `NoAtRestRecord` at the head,
-/// on both trees — the list is the DOCUMENT's order, not the walk's.
+/// The gate's answer over a document whose bad reference failed its
+/// placement: the gather refuses that placement typed, ahead of every
+/// mint row (the Tangent's included) and of the declared gate, and the
+/// placement's own refusal is the mate's.
+fn refuses_the_failed_placement(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    badref: RecipeNodeId,
+) {
+    let result = assemble(doc, ev, Tol::witness());
+    match &result {
+        Err(AssemblyError::Product(refusal)) => assert!(
+            matches!(
+                **refusal,
+                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
+                    if node == badref
+            ),
+            "the failed placement is the gate's answer: {refusal:?}"
+        ),
+        _ => panic!("expected the failed placement, got {}", headline(&result)),
+    }
+    assert!(
+        ev.node_error(badref).is_some(),
+        "the bad reference's refusal is its placement's"
+    );
+}
+
+/// P1: a stand whose declaration is FALSE (seat 1.5 — would refuse at
+/// the declared gate), plus a bad-reference mate, plus a Tangent mate,
+/// their placements in that document order. The bad reference fails its
+/// placement, and that failure, not any mint row, is the gate's answer.
 #[test]
-fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
+fn p1_badref_first_refuses_its_failed_placement() {
     let mut store = PartStore::default();
-    let (part, body) = store.insert_part(cube_part("m6r2-p2-cube"), Tol::witness());
-    let (doc, ids, _) = stand("m6r2-p2-stand", part, body, 1.5);
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Tangent,
-                1.5,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                vanished(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Rest,
-                1.5,
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let (doc, badref) = stand_with_two_bad_mates("m6r2-p1", &mut store, true);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    println!("P2: {}", headline(&result));
-    assert!(matches!(
-        &result,
-        Err(AssemblyError::Mint { refusals })
-            if matches!(
-                refusals.as_slice(),
-                [
-                    editor_core::MintRefusal::NoAtRestRecord { .. },
-                    editor_core::MintRefusal::Unevaluated { .. },
-                ]
-            )
-    ));
+    println!("P1: {}", headline(&assemble(&doc, &ev, Tol::witness())));
+    refuses_the_failed_placement(&doc, &ev, badref);
+}
+
+/// P2: same document, the two bad mates' placements in the OPPOSITE
+/// order. The same answer: the failed placement is named whichever
+/// document order the mates are in.
+#[test]
+fn p2_tangent_first_refuses_the_same_failed_placement() {
+    let mut store = PartStore::default();
+    let (doc, badref) = stand_with_two_bad_mates("m6r2-p2", &mut store, false);
+    let ev = run(&doc, &with_resolver(store));
+    println!("P2: {}", headline(&assemble(&doc, &ev, Tol::witness())));
+    refuses_the_failed_placement(&doc, &ev, badref);
 }
 
 /// P3: the checks resident over the seam document (×3 stands).
@@ -335,52 +322,30 @@ fn p4_checks_over_a_correctly_mated_document() {
 fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("m6r2-p5-cube"), Tol::witness());
-    let mut doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
-    let mut ids = Vec::new();
-    for _ in 0..3 {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
-        doc = next;
-        ids.push(id);
-    }
-    doc = crate::fixture::place_all(doc, &ids);
-    // Park the third cube far away, then declare a Tangent against it
-    // (unmintable, and not touching, so it contributes no pair).
-    let (next, _) = step(
+    let doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(part));
+    let (doc, far) = insert(doc, mated_instance(part));
+    let (doc, seated) = insert(doc, mated_instance(part));
+    // A Tangent places the far cube well above the base (unmintable,
+    // and not touching, so it contributes no pair).
+    let (doc, _) = constrain(
         doc,
-        DocEdit::SetOffset {
-            instance: ids[2],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                10.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            in_part(base, body, CapEnd::End),
+            in_part(far, body, CapEnd::Start),
+            ContactClass::Tangent,
+            5.0,
+        ),
     );
-    doc = next;
-    let (next, _) = step(
+    // The good Rest mate, on a LATER placement: seats a cube on the base.
+    let (doc, _) = constrain(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[2], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Tangent,
-                5.0,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    doc = next;
-    // The good Rest mate, AFTER the bad one: seats cube 1 on cube 0.
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Rest,
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            in_part(base, body, CapEnd::End),
+            in_part(seated, body, CapEnd::Start),
+            ContactClass::Rest,
+            1.0,
+        ),
     );
     let ev = run(&doc, &with_resolver(store));
     let report =
@@ -448,25 +413,17 @@ fn p7_seam_gate_by_arm() {
 fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("m6r2-p8-cube"), Tol::witness());
-    let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
-    let mut ids = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(inner, Node::instantiate_part(part));
-        inner = next;
-        ids.push(id);
-    }
-    inner = crate::fixture::place_all(inner, &ids);
-    let (inner, _) = step(
+    let inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
+    let (inner, lower) = insert(inner, Node::instantiate_part(part));
+    let (inner, upper) = insert(inner, mated_instance(part));
+    let (inner, _) = constrain(
         inner,
-        DocEdit::InsertNode {
-            node: Box::new(mate_node(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                ContactClass::Tangent,
-                5.0,
-            )),
-            fresh: Vec::new(),
-        },
+        mate_node(
+            in_part(lower, body, CapEnd::End),
+            in_part(upper, body, CapEnd::Start),
+            ContactClass::Tangent,
+            5.0,
+        ),
     );
     let inner_ev = run(&inner, &with_resolver(store.clone()));
     let inner_result = assemble(&inner, &inner_ev, Tol::witness());

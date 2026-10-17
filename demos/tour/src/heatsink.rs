@@ -357,9 +357,14 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = scene_doc(tol);
-    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
-        .expect("the heat sink places")
-        .doc
+    apply(
+        &r.doc,
+        &DocEdit::place_in_world(r.solid, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the heat sink places")
+    .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the

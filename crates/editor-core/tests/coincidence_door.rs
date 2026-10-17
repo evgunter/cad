@@ -1598,7 +1598,10 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
         angle: ang(std::f64::consts::PI),
     }
     .into();
-    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
+    let (doc, q) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::place_in_world(the_box, Some(turned)),
+    );
     q.expect("the placement inserts");
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");

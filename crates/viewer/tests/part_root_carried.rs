@@ -22,9 +22,9 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label,
-    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin,
-    evaluate,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Mate,
+    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
+    content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -261,9 +261,11 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         .expect("the broken part stores");
 
     let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
+    // The instance's bundle empty, so it is no root of the bracket's
+    // product of its own: the transform's placement is.
     let inner = common::insert_into(
         &mut bracket,
-        Node::instantiate_part(reference(&broken, tol)),
+        crate::fixture::mated_instance(reference(&broken, tol)),
         tol,
     );
     let bracket_root = common::insert_into(
@@ -420,7 +422,11 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     store.save_at(&top, "top.pncad", tol).expect("stores");
 
     let sub = Doc::empty_derived("partroot-carried-sub", tol);
-    let (sub, cap) = common::inserted(&sub, Node::instantiate_part(reference(&top, tol)), tol);
+    let (sub, cap) = common::inserted(
+        &sub,
+        crate::fixture::mated_instance(reference(&top, tol)),
+        tol,
+    );
     let (sub, legs) = common::inserted(&sub, Node::instantiate_part(reference(&leg, tol)), tol);
     let (sub, pattern) = common::inserted(
         &sub,
@@ -434,33 +440,40 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         },
         tol,
     );
-    let (sub, _mate) = common::inserted(
+    let (sub, _) = common::edited(
         &sub,
-        Node::Mate {
-            a: (common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
-                }],
-            }))
-            .into(),
-            b: common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(Mate {
+                a: SideRead::Face(
+                    common::head(StableName {
+                        kind: EntityKind::Face,
+                        node: pattern,
+                        path: vec![RoleSeg::Instance {
+                            i: 1,
+                            of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
+                        }],
+                    })
+                    .into(),
+                ),
+                b: SideRead::Face(
+                    common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)).into(),
+                ),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
         },
         tol,
     );
-    // The world: the cap first, so it is the first placement the
-    // product door reads, then the pattern's copy 1.
-    let (sub, _) = common::placed(&sub, cap, tol);
+    // The world: the cap is the first placement the product door
+    // reads, then the legs, then the pattern's copy 1.
     let (sub, copy) = common::inserted(
         &sub,
         Node::Part {

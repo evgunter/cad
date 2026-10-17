@@ -512,7 +512,7 @@ pub fn corpus_text(tol: Tol) -> String {
             }
         })
         .collect();
-    edits.push(DocEdit::place(die.composed, None));
+    edits.push(DocEdit::place_in_world(die.composed, None));
     let mut replay = empty.clone();
     for edit in &edits {
         replay = apply(&replay, edit, tol, &RefusingReach)
@@ -581,7 +581,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(
         &die.doc,
-        &DocEdit::place(die.composed, None),
+        &DocEdit::place_in_world(die.composed, None),
         tol,
         &RefusingReach,
     )

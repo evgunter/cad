@@ -47,9 +47,9 @@ use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError,
-    StableName, VarName, apply, load, save,
+    EntityKind, FaceName, Formula, Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord,
+    Mate, MateFrame, MatePrimitive, MateRef, MateSide, Node, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SideRead, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -255,6 +255,7 @@ fn instances_of_a_stored_part(
 /// The same fixture, keeping the reference it minted the instances
 /// from — for a row that inserts a FURTHER instance of the same part,
 /// which is the only way to author one carrying an interface record.
+/// Each instance is pinned to the world at the identity.
 fn instances_and_ref_of_a_stored_part(
     label: &str,
     n: usize,
@@ -269,6 +270,23 @@ fn instances_and_ref_of_a_stored_part(
         ids.push(id);
     }
     (doc, doc_ref, ids, body)
+}
+
+/// **Two instances of a stored part, the second for a mate to place**:
+/// the first pinned to the world at the identity, the second's bundle
+/// empty, so a constraint between their faces is the second's and pins
+/// it rather than over-constraining a copy already pinned.
+fn a_pinned_and_a_mated_instance(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], RecipeNodeId) {
+    let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 1);
+    let (doc, mated) = insert(doc, fixture::mated_instance(doc_ref));
+    (doc, [ids[0], mated], body)
+}
+
+/// **A loose instance of a stored part** — its bundle empty, so a world
+/// pin added to it is the only constraint it holds.
+fn a_loose_instance(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, doc_ref, _, _) = instances_and_ref_of_a_stored_part(label, 0);
+    insert(doc, fixture::mated_instance(doc_ref))
 }
 
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -302,12 +320,12 @@ fn part_face(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::Start)).into(),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head(in_part(a, body, CapEnd::Start)),
+        fixture::head(in_part(b, body, CapEnd::Start)),
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 origin,
                 [0.0, 0.0, 1.0],
@@ -326,7 +344,7 @@ fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) 
             sense: AxisSense::Aligned,
             clocking: None,
         },
-    }
+    )
 }
 
 /// **A mate the edit door cannot decide on is refused there.** The
@@ -340,18 +358,21 @@ fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) 
 /// pinned in-crate beside the validator.
 #[test]
 fn a_non_finite_alignment_is_refused_at_the_edit_door() {
-    let (doc, ids, body) = instances_of_a_stored_part("onepred-align", 2);
+    let (doc, [pinned, mated], body) = a_pinned_and_a_mated_instance("onepred-align");
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
-    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
-    let mut non_finite = mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]);
-    if let Node::Mate { alignment, .. } = &mut non_finite {
-        alignment.clocking = Some(f64::NAN);
-    }
+    let _ = fixture::constrain_at(
+        doc.clone(),
+        mated,
+        mate(body, pinned, mated, [0.0, 0.0, 0.0]),
+    );
+    let mut non_finite = mate(body, pinned, mated, [0.0, 0.0, 0.0]);
+    non_finite.alignment.clocking = Some(f64::NAN);
     match apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(non_finite),
+        &DocEdit::AddConstraint {
+            placement: mated,
+            mate: Box::new(non_finite),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -364,12 +385,12 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
 
 // ---- The mate head's entity kind ----
 
-/// A two-instance document carrying one FACE-TO-FACE mate, saved and
-/// loaded once — the control the rows below corrupt, and the round
-/// trip in its own right.
-fn saved_mate(label: &str) -> (String, RecipeNodeId) {
-    let (doc, ids, body) = instances_of_a_stored_part(label, 2);
-    let (doc, id) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
+/// A two-instance document carrying one FACE-TO-FACE mate in the
+/// second instance's bundle, saved and loaded once — the control the
+/// rows below corrupt, and the round trip in its own right.
+fn saved_mate(label: &str) -> (String, MateRef) {
+    let (doc, [pinned, mated], body) = a_pinned_and_a_mated_instance(label);
+    let (doc, id) = fixture::constrain_at(doc, mated, mate(body, pinned, mated, [0.0, 0.0, 0.0]));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     (text, id)
@@ -379,16 +400,16 @@ fn saved_mate(label: &str) -> (String, RecipeNodeId) {
 /// nothing else — returning the side's selection variable too.
 fn retype_head(
     text: &str,
-    mate: RecipeNodeId,
+    mate: MateRef,
     side: &str,
     kind: EntityKind,
 ) -> (String, editor_core::VarId) {
     let mut select = None;
     let doctored = doctored(text, |wire| {
         let read: editor_core::VarId = serde_json::from_value(
-            wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side].clone(),
+            constraint_on_the_wire(wire, mate)["mate"][side]["face"].clone(),
         )
-        .expect("a mate side is a variable id");
+        .expect("a mate side is a face read of a variable id");
         select = Some(read);
         let field =
             &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0]["kind"];
@@ -447,17 +468,36 @@ fn kind_noun(kind: EntityKind) -> &'static str {
 fn a_face_to_face_mate_round_trips() {
     let (text, mate) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
-    let Some(Node::Mate { a, b, .. }) = loaded.doc.node(mate) else {
-        panic!("the mate survives the round trip");
+    let editor_core::Mate {
+        a: SideRead::Face(a),
+        b: SideRead::Face(b),
+        ..
+    } = fixture::constraint(&loaded.doc, mate)
+    else {
+        panic!("the mate survives the round trip, both sides faces");
     };
     assert_eq!(
-        crate::fixture::side_name(&loaded.doc, *a).kind,
+        crate::fixture::side_name(&loaded.doc, a).kind,
         EntityKind::Face
     );
     assert_eq!(
-        crate::fixture::side_name(&loaded.doc, *b).kind,
+        crate::fixture::side_name(&loaded.doc, b).kind,
         EntityKind::Face
     );
+}
+
+/// The wire object of the constraint `mate` names, in its placement's
+/// bundle.
+fn constraint_on_the_wire(wire: &mut serde_json::Value, mate: MateRef) -> &mut serde_json::Value {
+    let id = serde_json::to_value(mate.id).expect("a constraint id serializes");
+    let bundle =
+        wire["snapshot"]["nodes"][mate.placement.0.to_string()]["InstantiatePart"]["constraints"]
+            .as_array_mut()
+            .expect("an instance's bundle is a list on the wire");
+    bundle
+        .iter_mut()
+        .find(|c| c["id"] == id)
+        .expect("the constraint is in its placement's bundle")
 }
 
 // ---- An interface crossing's two references ----
@@ -484,15 +524,7 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(
-        doc,
-        Node::instantiate_part_with(
-            doc_ref,
-            record,
-            None,
-            Some(editor_core::Placement::IDENTITY),
-        ),
-    );
+    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
@@ -626,17 +658,20 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
     );
 }
 
-// ---- A11 (2): gauge references and offsets ----
+// ---- A11 (2): constraint sites and world-pin frames ----
 
-/// **An offset on a node that instantiates nothing, and a gauge
-/// reference to a node that is not a gauge — both doors.** The edit
-/// door names them `OffsetOnNonInstance` and `NotAGauge`; the load
-/// door, which sees only the reference in a file, `NotAGauge`.
+/// **A constraint on a node that places nothing — the edit door.** Only
+/// a `Place` and an instance hold a bundle, so a world pin aimed at a
+/// sketch refuses `ConstraintOnNonPlacement` naming it.
+///
+/// There is no load-door twin, by construction: a bundle is a field
+/// only a placement's node carries on the wire, so a file has no
+/// spelling for a constraint on any other node.
 #[test]
-fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-site", 1);
-    // A live non-instance, non-gauge node, so the refusal is the kind
-    // rule's and not a dangling id's.
+fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
+    let (doc, _, _) = instances_of_a_stored_part("onepred-site", 1);
+    // A live non-placement node, so the refusal is the kind rule's and
+    // not a dangling id's.
     let (doc, other) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -646,70 +681,28 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
     );
     match apply(
         &doc,
-        &DocEdit::SetOffset {
-            instance: other,
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                1.0, 0.0, 0.0,
-            ]))),
+        &DocEdit::AddConstraint {
+            placement: other,
+            mate: Box::new(Mate::world_pin(editor_core::Placement::literal(
+                &Frame::translation([1.0, 0.0, 0.0]),
+            ))),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), other),
-        other => panic!("an offset on a non-instance must refuse typed, got {other:?}"),
-    }
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: ids[0],
-            gauge: Some(other),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::NotAGauge { node, gauge }) => {
-            assert_eq!((node.id(), gauge.id()), (ids[0], other));
-        }
-        other => panic!("a gauge reference to a non-gauge must refuse typed, got {other:?}"),
-    }
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: other,
-            gauge: None,
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::GaugeOnNonPlaced { node }) => assert_eq!(node.id(), other),
-        other => panic!("a gauge edit on a node that sits on none must refuse, got {other:?}"),
-    }
-
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    let corrupt = doctored(&text, |wire| {
-        let gauge =
-            &mut wire["snapshot"]["nodes"][ids[0].0.to_string()]["InstantiatePart"]["gauge"];
-        assert!(gauge.is_null(), "aimed at the instance's world reference");
-        *gauge = serde_json::json!(other.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
-            assert_eq!((node.id(), gauge.id()), (ids[0], other));
-        }
-        other => {
-            panic!("a gauge reference to a non-gauge must refuse typed at load, got {other:?}")
-        }
+        Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), other),
+        other => panic!("a constraint on a non-placement must refuse typed, got {other:?}"),
     }
 }
 
-/// **An IMPROPER offset frame — both doors.** A mirror is authored data
-/// this build declines to admit (A6, gated on R4's equivariance audit),
-/// and the load door says so in its own arm rather than folding it in
-/// with a coordinate no predicate can read.
+/// **An IMPROPER world-pin frame — both doors.** A mirror is authored
+/// data this build declines to admit (A6, gated on R4's equivariance
+/// audit), and the load door says so in its own arm rather than folding
+/// it in with a coordinate no predicate can read.
 #[test]
 fn an_improper_placement_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-improper", 1);
+    let (doc, inst) = a_loose_instance("onepred-improper");
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -717,9 +710,9 @@ fn an_improper_placement_is_refused_at_both_doors() {
     assert!(mirror.determinant() < 0.0, "the fixture really mirrors");
     match apply(
         &doc,
-        &DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&mirror)),
+        &DocEdit::AddConstraint {
+            placement: inst,
+            mate: Box::new(Mate::world_pin(editor_core::Placement::literal(&mirror))),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -733,9 +726,9 @@ fn an_improper_placement_is_refused_at_both_doors() {
 
     // The load door's half: a proper frame on the wire, mirrored by
     // flipping the first column's sign.
-    let text = saved_offset(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let (text, pin) = saved_pin(&doc, inst, Frame::translation([1.0, 0.0, 0.0]));
     let corrupt = doctored(&text, |wire| {
-        let entry = offset_cell(wire, ids[0]);
+        let entry = pin_cell(wire, pin);
         assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
         *entry = serde_json::json!(-1.0);
     });
@@ -743,36 +736,46 @@ fn an_improper_placement_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
             node, determinant, ..
         })) => {
-            assert_eq!(node.id(), ids[0]);
+            assert_eq!(node.id(), inst);
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
     }
 }
 
-/// **A proper offset frame that is not rigid — both doors.** A scaled
-/// frame is refused where it is written, by the predicate the
+/// **A proper world-pin frame that is not rigid — both doors.** A
+/// scaled frame is refused where it is written, by the predicate the
 /// evaluation moves a body by, rather than admitted and refused later
-/// as `NotRigid` on the instance and on every member mated to it.
+/// as `NotRigid` on the instance and on every copy mated to it.
 #[test]
 fn a_non_rigid_placement_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-non-rigid", 1);
+    let (doc, inst) = a_loose_instance("onepred-non-rigid");
     let mut stretched = Frame::IDENTITY;
     stretched.columns[0] = [2.0, 0.0, 0.0];
     assert!(stretched.determinant() > 0.0, "the fixture is proper");
-    let step0 = editor_core::FrameSite::Step { index: 0 };
     match apply(
         &doc,
-        &DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&stretched)),
+        &DocEdit::AddConstraint {
+            placement: inst,
+            mate: Box::new(Mate::world_pin(editor_core::Placement::literal(&stretched))),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(ref error @ EditError::NonRigidPlacement { ref node, at, .. }) => {
-            assert_eq!((node.id(), at), (ids[0], step0));
+            assert_eq!(node.id(), inst);
+            assert!(
+                matches!(
+                    at,
+                    FrameSite::MateStep {
+                        side: MateSide::A,
+                        index: 0,
+                        ..
+                    }
+                ),
+                "the world side's first step: {at:?}"
+            );
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -783,80 +786,42 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
     }
 
     // The load door's half: a proper frame on the wire, stretched.
-    let text = saved_offset(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let (text, pin) = saved_pin(&doc, inst, Frame::translation([1.0, 0.0, 0.0]));
     let corrupt = doctored(&text, |wire| {
-        let entry = offset_cell(wire, ids[0]);
+        let entry = pin_cell(wire, pin);
         assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
         *entry = serde_json::json!(2.0);
     });
+    let step0 = FrameSite::MateStep {
+        constraint: pin.id,
+        side: MateSide::A,
+        index: 0,
+    };
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
-            assert_eq!((node.id(), at), (ids[0], step0));
+            assert_eq!((node.id(), at), (inst, step0));
         }
         other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
 }
 
-/// **A gauge that would sit on itself — both doors.** The edit door
-/// refuses the `SetGauge` that would close the loop; a file that
-/// carries one refuses at load, by the same predicate.
-#[test]
-fn a_gauge_cycle_is_refused_at_both_doors() {
-    let doc = editor_core::ProfileDoc::empty_derived("onepred-gauge-cycle", Tol::witness());
-    let (doc, outer) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
-    let (doc, inner) = insert(
-        doc,
-        Node::gauge(Some(outer), editor_core::Placement::IDENTITY),
-    );
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: outer,
-            gauge: Some(inner),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::GaugeCycle { node, gauge }) => {
-            assert_eq!((node.id(), gauge.id()), (outer, inner));
-        }
-        other => panic!("a gauge cycle must refuse typed, got {other:?}"),
-    }
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    let corrupt = doctored(&text, |wire| {
-        let parent = &mut wire["snapshot"]["nodes"][outer.0.to_string()]["Gauge"]["parent"];
-        assert!(
-            parent.is_null(),
-            "aimed at the outer gauge's world reference"
-        );
-        *parent = serde_json::json!(inner.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::GaugeCycle { .. })) => {}
-        other => panic!("a gauge cycle must refuse typed at load, got {other:?}"),
-    }
-}
-
-/// The saved text of `doc` with `node`'s offset set to `frame`, which
-/// the rows above corrupt.
-fn saved_offset(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame) -> String {
-    let (doc, _) = step(
+/// The saved text of `doc` with `node` pinned to the world at `frame`,
+/// which the rows above corrupt, and the pin's address.
+fn saved_pin(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame) -> (String, MateRef) {
+    let (doc, pin) = fixture::constrain_at(
         doc.clone(),
-        DocEdit::SetOffset {
-            instance: node,
-            offset: Some(editor_core::Placement::literal(&frame)),
-            fresh: Vec::new(),
-        },
+        node,
+        Mate::world_pin(editor_core::Placement::literal(&frame)),
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    text
+    (text, pin)
 }
 
-/// The first entry of the first column of `node`'s one-step literal
-/// offset, on the wire.
-fn offset_cell(wire: &mut serde_json::Value, node: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][node.0.to_string()]["InstantiatePart"]["offset"]["steps"][0]["Literal"]
+/// The first entry of the first column of a world pin's one-step
+/// literal pose, on the wire.
+fn pin_cell(wire: &mut serde_json::Value, pin: MateRef) -> &mut serde_json::Value {
+    &mut constraint_on_the_wire(wire, pin)["mate"]["alignment"]["a"]["offset"]["steps"][0]["Literal"]
         ["columns"][0][0]
 }
 

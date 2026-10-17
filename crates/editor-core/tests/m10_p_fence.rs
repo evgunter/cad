@@ -142,6 +142,13 @@
 //! moved too; `lib_g16_corpus_name_digests` moved that row and no
 //! other, and every point of the bodies that remain is where it was.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A PLACEMENT BECAME THE BUNDLE OF
+//! MATES** (INTENT stage 3 B), through every document: a placement is a
+//! `Place` holding a world pin where it was a `PlaceInWorld`, so its
+//! stored node, and with it its mint preimage, moved, and every id the
+//! mint chain draws after it. The id-masked geometry fence below did
+//! not move.
+//!
 //! **ALL FOUR NUMBERS MOVED WHEN A BOOLEAN'S RECORDED VERTEX PAIRS CAME
 //! TO SHARE ONE POINT KEY**, through `kiss_carry` alone: its union's
 //! two kissing corners now sit on one key (`ops::record_classes`), so
@@ -884,7 +891,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2ff6_31d1_b36e_b4be, 0xd151_b252_3bd1_a032),
+        (0x677c_c7e4_46f7_3c3e, 0xb618_dc9c_4b28_76c2),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -910,7 +917,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x0c6c_2f14_9ab8_e583, 0xe3ba_b4b8_e5db_99b7),
+        (0x8c71_a7bc_153b_9ccf, 0x88a1_7e8e_a4c9_4843),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -934,7 +941,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2ff6_31d1_b36e_b4be, 0xd151_b252_3bd1_a032),
+        (0x677c_c7e4_46f7_3c3e, 0xb618_dc9c_4b28_76c2),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -145,7 +145,8 @@ pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
 /// The stable tag for what a pose definition's read admits:
 /// `carrier` (a face or an edge, an axis is read off), `centre` (a
 /// face, an edge or a vertex, a point is read off), `sensed` (a pose
-/// with a sense) or `projected` (a pose with a coarser projection).
+/// with a sense), `projected` (a pose with a coarser projection) or
+/// `carried` (a pose a placement's copy carries).
 pub const fn pose_admits_tag(admits: pncad::document::pose::PoseAdmits) -> &'static str {
     use pncad::document::pose::PoseAdmits as A;
     match admits {
@@ -153,6 +154,7 @@ pub const fn pose_admits_tag(admits: pncad::document::pose::PoseAdmits) -> &'sta
         A::Centre => "centre",
         A::Sensed => "sensed",
         A::Projected => "projected",
+        A::Carried => "carried",
     }
 }
 
