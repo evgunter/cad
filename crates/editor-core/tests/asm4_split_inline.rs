@@ -1698,7 +1698,6 @@ fn reshaped_component(
             side: ExtrudeSide::Along,
         },
     );
-    let doc = fixture::place(doc, e2).0;
     let program = match doc.node(p2) {
         Some(Node::Profile(p)) => p.clone(),
         other => panic!("a profile, got {other:?}"),
@@ -1737,6 +1736,9 @@ fn reshaped_component(
             fresh: Vec::new(),
         },
     );
+    // Placed once reshaped: a pin is read off the body's own edges, so
+    // a pin written before the reshape would read a step it drops.
+    let doc = fixture::place(doc, e2).0;
     (doc, [f2, p2, e2], face_frame)
 }
 
@@ -2164,6 +2166,10 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
             fresh: Vec::new(),
         },
     );
+    // The first block's pin is read off its edges, which the reshape
+    // re-minted: written afresh over them.
+    let first_place = doc.placements()[0];
+    let doc = crate::p2_split::repin(doc, first_place, [0.0; 3], &EvalOptions::default());
     let (first, second) = (flat_ids(&doc, p1), flat_ids(&doc, p2));
     let late = first[1];
     assert!(

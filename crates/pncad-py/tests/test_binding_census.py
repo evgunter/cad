@@ -1587,6 +1587,19 @@ FAMILIES: dict[str, str] = {
         "spec §4 row 13), the read doors that answer one, and the edit "
         "constructors taking either a handle or a name."
     ),
+    # THE UNOBSERVABLE-VALUE REPORT arrived with INTENT stage 3 C: the
+    # numbers an evaluation shows move nothing (a pose move inside its
+    # pose's own symmetry, a spin value about a line its copy is round
+    # about), reported rather than refused. The Rust façade carries it;
+    # the binding did not move with it.
+    "B-UNOBSERVABLE": (
+        "the unobservable-value report — `unobservable(doc, evaluation)` "
+        "and its rows, `Unobservable`. Closing it needs a module door "
+        "answering one value per row, its arm as a word (`pose_move`, "
+        "`value`) with the pose variable and its number as `Var`s or "
+        "the value as a `MateRef`, a `pncad.pyi` entry, and one Python "
+        "row reading a spin value on a round pin."
+    ),
     "B-MC-DRAWS": (
         "the MC lane's per-sample draws — `mc::sample_offsets`, which "
         "hands out one member of the population `monte_carlo` "
@@ -3186,6 +3199,8 @@ NOT_BOUND = {
     # what a Python caller can currently get is the summary and not a
     # member of the population it summarizes.
     "sample_offsets": f"{GAP}: B-MC-DRAWS one sample's draws, behind `monte_carlo`'s summary",
+    "unobservable": f"{GAP}: B-UNOBSERVABLE the report of numbers that move nothing",
+    "Unobservable": f"{GAP}: B-UNOBSERVABLE one row of that report",
     # --- gap: parameter distributions and the analysis lane -------
     # --- the measurement authoring vocabulary, closed --------------
     # `SitedRef` is bound where a reference is AUTHORED — `Node.mate`

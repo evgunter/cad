@@ -1482,7 +1482,8 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             },
             vec![
                 "Place 000000000005's constraint #3 is refused:",
-                "equates a plane with a frame; a mate's two poses are of one kind",
+                "equates an `on` pose of kind plane with a `to` pose of kind frame; a mate's two poses \
+                 are of one kind",
             ],
         ),
         (

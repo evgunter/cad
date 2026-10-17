@@ -577,9 +577,11 @@ class TestBenchStand(BenchWorkspace):
 
         The cut moves as selected: the near post keeps its world pin in
         the part, and the instance left behind is pinned to the world
-        over its own geometry. No edit records a frame, so both halves
-        report nothing — and inlining it back lands the content as it
-        is, which reports nothing either."""
+        over its own geometry. No edit records a frame, so the part
+        reports nothing, and the remainder and an inline back report
+        only the anonymous variables their edits retire — the cut
+        mates' reads, and the part's world reads the inline re-writes
+        at the instance's pose."""
         doc, (post_a, shelf_i, post_b), _ = self.stand()
 
         outcome = pncad.split(
@@ -617,7 +619,11 @@ class TestBenchStand(BenchWorkspace):
 
         self.ws.create(outcome.part)
         spliced = pncad.inline(outcome.remainder, outcome.instance, self.ws)
-        self.assertEqual(spliced.doc.last_maintenance, [])
+        self.assertEqual(
+            {m.variant for m in spliced.doc.last_maintenance} - {"anonymous_var_removed"},
+            set(),
+            spliced.doc.last_maintenance,
+        )
         # Inline of split is the document split was given, up to node
         # ids: three instances again, one pinned where the near post was.
         self.assertEqual(len(spliced.doc.placements()), 3)

@@ -112,6 +112,11 @@ const PRE_PASS: usize = 69;
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
+/// A placement pinned to the world by one mate read off its copy's
+/// geometry ([`fixture::pin`]): the decisions its fold makes reading
+/// the copy's frame. An instance's log carries the same three on top
+/// of its op's.
+const PIN_LOG: usize = 3;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -150,7 +155,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [463, 463]);
+    assert_eq!(seq, [466, 466]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -178,7 +183,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let top = placed(top, &top_ids, &opts);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
-    assert_eq!(seq[0], 919, "the outer op's own log over a two-solid part");
+    assert_eq!(seq[0], 922, "the outer op's own log over a two-solid part, and its pin's");
     let par = logs(
         &run(
             &top,
@@ -208,7 +213,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [463, 463]);
+    assert_eq!(logs(&again, &ids), [466, 466]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -272,9 +277,9 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[0], FRAME_LOG),
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
-            // The world placement at the identity places by doing
-            // nothing, so it decides nothing.
-            (order[3], 0),
+            // The world placement folds its pin: the decisions of
+            // reading its frame off the copy's edge and vertex.
+            (order[3], PIN_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );
@@ -310,7 +315,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [463, 463]);
+    assert_eq!(logs(&ev, &ids), [466, 466]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"

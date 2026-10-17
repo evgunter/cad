@@ -252,12 +252,13 @@ fn a1_a_mate_of_two_kinds_refuses_at_insert_naming_the_placement() {
     let t = test_utils::refusal::tag(named.0.digest());
     // The door speaks with the document at hand: the constraint by its
     // place in the bundle; the fault alone, by its ordinal.
-    let own = "constraint 1 of this node equates a plane with a point";
+    let own = "constraint 1 of this node equates an `on` pose of kind plane with a `to` pose of kind point";
     assert!(
         sentence.contains(&format!(
             "InstantiatePart {t} is refused by the solve on its own datum: {own}"
         )) && fault.to_string().starts_with(&format!(
-            "constraint {} of node {t} equates a plane with a point",
+            "constraint {} of node {t} equates an `on` pose of kind plane with a `to` pose of kind \
+             point",
             held.id
         )),
         "the door names the placement once, and the fault's own sentence names the \
