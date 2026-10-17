@@ -2110,7 +2110,7 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
     // pinned copy sits at its pose bit for bit at every scalar, is
     // placed with no motion re-admitted, and derives no side frame. A
     // pose that does not evaluate falls to the fold, which refuses it.
-    if let [only] = mates.as_slice()
+    if false && let [only] = mates.as_slice()
         && only.data.is_world_pin()
         && let (Ok(pose), recording) =
             detached(|| only.data.alignment.a.offset.motion_at(s.env, s.band))
