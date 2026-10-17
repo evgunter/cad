@@ -564,7 +564,13 @@ fn sym_9_what_each_retry_recovers() {
 /// five. `symbolic` falls here because the decisions are gone, not
 /// because a retry took them; the pad's leaf moves 1372/1284 →
 /// 1348/1384 bare and 1376/1280 → 1352/1380 with the ladder, its four
-/// recovered decisions held.
+/// recovered decisions held. Main's final non-finite check and the
+/// placement add, with the ladder and without it alike: `symbolic` falls
+/// by main's count on each (plate −45, annulus −27, boss −33, bracket −61,
+/// link −35, the pad's leaf −61) from the placement's, `numeric` the
+/// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
+/// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
+/// with the ladder.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -575,11 +581,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1032, 726], [1032, 726], 0),
-        ("r1_annulus", [550, 471], [550, 471], 0),
-        ("r1_segment_boss", [537, 428], [537, 428], 0),
-        ("r2_filleted_bracket", [1428, 1092], [1428, 1092], 0),
-        ("r2_link", [846, 731], [846, 731], 0),
+        ("two_hole_plate", [987, 726], [987, 726], 0),
+        ("r1_annulus", [523, 471], [523, 471], 0),
+        ("r1_segment_boss", [504, 428], [504, 428], 0),
+        ("r2_filleted_bracket", [1367, 1092], [1367, 1092], 0),
+        ("r2_link", [811, 731], [811, 731], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -694,7 +700,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1352, 1380, 4],
+        [1291, 1380, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -706,7 +712,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1348, 1384, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1287, 1384, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

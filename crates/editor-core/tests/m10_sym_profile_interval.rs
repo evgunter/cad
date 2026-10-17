@@ -640,10 +640,13 @@ const PLATE_MAX_TERMS: usize = 28;
 /// (PR 5225's one lever rule) builds each mark's form from three points:
 /// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
 /// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
-/// Door/Decision 9469.
+/// Door/Decision 9469. Main's final non-finite check and the placement
+/// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
+/// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
+/// every other line is the placement's.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1032 forms 15888 frozen 324 digest 45346e81d13f598ae1c9a085c7f269c2\n\
-     Plain/Assertion calls 726 forms 6909 frozen 405 digest 5394b5fc25360d7893b7eeeb5bd8a4ff\n\
+     Plain/Decision calls 987 forms 15839 frozen 324 digest 04d4c1ba4b5642ca49c5cecc33637690\n\
+     Plain/Assertion calls 726 forms 6946 frozen 405 digest 2d3f8fc68253564d8245eefc0e944c13\n\
      Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
      Early/Assertion calls 726 forms 8108 frozen 0 digest a92b467a762680ac8b830ceb654ac390\n\
      Door/Decision calls 468 forms 9469 frozen 0 digest 344f68bc278f5fb158c048115eb1f4c2";

@@ -118,7 +118,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1032, 1032, 1032],
+            symbolic: [987, 987, 987],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -129,7 +129,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [550, 550, 550],
+            symbolic: [523, 523, 523],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -149,8 +149,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((799, 780), Some("pcurve_envelope"))),
-            symbolic: [846, 846, 846],
+            without_the_registry: Some(((766, 780), Some("pcurve_envelope"))),
+            symbolic: [811, 811, 811],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -164,13 +164,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1371, 1149), None)),
+            without_the_registry: Some(((1310, 1149), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1428, 1428, 1428],
+            symbolic: [1367, 1367, 1367],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -181,11 +181,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1284, 1448), None)),
+            without_the_registry: Some(((1223, 1448), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1348, 1348, 1348],
+            symbolic: [1287, 1287, 1287],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -606,7 +606,9 @@ fn m10_9_what_the_registry_buys() {
 /// placement's azimuth levered at the carrier's farthest reach from the
 /// axis at the span's ends and midpoint (PR 5225's one lever rule), not
 /// at one direction's length, builds its marks' forms from three points:
-/// frozen 3990 → 4098, every decision column held.
+/// frozen 3990 → 4098, every decision column held. Main's final
+/// non-finite check asking boundedness takes 61 theorems out of
+/// `symbolic`: (1287, 1384, 4098).
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -640,7 +642,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1348, 1384, 4098), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1287, 1384, 4098), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
