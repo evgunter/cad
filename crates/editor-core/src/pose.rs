@@ -377,7 +377,7 @@ impl core::fmt::Display for PoseRole {
 /// reads a finer pose at a coarser seat** (D10; VR4). A plain read
 /// carries no role, and is serialized as the bare read; a read through
 /// a role as `{"read": …, "role": …}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RoleRead<R> {
     /// The variable read.
     pub read: R,
@@ -423,6 +423,20 @@ impl<R> RoleRead<R> {
     pub fn admits(&self, admits: crate::SlotKind) -> crate::SlotKind {
         self.role
             .map_or(admits, |role| crate::SlotKind::Is(role.of()))
+    }
+}
+
+impl<R: core::fmt::Debug> core::fmt::Debug for RoleRead<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A plain read dumps as the bare read, as it serializes.
+        match self.role {
+            None => self.read.fmt(f),
+            Some(role) => f
+                .debug_struct("RoleRead")
+                .field("read", &self.read)
+                .field("role", &role)
+                .finish(),
+        }
     }
 }
 

@@ -788,6 +788,8 @@ mod intent_s2_e_select;
 mod intent_s2_f_mates;
 #[path = "intent_s3_a_poses.rs"]
 mod intent_s3_a_poses;
+#[path = "intent_s3_a_prime_moves.rs"]
+mod intent_s3_a_prime_moves;
 #[path = "intent_s3_b_placements.rs"]
 mod intent_s3_b_placements;
 #[path = "intent_s5_a_relation.rs"]
