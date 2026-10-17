@@ -209,11 +209,10 @@ fn replay_counts(
 ) -> (Option<String>, geom_core::SymCounts) {
     use std::sync::Arc;
 
-    use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+    use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
 
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let budget = geom_core::SymBudget {

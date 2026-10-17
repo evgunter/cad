@@ -2089,8 +2089,8 @@ pub enum NodeErrorKind {
         /// The construction.
         construction: crate::pose::PoseConstruction,
     },
-    /// **A scalar a pose definition reads did not evaluate**: an
-    /// in-frame coordinate or a standoff's length.
+    /// **A scalar a pose definition reads did not evaluate**: a slide's
+    /// length or a spin's angle.
     PoseScalar {
         /// The scalar variable.
         var: crate::VarId,
@@ -3449,10 +3449,6 @@ pub struct EvalOptions {
     /// kernel-only evaluation, in which every instantiate node refuses
     /// typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
-    /// Whether profile GEOMETRY is a function of the parameters at
-    /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
-    /// build path, unchanged.
-    pub profile_lift: ProfileLift,
     /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
     /// each named axis binds `nominal + [lo, hi]` instead of the
     /// nominal. `None` — the default — is the nominal build, and is
@@ -3491,7 +3487,62 @@ pub struct EvalOptions {
     pub symbols: bool,
 }
 
-/// Where profile geometry comes from at a non-`f64` scalar.
+impl EvalOptions {
+    /// **What the options say about the profile lift** — half of the
+    /// rule [`profile_lift_over`](Self::profile_lift_over) reads, the
+    /// half that needs no environment: guided where the
+    /// [`param_box`](Self::param_box) varies an axis (a degenerate
+    /// `Varying { lo: 0, hi: 0 }` included, the nominal asked for as an
+    /// analysis — `ParamBox::at_nominal`), where it carries a
+    /// [`seed`](Self::seed), or where it binds every variable a
+    /// [`symbol`](Self::symbols); pinned otherwise. A box of only
+    /// [`Fixed`](crate::analysis::BoxAxis::Fixed) axes, or none, holds
+    /// every variable it names at its nominal, so an unused box seam
+    /// changes no decision. `Guided` here is the evaluation's lift
+    /// whatever the environment; `Pinned` here is the evaluation's lift
+    /// only where the environment binds no symbol.
+    #[must_use]
+    pub fn profile_lift(&self) -> ProfileLift {
+        let varies = self.param_box.as_ref().is_some_and(|b| {
+            b.axes()
+                .values()
+                .any(|axis| matches!(axis, crate::analysis::BoxAxis::Varying { .. }))
+        });
+        if varies || self.seed.is_some() || self.symbols {
+            ProfileLift::Guided
+        } else {
+            ProfileLift::Pinned
+        }
+    }
+
+    /// **Where this evaluation's profile geometry comes from**, read off
+    /// what it binds rather than chosen: an ANALYSIS — one whose
+    /// [`options`](Self::profile_lift) vary an axis, seed or ask for
+    /// symbols, or whose environment `env` binds a variable as a
+    /// parameter symbol ([`crate::expr::VarEnv::binds_symbols`]: at
+    /// `Sym`, a toleranced variable under any box, named or not, as VR8
+    /// has it) — elaborates its profiles at its own scalar
+    /// ([`ProfileLift::Guided`]); every other evaluation binds each
+    /// variable to its nominal as a constant and is the build, at any
+    /// scalar ([`ProfileLift::Pinned`]). The pinned lift reads the
+    /// profile at the nominal, so in an analysis it would enter profile
+    /// geometry as constants of a function the document does not
+    /// compute; with every variable a constant at its nominal, the two
+    /// lifts read the same values and the pinned one is the build's own
+    /// bits. The evaluator takes exactly this lift.
+    #[must_use]
+    pub fn profile_lift_over<T>(&self, env: &crate::expr::VarEnv<T>) -> ProfileLift {
+        if env.binds_symbols {
+            ProfileLift::Guided
+        } else {
+            self.profile_lift()
+        }
+    }
+}
+
+/// Where profile geometry comes from at a non-`f64` scalar
+/// ([`EvalOptions::profile_lift_over`] reads which, off what the
+/// evaluation binds).
 ///
 /// The document's parameters feed two kinds of slot, and until the
 /// lift they behaved differently: a node's MAGNITUDE argument (an
@@ -3507,11 +3558,10 @@ pub struct EvalOptions {
 /// parameter does not widen anything downstream of it — silent zeros
 /// and points exactly where a sensitivity or an enclosure needs
 /// signal. The second pass exists for those lanes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProfileLift {
     /// Profile geometry is the f64 elaboration, embedded through
     /// `from_f64` — the build path, bit for bit.
-    #[default]
     Pinned,
     /// Profile geometry is elaborated at THIS evaluation's scalar,
     /// GUIDED by the f64 pass's structure record: every discrete
@@ -3615,7 +3665,6 @@ impl Default for EvalOptions {
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
-            profile_lift: ProfileLift::Pinned,
             param_box: None,
             seed: None,
             symbols: false,
@@ -3726,7 +3775,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
     /// a run: the edit door, a solve read outside an evaluation, a
     /// refactoring. Such a door has no evaluation options of its own,
     /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
-    /// strategy and profile lift), spelled here once; a door that IS
+    /// strategy), spelled here once; a door that IS
     /// a run, or holds a run's options, goes through [`mate_reach`].
     /// `None` is the refusing reach: every part is the typed
     /// no-resolver fault.
@@ -3735,14 +3784,13 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         tol: Tol,
     ) -> Self {
         let defaults = EvalOptions::default();
-        Self::over(resolver, defaults.boolean_sweep, defaults.profile_lift, tol)
+        Self::over(resolver, defaults.boolean_sweep, tol)
     }
 
     /// A reach over a part cache built from these options' parts.
     fn over(
         resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
         boolean_sweep: topo::SweepStrategy,
-        profile_lift: ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -3751,7 +3799,6 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
                 &[],
                 parts::Reached::none(),
                 boolean_sweep,
-                profile_lift,
                 tol,
             ),
             tol,
@@ -3777,17 +3824,12 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
 /// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
 /// mated part's extent, resolved through `opts`' resolver the way an
 /// evaluation over `opts` would resolve it (same seam, same sweep
-/// strategy, same profile lift), at the top of the descent. A caller
+/// strategy), at the top of the descent. A caller
 /// with no resolver gets a reach whose every answer is the typed
 /// no-resolver fault, so the solve refuses each mate in the
 /// resolver's own voice rather than levering over nothing.
 pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
-    PartReach::over(
-        opts.resolver.as_ref(),
-        opts.boolean_sweep,
-        opts.profile_lift,
-        tol,
-    )
+    PartReach::over(opts.resolver.as_ref(), opts.boolean_sweep, tol)
 }
 
 /// **A pose variable bound against an evaluation**, as a reader at
@@ -3804,10 +3846,10 @@ pub fn bound_pose<T: EvalScalar>(
     doc: &crate::ProfileDoc,
     ev: &Evaluation<T>,
     slot: crate::OperandSlot,
-    var: crate::VarId,
+    read: impl Into<crate::pose::RoleRead<crate::VarId>>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_pose(doc, &ev.nodes, slot, var, &ev.env, tol)
+    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
@@ -3938,7 +3980,6 @@ where
         chain,
         reached,
         opts.boolean_sweep,
-        opts.profile_lift,
         tol,
     )
     .with_symbols(opts.symbols);
@@ -3966,7 +4007,7 @@ where
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
-            lift: opts.profile_lift,
+            lift: opts.profile_lift_over(&env),
             params: &env,
             nominal: &nominal_env,
         },
@@ -4812,10 +4853,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v12: a blend, a shell, a face frame and a measure write
+            /// v13: a pose read writes the role it reads through, a
+            /// node's read of an output through one included. (v12: a
+            /// blend, a shell, a face frame and a measure write
             /// the names of the selections they read, the measure each
             /// reference's names (none for a whole body) where it wrote
-            /// its sites' places. (v11: a measure writes one primitive
+            /// its sites' places. v11: a measure writes one primitive
             /// and the place of each reference's site among its
             /// upstream keys; an assertion's payload is its value and
             /// its bound. v10:
@@ -4824,7 +4867,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 12,
+            VERSION = 13,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4844,13 +4887,13 @@ mod tag {
         /// **The words of the pose definitions a node reads** (D10),
         /// written after its payload expressions and only by a node
         /// reading one, so no other node's key moves. Per such operand:
-        /// `READ` and the operand's place among the node's reads, then
-        /// the read's tree — `OUTPUT` for an operation's output (whose
-        /// key and port the upstream list carries), `SELECTION` and its
-        /// names, or `DEFINITION`, the arm ([`pose_arm`]), the kind it
-        /// projects to or writes ([`pose_kind`]) where the arm states
-        /// one, each read's tree in field order, then each scalar's
-        /// value and its nominal under [`slot`]'s `NOMINAL`.
+        /// `READ` and the operand's place among the node's reads, the
+        /// role it reads through ([`pose_role`]), then the read's tree
+        /// — `OUTPUT` for an operation's output (whose key and port the
+        /// upstream list carries), `SELECTION` and its names, or
+        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
+        /// tree in field order, then each scalar's value and its
+        /// nominal under [`slot`]'s `NOMINAL`.
         pose {
             READ = 1,
             OUTPUT = 2,
@@ -4858,26 +4901,30 @@ mod tag {
             DEFINITION = 4,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
-        pose_arm {
+        pose_arm retires [4, 8, 9] {
             PLANE = 1,
             AXIS = 2,
             POINT = 3,
-            IN_FRAME = 4,
             THROUGH = 5,
             MEET = 6,
             FLIP = 7,
-            STANDOFF = 8,
-            PROJECT = 9,
             CARRIED = 10,
+            SLIDE = 11,
+            SPIN = 12,
         }
-        /// A pose kind, as a projection's target or in-frame
-        /// coordinates' shape.
-        pose_kind {
-            POINT = 1,
-            DIRECTION = 2,
-            AXIS = 3,
-            PLANE = 4,
-            FRAME = 5,
+        /// The role a pose read reads through
+        /// ([`crate::pose::PoseRole`]), a plain read's included.
+        pose_role {
+            PLAIN = 1,
+            X = 2,
+            Y = 3,
+            Z = 4,
+            ORIGIN = 5,
+            XY = 6,
+            YZ = 7,
+            ZX = 8,
+            NORMAL = 9,
+            DIRECTION = 10,
         }
         /// A union's or an intersect's argument form, read before its
         /// declared pairs: a family read whole, or reads spelled.
@@ -5910,8 +5957,8 @@ where
         )
         | Node::Revolve {
             profile: _,
-            axis_origin: _,
-            axis_direction: _,
+            axis_through: _,
+            axis_heading: _,
             angle: _,
         }
         | Node::Loft {

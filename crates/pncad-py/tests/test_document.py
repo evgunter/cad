@@ -1320,7 +1320,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         node = doc.insert(Node.revolve(
             profile,
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
             Formula.literal(angle),
         ))
         with self.assertRaises(EvaluationError) as caught:

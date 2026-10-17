@@ -139,7 +139,7 @@ pub fn document() -> CorpusDoc {
     let ball = r.insert(revolve_about(
         ball_p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
 

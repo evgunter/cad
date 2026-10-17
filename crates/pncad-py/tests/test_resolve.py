@@ -260,7 +260,7 @@ class TestInOneRead(unittest.TestCase):
         revolve = doc.insert(Node.revolve(
             profile,
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
             Formula.angle_in(360, deg),
         ))
         cube = unit_cube(doc, at=(9.0, 9.0))

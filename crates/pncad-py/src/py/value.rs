@@ -2562,7 +2562,6 @@ pub(crate) fn evaluate(
         resolver: resolver
             .map(super::store::Workspace::resolver)
             .or(defaults.resolver),
-        profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
         symbols: defaults.symbols,
@@ -2620,7 +2619,7 @@ impl Coincidence {
                     Cell::Read(Var::of(doc, *input)),
                     Some(super::doc::name_text(py, name)?),
                 )),
-                d::NamedCell::Tool { input } => Ok((Cell::Read(Var::of(doc, *input)), None)),
+                d::NamedCell::Tool { input, .. } => Ok((Cell::Read(Var::of(doc, *input)), None)),
                 d::NamedCell::Piece { profile, piece } => Ok((
                     Cell::Node(NodeId(*profile)),
                     Some(super::doc::piece_text(piece)?),

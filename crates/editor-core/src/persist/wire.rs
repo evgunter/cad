@@ -95,6 +95,8 @@ macro_rules! wire_tree {
             Integer(i64),
             /// One full rotation.
             Turn,
+            /// Zero, at any dimension but a count's.
+            Zero(Dimension),
             /// A reader of a variable, by id, with the kind it caches.
             Var {
                 /// The variable read.
@@ -142,6 +144,7 @@ macro_rules! wire_tree {
                     },
                     ExprKind::Integer(v) => $wire::Integer(*v),
                     ExprKind::Turn => $wire::Turn,
+                    ExprKind::Zero => $wire::Zero(e.dim()),
                     ExprKind::Var(var) => $wire::Var {
                         var: *var,
                         dim: e.dim(),
@@ -178,6 +181,7 @@ macro_rules! wire_tree {
                     }
                     $wire::Integer(v) => Ok(<$form>::integer_leaf(*v)),
                     $wire::Turn => Ok(<$form>::turn_leaf()),
+                    $wire::Zero(dim) => Ok(<$form>::zero_leaf(*dim)),
                     $wire::Var { var, dim } => Ok(<$form>::var(*var, *dim)),
                     $($rebuild)*
                     $wire::Add(x, y) => <$form>::add(b(x)?, b(y)?),

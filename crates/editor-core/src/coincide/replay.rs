@@ -1,7 +1,8 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane ([`crate::ProfileLift::Guided`]), and each row read
+//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
+//! and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -44,7 +45,7 @@ use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{EvalOptions, EvalOutcome, Evaluation, ProfileLift};
+use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -60,6 +61,36 @@ const BUDGET: SymBudget = SymBudget {
     max_terms: 256,
     max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
 };
+
+/// **The replay with every variable a symbol, as one session**: the
+/// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
+/// (a margin's form is built only where a reader asks for its
+/// discharge), on `base`, the caller's environment — which binds every
+/// variable a symbol or varies a box, so its profile geometry is
+/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
+/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
+/// reader of a replay opens it here — the door (`symbols`), its census,
+/// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
+/// its own degenerate boxes) — so the instrument reads exactly what
+/// the door replays.
+///
+/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
+/// polynomial in the atoms it mints, and an eager session builds every
+/// definite margin's form for its contradiction check. Measured on
+/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s
+/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+pub fn with_replay_session<R>(
+    base: EvalOptions,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    deferred::with_deferred_session(
+        BUDGET,
+        SymRules::shipped(),
+        crate::drive::DEFAULT_SYM_RETRY,
+        || f(&base),
+    )
+}
 
 /// The scalar the door replays at: `f64` arithmetic, every variable a
 /// symbol.
@@ -78,37 +109,31 @@ pub(super) fn rungs(
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
-    let opts = EvalOptions {
+    let symbols = EvalOptions {
         symbols: true,
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    let (out, _) = deferred::with_deferred_session(
-        BUDGET,
-        SymRules::shipped(),
-        crate::drive::DEFAULT_SYM_RETRY,
-        || {
-            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
-            if ev.outcome == EvalOutcome::Canceled {
-                return Err(Canceled);
-            }
-            let band = Band::linear(tol).ok();
-            nodes
-                .iter()
-                .map(|&(node, rows)| {
-                    let mut ordinals = BTreeMap::new();
-                    rows.iter()
-                        .map(|row| {
-                            let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                            let at = *ordinal;
-                            *ordinal += 1;
-                            prove_row(&ev, node, row, at, band, cancel)
-                        })
-                        .collect()
-                })
-                .collect()
-        },
-    );
+    let (out, _) = with_replay_session(symbols, |opts| {
+        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
+        if ev.outcome == EvalOutcome::Canceled {
+            return Err(Canceled);
+        }
+        let band = Band::linear(tol).ok();
+        nodes
+            .iter()
+            .map(|&(node, rows)| {
+                let mut ordinals = BTreeMap::new();
+                rows.iter()
+                    .map(|row| {
+                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                        let at = *ordinal;
+                        *ordinal += 1;
+                        prove_row(&ev, node, row, at, band, cancel)
+                    })
+                    .collect()
+            })
+            .collect()
+    });
     out
 }
 

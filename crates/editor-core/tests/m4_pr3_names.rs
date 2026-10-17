@@ -188,7 +188,10 @@ fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
-    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
+    insert(
+        doc,
+        revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
+    )
 }
 
 /// The natural meridian, on the same plane and axis as [`revolve_doc`]:
@@ -214,7 +217,10 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
             ids: Vec::new(),
         }),
     );
-    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
+    insert(
+        doc,
+        revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
+    )
 }
 
 #[test]
@@ -383,7 +389,12 @@ fn full_holed_revolve_names_the_cavity_loop() {
     );
     let (doc, rev) = insert(
         doc,
-        revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = run(&doc);
     let t = table(&ev, rev);

@@ -2069,8 +2069,9 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: _Operand, step: _AngleArg) -> PatternKind:
-        """Stepped around `axis`, an upstream `datum_axis` node. The
+    def circular(axis: _PoseRead, step: _AngleArg) -> PatternKind:
+        """Stepped around `axis`, an upstream `datum_axis` node or a
+        frame's axis read through its role. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
         and so does a full turn or more (`full_range_step`), wherever a
@@ -2228,15 +2229,17 @@ class Node:
     @staticmethod
     def revolve(
         profile: _Operand,
-        axis_origin: tuple[_LengthArg, _LengthArg],
-        axis_direction: tuple[_ScalarArg, _ScalarArg],
+        axis_through: tuple[_LengthArg, _LengthArg],
+        axis_heading: _AngleArg,
         angle: _AngleArg,
     ) -> Node:
         """Revolve a profile about an axis line in its own plane.
 
-        `axis_origin` and `axis_direction` are the line in the
-        profile's own 2-D coordinates: four numbers in the plane, which
-        cannot leave it. The revolve's second output,
+        `axis_through` and `axis_heading` are the line in the profile's
+        own 2-D coordinates: a point on it, two lengths, and its heading
+        from the profile's x axis (`Formula.zero("angle")` along x,
+        `Formula.turn_over(4)` along y). Two lengths and an angle in the
+        plane cannot leave it. The revolve's second output,
         `Doc.output(revolve, 1)`, is the line lifted to 3-D, an axis
         other nodes read. `angle` mints a literal in the node's
         `revolve_angle` slot, driven afterwards by `DocEdit.set_param`
@@ -2397,9 +2400,10 @@ class Node:
         """
 
     @staticmethod
-    def split(target: _BodyArg, tool: _Operand) -> Node:
-        """Split `target` by `tool` (a plane: a `datum_plane`, or a
-        `PoseDef` of kind plane). The value is a split — read it with
+    def split(target: _BodyArg, tool: _PoseRead) -> Node:
+        """Split `target` by `tool` (a plane: a `datum_plane`, a
+        `PoseDef` of kind plane, or a frame's coordinate plane read
+        through its role, `RoleRead(frame, "xy")`). The value is a split — read it with
         `Value.split()`, not `Value.body()`. Its two outputs are its
         halves, read by port (`doc.output(split, 0)` is the half above
         the plane's normal); a read of a half the cut left with no
@@ -2663,17 +2667,36 @@ variable — an output by `Doc.output`, or a named one — or a pose
 defined at the seat (`PoseDef`). The slot admits one kind, and a read
 of another refuses `slot_var_kind`."""
 
+_PoseRead: TypeAlias = _Operand | RoleRead
+"""What a pose seat takes: an operand, or a finer pose read through a
+role (`RoleRead`)."""
+
 _BodyArg: TypeAlias = NodeId | Var | IndexedRead
 """What a body seat takes: an operand, or one member of a family
 (`xs[i]`, `IndexedRead`)."""
+
+class RoleRead:
+    """A finer pose read through a role, at a seat of a coarser kind: a
+    frame's `"x"`, `"y"` or `"z"` axis, its `"origin"`, or its `"xy"`,
+    `"yz"` or `"zx"` plane; a plane's `"normal"`; an axis's
+    `"direction"`. The role is part of the read, so a frame read through
+    its z axis is still the frame's one variable. A role the pose's kind
+    does not offer, or one whose projection the seat does not admit,
+    refuses at the edit door; another word raises `ValueError`."""
+
+    def __init__(self, of: _Operand, role: str) -> None: ...
+    @property
+    def role(self) -> str:
+        """The role, as its word."""
 
 class PoseDef:
     """A pose defined where it is read: pass it to an operand that reads
     a pose (a split's `tool`, a profile's frame, a circular rule's
     axis), and the edit door mints the pose variable there. No pose is
     free and none is defined from nothing: each constructor reads
-    geometry, writes coordinates in a frame it reads, or constructs
-    from other poses."""
+    geometry, moves another pose by a length along or an angle about
+    what it reads, or constructs from other poses. No argument is a
+    component of a direction."""
 
     @staticmethod
     def plane(at: _Operand, face: str) -> PoseDef:
@@ -2689,40 +2712,35 @@ class PoseDef:
         """A sphere's, a torus's or a circle's centre, a cone's apex, or
         a vertex's point."""
     @staticmethod
-    def in_frame(
-        frame: _Operand,
-        *,
-        origin: Optional[tuple[_LengthArg, _LengthArg, _LengthArg]] = None,
-        direction: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
-        normal: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
-        u: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
-        v: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
-    ) -> PoseDef:
-        """A pose written by coordinates in a frame: `origin` alone a
-        point, `direction` alone a direction, `origin` and `direction`
-        an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
-        frame. Any other combination raises `ValueError`."""
+    def slide(pose: _PoseRead, along: _PoseRead, by: _LengthArg) -> PoseDef:
+        """A point, an axis, a plane or a frame slid along a direction,
+        or an axis read for its direction, by `by`: its kind kept. A
+        standoff is a plane slid along its own normal,
+        `PoseDef.slide(p, RoleRead(p, "normal"), by)`."""
     @staticmethod
-    def through(axis: _Operand, point: _Operand) -> PoseDef:
+    def spin(pose: _PoseRead, about: _PoseRead, by: _AngleArg) -> PoseDef:
+        """Any pose spun about an axis by `by`, right-handed: its kind
+        kept."""
+    @staticmethod
+    def point_in(
+        frame: _Operand, x: _LengthArg, y: _LengthArg, z: _LengthArg
+    ) -> PoseDef:
+        """The point at `(x, y, z)` in `frame`: its origin slid along its
+        x, y and z axes, each by its length."""
+    @staticmethod
+    def through(axis: _PoseRead, point: _PoseRead) -> PoseDef:
         """The frame through an axis and a point: origin the foot of the
         point on the axis, `z` the axis, `x` towards the point. A point
         on the axis refuses `pose_degenerate` at `evaluate`."""
     @staticmethod
-    def meet(a: _Operand, b: _Operand) -> PoseDef:
+    def meet(a: _PoseRead, b: _PoseRead) -> PoseDef:
         """The axis two planes meet in. Parallel planes refuse
         `pose_degenerate` at `evaluate`."""
     @staticmethod
-    def flip(pose: _Operand) -> PoseDef:
+    def flip(pose: _PoseRead) -> PoseDef:
         """The opposite sense of a direction, an axis, a plane or a
         frame. A flip of a flip is the pose it flips: the edit door
         normalises it, and a point, which has no sense, refuses."""
-    @staticmethod
-    def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
-        """A plane moved along its own normal by `by`."""
-    @staticmethod
-    def project(of: _Operand, to: str) -> PoseDef:
-        """A frame's `"plane"`, `"axis"` or `"point"`, or a plane's or
-        an axis's `"direction"`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2812,6 +2830,17 @@ class Formula:
     def turn() -> Formula:
         """One full rotation, the exact angle constant: a right angle is
         `turn / 4`."""
+    @staticmethod
+    def turn_over(den: int) -> Formula:
+        """The exact angle `turn / den`: a right angle is
+        `Formula.turn_over(4)`. `LiteralError` (`kind`
+        `"constant_out_of_range"`) for a zero denominator."""
+    @staticmethod
+    def zero(dimension: str) -> Formula:
+        """The constant zero at `dimension` (`"length"`, `"angle"`,
+        `"scalar"` or `"count"`): a lone `0`, which writes no value,
+        where `0 * mm` is a written length. Another word raises
+        `ValueError`."""
     @property
     def dimension(self) -> str:
         """`"length"`, `"angle"`, `"count"` or `"scalar"`."""

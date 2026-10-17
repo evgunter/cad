@@ -880,7 +880,12 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, washer) = insert(
         doc,
-        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     fixture::place(doc, washer)
 }

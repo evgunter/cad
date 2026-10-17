@@ -218,8 +218,9 @@ fn pose_admits_tags_are_stable() {
         (A::Carrier, "carrier"),
         (A::Centre, "centre"),
         (A::Sensed, "sensed"),
-        (A::Projected, "projected"),
-        (A::Carried, "carried"),
+        (A::Slid, "slid"),
+        (A::Heading, "heading"),
+        (A::Any, "any"),
     ] {
         assert_eq!(crate::errors::pose_admits_tag(admits), word);
         assert_eq!(crate::errors::slot_kind_tag(SlotKind::Pose(admits)), word);
@@ -3934,6 +3935,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // sentence; the cells cross on the Python value, not the payload.
     let tool = pncad::document::NamedCell::Tool {
         input: pncad::document::VarId(RecipeNodeId::new(0, 3).0),
+        role: None,
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {
@@ -5885,8 +5887,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "double_flip",
             "kind",
             "not_a_copy",
-            "projection",
             "read_kind",
+            "role",
             "scalar_kind",
             "unminted",
         ],
@@ -6185,6 +6187,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "slot_id_tag",
         values: &[
+            "axis_heading",
             "chamfer_distance",
             "count",
             "direction_x",
@@ -8498,10 +8501,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "pose_admits_tag",
-        literals: 5,
+        literals: 6,
         held_by: &[Holder::Test {
             name: "pose_admits_tags_are_stable",
-            holds: "the five words",
+            holds: "the six words",
         }],
     },
     MintingItem {

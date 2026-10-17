@@ -2,11 +2,10 @@
 id: a-mate-relates-two-poses
 kind: issue
 title: D10 stage 3 PR C: a mate equates two poses of one kind and holds no number; values set the freedoms mates leave; MatePrimitive, MateFrame, FrameBase, AxisSense, the rider and PlanarRest.offset retire
-status: parked
+status: spec
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [poses-move-by-lengths-and-angles]
 refs: [intent-stage3-is-built]
 ---
 

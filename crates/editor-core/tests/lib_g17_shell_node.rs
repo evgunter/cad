@@ -767,7 +767,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     let tube = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         fixture::ang(std::f64::consts::TAU),
     ));
     // The outer wall: the meridian's second segment, at r = 1/2.

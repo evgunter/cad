@@ -699,9 +699,10 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
                     crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
-                    crate::coincide::NamedCell::Tool { input } => {
-                        format!("the plane of {}", by.read(*input))
-                    }
+                    crate::coincide::NamedCell::Tool { input, role } => match role {
+                        Some(role) => format!("the {role} of {}", by.read(*input)),
+                        None => format!("the plane of {}", by.read(*input)),
+                    },
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
                     }
