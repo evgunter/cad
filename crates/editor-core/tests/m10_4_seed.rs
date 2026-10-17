@@ -374,7 +374,8 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
     let m = measure_node(&doc);
     let f = run::<f64>(&doc, None, &EvalOptions::default());
     let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
-    for lift in [ProfileLift::Guided] {
+    {
+        let lift = ProfileLift::Guided;
         let on_r = measured(
             &doc,
             &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),

@@ -262,7 +262,8 @@ fn sym5_tilted_frame_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         for (kind, derived) in [("authored", false), ("derived", true)] {
             let doc = boss_on_tilted(half, derived);
-            for lift in [ProfileLift::Guided] {
+            {
+                let lift = ProfileLift::Guided;
                 let p = plain(&doc);
                 println!(
                     "tilted {kind} half={half:e} {lift:?} plain: {} {}",
@@ -440,7 +441,8 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     let eps = Tol::witness().eps();
     for half in [eps / 8.0, 1.0e-3] {
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
             let derived = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget()).0;
             assert!(
@@ -785,7 +787,8 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
             continue;
         }
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let p = plain(&doc);
             let t0 = std::time::Instant::now();
             let (off, c_off) = sym(&doc, SymRules::without_rule_e(), budget());
@@ -870,7 +873,8 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
             );
         }
         let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             if only_lift
                 .as_deref()
                 .is_some_and(|l| l.trim() != format!("{lift:?}"))
@@ -1040,7 +1044,8 @@ fn sym8_phase1_the_tilt_u_ladder() {
             ("derived", Place::Derived(1)),
         ] {
             let doc = r2_document(half, Base::TiltU, place);
-            for lift in [ProfileLift::Guided] {
+            {
+                let lift = ProfileLift::Guided;
                 let p = plain(&doc);
                 println!(
                     "tiltU {kind} half={half:e} {lift:?} plain: {} {}",
@@ -1189,7 +1194,8 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
         {
             continue;
         }
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             if only_lift
                 .as_deref()
                 .is_some_and(|l| l.trim() != format!("{lift:?}"))
@@ -1655,7 +1661,8 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
         ),
     ] {
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let p = plain(&doc);
             println!(
                 "{name} half={half:e} {lift:?} plain: {} {}",

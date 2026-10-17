@@ -151,52 +151,50 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, not
 /// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
 /// the table. Nothing else moves.
-///
-/// **The guided lift** (every analysis's, `EvalOptions::profile_lift`):
-/// the nominal split is read over a box, so the profile reaches the lane
-/// as a function of its variables rather than as the `f64` form's
-/// literals. The profile's own validation predicates leave the table
-/// (`arc_apex_identity`, `arc_diameter_clearance`, `arc_span`,
-/// `carrier_circles_identity`, `carrier_line_circle`, `chord_side`,
-/// `circle_side`, `contact_at_shared_vertex`, `line_span`,
-/// `path_circle_radius`, `path_junction_turn`, `segment_straightness`,
-/// `vertex_separation`), and the carrier rows decide less symbolically:
-/// `carrier_endpoint_end` 36/0 -> 24/12, `carrier_endpoint_start` 36/0
-/// -> 32/4, `carrier_on_surface_*` 126/18 -> 135/9, `pcurve_envelope`
-/// 8/4 -> 10/2, `witness_on_surface_*` 14/2 -> 15/1; the literal and
-/// the parameter no longer part
-/// (`work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`).
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
+    ("arc_apex_identity", [0, 1]),
+    ("arc_diameter_clearance", [0, 6]),
+    ("arc_span", [6, 4]),
     ("assert_bound", [0, 1]),
     ("cap_plane_orientation", [0, 4]),
+    ("carrier_circles_identity", [3, 0]),
     ("carrier_cyl_axis_parallel", [1, 0]),
-    ("carrier_endpoint_end", [24, 12]),
-    ("carrier_endpoint_start", [32, 4]),
-    ("carrier_on_surface_1", [135, 9]),
-    ("carrier_on_surface_2", [135, 9]),
+    ("carrier_endpoint_end", [36, 0]),
+    ("carrier_endpoint_start", [36, 0]),
+    ("carrier_line_circle", [0, 5]),
+    ("carrier_on_surface_1", [126, 18]),
+    ("carrier_on_surface_2", [126, 18]),
+    ("chord_side", [6, 12]),
+    ("circle_side", [2, 2]),
+    ("contact_at_shared_vertex", [12, 4]),
     ("datum_unit_norm", [0, 2]),
     ("dihedral_arm", [0, 128]),
     ("dihedral_wedge", [0, 128]),
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
+    ("line_span", [6, 4]),
     ("newell_plane_residual", [30, 0]),
+    ("path_circle_radius", [0, 1]),
+    ("path_junction_turn", [0, 4]),
     ("pcurve_azimuth_period", [0, 12]),
     ("pcurve_chart_azimuth_affine", [24, 0]),
     ("pcurve_chart_azimuth_frame", [12, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_chart_winding", [12, 18]),
-    ("pcurve_envelope", [10, 2]),
+    ("pcurve_envelope", [8, 4]),
     ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
+    ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
+    ("vertex_separation", [0, 12]),
     ("witness_at_mid_parameter", [16, 0]),
-    ("witness_on_surface_1", [15, 1]),
-    ("witness_on_surface_2", [15, 1]),
+    ("witness_on_surface_1", [14, 2]),
+    ("witness_on_surface_2", [14, 2]),
 ];
 
 /// **The boss at `bulge = 2`, whole.** `carrier_matches_mapped_source`
@@ -275,12 +273,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// **The final non-finite check decides nothing**
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
 /// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
-///
-/// **The guided lift** (every analysis's, `EvalOptions::profile_lift`):
-/// the profile's own validation predicates leave the table, as on the
-/// D-tab's ([`D_TAB_AT_THE_NOMINAL`]), and `carrier_endpoint_end`
-/// 24/0 -> 12/12, `carrier_matches_mapped_source` 126/0 -> 78/48
-/// (`work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`).
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -289,21 +281,30 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         "segment_boss",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
         &[
+            ("arc_apex_identity", [0, 1]),
+            ("arc_diameter_clearance", [0, 6]),
+            ("arc_span", [6, 0]),
             ("assert_bound", [0, 1]),
             ("cap_plane_orientation", [0, 4]),
+            ("carrier_circles_identity", [3, 0]),
             ("carrier_cyl_axis_parallel", [1, 0]),
-            ("carrier_endpoint_end", [12, 12]),
+            ("carrier_endpoint_end", [24, 0]),
             ("carrier_endpoint_start", [24, 0]),
-            ("carrier_matches_mapped_source", [78, 48]),
+            ("carrier_line_circle", [0, 3]),
+            ("carrier_matches_mapped_source", [126, 0]),
             ("carrier_on_surface_1", [90, 0]),
             ("carrier_on_surface_2", [90, 0]),
+            ("contact_at_shared_vertex", [6, 3]),
             ("datum_unit_norm", [0, 2]),
             ("dihedral_arm", [0, 80]),
             ("dihedral_wedge", [0, 80]),
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
+            ("line_span", [2, 0]),
             ("newell_plane_residual", [18, 0]),
+            ("path_circle_radius", [0, 1]),
+            ("path_junction_turn", [0, 2]),
             ("pcurve_azimuth_period", [0, 12]),
             ("pcurve_chart_azimuth_affine", [24, 0]),
             ("pcurve_chart_azimuth_frame", [12, 26]),
@@ -315,7 +316,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_interval_forward", [0, 12]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
+            ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
+            ("vertex_separation", [0, 8]),
             ("witness_at_mid_parameter", [10, 0]),
             ("witness_on_surface_1", [10, 0]),
             ("witness_on_surface_2", [10, 0]),
@@ -333,8 +336,7 @@ fn d_tab_table(mapped_source: [u64; 2]) -> Vec<(&'static str, [u64; 2])> {
 }
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
-/// with `carrier_matches_mapped_source` 130/50 under the guided lift
-/// (170/10 before it; 126/0/44/10 — six of the
+/// with `carrier_matches_mapped_source` 126/0/44/10 — six of the
 /// eighteen that used to stand went to the DOOR with SYM-5's rule E,
 /// and two more with the schedule's assigned last sample.
 #[test]
@@ -344,14 +346,12 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([130, 50]),
+        &d_tab_table([170, 10]),
     );
 }
 
-/// The D-tab with its bulge a document parameter: under the guided lift
-/// the same table as the literal's, `carrier_matches_mapped_source`
-/// 130/50 on both (it was 126/0/40/14 against the literal's 126/0/44/10).
-/// Before the guided lift the two parted on ONE row. At the
+/// The D-tab with its bulge a document parameter: the same table as
+/// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
 /// nominal the bulge's sign is not what blocks on any of the shared
 /// rows, the ring is, on the same nodes — but with SYM-5's rule E the
 /// two part on `carrier_matches_mapped_source`: 126/0/44/10 on the
@@ -372,6 +372,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([130, 50]),
+        &d_tab_table([166, 14]),
     );
 }

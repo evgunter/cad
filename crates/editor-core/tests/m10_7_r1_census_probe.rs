@@ -191,7 +191,8 @@ fn r1_parametric_chain_at_a_point_box() {
         } else {
             ParamBox::of(&analyzed)
         };
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let opts = EvalOptions {
                 param_box: Some(Arc::new(box_.clone())),
                 ..EvalOptions::default()

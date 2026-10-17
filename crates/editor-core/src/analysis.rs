@@ -1082,14 +1082,18 @@ impl ParamBox {
 /// The parameter environment of `doc`'s nominals WIDENED by `box_` —
 /// the interval parameter door (E6's leaf replay reads through this).
 ///
-/// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
-/// arithmetic so the enclosure rounds outward; `Count` parameters bind
-/// exactly as [`Doc::var_env`] binds them (they are structural, never
-/// axes). A toleranced parameter the box does not name binds its
-/// nominal as an axis of no width; a parameter with no tolerance the
-/// box does not name is no axis ([`is_axis`]) and binds its nominal as
-/// a constant, as [`Doc::var_env`] binds it — so the symbolic lane
-/// reads it as a number, not a symbol.
+/// Each VARYING axis binds `nominal + [lo, hi]` through the identified
+/// door ([`AxisScalar::axis_of`]), formed in the scalar's own arithmetic
+/// so the enclosure rounds outward — at `Sym`, a parameter symbol.
+/// `Count` parameters bind exactly as [`Doc::var_env`] binds them (they
+/// are structural, never axes). A variable the box HOLDS — a
+/// [`BoxAxis::Fixed`] axis, or a toleranced parameter the box does not
+/// name — binds its nominal plus a zero offset: the bits the axis door
+/// binds at every numeric scalar, and at `Sym` a constant, so the
+/// symbolic lane reads it as a number, not a symbol. A parameter with no
+/// tolerance the box does not name is no axis ([`is_axis`]) and binds
+/// its nominal as a constant, as [`Doc::var_env`] binds it. So a box that
+/// varies nothing binds the build's values at every scalar.
 ///
 /// # Errors
 ///
@@ -1116,6 +1120,24 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value),
+                }
+            }
+            // HELD at its nominal: a `Fixed` axis, or an axis the box does
+            // not name. Its value is the nominal plus a zero offset, bit
+            // for bit what the axis door binds at every numeric scalar
+            // (`-0.0` lands on `+0.0` there too) — and at `Sym` a
+            // CONSTANT, not a parameter symbol. A held variable is not
+            // free to vary, so no identity may be proved over it as if it
+            // were; a caller that wants it a symbol says so with a
+            // varying axis (`Varying { lo: x, hi: x }`) or with `symbols`.
+            // This is what makes a box that varies nothing the build at
+            // every scalar (`crate::eval::EvalOptions::profile_lift`).
+            FreeVar::Continuous { dim, value, .. }
+                if !matches!(box_.get(id), Some(BoxAxis::Varying { .. })) =>
+            {
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value) + T::from_f64(0.0),
                 }
             }
             FreeVar::Continuous { dim, value, .. } => {

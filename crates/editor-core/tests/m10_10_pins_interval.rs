@@ -159,16 +159,8 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
     crate::m10_8_harness::split_at_the_nominal(&doc, rules, tol)
 }
 
-/// **THREE OF THE PLATE'S FOUR, at the nominal, as THEOREMS** — all
-/// four before the guided lift. Under it (every analysis's lift,
-/// `EvalOptions::profile_lift`) the plate's profile reaches the lane as
-/// a function of its variables, and `carrier_matches_mapped_source`
-/// keeps 64 of its samples numeric with the algebra on as off
-/// (`[196, 56]` off and `[252, 0]` on before; `[188, 64]` both now),
-/// owed by
-/// `work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`;
-/// `carrier_on_surface_*` off moves `[288, 72]` → `[296, 64]`.
-/// With the algebra off the split is M10-9's; with it on, the cylinder's
+/// **ALL FOUR OF THE PLATE'S, at the nominal, as THEOREMS.** With the
+/// algebra off the split is M10-9's; with it on, the cylinder's
 /// `carrier_on_surface_*` and `witness_on_surface_*` decisions are
 /// theorems outright (rule D with A/B per node, no value read, no axiom), and so
 /// are `carrier_matches_mapped_source` at every sample (rule D meets
@@ -197,16 +189,16 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
         core::array::from_fn::<u64, 2, _>(|i| a[i] + b[i])
     };
     // The split with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [188, 64]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [296, 64]);
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [196, 56]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [288, 72]);
     assert_eq!(pair(&off, "witness_on_surface"), [32, 8]);
     assert_eq!(row(&off, "pcurve_map_residual"), [0, 36]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [188, 64],
-        "under the guided lift the algebra adds nothing here: 64 samples stay numeric \
-         (work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md)"
+        [252, 0],
+        "rule D meets the pushforward and the carrier at every sample, and the rim at a \
+         vertex folds onto the authored |r|, so every one of the 72 is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
@@ -225,15 +217,12 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
          on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
          THEOREM"
     );
-    // Before the guided lift the plate's eight `line_span` comparisons
-    // were between two rational CONSTANTS, which A0 decides exactly
-    // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix);
-    // under it the profile's validation predicates leave the lane's
-    // split, as on `m10_bulge`'s tables.
-    assert!(
-        !on.contains_key("line_span"),
-        "the profile's validation decides no `line_span` in the lane under the guided lift \
-         (work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md)"
+    assert_eq!(
+        row(&on, "line_span"),
+        [8, 0],
+        "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
+         which A0 decides exactly — THEOREMS, no value read \
+         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
     );
     for (p, before) in &off {
         let after = row(&on, p);

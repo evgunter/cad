@@ -687,10 +687,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             parallel: false,
             boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
-            // The profile lift is not inherited either: it is read off
-            // the environment (`EvalOptions::profile_lift`), and a
-            // referenced document runs at its own nominal, so it is
-            // built as its instantiator's build would build it.
             // NOT inherited, unlike the two rows above: a parameter box
             // is keyed by THIS document's variable ids, and a referenced
             // document is a different document with its own variables
@@ -709,6 +705,11 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // part's variable ids collide with another document's.
             symbols: self.symbols,
         };
+        // No profile lift is set here, because none is inherited: it is
+        // read off the environment (`EvalOptions::profile_lift`), and with
+        // no box and no seed a referenced document runs at its own
+        // nominal, so it is built as its instantiator's build would build
+        // it — pinned, with its own variables' values.
         let evaluation = super::evaluate_nested::<T>(
             doc,
             &super::CancelToken::new(),

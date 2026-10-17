@@ -260,13 +260,13 @@ fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
             ("plain", interval_failures as fn(&ProfileDoc) -> Vec<String>),
             ("sym", sym_failures as fn(&ProfileDoc) -> Vec<String>),
         ] {
-            let d_pinned = run(&derived);
+            // Both run over a box, so both are guided (`EvalOptions::profile_lift`).
             let d_guided = run(&derived);
             let a_guided = run(&authored);
             println!(
-                "C7 eps={e:e} half={w:e} lane={lane}: derived/Pinned {d_pinned:?}; derived/Guided {d_guided:?}; authored/Guided {a_guided:?}"
+                "C7 eps={e:e} half={w:e} lane={lane}: derived {d_guided:?}; authored {a_guided:?}"
             );
-            let d_ok = d_pinned.is_empty();
+            let d_ok = d_guided.is_empty();
             let a_ok = a_guided.is_empty();
             if d_ok != a_ok {
                 mismatch.push(format!(
@@ -530,7 +530,8 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     for w in [e / 8.0, 1.0e-6, 1.0e-3] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             assert!(
                 sym_failures(&derived).is_empty(),
                 "half={w:e} {lift:?}: the derived-frame boss must certify on the symbolic lane"
@@ -546,7 +547,8 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     // placement is at `T` under either and the refusal is identical.
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    for lift in [ProfileLift::Guided] {
+    {
+        let lift = ProfileLift::Guided;
         let refusal = sym_failures(&derived);
         assert_eq!(
             refusal.len(),
@@ -697,7 +699,8 @@ fn sym5_phase1_the_newell_refusal_at_5e_2() {
     for f in &p {
         println!("  {}", head(f, 400));
     }
-    for lift in [ProfileLift::Guided] {
+    {
+        let lift = ProfileLift::Guided;
         eprintln!("--- Sym<Interval> lane, {lift:?}");
         let (fails, counts) = sym_failures_in(&derived, SymRules::shipped(), budget());
         println!(

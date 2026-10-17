@@ -332,7 +332,8 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     let nominal = fixture::reading(&doc, &f, m).expect("the shaft measures at f64");
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
-        for lift in [ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let d = measured(
                 &doc,
                 &evaluate(

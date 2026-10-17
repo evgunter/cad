@@ -106,23 +106,11 @@ fn decide_3_no_predicate_loses_a_decision() {
             // (`split_at_the_nominal`, no ladder); what the ladder does
             // is pinned where the ladder is
             // (`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`).
-            //
-            // UNDER THE GUIDED LIFT (every analysis's,
-            // `EvalOptions::profile_lift`) the dials move neither: the
-            // profile reaches the lane as a function of its variables,
-            // not as the `f64` form's literals, and rule G's trade and
-            // the read's four are gone on every document of this row —
-            // `carrier_on_surface_*` is all symbolic on both sides
-            // (`[96, 12] / [100, 8]` → `[108, 0]`) and
-            // `carrier_matches_mapped_source` reads `[112, 68]` on both
-            // (was `[152, 28] / [156, 24]`), the G-shut and shipped
-            // totals one `[725, 682]`
-            // (`work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`).
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([108, 0], [108, 0]))
+                    Some(([96, 12], [100, 8]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => Some(([112, 68], [112, 68])),
+                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [156, 24])),
                 _ => None,
             };
             if let Some(expected) = pinned {

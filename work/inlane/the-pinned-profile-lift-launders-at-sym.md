@@ -61,7 +61,7 @@ Closed by ruling A of the INLANE orchestrator: the evaluator derives the lift, a
 - **Guided** when the evaluation's box varies an axis, it carries a seed, or it binds every variable a symbol: an ANALYSIS, whose variables are not their nominal values.
 - **Pinned** otherwise, at any scalar: the build.
 
-An empty or all-`Fixed` box holds every variable at its nominal, so it is the build, and an unused box seam changes no decision. The pinned lift can no longer be asked for in an analysis, and the guided lift is never wrongly taken in a build.
+An empty or all-`Fixed` box holds every variable at its nominal, so it is the build, and an unused box seam changes no decision. That holds at every scalar because a held variable binds a CONSTANT at `Sym` too: `analysis::var_env_over` sends only a VARYING axis through the identified door (`AxisScalar::axis_of`), and a `Fixed` axis, or an axis the box does not name, binds its nominal plus a zero offset. That is the INLANE orchestrator's option (d), adopted after PR 5248's review found the all-`Fixed` box laundering at `Sym`. A consumer that wants the nominal as a symbol asks for it with `Varying { lo: 0, hi: 0 }` (`ParamBox::at_nominal`) or with `symbols`; the M10 harness's `nominal_box` and stackup's worst-case hull prior are restated so. The pinned lift can no longer be asked for in an analysis, and the guided lift is never wrongly taken in a build.
 
 **Where analyses meet the build:**
 - `ParamBox::at_nominal()` (every varying axis spanning `[0, 0]`) makes three evaluations read the document as their leaves do:
@@ -79,4 +79,3 @@ An empty or all-`Fixed` box holds every variable at its nominal, so it is the bu
 **What the guided reading turned up** (each filed, each row naming its item):
 - The revalue rows' findings: PR 5247's three items.
 - `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
-- `work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`.

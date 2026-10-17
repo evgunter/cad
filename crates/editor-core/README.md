@@ -228,7 +228,10 @@ an evaluation whose box varies an axis, which carries a seed, or which binds
 every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
 witness over the root box collapsed to the nominal, `ParamBox::at_nominal`),
 the E4 sensitivities (`src/stackup.rs`), Monte Carlo (`src/mc.rs`) and the
-coincidence door's symbolic replay. Guided replay at `f64` reproduces plain
+coincidence door's symbolic replay. A box that varies nothing holds its
+variables at their nominals, at `Sym` as constants (only a varying axis binds
+a parameter symbol, `analysis::var_env_over`), so it is the build at every
+scalar. Guided replay at `f64` reproduces plain
 replay bitwise (`tests/m10_p_fence.rs`,
 `crates/profile/tests/scalar_channels.rs`).
 
