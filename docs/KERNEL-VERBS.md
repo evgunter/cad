@@ -564,3 +564,50 @@ the table.
 - **There is no contact detection.** A boolean glues every carrier
   pair its margins decide one (plane, sphere, cylinder, torus) and
   records it (D10), so no consumer needs a detector or a declaration.
+
+## The standing frontier
+
+The kernel's standing frontier entries, moved here from `docs/DESIGN.md`
+(its D1 at commit `95c77e152a`, cited elsewhere as "frontier (c)" through
+"frontier (f)"; (a) composition surgery and (b) the SSI generic-`T` lift
+are discharged). Each refuses typed with a message naming its blocker
+(DESIGN [failure.taxonomy], row 2); the tracker schedules them.
+
+- **(c) the oblique analytic-chart classes** — a carrier with no
+  closed-form image on an analytic chart (a spline carrier, a sphere's
+  general circle) stores its projected image (C4), so the
+  oblique-trihedron octant faces store their rows; a torus's
+  Villarceau circle and a cone's tilted section mint their exact image
+  (`Pcurve::FocalSection`), and a circle within the band of a cone or
+  torus that is none of its circles refuses as a defect
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
+  analytic chart can hold has a route, so C4's exemption excuses no
+  class; a face is left uncached only at a scalar with no fitted door.
+- **(d) cyl×sphere germ chords** — a fitted carrier's chart image
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
+  its arc from the germs it joins, reading no window; what is missing
+  is the C5 table's cyl×sphere arm for the chord's carrier
+  (`chord_join::section_case` has no curved×curved arm) and a frame for
+  the germs' rotational-sense test (`boolean::join::pair_section_frame`).
+  Every cone pair but plane × cone, and every torus pair, refuses at the
+  join alongside it.
+- **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
+- **(f) the canal-surface general blend** — an approximating surface
+  for fillet chains whose rolling-ball spine is neither a line nor a
+  circle (`BlendError::SpineUnsupported`). Parked, not scheduled: no
+  acceptance shape consumes it, and building reviewed machinery with
+  no caller is the dead-code pattern. It re-opens with its first
+  consumer (variable-radius fillets).
+
+Unlettered standing entries: reflex-corner tilted crossings; the torus `Rest`
+lane (#968) and full-period walls in the cylindrical `Rest` lane
+(#1415, #1416); the coincident-plane classes beyond the
+structural/anchored repertoire, where the anchor-exhaustion arm is
+load-bearing rather than unreachable. Two latent-and-loud limitations
+are recorded so they are not rediscovered as bugs: a meridian-tangent
+circle is in-lane but uncertifiable (no constructor mints one), and
+genuinely-oblique trihedral corners build through tiers 1–2 and report
+`VolumeUncomputable` — a gap in the props inventory (no sphere-face
+quadrature lane), not in the body.
