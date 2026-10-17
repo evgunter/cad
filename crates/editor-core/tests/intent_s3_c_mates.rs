@@ -696,8 +696,8 @@ fn the_antipode_is_decided_exactly_and_the_band_refuses() {
 /// **Ruling C-1 end to end — a cap facing `−z` placed on a floor facing
 /// `−z`.** Both swung frames sit at the antipode, decided exactly: the
 /// box's own `x` meets the world's, and zero values put it where it is.
-/// The same holds for a half-revolve's end face, whose normal is `−z`
-/// to a rounding-level tilt.
+/// The same holds for the cap read at a rounding-level tilt (spun by
+/// `sin π`, a half-revolve's end-face rounding).
 ///
 /// *Breaks if* the antipode is banded rather than decided (the
 /// evaluation refuses), or read through `1/(1+c)` (the copy turns).
@@ -730,54 +730,25 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         "the antipode keeps x, and zero values put the box where it is: {at:?}"
     );
 
-    // A half-revolve about x: its end face is its start face turned by
-    // π, a normal of −z to the rounding of sin π.
-    let (doc, profile) = fixture::on_frame(
-        ProfileDoc::empty_derived("s3c_half_revolve", Tol::witness()),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)]],
+    // The same cap read at a rounding-level tilt: spun about the foot
+    // edge along x by an angle whose sine is sin π, the rounding a
+    // half-revolve's end face carries.
+    let (doc, body) = a_box("s3c_cap_tilted", 1.0);
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let along_x = edge_along(&doc, body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let tilted = spun(
+        plane_of(on_body(body, bottom)),
+        pose(PoseDef::Axis {
+            of: on_body(body, along_x),
+        }),
+        std::f64::consts::PI.sin(),
     );
-    let (doc, revolve) = fixture::insert(
-        doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis_through: [len(0.0), len(0.0)],
-            axis_heading: ang(0.0),
-            angle: ang(std::f64::consts::PI),
-        },
-    );
-    let ev = fixture::run(&doc, &EvalOptions::default());
-    let end = editor_core::all_faces(&ev, revolve)
-        .into_iter()
-        .find(|name| {
-            let at = editor_core::face_frame(&ev, revolve, name).expect("a face's frame");
-            let normal = at.axis * if at.sense { 1.0 } else { -1.0 };
-            editor_core::face_carrier_kind(&ev, revolve, name) == Ok(geom::SurfaceKind::Plane)
-                && normal.z.abs() > 0.5
-                && normal.y != 0.0
-        })
-        .expect("an end face along z at a rounding-level tilt");
-    let (doc, placement) = placed(doc, revolve);
+    let (doc, placement) = placed(doc, body);
     let (mut doc, mate) = fixture::constrain_at(
         doc,
         placement,
         Mate {
-            // Read flipped where the end face points up, so the copy's
-            // own mated direction is `−z` at the tilt either way.
-            on: {
-                let at = editor_core::face_frame(&ev, revolve, &end).expect("a face's frame");
-                let up = (at.axis * if at.sense { 1.0 } else { -1.0 }).z > 0.0;
-                let face = plane_of(on_body(revolve, end));
-                if up {
-                    pose(PoseDef::Flip {
-                        pose: RoleRead::plain(face),
-                    })
-                } else {
-                    face
-                }
-            },
+            on: tilted,
             to: Target::World(world_floor_facing_down()),
             class: ContactClass::Rest,
         },
