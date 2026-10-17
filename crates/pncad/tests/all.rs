@@ -4927,7 +4927,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the solve with each placement's recorded decisions kept apart, for
 ///   a check of how an evaluation shares them out. A consumer asks
 ///   `solve_document`, carried, and reads each placement's own log.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 98] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
