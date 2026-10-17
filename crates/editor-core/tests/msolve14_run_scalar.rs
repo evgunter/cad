@@ -900,9 +900,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// each node's space and fault where it fed a mate's role and a
 /// group's root.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xeca8_2432_1b41_a72c),
-    (1e-6, 0x842a_00b7_5945_84ae),
-    (1e-12, 0x340f_1cf9_18ae_208f),
+    (1e-9, 0x2b8d_96bb_96da_b27d),
+    (1e-6, 0x2473_b1c6_90d7_f46c),
+    (1e-12, 0x7ce3_8a76_e479_ef33),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

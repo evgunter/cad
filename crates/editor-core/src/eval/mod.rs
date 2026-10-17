@@ -3565,9 +3565,7 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    let ev = evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol);
-    crate::s3b_dump::dump(doc, &ev, opts, tol);
-    ev
+    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level

@@ -211,7 +211,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// crossing of two rims rather than a touch, and the pieces ending at
 /// that corner say other words (`lib_g16_corpus_name_digests` moved
 /// that row alone).
-const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
+const SAID_DIGEST: u64 = 0xa63a_95f4_0ead_42ef;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

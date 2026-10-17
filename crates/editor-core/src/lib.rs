@@ -90,7 +90,6 @@ pub mod step_handle;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
-mod s3b_dump;
 mod tree;
 pub mod update;
 pub mod var;
