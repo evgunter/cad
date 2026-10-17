@@ -1701,7 +1701,7 @@ impl Doc {
         label: Option<&str>,
     ) -> PyResult<super::mate::Placed> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0.clone());
+        let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0);
         let tol = Tol::witness();
         let seam = seam(resolver);
         let opts = d::EvalOptions {
@@ -1742,7 +1742,7 @@ impl Doc {
         pose: Option<&super::place::Frame>,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<super::mate::Placed> {
-        let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0.clone());
+        let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0);
         let tol = Tol::witness();
         let seam = seam(resolver);
         let opts = d::EvalOptions {

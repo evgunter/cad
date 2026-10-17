@@ -117,12 +117,10 @@ fn volume(body: &topo::Body<f64>) -> f64 {
         .volume
 }
 
-/// Two products' volumes agree to well inside the witness band: an
-/// instance a split leaves stands at its pin to rounding, so the
-/// remainder's copies are its part's moved by that rounding.
+/// Two products' volumes are bit-equal: an instance a split leaves
+/// pinned at the identity moves nothing.
 fn same_volume(a: &topo::Body<f64>, b: &topo::Body<f64>, what: &str) {
-    let (a, b) = (volume(a), volume(b));
-    assert!((a - b).abs() <= 1e-12 * a.abs().max(1.0), "{what}: {a} vs {b}");
+    assert_eq!(volume_bits(a), volume_bits(b), "{what}");
 }
 
 /// Wraps a part-local name under an instance — the bridge's own form.
@@ -181,8 +179,8 @@ fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -
 
 /// Row 1 — splitting a two-instance assembly's second instance out
 /// leaves a remainder that instantiates the new document, and the A4
-/// identity holds: censuses equal, volumes and positions equal to the
-/// rounding the instance's pin stands at, and every probed name
+/// identity holds: censuses equal, volumes bit-equal, and every probed
+/// name
 /// resolves to the corresponding entity (the split side through the
 /// instance qualifier).
 #[test]
@@ -270,8 +268,8 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     assert!(probed_cut > 0, "the probe actually crossed the seam");
 
     // Geometry rides the names: one part-local vertex, resolved through
-    // the unsplit copy and through the split side's copy, lands on the
-    // same coordinates.
+    // the unsplit copy and through the split side's copy, lands on
+    // bit-identical coordinates.
     let sample = names1
         .iter()
         .find(|(n, _)| n.node == cut_instance && n.kind == editor_core::EntityKind::Vertex)
@@ -281,10 +279,9 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     let after_name = across(&sample);
     let after =
         editor_core::vertex_position(&ev2, out.instance, &after_name).expect("resolves after");
-    assert!(
-        (before - after).norm() <= 1e-12,
-        "the cut vertex stands where it stood: {before:?} vs {after:?}"
-    );
+    assert_eq!(before.x.to_bits(), after.x.to_bits());
+    assert_eq!(before.y.to_bits(), after.y.to_bits());
+    assert_eq!(before.z.to_bits(), after.z.to_bits());
 
     let _ = part_ref;
 }

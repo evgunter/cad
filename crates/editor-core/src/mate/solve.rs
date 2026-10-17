@@ -426,7 +426,8 @@ where
 /// **Whether a solved map is the identity at rest** (stage 3 C, fork
 /// C-5): no point of the copy moves further than the band's zero — its
 /// translation's length plus its turn's departure from the identity
-/// levered over the copy's `reach` (D4 ¶1), decided as
+/// levered over the copy's `reach` (D4 ¶1), each bounded above by a sum
+/// of magnitudes, decided as
 /// [`SolvedPoses::at_identity`] decides it — and the run carries no
 /// variation in it ([`SolveScalar::carries_no_variation`]). A copy
 /// pinned over its geometry at the identity stands there to rounding;
@@ -439,6 +440,10 @@ pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) 
     if !T::carries_no_variation(map) {
         return false;
     }
+    // Sums of magnitudes bound the lengths from above — the turn's
+    // departure ‖Q − I‖ and the translation's length — with no square
+    // root, which a box lane's enclosure of a near-zero length would
+    // lose its decoration through.
     let (one, zero) = (T::one(), T::zero());
     let q = map.linear;
     let off = [
@@ -446,8 +451,9 @@ pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) 
         q.c1 - Vec3::new(zero, one, zero),
         q.c2 - Vec3::new(zero, zero, one),
     ];
-    let turn = (off[0].dot(off[0]) + off[1].dot(off[1]) + off[2].dot(off[2])).sqrt();
-    let moved = map.translation.norm() + turn * T::from_f64(reach);
+    let magnitude = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
+    let turn = magnitude(off[0]) + magnitude(off[1]) + magnitude(off[2]);
+    let moved = magnitude(map.translation) + turn * T::from_f64(reach);
     geom_core::k_stats::decide(
         "solve_copy_at_identity",
         geom_core::predicate::Margin::of(moved),

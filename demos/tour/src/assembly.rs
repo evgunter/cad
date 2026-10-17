@@ -81,13 +81,13 @@
 //!   say where on the top it stands, so a thicker shelf lifts it and
 //!   shorter posts lower it, and the gate certifies both
 //!   (`update_door`).
-//! - **A downward seat's chart runs its `y` backwards.** A value is
-//!   measured in each body's own frame swung onto the mated direction
-//!   by the shortest turn, and a direction pointing straight down has
-//!   none, so its chart is the half turn about `x`: the shelf's seat on
-//!   the near post and the crate's on the shelf write their `y` slides
-//!   negated, and nothing an author reads at the seat says so short of
-//!   `reference_about`'s documentation (`stand_doc`, `bench`).
+//! - **A seat on a downward face charts its `y` backwards.** A value
+//!   is measured in each body's own frame swung onto the target face's
+//!   own outward direction by the shortest turn, and a direction
+//!   pointing straight down has none, so its chart is the half turn
+//!   about `x`: the far post's seat under the shelf writes its `y`
+//!   slide negated, and nothing an author reads at the seat says so
+//!   short of `reference_about`'s documentation (`stand_doc`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
 //! neither certify nor refute — is not new here; it is the census
@@ -860,11 +860,13 @@ fn on_the_turntable(
 ///
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
 /// and [`SEAT_B`], as slides between the two bodies' own origins in
-/// the mate's chart. The chart is each body's own frame swung onto the
-/// mated direction: the far post's seat faces up, where the chart is
-/// the bodies' own; the shelf's seat on the near post faces DOWN, and
-/// the chart of a downward direction is the bodies' own frames turned
-/// half about their `x`, so its `y` runs along the shelf's `-y`.
+/// the mate's chart. The chart is swung onto the target face's own
+/// outward direction, whatever flip the rest writes on it: the shelf's
+/// seat reads the near post's top, which faces up, so its chart is the
+/// bodies' own; the far post's reads the shelf's underside, which
+/// faces DOWN, and the chart of a downward direction is the bodies'
+/// own frames turned half about their `x`, so its `y` runs along the
+/// shelf's `-y`.
 fn stand_doc(
     parts: &Parts,
     seating: Seating,
@@ -924,14 +926,14 @@ fn stand_doc(
         set_values(
             &mut doc,
             mate_1,
-            seated_at(half - SEAT_A[0], SEAT_A[1] - half),
+            seated_at(half - SEAT_A[0], half - SEAT_A[1]),
             tol,
             reach,
         );
         set_values(
             &mut doc,
             mate_2,
-            seated_at(SEAT_B[0] - half, SEAT_B[1] - half),
+            seated_at(SEAT_B[0] - half, half - SEAT_B[1]),
             tol,
             reach,
         );
@@ -958,8 +960,8 @@ struct Bench {
 /// The crate rests on the shelf's top face, by a placing `Rest` mate —
 /// the crate's bottom face against the shelf's top — and the values
 /// that set where on the top it stands: [`CRATE_SLIDE`] along the
-/// shelf from its centre, squared to it. The top faces down onto the
-/// crate, so its chart's `y` runs along the shelf's `-y`. The crate is
+/// shelf from its centre, squared to it, in the chart of the shelf's
+/// upward top, which is the bodies' own coordinates. The crate is
 /// an instance with an empty bundle and the mate is what places it, so
 /// it is placed on the shelf: it swings with the stand and follows any
 /// edit of the shelf or the posts under it. The bench's `run_checks`
@@ -990,7 +992,7 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
         crate_mate,
         seated_at(
             (SHELF_LENGTH - CRATE_WIDTH) / 2.0 + CRATE_SLIDE,
-            -(SHELF_DEPTH - CRATE_DEPTH) / 2.0,
+            (SHELF_DEPTH - CRATE_DEPTH) / 2.0,
         ),
         tol,
         reach,

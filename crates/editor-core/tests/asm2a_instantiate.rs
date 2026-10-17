@@ -346,7 +346,7 @@ fn min_x(body: &topo::Body<f64>) -> f64 {
 
 /// Row 1 (kernel half) — an assembly of TWO instances of one part at
 /// different frames evaluates to a 2-solid product whose volume is
-/// exactly 2× the part's, in root order.
+/// twice the part's, in root order.
 #[test]
 fn row1_two_instances_gather_into_a_two_solid_product() {
     let mut store = StubStore::default();
@@ -516,11 +516,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (its pin's poses read off
     // the copy and solved, then placement and validation of the placed
-    // body); 728 is the part's, on its own nodes — its profile's
+    // body); 731 is the part's, on its own nodes — its profile's
     // pre-pass on the Profile node's log, decided once (the pinned lift
-    // reuses the pre-pass's validated form).
+    // reuses the pre-pass's validated form), and its placement's pin.
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 731, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

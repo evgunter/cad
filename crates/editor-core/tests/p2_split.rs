@@ -309,11 +309,13 @@ fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let split_o = with_resolver(store);
-    same_extent(
-        extent(&doc, &o),
-        extent(&out.remainder, &split_o),
-        "split-then-evaluate keeps the material and its volume",
+    let (before, after) = (extent(&doc, &o), extent(&out.remainder, &split_o));
+    assert_eq!(
+        before.2.to_bits(),
+        after.2.to_bits(),
+        "split-then-evaluate keeps the volume"
     );
+    same_extent(before, after, "split-then-evaluate keeps the material");
     // Name resolution: a cut face resolves before, and through the
     // instance qualifier after.
     let resolves = |d: &ProfileDoc, o: &EvalOptions, name: &StableName| {

@@ -1075,6 +1075,31 @@ fn read_body<T: Decide>(
     }
 }
 
+/// **The body a resolved name lives in**: [`read_body`] for a value of
+/// one body, else the output body the name's row indexes — copy `i` of
+/// a pattern's instances, one copy of a placement's — since a selection
+/// names an entity of one body of the value it reads.
+pub(super) fn read_named_body<T: Decide>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+    body: u32,
+) -> Result<Arc<Body<T>>, NodeErrorKind> {
+    let v = value_of(results, input)?;
+    match placeable_operand(v, input) {
+        Ok(Placeable::Instances(bodies)) => usize::try_from(body)
+            .ok()
+            .and_then(|k| bodies.get(k))
+            .cloned()
+            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
+        Ok(Placeable::Copies(copies)) if copies.bodies.len() > 1 => usize::try_from(body)
+            .ok()
+            .and_then(|k| copies.bodies.get(k))
+            .cloned()
+            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
+        _ => read_body(results, input),
+    }
+}
+
 /// **What a placer places**: the two value shapes a rigid map is
 /// defined over. The placers (`Transform`, `Pattern`) are
 /// shape-preserving — `Body → Body`, `Instances → Instances`.

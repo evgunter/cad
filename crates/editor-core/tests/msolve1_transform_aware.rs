@@ -186,14 +186,21 @@ struct Scene {
 /// **The world the product is** (A10): each of `bodies` that is not
 /// already a placement placed, then each `(pattern, count)`'s copies
 /// placed through a `Part` per copy. An instance is a placement already
-/// in the product, so it is never placed a second time.
-fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
-    let bodies: Vec<RecipeNodeId> = bodies
+/// in the product, so it is never placed a second time. Each copy is
+/// pinned at the identity over its geometry, which `o` reaches.
+fn world(
+    doc: ProfileDoc,
+    o: &EvalOptions,
+    bodies: &[RecipeNodeId],
+    patterns: &[(RecipeNodeId, i64)],
+) -> ProfileDoc {
+    let doc = bodies
         .iter()
         .copied()
         .filter(|&b| !matches!(doc.node(b), Some(Node::InstantiatePart { .. })))
-        .collect();
-    let doc = fixture::place_all(doc, &bodies);
+        .collect::<Vec<_>>()
+        .into_iter()
+        .fold(doc, |doc, body| place(doc, o, body));
     patterns.iter().fold(doc, |doc, &(pattern, count)| {
         (0..count).fold(doc, |doc, i| {
             let (doc, copy) = insert(
@@ -203,9 +210,17 @@ fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i6
                     select: editor_core::PartSelect::Instance(editor_core::Formula::count(i)),
                 },
             );
-            fixture::place(doc, copy).0
+            place(doc, o, copy)
         })
     })
+}
+
+/// **One copy of `body` in the world**, pinned at the identity over
+/// its geometry as `o` evaluates it.
+fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
+    let read = fixture::body_read(&doc, body.into());
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    fixture::pinned(doc, placement, o)
 }
 
 /// **`name`'s world copy**: the one name in the gathered product's
@@ -281,7 +296,7 @@ fn scene(label: &str, on_base: &[Step]) -> Scene {
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, a_at) = chain(doc, base, on_base);
-    let doc = world(doc, &[a_at], &[]);
+    let doc = world(doc, &opts, &[a_at], &[]);
     let (doc, mate) = seat(doc, top, &top_part, &|n| head_at(a_at, n), &base_part, base);
     Scene {
         doc,
@@ -350,10 +365,16 @@ impl Scene {
                 ev.result(id)
             );
         }
-        assert!(
-            product(&self.doc, &ev, Tol::witness()).is_ok(),
-            "{what}: the product gathers"
-        );
+        if let Err(e) = product(&self.doc, &ev, Tol::witness()) {
+            panic!(
+                "{what}: the product gathers: {e:?}; {:?}",
+                self.doc
+                    .ids()
+                    .into_iter()
+                    .filter_map(|id| ev.node_error(id))
+                    .collect::<Vec<_>>()
+            );
+        }
         assert_seated(
             &self.doc,
             &ev,
@@ -497,7 +518,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
-        let doc = world(doc, &[], &[(pattern, 3)]);
+        let doc = world(doc, &opts, &[], &[(pattern, 3)]);
         let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
@@ -553,7 +574,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 std::f64::consts::FRAC_PI_2,
             ),
         );
-        let doc = world(doc, &[], &[(xf, 3)]);
+        let doc = world(doc, &opts, &[], &[(xf, 3)]);
         let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
@@ -744,7 +765,7 @@ fn two_operands(
         doc,
         xform(base, [5.0, 5.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0),
     );
-    let doc = world(doc, &[x1, x2], &[]);
+    let doc = world(doc, &opts, &[x1, x2], &[]);
     let (doc, m1) = seat(doc, top, &top_part, &|n| head_at(x1, n), &base_part, base);
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
@@ -897,9 +918,12 @@ fn a8b_deleting_the_operand_leaves_the_pose_unevaluated() {
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.a_at }, &reach);
     let poses = solve(&doc, &s.opts, Tol::witness());
-    let fault = poses
-        .fault(s.mate.placement)
-        .expect("the stranded mate refuses");
+    let fault = poses.fault(s.mate.placement).unwrap_or_else(|| {
+        panic!(
+            "the stranded mate refuses: {:?}",
+            run(&doc, &s.opts).node_error(s.mate.placement)
+        )
+    });
     assert!(
         matches!(
             fault,
@@ -1075,7 +1099,7 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
                 select: editor_core::PartSelect::Instance(editor_core::Formula::count(i)),
             },
         );
-        fixture::place(doc, copy).0
+        place(doc, &opts, copy)
     });
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
     let a = nest(base_part.cap(base, CapEnd::End));
@@ -1225,7 +1249,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
             ContactClass::Rest,
         ),
     );
-    let doc = world(doc, &[local, xf], &[]);
+    let doc = world(doc, &o, &[local, xf], &[]);
     // Cut the LOCAL block out into its own part, with the world
     // placement of what it moves: nothing it holds is read by a
     // constraint, so the cut is accepted.
@@ -1431,7 +1455,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
     );
-    let doc = world(doc, &[], &[(outer, 6)]);
+    let doc = world(doc, &opts, &[], &[(outer, 6)]);
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
     let a = nest(base_part.cap(base, CapEnd::End));
     let b = top_part.cap(top, CapEnd::Start);
@@ -1543,7 +1567,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     );
     match expect {
         PartCase::Seats => {
-            let doc = world(doc, &[part], &[]);
+            let doc = world(doc, &opts, &[part], &[]);
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));

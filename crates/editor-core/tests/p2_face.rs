@@ -118,13 +118,10 @@ fn target_world(
     ]
 }
 
-/// Two [`target_world`]s agree to well inside the witness band: a pin
-/// read off geometry stands at its pose to rounding.
+/// Two [`target_world`]s agree bit for bit: an instance a split leaves
+/// pinned at the identity moves nothing.
 fn same_world(a: [f64; 9], b: [f64; 9], what: &str) {
-    assert!(
-        a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-12),
-        "{what}: {a:?} vs {b:?}"
-    );
+    assert_eq!(a.map(f64::to_bits), b.map(f64::to_bits), "{what}: {a:?} vs {b:?}");
 }
 
 fn split(
@@ -586,6 +583,9 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         },
         &reach,
     );
+    // The base's own pin read the old body's edges, which the rebuild
+    // renamed too: pinned afresh, so only the mate's head is stranded.
+    let doc = crate::p2_split::repin(doc, base, [0.0; 3], &o);
     let poses = solve(&doc, &o, Tol::witness());
     assert!(
         matches!(

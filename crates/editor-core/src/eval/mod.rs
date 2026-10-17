@@ -3744,6 +3744,59 @@ pub fn bound_pose<T: EvalScalar>(
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
+/// **Every node whose value lives in a loose copy's space**, in
+/// schedule order: a value's own space where it built; for a node that
+/// did not, the space its recipe gives it (D10: kinds are decided from
+/// the recipe) — a placement with no mate is a loose copy of its own,
+/// one whose mates read the world is the world's, one whose mates read
+/// poses joins the space of what they read; any other node joins the
+/// first loose space among its inputs.
+fn spaces_of<T: Decide>(
+    doc: &Doc<ProfileProgram>,
+    order: &[RecipeNodeId],
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
+    use crate::mate::{Space, Target};
+    let mut loose: BTreeMap<RecipeNodeId, RecipeNodeId> = BTreeMap::new();
+    for &id in order {
+        let space = match nodes.get(&id) {
+            Some(NodeResult::Ok(value)) => value.space,
+            Some(_) => {
+                let Some(node) = doc.node(id) else { continue };
+                let read_space =
+                    |var: crate::VarId, loose: &BTreeMap<RecipeNodeId, RecipeNodeId>| {
+                        doc.read_ports(var)
+                            .iter()
+                            .find_map(|(at, _)| loose.get(at).copied())
+                            .map_or(Space::World, |root| Space::Loose { root })
+                    };
+                match crate::mate::solve::bundle_of(node) {
+                    Some(bundle) => {
+                        let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
+                        Some(match mates.next() {
+                            None => Space::Loose { root: id },
+                            Some(mate) => match &mate.to {
+                                Target::World(_) => Space::World,
+                                Target::Pose(var) => read_space(*var, &loose),
+                            },
+                        })
+                    }
+                    None => doc
+                        .upstream_of(id, node)
+                        .iter()
+                        .find_map(|at| loose.get(at).copied())
+                        .map(|root| Space::Loose { root }),
+                }
+            }
+            None => None,
+        };
+        if let Some(Space::Loose { root }) = space {
+            loose.insert(id, root);
+        }
+    }
+    loose
+}
+
 /// **A pose read bound against an evaluation, with no reader seat**
 /// — a report's read of a pose variable ([`crate::mate::unobservable`]).
 pub(crate) fn read_pose_in<T: EvalScalar>(
@@ -3988,13 +4041,7 @@ where
     // result DAG — canceled prefixes resolve what completed and report
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
-    let loose = nodes
-        .iter()
-        .filter_map(|(&node, result)| match result {
-            NodeResult::Ok(value) => Some((node, value.space?.loose()?)),
-            _ => None,
-        })
-        .collect();
+    let loose = spaces_of(doc, &order, &nodes);
 
     Evaluation {
         epoch: opts.epoch,

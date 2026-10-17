@@ -1145,13 +1145,11 @@ fn a_copy_pinned_at_the_identity_is_placed_by_no_map_in_every_lane() {
         ..EvalOptions::default()
     };
     assert!(motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none());
-    assert!(
-        motion_of(
-            &evaluated::<geom_core::Interval>(&doc, &EvalOptions::default()),
-            placement
-        )
-        .is_none()
+    let boxed = motion_of(
+        &evaluated::<geom_core::Interval>(&doc, &EvalOptions::default()),
+        placement,
     );
+    assert!(boxed.is_none(), "{boxed:?}");
     assert!(motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement).is_none());
 }
 

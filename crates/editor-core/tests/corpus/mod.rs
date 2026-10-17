@@ -77,6 +77,84 @@ pub mod vessel;
 
 pub use super::fixture::Recorder;
 
+/// **The "place part" gesture, recorded** ([`editor_core::place_at`]):
+/// the constraints a user's "place part" writes, which the Python
+/// bindings' `Doc.place` writes too, so a corpus document and its bound
+/// re-authoring are one log.
+pub trait PlacePart {
+    /// **One copy of `body` in the world** (A10), placed where it
+    /// stands: the loose placement, then the gesture's mate, then each
+    /// of its values naming the mate. Returns the placement.
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId;
+}
+
+impl PlacePart for Recorder {
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        let read = super::fixture::body_read(&self.doc, body.into());
+        let placement = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+                fresh: Vec::new(),
+            })
+            .expect("a placement mints its node");
+        let shape = match self.doc.node(placement) {
+            Some(Node::Place { shapes, .. }) => shapes[0].read,
+            _ => unreachable!("a placement was just inserted"),
+        };
+        let placed = match editor_core::place_at(
+            &self.doc,
+            &editor_core::Operand::Var(shape),
+            &editor_core::Frame::IDENTITY,
+            &EvalOptions::default(),
+            Tol::witness(),
+        ) {
+            Ok(placed) => placed,
+            // A copy that does not evaluate has no geometry to place
+            // over: the fixture's pin places it on the world's floor.
+            Err(
+                editor_core::PinRefusal::Unevaluated { .. }
+                | editor_core::PinRefusal::NotABody { .. },
+            ) => editor_core::Placed {
+                mate: super::fixture::pin_mate(
+                    &self.doc,
+                    placement,
+                    &editor_core::Frame::IDENTITY,
+                    &EvalOptions::default(),
+                ),
+                values: Vec::new(),
+                by: editor_core::PlacedBy::Pin,
+            },
+            Err(refusal) => panic!("the copy is placed over its geometry: {refusal}"),
+        };
+        let applied = apply(
+            &self.doc,
+            &DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(placed.mate.clone()),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the gesture's mate is admitted");
+        let mate = applied.record.minted_constraints[0];
+        self.edits.push(DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        });
+        self.doc = applied.doc;
+        for (coord, by) in placed.values {
+            self.push(DocEdit::AddValue {
+                placement,
+                value: Box::new(editor_core::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            });
+        }
+        placement
+    }
+}
+
 /// **Each of a pattern's `count` copies placed in the world**, in
 /// instance order: a `Part` per instance, each placed at the identity.
 pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
@@ -85,7 +163,7 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
             of: pattern.into(),
             select: PartSelect::Instance(editor_core::Formula::count(i)),
         });
-        r.place(copy);
+        r.place_part(copy);
     }
 }
 
@@ -130,8 +208,8 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
 /// **A split's two halves placed in the world**, above then below:
 /// each half is its port.
 pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
-    r.place(editor_core::Operand::output(split, 0));
-    r.place(editor_core::Operand::output(split, 1));
+    r.place_part(editor_core::Operand::output(split, 0));
+    r.place_part(editor_core::Operand::output(split, 1));
 }
 
 /// An exact mass-property oracle (dyadic dimensions only — see each
@@ -488,11 +566,12 @@ pub const NODE_KINDS: [&str; 23] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `RemoveConstraint`, `AddValue`, `RenameVar`, `DeleteVar` and
-/// `UpdateReference` are arms of `DocEdit` that no corpus document
-/// authors, and listing them here would report six permanent misses
-/// rather than covering anything. `AddConstraint` is listed: every
-/// placement the recorder authors pins its copy to the world by one.
+/// `RemoveConstraint`, `RenameVar`, `DeleteVar` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report five permanent misses rather than covering
+/// anything. `AddConstraint` and `AddValue` are listed: every placement
+/// the recorder authors writes the "place part" gesture, a mate and the
+/// values that set its freedoms.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -504,7 +583,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 22] = [
+pub const EDIT_KINDS: [&str; 23] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -527,6 +606,7 @@ pub const EDIT_KINDS: [&str; 22] = [
     "ClearAppearanceMeta",
     "SetLabel",
     "AddConstraint",
+    "AddValue",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum

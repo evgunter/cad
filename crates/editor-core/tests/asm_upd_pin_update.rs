@@ -878,3 +878,17 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
         "dropping the update restores the prior version"
     );
 }
+
+#[test]
+fn zz_c4_probe() {
+    let id = DocumentId::derive("asm-upd-r5a-part");
+    let mut shelf = VersionShelf::default();
+    let r1 = shelf.shelve(part_version(id, 1.0), Tol::witness());
+    let r2 = shelf.shelve(part_version(id, 2.0), Tol::witness());
+    let opts = with_shelf(shelf);
+    let (doc, ids) = assembly("asm-upd-r5a-asm", &[r1, r1], &opts);
+    let staged = doc.apply(&DocEdit::UpdateReference { node: ids[1], new_pin: r2.pin }, Tol::witness(), &editor_core::RefusingReach).unwrap().doc;
+    let after = run(&staged, &opts);
+    eprintln!("PROBE err={:?}", after.node_error(ids[1]));
+    panic!("probe");
+}

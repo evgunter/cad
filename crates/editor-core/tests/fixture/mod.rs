@@ -336,7 +336,10 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        for c in bundle(&doc, placement) {
+        // Values first: a mate goes only once no value names it.
+        let mut constraints = bundle(&doc, placement);
+        constraints.sort_by_key(|c| c.mate().is_some());
+        for c in constraints {
             doc = step(
                 doc,
                 DocEdit::RemoveConstraint {

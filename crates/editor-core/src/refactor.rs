@@ -716,7 +716,10 @@ fn remap_with_selects(
                     }),
                 }
             };
-            selects.insert(var, rewritten_pose_with(source, var, &mut leaf, &mut scalar)?);
+            selects.insert(
+                var,
+                rewritten_pose_with(source, var, &mut leaf, &mut scalar)?,
+            );
             continue;
         }
         let Some(select) = source.selection(var) else {
@@ -3038,6 +3041,48 @@ pub fn split(
                         placement: doc.spoken(placement),
                     },
                 });
+            }
+        }
+    }
+    // A value is charted on its mate's target body's own frame: a kept
+    // mate whose values read a cut copy keeps their meaning across the
+    // seam only where that copy stands at the identity, since the
+    // instance's frame is the part's world.
+    for &(reader, slot, _) in &crossing_poses {
+        let crate::OperandSlot::Side {
+            constraint,
+            side: crate::mate::MateSide::To,
+        } = slot
+        else {
+            continue;
+        };
+        let valued = doc
+            .node(reader)
+            .and_then(crate::mate::solve::bundle_of)
+            .is_some_and(|bundle| {
+                bundle
+                    .iter()
+                    .any(|c| c.value().is_some_and(|v| v.mate == constraint))
+            });
+        if !valued {
+            continue;
+        }
+        for &(_, leaf) in crossing_leaves.iter().filter(|&&(at, _)| at == reader) {
+            let Some(select) = doc.selection(leaf) else {
+                continue;
+            };
+            let body = doc.operation_of(select.body);
+            for name in &select.names {
+                if let Some((placement, _)) = home(name, body)
+                    && !places_at_identity(placement)
+                {
+                    return Err(SplitError::RemainderReadUncarried {
+                        reader: doc.spoken(reader),
+                        why: Uncarried::Posed {
+                            placement: doc.spoken(placement),
+                        },
+                    });
+                }
             }
         }
     }

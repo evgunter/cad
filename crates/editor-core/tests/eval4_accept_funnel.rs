@@ -187,3 +187,19 @@ fn placed_pair(
     let offset = offset_of(&doc, a).expect("a is pinned by one world read");
     (doc, std::sync::Arc::new(store), [a, b], offset)
 }
+
+#[test]
+fn zz_c4_probe() {
+    let (doc, store, [a, b], _offset) = placed_pair("eval4-r2");
+    let out = fixture::split_world(&doc, &BTreeSet::from([a, b]), DocumentId::derive("eval4-r2-cell"), Tol::witness(), Some(&store)).expect("cuts");
+    let mut parts = PartStore::new();
+    parts.insert(out.part.clone(), Tol::witness());
+    let o = with_resolver(parts);
+    let poses = fixture::solve(&out.remainder, &o, Tol::witness());
+    let ev = fixture::run(&out.remainder, &o);
+    eprintln!("PROBE fault={:?} space={:?} rel={:?} err={:?}", poses.fault(out.instance), poses.space(out.instance), poses.relative(out.instance), ev.node_error(out.instance));
+    eprintln!("PROBE bundle={:?}", fixture::bundle(&out.remainder, out.instance));
+    let pev = fixture::run(&out.part, &editor_core::EvalOptions::default());
+    for (id, r) in &pev.nodes { if let Some(e) = r.error() { eprintln!("PROBE part err {id:?} {e:?}"); } }
+    panic!("probe");
+}

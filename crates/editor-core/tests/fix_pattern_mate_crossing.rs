@@ -554,3 +554,4 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         "the stranded target resolves to no member; only the top's side does"
     );
 }
+
