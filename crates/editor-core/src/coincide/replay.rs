@@ -61,6 +61,38 @@ const BUDGET: SymBudget = SymBudget {
     max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
 };
 
+/// **The replay with every variable a symbol, as one session**: the
+/// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
+/// (a margin's form is built only where a reader asks for its
+/// discharge), and profile geometry elaborated in the lane
+/// ([`ProfileLift::Guided`]) on `base`, the caller's environment. Every
+/// reader of a replay opens it here — the door (`symbols`), its census,
+/// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
+/// its own degenerate boxes) — so the instrument reads exactly what
+/// the door replays.
+///
+/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
+/// polynomial in the atoms it mints, and an eager session builds every
+/// definite margin's form for its contradiction check. Measured on
+/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s
+/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+pub fn with_replay_session<R>(
+    base: EvalOptions,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    let opts = EvalOptions {
+        profile_lift: ProfileLift::Guided,
+        ..base
+    };
+    deferred::with_deferred_session(
+        BUDGET,
+        SymRules::shipped(),
+        crate::drive::DEFAULT_SYM_RETRY,
+        || f(&opts),
+    )
+}
+
 /// The scalar the door replays at: `f64` arithmetic, every variable a
 /// symbol.
 type Lane = Sym<f64>;
@@ -78,37 +110,31 @@ pub(super) fn rungs(
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
-    let opts = EvalOptions {
+    let symbols = EvalOptions {
         symbols: true,
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    let (out, _) = deferred::with_deferred_session(
-        BUDGET,
-        SymRules::shipped(),
-        crate::drive::DEFAULT_SYM_RETRY,
-        || {
-            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
-            if ev.outcome == EvalOutcome::Canceled {
-                return Err(Canceled);
-            }
-            let band = Band::linear(tol).ok();
-            nodes
-                .iter()
-                .map(|&(node, rows)| {
-                    let mut ordinals = BTreeMap::new();
-                    rows.iter()
-                        .map(|row| {
-                            let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                            let at = *ordinal;
-                            *ordinal += 1;
-                            prove_row(&ev, node, row, at, band, cancel)
-                        })
-                        .collect()
-                })
-                .collect()
-        },
-    );
+    let (out, _) = with_replay_session(symbols, |opts| {
+        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
+        if ev.outcome == EvalOutcome::Canceled {
+            return Err(Canceled);
+        }
+        let band = Band::linear(tol).ok();
+        nodes
+            .iter()
+            .map(|&(node, rows)| {
+                let mut ordinals = BTreeMap::new();
+                rows.iter()
+                    .map(|row| {
+                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                        let at = *ordinal;
+                        *ordinal += 1;
+                        prove_row(&ev, node, row, at, band, cancel)
+                    })
+                    .collect()
+            })
+            .collect()
+    });
     out
 }
 
