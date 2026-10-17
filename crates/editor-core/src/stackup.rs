@@ -136,7 +136,7 @@ use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
-    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeResult, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
@@ -524,12 +524,23 @@ fn driver(
     // the parameter-independent subgraph is evaluated once — DL2's
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
-    // sequential one does.
+    // sequential one does. It runs over a box spanning `[0, 0]` on
+    // every toleranced variable: its values are the nominal's, but the
+    // box makes its profile lift the passes' (guided,
+    // `EvalOptions::profile_lift`), so a profile outside a pass's cone
+    // keys the same in both and is served.
+    let at_nominal = names
+        .iter()
+        .map(|&n| (n, BoxAxis::Varying { lo: 0.0, hi: 0.0 }))
+        .collect();
     let base: Evaluation<Dual64> = evaluate(
         doc,
         None,
         &CancelToken::new(),
-        &pass_opts(None, resolver),
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::from_axes_in(at_nominal, &names))),
+            ..pass_opts(None, resolver)
+        },
         tol,
     );
 
@@ -571,9 +582,10 @@ fn driver(
     })
 }
 
-/// The pass options: the profile lift GUIDED (a seed on a profile
-/// dimension must move profile geometry — the exact silent zero
-/// `ProfileLift`'s docs warn about), sequential inside (the driver's
+/// The pass options: the seed makes the profile lift GUIDED
+/// ([`EvalOptions::profile_lift`]; a seed on a profile dimension must
+/// move profile geometry — the exact silent zero `ProfileLift`'s docs
+/// warn about), sequential inside (the driver's
 /// parallelism is per pass), the seed and the parts' resolver as
 /// given.
 fn pass_opts(
@@ -581,7 +593,6 @@ fn pass_opts(
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
 ) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         seed,
         resolver: resolver.cloned(),
         ..EvalOptions::default()
@@ -593,7 +604,6 @@ fn pass_opts(
 /// parts' resolver.
 fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         param_box: Some(Arc::new(box_)),
         resolver: resolver.cloned(),
         ..EvalOptions::default()

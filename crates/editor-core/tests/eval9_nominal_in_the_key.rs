@@ -217,13 +217,18 @@ mod over_a_param_box {
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
-        // The plane really does move between the two nominals - `u` is
-        // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
-        // so the row below is not vacuous.
-        assert_ne!(
+        // A box makes the lift guided (`EvalOptions::profile_lift`), so
+        // each run places the profile on its LANE's plane, and the two
+        // boxes bind the same interval for `p`: the two runs report one
+        // plane. The pinned lift placed it on the nominal's plane under
+        // a box — `u` the x axis at `p = 0`, normalized (1, 0.5, 0) at
+        // `p = 0.5` — and served the prior's; that lift is no longer one
+        // a boxed evaluation can take, and the key below still carries
+        // the nominal.
+        assert_eq!(
             plane_bits(&first, &prior),
             plane_bits(&first, &cold),
-            "the two nominals are two planes"
+            "both boxes bind one interval for p, so one plane"
         );
         // The harm: what the second evaluation reports as the
         // profile's placement.

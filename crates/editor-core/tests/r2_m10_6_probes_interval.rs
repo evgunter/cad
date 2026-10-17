@@ -116,7 +116,6 @@ fn eval_over<T: editor_core::EvalScalar>(
 ) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
-        profile_lift: editor_core::ProfileLift::Guided,
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())

@@ -3165,10 +3165,6 @@ pub struct EvalOptions {
     /// kernel-only evaluation, in which every instantiate node refuses
     /// typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
-    /// Whether profile GEOMETRY is a function of the parameters at
-    /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
-    /// build path, unchanged.
-    pub profile_lift: ProfileLift,
     /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
     /// each named axis binds `nominal + [lo, hi]` instead of the
     /// nominal. `None` — the default — is the nominal build, and is
@@ -3207,7 +3203,40 @@ pub struct EvalOptions {
     pub symbols: bool,
 }
 
-/// Where profile geometry comes from at a non-`f64` scalar.
+impl EvalOptions {
+    /// **Where this evaluation's profile geometry comes from**, read off
+    /// its environment rather than chosen: an ANALYSIS — an evaluation
+    /// whose variables are not their nominal values, because its
+    /// [`param_box`](Self::param_box) varies an axis, it carries a
+    /// [`seed`](Self::seed), or it binds every variable a
+    /// [`symbol`](Self::symbols) — elaborates its profiles at its own
+    /// scalar ([`ProfileLift::Guided`]); every other evaluation is the
+    /// build, at any scalar ([`ProfileLift::Pinned`]). A box of only
+    /// [`Fixed`](crate::analysis::BoxAxis::Fixed) axes, or none, holds
+    /// every variable at its nominal, so it is the build too, and an
+    /// unused box seam changes no decision. The pinned lift
+    /// reads the profile at the nominal, so in an analysis it would
+    /// enter profile geometry as constants of a function the document
+    /// does not compute; with the variables at their nominal, the two
+    /// lifts read the same values and the pinned one is the build's own
+    /// bits.
+    #[must_use]
+    pub fn profile_lift(&self) -> ProfileLift {
+        let varies = self.param_box.as_ref().is_some_and(|b| {
+            b.axes()
+                .values()
+                .any(|axis| matches!(axis, crate::analysis::BoxAxis::Varying { .. }))
+        });
+        if varies || self.seed.is_some() || self.symbols {
+            ProfileLift::Guided
+        } else {
+            ProfileLift::Pinned
+        }
+    }
+}
+
+/// Where profile geometry comes from at a non-`f64` scalar
+/// ([`EvalOptions::profile_lift`] reads which, off the environment).
 ///
 /// The document's parameters feed two kinds of slot, and until the
 /// lift they behaved differently: a node's MAGNITUDE argument (an
@@ -3223,11 +3252,10 @@ pub struct EvalOptions {
 /// parameter does not widen anything downstream of it — silent zeros
 /// and points exactly where a sensitivity or an enclosure needs
 /// signal. The second pass exists for those lanes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProfileLift {
     /// Profile geometry is the f64 elaboration, embedded through
     /// `from_f64` — the build path, bit for bit.
-    #[default]
     Pinned,
     /// Profile geometry is elaborated at THIS evaluation's scalar,
     /// GUIDED by the f64 pass's structure record: every discrete
@@ -3331,7 +3359,6 @@ impl Default for EvalOptions {
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
-            profile_lift: ProfileLift::Pinned,
             param_box: None,
             seed: None,
             symbols: false,
@@ -3442,7 +3469,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
     /// a run: the edit door, a solve read outside an evaluation, a
     /// refactoring. Such a door has no evaluation options of its own,
     /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
-    /// strategy and profile lift), spelled here once; a door that IS
+    /// strategy), spelled here once; a door that IS
     /// a run, or holds a run's options, goes through [`mate_reach`].
     /// `None` is the refusing reach: every part is the typed
     /// no-resolver fault.
@@ -3451,14 +3478,13 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         tol: Tol,
     ) -> Self {
         let defaults = EvalOptions::default();
-        Self::over(resolver, defaults.boolean_sweep, defaults.profile_lift, tol)
+        Self::over(resolver, defaults.boolean_sweep, tol)
     }
 
     /// A reach over a part cache built from these options' parts.
     fn over(
         resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
         boolean_sweep: topo::SweepStrategy,
-        profile_lift: ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -3467,7 +3493,6 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
                 &[],
                 parts::Reached::none(),
                 boolean_sweep,
-                profile_lift,
                 tol,
             ),
             tol,
@@ -3493,17 +3518,12 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
 /// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
 /// mated part's extent, resolved through `opts`' resolver the way an
 /// evaluation over `opts` would resolve it (same seam, same sweep
-/// strategy, same profile lift), at the top of the descent. A caller
+/// strategy), at the top of the descent. A caller
 /// with no resolver gets a reach whose every answer is the typed
 /// no-resolver fault, so the solve refuses each mate in the
 /// resolver's own voice rather than levering over nothing.
 pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
-    PartReach::over(
-        opts.resolver.as_ref(),
-        opts.boolean_sweep,
-        opts.profile_lift,
-        tol,
-    )
+    PartReach::over(opts.resolver.as_ref(), opts.boolean_sweep, tol)
 }
 
 /// **A pose variable bound against an evaluation**, as a reader at
@@ -3654,7 +3674,6 @@ where
         chain,
         reached,
         opts.boolean_sweep,
-        opts.profile_lift,
         tol,
     )
     .with_symbols(opts.symbols);
@@ -3682,7 +3701,7 @@ where
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
-            lift: opts.profile_lift,
+            lift: opts.profile_lift(),
             params: &env,
             nominal: &nominal_env,
         },

@@ -79,11 +79,10 @@ fn budget() -> geom_core::SymBudget {
 
 /// Node failures of an evaluation over the WHOLE declared box in one
 /// leaf, on the plain `Interval` lane.
-fn interval_failures(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
+fn interval_failures(doc: &editor_core::ProfileDoc) -> Vec<String> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: lift,
         ..EvalOptions::default()
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness());
@@ -92,30 +91,24 @@ fn interval_failures(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<St
 
 /// The same, on the `Sym<Interval>` lane the E6 driver certifies on,
 /// under the shipped rule set.
-fn sym_failures(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
-    sym_failures_under(doc, lift, SymRules::shipped()).0
+fn sym_failures(doc: &editor_core::ProfileDoc) -> Vec<String> {
+    sym_failures_under(doc, SymRules::shipped()).0
 }
 
 /// The same, under a chosen rule set, with the leaf's counts.
-fn sym_failures_under(
-    doc: &ProfileDoc,
-    lift: ProfileLift,
-    rules: SymRules,
-) -> (Vec<String>, geom_core::SymCounts) {
-    sym_failures_in(doc, lift, rules, budget())
+fn sym_failures_under(doc: &ProfileDoc, rules: SymRules) -> (Vec<String>, geom_core::SymCounts) {
+    sym_failures_in(doc, rules, budget())
 }
 
 /// The same, under a chosen rule set AND a chosen budget.
 fn sym_failures_in(
     doc: &ProfileDoc,
-    lift: ProfileLift,
     rules: SymRules,
     budget: geom_core::SymBudget,
 ) -> (Vec<String>, geom_core::SymCounts) {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: lift,
         ..EvalOptions::default()
     };
     geom_core::sym::with_session_rules(budget, rules, || {
@@ -264,18 +257,12 @@ fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
         let (derived, boss_p, boss) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
         for (lane, run) in [
-            (
-                "plain",
-                interval_failures as fn(&ProfileDoc, ProfileLift) -> Vec<String>,
-            ),
-            (
-                "sym",
-                sym_failures as fn(&ProfileDoc, ProfileLift) -> Vec<String>,
-            ),
+            ("plain", interval_failures as fn(&ProfileDoc) -> Vec<String>),
+            ("sym", sym_failures as fn(&ProfileDoc) -> Vec<String>),
         ] {
-            let d_pinned = run(&derived, ProfileLift::Pinned);
-            let d_guided = run(&derived, ProfileLift::Guided);
-            let a_guided = run(&authored, ProfileLift::Guided);
+            let d_pinned = run(&derived);
+            let d_guided = run(&derived);
+            let a_guided = run(&authored);
             println!(
                 "C7 eps={e:e} half={w:e} lane={lane}: derived/Pinned {d_pinned:?}; derived/Guided {d_guided:?}; authored/Guided {a_guided:?}"
             );
@@ -302,8 +289,8 @@ fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
 fn m10_the_transform_lifted_shape_with_an_extrude_above_it() {
     let e = eps();
     let doc = transform_lifted_boss(e / 8.0);
-    let plain = interval_failures(&doc, ProfileLift::Pinned);
-    let sym = sym_failures(&doc, ProfileLift::Pinned);
+    let plain = interval_failures(&doc);
+    let sym = sym_failures(&doc);
     println!(
         "C7 transform-lifted eps={e:e} half={:e}: plain {plain:?}; sym {sym:?}",
         e / 8.0
@@ -362,14 +349,7 @@ fn frozen_chain(explain: &str) -> String {
 /// (`sym::profile`) and the shape report with an explanation depth, so
 /// a blocked residual comes back with its form, its early form and the
 /// DAG below it to `depth` levels.
-fn measured_replay(
-    label: &str,
-    doc: &ProfileDoc,
-    box_: &ParamBox,
-    lift: ProfileLift,
-    rules: SymRules,
-    depth: usize,
-) {
+fn measured_replay(label: &str, doc: &ProfileDoc, box_: &ParamBox, rules: SymRules, depth: usize) {
     use geom_core::sym::profile::{start_profile, take_profile};
     use geom_core::sym::report::{
         ShapeOutcome, explain_depth, name_param, start_shape_report, take_shape_report,
@@ -383,7 +363,6 @@ fn measured_replay(
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: lift,
         ..EvalOptions::default()
     };
     start_profile();
@@ -455,7 +434,6 @@ fn sym5_phase1_profile_the_derived_frame_freeze() {
                     &format!("{name} half={half:e} {scale} shipped"),
                     doc,
                     &box_,
-                    ProfileLift::Pinned,
                     SymRules::shipped(),
                     6,
                 );
@@ -495,7 +473,7 @@ fn sym5_phase1_the_derived_frame_under_the_earlier_tier() {
             ("shipped", SymRules::shipped()),
         ];
         for (name, rules) in ladder {
-            let (fails, counts) = sym_failures_under(&derived, ProfileLift::Pinned, rules);
+            let (fails, counts) = sym_failures_under(&derived, rules);
             println!(
                 "ladder derived half={half:e} {name}\n  counts {counts:?}\n  fails {} {}",
                 fails.len(),
@@ -522,7 +500,6 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
         "derived half=5e-2 nominal rules=none",
         &derived,
         &nominal,
-        ProfileLift::Pinned,
         SymRules::none(),
         10,
     );
@@ -553,14 +530,14 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     for w in [e / 8.0, 1.0e-6, 1.0e-3] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        for lift in [ProfileLift::Guided] {
             assert!(
-                sym_failures(&derived, lift).is_empty(),
+                sym_failures(&derived).is_empty(),
                 "half={w:e} {lift:?}: the derived-frame boss must certify on the symbolic lane"
             );
         }
         assert!(
-            sym_failures(&authored, ProfileLift::Guided).is_empty(),
+            sym_failures(&authored).is_empty(),
             "half={w:e}: the authored twin must certify"
         );
     }
@@ -569,8 +546,8 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     // placement is at `T` under either and the refusal is identical.
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let refusal = sym_failures(&derived, lift);
+    for lift in [ProfileLift::Guided] {
+        let refusal = sym_failures(&derived);
         assert_eq!(
             refusal.len(),
             1,
@@ -588,7 +565,7 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
         );
     }
     assert!(
-        sym_failures(&authored, ProfileLift::Guided).is_empty(),
+        sym_failures(&authored).is_empty(),
         "the authored twin still certifies at 5e-2"
     );
 }
@@ -619,7 +596,7 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
-    let (plain_fails, plain_counts) = sym_failures_under(&derived, ProfileLift::Pinned, n);
+    let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
     assert_eq!(
         plain_fails.len(),
         1,
@@ -641,7 +618,7 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         const_fold: true,
         ..n
     };
-    let (a0_fails, a0_counts) = sym_failures_under(&derived, ProfileLift::Pinned, a0);
+    let (a0_fails, a0_counts) = sym_failures_under(&derived, a0);
     assert_eq!(
         a0_counts.frozen, 0,
         "A0 alone freezes NOTHING: the products that used to freeze sat under \
@@ -692,7 +669,7 @@ fn sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone() {
             budget(),
         ),
     ] {
-        let (fails, counts) = sym_failures_in(&derived, ProfileLift::Pinned, rules, b);
+        let (fails, counts) = sym_failures_in(&derived, rules, b);
         println!(
             "height 1e-3 {name}: {counts:?}\n  fails {} {}",
             fails.len(),
@@ -709,14 +686,14 @@ fn sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone() {
 fn sym5_phase1_the_newell_refusal_at_5e_2() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     eprintln!("--- plain Interval lane, Pinned");
-    let p = interval_failures(&derived, ProfileLift::Pinned);
+    let p = interval_failures(&derived);
     println!("derived 5e-2 plain Pinned: fails {}", p.len());
     for f in &p {
         println!("  {}", head(f, 400));
     }
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+    for lift in [ProfileLift::Guided] {
         eprintln!("--- Sym<Interval> lane, {lift:?}");
-        let (fails, counts) = sym_failures_in(&derived, lift, SymRules::shipped(), budget());
+        let (fails, counts) = sym_failures_in(&derived, SymRules::shipped(), budget());
         println!(
             "derived 5e-2 shipped {lift:?}: {counts:?} fails {}",
             fails.len()
@@ -768,7 +745,6 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     ] {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_.clone())),
-            profile_lift: ProfileLift::Pinned,
             ..EvalOptions::default()
         };
         start_shape_report();

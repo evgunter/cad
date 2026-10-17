@@ -72,7 +72,6 @@ fn split(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64
     );
     let opts = EvalOptions {
         param_box: Some(Arc::new(nominal)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     start_recording();

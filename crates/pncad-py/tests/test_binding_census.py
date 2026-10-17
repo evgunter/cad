@@ -1755,16 +1755,13 @@ FAMILIES: dict[str, str] = {
 #:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
 #:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
 #:   degenerate form at all: a tangent needs a scalar that carries one,
-#:   and `f64` does not. `profile_lift` (M10-P) is not
-#:   answer-preserving in general — it decides whether profile geometry
-#:   is elaborated at THIS evaluation's parameters instead of the
-#:   nominal `f64` pass's — and what makes it unreachable-without-loss
-#:   *here* is that this door's box is always the nominal one, which is
-#:   the entry above rather than a fact about `f64`: `editor-core`'s MC
-#:   lane sets `Guided` at `f64` precisely because its box is not
-#:   nominal.
+#:   and `f64` does not. The profile lift (M10-P) is no option: the
+#:   evaluator reads it off the environment
+#:   (`EvalOptions::profile_lift`), guided exactly when a box varies an
+#:   axis, a seed is set, or every variable is a symbol, so it arrives
+#:   with whichever of those a door gains.
 #:
-#:   All three gain spellings alongside an evaluation door that can
+#:   Both gain spellings alongside an evaluation door that can
 #:   carry a box with width; no row schedules one, and
 #:   `surface_census.rs` is where each reason is written and decayed. A
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
@@ -3220,7 +3217,7 @@ NOT_BOUND = {
     # query engine refuses with it too, and the façade does not carry
     # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
-    # what gates it. That is `profile_lift`'s
+    # what gates it. That is the box's and the seed's
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that

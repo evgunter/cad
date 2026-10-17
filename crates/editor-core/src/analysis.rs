@@ -914,6 +914,29 @@ impl ParamBox {
         Self::from_axes_in(axes, &[])
     }
 
+    /// **This box collapsed to the nominal**: every varying axis spans
+    /// `[0, 0]`, every fixed one stays fixed, in the same order. Its
+    /// values are the nominal's, but it still varies its axes, so an
+    /// evaluation over it reads the document as the box's own leaves do
+    /// ([`crate::EvalOptions::profile_lift`]): a drive's witness and a
+    /// Monte Carlo run's nominal build, whose verdicts the leaves' and
+    /// the samples' are read against.
+    #[must_use]
+    pub fn at_nominal(&self) -> Self {
+        let axes = self
+            .axes
+            .iter()
+            .map(|(&id, axis)| {
+                let at = match axis {
+                    BoxAxis::Fixed => BoxAxis::Fixed,
+                    BoxAxis::Varying { .. } => BoxAxis::Varying { lo: 0.0, hi: 0.0 },
+                };
+                (id, at)
+            })
+            .collect();
+        Self::from_axes_in(axes, &self.order)
+    }
+
     /// The axes in declaration order.
     pub fn order(&self) -> &[VarId] {
         &self.order

@@ -7,11 +7,12 @@
 //! nothing — profile geometry reached every lane as f64 bits. These
 //! rows are what changed and what did not.
 //!
-//! - **Off is off.** The lift defaults to `Pinned` and the whole build
+//! - **Off is off.** The build is `Pinned` (the lift is read off the
+//!   environment, `EvalOptions::profile_lift`) and the whole build
 //!   path runs there; `m10_p_fence.rs` digests that against the
-//!   pre-lift tree. Here the narrower claim: turning the lift ON at
-//!   `f64` changes nothing, because guided elaboration at `f64` is
-//!   plain elaboration at `f64`.
+//!   pre-lift tree. Here the narrower claim: the guided lift at `f64`,
+//!   asked for by an empty box, changes nothing, because guided
+//!   elaboration at `f64` is plain elaboration at `f64`.
 //! - **The seam is open.** Resolving the same program at `Dual` and
 //!   elaborating it GUIDED carries a seed on the hole radius through to
 //!   the vertices it moves — a derivative where there was a zero.
@@ -45,11 +46,8 @@ fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
     out
 }
 
-fn options(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
+fn options(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
+    corpus::options_under(doc, lift).expect("the document has a continuous variable")
 }
 
 /// Turning the lift on at `f64` changes no geometry.
@@ -62,12 +60,17 @@ fn options(lift: ProfileLift) -> EvalOptions {
 #[test]
 fn the_lift_at_f64_reproduces_the_pinned_evaluation() {
     for doc in corpus::documents() {
+        // A document with no continuous variable has no analysis to ask
+        // for at its nominal: its every evaluation is the build.
+        if corpus::options_under(&doc.doc, ProfileLift::Guided).is_none() {
+            continue;
+        }
         let run = |lift| {
             evaluate::<f64>(
                 &doc.doc,
                 None,
                 &CancelToken::new(),
-                &options(lift),
+                &options(&doc.doc, lift),
                 Tol::witness(),
             )
         };
@@ -102,7 +105,7 @@ fn the_lift_changes_the_content_key() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -310,7 +313,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -363,7 +366,7 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -419,7 +422,7 @@ fn a_lofted_body_at_interval_is_one_body_under_both_lifts() {
             doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(doc, lift),
             Tol::witness(),
         )
     };

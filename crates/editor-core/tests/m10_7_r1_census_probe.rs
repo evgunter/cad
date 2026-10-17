@@ -99,7 +99,6 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
     );
     let opts = EvalOptions {
         param_box: Some(Arc::new(nominal)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     start_recording();
@@ -192,10 +191,9 @@ fn r1_parametric_chain_at_a_point_box() {
         } else {
             ParamBox::of(&analyzed)
         };
-        for lift in [ProfileLift::Guided, ProfileLift::default()] {
+        for lift in [ProfileLift::Guided] {
             let opts = EvalOptions {
                 param_box: Some(Arc::new(box_.clone())),
-                profile_lift: lift,
                 ..EvalOptions::default()
             };
             let ev: editor_core::Evaluation<geom_core::Interval> =
@@ -222,7 +220,6 @@ fn r1_parametric_chain_at_a_point_box() {
             &CancelToken::new(),
             &EvalOptions {
                 param_box: Some(Arc::new(box_.clone())),
-                profile_lift: ProfileLift::Guided,
                 ..EvalOptions::default()
             },
             tol,
@@ -262,7 +259,6 @@ fn r1_bracket_census_and_lift_refusal() {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let opts = EvalOptions {
             param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let t0 = std::time::Instant::now();
