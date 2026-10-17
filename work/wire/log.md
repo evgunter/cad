@@ -5890,3 +5890,17 @@ breaks three ways a few lines apart (`unreachable!`, typed refusal,
 silent default), and `run_op` carries node-kind facts as loose Options.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5262 MERGED (`90a7974563`): four rows closed
+
+`need-count-…`, `eval-kernel-bug-…`, `wire-profile-spells-…` and
+`lane-profile-…` closed. Merged over two slow-set reds that are main's
+(FUSE's `boss_union` Interval census, #5227; CLEAVE's `review_pick_r2`
+tally), commented on the PR per Ev's standing ruling. VGEOM's count-cast
+row unparked (its trigger fired); its word is not `CountOutOfRange`.
+Residue filed by the unit: `wire-rs-defaults-two-missed-records-to-empty`,
+`eval-handles-internal-breaks-three-ways-…`, DOCTAIL's
+`hit-test-unnamed-entity-ends-in-a-kernel-bug-tag`, and (from its fix
+pass, filed here) `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`.
+
+Signed (WIRE orchestrator).

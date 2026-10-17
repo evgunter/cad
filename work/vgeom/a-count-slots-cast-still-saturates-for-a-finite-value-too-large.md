@@ -2,12 +2,11 @@
 id: a-count-slots-cast-still-saturates-for-a-finite-value-too-large
 kind: issue
 title: A finite Count value outside i64 still saturates to i64::MAX, and there is no refusal vocabulary for it
-status: parked
+status: open
 opened: 2026-09-21
 priority: P2
 cost: E
 refs: [need-count-spells-every-failure-as-a-pattern-count, a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it]
-blocked_on: [need-count-spells-every-failure-as-a-pattern-count]
 ---
 
 
@@ -222,3 +221,7 @@ INTENT's), as its own `DimensionError` arm for a finite value outside
 `NonFiniteLiteral` today. A value inside `i64` that a slot does not
 admit already reaches `CountOutOfRange` at evaluation, on the node's
 badge.
+
+## Unparked (2026-10-17, WIRE orchestrator)
+
+Its trigger fired: WIRE's PR 5262 (merged `90a7974563`) replaced `NonPositiveCount` with `NodeErrorKind::CountOutOfRange { slot, count, admits }`, where `admits` is the slot's own domain. As the evidence section above says, this row's case (a finite `f64` outside `i64`, read by `props::SlotValue::of`, which knows no slot) cannot raise that variant: its word is a `DimensionError` arm in `expr.rs` (INTENT's ground). Opened rather than re-parked, since nothing else gates it; the choice of word is VGEOM's.
