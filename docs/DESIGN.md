@@ -1799,17 +1799,7 @@ a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
 class it read (the boolean's edge join) records it.
 
-- **Production bit-identity coincidence checking is RETIRED** (Ev, #53;
-  #102). The ratified mechanism is structural identity
-  ([coincidence.structural]): same source ⇒ same bits by [determinism], converse deliberately unclaimed. `geom_core::bit_identity`'s consumers are
-  debug-only with an EMPTY production allowlist (CI tripwires stay
-  armed; a new consumer must be allowlisted and carry a
-  retirement-scheduled note). A value-equal flush boolean glues on its
-  Zero verdict and is reported by the `unproven-coincidence` lint
-  ([coincidence]); one construction is the supported road.
-
-**Booleans.** `[coincidence.booleans]`
-**Booleans.** A boolean's operands must already be in one space;
+**Booleans.** `[coincidence.booleans]` A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair ([topology]'s frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
@@ -2548,5 +2538,5 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | Q3 | [open.sketch-solver] |
 | Q5 | the `curvo` paragraph under [Crate landscape](#crate-landscape) |
 | Q9 | [open.name]; the license is dual MIT OR Apache-2.0 |
-| Roadmap | [Milestones](#milestones); its standing outcomes are in [coincidence] (bit-identity retired) and [verdicts] (K = 10) |
+| Roadmap | [Milestones](#milestones); its standing outcomes: bit-identity coincidence checking's retirement is dropped as long settled (the `bit-identity-consumer` gate keeps it), and K = 10 is in [verdicts] |
 | Banked principles | naming localized to predicate flips → [identity]; content-keyed cache transfer → [determinism]; coincidence is a margined verdict → [verdicts]; the evaluation service generic over `Real` → [scalars]; ε and persistence → [tolerance]; fillet validity → [verdicts]; SSI completeness → [edges]; non-manifold results → [topology]; the total expression sublanguage and bit-exact persisted floats → [recipe]; sketch DOF diagnosis → [open.sketch-solver]; flags → [Beyond the kernel](#beyond-the-kernel-the-usability-gap) |
