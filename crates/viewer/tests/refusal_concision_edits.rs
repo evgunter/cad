@@ -183,6 +183,18 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
+            "SelectionShape(Kind)",
+            EditError::SelectionShape {
+                node: s(5, "Fillet"),
+                slot: SlotId::Operand(editor_core::OperandSlot::Selection),
+                fault: editor_core::SelectionFault::Kind {
+                    at: 1,
+                    found: editor_core::EntityKind::Face,
+                    expected: editor_core::EntityKind::Edge,
+                },
+            },
+        ),
+        (
             "SetMembersOnNonList",
             EditError::SetMembersOnNonList {
                 node: s(5, "Extrude"),
