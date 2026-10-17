@@ -92,6 +92,9 @@ struct Found {
     /// The same, after a decision the builds answered with different
     /// signs: possibly two margins under one name ([`tally`]).
     after_flip: BTreeSet<&'static str>,
+    /// Every decision the builds answered with different signs: its
+    /// index (from 1), predicate, and margin at `p0` and at `p1`.
+    flips: Vec<(usize, &'static str, f64, f64)>,
     /// How the variables moved.
     mode: Option<Move>,
     /// Every predicate the `p0` build decided, with its count.
@@ -238,8 +241,11 @@ fn tally(
                 }
             }
         }
-        if flipped.is_none() && a.sign != b.sign {
-            flipped = Some((k + 1, a.predicate));
+        if a.sign != b.sign {
+            found.flips.push((k + 1, a.predicate, v0, v1));
+            if flipped.is_none() {
+                flipped = Some((k + 1, a.predicate));
+            }
         }
     }
 }
@@ -288,7 +294,13 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
+fn holds(
+    name: &str,
+    mode: Move,
+    floor: usize,
+    owed: &[(&str, &str)],
+    owed_flips: &[(&str, &str, &str)],
+) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -319,8 +331,22 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
     );
-    assert!(
-        found.after_flip.is_empty(),
+    // A flip owed by an item, `(flipping predicate, predicate re-valued
+    // away after it, item)`: the row holds the flips and what follows
+    // them EXACTLY, so it reds when the owed flip goes (the entry comes
+    // out with its fix) and when any other decision flips.
+    let want_flips: BTreeSet<&str> = owed_flips.iter().map(|(f, _, _)| *f).collect();
+    let want_after: BTreeSet<&str> = owed_flips.iter().map(|(_, a, _)| *a).collect();
+    if !owed_flips.is_empty() {
+        let got_flips: BTreeSet<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
+        assert_eq!(
+            got_flips, want_flips,
+            "{name}: the decisions the builds answered with different signs are not the owed \
+             ones ({owed_flips:?}) — {found:?}"
+        );
+    }
+    assert_eq!(
+        found.after_flip, want_after,
         "{name}: a margin re-values away from the p1 build after a decision the builds answered \
          with different signs — a laundering, or two margins decided under one name; read which \
          with REVALUE_DETAIL=1 ({found:?})"
@@ -335,27 +361,43 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
 macro_rules! rows {
-    ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*];)*) => {$(
+    ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*]
+        $(, flips [$($flip:expr),*])?;)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, Move::$mode, $floor, &[$($owed),*]);
+            holds($doc, Move::$mode, $floor, &[$($owed),*], &[$($($flip),*)?]);
         }
     )*};
 }
 
 rows! {
-    revalue_plate_param: "plate_param", Apart, 650, [];
-    revalue_boss_union: "boss_union", Apart, 560, [];
+    // In step: moved apart, a point sits exactly on a loop at the nominal
+    // (`point_in_loop_arm`, margin 0), so the builds part at decision
+    // 6035 of 15539
+    // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
+    revalue_plate_param: "plate_param", InStep, 3938, [];
+    // In step: moved apart, its `bool_pair_gap` margins are decided in
+    // another order and the builds part at `pcurve_chart_azimuth_frame`
+    // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
+    // which NOTHING here pins). In step, a branch angle on its cut at the
+    // nominal flips, owed below.
+    revalue_boss_union: "boss_union", InStep, 3243, [],
+        flips [
+            ("curve_pair_span_branch", "curve_pair_span_end_side",
+             "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md"),
+            ("curve_pair_span_end_side", "curve_pair_span_end_side",
+             "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md")
+        ];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 220, [];
-    revalue_die_chamfer: "die_chamfer", Apart, 740, [];
-    revalue_face_sketch: "face_sketch", Apart, 250, [];
-    revalue_heat_sink_fins: "heat_sink_fins", Apart, 190, [];
-    revalue_loft_prism: "loft_prism", Apart, 3, [];
-    revalue_measured_web: "measured_web", Apart, 45, [];
-    revalue_declared_tangency: "declared_tangency", Apart, 160, [];
+    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
+    revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
+    revalue_face_sketch: "face_sketch", Apart, 582, [];
+    revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
+    revalue_loft_prism: "loft_prism", Apart, 259, [];
+    revalue_measured_web: "measured_web", Apart, 716, [];
+    revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
 }
 
 /// The census over the whole corpus, one document per run with
@@ -392,13 +434,14 @@ fn revalue_census() {
             opaque,
             laundered,
             after_flip,
+            flips,
             mode,
             seen,
             parted,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
-             laundered {laundered:?}, after_flip {after_flip:?}, parted {parted:?}",
+             laundered {laundered:?}, after_flip {after_flip:?}, flips {flips:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
         );

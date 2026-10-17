@@ -2,11 +2,12 @@
 id: the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument
 kind: issue
 title: Under the guided profile lift, a Sym session's per-node form tables grow without bound and the revalue instrument runs out of memory on five of nine corpus documents
-status: open
+status: closed
 opened: 2026-10-17
 priority: P1
 cost: M
 refs: [the-pinned-profile-lift-launders-at-sym]
+closed: 2026-10-17
 ---
 
 
@@ -56,3 +57,27 @@ How a symbolic session bounds what it holds:
 - or a smaller per-form budget under the guided lift.
 
 Each changes which decisions discharge symbolically, so it decides the tier's reach, not only its cost. Raised to the INLANE orchestrator before any choice is built. Until it is decided, ruling A cannot land: its revalue rows cannot run.
+
+## Closed
+
+Leak 1 landed in PR 5245. Leak 2 is closed by the INLANE orchestrator's ruling (fork-log row 155: two designers, converged, and the measurements above). The instrument has no reason to run an eager session: it reads no form. Under the pinned lift, on the nine documents, the tier on and the tier off (`SymBudget::none()`) record identical decisions, predicate and sign.
+
+| document | decisions | proven Zeros with the tier on |
+|---|---|---|
+| plate_param | 15,297 | 7,681 |
+| boss_union | 11,274 | 4,529 |
+| cut_cylinder | 3,627 | 1,528 |
+| declared_tangency | 2,672 | 1,604 |
+| die_chamfer | 4,372 | 2,796 |
+| heat_sink_fins | 2,945 | 1,812 |
+| face_sketch | 1,314 | 864 |
+| loft_prism | 764 | 596 |
+| measured_web | 1,683 | 981 |
+
+So one function now opens the replay with every variable a symbol: `editor_core::coincide::with_replay_session`. It is deferring, runs at the door's 256-term budget with `DEFAULT_SYM_RETRY`, and takes the guided lift. Three things use it: the coincidence door, its census (whose hand-kept copy is gone), and the revalue instrument. `the_instrument_and_the_door_replay_in_one_session` pins that the instrument's zero box and the door's `symbols` read one decision list and one set of counts.
+
+The guided `plate_param` evaluation alone went from more than 4.9 GB (cancelled at 120 s) to 136 MB in 1.07 s. Every revalue row now runs in 2.0 to 28.5 s, where five were OOM-killed before. The three findings the guided reading turned up are filed and named on their rows.
+
+The "leak 3" reported mid-unit was a misread: the profile's `max_terms_out` is numerator plus denominator, and every op's output passes `within` per polynomial.
+
+What the tier itself should bound is filed under sym, not built: `work/sym/a-sym-session-bounds-what-it-holds-by-cache-and-ceiling-not-reach.md`.
