@@ -69,7 +69,10 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
 
 fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _, p) = profiled(steps);
-    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
+    insert(
+        doc,
+        revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
+    )
 }
 
 fn run_of(doc: &ProfileDoc, sweep: RecipeNodeId, segments: &[usize]) -> PieceRun {

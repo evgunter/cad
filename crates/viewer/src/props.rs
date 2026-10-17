@@ -1114,14 +1114,20 @@ pub struct Offered {
 }
 
 /// **The variables `slot` on `node` is offered**: every other variable
-/// of the kind the slot reads whose value equals the slot's, in
-/// declaration order — free variables by their value, defined ones by
-/// what their definition evaluates to. Equal is equal at the bits of
-/// the canonical value: `5 mm` typed twice is offered, `0.5 cm` against
-/// `5 mm` only where the two scale to the same number.
+/// of the kind the slot reads whose value equals the slot's and that the
+/// slot is not already the same as, in declaration order — free
+/// variables by their value, defined ones by what their definition
+/// evaluates to (D10). Equal is equal at the bits of the canonical
+/// value: `5 mm` typed twice is offered, `0.5 cm` against `5 mm` only
+/// where the two scale to the same number.
 ///
-/// Empty where the slot reads nothing the document holds, or reads a
-/// value nothing else equals.
+/// "Already the same" is VR8's lowering: a variable whose expansion
+/// through definitions reads what the slot's reads is not offered, and
+/// a constant (a lone `0`, `turn/4`) lowers to no free variable, so it
+/// is neither offered nor draws an offer.
+///
+/// Empty where the slot reads nothing the document holds, reads a
+/// constant, or reads a value nothing else equals.
 pub fn equal_variables(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
@@ -1133,6 +1139,9 @@ pub fn equal_variables(
     let Some(kind) = doc.var(own).map(|held| held.kind()) else {
         return Vec::new();
     };
+    if doc.lowers_to_constant(own) {
+        return Vec::new();
+    }
     let env = doc.var_env::<f64>();
     let value_of = |var: VarId| value_in(doc, &env, var);
     let Some(value) = value_of(own) else {
@@ -1143,6 +1152,7 @@ pub fn equal_variables(
         .copied()
         .filter(|&var| var != own)
         .filter(|&var| doc.var(var).is_some_and(|held| held.kind() == kind))
+        .filter(|&var| !doc.lowers_to_constant(var) && !doc.lower_alike(var, own))
         .filter(|&var| value_of(var).is_some_and(|other| bit_equal(other, value)))
         .map(|var| Offered {
             var,

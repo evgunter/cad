@@ -218,8 +218,9 @@ fn pose_admits_tags_are_stable() {
         (A::Carrier, "carrier"),
         (A::Centre, "centre"),
         (A::Sensed, "sensed"),
-        (A::Projected, "projected"),
-        (A::Carried, "carried"),
+        (A::Slid, "slid"),
+        (A::Heading, "heading"),
+        (A::Any, "any"),
     ] {
         assert_eq!(crate::errors::pose_admits_tag(admits), word);
         assert_eq!(crate::errors::slot_kind_tag(SlotKind::Pose(admits)), word);
@@ -6167,6 +6168,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "slot_id_tag",
         values: &[
+            "axis_heading",
             "chamfer_distance",
             "count",
             "direction_x",

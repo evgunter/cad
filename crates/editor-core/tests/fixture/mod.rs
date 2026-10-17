@@ -1326,19 +1326,30 @@ pub fn on_frame_keeping(
 }
 
 /// A revolve of `profile` by `angle` about the axis line through
-/// `origin` along `dir`, both in the profile's own 2-D coordinates.
+/// `origin` at `heading` from the profile's x axis, both in the
+/// profile's own 2-D coordinates.
 pub fn revolve_about(
     profile: impl Into<editor_core::Operand>,
     origin: (f64, f64),
-    dir: (f64, f64),
+    heading: Formula,
     angle: Formula,
 ) -> AuthoredNode {
     Node::Revolve {
         profile: profile.into(),
-        axis_origin: [len(origin.0), len(origin.1)],
-        axis_direction: [scl(dir.0), scl(dir.1)],
+        axis_through: [len(origin.0), len(origin.1)],
+        axis_heading: heading,
         angle,
     }
+}
+
+/// The heading along the profile's +x: the constant `0`.
+pub fn along_x() -> Formula {
+    Formula::zero(Dimension::Angle)
+}
+
+/// The heading along the profile's +y: the constant `turn/4`.
+pub fn along_y() -> Formula {
+    Formula::turn_over(4).expect("a quarter turn")
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).

@@ -608,18 +608,27 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     use crate::pose::{PoseDef, PoseFault};
     let fault_of = |id: crate::VarId, def: &PoseDef, kind: crate::VarKind| -> Option<PoseFault> {
-        for (read, &var, expected) in def.reads() {
-            match snapshot.var(var) {
-                None if snapshot.mint.has_var(var) => {}
-                None => return Some(PoseFault::Unminted { var }),
-                Some(held) if !expected.admits(held) => {
+        for (read, &var, role, expected) in def.reads() {
+            match (snapshot.var(var), role) {
+                (None, _) if snapshot.mint.has_var(var) => {}
+                (None, _) => return Some(PoseFault::Unminted { var }),
+                (Some(held), Some(role)) => {
+                    if crate::pose::role_kind(held.kind(), role, expected).is_none() {
+                        return Some(PoseFault::Role {
+                            read,
+                            role,
+                            found: held.kind(),
+                        });
+                    }
+                }
+                (Some(held), None) if !expected.admits(held) => {
                     return Some(PoseFault::ReadKind {
                         read,
                         found: held.kind(),
                         expected,
                     });
                 }
-                Some(_) => {}
+                (Some(_), None) => {}
             }
         }
         for (slot, &var) in def.scalars() {
@@ -635,58 +644,45 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 Some(_) => {}
             }
         }
-        match def {
-            PoseDef::Flip { pose } => match snapshot.var(*pose) {
-                Some(held)
-                    if held
-                        .def()
-                        .pose()
-                        .is_some_and(|d| matches!(d, PoseDef::Flip { .. })) =>
-                {
-                    return Some(PoseFault::DoubleFlip);
-                }
-                Some(held) if held.kind() != kind => {
-                    return Some(PoseFault::Kind {
-                        stored: kind,
-                        defined: held.kind(),
-                    });
-                }
-                _ => {}
-            },
-            PoseDef::Carried { copy, pose } => {
-                if snapshot.var(*copy).is_some()
-                    && !matches!(
-                        snapshot
-                            .operation_of(*copy)
-                            .and_then(|at| snapshot.node(at)),
-                        Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
-                    )
-                {
-                    return Some(PoseFault::NotACopy { var: *copy });
-                }
-                if let Some(held) = snapshot.var(*pose)
-                    && held.kind() != kind
-                {
-                    return Some(PoseFault::Kind {
-                        stored: kind,
-                        defined: held.kind(),
-                    });
-                }
+        if let PoseDef::Flip {
+            pose:
+                crate::pose::RoleRead {
+                    read: pose,
+                    role: None,
+                },
+        } = def
+            && snapshot
+                .var(*pose)
+                .and_then(|held| held.def().pose())
+                .is_some_and(|d| matches!(d, PoseDef::Flip { pose } if pose.role.is_none()))
+        {
+            return Some(PoseFault::DoubleFlip);
+        }
+        if let PoseDef::Carried { copy, .. } = def
+            && snapshot.var(*copy).is_some()
+            && !matches!(
+                snapshot
+                    .operation_of(*copy)
+                    .and_then(|at| snapshot.node(at)),
+                Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
+            )
+        {
+            return Some(PoseFault::NotACopy { var: *copy });
+        }
+        // A move, a flip or a carried pose is of the kind it reads.
+        if let Some(kept) = def.kept()
+            && let Some(held) = snapshot.var(kept.read)
+        {
+            let defined = kept.role.map_or(held.kind(), crate::pose::PoseRole::kind);
+            if defined != kind {
+                return Some(PoseFault::Kind {
+                    stored: kind,
+                    defined,
+                });
             }
-            PoseDef::Project { of, to } => {
-                if let Some(held) = snapshot.var(*of)
-                    && !crate::pose::projects(held.kind(), *to)
-                {
-                    return Some(PoseFault::Projection {
-                        from: held.kind(),
-                        to: *to,
-                    });
-                }
-            }
-            _ => {}
         }
         // A definition reaching itself through the poses it reads.
-        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
         let mut seen = std::collections::BTreeSet::new();
         while let Some(at) = stack.pop() {
             if at == id {
@@ -696,7 +692,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 continue;
             }
             if let Some(next) = snapshot.var(at).and_then(|held| held.def().pose()) {
-                stack.extend(next.reads().into_iter().map(|(_, &r, _)| r));
+                stack.extend(next.reads().into_iter().map(|(_, &r, _, _)| r));
             }
         }
         None
@@ -890,6 +886,20 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
+        // A read through a role reads the kind the role yields.
+        if let Some((slot, found)) = node.seat_role_fault() {
+            let var = node
+                .operand_rows()
+                .into_iter()
+                .find_map(|(at, var)| (at == slot).then_some(var))?;
+            return Some(SnapshotError::SlotVarKind {
+                node: snapshot.spoken(id),
+                slot: SlotId::Operand(slot),
+                var: Box::new(snapshot.spoken_var(var)),
+                found,
+                expected: slot.kind(),
+            });
+        }
         node.operand_rows().into_iter().find_map(|(slot, var)| {
             if !snapshot.has_minted_var(var) {
                 return Some(SnapshotError::OperandUnminted {

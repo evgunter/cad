@@ -511,6 +511,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ChamferDistance => "chamfer_distance",
         SlotId::ShellThickness => "shell_thickness",
         SlotId::RevolveAngle => "revolve_angle",
+        SlotId::AxisHeading => "axis_heading",
         SlotId::Spin => "spin",
         SlotId::TubeMajorRadius => "tube_major_radius",
         SlotId::TubeMinorRadius => "tube_minor_radius",
@@ -3440,7 +3441,7 @@ pub fn pose_fault_tag(fault: &pncad::document::pose::PoseFault) -> &'static str 
     match fault {
         F::ReadKind { .. } => "read_kind",
         F::DoubleFlip => "double_flip",
-        F::Projection { .. } => "projection",
+        F::Role { .. } => "role",
         F::Unminted { .. } => "unminted",
         F::ScalarKind { .. } => "scalar_kind",
         F::Kind { .. } => "kind",

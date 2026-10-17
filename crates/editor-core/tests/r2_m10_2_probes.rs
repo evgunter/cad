@@ -242,7 +242,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
             node: Box::new(fixture::revolve_about(
                 p,
                 (0.0, 0.0),
-                (0.0, 1.0),
+                crate::fixture::along_y(),
                 ang(std::f64::consts::TAU),
             )),
             fresh: Vec::new(),

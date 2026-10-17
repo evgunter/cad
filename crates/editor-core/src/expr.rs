@@ -983,6 +983,7 @@ macro_rules! leaf_kind {
         ExprKind::Ratio(_)
             | ExprKind::Integer(_)
             | ExprKind::Turn
+            | ExprKind::Zero
             | ExprKind::Var(_)
             | ExprKind::Leaf(_)
     };
@@ -1002,6 +1003,10 @@ pub(crate) enum ExprKind<L: LeafSet> {
     /// One full rotation, dimension `Angle`: the exact constant a right
     /// angle is a quarter of (VR5).
     Turn,
+    /// Zero, at the tree's dimension, whatever it is: the one constant
+    /// that takes any dimension, since it is the same in every unit
+    /// (VR5).
+    Zero,
     /// A reader of a document variable, by identity: the stored form.
     /// The leaf's `dim` caches the variable's kind, which cannot change
     /// (VR3); the doors re-check the cache against the table.
@@ -1105,6 +1110,15 @@ impl<L: LeafSet> ExprTree<L> {
     /// One full rotation, dimension `Angle`.
     pub(crate) fn turn_leaf() -> Self {
         Self::leaf(Dimension::Angle, ExprKind::Turn)
+    }
+
+    /// Zero, at `dim`: a count's zero is the integer constant, the
+    /// one spelling a count has for it.
+    pub(crate) fn zero_leaf(dim: Dimension) -> Self {
+        match dim {
+            Dimension::Count => Self::integer_leaf(0),
+            _ => Self::leaf(dim, ExprKind::Zero),
+        }
     }
 
     /// A leaf of the form's own vocabulary, read at `dim`.
@@ -1306,7 +1320,11 @@ impl<L: LeafSet> ExprTree<L> {
     pub fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>) {
         match &self.kind {
             ExprKind::Var(var) => out.push((*var, self.dim)),
-            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
+            | ExprKind::Zero
+            | ExprKind::Leaf(_) => {}
             unary_kind!(a) => a.var_reads(out),
             binary_kind!(a, b) => {
                 a.var_reads(out);
@@ -1332,7 +1350,11 @@ impl<L: LeafSet> ExprTree<L> {
                     *var = to;
                 }
             }
-            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
+            | ExprKind::Zero
+            | ExprKind::Leaf(_) => {}
             unary_kind!(a) => a.remap_vars(map),
             binary_kind!(a, b) => {
                 a.remap_vars(map);
@@ -1442,7 +1464,7 @@ impl<L: LeafSet> ExprTree<L> {
                 }),
                 None => Ok(self.clone()),
             },
-            K::Ratio(_) | K::Integer(_) | K::Turn | K::Leaf(_) => Ok(self.clone()),
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero | K::Leaf(_) => Ok(self.clone()),
             K::Add(a, b) => Self::add(go(a)?, go(b)?),
             K::Sub(a, b) => Self::sub(go(a)?, go(b)?),
             K::Mul(a, b) => Self::mul(go(a)?, go(b)?),
@@ -1470,7 +1492,7 @@ impl<L: LeafSet> ExprTree<L> {
         use ExprKind as K;
         match &self.kind {
             K::Leaf(leaf) => visit(leaf, self.dim),
-            K::Ratio(_) | K::Integer(_) | K::Turn | K::Var(_) => {}
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero | K::Var(_) => {}
             K::Add(a, b)
             | K::Sub(a, b)
             | K::Mul(a, b)
@@ -1498,7 +1520,7 @@ impl<L: LeafSet> ExprTree<L> {
         match &self.kind {
             K::Leaf(leaf) => visit(Terminal::Leaf(leaf), self.dim),
             K::Var(var) => visit(Terminal::Var(*var), self.dim),
-            K::Ratio(_) | K::Integer(_) | K::Turn => visit(Terminal::Constant, self.dim),
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero => visit(Terminal::Constant, self.dim),
             binary_kind!(a, b) => {
                 a.visit_terminals(visit);
                 b.visit_terminals(visit);
@@ -1526,6 +1548,7 @@ impl<L: LeafSet> ExprTree<L> {
             K::Ratio(r) => K::Ratio(*r),
             K::Integer(n) => K::Integer(*n),
             K::Turn => K::Turn,
+            K::Zero => K::Zero,
             K::Var(var) => K::Var(*var),
             K::Add(a, b) => K::Add(map(a)?, map(b)?),
             K::Sub(a, b) => K::Sub(map(a)?, map(b)?),
@@ -1576,6 +1599,31 @@ impl<L: LeafSet> ExprTree<L> {
     /// angle.
     pub fn turn() -> Self {
         Self::turn_leaf()
+    }
+
+    /// The exact angle `turn / den`, a fraction of a full rotation
+    /// spelled as the text door reads it (`turn/4` is a right angle).
+    ///
+    /// # Errors
+    ///
+    /// [`Ratio::new`]'s for a zero or out-of-range `den`.
+    pub fn turn_over(den: u64) -> Result<Self, DimensionError> {
+        Self::div(
+            Self::turn(),
+            Self::ratio(i64::try_from(den).unwrap_or(i64::MAX), 1)?,
+        )
+    }
+
+    /// The constant zero at `dim`, any dimension (VR5): `0` alone, the
+    /// omission it marks, never a value written in a unit.
+    pub fn zero(dim: Dimension) -> Self {
+        Self::zero_leaf(dim)
+    }
+
+    /// Whether this tree is the lone constant `0`, at any dimension.
+    pub fn is_zero(&self) -> bool {
+        matches!(self.kind, ExprKind::Zero | ExprKind::Integer(0))
+            || matches!(self.kind, ExprKind::Ratio(r) if r.num() == 0)
     }
 
     /// The constant this tree is, where it is one lone rational.
@@ -1914,6 +1962,7 @@ fn eval_inner<T: Real, L: LeafSet>(root: &ExprTree<L>, params: &VarEnv<T>) -> Re
             Ok(match &expr.kind {
                 K::Ratio(r) => Visit::Value(r.eval()),
                 K::Turn => Visit::Value(T::tau()),
+                K::Zero => Visit::Value(T::zero()),
                 K::Integer(_) => return Err(EvalError::CountExprInContinuousEval),
                 K::Var(var) => match params.binding(*var)? {
                     ParamValue::Continuous { dim, value } if *dim == expr.dim => {
@@ -1977,6 +2026,7 @@ pub fn eval_count<T>(root: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Resul
             }
             Ok(match &expr.kind {
                 K::Integer(n) => Visit::Value(*n),
+                K::Zero => Visit::Value(0),
                 K::Var(var) => match params.binding(*var)? {
                     ParamValue::Count(n) => Visit::Value(*n),
                     bound => {
@@ -2052,6 +2102,7 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
         ExprKind::Ratio(_)
         | ExprKind::Integer(_)
         | ExprKind::Turn
+        | ExprKind::Zero
         | ExprKind::Var(_)
         | ExprKind::Leaf(_)
         | ExprKind::Sin(_)
@@ -2175,6 +2226,7 @@ fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut St
         K::Ratio(r) => out.push_str(&r.to_string()),
         K::Integer(n) => out.push_str(&n.to_string()),
         K::Turn => out.push_str("turn"),
+        K::Zero => out.push('0'),
         K::Leaf(own) => own.write(expr.dim, out),
         // A reader the names cannot speak — an anonymous variable, or
         // one the document no longer holds — writes its full id, which

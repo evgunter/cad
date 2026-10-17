@@ -61,7 +61,7 @@ fn every_operation_defines_its_signature_at_insert() {
     let (doc, frame, profile, extrude) = block("s2a-signatures");
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+        revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), ang(1.0)),
     );
     let (doc, plane) = insert(
         doc,

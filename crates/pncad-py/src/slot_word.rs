@@ -78,6 +78,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "chamfer_distance" => SlotId::ChamferDistance,
         "shell_thickness" => SlotId::ShellThickness,
         "revolve_angle" => SlotId::RevolveAngle,
+        "axis_heading" => SlotId::AxisHeading,
         "spin" => SlotId::Spin,
         "tube_major_radius" => SlotId::TubeMajorRadius,
         "tube_minor_radius" => SlotId::TubeMinorRadius,

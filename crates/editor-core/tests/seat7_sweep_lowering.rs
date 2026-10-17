@@ -176,7 +176,7 @@ fn both_sweeps() -> BothSweeps {
     let revolved = r.insert(revolve_about(
         rev_profile,
         (0.0, 0.0),
-        (1.0, 0.0),
+        crate::fixture::along_x(),
         ang(PI / 2.0),
     ));
     BothSweeps {
@@ -378,7 +378,12 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     );
     let (doc, solid) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (1.0, 0.0), ang(2.0 * PI)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_x(),
+            ang(2.0 * PI),
+        ),
     );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);

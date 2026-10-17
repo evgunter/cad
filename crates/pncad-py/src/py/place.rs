@@ -479,14 +479,14 @@ impl PatternKind {
     }
 
     /// Instances stepped `step` apart around `axis`, an upstream
-    /// `datum_axis` node.
+    /// `datum_axis` node, or a frame's axis read through its role.
     ///
     /// The step is signed by the right-hand rule about the axis and
     /// lies within a turn: a zero step refuses at `evaluate`
     /// (`degenerate_step`), and so does one at or past a full turn
     /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: super::doc::OperandArg, step: SlotArg) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: super::pose::PoseArg, step: SlotArg) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.read(),
             step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,

@@ -144,8 +144,8 @@ fn sharp_lid_in(
         &mut doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
         tol,

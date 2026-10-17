@@ -1210,7 +1210,7 @@ impl<P> Doc<P> {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Select(select)) => return vec![select.body],
             Some(VarDef::Pose(def)) => {
-                let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+                let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 out.extend(def.scalars().into_iter().map(|(_, &s)| s));
                 return out;
             }
@@ -1672,6 +1672,24 @@ impl<P> Doc<P> {
         formula.lower(&|name| self.lowering_scope(name))
     }
 
+    /// **Whether `a` and `b` lower alike** (VR8): expanded through
+    /// definitions to free ids and constants, the two read the same
+    /// variables the same way, so they are already the same and sharing
+    /// one would change nothing.
+    #[must_use]
+    pub fn lower_alike(&self, a: VarId, b: VarId) -> bool {
+        let defs = crate::param_source::definitions_of(self);
+        crate::param_source::var_spelling(&defs, a) == crate::param_source::var_spelling(&defs, b)
+    }
+
+    /// **Whether `var` lowers to a constant** (VR8): expanded through
+    /// definitions it reads no free variable, as a lone `0` or `turn/4`
+    /// does. A constant is not a value anyone offers or is offered.
+    #[must_use]
+    pub fn lowers_to_constant(&self, var: VarId) -> bool {
+        crate::param_source::lowers_to_constant(&crate::param_source::definitions_of(self), var)
+    }
+
     /// **`formula` with its names read by id**: every name replaced by
     /// a reader of the variable this document names so, its written
     /// quantities kept — the formula a slot's [`Self::slot_expansion`]
@@ -1837,7 +1855,7 @@ impl<P> Doc<P> {
             VarDef::Output { node, port } => Some((*node, *port)),
             VarDef::Select(select) => self.defined_by(select.body),
             VarDef::Pose(def) => {
-                for (_, &read, _) in def.reads() {
+                for (_, &read, _, _) in def.reads() {
                     self.push_read_ports(read, out, seen);
                 }
                 None
@@ -1869,7 +1887,7 @@ impl<P> Doc<P> {
             VarDef::Pose(def) => def
                 .reads()
                 .into_iter()
-                .find_map(|(_, &read, _)| self.unresolved_read(read)),
+                .find_map(|(_, &read, _, _)| self.unresolved_read(read)),
             VarDef::Free(_) | VarDef::Defined(_) => Some(var),
         }
     }

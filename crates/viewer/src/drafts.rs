@@ -195,10 +195,10 @@ pub(crate) struct Drafts {
     /// The revolve tool's point on its axis, metres, in the profile's
     /// own 2-D coordinates.
     pub(crate) revolve_axis_origin: Point2<f64>,
-    /// The revolve tool's axis direction in the same coordinates
-    /// (unitless). Opens as the profile's +y, the axis a profile drawn
-    /// beside it turns about.
-    pub(crate) revolve_axis_direction: [f64; 2],
+    /// The revolve tool's axis heading from the profile's x axis,
+    /// radians. Opens a quarter turn, along the profile's +y, the axis
+    /// a profile drawn beside it turns about.
+    pub(crate) revolve_axis_heading: f64,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -674,7 +674,7 @@ impl Default for Drafts {
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_origin: Point2::origin(),
-            revolve_axis_direction: [0.0, 1.0],
+            revolve_axis_heading: core::f64::consts::FRAC_PI_2,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
@@ -1069,19 +1069,6 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Formula::literal(v[0], Dimension::Scalar)?,
         Formula::literal(v[1], Dimension::Scalar)?,
         Formula::literal(v[2], Dimension::Scalar)?,
-    ])
-}
-
-/// Two dimensionless literals — a direction in a sketch frame;
-/// [`scalars`]' twin.
-///
-/// # Errors
-///
-/// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
-    Ok([
-        Formula::literal(v[0], Dimension::Scalar)?,
-        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 

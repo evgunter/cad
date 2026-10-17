@@ -28,7 +28,7 @@ use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
-use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len2, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
@@ -1596,8 +1596,8 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         let op = match seat {
             Seat::RevolveProfile => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
-                axis_origin: len2([0.0, 0.0]),
-                axis_direction: scl2([0.0, 1.0]),
+                axis_through: len2([0.0, 0.0]),
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(core::f64::consts::TAU),
             },
             // A member beside one filled correctly, so the refusal is
@@ -1967,8 +1967,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Revolve,
             SessionOp::AddRevolve {
                 profile: RecipeNodeId::new(0, tagged(1)),
-                axis_origin: len2([0.0, 0.0]),
-                axis_direction: scl2([0.0, 1.0]),
+                axis_through: len2([0.0, 0.0]),
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(1.0),
             },
         ),
@@ -2183,8 +2183,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 profile: ring.into(),
                 // The revolve's axis is its own: a line in the ring's
                 // plane, its +y through (0, 0).
-                axis_origin: [common::len(0.0), common::len(0.0)],
-                axis_direction: [common::scl(0.0), common::scl(1.0)],
+                axis_through: [common::len(0.0), common::len(0.0)],
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: common::ang(core::f64::consts::TAU),
             },
         ),

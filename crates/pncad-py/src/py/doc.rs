@@ -2449,10 +2449,11 @@ impl Node {
 
     /// Revolve an upstream profile about an axis line in its own plane.
     ///
-    /// `axis_origin` and `axis_direction` are the line in the profile's
-    /// own 2-D coordinates: the origin lengths, the direction
-    /// dimensionless and unnormalized. Four numbers in the plane cannot
-    /// leave it, so no residual is checked. The revolve's second output
+    /// `axis_through` and `axis_heading` are the line in the profile's
+    /// own 2-D coordinates: a point on it, two lengths, and its heading
+    /// from the profile's x axis, an angle (`0` along x, `turn/4` along
+    /// y). Two lengths and an angle in the plane cannot leave it, so no
+    /// residual is checked. The revolve's second output
     /// (`Doc.output(revolve, 1)`) is the line lifted to 3-D, an axis
     /// other nodes read.
     ///
@@ -2463,22 +2464,19 @@ impl Node {
     fn revolve(
         py: Python<'_>,
         profile: OperandArg,
-        axis_origin: (super::expr::SlotArg, super::expr::SlotArg),
-        axis_direction: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_through: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_heading: super::expr::SlotArg,
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.read(),
-                axis_origin: [
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_origin.0)?,
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_origin.1)?,
+                axis_through: [
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_through.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_through.1)?,
                 ],
-                axis_direction: [
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &axis_direction.0)?,
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &axis_direction.1)?,
-                ],
+                axis_heading: slot_expr(py, d::SlotId::AxisHeading, &axis_heading)?,
                 angle,
             },
         })
@@ -2997,14 +2995,15 @@ impl Node {
         })
     }
 
-    /// Split a target body by a tool — today a `Node.datum_plane`.
+    /// Split a target body by a tool: a plane, or a frame's coordinate
+    /// plane read through its role (`RoleRead(frame, "xy")`).
     ///
     /// The value is a SPLIT, not a body: read it with `Value.split()`,
     /// which answers `(above, below)` with `None` for an empty side.
     /// A tool that is not a splitting surface, or a cut that produces
     /// nothing, refuses typed at `evaluate`.
     #[staticmethod]
-    fn split(target: BodyArg, tool: OperandArg) -> Self {
+    fn split(target: BodyArg, tool: super::pose::PoseArg) -> Self {
         Self {
             inner: d::Node::Split {
                 target: target.read(),

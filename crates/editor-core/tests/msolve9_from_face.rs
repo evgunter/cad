@@ -452,7 +452,7 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );
@@ -479,7 +479,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );

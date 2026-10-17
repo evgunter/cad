@@ -92,7 +92,7 @@ impl Operand {
             Self::Pose(def) => def
                 .reads()
                 .into_iter()
-                .flat_map(|(_, read, _)| read.selected_names())
+                .flat_map(|(_, read, _, _)| read.selected_names())
                 .collect(),
             Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
         }

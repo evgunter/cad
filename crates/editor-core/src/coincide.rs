@@ -523,7 +523,7 @@ pub fn construction<P>(
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
                     (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => {
-                        datum(doc, operation(doc, at, *tool)?, placed)
+                        datum(doc, operation(doc, at, tool.read)?, placed)
                     }
                     (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
                     _ => {

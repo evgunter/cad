@@ -868,7 +868,8 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
-            let axis = crate::eval::read_at(doc, crate::OperandSlot::Axis, *axis).map_err(here)?;
+            let axis =
+                crate::eval::read_at(doc, crate::OperandSlot::Axis, axis.read).map_err(here)?;
             let datum = axis_datum(doc, node, axis)?;
             let at_datum = |kind| Box::new((axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;

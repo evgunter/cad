@@ -863,7 +863,7 @@ fn a_carried_pose_moves_with_its_copy() {
         if carried {
             Operand::Pose(Box::new(PoseDef::Carried {
                 copy: Operand::output(placement, 0),
-                pose: face,
+                pose: face.into(),
             }))
         } else {
             face
@@ -875,7 +875,7 @@ fn a_carried_pose_moves_with_its_copy() {
             doc.clone(),
             Node::Split {
                 target: Operand::output(placement, 0).into(),
-                tool: plane(carried),
+                tool: plane(carried).into(),
             },
         );
         let Some(Node::Split { tool, .. }) = doc.node(split) else {

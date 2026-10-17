@@ -400,6 +400,9 @@ pub enum SlotId {
     ShellThickness,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
+    /// A revolve's axis heading: the angle of its axis line from the
+    /// profile's x axis, about the profile's normal (Angle).
+    AxisHeading,
     /// A derived frame's SPIN — the authored rotation of sketch +x
     /// about the face's outward normal, from the carrier's own
     /// u-reference (Angle). The one continuous slot a
@@ -751,6 +754,7 @@ impl SlotId {
             | Self::V(_)
             | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle
+            | Self::AxisHeading
             | Self::Spin
             | Self::RotationAngle
             | Self::Step
@@ -830,6 +834,7 @@ impl SlotId {
             Self::ChamferDistance => "chamfer distance".to_owned(),
             Self::ShellThickness => "shell thickness".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::AxisHeading => "axis heading".to_owned(),
             Self::Spin => "spin".to_owned(),
             Self::TubeMajorRadius => "tube major radius".to_owned(),
             Self::TubeMinorRadius => "tube minor radius".to_owned(),
@@ -927,6 +932,7 @@ impl SlotId {
             | Self::ChamferDistance
             | Self::ShellThickness
             | Self::RevolveAngle
+            | Self::AxisHeading
             | Self::Spin
             | Self::TubeMajorRadius
             | Self::TubeMinorRadius
@@ -1331,8 +1337,9 @@ pub enum PatternKind<S: Slot = crate::VarId> {
     },
     /// Instances stepped around a datum axis.
     Circular {
-        /// The axis revolved about ([`crate::OperandSlot::Axis`]).
-        axis: S::Read,
+        /// The axis revolved about ([`crate::OperandSlot::Axis`]): an
+        /// `Axis` read, or a frame's axis read through its role.
+        axis: crate::pose::RoleRead<S::Read>,
         /// Angular step between instances ([`SlotId::Step`]), signed
         /// by the right-hand rule about the axis, nonzero and within a
         /// turn.
@@ -1891,15 +1898,16 @@ pub enum Node<P, S: Slot = crate::VarId> {
     ///
     /// # The axis is written in the profile's own plane
     ///
-    /// The axis of revolution is two coordinate pairs in the profile's
-    /// 2-D axes, and its lift to 3-D is the node's `axis` output. A
-    /// revolve's axis has to lie in the profile's plane, and a 3-D axis
-    /// would make that a coincidence the evaluator checks, a tolerance
-    /// decision on a direction residual that classifies a tilt in-plane
-    /// at one model scale and not another (the audit's F15 row). Four
-    /// numbers in the plane cannot leave it: the error is
-    /// unrepresentable rather than checked, and every axis a revolve
-    /// could legally take is expressible here.
+    /// The axis of revolution is a line in the profile's 2-D axes,
+    /// through a point at two lengths and along a heading, and its lift
+    /// to 3-D is the node's `axis` output. A revolve's axis has to lie in
+    /// the profile's plane, and a 3-D axis would make that a coincidence
+    /// the evaluator checks, a tolerance decision on a direction
+    /// residual that classifies a tilt in-plane at one model scale and
+    /// not another (the audit's F15 row). Two lengths and an angle in
+    /// the plane cannot leave it, and a heading cannot be a zero
+    /// direction: both errors are unrepresentable rather than checked,
+    /// and every axis a revolve could legally take is expressible here.
     Revolve {
         /// The profile node revolved.
         profile: S::Read,
@@ -1907,12 +1915,11 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
         /// the third coordinate of a point in a plane is not a number
         /// somebody may type.
-        axis_origin: [S; 2],
-        /// The axis direction in the profile's 2-D coordinates —
-        /// Scalar, [`SlotId::Direction`]`(X | Y)`. The kernel's
-        /// `RevolveAxis` takes any definitely nonzero vector and
-        /// refuses a sliver at its own door.
-        axis_direction: [S; 2],
+        axis_through: [S; 2],
+        /// The axis's heading from the profile's x axis, about its
+        /// normal — Angle, [`SlotId::AxisHeading`]: `0` is along x and
+        /// `turn/4` along y.
+        axis_heading: S,
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: S,
     },
@@ -2132,8 +2139,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Split {
         /// The body split.
         target: crate::BodyRead<S>,
-        /// The splitting tool.
-        tool: S::Read,
+        /// The splitting tool: a `Plane` read, or a frame's coordinate
+        /// plane read through its role.
+        tool: crate::pose::RoleRead<S::Read>,
     },
     /// **The union** (`crates/editor-core/REFERENCES.md` DM4): one
     /// argument of kind `Bodies` ([`Bodies`]), ONE body out, the fold of
@@ -2557,12 +2565,12 @@ macro_rules! node_rows {
             // may set.
             Node::Revolve {
                 profile: _,
-                axis_origin,
-                axis_direction,
+                axis_through,
+                axis_heading,
                 angle,
             } => {
-                axis_rows!(S::Origin, axis_origin, $out);
-                axis_rows!(S::Direction, axis_direction, $out);
+                axis_rows!(S::Origin, axis_through, $out);
+                $out.push((S::AxisHeading, axis_heading));
                 $out.push((S::RevolveAngle, angle));
             }
             Node::Tube {
@@ -2825,8 +2833,8 @@ impl<P> Node<P> {
             } => vec![(O::Profile, *profile)],
             Node::Revolve {
                 profile,
-                axis_origin: _,
-                axis_direction: _,
+                axis_through: _,
+                axis_heading: _,
                 angle: _,
             } => vec![(O::Profile, *profile)],
             Node::Tube {
@@ -2866,7 +2874,7 @@ impl<P> Node<P> {
                 let [a, b] = primitive.refs();
                 vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
-            Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, *tool)],
+            Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
             Node::Subtract {
                 from,
                 tool,
@@ -2895,7 +2903,7 @@ impl<P> Node<P> {
             } => {
                 let mut v = vec![(O::Input, *input)];
                 if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, *axis));
+                    v.push((O::Axis, axis.read));
                 }
                 v
             }
@@ -2971,8 +2979,8 @@ impl<P> Node<P> {
             } => vec![(O::Profile, profile)],
             Node::Revolve {
                 profile,
-                axis_origin: _,
-                axis_direction: _,
+                axis_through: _,
+                axis_heading: _,
                 angle: _,
             } => vec![(O::Profile, profile)],
             Node::Tube {
@@ -3012,7 +3020,9 @@ impl<P> Node<P> {
                 let [a, b] = primitive.refs_mut();
                 vec![(O::Measured(verb, 0), a), (O::Measured(verb, 1), b)]
             }
-            Node::Split { target, tool } => vec![(O::Target, &mut target.read), (O::Tool, tool)],
+            Node::Split { target, tool } => {
+                vec![(O::Target, &mut target.read), (O::Tool, &mut tool.read)]
+            }
             Node::Subtract { from, tool } => {
                 vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
             }
@@ -3038,7 +3048,7 @@ impl<P> Node<P> {
             } => {
                 let mut v = vec![(O::Input, input)];
                 if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, axis));
+                    v.push((O::Axis, &mut axis.read));
                 }
                 v
             }
@@ -3388,7 +3398,7 @@ impl<S: Slot> PatternKind<S> {
                 spacing: f(spacing)?,
             },
             PatternKind::Circular { axis, step } => PatternKind::Circular {
-                axis: read(crate::OperandSlot::Axis, axis)?,
+                axis: axis.try_map(|axis| read(crate::OperandSlot::Axis, axis))?,
                 step: f(step)?,
             },
             PatternKind::Explicit(frames) => PatternKind::Explicit(frames.clone()),
@@ -3566,13 +3576,13 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Revolve {
                 profile,
-                axis_origin,
-                axis_direction,
+                axis_through,
+                axis_heading,
                 angle,
             } => Node::Revolve {
                 profile: read(O::Profile, profile)?,
-                axis_origin: map_array(axis_origin, f)?,
-                axis_direction: map_array(axis_direction, f)?,
+                axis_through: map_array(axis_through, f)?,
+                axis_heading: f(axis_heading)?,
                 angle: f(angle)?,
             },
             Node::Tube {
@@ -3631,7 +3641,7 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Split { target, tool } => Node::Split {
                 target: target.try_map(O::Target, f, read)?,
-                tool: read(O::Tool, tool)?,
+                tool: tool.try_map(|tool| read(O::Tool, tool))?,
             },
             Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
@@ -3778,8 +3788,48 @@ impl<P, S: Slot> Node<P, S> {
     /// ([`crate::BodyRead::kind`]). Every door that writes or loads a
     /// read asks this.
     pub fn seat_kind(&self, seat: crate::OperandSlot) -> crate::SlotKind {
+        if let Some(role) = self.seat_role(seat) {
+            return crate::SlotKind::Is(role.of());
+        }
         self.body_read(seat)
             .map_or_else(|| seat.kind(), |read| read.kind(seat))
+    }
+
+    /// **The first seat whose read's role yields a kind the seat does
+    /// not admit** (a frame's x axis at a split's tool), with the kind it
+    /// yields: what both doors refuse as the seat's kind fault.
+    #[must_use]
+    pub fn seat_role_fault(&self) -> Option<(crate::OperandSlot, crate::VarKind)> {
+        use crate::OperandSlot as O;
+        [O::Tool, O::Axis].into_iter().find_map(|seat| {
+            let role = self.seat_role(seat)?;
+            crate::pose::role_kind(role.of(), role, seat.kind())
+                .is_none()
+                .then_some((seat, role.kind()))
+        })
+    }
+
+    /// **The role the read at `seat` reads through** (D10), `None` for
+    /// a plain read or a seat that reads no pose: a split's tool or a
+    /// ring's axis read off a frame.
+    #[must_use]
+    pub fn seat_role(&self, seat: crate::OperandSlot) -> Option<crate::pose::PoseRole> {
+        use crate::OperandSlot as O;
+        match (self, seat) {
+            (Node::Split { tool, .. }, O::Tool) => tool.role,
+            (
+                Node::Pattern {
+                    kind: PatternKind::Circular { axis, .. },
+                    ..
+                }
+                | Node::PlacedUnion {
+                    kind: PatternKind::Circular { axis, .. },
+                    ..
+                },
+                O::Axis,
+            ) => axis.role,
+            _ => None,
+        }
     }
 }
 

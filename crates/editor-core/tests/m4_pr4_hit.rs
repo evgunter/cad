@@ -205,7 +205,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     // in the frame's own coordinates it is +y through (0, 0).
     let (doc, _rev) = insert(
         doc,
-        fixture::revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::FRAC_PI_2)),
+        fixture::revolve_about(
+            rp,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::FRAC_PI_2),
+        ),
     );
     // A pattern of the union.
     let (doc, _pat) = insert(

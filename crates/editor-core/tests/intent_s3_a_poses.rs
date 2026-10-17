@@ -20,7 +20,7 @@ use std::sync::Arc;
 use crate::fixture::{self, ang, len, scl};
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::eval::bound_pose;
-use editor_core::pose::{PoseConstruction, PoseDef, PoseReadFault};
+use editor_core::pose::{PoseConstruction, PoseDef, PoseReadFault, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EditError, EvalOptions, Evaluation,
     ExtrudeSide, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand,
@@ -96,14 +96,18 @@ fn select(at: RecipeNodeId, name: editor_core::StableName) -> Operand {
     Operand::select(Operand::output(at, 0), vec![name])
 }
 
-/// `body` split by `tool`, inserted, and the pose variable the split's
-/// tool reads.
-fn split_by(doc: ProfileDoc, body: RecipeNodeId, tool: Operand) -> (ProfileDoc, VarId) {
+/// `body` split by `tool`, inserted, and the read the split's tool
+/// stores.
+fn split_by(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    tool: impl Into<RoleRead<Operand>>,
+) -> (ProfileDoc, RoleRead<VarId>) {
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
             target: Operand::output(body, 0).into(),
-            tool,
+            tool: tool.into(),
         },
     );
     let Some(Node::Split { tool, .. }) = doc.node(split) else {
@@ -111,6 +115,11 @@ fn split_by(doc: ProfileDoc, body: RecipeNodeId, tool: Operand) -> (ProfileDoc, 
     };
     let tool = *tool;
     (doc, tool)
+}
+
+/// `operand` read plainly, where a definition reads a pose.
+fn plain(operand: Operand) -> RoleRead<Operand> {
+    RoleRead::plain(operand)
 }
 
 fn near(a: f64, b: f64, what: &str) {
@@ -176,9 +185,10 @@ fn a_face_reads_as_its_plane_with_the_outward_normal() {
 
 /// **Row 2 — a seat holds its kind.** A split's tool reads a plane: an
 /// axis defined there refuses `SlotVarKind` at the door, expecting a
-/// plane; a frame projected to its plane is admitted, and splits.
+/// plane, and so does a frame read through its x axis; a frame read
+/// through its xy plane is admitted, and splits.
 #[test]
-fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
+fn a_split_tool_refuses_an_axis_and_admits_a_frames_plane() {
     let (doc, cube) = unit_box();
     let edge = fixture::rim_edge(cube, CapEnd::End, fixture::piece(&doc, cube, 0, 0));
     let refused = fixture::insert_refused(
@@ -187,7 +197,8 @@ fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
             target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Axis {
                 of: Operand::select(Operand::output(cube, 0), vec![edge]),
-            }),
+            })
+            .into(),
         },
     );
     assert!(
@@ -206,14 +217,29 @@ fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
         doc,
         fixture::frame([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
+    let refused = fixture::insert_refused(
+        &doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: RoleRead::through(Operand::output(frame, 0), PoseRole::X),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::SlotVarKind {
+                found: VarKind::Axis,
+                expected: SlotKind::Is(VarKind::Plane),
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
             target: Operand::output(cube, 0).into(),
-            tool: pose(PoseDef::Project {
-                of: Operand::output(frame, 0),
-                to: VarKind::Plane,
-            }),
+            tool: RoleRead::through(Operand::output(frame, 0), PoseRole::Xy),
         },
     );
     let ev = eval(&doc);
@@ -240,17 +266,17 @@ fn a_frame_through_an_axis_and_a_point_on_it_refuses() {
         let (doc, plane) = split_by(
             doc,
             cube,
-            pose(PoseDef::Project {
-                of: pose(PoseDef::Through {
-                    axis: pose(PoseDef::Axis {
+            RoleRead::through(
+                pose(PoseDef::Through {
+                    axis: plain(pose(PoseDef::Axis {
                         of: select(cube, edge),
-                    }),
-                    point: pose(PoseDef::Point {
+                    })),
+                    point: plain(pose(PoseDef::Point {
                         of: select(cube, point),
-                    }),
+                    })),
                 }),
-                to: VarKind::Plane,
-            }),
+                PoseRole::Xy,
+            ),
         );
         let ev = eval(&doc);
         bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness())
@@ -287,20 +313,21 @@ fn a_frame_through_an_axis_and_a_point_on_it_refuses() {
 }
 
 /// The revolve row's document: a washer section on the world xz plane,
-/// revolved a full turn about the line through the frame's origin along
-/// `(t, 1)`, `t` a free parameter of width `width`. (On a frame tilted
-/// out of the world planes the revolve itself does not certify at
-/// `Interval` even at ε/128: issue 1191's class, not the axis's.)
+/// revolved a full turn about the line through the frame's origin at
+/// the heading `h`, a free angle of a quarter turn and width `width`.
+/// (On a frame tilted out of the world planes the revolve itself does
+/// not certify at `Interval` even at ε/128: issue 1191's class, not the
+/// axis's.)
 fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("s3a_revolve", Tol::witness());
     doc = editor_core::apply(
         &doc,
         &DocEdit::DeclareVar {
-            name: VarName::from_static("t"),
+            name: VarName::from_static("h"),
             def: editor_core::VarDecl::Free(FreeVar::Continuous {
-                dim: Dimension::Scalar,
-                value: 0.0,
-                display_unit: UnitSym::canonical_for(Dimension::Scalar),
+                dim: Dimension::Angle,
+                value: std::f64::consts::FRAC_PI_2,
+                display_unit: UnitSym::canonical_for(Dimension::Angle),
                 distribution: Some(Distribution::Uniform {
                     lo: -width,
                     hi: width,
@@ -323,11 +350,8 @@ fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [
-                Formula::named(VarName::from_static("t"), Dimension::Scalar),
-                scl(1.0),
-            ],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::named(VarName::from_static("h"), Dimension::Angle),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -396,6 +420,16 @@ fn a_revolves_axis_lies_in_its_profiles_plane_over_a_box() {
     );
 }
 
+/// **A standoff**: `plane` slid along its own normal by `by` (FORK-MOVE:
+/// the one number a plane's own equation fixes, as a slide).
+fn standoff(plane: Operand, by: Formula) -> PoseDef<Operand, Formula> {
+    PoseDef::Slide {
+        pose: plain(plane.clone()),
+        along: RoleRead::through(plane, PoseRole::Normal),
+        by,
+    }
+}
+
 /// **A construction reads what was written, through a pose too** (D10):
 /// a split's tool defined as a cap's plane moved by a measured length
 /// reads the measure, and the door refuses it as it refuses a slot
@@ -417,12 +451,13 @@ fn a_pose_moved_by_a_measured_length_is_observed() {
         &doc,
         Node::Split {
             target: Operand::output(cube, 0).into(),
-            tool: pose(PoseDef::Standoff {
-                plane: pose(PoseDef::Plane {
+            tool: pose(standoff(
+                pose(PoseDef::Plane {
                     face: select(cube, cap),
                 }),
-                by: Formula::mul(Formula::var(out, Dimension::Length), scl(-0.5)).unwrap(),
-            }),
+                Formula::mul(Formula::var(out, Dimension::Length), scl(-0.5)).unwrap(),
+            ))
+            .into(),
         },
     );
     assert!(
@@ -437,10 +472,11 @@ fn a_pose_moved_by_a_measured_length_is_observed() {
     );
 }
 
-/// A ring of three boxes about the line two in-frame planes meet in:
-/// `a` through `a_origin` with normal `a_normal`, `b` the world plane
-/// `y = 0`. The pattern is the `Meet`'s reader.
-fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
+/// A ring of three boxes about the line two planes meet in: `a` the
+/// world frame's yz plane spun `a_tilt` about its y axis and slid to
+/// `a_origin`, `b` the world plane `y = 0`. The pattern is the `Meet`'s
+/// reader.
+fn ring_about_a_meet(a_origin: [f64; 3], a_tilt: f64) -> String {
     let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("s3a_meet", Tol::witness()),
         [0.0, 0.0, 0.0],
@@ -460,15 +496,22 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
         doc,
         fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
-    let plane = |origin: [f64; 3], normal: [f64; 3]| {
-        pose(PoseDef::InFrame {
-            frame: Operand::output(world, 0),
-            coords: editor_core::pose::PoseCoords::Plane {
-                origin: origin.map(len),
-                normal: normal.map(scl),
-            },
-        })
-    };
+    let axis = |role| RoleRead::through(Operand::output(world, 0), role);
+    let spun = pose(PoseDef::Spin {
+        pose: axis(PoseRole::Yz),
+        about: axis(PoseRole::Y),
+        by: ang(a_tilt),
+    });
+    let a = [PoseRole::X, PoseRole::Y, PoseRole::Z]
+        .into_iter()
+        .zip(a_origin)
+        .fold(spun, |at, (along, by)| {
+            pose(PoseDef::Slide {
+                pose: plain(at),
+                along: axis(along),
+                by: len(by),
+            })
+        });
     let (doc, ring) = fixture::insert(
         doc,
         Node::Pattern {
@@ -476,9 +519,10 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
             count: Formula::count(3),
             kind: editor_core::PatternKind::Circular {
                 axis: pose(PoseDef::Meet {
-                    a: plane(a_origin, a_normal),
-                    b: plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-                }),
+                    a: plain(a),
+                    b: axis(PoseRole::Zx),
+                })
+                .into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -486,6 +530,10 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
     let ev = eval(&doc);
     format!("{:?}", ev.value(ring).expect("the ring builds").payload)
 }
+
+/// The spin that turns the world's x to `(0.6, 0, 0.8)` about its y:
+/// `atan2(-0.8, 0.6)`, computed once.
+const TILT: f64 = -0.927_295_218_001_612_3;
 
 /// The numbers in a value's printed form, and the text between them:
 /// two values have one outcome — one topology, one set of decisions —
@@ -534,22 +582,23 @@ fn numbers_and_shape(printed: &str) -> (Vec<f64>, String) {
 fn a_meets_representative_moves_no_readers_outcome() {
     // Planes x = 0 and y = 0 meet in the z axis; `a`'s origin slides
     // within x = 0, so the line's point slides along z.
-    let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], 0.0);
     for moved in [[0.0, 4.0, 8.0], [0.0, -0.75, 3.0], [0.0, 0.1, 0.3]] {
         assert_eq!(
-            ring_about_a_meet(moved, [1.0, 0.0, 0.0]),
+            ring_about_a_meet(moved, 0.0),
             at_origin,
             "a's origin at {moved:?}"
         );
     }
-    // Tilted: `a` has normal (0.6, 0, 0.8) and meets `y = 0` along
-    // (−0.8, 0, 0.6); its origin slides within `a`.
-    let normal = [0.6, 0.0, 0.8];
-    let (base, shape) = numbers_and_shape(&ring_about_a_meet([0.0; 3], normal));
+    // Tilted: `a` is spun to the normal (0.6, 0, 0.8), up to the
+    // rounding of its angle, and meets `y = 0` along (−0.8, 0, 0.6); its
+    // origin slides within `a`, up to the same rounding.
+    let tilt = TILT;
+    let (base, shape) = numbers_and_shape(&ring_about_a_meet([0.0; 3], tilt));
     let bound = 16.0 * f64::EPSILON * 6.0;
     let mut moved_any = false;
     for moved in [[0.8, 0.0, -0.6], [4.0, 1.0, -3.0], [1.2, 0.0, -0.9]] {
-        let (numbers, other) = numbers_and_shape(&ring_about_a_meet(moved, normal));
+        let (numbers, other) = numbers_and_shape(&ring_about_a_meet(moved, tilt));
         assert_eq!(other, shape, "a's origin at {moved:?}: the outcome moved");
         assert_eq!(numbers.len(), base.len());
         for (x, y) in numbers.iter().zip(&base) {
@@ -573,11 +622,10 @@ fn a_meets_representative_moves_no_readers_outcome() {
 /// the ring bit for bit.
 #[test]
 fn a_meets_representative_is_a_function_of_its_definition() {
-    let normal = [0.6, 0.0, 0.8];
     for origin in [[0.0; 3], [4.0, 1.0, -3.0]] {
         assert_eq!(
-            ring_about_a_meet(origin, normal),
-            ring_about_a_meet(origin, normal),
+            ring_about_a_meet(origin, TILT),
+            ring_about_a_meet(origin, TILT),
             "a's origin at {origin:?}"
         );
     }
@@ -640,43 +688,26 @@ fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
 }
 
 /// The tool of the content-key row: the plane normal to the line where
-/// `f1`'s `x = 0` meets `f2`'s `z = 0`, through the foot of a point
-/// written in `point_frame`.
-fn meet_through_tool(f1: RecipeNodeId, f2: RecipeNodeId, point_frame: RecipeNodeId) -> Operand {
-    use editor_core::pose::PoseCoords;
-    let in_frame = |frame: RecipeNodeId, coords| {
-        pose(PoseDef::InFrame {
-            frame: Operand::output(frame, 0),
-            coords,
-        })
-    };
-    pose(PoseDef::Project {
-        of: pose(PoseDef::Through {
-            axis: pose(PoseDef::Meet {
-                a: in_frame(
-                    f1,
-                    PoseCoords::Plane {
-                        origin: [0.0; 3].map(len),
-                        normal: [1.0, 0.0, 0.0].map(scl),
-                    },
-                ),
-                b: in_frame(
-                    f2,
-                    PoseCoords::Plane {
-                        origin: [0.0; 3].map(len),
-                        normal: [0.0, 0.0, 1.0].map(scl),
-                    },
-                ),
-            }),
-            point: in_frame(
-                point_frame,
-                PoseCoords::Point {
-                    position: [0.5; 3].map(len),
-                },
-            ),
+/// `f1`'s yz plane meets `f2`'s xy plane, through the foot of the point
+/// at `(0.5, 0.5, 0.5)` in `point_frame`.
+fn meet_through_tool(
+    f1: RecipeNodeId,
+    f2: RecipeNodeId,
+    point_frame: RecipeNodeId,
+) -> RoleRead<Operand> {
+    RoleRead::through(
+        pose(PoseDef::Through {
+            axis: plain(pose(PoseDef::Meet {
+                a: RoleRead::through(Operand::output(f1, 0), PoseRole::Yz),
+                b: RoleRead::through(Operand::output(f2, 0), PoseRole::Xy),
+            })),
+            point: plain(pose(PoseDef::point_in(
+                &Operand::output(point_frame, 0),
+                [0.5; 3].map(len),
+            ))),
         }),
-        to: VarKind::Plane,
-    })
+        PoseRole::Xy,
+    )
 }
 
 /// **Two pose trees reaching the same operations in another
@@ -709,7 +740,7 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
         &DocEdit::SetParam {
             node: split,
             slot: editor_core::SlotId::Operand(OperandSlot::Tool),
-            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2)),
+            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2).read),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -750,7 +781,12 @@ fn both_annuli_of_a_revolved_washer_read_outward() {
     );
     let (doc, washer) = fixture::insert(
         doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = eval(&doc);
     let annuli: Vec<_> = all_faces(&ev, washer)
@@ -812,12 +848,12 @@ fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
     let (doc, _split) = split_by(
         doc,
         cube,
-        pose(PoseDef::Standoff {
-            plane: pose(PoseDef::Plane {
+        pose(standoff(
+            pose(PoseDef::Plane {
                 face: select(cube, cap),
             }),
-            by: Formula::named(k.clone(), Dimension::Length),
-        }),
+            Formula::named(k.clone(), Dimension::Length),
+        )),
     );
     let (doc, measure) = fixture::measure_node(
         &doc,
@@ -853,23 +889,24 @@ fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
 }
 
 /// The flip-standoff document the door rows read: a split whose tool is
-/// the top cap's plane, flipped, moved by a free length; and that
-/// split's tool variable.
+/// the top cap's plane, flipped, slid along its normal by a free length;
+/// and that split's tool variable.
 fn flipped_standoff() -> (ProfileDoc, VarId) {
     let (doc, cube) = unit_box();
     let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
-    split_by(
+    let (doc, tool) = split_by(
         doc,
         cube,
-        pose(PoseDef::Standoff {
-            plane: pose(PoseDef::Flip {
-                pose: pose(PoseDef::Plane {
+        pose(standoff(
+            pose(PoseDef::Flip {
+                pose: plain(pose(PoseDef::Plane {
                     face: select(cube, cap),
-                }),
+                })),
             }),
-            by: len(0.25),
-        }),
-    )
+            len(0.25),
+        )),
+    );
+    (doc, tool.read)
 }
 
 /// **The edit door normalises a flip of a flip** (FORK-S3M: an
@@ -889,9 +926,12 @@ fn the_door_normalises_a_flip_of_a_flip() {
         doc,
         cube,
         pose(PoseDef::Flip {
-            pose: pose(PoseDef::Flip { pose: plane() }),
+            pose: plain(pose(PoseDef::Flip {
+                pose: plain(plane()),
+            })),
         }),
     );
+    let tool = tool.read;
     assert!(
         matches!(
             doc.var(tool).map(editor_core::Var::def),
@@ -910,12 +950,13 @@ fn the_door_normalises_a_flip_of_a_flip() {
         Node::Split {
             target: Operand::output(cube, 0).into(),
             tool: pose(PoseDef::Flip {
-                pose: pose(PoseDef::Flip {
-                    pose: pose(PoseDef::Point {
+                pose: plain(pose(PoseDef::Flip {
+                    pose: plain(pose(PoseDef::Point {
                         of: select(cube, corner),
-                    }),
-                }),
-            }),
+                    })),
+                })),
+            })
+            .into(),
         },
     );
     assert!(
@@ -931,23 +972,28 @@ fn the_door_normalises_a_flip_of_a_flip() {
 }
 
 /// **The load door refuses a pose definition no edit door writes**
-/// (`Walk::Pose`): a saved document, hand-edited three ways — a flip
-/// reading a length, a standoff by a plane, a flip of a flip — refuses
-/// `PoseShape` naming each fault, and the file as saved round-trips.
+/// (`Walk::Pose`): a saved document, hand-edited four ways — a flip
+/// reading a length, a slide by a plane, a flip of a flip, a plane read
+/// through a frame's role — refuses `PoseShape` naming each fault, and
+/// the file as saved round-trips.
 #[test]
 fn the_load_door_refuses_a_malformed_pose_definition() {
     let (doc, tool) = flipped_standoff();
-    let Some(editor_core::VarDef::Pose(PoseDef::Standoff { plane: flip, by })) =
-        doc.var(tool).map(editor_core::Var::def)
+    let Some(editor_core::VarDef::Pose(PoseDef::Slide {
+        pose: flip,
+        along,
+        by,
+    })) = doc.var(tool).map(editor_core::Var::def)
     else {
-        panic!("a standoff tool");
+        panic!("a sliding tool");
     };
-    let (flip, by) = (*flip, *by);
+    let (flip, along, by) = (flip.read, along.read, *by);
     let Some(editor_core::VarDef::Pose(PoseDef::Flip { pose: face_plane })) =
         doc.var(flip).map(editor_core::Var::def)
     else {
         panic!("a flipped plane");
     };
+    let face_plane = face_plane.read;
     let id = |var: VarId| serde_json::to_string(&var).unwrap();
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
     let back = editor_core::persist::load(&text, Tol::witness()).expect("loads as saved");
@@ -956,38 +1002,27 @@ fn the_load_door_refuses_a_malformed_pose_definition() {
         text,
         "round-trips bit-identical"
     );
-    let flip_reads = format!("\"pose\": {}", id(*face_plane));
-    let standoff = format!("\"plane\": {},\n              \"by\": {}", id(flip), id(by));
+    let flip_reads = format!("\"pose\": {}", id(face_plane));
+    let slides_by = format!("\"by\": {}", id(by));
+    let through_normal = "\"role\": \"Normal\"";
     assert!(
-        text.contains(&flip_reads) && text.contains(&standoff),
+        text.contains(&flip_reads) && text.contains(&slides_by) && text.contains(through_normal),
         "the wire spelling moved"
     );
     for (mutated, fault) in [
         (
-            text.replace(&flip_reads, &format!("\"pose\": {}", id(by))),
+            text.replacen(&flip_reads, &format!("\"pose\": {}", id(by)), 1),
             "ReadKind",
         ),
         (
-            text.replace(
-                &standoff,
-                &format!(
-                    "\"plane\": {},\n              \"by\": {}",
-                    id(flip),
-                    id(*face_plane)
-                ),
-            ),
+            text.replace(&slides_by, &format!("\"by\": {}", id(face_plane))),
             "ScalarKind",
         ),
         (
-            text.replace(
-                &format!("\"Standoff\": {{\n              {standoff}\n            }}"),
-                &format!(
-                    "\"Flip\": {{\n              \"pose\": {}\n            }}",
-                    id(flip)
-                ),
-            ),
+            text.replacen(&flip_reads, &format!("\"pose\": {}", id(along)), 1),
             "DoubleFlip",
         ),
+        (text.replace(through_normal, "\"role\": \"Xy\""), "Role"),
     ] {
         assert_ne!(mutated, text, "{fault}: the mutation applied");
         let refused = editor_core::persist::load(&mutated, Tol::witness());
@@ -1004,8 +1039,7 @@ fn the_load_door_refuses_a_malformed_pose_definition() {
 /// about an axis line off the frame's origin and off its axes, the
 /// port-1 axis and the axis read off the body's conical wall are
 /// one line — parallel, and each origin on the other — to the last
-/// few ulps. Swapping the axis line's coordinates moves port 1 off the
-/// body's axis.
+/// few ulps.
 #[test]
 fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     let (doc, _plane, profile) = fixture::on_frame_keeping(
@@ -1017,7 +1051,13 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     );
     let (doc, revolve) = fixture::insert(
         doc,
-        fixture::revolve_about(profile, (0.25, 0.5), (0.3, 1.0), ang(std::f64::consts::TAU)),
+        // The heading of the line along `(0.3, 1)`, `atan2(1, 0.3)`.
+        fixture::revolve_about(
+            profile,
+            (0.25, 0.5),
+            ang(1.279_339_532_317_029_6),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = eval(&doc);
     // The square's sides are oblique to the axis, so its walls are
@@ -1034,7 +1074,8 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
             kind: editor_core::PatternKind::Circular {
                 axis: pose(PoseDef::Axis {
                     of: select(revolve, wall),
-                }),
+                })
+                .into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -1052,7 +1093,7 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     else {
         panic!("the ring");
     };
-    let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(*read));
+    let ((o1, d1), (o2, d2)) = (axis_of(port.into()), axis_of(*read));
     let slack = 8.0 * f64::EPSILON * 4.0;
     assert!(d1.cross(d2).norm() <= slack, "{d1:?} against {d2:?}");
     let off = |o: geom_core::Point3<f64>, at: geom_core::Point3<f64>, d: geom_core::Vec3<f64>| {

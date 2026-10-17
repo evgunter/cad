@@ -2049,7 +2049,7 @@ fn remap_rule(
     Ok(match kind {
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
         PatternKind::Circular { axis, step } => PatternKind::Circular {
-            axis: rd(crate::OperandSlot::Axis, *axis)?,
+            axis: axis.try_map(|axis| rd(crate::OperandSlot::Axis, *axis))?,
             step: *step,
         },
     })
@@ -2153,13 +2153,13 @@ fn remap_node(
         },
         Node::Revolve {
             profile,
-            axis_origin,
-            axis_direction,
+            axis_through,
+            axis_heading,
             angle,
         } => Node::Revolve {
             profile: rd(crate::OperandSlot::Profile, *profile)?,
-            axis_origin: *axis_origin,
-            axis_direction: *axis_direction,
+            axis_through: *axis_through,
+            axis_heading: *axis_heading,
             angle: *angle,
         },
         // The two tube kinds remap the same way — one frame read, every
@@ -2225,7 +2225,7 @@ fn remap_node(
         },
         Node::Split { target, tool } => Node::Split {
             target: br(crate::OperandSlot::Target, target)?,
-            tool: rd(crate::OperandSlot::Tool, *tool)?,
+            tool: tool.try_map(|tool| rd(crate::OperandSlot::Tool, *tool))?,
         },
         Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,

@@ -207,7 +207,7 @@ fn run_names_agree_across_scalar_types() {
                 crate::fixture::revolve_about(
                     p,
                     (0.0, 0.0),
-                    (0.0, 1.0),
+                    crate::fixture::along_y(),
                     crate::fixture::ang(std::f64::consts::TAU),
                 ),
             )
