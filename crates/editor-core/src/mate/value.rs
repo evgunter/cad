@@ -202,11 +202,18 @@ pub(crate) fn settle<T: SolveScalar>(
         let Some(line) = turn_line(g, chart.d, band, arm).map_err(indeterminate(v.value))? else {
             return Err(not_a_freedom(v));
         };
-        let at = line
-            .or(chart.line)
-            .unwrap_or_else(|| Point3::origin() + m.translation);
-        let turn = Affine3::rotation_about_axis(at, chart.d.get(), v.by - chart.spin(&m));
-        m = turn * m;
+        let by = v.by - chart.spin(&m);
+        // A turn about the copy's own origin keeps its translation as it
+        // is: composed as a turn about that point, a box lane would
+        // widen it by the turn's own width levered over the origin's
+        // distance, twice.
+        m = match line.or(chart.line) {
+            Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
+            None => {
+                let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
+                Affine3::from_parts(turn.linear * m.linear, m.translation)
+            }
+        };
         left = after_turn(g);
     }
     for v in slides {

@@ -62,8 +62,13 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// copy, each placed at the identity — the world a pattern's copies are
 /// in the product by (A10). Copy 0 of a pattern over an instance is the
 /// instance itself, already in the product, so a caller places it only
-/// to have it twice.
-fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, copies: &[i64]) -> ProfileDoc {
+/// to have it twice. `o` reaches the parts the pins evaluate.
+fn place_copies(
+    doc: ProfileDoc,
+    pattern: RecipeNodeId,
+    copies: &[i64],
+    o: &EvalOptions,
+) -> ProfileDoc {
     copies.iter().fold(doc, |doc, &i| {
         let (doc, copy) = insert(
             doc,
@@ -72,7 +77,12 @@ fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, copies: &[i64]) -> Profi
                 select: editor_core::PartSelect::Instance(Formula::count(i)),
             },
         );
-        fixture::place(doc, copy).0
+        fixture::insert_pinned(
+            doc,
+            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            o,
+        )
+        .0
     })
 }
 
@@ -360,12 +370,16 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, pattern, &[1]);
+    let doc = place_copies(doc, pattern, &[1], &o);
+    // A value on a pattern copy's target is charted on its space's
+    // frame — the world's here — so the top's slides are where copy 1's
+    // footprint lies in the world: the leg's unit square turned a
+    // quarter about z and moved by (1, 2), then 1.5 along ŷ.
     let (doc, m0) = seat(
         doc,
         in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0],
+        [0.0, 3.5],
         true,
     );
     assert_eq!(m0.placement, top, "the seat places the top");

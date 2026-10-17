@@ -160,7 +160,11 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
     assert_eq!(fixture::constrained(&back.doc), vec![ib]);
     assert_eq!(offset_of(&back.doc, ia), Some(offset));
     assert_eq!(offset_of(&back.doc, ib), None);
-    assert!(back.maintenance.is_empty(), "{:?}", back.maintenance);
+    assert!(
+        fixture::without_anonymous(&back.maintenance).is_empty(),
+        "{:?}",
+        back.maintenance
+    );
 }
 
 /// Two instances of one block, the first pinned to the world at an

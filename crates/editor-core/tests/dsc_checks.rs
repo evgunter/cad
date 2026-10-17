@@ -213,7 +213,7 @@ fn connectedness_is_labeled_certified() {
 
 /// An annihilated boolean: the intersection of two DISJOINT slabs —
 /// an honest ∅ result (F8: `Empty` is a typed success) denoting zero
-/// subjects.
+/// subjects — and its placement.
 fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
@@ -224,7 +224,9 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    fixture::place(doc, result)
+    // An empty body has no geometry for a mate to read, so its
+    // placement is a loose copy: placed, in no product.
+    insert(doc, Node::place(vec![editor_core::BodyRead::plain(result)]))
 }
 
 #[test]
