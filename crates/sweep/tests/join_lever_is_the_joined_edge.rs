@@ -145,7 +145,7 @@ fn joins_sound(what: &str, mut body: Body<f64>) {
 /// unit height, and its material: a point inside the segment is in, one
 /// on the D short of `x = c` out. The cut's `Transversality` refusal
 /// this row pinned before has no row now
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
     use topo::SolidContainment::{In, Out};

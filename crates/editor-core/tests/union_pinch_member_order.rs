@@ -1201,8 +1201,7 @@ fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// Where the bridge folds last, after the plate, its edge meets the
 /// line's two coincident edges at two points, which topo does not build.
-const TWO_GERMS: &str =
-    "work/tangtail/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
+const TWO_GERMS: &str = "work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
 
 /// A table, key-free: each row's name by where its entities stand —
 /// a vertex at its point, an edge at its ends, a face at its vertices.

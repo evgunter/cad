@@ -580,7 +580,7 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// the at-rest gate is asked. So this row pins THAT refusal; the
 /// at-rest gate's own `SliverDihedral` is reached by `topo`'s
 /// `review_m2_pr3` lamina, and through import by no row
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn r1_in_band_dihedral_wedge_never_ships_silently() {
     let (leg, h) = (10.0_f64, 0.1_f64);

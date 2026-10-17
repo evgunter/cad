@@ -1457,7 +1457,7 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         // exists at the interval or dual scalars; a door does not pick
         // its description by what the lane can certify, so every rim
         // stays in the cap's chart until the pair certifies them all
-        // (`work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
         let spec = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)

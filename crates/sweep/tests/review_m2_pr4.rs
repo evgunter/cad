@@ -552,7 +552,7 @@ fn survives_reversal_maps_and_orientation() {
 /// wedge levered at the walls' metre, `topo::wedge_reach`). The
 /// `SliverJoin` this row pinned the canonical index of is reached only
 /// through a box now, and the index has no row
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn survives_shallow_corner_strut_keeps_its_canonical_index_both_directions() {
     let theta = 3000.0 * eps();
@@ -597,7 +597,7 @@ fn survives_shallow_corner_strut_keeps_its_canonical_index_both_directions() {
 /// every turn is a definite corner, the strut the walls'
 /// `Intersection`, and the body valid at every tier. The ladder's
 /// `OnPair` and `SliverJoin` rungs have no row now
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let w = 1.0e-3;

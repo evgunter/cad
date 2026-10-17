@@ -14,7 +14,7 @@
 //! fraction of the sphere across. Every edge's reach is bounded by the
 //! body's own diameter, not the sphere's. It pins the curved-carrier
 //! over-statement (the first review's M1), not the along-edge run
-//! (`work/twice/the-wedge-reach-counts-a-faces-run-along-its-edge.md`).
+//! (`work/tang/the-wedge-reach-counts-a-faces-run-along-its-edge.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
