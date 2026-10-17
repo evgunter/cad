@@ -431,7 +431,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     // The world: every body the document builds and nothing builds on,
     // in document order — the chamfered prism, the two tubes and the
-    // shell.
+    // shell — each placed and pinned at the identity.
     let placed: Vec<editor_core::RecipeNodeId> = doc
         .ids()
         .into_iter()
@@ -448,7 +448,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         })
         .collect();
     for body in placed {
-        doc = push(&doc, &DocEdit::place_in_world(body, None));
+        doc = fixture::place(doc, body).0;
     }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4

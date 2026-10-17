@@ -28,13 +28,15 @@ use editor_core::Formula;
 
 use std::collections::BTreeMap;
 
+use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocRef, DocumentId, EvalOptions,
-    MateFrame, MatePrimitive, MateReach, Node, NodeErrorKind, NodeResult, PartFault, PartResolver,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach, product,
+    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Mate,
+    MateReach, Node, NodeErrorKind, NodeResult, Operand, PartFault, PartResolver, ProfileDoc,
+    ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SlideAxis, StableName,
+    Value, mate_reach, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, run, square};
+use fixture::{insert, len, on_frame, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -123,26 +125,152 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
     editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
 }
 
-/// A document whose one instance, of `below`, it places in its world.
+/// A document whose one instance, of `below`, is loose: what the
+/// descent refuses is asked of it, and nothing of its place.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    // An instance is its own placement, pinned to the world: a `Place`
-    // over it would copy the whole part a second time at every level.
     insert(doc, Node::instantiate_part(below))
 }
 
+/// **A pin over an instance's copy, as a level of the chain writes
+/// it**: the edge and the vertex its frame is read off, named as that
+/// level's instance names them, and the world read they are equated
+/// with. Every level's copy is the leaf's at the identity, so one world
+/// read serves all of them, and each level's names are the level
+/// below's worn inside the one `InPart` its instance puts round them.
+#[derive(Clone)]
+struct Pin {
+    edge: StableName,
+    vertex: StableName,
+    to: editor_core::Target<Formula>,
+    class: ContactClass,
+}
+
+impl Pin {
+    /// The pin `editor_core::pin_at` writes, taken apart.
+    fn of(mate: Mate<Formula>) -> Self {
+        let named = |read: &RoleRead<Operand>| {
+            let Operand::Pose(def) = &read.read else {
+                panic!("the frame reads a pose: {read:?}")
+            };
+            let (PoseDef::Axis { of } | PoseDef::Point { of }) = &**def else {
+                panic!("the frame reads an axis and a point: {def:?}")
+            };
+            let Operand::Select { names, .. } = of else {
+                panic!("off a selection: {of:?}")
+            };
+            names[0].clone()
+        };
+        let Operand::Pose(def) = &mate.on else {
+            panic!("a pin reads a pose: {:?}", mate.on)
+        };
+        let PoseDef::Through { axis, point } = &**def else {
+            panic!("a pin reads a frame through an axis and a point: {def:?}")
+        };
+        Self {
+            edge: named(axis),
+            vertex: named(point),
+            to: mate.to,
+            class: mate.class,
+        }
+    }
+
+    /// The names as `instance` places them, one level up.
+    fn up(&self, instance: RecipeNodeId) -> Self {
+        let wrap = |name: &StableName| StableName {
+            kind: name.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: name.clone().into(),
+            }],
+        };
+        Self {
+            edge: wrap(&self.edge),
+            vertex: wrap(&self.vertex),
+            ..self.clone()
+        }
+    }
+
+    /// The mate pinning `instance`'s copy, its names read in `doc`.
+    fn mate(&self, doc: &ProfileDoc, instance: RecipeNodeId) -> Mate<Formula> {
+        let copy = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+        let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
+        Mate {
+            on: Operand::Pose(Box::new(PoseDef::Through {
+                axis: read(PoseDef::Axis {
+                    of: Operand::select(copy.clone(), vec![self.edge.clone()]),
+                }),
+                point: read(PoseDef::Point {
+                    of: Operand::select(copy, vec![self.vertex.clone()]),
+                }),
+            })),
+            to: self.to.clone(),
+            class: self.class,
+        }
+    }
+}
+
+/// [`instantiating`], its instance pinned at the identity by `pin` (the
+/// pin as the level below names it); answers the pin as this level
+/// names it.
+fn instantiating_pinned(label: &str, below: DocRef, pin: &Pin) -> (ProfileDoc, RecipeNodeId, Pin) {
+    let (doc, instance) = instantiating(label, below);
+    let pin = pin.up(instance);
+    let mate = pin.mate(&doc, instance);
+    let (doc, _) = fixture::constrain_at(doc, instance, mate);
+    (doc, instance, pin)
+}
+
 /// A store holding the leaf and `levels` documents above it, each
-/// instantiating the one below, and the references it answers: the
-/// leaf's first, the topmost document's last.
-fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
+/// pinning an instance of the one below to its world, the references
+/// it answers — the leaf's first, the topmost document's last — and
+/// each level's pin, the first level's at index 0.
+///
+/// The first level's pin is `editor_core::pin_at`'s own; every level
+/// above wears it one `InPart` deeper, which the second and third
+/// levels check against `pin_at` before the chain is trusted with it.
+fn chain(levels: usize) -> (PartStore, Vec<DocRef>, Vec<Pin>) {
     let mut store = PartStore::new();
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
+    let mut pins: Vec<Pin> = Vec::new();
     for level in 1..=levels {
         let below = *refs.last().expect("the leaf is stored");
-        let (doc, _) = instantiating(&format!("part-depth-level-{level}"), below);
+        let label = format!("part-depth-level-{level}");
+        let written = |doc: &ProfileDoc, instance| {
+            editor_core::pin_at(
+                doc,
+                &Operand::Var(doc.output(instance, 0).expect("an instance defines its copies")),
+                &editor_core::Frame::IDENTITY,
+                &resolving(store.clone()),
+                Tol::witness(),
+            )
+            .unwrap_or_else(|refusal| panic!("level {level} pins over its geometry: {refusal}"))
+        };
+        let (doc, pin) = match pins.last() {
+            None => {
+                let (doc, instance) = instantiating(&label, below);
+                let mate = written(&doc, instance);
+                let (doc, _) = fixture::constrain_at(doc, instance, mate.clone());
+                (doc, Pin::of(mate))
+            }
+            Some(pin) => {
+                let (doc, instance) = instantiating(&label, below);
+                let pin = pin.up(instance);
+                let mate = pin.mate(&doc, instance);
+                if level <= 3 {
+                    assert_eq!(
+                        mate,
+                        written(&doc, instance),
+                        "level {level}'s pin is the level below's, one `InPart` deeper"
+                    );
+                }
+                (fixture::constrain_at(doc, instance, mate).0, pin)
+            }
+        };
         refs.push(store.insert(doc, Tol::witness()));
+        pins.push(pin);
     }
-    (store, refs)
+    (store, refs, pins)
 }
 
 fn resolving(store: PartStore) -> EvalOptions {
@@ -180,7 +308,7 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
         // The top document sits above BOUND + 1 nested documents: the
         // leaf and BOUND levels.
-        let (store, refs) = chain(BOUND);
+        let (store, refs, _) = chain(BOUND);
         let top_ref = *refs.last().expect("the top level is stored");
         let (top, instance) = instantiating("part-depth-past-top", top_ref);
         let opts = resolving(store);
@@ -244,10 +372,14 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
 #[test]
 fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
     on_the_smallest_stack(|| {
-        let (store, refs) = chain(BOUND);
+        let (store, refs, pins) = chain(BOUND);
         // One level flatter: the top skips the topmost stored level.
         let flattened_ref = refs[refs.len() - 2];
-        let (top, instance) = instantiating("part-depth-flattened-top", flattened_ref);
+        let (top, instance, _) = instantiating_pinned(
+            "part-depth-flattened-top",
+            flattened_ref,
+            &pins[pins.len() - 2],
+        );
         let ev = run(&top, &resolving(store));
         assert!(
             matches!(ev.result(instance), Some(NodeResult::Ok(_))),
@@ -266,7 +398,7 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         assert_eq!(
             volume(&body).to_bits(),
             volume(&leaf_body).to_bits(),
-            "BOUND unplaced instances carry the leaf through bit for bit"
+            "BOUND instances pinned at the identity carry the leaf through bit for bit"
         );
     });
 }
@@ -303,8 +435,7 @@ fn unpinned_ref(label: &str) -> DocRef {
     }
 }
 
-/// A document whose nodes instantiate `below`, in order, each placed
-/// in its world.
+/// A document whose nodes instantiate `below`, in order, each loose.
 fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -433,92 +564,99 @@ fn stored(store: &mut PartStore, leaf: (ProfileDoc, RecipeNodeId)) -> Stored {
     (store.insert(leaf.0.clone(), Tol::witness()), leaf)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
+/// A stored leaf: its reference, and its document with its block.
+type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
+
+/// `label`'s document with an instance of `first` pinned to its world
+/// at the identity (`authoring` resolving it), and an instance of
+/// `second`, loose until a constraint is added to it.
+fn first_pinned(
+    label: &str,
+    first: DocRef,
+    second: DocRef,
+    authoring: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let doc = fixture::pinned(doc, ids[0], authoring);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    (doc, ids)
 }
 
 /// A document instantiating `first` and `second` — each a reference
 /// with the block its caps are named on — `first` pinned to the world
-/// and `second` placed by a mate onto it, admitted at the constraint
-/// door over `authoring`'s reach.
-/// A stored leaf: its reference, and its document with its block.
-type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
-
+/// and `second` seated on its top cap, square, by a rest and a zero
+/// value on each freedom it leaves.
 fn mated(
     label: &str,
     (first, (first_doc, first_block)): Stored,
     (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, mut ids) = instantiating_all(label, &[first]);
-    let (doc, placed) = insert(doc, fixture::mated_instance(second));
-    ids.push(placed);
-    let mate = fixture::mate(
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
-                .into_name(),
-        ),
+    let (doc, ids) = first_pinned(label, first, second, authoring);
+    let mate = fixture::rest(
         fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
                 .in_part(ids[1])
                 .into_name(),
         ),
+        fixture::head(
+            leaf_cap(&first_doc, first_block, CapEnd::End)
+                .in_part(ids[0])
+                .into_name(),
+        ),
         ContactClass::Rest,
-        Alignment {
-            a: frame([0.0, 0.0, 1.0]),
-            b: frame([0.0; 3]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: Some(0.0),
-        },
     );
-    let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) = at_the_door(&doc, &reach, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+    let (doc, mate) = fixture::constrain_at(doc, ids[1], mate);
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
     (doc, ids)
 }
 
 /// A document instantiating `first` — a reference with the block its
 /// caps are named on — pinned to the world, and `second` placed by one
-/// constraint from `first`'s top cap to `second`'s own copy, admitted at
-/// the constraint door over `authoring`'s reach.
-fn placed_on_copy(
+/// rest of its own copy's bottom cap, as `second`'s leaf names it, on
+/// `first`'s top cap.
+fn rested_on_first(
     label: &str,
     (first, (first_doc, first_block)): Stored,
-    second: DocRef,
+    (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, mut ids) = instantiating_all(label, &[first]);
-    let (doc, placed) = insert(doc, fixture::mated_instance(second));
-    ids.push(placed);
-    let mate = editor_core::Mate {
-        a: editor_core::SideRead::Face(
-            fixture::head(
-                leaf_cap(&first_doc, first_block, CapEnd::End)
-                    .in_part(ids[0])
-                    .into_name(),
-            )
-            .into(),
+    let (doc, ids) = first_pinned(label, first, second, authoring);
+    let mate = fixture::rest(
+        fixture::head(
+            leaf_cap(&second_doc, second_block, CapEnd::Start)
+                .in_part(ids[1])
+                .into_name(),
         ),
-        b: editor_core::SideRead::Copy,
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: frame([0.0, 0.0, 1.0]),
-            b: frame([0.0; 3]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: Some(0.0),
-        },
-    };
-    let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) =
-        fixture::at_the_door_of(&doc, &reach, placed, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+        fixture::head(
+            leaf_cap(&first_doc, first_block, CapEnd::End)
+                .in_part(ids[0])
+                .into_name(),
+        ),
+        ContactClass::Rest,
+    );
+    let (doc, _) = fixture::constrain_at(doc, ids[1], mate);
     (doc, ids)
 }
 
@@ -540,8 +678,9 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         &with_resolver(store.clone()),
     );
     let assembly_ref = store.insert(assembly.clone(), Tol::witness());
-    let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);
     let opts = with_resolver(store);
+    let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);
+    let top = fixture::pinned(top, top_ids[0], &opts);
 
     let own = run(&assembly, &opts);
     for id in &ids {
@@ -574,9 +713,8 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 /// **A part no instance asks for is evaluated, and its failure reaches
 /// nothing.** Below the top, `holder` pins an instance of a part the
 /// store cannot resolve to the world, and places a second instance, of
-/// `asked`, by a constraint from a face of the first to its own copy. A
-/// copy side reads no face, so the solve forms no lever for `asked`,
-/// and the face side's part refuses: the constraint faults and nothing
+/// `asked`, by a rest on a face of the first. The first refuses, so the
+/// second, which reads it, is poisoned before it evaluates, and nothing
 /// at the top asks for `asked`. The descent evaluates it anyway, with
 /// the two documents under it. Whether that subtree is healthy or ends
 /// in a missing document, the top's refusal is drawn the same, and it is
@@ -589,10 +727,10 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let asked_ref = asked.0;
     // `lost` is pinned to the world, `asked` the copy the constraint
     // places.
-    let (holder, ids) = placed_on_copy(
+    let (holder, ids) = rested_on_first(
         "part-descent-holder",
         lost,
-        asked.0,
+        asked,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");
@@ -621,7 +759,7 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         let own = run(&holder, &opts);
         assert_eq!(
             own.part_evaluations, 0,
-            "at the top the holder evaluates no part: the constraint faults first"
+            "at the top the holder evaluates no part: the pinned instance refuses first"
         );
         let ev = run(&top, &opts);
         assert_eq!(

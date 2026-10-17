@@ -58,7 +58,8 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each pinned to the world.
+/// An assembly instantiating `refs` in order, each a loose copy until
+/// [`placed`] pins it.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -68,28 +69,6 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         ids.push(id);
     }
     (doc, ids)
-}
-
-/// `placement` pinned to the world at `pose`: its bundle replaced by
-/// one world pin.
-fn pinned_at(
-    doc: ProfileDoc,
-    placement: RecipeNodeId,
-    pose: editor_core::Placement<Formula>,
-) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
-    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
 }
 
 /// The part's one Profile node.
@@ -134,18 +113,11 @@ const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
 
-/// Two instances, both placed, so both ops do the same work.
-fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
-    let doc = pinned_at(
-        doc,
-        ids[0],
-        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
-    );
-    pinned_at(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
-    )
+/// Two instances, both pinned to the world, so both ops do the same
+/// work. `o` reaches the part they copy.
+fn placed(doc: ProfileDoc, ids: &[RecipeNodeId], o: &EvalOptions) -> ProfileDoc {
+    let doc = fixture::pin(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), o);
+    fixture::pin(doc, ids[1], &Frame::translation([9.0, 0.0, 0.0]), o)
 }
 
 fn logs(ev: &Evaluation<f64>, ids: &[RecipeNodeId]) -> Vec<usize> {
@@ -164,8 +136,8 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly(&format!("{label}-asm"), &[doc_ref, doc_ref]);
-    let doc = placed(doc, &ids);
     let opts = with_resolver(store);
+    let doc = placed(doc, &ids, &opts);
     (doc, ids, opts)
 }
 
@@ -199,11 +171,11 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let mut store = PartStore::default();
     let leaf = store.insert(part("kstats-nest-leaf", 0.0, 1.0), Tol::witness());
     let (mid, mid_ids) = assembly("kstats-nest-mid", &[leaf, leaf]);
-    let mid = placed(mid, &mid_ids);
+    let mid = placed(mid, &mid_ids, &with_resolver(store.clone()));
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, top_ids) = assembly("kstats-nest-top", &[mid_ref, mid_ref]);
-    let top = placed(top, &top_ids);
     let opts = with_resolver(store);
+    let top = placed(top, &top_ids, &opts);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(seq[0], 919, "the outer op's own log over a two-solid part");

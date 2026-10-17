@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Mate, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -49,35 +49,33 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
 
 /// An assembly instantiating `refs` in order, each pinned to the world,
 /// the i-th displaced `spacing * i` along +x so the solids stay
-/// disjoint.
-fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
+/// disjoint. `store` holds the parts.
+fn assembly(
+    label: &str,
+    refs: &[DocRef],
+    spacing: f64,
+    store: &PartStore,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let o = with_resolver(store.clone());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        if i == 0 {
-            let (next, id) = insert(doc, Node::instantiate_part(*r));
-            doc = next;
-            ids.push(id);
-            continue;
-        }
         #[allow(clippy::cast_precision_loss)]
         let dx = spacing * i as f64;
         let (next, id) = insert(doc, fixture::mated_instance(*r));
-        doc = fixture::constrain_at(next, id, pin_at([dx, 0.0, 0.0])).0;
+        doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
     (doc, ids)
 }
 
-/// A world pin at a translation.
-fn pin_at(translation: [f64; 3]) -> Mate<editor_core::Formula> {
-    Mate::world_pin(editor_core::Placement::literal(&Frame::translation(
-        translation,
-    )))
-}
-
 /// `placement`'s bundle replaced by one world pin at `translation`.
-fn repinned(doc: ProfileDoc, placement: RecipeNodeId, translation: [f64; 3]) -> ProfileDoc {
+fn repinned(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    translation: [f64; 3],
+    o: &EvalOptions,
+) -> ProfileDoc {
     let doc = fixture::bundle(&doc, placement)
         .into_iter()
         .fold(doc, |doc, c| {
@@ -90,7 +88,7 @@ fn repinned(doc: ProfileDoc, placement: RecipeNodeId, translation: [f64; 3]) -> 
             )
             .0
         });
-    fixture::constrain_at(doc, placement, pin_at(translation)).0
+    fixture::pin(doc, placement, &Frame::translation(translation), o)
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -125,9 +123,9 @@ fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 fn nested_fixture() -> (PartStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
-    let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0);
+    let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0, &store);
     let b = store.insert(b_doc.clone(), Tol::witness());
-    let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0);
+    let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0, &store);
     (store, a_doc, b_doc, b, a_ids)
 }
 
@@ -341,16 +339,16 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
-    let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0);
+    let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0, &store);
     let b = store.insert(b_doc, Tol::witness());
-    let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0);
+    let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0, &store);
     let opts = with_resolver(store);
 
     let before = run(&doc, &opts);
     let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
-    let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0]);
+    let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0], &opts);
     assert_ne!(
         content_pin(&moved, Tol::witness()).expect("pins"),
         pin0,
@@ -440,7 +438,7 @@ const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r5-p", 0.0), Tol::witness());
-    let (doc, _) = assembly("asm2b-r5-a", &[p, p], 5.0);
+    let (doc, _) = assembly("asm2b-r5-a", &[p, p], 5.0, &store);
     let opts = with_resolver(store);
 
     let ev = run(&doc, &opts);
@@ -475,12 +473,12 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-ov-p", 0.0), Tol::witness());
     // ASM-2A's shape: two copies of a one-solid part, 0.25 apart.
-    let (single, _) = assembly("asm2b-ov-single", &[p, p], 0.25);
+    let (single, _) = assembly("asm2b-ov-single", &[p, p], 0.25, &store);
     // 2B's shape: two copies of a two-solid sub-assembly, placed so a
     // solid of each lands inside a solid of the other.
-    let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0);
+    let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0, &store);
     let b = store.insert(b_doc, Tol::witness());
-    let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25);
+    let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25, &store);
     let opts = with_resolver(store);
 
     let single_ev = run(&single, &opts);

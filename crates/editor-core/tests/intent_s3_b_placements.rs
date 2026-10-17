@@ -10,17 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::resolver::{PartStore, copy_key, in_part, with_resolver};
-use crate::fixture::{
-    self, at_the_door_of, constrain, insert, len, mated_instance, on_frame, run, square, step,
-};
+use crate::fixture::resolver::{PartStore, copy_key, placement_of, with_resolver};
+use crate::fixture::{self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step};
 use editor_core::eval::bound_pose;
-use editor_core::pose::PoseDef;
+use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
-    Alignment, AxisSense, BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError,
-    EvalOptions, ExtrudeSide, Formula, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind,
-    NodeResult, Operand, OperandSlot, Placement, PoseValue, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, Space, StableName,
+    BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions,
+    ExtrudeSide, Formula, Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand,
+    OperandSlot, PoseValue, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    Target, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -57,66 +55,111 @@ fn host(label: &str) -> (ProfileDoc, PartStore, editor_core::DocRef, RecipeNodeI
     (doc, store, doc_ref, body)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, reference, Tol::witness()).expect("a definite frame")
+/// **Face `seg` of the part's block, as instance `instance` names it**:
+/// the block's face under its part placement's copy, worn inside the
+/// instance's `InPart`.
+fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> StableName {
+    let own = StableName {
+        kind: editor_core::EntityKind::Face,
+        node: body,
+        path: vec![seg],
+    };
+    editor_core::FaceName::new(StableName {
+        kind: editor_core::EntityKind::Face,
+        node: placement_of(body),
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(own),
+        }],
+    })
+    .expect("a face")
+    .in_part(instance)
+    .into_name()
 }
 
-fn z_up() -> MateFrame<Formula> {
-    frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+/// `b`'s bottom resting on `a`'s top: the rest a stack starts from,
+/// leaving `b` free in the plane.
+fn rest_on(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Mate<Formula> {
+    fixture::rest(
+        fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
+        fixture::head(face_in(a, body, RoleSeg::Cap(CapEnd::End))),
+        ContactClass::Rest,
+    )
 }
 
-/// A mate between the start caps of instances `a` and `b` of the part
-/// whose body is `body`.
-fn mate(
+/// `b`'s wall `seg` flush with `a`'s: the two planes equated, outward
+/// normals agreeing.
+fn flush(
     body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    primitive: MatePrimitive,
-    sense: AxisSense,
-    (fa, fb): (MateFrame<Formula>, MateFrame<Formula>),
-    clocking: Option<f64>,
+    seg: RoleSeg,
 ) -> editor_core::Mate<Formula> {
     fixture::mate(
-        fixture::head(in_part(a, body, CapEnd::Start)),
-        fixture::head(in_part(b, body, CapEnd::Start)),
+        fixture::plane(fixture::head(face_in(b, body, seg.clone()))),
+        fixture::plane(fixture::head(face_in(a, body, seg))),
         ContactClass::Rest,
-        Alignment {
-            a: fa,
-            b: fb,
-            primitive,
-            sense,
-            clocking,
-        },
     )
 }
 
-/// Coaxial about the shared +z, clocked at zero: a prismatic pair.
-fn coaxial(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Mate<Formula> {
-    mate(
-        body,
-        a,
-        b,
-        MatePrimitive::Coaxial,
-        AxisSense::Aligned,
-        (z_up(), z_up()),
-        Some(0.0),
+/// **The two walls of the part's block a stack makes flush**: two
+/// adjacent sides, whose planes with the rest pin the copy.
+fn walls(label: &str) -> [RoleSeg; 2] {
+    let (doc, body) = block(&format!("{label}-part"));
+    [fixture::wall(&doc, body, 0), fixture::wall(&doc, body, 1)]
+}
+
+/// **`b` stacked on `a`**, square: `b` resting on `a`'s top and its two
+/// walls flush with `a`'s — three plane mates that pin `b`, each
+/// admitted to `b`'s bundle; their addresses, the rest first.
+fn stack(
+    doc: ProfileDoc,
+    label: &str,
+    body: RecipeNodeId,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> (ProfileDoc, [MateRef; 3]) {
+    let [x, y] = walls(label);
+    let (doc, rest) = fixture::constrain_at(doc, b, rest_on(body, a, b));
+    let (doc, wx) = fixture::constrain_at(doc, b, flush(body, a, b, x));
+    let (doc, wy) = fixture::constrain_at(doc, b, flush(body, a, b, y));
+    (doc, [rest, wx, wy])
+}
+
+/// **One copy of `body` in the world at `pose`**: a placement of it,
+/// pinned there over its own geometry.
+fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    (
+        fixture::pin(doc, placement, pose, &EvalOptions::default()),
+        placement,
     )
 }
 
-/// Seated on `a`'s top: the slide the coaxial leaves, closed.
-fn seated(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Mate<Formula> {
-    mate(
-        body,
-        a,
-        b,
-        MatePrimitive::PlanarRest { offset: -1.0 },
-        AxisSense::Opposed,
-        (
-            frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
-        ),
-        None,
-    )
+/// **A zero value on each freedom a plane mate leaves**: both slides
+/// and the spin, so the copy's own coordinates agree with its target's
+/// as far as the mate allows.
+fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
+    [
+        (editor_core::Coord::Slide(editor_core::SlideAxis::X), len(0.0)),
+        (editor_core::Coord::Slide(editor_core::SlideAxis::Y), len(0.0)),
+        (editor_core::Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(editor_core::Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    })
 }
 
 /// The fault the evaluation refused `placement` with.
@@ -146,16 +189,7 @@ fn product_solids(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) -> usize 
 fn two_placements_of_one_body_are_two_copies() {
     let (doc, body) = block("s3b-two-copies");
     let (doc, first) = fixture::place(doc, body);
-    let (doc, second) = step(
-        doc,
-        DocEdit::place_in_world(
-            Operand::Node(body),
-            Some(Placement::literal(&editor_core::Frame::translation([
-                3.0, 0.0, 0.0,
-            ]))),
-        ),
-    );
-    let second = second.expect("a placement mints its node");
+    let (doc, second) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     assert_ne!(
         doc.output(first, 0),
         doc.output(second, 0),
@@ -183,17 +217,15 @@ fn two_placements_of_one_body_are_two_copies() {
 // ---- Row 6: the product is the world's kind ----
 
 /// **A copy pinned against a copy pinned against the world is in the
-/// product**: the second instance, coaxial and seated on the first,
-/// which is pinned to the world.
+/// product**: the second instance, stacked on the first, which is
+/// pinned to the world.
 #[test]
 fn a_copy_pinned_against_a_pinned_copy_is_in_the_product() {
     let (doc, store, doc_ref, body) = host("s3b-chain");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, _) = stack(doc, "s3b-chain", body, a, b);
     let ev = run(&doc, &o);
     assert_eq!(ev.space(b), Space::World);
     assert_eq!(product_solids(&doc, &ev), 2);
@@ -208,9 +240,7 @@ fn copies_pinned_only_against_each_other_are_one_loose_space() {
     let (doc, a) = insert(doc, mated_instance(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
+    let (doc, _) = stack(doc, "s3b-loose-pair", body, a, b);
     let ev = run(&doc, &o);
     assert_eq!(ev.space(a), Space::Loose { root: a });
     assert_eq!(ev.space(b), Space::Loose { root: a });
@@ -246,22 +276,30 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
             of: editor_core::NameRef::new(cap),
         }],
     };
-    let pin_on = |target: editor_core::SideRead<Operand>| editor_core::Mate {
-        a: target,
-        b: editor_core::SideRead::Copy,
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame::on_part(Placement::IDENTITY),
-            b: MateFrame::on_part(Placement::IDENTITY),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
+    // A copy's bottom on a face, square to its target's coordinates:
+    // the plane mate and a zero value on each freedom it leaves.
+    let pin_on = |doc: ProfileDoc, at: RecipeNodeId, body: RecipeNodeId, target: Operand| {
+        let (doc, mate) = fixture::constrain_at(
+            doc,
+            at,
+            fixture::mate(
+                fixture::plane(fixture::head(fixture::fname(
+                    body,
+                    RoleSeg::Cap(CapEnd::Start),
+                ))),
+                fixture::plane(target),
+                ContactClass::Rest,
+            ),
+        );
+        zero_values(doc, mate)
     };
-    let on_l =
-        editor_core::SideRead::Face(Operand::select(Operand::output(l, 0), vec![placed_cap]));
-    let (doc, l2) = step(doc, DocEdit::place(vec![b.into()], vec![pin_on(on_l)]));
-    let l2 = l2.expect("the pinned placement mints");
+    let (doc, l2) = insert(doc, Node::place(vec![b.into()]));
+    let doc = pin_on(
+        doc,
+        l2,
+        b,
+        Operand::select(Operand::output(l, 0), vec![placed_cap]),
+    );
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -280,9 +318,8 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("the subtract names a face");
-    let on_s = editor_core::SideRead::Face(Operand::select(Operand::output(s, 0), vec![face]));
-    let (doc, p) = step(doc, DocEdit::place(vec![c.into()], vec![pin_on(on_s)]));
-    let p = p.expect("the placement on the construction mints");
+    let (doc, p) = insert(doc, Node::place(vec![c.into()]));
+    let doc = pin_on(doc, p, c, Operand::select(Operand::output(s, 0), vec![face]));
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(p), Some(NodeResult::Ok(_))),
@@ -321,26 +358,21 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **A copy of no instance forms no lever its constraints do not ask
-/// for**: a `Place` copy resting on a world plane decides nothing over a
-/// lever, so its bundle never asks the parts' reach, which has no part
-/// to answer for it. The copy stands, loose in the rest's plane.
+/// for**: a `Place` copy resting on the world's xy plane decides nothing
+/// over a lever, so its bundle never asks the parts' reach, which has no
+/// part to answer for it. The copy stands, loose in the rest's plane.
 #[test]
 fn a_place_copy_resting_on_the_world_asks_no_lever() {
     let (doc, body) = block("s3b-world-rest");
     let rest = editor_core::Mate {
-        a: editor_core::SideRead::World,
-        b: editor_core::SideRead::Copy,
+        on: fixture::plane(fixture::head(fixture::fname(
+            body,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
+        to: Target::World(WorldRead::Flip {
+            pose: Box::new(WorldRead::through(PoseRole::Xy)),
+        }),
         class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame {
-                base: editor_core::FrameBase::World,
-                offset: Placement::IDENTITY,
-            },
-            b: MateFrame::on_part(Placement::IDENTITY),
-            primitive: MatePrimitive::PlanarRest { offset: 0.0 },
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
     };
     let (doc, place) = step(doc, DocEdit::place(vec![body.into()], vec![rest]));
     let place = place.expect("the placement mints");
@@ -353,54 +385,15 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
     assert_eq!(ev.space(place), Space::Loose { root: place });
 }
 
-/// **B4's interim refuses with its recourse**: a face side read on a
-/// `Place` copy (no instance's) is refused at the door, saying the face
-/// side reads only an instance's copy until a constraint relates poses,
-/// and how to proceed, never as a kernel defect.
-#[test]
-fn a_face_side_on_a_place_copy_refuses_with_b4s_recourse() {
-    let (doc, body) = block("s3b-b4-place-face");
-    let (doc, place) = step(doc, DocEdit::place(vec![body.into()], vec![]));
-    let place = place.expect("the placement mints");
-    let side = editor_core::Mate {
-        a: editor_core::SideRead::World,
-        b: editor_core::SideRead::Face(
-            fixture::head(fixture::fname(body, RoleSeg::Cap(CapEnd::End))).into(),
-        ),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame {
-                base: editor_core::FrameBase::World,
-                offset: Placement::IDENTITY,
-            },
-            b: MateFrame::from_face(),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
-    };
-    let o = EvalOptions::default();
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let Err((_, fault)) = at_the_door_of(&doc, &reach, place, side) else {
-        panic!("a face side on a Place copy is B4's refusal")
-    };
-    let said = fault.to_string();
-    assert!(
-        said.contains("is not an instance's copy") && said.contains("Recourse:"),
-        "{said}"
-    );
-    assert!(!said.contains("kernel defect"), "{said}");
-}
-
 /// **A copy its bundle pins less than its body needs is a loose copy,
-/// not a refusal**: coaxial alone leaves a slide.
+/// not a refusal**: a rest alone leaves the plane.
 #[test]
 fn an_under_pinned_copy_is_loose_not_refused() {
     let (doc, store, doc_ref, body) = host("s3b-under");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = constrain(doc, coaxial(body, a, b));
     let o = with_resolver(store);
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, _) = fixture::constrain(doc, rest_on(body, a, b));
     let ev = run(&doc, &o);
     assert!(
         matches!(ev.result(b), Some(NodeResult::Ok(_))),
@@ -451,79 +444,86 @@ fn the_world_is_undeletable_and_defines_nothing() {
     assert!(matches!(read, EditError::DefinesNothing { .. }), "{read:?}");
 }
 
-// ---- B1: an instance's copy side reads its own copy ----
+// ---- B1: an instance's `on` reads its own copy ----
 
-/// **An instance's copy side reads its own output, and its target may
-/// not**: the copy side is no pose dependency (it reads the part's face,
-/// which the instance's motion carries), so a mate whose copy side is
-/// the instance's own face admits; a mate whose target is the instance's
-/// own output relates the copy to itself and refuses.
+/// **An instance's `on` reads its own output, and its target may
+/// not**: `on` is no pose dependency (it reads the part's face, which
+/// the instance's motion carries), so a mate whose `on` is the
+/// instance's own face admits; a mate whose target is the instance's
+/// own output relates the copy to itself, a read of its own output the
+/// door refuses as a cycle.
 #[test]
 fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
     let (doc, store, doc_ref, body) = host("s3b-own-copy");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    // `b`'s own start cap on the copy side, `a`'s on the target.
-    let admitted = at_the_door_of(&doc, &reach, b, coaxial(body, a, b));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    // `b`'s own start cap on `on`, `a`'s top on the target.
+    let admitted = at_the_door_of(&doc, &editor_core::RefusingReach, b, rest_on(body, a, b));
     assert!(admitted.is_ok(), "{admitted:?}");
-    // `b`'s own output as the target, the copy itself on the copy side.
-    let own = editor_core::Mate {
-        a: editor_core::SideRead::Face(fixture::head(in_part(b, body, CapEnd::End)).into()),
-        b: editor_core::SideRead::Copy,
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: z_up(),
-            b: MateFrame::on_part(Placement::IDENTITY),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
+    // `b`'s own top as the target.
+    let own = fixture::rest(
+        fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
+        fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::End))),
+        ContactClass::Rest,
+    );
+    match editor_core::apply(
+        &doc,
+        &DocEdit::AddConstraint {
+            placement: b,
+            mate: Box::new(own),
+            fresh: Vec::new(),
         },
-    };
-    match at_the_door_of(&doc, &reach, b, own) {
-        Err((at, MateFault::SelfMate { instance, .. })) => {
-            assert_eq!((at, instance), (b, b));
-        }
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(EditError::WouldCycle { at }) => assert_eq!(at.id(), b),
         other => panic!("a mate of the copy to itself, not {other:?}"),
     }
 }
 
 // ---- Overconstraint ----
 
-/// **A mate beyond the pin refuses at the door**: the second instance is
-/// pinned by coaxial and seated, and a third mate names itself.
+/// **A mate beyond the pin refuses where its placement evaluates**: the
+/// second instance is pinned by its stack, and a second rest beyond it
+/// is named with the rest it repeats.
 #[test]
-fn a_mate_beyond_the_pin_refuses_at_the_door() {
+fn a_mate_beyond_the_pin_refuses_where_it_evaluates() {
     let (doc, store, doc_ref, body) = host("s3b-beyond");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
-    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
-    match at_the_door_of(&doc, &reach, b, coaxial(body, a, b)) {
-        Err((at, MateFault::Overconstrained { placement, .. })) => {
-            assert_eq!((at, placement), (b, b));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, [rest, ..]) = stack(doc, "s3b-beyond", body, a, b);
+    let (doc, beyond) = fixture::constrain_at(doc, b, rest_on(body, a, b));
+    let ev = run(&doc, &o);
+    match mate_fault(&ev, b) {
+        MateFault::Overconstrained {
+            placement,
+            constraints,
+            ..
+        } => {
+            assert_eq!(placement, b);
+            assert_eq!(constraints, vec![rest.id, beyond.id]);
         }
         other => panic!("a mate beyond the pin refuses, not {other:?}"),
     }
 }
 
 /// **The solve names every constraint whose removal leaves the fold
-/// unchanged, never "the later one"**: two identical coaxials, each
-/// admitted against a prefix that pinned nothing, then the seat that
-/// pins: the bundle is pinned, and either coaxial alone would have done.
+/// unchanged, never "the later one"**: two identical rests, then the
+/// two flush walls that pin: the bundle is pinned, and either rest
+/// alone would have done.
 #[test]
 fn the_solve_names_every_redundant_constraint() {
     let (doc, store, doc_ref, body) = host("s3b-redundant");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, first) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
-    let (doc, second) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
-    let (doc, seat) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, first) = fixture::constrain_at(doc, b, rest_on(body, a, b));
+    let (doc, second) = fixture::constrain_at(doc, b, rest_on(body, a, b));
+    let [x, y] = walls("s3b-redundant");
+    let (doc, wx) = fixture::constrain_at(doc, b, flush(body, a, b, x));
+    let (doc, wy) = fixture::constrain_at(doc, b, flush(body, a, b, y));
     let ev = run(&doc, &o);
     match mate_fault(&ev, b) {
         MateFault::Overconstrained {
@@ -533,7 +533,7 @@ fn the_solve_names_every_redundant_constraint() {
         } => {
             assert_eq!(placement, b);
             assert_eq!(constraints, vec![first.id, second.id]);
-            assert!(!constraints.contains(&seat.id));
+            assert!(!constraints.contains(&wx.id) && !constraints.contains(&wy.id));
         }
         other => panic!("overconstrained, not {other:?}"),
     }
@@ -541,63 +541,69 @@ fn the_solve_names_every_redundant_constraint() {
 
 // ---- The interims ----
 
-/// **One bundle targets one copy** (the stage's named interim,
-/// `work/intent/a-bundle-folds-in-the-joined-space.md`): a mate to a
-/// second target refuses `TargetsDiffer` naming the bundle.
+/// **One bundle targets one space** (the stage's named interim,
+/// `work/intent/a-bundle-folds-in-the-joined-space.md`): a bundle with
+/// a rest on a copy in the world and one on a loose copy refuses
+/// `TargetsDiffer` naming the bundle where it evaluates.
 #[test]
 fn a_bundle_of_two_targets_refuses() {
     let (doc, store, doc_ref, body) = host("s3b-two-targets");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, c) = insert(doc, mated_instance(doc_ref));
-    let (doc, held) = constrain(doc, coaxial(body, a, c));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    match at_the_door_of(&doc, &reach, c, seated(body, b, c)) {
-        Err((
-            at,
-            MateFault::TargetsDiffer {
-                placement,
-                constraints,
-            },
-        )) => {
-            assert_eq!((at, placement), (c, c));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, c) = insert(doc, mated_instance(doc_ref));
+    let (doc, held) = fixture::constrain_at(doc, c, rest_on(body, a, c));
+    let (doc, _) = fixture::constrain_at(doc, c, rest_on(body, b, c));
+    let ev = run(&doc, &o);
+    match mate_fault(&ev, c) {
+        MateFault::TargetsDiffer {
+            placement,
+            constraints,
+        } => {
+            assert_eq!(placement, c);
             assert_eq!(constraints.first(), Some(&held.id));
         }
         other => panic!("two targets refuse, not {other:?}"),
     }
 }
 
-/// **The pin is asked before the target**: on a copy its bundle
-/// already pins (an instance's default world pin), a mate to another
-/// copy is overconstrained, not a second target. The order the
-/// unpinned bundle above meets is the other: `TargetsDiffer`.
+/// **A mate on a pinned copy is overconstrained**: on a copy its world
+/// pin already pins, a rest on another copy in the world that holds
+/// where the pin puts it is a mate the pin already fixes, named where
+/// the copy evaluates.
 #[test]
-fn a_mate_on_a_pinned_copy_is_overconstrained_whatever_it_targets() {
+fn a_mate_on_a_pinned_copy_is_overconstrained() {
     let (doc, store, doc_ref, body) = host("s3b-pin-first");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    match at_the_door_of(&doc, &reach, b, coaxial(body, a, b)) {
-        Err((at, MateFault::Overconstrained { placement, .. })) => {
-            assert_eq!((at, placement), (b, b));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    // `b` pinned where the rest puts it, on `a`'s top.
+    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
+    let doc = fixture::pin(doc, b, &Frame::translation([0.0, 0.0, 1.0]), &o);
+    let (doc, rest) = fixture::constrain_at(doc, b, rest_on(body, a, b));
+    let ev = run(&doc, &o);
+    match mate_fault(&ev, b) {
+        MateFault::Overconstrained {
+            placement,
+            constraints,
+            ..
+        } => {
+            assert_eq!(placement, b);
+            assert_eq!(constraints, vec![rest.id]);
         }
         other => panic!("a mate on a pinned copy is overconstrained, not {other:?}"),
     }
 }
 
-/// **A constraint has a side on its copy**: one relating two other
-/// copies refuses `NotOnTheCopy`.
+/// **A constraint has its `on` on its copy**: one relating two other
+/// copies refuses `NotOnTheCopy` at the door.
 #[test]
 fn a_constraint_off_its_copy_refuses() {
     let (doc, store, doc_ref, body) = host("s3b-off-copy");
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
+    let o = with_resolver(store);
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, c) = insert(doc, mated_instance(doc_ref));
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    match at_the_door_of(&doc, &reach, c, coaxial(body, a, b)) {
+    match at_the_door_of(&doc, &editor_core::RefusingReach, c, rest_on(body, a, b)) {
         Err((at, MateFault::NotOnTheCopy { mate })) => {
             assert_eq!((at, mate.placement), (c, c));
         }
@@ -609,12 +615,13 @@ fn a_constraint_off_its_copy_refuses() {
 
 /// **A construction reads one copy of an instance by its key**, and a
 /// raw construction stands at the identity of the document's one kind,
-/// so a union of an instance's copy and a block of this document
+/// so a union of a pinned instance's copy and a block of this document
 /// evaluates (the stage's interim until D).
 #[test]
 fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, store, doc_ref, part_body) = host("s3b-union");
-    let (doc, instance) = insert(doc, Node::instantiate_part(doc_ref));
+    let o = with_resolver(store);
+    let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, profile) = on_frame(
         doc,
         [3.0, 0.0, 0.0],
@@ -639,7 +646,7 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
             ]),
         },
     );
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     assert!(
         matches!(ev.result(union), Some(NodeResult::Ok(_))),
         "{:?}",
@@ -653,7 +660,8 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
 #[test]
 fn an_instances_copies_are_read_one_by_key() {
     let (doc, store, doc_ref, part_body) = host("s3b-keyed");
-    let (doc, instance) = insert(doc, Node::instantiate_part(doc_ref));
+    let o = with_resolver(store);
+    let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let whole = fixture::insert_refused(
         &doc,
         Node::Union {
@@ -674,7 +682,7 @@ fn an_instances_copies_are_read_one_by_key() {
             ]),
         },
     );
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     match ev.result(union) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::NoSuchCopy { input, key } => {
@@ -700,12 +708,11 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         mid,
         Node::instantiate_part_with(leaf, editor_core::InterfaceRecord::default()),
     );
-    let (mid, _) = fixture::constrain_at(
+    let mid = fixture::pin(
         mid,
         inner,
-        editor_core::Mate::world_pin(Placement::literal(&editor_core::Frame::translation([
-            5.0, 0.0, 0.0,
-        ]))),
+        &Frame::translation([5.0, 0.0, 0.0]),
+        &with_resolver(store.clone()),
     );
     let mid_ref = store.insert(mid, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
@@ -713,21 +720,28 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         top,
         Node::instantiate_part_with(mid_ref, editor_core::InterfaceRecord::default()),
     );
-    let quarter_turn = editor_core::Frame {
+    let quarter_turn = Frame {
         columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
     };
-    let (top, _) = fixture::constrain_at(
-        top,
-        outer,
-        editor_core::Mate::world_pin(Placement::literal(&quarter_turn)),
-    );
+    // The reader copies the one copy where the outer instance puts it:
+    // one pin, read off that copy while the instance is loose, holds
+    // the instance at the quarter turn and the reader where it reads.
+    let at_turn = editor_core::pin_at(
+        &top,
+        &Operand::Var(top.output(outer, 0).expect("an instance defines its copies")),
+        &quarter_turn,
+        &with_resolver(store.clone()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+    let (top, _) = fixture::constrain_at(top, outer, at_turn.clone());
     let key = CopyKey::part(inner, copy_key(leaf_body));
-    let (top, reader) = step(
+    let (top, reader) = insert(
         top,
-        DocEdit::place_in_world(BodyRead::keyed(Operand::Node(outer), key), None),
+        Node::place(vec![BodyRead::keyed(Operand::Node(outer), key)]),
     );
-    let reader = reader.expect("the reader mints");
+    let (top, _) = fixture::constrain_at(top, reader, at_turn);
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Body(b)) => b.clone(),
@@ -752,7 +766,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
 
 /// **A `Place` over several shapes defines one output, its copies keyed
 /// by read**: a read of one evaluates to that copy, and two reads of one
-/// family key alike and refuse (FORK-DM4).
+/// family key alike and refuse (FORK-DM4), before any mate is asked.
 #[test]
 fn a_place_of_several_shapes_keys_its_copies_by_read() {
     let (doc, first) = block("s3b-place-several");
@@ -771,14 +785,8 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, place) = step(
-        doc,
-        DocEdit::place(
-            vec![first.into(), second.into()],
-            vec![editor_core::Mate::world_pin(Placement::IDENTITY)],
-        ),
-    );
-    let place = place.expect("a placement mints its node");
+    let (doc, place) = insert(doc, Node::place(vec![first.into(), second.into()]));
+    let doc = fixture::pinned(doc, place, &EvalOptions::default());
     assert_eq!(
         doc.outputs(place).len(),
         1,
@@ -813,17 +821,13 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
             },
         },
     );
-    let (doc, twice) = step(
+    let (doc, twice) = insert(
         doc,
-        DocEdit::place(
-            vec![
-                BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(0)]),
-                BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(1)]),
-            ],
-            vec![editor_core::Mate::world_pin(Placement::IDENTITY)],
-        ),
+        Node::place(vec![
+            BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(0)]),
+            BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(1)]),
+        ]),
     );
-    let twice = twice.expect("a placement mints its node");
     let ev = run(&doc, &EvalOptions::default());
     match ev.result(twice) {
         Some(NodeResult::Failed(e)) => assert!(
@@ -842,16 +846,7 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
 #[test]
 fn a_carried_pose_moves_with_its_copy() {
     let (doc, body) = block("s3b-carried");
-    let (doc, placement) = step(
-        doc,
-        DocEdit::place_in_world(
-            Operand::Node(body),
-            Some(Placement::literal(&editor_core::Frame::translation([
-                3.0, 0.0, 0.0,
-            ]))),
-        ),
-    );
-    let placement = placement.expect("a placement mints its node");
+    let (doc, placement) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     let top = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
     let plane = |carried: bool| {
         let face = Operand::Pose(Box::new(PoseDef::Plane {

@@ -18,10 +18,9 @@
 use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
-use editor_core::Formula;
 use editor_core::{
-    Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateFrame,
-    MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, solve_document,
+    ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateSide, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, apply, solve_document,
 };
 use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
@@ -92,16 +91,6 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
-fn mate_frame() -> MateFrame<Formula> {
-    MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -119,25 +108,26 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
 
 use editor_core::CapEnd;
 
-/// **Deleting a mate's OPERAND alone reports no strand, and the solve
-/// refuses it typed.** DM7's carve-out for `payload_read_sites` says
-/// the loss is the solve's to refuse; this is that claim end to end,
-/// for an operand that is not also the head's minting node.
+/// **Deleting a mate's OPERAND alone reports no strand, and the
+/// placement refuses it typed where it evaluates.** DM7's carve-out for
+/// `payload_read_sites` says the loss is the solve's to refuse; this is
+/// that claim end to end, for an operand that is not also the head's
+/// minting node.
 #[test]
 fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    // The delete moves the pair's root and the solve levers the
-    // parts, so both go through the store's reach.
+    // The delete moves the pair's root and the evaluation reads the
+    // parts, so both go through the store.
     let opts = fixture::resolver::with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
     // `ia`'s bundle is empty: the mate places it.
     let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
-    let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ib) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
     // A placed copy of `ib`: the mate reads `ib`'s face AT the
     // transform, so the operand is a node the name does not name.
     let (doc, placed) = insert(
@@ -152,24 +142,15 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         ),
     );
     let head_b = instance_face(ib, part_body);
-    let (doc, mate) = crate::fixture::at_the_door_of(
-        &doc,
-        &reach,
+    let (doc, mate) = crate::fixture::constrain_at(
+        doc,
         ia,
-        crate::fixture::mate(
+        crate::fixture::rest(
             crate::fixture::head(instance_face(ia, part_body)),
             crate::fixture::head_at(placed, head_b),
             ContactClass::Rest,
-            Alignment {
-                a: mate_frame(),
-                b: mate_frame(),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: Some(0.0),
-            },
         ),
-    )
-    .unwrap_or_else(|(at, fault)| panic!("the mate is admitted, got {at:?}: {fault}"));
+    );
 
     let applied = apply(
         &doc,
@@ -186,12 +167,16 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         "the operand is a read site, not a name: {:?}",
         crate::fixture::without_anonymous(&applied.maintenance)
     );
-    let fault = solve_document(&applied.doc, &reach, Tol::witness())
+    let fault = solve_document(&applied.doc, &opts, Tol::witness())
         .fault(mate.placement)
-        .expect("the solve refuses the mate whose operand left")
+        .expect("the placement refuses the mate whose operand left")
         .clone();
     assert!(
-        matches!(&fault, editor_core::MateFault::SideUnresolved { mate: m, .. } if *m == mate),
+        matches!(
+            &fault,
+            editor_core::MateFault::SideUnevaluated { mate: m, side: MateSide::To, .. }
+                if *m == mate
+        ),
         "typed, naming the stranded side, not silence: {fault:?}"
     );
 }

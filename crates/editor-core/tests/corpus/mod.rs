@@ -488,11 +488,12 @@ pub const NODE_KINDS: [&str; 23] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `AddConstraint`, `RemoveConstraint`, `RenameVar`, `DeleteVar` and
+/// `RemoveConstraint`, `AddValue`, `RenameVar`, `DeleteVar` and
 /// `UpdateReference` are arms of `DocEdit` that no corpus document
-/// authors (a corpus placement holds its constraints from its insert),
-/// and listing them here would report six permanent misses rather
-/// than covering anything. `SetProgram` is
+/// authors, and listing them here would report six permanent misses
+/// rather than covering anything. `AddConstraint` is listed: every
+/// placement the recorder authors pins its copy to the world by one.
+/// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -503,7 +504,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 21] = [
+pub const EDIT_KINDS: [&str; 22] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -525,6 +526,7 @@ pub const EDIT_KINDS: [&str; 21] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
+    "AddConstraint",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
@@ -692,6 +694,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
+        DocEdit::AddValue { .. } => "AddValue",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

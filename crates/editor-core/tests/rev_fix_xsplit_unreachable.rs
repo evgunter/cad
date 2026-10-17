@@ -17,62 +17,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
+use crate::fix_pattern_mate_crossing::{blocks_reach, block_ref, pinned_block, place_copies, seat};
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, Formula, Mate, MateFrame,
-    MatePrimitive, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId, SideRead, StableName,
-    derivation_nodes, split,
+    CapEnd, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    StableName, derivation_nodes, split,
 };
 use fixture::resolver::in_part;
-use fixture::{in_copy, insert, len, on_frame, scl};
+use fixture::{in_copy, insert, len, scl};
 use geom_core::Tol;
 
-/// The unit cube `[0,1]³`, as a whole part document, and its body.
-fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    )
-}
-
-/// [`block`] as a reference, and its body, placed in the part's world
-/// ([`fixture::resolver::PartStore::insert_part`], which is what lets
-/// [`in_part`] spell its caps through the placement).
-fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
-    fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
-}
-
 /// **The world the product is** (A10): each `(pattern, count)`'s copies
-/// placed through a `Part` per copy. The instances are placements of
-/// their own.
-fn world(doc: ProfileDoc, patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
-    patterns.iter().fold(doc, |doc, &(pattern, count)| {
-        (0..count).fold(doc, |doc, i| {
-            let (doc, copy) = insert(
-                doc,
-                Node::Part {
-                    of: pattern.into(),
-                    select: editor_core::PartSelect::Instance(Formula::count(i)),
-                },
-            );
-            fixture::place(doc, copy).0
-        })
-    })
+/// placed through a `Part` per copy, each pinned at the identity. The
+/// instances are placements of their own.
+fn world(doc: ProfileDoc, patterns: &[(RecipeNodeId, i64)], o: &EvalOptions) -> ProfileDoc {
+    patterns
+        .iter()
+        .fold(doc, |doc, &(pattern, count)| place_copies(doc, pattern, count, o))
 }
 
 /// Whether `id` is one of [`world`]'s nodes: a `Place`, or a `Part`
@@ -95,29 +58,14 @@ fn with_world(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> BTreeSet<Recipe
     fixture::with_placements(doc, &out)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-fn seat(a: StableName, b: StableName) -> Mate<Formula> {
-    fixture::mate(
-        fixture::head(a),
-        fixture::head(b),
-        ContactClass::Rest,
-        Alignment {
-            a: mate_frame([0.0, 0.0, 1.0]),
-            b: mate_frame([0.0, 0.0, 0.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    )
+/// The face name each side of a stored rest reads, `on`'s first; `None`
+/// for a mate that rests no two faces.
+fn rested_names(doc: &ProfileDoc, mate: &editor_core::Mate) -> Option<(StableName, StableName)> {
+    let face = |pose| match fixture::face_reads(doc, pose)[..] {
+        [one] => Some(fixture::side_name(doc, one)),
+        _ => None,
+    };
+    Some((face(mate.on)?, face(*mate.to.pose()?)?))
 }
 
 fn linear(spacing: f64) -> PatternKind<Formula> {
@@ -144,7 +92,7 @@ struct Sweep {
 /// the interface record holds one crossing per kept constraint whose
 /// ends straddle the cut and weld two members, and none for a
 /// straddling constraint with a dangling side.
-fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
+fn sweep_every_cut((doc, o): &(ProfileDoc, EvalOptions), label: &str) -> Sweep {
     let ids: Vec<RecipeNodeId> = doc
         .ids()
         .into_iter()
@@ -177,7 +125,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             &with_world(doc, &cut),
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
-            None,
+            o.resolver.as_ref(),
         ) else {
             seen.refused += 1;
             continue;
@@ -192,11 +140,11 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                 continue;
             }
             for c in fixture::bundle(doc, placement) {
-                let (SideRead::Face(a), SideRead::Face(b)) = (&c.mate.a, &c.mate.b) else {
+                let Some((on, to)) = c.mate().and_then(|m| rested_names(doc, m)) else {
                     continue;
                 };
                 let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-                if inside(&fixture::side_name(doc, *a)) != inside(&fixture::side_name(doc, *b)) {
+                if inside(&on) != inside(&to) {
                     seen.straddling_mates += 1;
                     if edge_count(MateRef::new(placement, c.id)) == 2 {
                         welding += 1;
@@ -222,10 +170,10 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
 /// so an edge), a nested pattern head its name UNDERQUALIFIES (not a
 /// member, so not an edge — a nested copy under its own name IS one),
 /// and plain instance heads.
-fn three_shapes() -> ProfileDoc {
+fn three_shapes() -> (ProfileDoc, EvalOptions) {
+    let o = blocks_reach(&["rev-xs-a", "rev-xs-b", "rev-xs-c", "rev-xs-e"]);
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-shapes"), Tol::witness());
-    let (a_ref, a_body) = block_ref("rev-xs-a");
-    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
+    let (doc, a, a_body) = pinned_block(doc, "rev-xs-a");
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
@@ -236,8 +184,7 @@ fn three_shapes() -> ProfileDoc {
     );
     let (b_ref, b_body) = block_ref("rev-xs-b");
     let (doc, b) = insert(doc, fixture::mated_instance(b_ref));
-    let (c_ref, c_body) = block_ref("rev-xs-c");
-    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+    let (doc, c, c_body) = pinned_block(doc, "rev-xs-c");
     let (doc, pc) = insert(
         doc,
         Node::Pattern {
@@ -256,32 +203,26 @@ fn three_shapes() -> ProfileDoc {
     );
     // A plain instance seated on a pattern-placed head: an EDGE, welds
     // a—b, and `b`'s placement.
-    let (doc, _) = fixture::constrain_at(
+    let (doc, _) = seat(
         doc,
         b,
-        seat(
-            in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
-            in_part(b, b_body, CapEnd::Start),
-        ),
+        in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
+        in_part(b, b_body, CapEnd::Start),
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
     // two-level nest, which is the name such a table never mints:
-    // NOT an edge, welds nothing. The constraint door refuses such a
-    // head, so it is authored the way one arises after the add
-    // (`constrain_with_dangling_side`), on an instance of its own.
+    // NOT an edge, welds nothing. The door is structural, so it is
+    // admitted as written, on an instance of its own.
     let (e_ref, e_body) = block_ref("rev-xs-e");
     let (doc, e) = insert(doc, fixture::mated_instance(e_ref));
-    let (doc, _) = crate::fix_pattern_mate_crossing::constrain_with_dangling_side(
+    let (doc, _) = seat(
         doc,
-        seat(
-            in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
-            in_part(e, e_body, CapEnd::End),
-        ),
-        editor_core::MateSide::A,
         e,
-        e_body,
+        in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
+        in_part(e, e_body, CapEnd::End),
     );
-    world(doc, &[(pa, 3), (npc, 4)])
+    let doc = world(doc, &[(pa, 3), (npc, 4)], &o);
+    (doc, o)
 }
 
 /// The adversary the four-cut sample cannot reach: a pattern-placed
@@ -290,11 +231,11 @@ fn three_shapes() -> ProfileDoc {
 /// so "the name is inside the cut" and "the member is inside the cut"
 /// are computed from different nodes, and this is where they could
 /// diverge.
-fn foreign_master() -> ProfileDoc {
+fn foreign_master() -> (ProfileDoc, EvalOptions) {
+    let o = blocks_reach(&["rev-xs-f-a", "rev-xs-f-c", "rev-xs-f-d"]);
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
     let (doc, _datum) = insert(doc, fixture::xy_frame());
-    let (a_ref, _) = block_ref("rev-xs-f-a");
-    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
+    let (doc, a, _) = pinned_block(doc, "rev-xs-f-a");
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
@@ -303,24 +244,20 @@ fn foreign_master() -> ProfileDoc {
             kind: linear(2.0),
         },
     );
-    let (c_ref, c_body) = block_ref("rev-xs-f-c");
-    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+    let (doc, c, c_body) = pinned_block(doc, "rev-xs-f-c");
     let (d_ref, d_body) = block_ref("rev-xs-f-d");
     let (doc, d) = insert(doc, fixture::mated_instance(d_ref));
     // The head resolves to no member (the walk reaches `a` under a
-    // name whose master is `c`), which the insert door refuses: it is
-    // authored the way such a head arises after insert.
-    let (doc, _) = crate::fix_pattern_mate_crossing::constrain_with_dangling_side(
+    // name whose master is `c`); the door is structural, so it is
+    // admitted as written.
+    let (doc, _) = seat(
         doc,
-        seat(
-            in_copy(pa, 2, in_part(c, c_body, CapEnd::End)),
-            in_part(d, d_body, CapEnd::Start),
-        ),
-        editor_core::MateSide::A,
         d,
-        d_body,
+        in_copy(pa, 2, in_part(c, c_body, CapEnd::End)),
+        in_part(d, d_body, CapEnd::Start),
     );
-    world(doc, &[(pa, 3)])
+    let doc = world(doc, &[(pa, 3)], &o);
+    (doc, o)
 }
 
 /// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, the

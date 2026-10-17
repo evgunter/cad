@@ -1034,7 +1034,7 @@ test_utils::f6_variants! {
         PlacementNonFinite,
         PlacementImproper,
         PlacementNonRigid,
-        MateAlignment,
+        MateRefused,
         PlacementRule,
         InputList,
         AssertionBound,
@@ -1429,12 +1429,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                         3,
                         0x3fa9_c1d2_a0b1_c3d4,
                     )),
-                    side: MateSide::B,
+                    side: MateSide::To,
                     index: 0,
                 },
             },
             vec![
-                "step 1 of constraint #3 of Place 000000000005's b frame offset",
+                "step 1 of constraint #3 of Place 000000000005's to frame offset",
                 "non-finite coordinate",
             ],
         ),
@@ -1462,16 +1462,27 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::MateAlignment {
+            SnapshotError::MateRefused {
                 node: held(5, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(
                     3,
                     0x3fa9_c1d2_a0b1_c3d4,
                 )),
+                fault: Box::new(editor_core::MateFault::KindsDiffer {
+                    mate: editor_core::MateRef::new(
+                        RecipeNodeId::new(0, tagged(5)),
+                        editor_core::ConstraintId(editor_core::MintId::new(
+                            3,
+                            0x3fa9_c1d2_a0b1_c3d4,
+                        )),
+                    ),
+                    on: editor_core::VarKind::Plane,
+                    to: editor_core::VarKind::Frame,
+                }),
             },
             vec![
-                "Place 000000000005's constraint #3's alignment datum",
-                "non-finite coordinate",
+                "Place 000000000005's constraint #3 is refused:",
+                "equates a plane with a frame; a mate's two poses are of one kind",
             ],
         ),
         (
@@ -2075,7 +2086,7 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
 
     let reference = mint(MintRefusal::Reference {
         mate: mref(2),
-        side: MateSide::A,
+        side: MateSide::On,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
     });
@@ -2109,14 +2120,14 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
 
     let tied = mint(MintRefusal::Reference {
         mate: mref(2),
-        side: MateSide::A,
+        side: MateSide::On,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
     });
     assert_f6(
         &tied,
         &[
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
@@ -2214,7 +2225,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         refusals: vec![
             MintRefusal::Reference {
                 mate: mref(2),
-                side: MateSide::A,
+                side: MateSide::On,
                 name: Box::new(face_name()),
                 why: RefusedRef::Ambiguous { width: 2 },
             },
@@ -2236,7 +2247,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &raised,
         &[
             &counted,
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["Reference", "NoAtRestRecord"],
@@ -2253,7 +2264,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                 route: route.clone(),
                 refusal: MintRefusal::Reference {
                     mate: mref(2),
-                    side: MateSide::A,
+                    side: MateSide::On,
                     name: Box::new(face_name()),
                     why: RefusedRef::Ambiguous { width: 2 },
                 },
@@ -2282,7 +2293,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &carried,
         &[
             &counted,
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
@@ -2560,9 +2571,12 @@ fn a_lever_refusal_names_the_instance_and_why() {
         &["NoFiniteBound"],
     );
     assert_f6(
-        &LeverRefusal::NotAnInstance { node: instance },
-        &["node 000000000007", "is not an instance's copy"],
-        &["NotAnInstance"],
+        &LeverRefusal::Shape {
+            shape: instance,
+            refusal: ReachRefusal::NoExtent,
+        },
+        &["the body node 000000000007 copies", "no faces"],
+        &["Shape", "NoExtent"],
     );
     assert_f6(
         &LeverRefusal::OutOfRange {

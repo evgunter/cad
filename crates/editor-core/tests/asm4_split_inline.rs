@@ -21,6 +21,7 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::blocks::block;
+use crate::p2_split::pinned_at;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
@@ -69,25 +70,30 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
 fn two_instance_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
+    let o = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, first) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, second) = pinned_at(doc, doc_ref, [5.0, 0.0, 0.0]);
+    let (doc, first) = pinned(doc, doc_ref, &o);
+    let (doc, second) = pinned_at(doc, doc_ref, [5.0, 0.0, 0.0], &o);
     (store, doc, vec![first, second])
 }
 
-/// **An instance of `doc_ref` pinned to the world at the translation
-/// `t`**: an empty bundle, then one world pin.
-fn pinned_at(
+/// **An instance of `doc_ref` pinned to the world at the identity**
+/// over its own geometry, the parts `o` serves evaluating it.
+fn pinned(
     doc: ProfileDoc,
     doc_ref: editor_core::DocRef,
-    t: [f64; 3],
+    o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = insert(doc, fixture::mated_instance(doc_ref));
-    let pose = editor_core::Placement::literal(&editor_core::Frame::translation(t));
-    (
-        fixture::constrain_at(doc, id, editor_core::Mate::world_pin(pose)).0,
-        id,
-    )
+    fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), o)
+}
+
+/// **The instance a split leaves stands at the identity of the
+/// remainder's world**, the part served beside `store`'s.
+fn left_at_identity(out: &editor_core::SplitOutcome, store: &PartStore) -> bool {
+    let mut store = store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    fixture::offset_of(&out.remainder, out.instance).is_some()
+        && crate::p2_split::at_identity(&out.remainder, out.instance, &with_resolver(store))
 }
 
 /// The structural census the A4 identity compares: solids, faces,
@@ -102,10 +108,21 @@ fn census(body: &topo::Body<f64>) -> (usize, usize, usize, usize) {
 }
 
 fn volume_bits(body: &topo::Body<f64>) -> u64 {
+    volume(body).to_bits()
+}
+
+fn volume(body: &topo::Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness())
         .expect("mass properties")
         .volume
-        .to_bits()
+}
+
+/// Two products' volumes agree to well inside the witness band: an
+/// instance a split leaves stands at its pin to rounding, so the
+/// remainder's copies are its part's moved by that rounding.
+fn same_volume(a: &topo::Body<f64>, b: &topo::Body<f64>, what: &str) {
+    let (a, b) = (volume(a), volume(b));
+    assert!((a - b).abs() <= 1e-12 * a.abs().max(1.0), "{what}: {a} vs {b}");
 }
 
 /// Wraps a part-local name under an instance — the bridge's own form.
@@ -164,9 +181,10 @@ fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -
 
 /// Row 1 — splitting a two-instance assembly's second instance out
 /// leaves a remainder that instantiates the new document, and the A4
-/// identity holds: censuses equal, volumes bit-equal, and every
-/// probed name resolves to the corresponding entity (the split side
-/// through the instance qualifier).
+/// identity holds: censuses equal, volumes and positions equal to the
+/// rounding the instance's pin stands at, and every probed name
+/// resolves to the corresponding entity (the split side through the
+/// instance qualifier).
 #[test]
 fn row1_split_one_instance_preserves_structure_and_names() {
     let (store, doc, ids) = two_instance_assembly("asm4-r1");
@@ -185,7 +203,7 @@ fn row1_split_one_instance_preserves_structure_and_names() {
         &cut,
         DocumentId::derive("asm4-r1-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("the split is legal");
 
@@ -212,11 +230,7 @@ fn row1_split_one_instance_preserves_structure_and_names() {
         product_named(&out.remainder, &ev2, Tol::witness()).expect("the split product gathers");
 
     assert_eq!(census(&body1), census(&body2), "censuses are equal");
-    assert_eq!(
-        volume_bits(&body1),
-        volume_bits(&body2),
-        "volumes are bit-equal"
-    );
+    same_volume(&body1, &body2, "volumes are equal");
 
     // NAME-RESOLUTION identity: every product name of the unsplit
     // evaluation resolves after the split — kept names verbatim, cut
@@ -256,8 +270,8 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     assert!(probed_cut > 0, "the probe actually crossed the seam");
 
     // Geometry rides the names: one part-local vertex, resolved through
-    // the unsplit copy and through the split side's copy, lands on
-    // bit-identical coordinates.
+    // the unsplit copy and through the split side's copy, lands on the
+    // same coordinates.
     let sample = names1
         .iter()
         .find(|(n, _)| n.node == cut_instance && n.kind == editor_core::EntityKind::Vertex)
@@ -267,9 +281,10 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     let after_name = across(&sample);
     let after =
         editor_core::vertex_position(&ev2, out.instance, &after_name).expect("resolves after");
-    assert_eq!(before.x.to_bits(), after.x.to_bits());
-    assert_eq!(before.y.to_bits(), after.y.to_bits());
-    assert_eq!(before.z.to_bits(), after.z.to_bits());
+    assert!(
+        (before - after).norm() <= 1e-12,
+        "the cut vertex stands where it stood: {before:?} vs {after:?}"
+    );
 
     let _ = part_ref;
 }
@@ -308,10 +323,9 @@ fn row1_split_plain_subtree_preserves_structure() {
         None,
     )
     .expect("legal");
-    assert_eq!(
-        fixture::offset_of(&out.remainder, out.instance),
-        Some(editor_core::Placement::IDENTITY),
-        "a plain cut leaves the remainder instance at the identity"
+    assert!(
+        left_at_identity(&out, &PartStore::default()),
+        "a plain cut leaves the remainder instance pinned at the identity"
     );
 
     let mut store = PartStore::default();
@@ -319,7 +333,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     let ev2 = run(&out.remainder, &with_resolver(store));
     let (body2, _) = product_named(&out.remainder, &ev2, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body2));
-    assert_eq!(volume_bits(&body1), volume_bits(&body2));
+    same_volume(&body1, &body2, "the plain cut keeps the volume");
 }
 
 // ---- Row 2: inline is the inverse; undo restores exactly ----
@@ -342,7 +356,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
         &cut,
         DocumentId::derive("asm4-r2-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("legal");
     // Undo of the split: the input document is untouched, and the
@@ -454,7 +468,7 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         &cut,
         DocumentId::derive("asm4-r2a-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("legal");
     // The instance's name, now the part's name of it, under the
@@ -700,9 +714,10 @@ fn row3_further_typed_refusals() {
     // the spliced copy, beside a block of the host's own.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r3f-part", 0.0, 1.0), Tol::witness());
+    let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = pinned(host, doc_ref, &o);
     let (host, block) = insert(host, xy_frame());
     let (host, block_profile) = insert(
         host,
@@ -745,24 +760,32 @@ fn row3_further_typed_refusals() {
     );
 
     // An instance of a PLAIN-geometry part pinned at a pose inlines:
-    // the part's one placement on its world takes the pose composed
-    // into its world pin (A4).
+    // the part's one placement on its world takes the motion the pin
+    // solved to, appended to its world mate as world moves (A4).
     let host2 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host2"), Tol::witness());
-    let (host2, inst2) = pinned_at(host2, doc_ref, [3.0, 0.0, 0.0]);
+    let (host2, inst2) = pinned_at(host2, doc_ref, [3.0, 0.0, 0.0], &o);
     let inlined2 = inline(&host2, inst2, &resolver, Tol::witness())
         .expect("a pinned instance of a plain part inlines at any pose");
     let part_doc = part("asm4-r3f-part", 0.0, 1.0);
     let spliced = inlined2.node_map[&part_doc.placements()[0]];
-    assert_eq!(
-        fixture::offset_of(&inlined2.doc, spliced),
-        Some(editor_core::Placement::literal(
-            &editor_core::Frame::translation([3.0, 0.0, 0.0])
-        )),
-        "the plain extrude's placement takes the instance's pose"
+    assert!(
+        fixture::offset_of(&inlined2.doc, spliced).is_some(),
+        "the plain extrude's placement keeps one world mate"
+    );
+    let landed = fixture::solve(&inlined2.doc, &EvalOptions::default(), Tol::witness())
+        .placement(&inlined2.doc, spliced)
+        .expect("the spliced placement solves")
+        .translation;
+    assert!(
+        landed
+            .iter()
+            .zip([3.0, 0.0, 0.0])
+            .all(|(x, y)| (x - y).abs() <= 1e-12),
+        "the plain extrude's placement takes the instance's pose: {landed:?}"
     );
     // The same instance at IDENTITY inlines too.
     let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"), Tol::witness());
-    let (host3, inst3) = insert(host3, Node::instantiate_part(doc_ref));
+    let (host3, inst3) = pinned(host3, doc_ref, &o);
     inline(&host3, inst3, &resolver, Tol::witness())
         .expect("an identity-placed plain part inlines");
 }
@@ -775,13 +798,13 @@ fn row3_further_typed_refusals() {
 #[test]
 fn row4_placements_and_pins_land_as_the_rules_say() {
     // A one-instance cut moves as selected.
-    let (_, doc, ids) = two_instance_assembly("asm4-r4");
+    let (store, doc, ids) = two_instance_assembly("asm4-r4");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r4-new"),
         Tol::witness(),
-        None,
+        with_resolver(store.clone()).resolver.as_ref(),
     )
     .expect("legal");
     let mapped = out.node_map[&ids[1]];
@@ -795,10 +818,9 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
         [mapped],
         "the part places what the cut placed"
     );
-    assert_eq!(
-        fixture::offset_of(&out.remainder, out.instance),
-        Some(editor_core::Placement::IDENTITY),
-        "the instance sits at the identity"
+    assert!(
+        left_at_identity(&out, &store),
+        "the instance is pinned at the identity"
     );
     assert!(
         fixture::same_offset(&out.part, mapped, &doc, ids[1]),
@@ -810,16 +832,17 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
     // placements' order.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0), Tol::witness());
+    let o = with_resolver(store.clone());
     let doc2 = ProfileDoc::empty(DocumentId::derive("asm4-r4b"), Tol::witness());
-    let (doc2, i0) = insert(doc2, Node::instantiate_part(doc_ref));
-    let (doc2, i1) = pinned_at(doc2, doc_ref, [7.0, 0.0, 0.0]);
-    let (doc2, i2) = pinned_at(doc2, doc_ref, [14.0, 0.0, 0.0]);
+    let (doc2, i0) = pinned(doc2, doc_ref, &o);
+    let (doc2, i1) = pinned_at(doc2, doc_ref, [7.0, 0.0, 0.0], &o);
+    let (doc2, i2) = pinned_at(doc2, doc_ref, [14.0, 0.0, 0.0], &o);
     let out2 = split(
         &doc2,
         &BTreeSet::from([i0, i2]),
         DocumentId::derive("asm4-r4b-new"),
         Tol::witness(),
-        None,
+        o.resolver.as_ref(),
     )
     .expect("legal");
     assert_eq!(
@@ -832,18 +855,17 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
         [out2.node_map[&i0], out2.node_map[&i2]],
         "the part keeps the cut placements' order"
     );
-    assert_eq!(
-        fixture::offset_of(&out2.remainder, out2.instance),
-        Some(editor_core::Placement::IDENTITY),
-        "a several-instance cut leaves the remainder instance at the identity"
+    assert!(
+        left_at_identity(&out2, &store),
+        "a several-instance cut leaves the remainder instance pinned at the identity"
     );
     assert!(
         fixture::same_offset(&out2.part, out2.node_map[&i2], &doc2, i2),
         "the moved world pin is verbatim"
     );
-    assert_eq!(
-        fixture::offset_of(&out2.part, out2.node_map[&i0]),
-        Some(editor_core::Placement::IDENTITY),
+    assert!(
+        fixture::same_offset(&out2.part, out2.node_map[&i0], &doc2, i0)
+            && crate::p2_split::at_identity(&out2.part, out2.node_map[&i0], &o),
         "a cut instance at the identity stays there"
     );
 }
@@ -855,13 +877,13 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
 /// bytes while empty (so no pin moves until R2 populates it).
 #[test]
 fn row5_interface_record_exists_and_round_trips() {
-    let (_, doc, ids) = two_instance_assembly("asm4-r5");
+    let (store, doc, ids) = two_instance_assembly("asm4-r5");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r5-new"),
         Tol::witness(),
-        None,
+        with_resolver(store).resolver.as_ref(),
     )
     .expect("legal");
     match out.remainder.node(out.instance) {
@@ -901,7 +923,7 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-per-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("legal");
     let part_loaded = load(
@@ -928,7 +950,7 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     let ev2 = run(&rem_loaded.doc, &with_resolver(store2));
     let (body2, _) = product_named(&rem_loaded.doc, &ev2, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body2));
-    assert_eq!(volume_bits(&body1), volume_bits(&body2));
+    same_volume(&body1, &body2, "the loaded pair keeps the volume");
 }
 
 // ---- A cut a kept placement separates ----
@@ -962,10 +984,10 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
         },
     );
     let doc = fixture::place(doc, e).0;
-    let (doc, i0) = pinned_at(doc, doc_ref, [10.0, 0.0, 0.0]);
-    let (doc, i1) = pinned_at(doc, doc_ref, [20.0, 0.0, 0.0]);
-    let (doc, i2) = pinned_at(doc, doc_ref, [30.0, 0.0, 0.0]);
     let opts = with_resolver(store);
+    let (doc, i0) = pinned_at(doc, doc_ref, [10.0, 0.0, 0.0], &opts);
+    let (doc, i1) = pinned_at(doc, doc_ref, [20.0, 0.0, 0.0], &opts);
+    let (doc, i2) = pinned_at(doc, doc_ref, [30.0, 0.0, 0.0], &opts);
     let ev1 = run(&doc, &opts);
     let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
@@ -975,7 +997,7 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
         &cut,
         DocumentId::derive("asm4-min1-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("legal");
     assert_eq!(
@@ -1053,7 +1075,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // BodyNameCrossesCut: appearance keyed by a cut instance's BODY
     // name (product tables carry no body rows, so the wrapped
     // rewrite could never resolve).
-    let (_, doc, ids) = two_instance_assembly("asm4-min2-body");
+    let (store, doc, ids) = two_instance_assembly("asm4-min2-body");
     let body_name = StableName {
         kind: EntityKind::Body,
         node: ids[1],
@@ -1073,7 +1095,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("n"),
         Tol::witness(),
-        None,
+        with_resolver(store).resolver.as_ref(),
     ) {
         Err(SplitError::BodyNameCrossesCut { name }) => {
             assert_eq!(name.name(), &body_name);
@@ -1361,7 +1383,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
             )),
         },
     );
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = pinned(host, doc_ref, &with_resolver(store.clone()));
     match inline(
         &host,
         inst,
@@ -1447,13 +1469,14 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     use editor_core::EntityKind;
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0), Tol::witness());
+    let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
 
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
     let host = part("asm4-min2-name-host", 5.0, 1.0);
     let kept_e = host.ids()[BODY_POSITION];
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = pinned(host, doc_ref, &o);
     let foreign = StableName {
         kind: EntityKind::Face,
         node: kept_e,
@@ -1500,7 +1523,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // InstanceBodyNameReferenced: the instance's own output-body name
     // has no spliced correspondent.
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-body-host"), Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = pinned(host, doc_ref, &o);
     let body_name = StableName {
         kind: EntityKind::Body,
         node: inst,
@@ -1594,12 +1617,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
         let part_doc = labelled(part_doc, body, "part body");
         let doc_ref = store.insert(part_doc, Tol::witness());
+        let o = with_resolver(store.clone());
         let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
         let host = ProfileDoc::empty(
             DocumentId::derive("asm4-min2-stranded-host"),
             Tol::witness(),
         );
-        let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+        let (host, inst) = pinned(host, doc_ref, &o);
         match inline(&host, inst, &resolver, Tol::witness()) {
             // NESTED: the segment carries the name in through the deleted
             // node's read, and the read is the first local id of the
@@ -1831,7 +1855,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-dropped-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
     match inline(
         &host,
         instance,
@@ -1882,7 +1906,7 @@ fn a_split_reattaches_an_appearance_key_onto_the_instances_body() {
         &cut,
         DocumentId::derive("asm4-split-reattach-new"),
         Tol::witness(),
-        None,
+        opts.resolver.as_ref(),
     )
     .expect("legal");
     let keys: Vec<_> = out.remainder.appearance().keys().cloned().collect();
@@ -1908,14 +1932,14 @@ fn a_split_reattaches_an_appearance_key_onto_the_instances_body() {
 /// instance is gone.
 #[test]
 fn an_inline_reattaches_an_appearance_key_onto_the_inlined_body() {
-    let (_store, doc, ids) = two_instance_assembly("asm4-inline-reattach");
+    let (store, doc, ids) = two_instance_assembly("asm4-inline-reattach");
     let cut = BTreeSet::from([ids[1]]);
     let out = split(
         &doc,
         &cut,
         DocumentId::derive("asm4-inline-reattach-new"),
         Tol::witness(),
-        None,
+        with_resolver(store).resolver.as_ref(),
     )
     .expect("legal");
     let mut store2 = PartStore::default();
@@ -2079,7 +2103,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-order-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
     let inlined = inline(
         &host,
         instance,
@@ -2150,7 +2174,7 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
         let mut store = PartStore::default();
         let doc_ref = store.insert(part, Tol::witness());
         let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+        let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
         let resolver = Arc::new(store) as Arc<dyn editor_core::PartResolver>;
         inline(&host, instance, &resolver, Tol::witness())
     };
@@ -2204,15 +2228,15 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
 /// **Inline refuses where the part's world would move under a copy
 /// pinned against a construction**: at a pose of the instance's own the
 /// part's copies move with it and its constructions do not, so a copy
-/// pinned against a raw extrude of the part would land where the
-/// extrude stays, not where the instance put it. Refused typed, naming
-/// the placement and the construction, rather than spliced displaced.
+/// seated on a raw extrude of the part would land where the extrude
+/// stays, not where the instance put it. Refused typed, naming the
+/// placement and the construction, rather than spliced displaced.
+///
+/// *Breaks if* the mate's target is moved by the instance's motion as
+/// a world mate's is, or the copy splices displaced.
 #[test]
 fn inline_at_a_pose_refuses_a_copy_pinned_against_a_construction() {
-    use editor_core::{
-        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive,
-        Placement, SideRead,
-    };
+    use editor_core::{CapEnd, EntityKind};
     let part = ProfileDoc::empty(
         DocumentId::derive("asm4-pinned-to-construction"),
         Tol::witness(),
@@ -2242,34 +2266,28 @@ fn inline_at_a_pose_refuses_a_copy_pinned_against_a_construction() {
             editor_core::Operand::Node(body),
         )]),
     );
-    let cap = StableName {
+    let cap = |node, end| StableName {
         kind: EntityKind::Face,
-        node: anchor,
-        path: vec![RoleSeg::Cap(CapEnd::End)],
+        node,
+        path: vec![RoleSeg::Cap(end)],
     };
-    let pin = editor_core::Mate {
-        a: SideRead::Face(fixture::head_at(anchor, cap).into()),
-        b: SideRead::Copy,
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame::on_part(Placement::literal(&editor_core::Frame::translation([
-                2.0, 0.0, 0.0,
-            ]))),
-            b: MateFrame::on_part(Placement::IDENTITY),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
-    };
-    let part = fixture::constrain_at(part, place, pin).0;
+    // The copy's bottom seated on the anchor's top, two along x.
+    let (part, _) = crate::p2_split::seat_at(
+        part,
+        place,
+        fixture::head_at(body, cap(body, CapEnd::Start)),
+        fixture::head_at(anchor, cap(anchor, CapEnd::End)),
+        [2.0, 0.0],
+    );
     let mut store = PartStore::default();
     let doc_ref = store.insert(part, Tol::witness());
+    let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(
         DocumentId::derive("asm4-pinned-to-construction-host"),
         Tol::witness(),
     );
-    let (host, instance) = pinned_at(host, doc_ref, [0.0, 0.0, 5.0]);
+    let (host, instance) = pinned_at(host, doc_ref, [0.0, 0.0, 5.0], &o);
     match inline(&host, instance, &resolver, Tol::witness()) {
         Err(InlineError::CopyPinnedToConstruction {
             placement,
