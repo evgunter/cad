@@ -6133,7 +6133,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
-            "kind",
+            "name_kind",
             "not_a_selection",
             "not_canonical",
             "other_body",

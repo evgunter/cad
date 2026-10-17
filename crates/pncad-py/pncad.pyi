@@ -139,7 +139,7 @@ class EditError(PncadError):
       is the entry that does not sort strictly before the one after
       it, and `again` is `None` — the break is between that entry and
       its successor, so the second position is the first plus one and
-      is not carried. On `kind` (a name of another entity kind than
+      is not carried. On `name_kind` (a name of another entity kind than
       the selection's) `first` alone is that name's position.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a

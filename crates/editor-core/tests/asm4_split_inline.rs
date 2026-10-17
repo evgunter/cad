@@ -1216,12 +1216,12 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| {
-            n.kind == EntityKind::Face
+            n.kind == EntityKind::Edge
                 && n.path
                     .first()
                     .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
-        .expect("the union keeps a face of operand A");
+        .expect("the union keeps an edge of operand A");
     let reached = derivation_nodes(&from_a);
     assert!(reached.contains(&u) && reached.contains(&a), "{reached:?}");
     let (doc, decl) = selecting_fillet(doc, from_a.clone());
@@ -1306,12 +1306,12 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| {
-            n.kind == EntityKind::Face
+            n.kind == EntityKind::Edge
                 && n.path
                     .first()
                     .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
-        .expect("the union keeps a face of operand A");
+        .expect("the union keeps an edge of operand A");
     let reached = derivation_nodes(&from_a);
     assert!(reached.contains(&u) && reached.contains(&a), "{reached:?}");
     let (doc, decl) = selecting_fillet(doc, from_a.clone());

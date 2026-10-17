@@ -3484,7 +3484,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Seat { .. } => "seat",
         F::Singleton { .. } => "singleton",
         F::NotCanonical { .. } => "not_canonical",
-        F::Kind { .. } => "kind",
+        F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
     }
