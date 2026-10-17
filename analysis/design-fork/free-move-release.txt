@@ -1,0 +1,4 @@
+fork: free-move-release (INTENT, DI5 vs stage 3 spec gesture rule)
+drawn: 2026-10-17T01:31:11Z
+byte: 214 (even)
+mapping: A = Opus, B = Fable
