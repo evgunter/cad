@@ -374,14 +374,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// killed lineage and vertex runs, over this unit's per-half tables):
 /// `cut_cylinder`'s merged digest is neither tree's, and
 /// `kitchen_sink`'s is this unit's. Every other row held main's value.
+///
+/// Re-taken merged over INTENT stage 3 B (#5232, a placement is the
+/// bundle of mates), which re-blessed these rows by its new mint chain:
+/// `cut_cylinder`, `kitchen_sink` moved by this unit as well, and
+/// their merged values are neither tree's; every other row is main's.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x20d0_b806_b3a7_87fe),
-        ("corner_table", 0x0e00_e0f5_df9e_d8b3),
-        ("cut_cylinder", 0xbc57_5dbd_4b7f_0e3e),
-        ("boss_union", 0xe75b_724b_9279_fbee),
-        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
+        ("die", 0x093b_121e_cf25_d2bb),
+        ("corner_table", 0x0dab_8120_ac1a_23b9),
+        ("cut_cylinder", 0x2346_bf6f_fea8_eda4),
+        ("boss_union", 0xb1d9_d2ed_e8ae_2ffb),
+        ("kitchen_sink", 0xe1e2_ab7e_f873_c25f),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

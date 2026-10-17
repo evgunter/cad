@@ -217,9 +217,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `part_select` alone, each holding a split: a split's names say no
 /// half, and `part_select`'s union, which declares the rest between the
 /// halves by the half-free section face, took a new tag. Both totals
-/// shrank. Re-taken merged over main at `8612ce48e8`: the merged digest
-/// and the full total are neither tree's.
-const SAID_DIGEST: u64 = 0xe868_2a35_8d29_435c;
+/// shrank. Re-taken merged over main at `8612ce48e8`, and again over
+/// INTENT stage 3 B (#5232), whose placement kind word moved: the merged
+/// digest and the full total are neither tree's.
+const SAID_DIGEST: u64 = 0xe76b_67ac_c47e_8509;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

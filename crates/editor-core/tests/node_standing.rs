@@ -538,7 +538,7 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        26,
+        24,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
          test-support hand-built evaluation takes its result map whole",
     ),

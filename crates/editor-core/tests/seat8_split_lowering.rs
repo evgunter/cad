@@ -278,13 +278,18 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// killed lineage and vertex runs, over this unit's per-half tables):
 /// `cut_cylinder`'s merged digest is neither tree's, and `part_select`'s
 /// and `kitchen_sink`'s are this unit's.
+///
+/// Re-taken merged over INTENT stage 3 B (#5232, a placement is the
+/// bundle of mates), which re-blessed these rows by its new mint chain:
+/// `cut_cylinder`, `part_select`, `kitchen_sink` moved by this unit as well, and
+/// their merged values are neither tree's; every other row is main's.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xbc57_5dbd_4b7f_0e3eu64),
-        ("part_select", 0x76a5_5082_96be_0ddb),
-        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
+        ("cut_cylinder", 0x2346_bf6f_fea8_eda4u64),
+        ("part_select", 0x613b_f017_f88d_98f9),
+        ("kitchen_sink", 0xe1e2_ab7e_f873_c25f),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
