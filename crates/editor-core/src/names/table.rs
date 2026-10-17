@@ -75,8 +75,8 @@ impl EntityKey {
         }
     }
 
-    /// **The vertex this key denotes, or `None`** ([`EntityKey::face`]'s
-    /// twin).
+    /// **The vertex this key denotes, or `None`** — [`EntityKey::face`]'s
+    /// twin, for the roads that select vertices.
     pub(crate) fn vertex(self) -> Option<VertexKey> {
         match self {
             Self::Vertex(k) => Some(k),

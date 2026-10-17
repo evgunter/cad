@@ -227,7 +227,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
-    "MeasureRefUnreadable/NoSuchBody",
     "MeasureRefUnreadable/NoSuchName",
     "MeasureRefUnreadable/NodeFailed",
     "MeasureRefUnreadable/NodeNotEvaluated",
@@ -237,7 +236,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/WrongKind",
     "MeasureUnsupported",
     "MissingInput",
-    "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
     "Naming/MissingUpstream",
@@ -245,7 +243,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Naming/SharedRim",
     "Naming/SplitLineage",
     "Naming/Unnamed",
-    "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
     "PayloadExpr",
@@ -254,10 +251,8 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementsUncertified",
-    "ProfileAnchor",
     "ProfileLaneReplay(Flipped)",
     "ProfileLaneReplay(None)",
-    "ProfilePieces",
     "Seed/CountVar",
     "Seed/TangentUnrepresentable",
     "Seed/UnknownVar",
@@ -266,7 +261,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "VerbArity",
     "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
@@ -985,7 +979,15 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
+        row(
+            "ProfileRecordMissing(None)",
+            NodeErrorKind::ProfileRecordMissing { loop_: None },
+        ),
+        row(
+            "ProfileRecordMissing(Some)",
+            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+        ),
         row(
             "ProfilePieces",
             NodeErrorKind::ProfilePieces {
@@ -1195,8 +1197,12 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "NonPositiveCount",
-            NodeErrorKind::NonPositiveCount { count: 0 },
+            "CountOutOfRange",
+            NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: -1,
+                admits: 0..=i64::MAX,
+            },
         ),
         row(
             "NegativeSpacing",

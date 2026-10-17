@@ -16,8 +16,7 @@ use editor_core::{
 use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
-/// door bit for bit, and the mate's class rides the same stable
-/// spelling a declared pair's does.
+/// door bit for bit, and the mate's class rides its stable spelling.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {

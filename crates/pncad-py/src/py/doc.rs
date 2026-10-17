@@ -3208,7 +3208,7 @@ impl Node {
     /// `count` is a count `Formula` — `Formula.count(4)` — and it is the
     /// node's `Count` slot, so `DocEdit.bind_count_param` is what
     /// makes it a named, editable number. A count below one refuses
-    /// at `evaluate` (`non_positive_count`).
+    /// at `evaluate` (`count_out_of_range`).
     ///
     /// An `explicit` rule refuses typed at `Doc.insert`
     /// (`EditError`, `placement_rule_mismatch`): it carries its own
