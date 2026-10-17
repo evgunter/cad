@@ -1005,6 +1005,7 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
     let ev = run(&doc, &opts);
+    eprintln!("DEBUGCYCLE {:?}", failure(&ev, ids[0]));
     let (cause, rendered) =
         root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed root");
     match cause {
