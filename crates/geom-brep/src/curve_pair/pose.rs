@@ -960,7 +960,10 @@ pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
 /// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`) and
 /// then by the rotation that best matches the two, which maximizes
-/// `tr(Qᵀ·L_fᵀ·L_e)`.
+/// `tr(Qᵀ·L_fᵀ·L_e)`. The square is the larger eigenvalue of a Gram
+/// matrix, never negative, so its enclosure is clamped at zero: two
+/// coincident conics' `d1` and `d2` enclose zero, and their self-dots
+/// read as interval products reach below it.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
     let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
     let up = e1.cross(e2).dot(f1.cross(f2));
@@ -975,7 +978,9 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
         (d1.dot(d1) + d2.dot(d2)) * half,
         (d1.dot(d1) - d2.dot(d2)) * half,
     );
-    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt())
+        .max(T::from_f64(0.0))
+        .sqrt()
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
