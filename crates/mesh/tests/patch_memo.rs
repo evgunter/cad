@@ -19,7 +19,6 @@
 //! not run. What the pin above adds: the answer it gave was right.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::TAU;
 use sweep::ExtrudeSide;
 
 use geom::Surface;
@@ -548,11 +547,12 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
     let at = position_of(&base, wall);
     let tol = Tol::witness();
 
-    // Every pcurve of the wall's loop with its u shifted by a full
-    // turn: the same points on the periodic chart, a consistent
-    // polygon, different bytes. (One edge shifted alone would open the
-    // polygon by 2π and the lane would refuse the wall typed; a
-    // refusal proves the lane read the pcurve but shows no hit.)
+    // Every pcurve of the wall's loop with its u nudged by `NUDGE`, far
+    // inside the band: the same points to rounding, a consistent
+    // polygon, different bytes. (A whole turn would be a lifted copy,
+    // no row, which certification refuses (C4); a refusal proves the
+    // lane read the pcurve but shows no hit.)
+    const NUDGE: f64 = 1e-12;
     let surface = base
         .get_surface(base.get_face(wall).unwrap().surface)
         .unwrap()
@@ -570,9 +570,9 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
         };
         let cache: PcurveCache<f64> = cache.clone();
         let shifted = match cache.pcurve().clone() {
-            image @ Pcurve::Harmonic { .. } => image.shift_branch(1.0, TAU),
+            image @ Pcurve::Harmonic { .. } => image.shift_branch(1.0, NUDGE),
             Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
-                p0: Point2::new(p0.x + TAU, p0.y),
+                p0: Point2::new(p0.x + NUDGE, p0.y),
                 pl,
             },
             Pcurve::IsoArc {
@@ -582,16 +582,16 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 angle,
                 breaks,
             } => Pcurve::IsoArc {
-                p0: Point2::new(p0.x + TAU, p0.y),
+                p0: Point2::new(p0.x + NUDGE, p0.y),
                 pd,
                 t0,
                 angle,
                 breaks,
             },
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
-            // A whole-period shift is a translation of the chart, which
-            // the projected image's deck map absorbs.
-            projected @ Pcurve::Projected(_) => projected.shift_branch(1.0, TAU),
+            // The nudge is a translation of the chart, which the
+            // projected image's deck map absorbs.
+            projected @ Pcurve::Projected(_) => projected.shift_branch(1.0, NUDGE),
             // The fixture's charts are a cylinder's and a plane's, so
             // no spiric image is stored on them; the azimuth shift is
             // still the one field, were one to arrive.
@@ -606,7 +606,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 offset,
                 image: match image {
                     geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
-                        p0: Point2::new(p0.x + TAU, p0.y),
+                        p0: Point2::new(p0.x + NUDGE, p0.y),
                         pm,
                         pa,
                     },
@@ -616,7 +616,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                         sense,
                         torus,
                     } => geom_brep::SpiricImage::Wall {
-                        u0: u0 + TAU,
+                        u0: u0 + NUDGE,
                         v0,
                         sense,
                         torus,
@@ -635,7 +635,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 beta,
                 sense,
             }) => Pcurve::FocalSection(FocalImage {
-                u0: u0 + TAU,
+                u0: u0 + NUDGE,
                 t0,
                 v0,
                 va,
@@ -663,7 +663,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             &surface,
             Band::linear(tol).unwrap(),
         )
-        .expect("the shifted pcurve certifies on the periodic chart");
+        .expect("the nudged pcurve certifies on the periodic chart");
         moved.attach_pcurve(hek, recertified);
         shifted_any = true;
     }

@@ -295,16 +295,15 @@ fn planar_bodies_carry_zero_stored_pcurves() {
 /// here: a [`Pcurve::Harmonic`] azimuth channel is `α + β·t` with ONE
 /// stored `α` and `β ∈ {−1, 0, +1}`, so a τ jump partway along an edge
 /// has nowhere to live. What remains — which branch a half-edge takes —
-/// is decided once per loop and certified; corrupting that decision on
-/// a single half-edge is caught at rest.
+/// is decided once per loop and certified; a single half-edge's row
+/// moved to another branch is caught at certification, since a row is
+/// its placed image.
 #[test]
 fn a_tampered_branch_is_refused_at_rest() {
     let (mut above, _) = tilted_cut();
     // Shift ONE half-edge's cache by a whole period: the pcurve is
-    // still a perfectly valid chart image of the same locus (periodic
-    // chart!) and still certifies in isolation — what breaks is the
-    // face's one-branch continuity, which is exactly the property the
-    // per-sample unwrap bug destroys.
+    // still a chart image of the same locus (periodic chart!), but it is
+    // not the row's placed image, which is what a row is (C4).
     let victim = above
         .pcurves()
         .map(|(he, _)| he)
@@ -337,25 +336,20 @@ fn a_tampered_branch_is_refused_at_rest() {
     let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
-    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band).unwrap();
-    above.attach_pcurve(victim, tampered);
-    let findings = topo::pcurves::validate_pcurves(&above, band);
+    // A cache is built only through certification, and the shifted
+    // pcurve is a lifted copy of the row, not its placed image (C4), so
+    // certification refuses it at check 4, the whole period read as the
+    // azimuth's offset: the tamper cannot be put into a body at all.
+    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band);
     assert!(
-        findings.iter().any(|f| matches!(
-            f,
-            topo::PcurveMintError::LoopDiscontinuity { .. }
-                | topo::PcurveMintError::LoopNotClosed { .. }
-        )),
-        "{findings:?}"
-    );
-    // And the ladder surfaces it typed.
-    let errs = validate_geometric(&above, Tol::witness()).unwrap_err();
-    assert!(
-        errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::Pcurve { .. })
-                && format!("{e}")
-                    .starts_with("a face's boundary could not be mapped onto its surface")),
-        "{errs:?}"
+        matches!(
+            tampered,
+            Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+                ..
+            })
+        ),
+        "a whole-period tamper is no row: {tampered:?}"
     );
 }
 

@@ -51,10 +51,14 @@ fn halves(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
-/// `he`'s row restated one period over (`u + 2π`), certified against a
-/// window wide enough to hold it: a row about the same curve, stated in
-/// a part of the chart the face does not reach.
-fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveCache<f64> {
+/// `he`'s row restated one period over (`u + 2π`), certified: a lifted
+/// copy of the row, the same curve in a part of the chart the face does
+/// not reach.
+fn wrong_branch_row(
+    body: &Body<f64>,
+    face: FaceKey,
+    he: HalfEdgeKey,
+) -> Result<PcurveCache<f64>, geom_brep::PcurveCertifyError> {
     let cache = body.pcurve(he).unwrap();
     assert!(
         matches!(cache.pcurve(), Pcurve::Harmonic { .. }),
@@ -71,35 +75,32 @@ fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveC
         .get_surface(body.get_face(face).unwrap().surface)
         .unwrap();
     let (t0, t1) = cache.params();
-    PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, band()).unwrap()
+    PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, band())
 }
 
-/// **A loop's rows a whole period over are the same face**, complete
-/// or half-minted. Every row moved one period over, consistently, so
-/// every joint still meets and the loop still closes: tier 3 reads the
-/// complete face clean, and the half-minted one (a row detached) reads
-/// only its gap — the two alike. This is the re-statement
-/// `Body::revert` makes, so a fresh walk's branch is no reference for a
-/// stored row. (R1's probes p5/p6 on PR 3759 found the two faces read
-/// differently against a derived window.)
+/// **A loop's rows a whole period over are no rows.** Each row of the
+/// sheet's loop restated one period over is a lifted copy of its row,
+/// the row with a deck element, which C4 never certifies again: a row is
+/// its placed image, so certification refuses each one at check 4, its
+/// whole period read as the azimuth's offset, and no such face can be
+/// stored for tier 3 to read. (Before placement, this row read the moved
+/// loop clean, complete or half-minted: R1's probes p5/p6 on PR 3759.)
 #[test]
-fn a_loop_moved_a_whole_period_reads_the_same_complete_or_half_minted() {
-    let (mut body, face) = sheet();
-    let hs = halves(&body, face);
-    let moved: Vec<_> = hs
-        .iter()
-        .map(|&he| wrong_branch_row(&body, face, he))
-        .collect();
-    for (&he, row) in hs.iter().zip(moved) {
-        body.attach_pcurve(he, row);
+fn a_loop_moved_a_whole_period_is_no_rows() {
+    let (body, face) = sheet();
+    for he in halves(&body, face) {
+        let row = wrong_branch_row(&body, face, he);
+        assert!(
+            matches!(
+                row,
+                Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+                    ..
+                })
+            ),
+            "{he:?}: a lifted copy is no row: {row:?}"
+        );
     }
-    assert_eq!(validate_pcurves(&body, band()), vec![], "complete");
-    body.detach_pcurve(hs[1]).unwrap();
-    assert_eq!(
-        validate_pcurves(&body, band()),
-        vec![PcurveMintError::MissingCache { half_edge: hs[1] }],
-        "half-minted: the gap and nothing else"
-    );
 }
 
 /// **A row stated over more of its carrier than its edge spans is

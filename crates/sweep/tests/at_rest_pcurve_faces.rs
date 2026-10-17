@@ -345,6 +345,18 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
     }
 }
 
+/// Whether certification refused a row as a lifted copy: its whole
+/// period read as its azimuth's offset (C4: a row is its placed image).
+fn is_a_lifted_copy(row: &Result<PcurveCache<f64>, geom_brep::PcurveCertifyError>) -> bool {
+    matches!(
+        row,
+        Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+            check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+            ..
+        })
+    )
+}
+
 fn discontinuous(e: &PcurveMintError) -> bool {
     matches!(
         e,
@@ -352,18 +364,15 @@ fn discontinuous(e: &PcurveMintError) -> bool {
     )
 }
 
-/// **A single row restated a whole period over is refused at every
-/// cycle position, complete or half-minted, and reversed.** On the
-/// minted cylinder wall of a three-arc boss, one arc row is restated one
-/// period over, its interval and image shifted together, so its ends
-/// still evaluate to its edge's vertices (`RowInterval` reads it equal)
-/// and it certifies. Only the loop's one-branch continuity can see it.
-/// At every row, either shift, and every choice of one other detached
-/// row (or none), tier 3 names a discontinuity: the joint into the
-/// cycle's first half-edge — the wrap — is read as the closure whenever
-/// the chain reaches it, and a gap is carried by the image the mint
-/// would derive there. The reversed body (`Body::revert`) reads the
-/// same.
+/// **A single row restated a whole period over is refused.** On the
+/// minted cylinder wall of a three-arc boss, each arc row is restated
+/// one period over, its interval shifted with its image, so its ends
+/// still evaluate to its edge's vertices. It is a lifted copy of the
+/// row, not its placed image, so certification refuses it at check 4,
+/// the whole period read as the azimuth's offset (C4), and it is never
+/// stored for the loop's continuity to see. (Before placement it
+/// certified, and tier 3 named the discontinuity at every cycle
+/// position, complete, half-minted and reversed.)
 ///
 /// Adopted from the PCERT delta reviewer's probe on PR 3759, where the
 /// row at cycle position 0 with its successor detached read only the
@@ -410,43 +419,26 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
         let (t0, t1) = cache.params();
         for shift in [tau, -tau] {
             let (lo, hi) = (t0 + shift, t1 + shift);
-            for (j, &h2) in cycle.iter().enumerate() {
-                let mut body = base.clone();
-                let image = cache.pcurve().clone();
-                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, band())
-                    .expect("the row certifies one period over");
-                body.attach_pcurve(h1, row);
-                if j != i {
-                    body.detach_pcurve(h2);
-                }
-                let f = validate_pcurves(&body, band());
-                assert!(
-                    f.iter().any(discontinuous),
-                    "row {i} shifted {shift}, gap {j} (none where {j} = {i}): {f:?}"
-                );
-                let fr = validate_pcurves(&body.revert().unwrap(), band());
-                assert!(
-                    fr.iter().any(discontinuous),
-                    "row {i} shifted {shift}, gap {j}, reversed: {fr:?}"
-                );
-                cases += 1;
-            }
+            let image = cache.pcurve().clone();
+            let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, band());
+            assert!(
+                is_a_lifted_copy(&row),
+                "row {i} shifted {shift}: a lifted copy is no row: {row:?}"
+            );
+            cases += 1;
         }
     }
     assert!(
-        cases >= 16,
+        cases >= 2,
         "the boss wall has arc rows to shift: {cases} cases"
     );
 }
 
-/// **A valid loop moved a whole period over reads clean at every gap.**
-/// Every row of the boss wall's loop is restated one period over,
-/// consistently — the re-statement `Body::revert` makes. Complete, it
-/// reads clean; with any one half-edge detached, tier 3 reports that gap
-/// and nothing else, and the reversed body reads the same. The wrap the
-/// walk allows sits at the cycle's first half-edge, so where that
-/// half-edge is the gap the wrap passes to the next stored row rather
-/// than to the gap's image on its principal branch.
+/// **A loop moved a whole period over is no rows.** Every row of the
+/// boss wall's loop restated one period over, consistently, is a lifted
+/// copy of its row: certification refuses each one at check 4 (C4: a row
+/// is its placed image), so no such loop is stored. (Before placement
+/// the moved loop certified and read clean at every gap.)
 ///
 /// Adopted from the PCERT delta reviewer's round-2 probe on PR 3759,
 /// where the gap at cycle position 0 read a spurious `LoopDiscontinuity`.
@@ -476,7 +468,6 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
         .clone();
     let tau = core::f64::consts::TAU;
     for shift in [tau, -tau] {
-        let mut moved = base.clone();
         for &he in &cycle {
             let cache = base.pcurve(he).unwrap();
             let image = cache.pcurve().map_affine(geom_brep::ChartMap {
@@ -492,22 +483,10 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
                 .carrier()
                 .clone();
             let (t0, t1) = cache.params();
-            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, band())
-                .expect("the row certifies a period over");
-            moved.attach_pcurve(he, row);
-        }
-        let complete = validate_pcurves(&moved, band());
-        assert!(complete.is_empty(), "moved {shift}, complete: {complete:?}");
-        for (j, &gap) in cycle.iter().enumerate() {
-            let mut body = moved.clone();
-            body.detach_pcurve(gap);
-            let only_gap = [PcurveMintError::MissingCache { half_edge: gap }];
-            let f = validate_pcurves(&body, band());
-            assert_eq!(f, only_gap, "moved {shift}, gap {j}");
-            let fr = validate_pcurves(&body.revert().unwrap(), band());
+            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, band());
             assert!(
-                fr.len() == 1 && matches!(fr[0], PcurveMintError::MissingCache { .. }),
-                "moved {shift}, gap {j}, reversed: {fr:?}"
+                is_a_lifted_copy(&row),
+                "{he:?} moved {shift}: a lifted copy is no row: {row:?}"
             );
         }
     }
