@@ -1339,7 +1339,19 @@ variable, charted on the two bodies' own coordinates as the placement
 carries them: a slide is the copy's origin measured from the target's
 along the freedom, a spin the angle between their reference
 directions about it, each a function of the relative pose alone, so no
-order of the values is chosen. Zero is always a valid value and says
+order of the values is chosen. A value names its mate and one of that
+mate kind's freedoms (a plane mate leaves two slides and a spin, an
+axis mate a slide and a spin, a direction mate three slides and a
+spin). Each body's reference is its own frame swung onto its side of
+the mate by the shortest turn carrying its own z to the mated
+direction, the half-turn about its own x where that direction is its
+own −z, so a mate between axis-aligned poses has an axis-aligned zero
+and no edit that tilts a wall or turns a profile moves a held value's
+meaning; a slide runs along the target's swung axes, a spin is the
+angle about the mated direction from the target's swung x to the
+copy's, and a mate's `Flip` is on the copy's side. Inside the sliver
+band about that one pole the chart refuses, typed at evaluation, as a
+construction refuses at its degenerate values. Zero is always a valid value and says
 the two bodies' own coordinates agree as far as the mates allow; the
 façade writes the constant `0` for each freedom a gesture leaves
 unnamed. A rotation left by a lone point mate has no such chart and is
