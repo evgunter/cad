@@ -2,8 +2,10 @@
 id: an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane
 kind: issue
 title: The census refuses an edge-face curve touch typed, away from a conventional vertex: no lane reads an edge's carrier lying in a face (a circle in a plane, a line in a curved face)
-status: open
+status: parked
 opened: 2026-10-10
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+cost: M
 ---
 
 
@@ -77,3 +79,13 @@ from a conventional vertex still refuses typed (the message now says
 "a circle lying in a plane"), and a line in a curved face, and the
 other carrier pairs (a circle on a sphere or a cylinder, a line on a
 cylinder) refuse naming the point lane's coverage.
+
+## 2026-10-17 — parked on the D10 hold, moved from RESTREAD
+
+RESTREAD read this row against the D10 hold (`docs/DESIGN.md`, State of
+the build) and the open [ev] PR 4666 (the census records what it
+decides): it stands on contact records, declared pairs or the shape of
+at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
+plan (a row needing declared pairs or contact parks and moves to
+CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
+`M` where it carried no cost. (RESTREAD orchestrator)

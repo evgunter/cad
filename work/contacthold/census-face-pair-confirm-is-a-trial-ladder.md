@@ -2,8 +2,10 @@
 id: census-face-pair-confirm-is-a-trial-ladder
 kind: issue
 title: confirm_face_pair tries four readers in turn instead of dispatching the face pair to one
-status: open
+status: parked
 opened: 2026-10-14
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+cost: M
 ---
 
 Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
@@ -26,3 +28,13 @@ Re-aimed to D3 "One reading per question". The earlier target, "dispatch on the 
 - The ladder, where `OutsideInventory` and `Distinct` from `carrier_pair_relation` send the pair on to `point::face_face` and then `tangent_pair_at_rest`, is a method reached because another declined: a fallback D3 forbids. The two planes' `confirm_patch` is the pose reading's coincident answer, not a first rung.
 
 `restread/the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out` is a symptom on the same door.
+
+## 2026-10-17 — parked on the D10 hold, moved from RESTREAD
+
+RESTREAD read this row against the D10 hold (`docs/DESIGN.md`, State of
+the build) and the open [ev] PR 4666 (the census records what it
+decides): it stands on contact records, declared pairs or the shape of
+at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
+plan (a row needing declared pairs or contact parks and moves to
+CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
+`M` where it carried no cost. (RESTREAD orchestrator)
