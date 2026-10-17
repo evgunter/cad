@@ -4954,14 +4954,8 @@ impl<T: Decide> Azimuth<T> {
     /// reciprocal, so it reads `0` too, although the direction it encloses
     /// may have length.
     pub fn principal(self, band: Band) -> T {
-        self.framed(band).0
-    }
-
-    /// [`Azimuth::principal`], with the formula it read ([`Frame`]); a
-    /// direction of no length reads `0` on the direct one.
-    pub(crate) fn framed(self, band: Band) -> (T, Frame) {
         if !(T::one() / self.length()).is_bounded() {
-            return (T::zero(), Frame::Direct);
+            return T::zero();
         }
         stable_azimuth(self.y, self.x, band)
     }
@@ -7794,27 +7788,8 @@ impl<T: Decide> Placement<T> {
         offset: impl FnOnce(T) -> T,
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        self.phase_offset_in(along, dir, (offset, Frame::Direct), band)
-    }
-
-    /// [`Placement::phase`] for an offset that is itself built on a
-    /// frame-lane read, in `offset_frame` (the Villarceau circle's `t0`):
-    /// the gap the marks read is one expression per pair of formulas,
-    /// and is named by the pair ([`Frame::placement`]).
-    pub(crate) fn phase_offset_in(
-        self,
-        along: Along,
-        dir: Azimuth<T>,
-        (offset, offset_frame): (impl FnOnce(T) -> T, Frame),
-        band: Band,
-    ) -> Result<T, PcurveCertifyError> {
-        let (read, frame) = dir.framed(band);
-        let turns = self.turns_named(
-            frame.placement(offset_frame),
-            along,
-            read + offset(self.mid),
-            band,
-        )?;
+        let read = dir.principal(band);
+        let turns = self.turns(along, read + offset(self.mid), band)?;
         Ok(if turns == 0 {
             read
         } else {
@@ -7838,19 +7813,6 @@ impl<T: Decide> Placement<T> {
     /// lower is taken, which puts the midpoint at the window's closed end:
     /// a tie-break (D9).
     pub(crate) fn turns(self, along: Along, at: T, band: Band) -> Result<i32, PcurveCertifyError> {
-        self.turns_named("pcurve_chart_placement", along, at, band)
-    }
-
-    /// [`Placement::turns`], its marks decided under `name`: a gap built
-    /// on a frame-lane read takes its formula's name
-    /// ([`Frame::placement`]), so each name is one expression.
-    pub(crate) fn turns_named(
-        self,
-        name: &'static str,
-        along: Along,
-        at: T,
-        band: Band,
-    ) -> Result<i32, PcurveCertifyError> {
         let refused = |cause| PcurveCertifyError::Escalated {
             check: PcurveCheck::ChartWinding,
             sample: 0,
@@ -7869,7 +7831,12 @@ impl<T: Decide> Placement<T> {
             return Ok(0);
         }
         let centre = window.centre::<T>();
-        match Period::new(T::tau()).decide(name, at - centre, |g| Margin::levered(g, lever), band) {
+        match Period::new(T::tau()).decide(
+            "pcurve_chart_placement",
+            at - centre,
+            |g| Margin::levered(g, lever),
+            band,
+        ) {
             Ok(k) => Ok(k),
             Err(WalkStop {
                 astride: Some([lower, _]),
@@ -7917,44 +7884,10 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// `atan2(−y, −x) + π`. The frame trilean chooses between two
 /// formulas identical mod τ (the negative-`y` side differs by 2π);
 /// degenerate and in-band arms keep the direct one (tie-break, D9).
-///
-/// It answers which formula it read ([`Frame`]): the two are one angle
-/// up to a turn, so a margin built on the read is a different expression
-/// in each, and is named by it ([`Frame::placement`]).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> (T, Frame) {
+fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (
-            (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-            Frame::Turned,
-        ),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => (y.atan2(x), Frame::Direct),
-    }
-}
-
-/// **Which formula a frame-lane read took** ([`stable_azimuth`]):
-/// `atan2(y, x)`, or `atan2(−y, −x) + π` on a definitely-negative-`x`
-/// frame. The two name one angle up to a turn, so a margin built on the
-/// read is one expression per formula, and a decision on it takes the
-/// formula's name (revalue's rule: a predicate name is one expression).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Frame {
-    /// `atan2(y, x)`.
-    Direct,
-    /// `atan2(−y, −x) + π`.
-    Turned,
-}
-
-impl Frame {
-    /// The placement's predicate for a gap built on a read in `self`
-    /// and, where the channel's offset is itself built on a frame-lane
-    /// read (the Villarceau circle's `t0`), an offset in `offset`.
-    fn placement(self, offset: Frame) -> &'static str {
-        match (self, offset) {
-            (Frame::Direct, Frame::Direct) => "pcurve_chart_placement",
-            (Frame::Turned, Frame::Direct) => "pcurve_chart_placement_turned",
-            (Frame::Direct, Frame::Turned) => "pcurve_chart_placement_offset_turned",
-            (Frame::Turned, Frame::Turned) => "pcurve_chart_placement_both_turned",
-        }
+        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
 }
 
@@ -9246,19 +9179,13 @@ fn torus_oblique_circle<T: Decide>(
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
-    let (t0, t0_frame) = stable_azimuth(d.dot(form.b), d.dot(form.a), band);
+    let t0 = stable_azimuth(d.dot(form.b), d.dot(form.a), band);
     let cv = axis.cross(u_ref);
     // The tube angle, `vl·(t − t0)` from the carrier's own parameter, is
     // an angle of the chart like the azimuth: placed in the window at the
     // span's midpoint, levered at the tube's radius.
     let v_read = T::zero() - vl * t0;
-    // Built on `t0`'s read, the gap is named by its formula.
-    let v0 = match place.turns_named(
-        t0_frame.placement(Frame::Direct),
-        Along::Tube,
-        v_read + vl * place.mid(),
-        band,
-    )? {
+    let v0 = match place.turns(Along::Tube, v_read + vl * place.mid(), band)? {
         0 => v_read,
         k => v_read - Period::new(T::tau()).times(k),
     };
@@ -9275,13 +9202,10 @@ fn torus_oblique_circle<T: Decide>(
     // The azimuth placed in the window at the span's midpoint, levered at
     // the major radius: `d` is a unit direction, and the circle's points
     // sit about the core circle `R` from the axis.
-    let u0 = place.phase_offset_in(
+    let u0 = place.phase(
         Along::Azimuth,
         Azimuth::of(d.dot(cv), d.dot(u_ref)),
-        (
-            |m| Pcurve::FocalSection(image(T::zero())).eval(m).x,
-            t0_frame,
-        ),
+        |m| Pcurve::FocalSection(image(T::zero())).eval(m).x,
         band,
     )?;
     Ok((Pcurve::FocalSection(image(u0)), Derivation::FocalSection))
