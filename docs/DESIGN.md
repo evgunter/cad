@@ -218,8 +218,9 @@ constructed only through doors that state its dimension
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
 fallback that answers where a method declined, no loosening to make
-something pass. Geometry that cannot meet ε almost always indicates a
-modeling mistake, and surfacing it beats absorbing it. A failure caused
+something pass. A miss is surfaced, whoever caused it: absorbing it
+hides it, and the recourse it names says whether the model or the
+kernel is at fault ([tolerance.recourse]). A failure caused
 by a kernel bug is a different kind of thing from a failure caused by
 the input, and which kind a failure is is always plain: a bug panics,
 as early as it is detectable; an input never panics and gets a typed
@@ -596,8 +597,8 @@ both arms as the classifier's reporting margin — the definite arm's
 projection of a generic `T` to an `f64` exists on every lane; the
 classify seam's `MarginDiag` is the one projection there is, and it
 is for reporting only, never a value a decision reads.
-Geometry that can't meet ε almost always indicates a modeling
-mistake; surfacing it beats absorbing it.
+Geometry that cannot meet ε is surfaced, never absorbed, whether the
+model or the kernel caused the miss ([loud-failure]).
 A typed refusal is never read as a verdict: a consumer may only
 take it down a path that decides the question itself.
 
