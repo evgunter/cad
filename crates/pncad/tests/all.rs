@@ -4287,10 +4287,15 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let part_ev = asm2a_eval(&part_doc, &ws);
     let part_body =
         pncad::document::product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
-    assert_eq!(
-        vol(&body).to_bits(),
-        (4.0 * vol(&part_body)).to_bits(),
-        "four copies of the part, bit-exactly"
+    // Each copy stands where its pin puts it to the rounding of the
+    // pin's re-composition — a frame read off the copy, moved by
+    // computed turns and slides — so the four agree with the part to
+    // that rounding, not to the bit.
+    let four = 4.0 * vol(&part_body);
+    assert!(
+        (vol(&body) - four).abs() <= four * 1e-12,
+        "four copies of the part: {} vs {four}",
+        vol(&body)
     );
 
     // Solid order = placement order: instance 0's two solids sit at x = 0

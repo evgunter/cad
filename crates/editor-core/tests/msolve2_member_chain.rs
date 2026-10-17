@@ -9,7 +9,9 @@
 //! the copy joins: read at a nested copy, under the name that copy
 //! wears, it is that copy's face where the chain of placers put it —
 //! the evaluation of each placer composes the chain, and the fold
-//! reads the result.
+//! reads the result. A pose is read off one body, so a target on a
+//! pattern's copy is read at a `Part` (or a placer over one) that
+//! projects it.
 //!
 //! Every row seats a `cap` instance, whose bundle the constraints
 //! join, on a nested copy of a `top` instance pinned to the world: the
@@ -415,8 +417,8 @@ fn assert_target_unresolved(ev: &Evaluation<f64>, cap: RecipeNodeId, what: &str)
 // ---- A1: a nested copy seats where its chain stands ----
 
 /// **A1.** `Pattern` over `Part { Instance(1) }` over `Pattern`, the
-/// target read at the outer pattern under the name a nested copy
-/// actually wears — `Instance { 1, of: Instance { 1, of: … } }`. The
+/// target read at a `Part` projecting the outer pattern's copy 1, under
+/// the name a nested copy actually wears — `Instance { 1, of: Instance { 1, of: … } }`. The
 /// cap seats on that copy, measured on the product's own face frames
 /// against the placer-free control.
 ///
@@ -457,7 +459,8 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
     );
     let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
     let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, outer, &wrap));
+    let (doc, copy) = insert(doc, part_of(outer, 1));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
     assert_placed(&doc, &s.opts, s.cap, "A1");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -472,7 +475,8 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
 
 /// **A2′.** A target whose OUTER copy carries a non-identity map
 /// seats: outer copy 1 of a quarter turn about a `+z` axis at
-/// `(-2, 5)`, over inner copy 1 of a linear rule — measured on the
+/// `(-2, 5)`, over inner copy 1 of a linear rule, read at a `Part`
+/// projecting it — measured on the
 /// product against the placer-free control.
 ///
 /// *Breaks if* an outer rotation about an axis off the origin is lost
@@ -486,7 +490,8 @@ fn a2d_a_rotating_outer_map_seats() {
     let (doc, outer) = circular(doc, part, [-2.0, 5.0], Q, 3);
     let doc = world(doc, &s.opts, &[], &[(outer, 3)]);
     let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, outer, &wrap));
+    let (doc, copy) = insert(doc, part_of(outer, 1));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
     assert_placed(&doc, &s.opts, s.cap, "A2′");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -660,7 +665,8 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
 }
 
 /// **A1′(b).** Three levels — circular, linear, circular — each with
-/// a non-identity map, the target read at the outermost pattern.
+/// a non-identity map, the target read at a `Part` projecting the
+/// outermost pattern's copy 2.
 ///
 /// *Breaks if* the copy three levels down is read anywhere but where
 /// its chain stands.
@@ -675,7 +681,8 @@ fn a1c_three_levels_deep_seat() {
     let (doc, p3) = circular(doc, part2, [5.0, 5.0], std::f64::consts::FRAC_PI_3, 4);
     let doc = world(doc, &s.opts, &[], &[(p3, 4)]);
     let wrap = |n| in_copy(p3, 2, in_copy(p2, 1, in_copy(p1, 1, n)));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, p3, &wrap));
+    let (doc, copy) = insert(doc, part_of(p3, 2));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
     assert_placed(&doc, &s.opts, s.cap, "A1′(b)");
     let ev = run(&doc, &s.opts);
     assert_seated(

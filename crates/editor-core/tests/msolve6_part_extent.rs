@@ -480,7 +480,8 @@ fn a3_a_10m_copy_tilted_1e_8_is_refused_at_its_scale() {
 /// voice, carrying the `PartFault` unaltered** — and the blast radius
 /// is pinned: the instance whose part is lost refuses on its own, with
 /// no bundle fault, and the copy its mate reads is untouched. With no
-/// resolver at all, the same arm in that voice.
+/// resolver at all, the same arm in that voice at the copy the mate
+/// reads, through which the lost instance is poisoned.
 ///
 /// *Breaks if* a lost part reads as a mate's refusal, or reaches the
 /// copy the mate is pinned against.
@@ -530,12 +531,25 @@ fn a4_an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
         "{:?}",
         ev.result(ids[0])
     );
-    // No resolver at all: the same arm, in that voice.
+    // No resolver at all: the same arm, in that voice, at the instance
+    // the seat is read against — which the lost instance reads, so it
+    // is poisoned through it before its own part is asked.
     let none = run(&doc, &EvalOptions::default());
     assert!(
-        matches!(part_fault(&none), PartFault::NoResolver),
+        matches!(
+            none.result(ids[0]),
+            Some(NodeResult::Failed(e)) if matches!(
+                &e.kind,
+                NodeErrorKind::Part { fault: PartFault::NoResolver, .. }
+            )
+        ),
         "{:?}",
-        part_fault(&none)
+        none.result(ids[0])
+    );
+    assert!(
+        matches!(none.result(lost), Some(NodeResult::Poisoned { through }) if *through == ids[0]),
+        "{:?}",
+        none.result(lost)
     );
 }
 
@@ -1054,16 +1068,7 @@ fn a6_no_edit_asks_the_store() {
         )
         .expect("a fourth instance asks nothing")
         .doc;
-    for edit in [
-        DocEdit::RemoveConstraint {
-            placement: seat_refs[0].placement,
-            constraint: seat_refs[0].id,
-        },
-        DocEdit::DeleteNode { id: a },
-    ] {
-        let applied = doc
-            .apply(&edit, tol, &counting)
-            .expect("a removal is never refused for the placement it removes");
+    let stranding = |applied: &editor_core::Applied<editor_core::ProfileProgram>| {
         assert!(
             crate::fixture::without_anonymous(&applied.maintenance)
                 .iter()
@@ -1077,7 +1082,27 @@ fn a6_no_edit_asks_the_store() {
             "a removal reports what it stranded and records no pose: {:?}",
             applied.maintenance
         );
+    };
+    // The seat's values, then the mate they set the freedoms of.
+    let mut unseated = doc.clone();
+    for m in seat_refs.iter().rev() {
+        let applied = unseated
+            .apply(
+                &DocEdit::RemoveConstraint {
+                    placement: m.placement,
+                    constraint: m.id,
+                },
+                tol,
+                &counting,
+            )
+            .expect("a removal is never refused for the placement it removes");
+        stranding(&applied);
+        unseated = applied.doc;
     }
+    stranding(
+        &doc.apply(&DocEdit::DeleteNode { id: a }, tol, &counting)
+            .expect("a removal is never refused for the placement it removes"),
+    );
     assert_eq!(counting.0.get(), 0, "no edit asked the store");
 }
 
@@ -1433,7 +1458,16 @@ fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
             )
             .0;
         }
-        let (doc, m2) = seat(doc, (b, body), (c, body));
+        // One rest, no value names it: the mate this row removes.
+        let (doc, m2) = fixture::constrain_at(
+            doc,
+            c,
+            fixture::rest(
+                fixture::head(in_part(c, body, CapEnd::Start)),
+                fixture::head(in_part(b, body, CapEnd::End)),
+                ContactClass::Rest,
+            ),
+        );
         (doc, opts, b, c, m2)
     };
     let (doc, opts, b, c, m2) = (0..48)

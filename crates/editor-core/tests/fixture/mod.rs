@@ -362,6 +362,17 @@ pub fn pin(
     pose: &editor_core::Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
+    let mate = pin_mate(&doc, placement, pose, o);
+    constrain_at(doc, placement, mate).0
+}
+
+/// **The mate [`pin`] adds**, authored and not yet added.
+pub fn pin_mate(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    pose: &editor_core::Frame,
+    o: &EvalOptions,
+) -> editor_core::Mate<Formula> {
     let copy = match doc.node(placement) {
         Some(Node::Place { shapes, .. }) => {
             editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
@@ -372,7 +383,7 @@ pub fn pin(
         ),
         other => panic!("node {} is a placement, got {other:?}", placement.0),
     };
-    let mate = match editor_core::pin_at(&doc, &copy, pose, o, Tol::witness()) {
+    match editor_core::pin_at(doc, &copy, pose, o, Tol::witness()) {
         Ok(mate) => mate,
         // A copy that does not evaluate has no geometry to read a frame
         // off: it is still placed in the world, by a rest of the cap its
@@ -392,8 +403,7 @@ pub fn pin(
             class: editor_core::ContactClass::Rest,
         },
         Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
-    };
-    constrain_at(doc, placement, mate).0
+    }
 }
 
 /// [`pin`] at the identity.
@@ -1466,14 +1476,14 @@ impl Recorder {
             Some(Node::Place { shapes, .. }) => shapes[0].read,
             _ => unreachable!("a placement was just inserted"),
         };
-        let mate = editor_core::pin_at(
+        // The pin [`pin`] writes, so a copy that does not evaluate is
+        // placed by its fallback too.
+        let mate = pin_mate(
             &self.doc,
-            &editor_core::Operand::Var(shape),
+            placement,
             &editor_core::Frame::IDENTITY,
             &EvalOptions::default(),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+        );
         self.push(DocEdit::AddConstraint {
             placement,
             mate: Box::new(mate),

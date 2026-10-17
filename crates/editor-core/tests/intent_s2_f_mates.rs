@@ -225,7 +225,8 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
             ]),
         },
     );
-    let doc = fixture::place_all(doc, &[fused]);
+    let (doc, placed) = insert(doc, Node::place(vec![fused.into()]));
+    let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
     fixture::assert_mints_nothing(&doc, &ev, mate);
     assert_eq!(

@@ -250,6 +250,36 @@ fn pinned_with(
     )
 }
 
+/// **Every mate-placed copy pinned to the world where its bundle
+/// solves it**: each such bundle removed — its values first, since a
+/// value names its mate — and replaced by one pin at the solved pose.
+fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
+    let poses = solve(&doc, o, Tol::witness());
+    let placed: Vec<(RecipeNodeId, editor_core::Frame)> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| !fixture::bundle(&doc, p).is_empty() && !fixture::on_world(&doc, p))
+        .filter_map(|p| Some((p, poses.placement(&doc, p).ok()?)))
+        .collect();
+    let mut doc = doc;
+    for (placement, frame) in placed {
+        let mut bundle = fixture::bundle(&doc, placement);
+        bundle.sort_by_key(|c| c.mate().is_some());
+        for c in bundle {
+            doc = step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0;
+        }
+        doc = fixture::pin(doc, placement, &frame, o);
+    }
+    doc
+}
+
 /// The kernel findings the gate raised — from EITHER refusing arm, so
 /// a row asserting about the finding SET does not have to know which
 /// side of the split its fixture lands on. The empty vector for a
@@ -462,7 +492,7 @@ fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // instances still touch and no mate relates them.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
     let o = with_resolver(store);
-    let doc = crate::fixture::pinned_where_solved(doc, &o);
+    let doc = pinned_where_solved(doc, &o);
     assert!(
         fixture::bundle(&doc, mate.placement)
             .iter()
@@ -1627,7 +1657,7 @@ fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     // The mate replaced by a world pin at the seat it solved: the
     // instances still touch, and no record backs it.
     let o = with_resolver(store);
-    let doc = crate::fixture::pinned_where_solved(doc, &o);
+    let doc = pinned_where_solved(doc, &o);
     assert!(
         fixture::bundle(&doc, mate.placement)
             .iter()

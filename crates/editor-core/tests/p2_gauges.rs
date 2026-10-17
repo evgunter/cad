@@ -714,8 +714,8 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
 
 /// **A seat under a parametric world pin poses alike in every lane.**
 /// The base is pinned at a pose turned a quarter of a radian about z and
-/// lifted by `lift`; the top is seated on it, and a `+10 z` transform of
-/// the top is placed in the world beside it:
+/// lifted by `lift`; the top is seated on it, and a `+10 z` transform
+/// reads the seated top:
 ///
 /// - the mated faces seat in the product exactly as on a document whose
 ///   base is pinned at the identity;
@@ -747,8 +747,6 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let (doc, lifted) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, lifted_copy) = insert(doc, Node::place(vec![lifted.into()]));
-    let doc = fixture::pinned(doc, lifted_copy, &o);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
     assert_eq!(poses.space(top), Some(Space::World));
@@ -766,7 +764,7 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     // The pin's parameter moves every copy.
     let moved = set_lift(doc.clone(), 7.0);
     let ev_moved = run(&moved, &o);
-    for id in [base, top, lifted_copy] {
+    for id in [base, top, lifted] {
         let (before, after) = (points(&body_of(&ev, id)), points(&body_of(&ev_moved, id)));
         assert_eq!(before.len(), after.len());
         for (b, a) in before.iter().zip(&after) {
@@ -782,7 +780,7 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
         &o,
         Tol::witness(),
     );
-    for id in [base, top, lifted_copy] {
+    for id in [base, top, lifted] {
         let (exact, enclosed) = (body_of(&ev, id), body_of(&lane, id));
         let lanes: Vec<_> = enclosed.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         let exact = points(&exact);
@@ -1167,7 +1165,17 @@ fn an_inline_at_the_identity_keeps_every_bundle() {
     for (source, spliced) in bundles_through(&part, through, &back.doc) {
         assert_eq!(spliced, source, "and each placement's constraints");
     }
-    assert_eq!(back.maintenance, Vec::<Maintenance>::new());
+    // The only maintenance is the silent retirement of the host's own
+    // anonymous variables the inlined instance's pin read; nothing
+    // carried from the part is reported.
+    assert!(!back.maintenance.is_empty(), "the instance's pin goes");
+    for m in &back.maintenance {
+        assert!(
+            matches!(m, Maintenance::AnonymousVarRemoved { var, distribution: None }
+                if host.var(var.id()).is_some() && back.doc.var(var.id()).is_none()),
+            "only the host's own pin variables retire: {m:?}"
+        );
+    }
 }
 
 /// **The carry's edit lists replay to its documents without a solve**:

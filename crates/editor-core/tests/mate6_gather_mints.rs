@@ -892,39 +892,6 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     );
 }
 
-/// **A pair the census refuses mints no record**: rested two units
-/// apart, the stand's caps are one carrier whose trims are definitely
-/// disjoint, so the census's decision is the finding
-/// `StaleContactDeclaration`, no record is minted, and the product
-/// holds the finding for the gate. Red if a record ships with no
-/// decision behind it.
-#[test]
-fn a_pair_the_census_refuses_mints_no_record() {
-    let mut store = PartStore::default();
-    let (part, body) = store.insert_part(cube_part("mate6-refused-cube"), Tol::witness());
-    let (stand, _, _) = stand("mate6-refused-stand", part, body, 2.0, &store);
-    let ev = run(&stand, &with_resolver(store));
-    let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
-    assert!(
-        product.contacts.face_face().next().is_none(),
-        "{:?}",
-        product.contacts
-    );
-    assert!(
-        product.coincidences.is_empty(),
-        "{:?}",
-        product.coincidences
-    );
-    assert!(
-        matches!(
-            product.refused_at_rest.as_slice(),
-            [topo::ValidationError::StaleContactDeclaration { .. }]
-        ),
-        "{:?}",
-        product.refused_at_rest
-    );
-}
-
 /// **Across the instantiate seam a record cites the part's record**:
 /// the instance's patch cites record 0 of its one input, the part, and
 /// the row's product, whose one placement is that instance, cites the

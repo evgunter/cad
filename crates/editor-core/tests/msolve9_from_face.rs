@@ -742,6 +742,20 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
+    // The post's own pin was read off the edges the extrude had: the
+    // author re-pins the round post over its own geometry, so what
+    // remains unresolved is the seat's face alone.
+    let [pin] = &fixture::bundle(&doc, s.post_i)[..] else {
+        panic!("the post is pinned by one constraint");
+    };
+    let (doc, _) = step(
+        doc.clone(),
+        DocEdit::RemoveConstraint {
+            placement: s.post_i,
+            constraint: pin.id,
+        },
+    );
+    let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(

@@ -1046,3 +1046,147 @@ fn inline_refuses_a_moved_landing_under_a_world_value() {
     editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
 }
+
+/// `doc` evaluated at scalar `T` under `o`.
+fn evaluated<T: editor_core::EvalScalar>(
+    doc: &ProfileDoc,
+    o: &EvalOptions,
+) -> editor_core::Evaluation<T> {
+    editor_core::evaluate::<T>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        o,
+        Tol::witness(),
+    )
+}
+
+/// `placement`'s motion in `ev`, its placement evaluated.
+fn motion_of<T: editor_core::EvalScalar>(
+    ev: &editor_core::Evaluation<T>,
+    placement: RecipeNodeId,
+) -> Option<geom_core::RigidMotion<T>> {
+    match ev.result(placement) {
+        Some(NodeResult::Ok(value)) => value.motion,
+        other => panic!("the placement evaluates: {other:?}"),
+    }
+}
+
+/// A box on the world floor whose slide along x is the length `s`,
+/// declared at `nominal`; `s` the seed of a dual run.
+fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptions) {
+    let (doc, body) = a_box("s3c_parametric", 1.0);
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("s").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                nominal,
+            )),
+        },
+    );
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let (doc, placement) = placed(doc, body);
+    let (mut doc, mate) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, bottom)),
+            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            class: ContactClass::Rest,
+        },
+    );
+    let slide = Formula::named(
+        editor_core::VarName::new("s").expect("a name"),
+        editor_core::Dimension::Length,
+    );
+    for (coord, by) in [
+        (Coord::Slide(SlideAxis::X), slide),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, ang(0.0)),
+    ] {
+        doc = add_value(doc, placement, mate.id, coord, by)
+            .expect("a plane mate leaves the freedom")
+            .0;
+    }
+    let seeded = EvalOptions {
+        seed: doc.var_named("s"),
+        ..EvalOptions::default()
+    };
+    (doc, placement, seeded)
+}
+
+/// **Fork C-5 — a copy at rest is placed by no map, in every lane.** A
+/// box pinned at the identity by `pin_at` stands there to rounding; the
+/// fold decides it at rest and places it by no map in the `f64`, the
+/// interval and the dual lane alike.
+///
+/// *Breaks if* the snap is one lane's (the lanes would disagree on
+/// whether a map is applied), or reads another predicate than
+/// `SolvedPoses::at_identity`'s.
+#[test]
+fn a_copy_pinned_at_the_identity_is_placed_by_no_map_in_every_lane() {
+    let (doc, body) = a_box("s3c_at_rest", 1.0);
+    let (doc, placement) = placed(doc, body);
+    let doc = fixture::pinned(doc, placement, &EvalOptions::default());
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("unread").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                1.0,
+            )),
+        },
+    );
+    let seeded = EvalOptions {
+        seed: doc.var_named("unread"),
+        ..EvalOptions::default()
+    };
+    assert!(motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none());
+    assert!(
+        motion_of(
+            &evaluated::<geom_core::Interval>(&doc, &EvalOptions::default()),
+            placement
+        )
+        .is_none()
+    );
+    assert!(motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement).is_none());
+}
+
+/// **Fork C-5 — a copy slid by more than the band is not at rest.** The
+/// same box slid a micrometre along x, a thousand times the band's
+/// zero: its map is kept.
+///
+/// *Breaks if* the snap reads a band wider than the tolerance's, or
+/// snaps a decided displacement.
+#[test]
+fn a_copy_slid_past_the_band_keeps_its_map() {
+    let (doc, placement, _) = box_slid_by_a_parameter(1e-6);
+    let motion = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
+        .expect("a slid copy keeps its map");
+    assert!((motion.to_affine().translation.x - 1e-6).abs() < 1e-15);
+}
+
+/// **Fork C-5 — a pose that moves with a parameter keeps its
+/// derivative.** The box slid by `s`, declared at 0: at the nominal it
+/// stands at the identity, but a dual run seeded at `s` carries the
+/// slide's unit tangent, so its map is kept and its translation's
+/// derivative along x is one.
+///
+/// *Breaks if* the dual lane snaps on its value channel alone (the
+/// derivative would read zero).
+#[test]
+fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
+    let (doc, placement, seeded) = box_slid_by_a_parameter(0.0);
+    assert!(
+        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
+        "at the nominal the copy is at rest"
+    );
+    let motion = motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement)
+        .expect("a seeded pose keeps its map");
+    let x = motion.to_affine().translation.x;
+    assert_eq!(x.value.to_bits(), 0.0_f64.to_bits(), "{x:?}");
+    assert_eq!(x.deriv.to_bits(), 1.0_f64.to_bits(), "{x:?}");
+}

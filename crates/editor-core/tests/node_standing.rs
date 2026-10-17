@@ -535,21 +535,24 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 12] = [
+const READERS: [(&str, usize, &str); 14] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        24,
+        27,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
-         test-support hand-built evaluation takes its result map whole",
+         test-support hand-built evaluation takes its result map whole; a node's space is \
+         read off its inputs' values as they are written (`input_space`), and the loose \
+         spaces off every value",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        8,
+        11,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port or a family's member copies the standing entries and writes \
          the value it resolves to (`reads_projected`), every read still through `value_of`; a \
          placement's solve fault reads whether its placer FAILED, a standing and not a value \
-         (`placement_fault`)",
+         (`placement_fault`); a placement's fold holds its copy before placement as a scratch \
+         result, and reads a target's space and motion off the target's written value",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",
@@ -575,9 +578,22 @@ const READERS: [(&str, usize, &str); 12] = [
          — and labels each arm in its prose",
     ),
     (
-        "crates/editor-core/src/mate/member.rs",
-        9,
-        "unit-test assertions about a node's own row",
+        "crates/editor-core/src/mate/solve.rs",
+        3,
+        "the solve reads each placement's answer off the evaluation: its value's space and \
+         motion, or the mate fault a FAILED placement carries, a standing and not a value",
+    ),
+    (
+        "crates/editor-core/src/mate/pin.rs",
+        3,
+        "the pin evaluates the document itself and reads the copy's own value before \
+         placement; anything else is its `Unevaluated` refusal",
+    ),
+    (
+        "crates/editor-core/src/mate/unobservable.rs",
+        3,
+        "the unobservable-value report reads a placement's own value, and says nothing of one \
+         that has none",
     ),
     (
         "crates/viewer/src/bounds.rs",

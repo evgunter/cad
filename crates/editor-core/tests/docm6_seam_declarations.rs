@@ -258,7 +258,7 @@ fn broken_part(
     store: &mut PartStore,
     label: &str,
 ) -> (DocRef, DocumentId, MateRef, Vec<RecipeNodeId>, RecipeNodeId) {
-    let (r, id, cubes, mate, cube_body) = stand(store, label, ContactClass::Tangent, 4.0, 0.0);
+    let (r, id, cubes, mate, cube_body) = stand(store, label, ContactClass::Tangent, 0.0, 0.0);
     (r, id, mate, cubes, cube_body)
 }
 
@@ -538,10 +538,10 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
 #[test]
 fn a_refuted_carried_declaration_names_its_mate_and_route() {
     let mut store = PartStore::default();
-    // A standoff of -0.5: the two cubes interpenetrate, so the declared rest is
-    // definite counter-evidence.
+    // A shift of 3: the two caps lie in one plane, apart, so the
+    // declared rest is definite counter-evidence.
     let (inner_ref, inner_id, _, inner_mate, _) =
-        stand(&mut store, "docm6-a2-stand", ContactClass::Rest, -0.5, 0.0);
+        stand(&mut store, "docm6-a2-stand", ContactClass::Rest, 0.0, 3.0);
     let (outer, instances) = row_of(&store, "docm6-a2-row", inner_ref, 1, 4.0);
 
     let ev = run(&outer, &with_resolver(store));
@@ -641,7 +641,7 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
 fn no_attribution_is_only_a_finding_no_declaration_answers_for() {
     let mut store = PartStore::default();
     let (penetrating, ..) = stand(&mut store, "docm6-a3-pen", ContactClass::Rest, -0.5, 0.0);
-    let (gapped, ..) = stand(&mut store, "docm6-a3-gap", ContactClass::Rest, 0.5, 0.0);
+    let (gapped, ..) = stand(&mut store, "docm6-a3-gap", ContactClass::Rest, 0.0, 3.0);
 
     // (fixture, does it reach an unrecorded contact?)
     let fixtures = [
@@ -850,7 +850,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
                     wrap(ids[1], in_stand(&store, stand, 0, body, CapEnd::Start)),
                     wrap(ids[0], in_stand(&store, stand, 1, body, CapEnd::End)),
                     ContactClass::Tangent,
-                    3.0,
+                    0.0,
                 ),
                 0.0,
             )
@@ -1377,7 +1377,7 @@ fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
 // ---- A carried row says a part's ids as the part holds them ----
 
 /// A stand over a shared cube part: two instances of it, the first
-/// pinned, and one rest `standoff` apart between their caps, in the
+/// pinned, and one rest between their caps, slid `shift` along x, in the
 /// second instance's bundle, that instance labelled `label`, in a
 /// document named `id`.
 fn stand_over(
@@ -1385,7 +1385,7 @@ fn stand_over(
     (cube, cube_body): (DocRef, RecipeNodeId),
     id: &str,
     class: ContactClass,
-    standoff: f64,
+    shift: f64,
     label: &str,
 ) -> (ProfileDoc, MateRef) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
@@ -1397,9 +1397,9 @@ fn stand_over(
             in_part(c1, cube_body, CapEnd::Start),
             in_part(c0, cube_body, CapEnd::End),
             class,
-            standoff,
+            0.0,
         ),
-        0.0,
+        shift,
     );
     let (doc, _) = step(
         doc,
@@ -1424,14 +1424,14 @@ fn stand_over(
 /// the instance.
 fn outer_over_twin(
     class: ContactClass,
-    standoff: f64,
+    shift: f64,
 ) -> (PartStore, ProfileDoc, ProfileDoc, MateRef, RecipeNodeId) {
     let mut store = PartStore::default();
     let cube = store.insert_part(cube_part("speak-cube"), Tol::witness());
-    let (inner, mate) = stand_over(&store, cube, "speak-inner", class, standoff, "inner seat");
+    let (inner, mate) = stand_over(&store, cube, "speak-inner", class, shift, "inner seat");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, outer_mate) =
-        stand_over(&store, cube, "speak-outer", class, standoff, "outer seat");
+        stand_over(&store, cube, "speak-outer", class, shift, "outer seat");
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, &store, instance, [10.0, 0.0, 0.0]);
@@ -1460,7 +1460,7 @@ fn left_bracket(instance: RecipeNodeId) -> String {
 #[test]
 fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let (store, inner, outer, mate, instance) =
-        outer_over_twin(ContactClass::Tangent, 4.0);
+        outer_over_twin(ContactClass::Tangent, 0.0);
     let t = test_utils::refusal::tag(mate.placement.0.digest());
     let c = mate.id;
 
@@ -1532,7 +1532,7 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
 /// the outer document holds that id.
 #[test]
 fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken() {
-    let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, -0.5);
+    let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, 3.0);
     let t = test_utils::refusal::tag(mate.placement.0.digest());
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());

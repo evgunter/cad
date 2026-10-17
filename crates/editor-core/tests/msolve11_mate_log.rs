@@ -102,6 +102,10 @@ struct Scene {
     /// the part's own spelling.
     edge: StableName,
     pattern: RecipeNodeId,
+    /// The pattern's copy 1, projected out of its instances by a
+    /// `Part`: a pose is read off one body, and a pattern's value is
+    /// many.
+    copy1: RecipeNodeId,
 }
 
 fn scene(label: &str) -> Scene {
@@ -133,6 +137,13 @@ fn scene(label: &str) -> Scene {
             },
         },
     );
+    let (doc, copy1) = insert(
+        doc,
+        Node::Part {
+            of: pattern.into(),
+            select: editor_core::PartSelect::Instance(Formula::count(1)),
+        },
+    );
     Scene {
         doc,
         opts,
@@ -144,6 +155,7 @@ fn scene(label: &str) -> Scene {
         block_body,
         edge,
         pattern,
+        copy1,
     }
 }
 
@@ -153,10 +165,11 @@ impl Scene {
         fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End))
     }
 
-    /// Copy 1 of the patterned block's top cap, read at the pattern.
+    /// Copy 1 of the patterned block's top cap, read at the `Part`
+    /// that projects it.
     fn copy_top(&self) -> SitedFace {
         fixture::head_at(
-            self.pattern,
+            self.copy1,
             in_copy(
                 self.pattern,
                 1,
@@ -165,10 +178,11 @@ impl Scene {
         )
     }
 
-    /// Copy 1's lateral edge, as an axis read at the pattern.
+    /// Copy 1's lateral edge, as an axis read at the `Part` that
+    /// projects it.
     fn copy_edge(&self) -> Operand {
         fixture::axis(SitedRef::new(
-            self.pattern,
+            self.copy1,
             in_copy(
                 self.pattern,
                 1,
@@ -294,7 +308,7 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 
 /// **Each decision is on the node that made it.** Two placements: the
 /// cap, held by a rest and a coaxial mate against copy 1 of a pattern
-/// and spun by a value, and the other block, held by a rest and three
+/// (read at a `Part` that projects it) and spun by a value, and the other block, held by a rest and three
 /// values against the base.
 ///
 /// - The fold's intersection — the table's split adding the coaxial
@@ -305,7 +319,7 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 ///   nothing: its log holds no membership check.
 /// - The pattern's rule — its direction and the sign of its spacing —
 ///   is decided where the pattern evaluates, on its own log, and on
-///   neither placement's though the cap reads its copy.
+///   neither placement's though the cap reads its copy through it.
 ///
 /// *Breaks if* a fold's decision lands on another node's row, or a
 /// placement re-decides what the copy it reads decided.

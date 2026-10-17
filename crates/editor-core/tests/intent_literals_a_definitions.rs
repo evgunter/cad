@@ -739,7 +739,11 @@ fn split_and_inline_carry_definitions() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(out.part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("intent-literals-a-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,
@@ -1027,7 +1031,11 @@ fn inline_refuses_a_definition_the_host_already_holds() {
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     match inline(
         &host,
         instance,
@@ -1050,7 +1058,11 @@ fn inline_carries_a_definition_at_the_carried_ids() {
         Tol::witness(),
     );
     let host = declare(&host, "z", free(1.0));
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,

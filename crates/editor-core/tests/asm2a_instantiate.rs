@@ -369,10 +369,13 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let part_doc = part("asm2a-r1-part", 0.0, 1.0);
     let part_ev = run(&part_doc, &EvalOptions::default());
     let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
-    assert_eq!(
-        volume(&body).to_bits(),
-        (2.0 * volume(&part_body)).to_bits(),
-        "volume is bit-exactly twice the part's"
+    // The second copy's pin is read off its geometry and composed
+    // through world turns, so its rotation is the identity only to
+    // rounding: the volume is twice the part's to a few ulps.
+    let (got, want) = (volume(&body), 2.0 * volume(&part_body));
+    assert!(
+        (got - want).abs() <= 8.0 * f64::EPSILON * want,
+        "volume is twice the part's: {got} vs {want}"
     );
 
     // Solid order IS root order: the first root's solid sits at x = 0,
@@ -510,13 +513,13 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 463 is
+    // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (its pin's poses read off
     // the copy and solved, then placement and validation of the placed
     // body); 728 is the part's, on its own nodes — its profile's
     // pre-pass on the Profile node's log, decided once (the pinned lift
     // reuses the pre-pass's validated form).
-    assert_eq!(first.len(), 463, "the instantiate op's own decisions");
+    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
     assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
@@ -673,10 +676,12 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     );
     let after = run(&moved, &opts);
     let after_body = product(&moved, &after, Tol::witness()).expect("gathers");
-    assert_eq!(
-        volume(&before_body).to_bits(),
-        volume(&after_body).to_bits(),
-        "a rigid placement preserves volume bit for bit"
+    // A pin away from the identity is composed through world turns, so
+    // it is rigid to rounding: the volume holds to a few ulps.
+    let (b, a) = (volume(&before_body), volume(&after_body));
+    assert!(
+        (a - b).abs() <= 8.0 * f64::EPSILON * b,
+        "a rigid placement preserves volume: {b} vs {a}"
     );
     assert!(
         (min_x(&after_body) - min_x(&before_body) - 7.0).abs() < 1e-9,

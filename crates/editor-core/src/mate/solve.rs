@@ -344,34 +344,15 @@ impl SolvedPoses {
     /// world's coordinates**, decided at `band`: no point of it moves
     /// further than the band's zero — its translation's length plus its
     /// turn's departure from the identity levered over the copy's reach
-    /// (D4 ¶1). A copy pinned over its geometry stands there to
-    /// rounding, which this decides as the identity; a copy that is
+    /// (D4 ¶1), the predicate the fold's own snap reads ([`at_rest`]),
+    /// so a copy it decides at rest was placed by no map. A copy that is
     /// loose, refused or unplaced does not stand there.
     pub fn at_identity(&self, placement: RecipeNodeId, band: Band) -> bool {
         let Some(Ok((Space::World, motion))) = self.placed.get(&placement) else {
             return false;
         };
-        let Some(m) = motion else {
-            return true;
-        };
-        let q = m.linear;
-        let turn = [
-            q.c0 - geom_core::linalg::Vec3::new(1.0, 0.0, 0.0),
-            q.c1 - geom_core::linalg::Vec3::new(0.0, 1.0, 0.0),
-            q.c2 - geom_core::linalg::Vec3::new(0.0, 0.0, 1.0),
-        ]
-        .iter()
-        .map(|c| c.norm_squared())
-        .sum::<f64>()
-        .sqrt();
-        let arm = self.reach.get(&placement).copied().unwrap_or(0.0);
-        let moved = m.translation.norm() + turn * arm;
-        geom_core::k_stats::decide(
-            "solve_copy_at_identity",
-            geom_core::predicate::Margin::of(moved),
-            band,
-        )
-        .is_ok_and(|sign| sign == geom_core::predicate::Sign::Zero)
+        let reach = self.reach.get(&placement).copied().unwrap_or(0.0);
+        motion.is_none_or(|m| at_rest(&m, reach, band))
     }
 
     /// **A copy's pose in its space**: where it sits in the world's
@@ -449,7 +430,10 @@ where
 /// [`SolvedPoses::at_identity`] decides it — and the run carries no
 /// variation in it ([`SolveScalar::carries_no_variation`]). A copy
 /// pinned over its geometry at the identity stands there to rounding;
-/// so decided, it is placed by no map, in every lane alike.
+/// so decided, it is placed by no map, in every lane alike. A margin
+/// the band cannot decide is not guessed: the map is kept, as it is for
+/// one decided apart from the identity. The one predicate the fold's
+/// snap and [`SolvedPoses::at_identity`] both read.
 pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
     use geom_core::linalg::Vec3;
     if !T::carries_no_variation(map) {
