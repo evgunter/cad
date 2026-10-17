@@ -21,7 +21,7 @@ use topo::DATUM_UNIT_NORM;
 
 use super::{
     DATUM_AXIS_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, datum_unit, frame_axes,
-    pose_direction_escalated, read_body, refusal, select, slots, value_of,
+    pose_direction_escalated, read_body, refusal, select_one, slots, value_of,
 };
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
@@ -394,11 +394,9 @@ fn read_off<T: Decide>(
     let body_var = doc.selection(of).map_or(of, |select| select.body);
     let projected = super::project_ports(&[body_var], doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
-    let selected = select(doc, results, slot, of)?;
-    let body = read_body(results, selected.at)?;
-    let Some(key) = selected.ents.first().map(|ent| ent.key) else {
-        unreachable!("a singleton selection holds one entity")
-    };
+    let (at, ent) = select_one(doc, results, slot, of)?;
+    let body = read_body(results, at)?;
+    let key = ent.key;
     let fault = |fault| NodeErrorKind::PoseRead { pose, fault };
     let readback = |error| fault(PoseReadFault::Readback { error });
     // A carrier's stored direction is unit up to its rounding, and is

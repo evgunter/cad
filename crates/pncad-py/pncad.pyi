@@ -139,7 +139,8 @@ class EditError(PncadError):
       is the entry that does not sort strictly before the one after
       it, and `again` is `None` — the break is between that entry and
       its successor, so the second position is the first plus one and
-      is not carried.
+      is not carried. On `kind` (a name of another entity kind than
+      the selection's) `first` alone is that name's position.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -2352,10 +2353,11 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `select_resolve`
-        for a name that stopped denoting, `select_kind` for an
-        edge or vertex name, `face_frame_not_planar` for a curved
-        carrier, `face_frame_readback` for unreadable geometry.
+        An edge or vertex name refuses at the insert (`EditError`
+        `selection_shape`). The rest refuse typed at `evaluate`, never
+        here — `select_resolve` for a name that stopped denoting,
+        `face_frame_not_planar` for a curved carrier,
+        `face_frame_readback` for unreadable geometry.
         """
 
     @staticmethod

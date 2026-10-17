@@ -980,10 +980,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
-        // A selection a node reads: a name the ladder refused, or one
-        // denoting another entity kind than the selection's.
+        // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
-        C::SelectKind => "select_kind",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1156,7 +1154,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::CopiesShareAKey { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::SelectKind { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -3487,6 +3484,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Seat { .. } => "seat",
         F::Singleton { .. } => "singleton",
         F::NotCanonical { .. } => "not_canonical",
+        F::Kind { .. } => "kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
     }

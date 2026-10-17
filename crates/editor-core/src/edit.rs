@@ -1558,7 +1558,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         }
         return Ok(body);
     }
-    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let entity = selection_entity(expected, names);
     let kind = expected
         .selection_kind(entity)
         .ok_or_else(|| shape(crate::var::SelectionFault::Seat { entity }))?;
@@ -1583,6 +1583,17 @@ fn mint_selection<P: crate::ProfilePayload>(
             },
         ),
     )
+}
+
+/// **The entity kind a selection of `names` at a seat of `expected`
+/// is minted for**: its first name's, which [`crate::var::Select::fault`]
+/// holds the others to, or for no names the seat's own.
+fn selection_entity(expected: crate::SlotKind, names: &[StableName]) -> EntityKind {
+    match (names.first(), expected) {
+        (Some(name), _) => name.kind,
+        (None, crate::SlotKind::Is(kind)) => kind.selection().map_or(EntityKind::Face, |(e, _)| e),
+        (None, _) => EntityKind::Face,
+    }
 }
 
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
@@ -1650,7 +1661,7 @@ pub fn selection_into<P>(
     body: VarId,
     names: &[StableName],
 ) -> VarId {
-    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let entity = selection_entity(slot.kind(), names);
     let kind = slot
         .kind()
         .selection_kind(entity)

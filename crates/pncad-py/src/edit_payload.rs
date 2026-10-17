@@ -92,9 +92,10 @@ pub struct EditPayload<'a> {
     pub count: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
-    /// occurrence, or the edge that does not sort strictly before the
-    /// one after it. Both are one index into one list, so they share
-    /// the attribute rather than minting a second word for it.
+    /// occurrence, the edge that does not sort strictly before the one
+    /// after it, or the name of another entity kind than the
+    /// selection's. Each is one index into one list, so they share the
+    /// attribute rather than minting a second word for it.
     pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// a repeated face, the one fault that names two entries.
@@ -345,7 +346,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             use pncad::document::SelectionFault as F;
             let (first, again, count) = match fault {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
-                F::NotCanonical { at } => (Some(*at), None, None),
+                F::NotCanonical { at } | F::Kind { at, .. } => (Some(*at), None, None),
                 F::Singleton { count } => (None, None, Some(*count)),
                 F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
             };

@@ -286,14 +286,17 @@ impl SlotKind {
 
     /// **The kind a selection authored at this seat is minted at**
     /// ([`Operand::Select`]), given the entity kind its names name:
-    /// the seat's own selection kind, or at a seat admitting several,
-    /// the singleton of that entity kind. `None` where the seat holds no
-    /// selection of it.
+    /// the seat's own selection kind where it holds that entity, or at a
+    /// seat admitting several, the singleton of that entity kind. `None`
+    /// where the seat holds no selection of it.
     #[must_use]
     pub fn selection_kind(self, entity: crate::names::EntityKind) -> Option<VarKind> {
         use crate::names::EntityKind as E;
         match self {
-            Self::Is(kind) => kind.selection().is_some().then_some(kind),
+            Self::Is(kind) => kind
+                .selection()
+                .is_some_and(|(held, _)| held == entity)
+                .then_some(kind),
             // The singleton of the names' entity kind, whether or not
             // the primitive admits it: the door mints it and the read's
             // kind check refuses it as any seat's would.

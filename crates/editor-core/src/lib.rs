@@ -141,16 +141,6 @@ pub use eval::{
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue,
     ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
 };
-pub use refusal::Refusal;
-pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
-pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by, spoken_within,
-};
-// The entity door's token: a field of four `NodeErrorKind` variants, so
-// a reader that matches one needs to be able to name it here rather
-// than through the module path.
-pub use eval::entity_door::Found;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,
@@ -224,6 +214,7 @@ pub use refactor::{
     InlineError, InlineOutcome, NodeMap, RemapError, SplitError, SplitOutcome, StepMap, Uncarried,
     Unmapped, inline, remap_name, split,
 };
+pub use refusal::Refusal;
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
@@ -239,6 +230,11 @@ pub use resolve::{
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
+};
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+pub use spoken::{
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by, spoken_within,
 };
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,

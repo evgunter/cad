@@ -2374,9 +2374,9 @@ fn the_stl_writers_arms_are_construction_only() {
 /// arm buildable without geometry: the op family at its f64 witness
 /// and the lane refusal.
 ///
-/// The open faces' selection refusals (`select_resolve`, `select_kind`)
-/// are driven through a real document instead, in `tests/test_shell.py`:
-/// their payloads are not this layer's to mint.
+/// The open faces' selection refusal (`select_resolve`) is driven
+/// through a real document instead, in `tests/test_shell.py`: its
+/// payload is not this layer's to mint.
 #[test]
 fn shell_refusal_tags_are_stable() {
     use crate::tags::node_error_tag;
@@ -2455,7 +2455,6 @@ fn node_error_tags_are_the_published_words() {
         CopiesShareAKey => "copies_share_a_key",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
-        SelectKind => "select_kind",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -3119,6 +3118,19 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             node: sp(1),
             slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
             fault: pncad::document::SelectionFault::NotCanonical { at: 2 },
+        },
+        &["node", "slot", "first"],
+    );
+    // A name of another kind than the selection's: one position too.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            fault: pncad::document::SelectionFault::Kind {
+                at: 1,
+                found: pncad::select::EntityKind::Face,
+                expected: pncad::select::EntityKind::Edge,
+            },
         },
         &["node", "slot", "first"],
     );
@@ -5659,7 +5671,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_replay",
             "revolve",
             "seed",
-            "select_kind",
             "select_resolve",
             "shell",
             "shell_lane_unsupported",
@@ -6122,6 +6133,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
+            "kind",
             "not_a_selection",
             "not_canonical",
             "other_body",
