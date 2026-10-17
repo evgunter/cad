@@ -5,7 +5,6 @@ title: What a reference whose read has left the document resolves to (N5 gains R
 status: open
 opened: 2026-10-11
 priority: P1
-needs_ev: true
 ---
 
 
@@ -37,5 +36,13 @@ DM4 (FORK-DM4 N1, Ev 2026-10-09) made the read a second coordinate.
   from the minting node to the read. Without it, a flip at a split between
   the mint and the read is still blamed on the minting node.
 
-The build (PR 4674) carries Q1 and the narrower Q2 meanwhile, and merges
-after Ev answers.
+## Ruling (Ev, PR 4691)
+
+- Q1: the four-arm text, as recommended (2026-10-12: "the recommendation
+  sounds good for the first").
+- Q2: the wider path (2026-10-17: "i think the wider path makes sense, but
+  feel free to stage via the narrower path"). The narrower path lands with
+  PR 4674; the wider one is
+  `work/refs/the-reference-path-reads-every-node-from-mint-to-read.md`.
+
+PR 4674 builds Q1 and the narrower Q2 and closes this item.
