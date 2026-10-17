@@ -1063,13 +1063,16 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     (p, doc, [base, top, second])
 }
 
+/// One instance's world pin beside its image's.
+type PinPair = (Option<WorldRead<Formula>>, Option<WorldRead<Formula>>);
+
 /// Every instance's world pin in `doc` beside the one `onto` holds at
 /// its image under `map`.
 fn pins_through(
     doc: &ProfileDoc,
     map: impl Fn(RecipeNodeId) -> RecipeNodeId,
     onto: &ProfileDoc,
-) -> Vec<(Option<WorldRead<Formula>>, Option<WorldRead<Formula>>)> {
+) -> Vec<PinPair> {
     doc.ids()
         .iter()
         .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))

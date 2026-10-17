@@ -140,12 +140,9 @@ fn node_where(
 enum Rung {
     /// Every node green.
     Green,
-    /// Exactly this node fails, escalating on this predicate (the
-    /// rest poisoned through it or green).
-    Escalates {
-        node: RecipeNodeId,
-        predicate: &'static str,
-    },
+    /// Exactly these nodes fail, each escalating on its predicate (the
+    /// rest poisoned through one or green).
+    Escalates(Vec<(RecipeNodeId, &'static str)>),
 }
 
 /// **The width ladder, asserted rung by rung** — the measurement
@@ -160,32 +157,51 @@ enum Rung {
 /// the cut faces' plane offset in band (`bool_plane_offset`, an
 /// enclosure across zero), so the pair is not glued, and the corner that
 /// reads it one carrier refuses with that reading, the one a narrower
-/// width clears: ε/32 and every narrower rung certify. Each
-/// rung is asserted, so a floor that moves — up or down — reds this
-/// row naming the rung.
+/// width clears. Through ε/64 the placement of the lifted pattern copy
+/// escalates too: its plane mate reads the copy's cap, whose normal
+/// reads with an enclosure about twice the height's width
+/// (`work/topotail/a-cap-normal-reads-the-height-s-width.md`), the
+/// solve levers that tilt over the copy's reach, and certifying the
+/// moved edges escalates (`carrier_endpoint_*`). ε/128 and every
+/// narrower rung certify. Each rung is asserted, so a floor that moves
+/// — up or down — reds this row naming the rung.
 #[test]
 fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
     let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
     let union = node_where(&doc, |n| matches!(n, Node::Union { .. }));
+    let lifted = node_where(&doc, |n| matches!(n, Node::Transform { .. }));
+    let lifted_place = *doc
+        .ids()
+        .iter()
+        .find(|&&id| {
+            matches!(doc.node(id), Some(Node::Place { .. })) && doc.upstream(id).contains(&lifted)
+        })
+        .expect("the lifted copy is placed");
     let ladder: [(u32, Rung); 8] = [
         (
             10,
-            Rung::Escalates {
-                node: split,
-                predicate: "carrier_matches_mapped_source",
-            },
+            Rung::Escalates(vec![
+                (split, "carrier_matches_mapped_source"),
+                (lifted_place, "carrier_endpoint_start"),
+            ]),
         ),
         (
             16,
-            Rung::Escalates {
-                node: union,
-                predicate: "bool_plane_offset",
-            },
+            Rung::Escalates(vec![
+                (union, "bool_plane_offset"),
+                (lifted_place, "carrier_endpoint_start"),
+            ]),
         ),
-        (32, Rung::Green),
-        (64, Rung::Green),
+        (
+            32,
+            Rung::Escalates(vec![(lifted_place, "carrier_endpoint_start")]),
+        ),
+        (
+            64,
+            Rung::Escalates(vec![(lifted_place, "carrier_endpoint_end")]),
+        ),
         (128, Rung::Green),
         (256, Rung::Green),
         (1024, Rung::Green),
@@ -205,29 +221,33 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
         );
         match want {
             Rung::Green => assert!(bad.is_empty(), "eps/{divisor} certifies: {bad:?}"),
-            Rung::Escalates { node, predicate } => {
+            Rung::Escalates(nodes) => {
                 let failed: Vec<&String> = bad.iter().filter(|s| s.contains("FAILED")).collect();
                 assert_eq!(
                     failed.len(),
-                    1,
-                    "eps/{divisor}: exactly one node fails, the rest poisoned: {bad:?}"
+                    nodes.len(),
+                    "eps/{divisor}: exactly {} node(s) fail, the rest poisoned: {bad:?}",
+                    nodes.len()
                 );
-                assert!(
-                    failed[0].starts_with(&format!("{node:?} FAILED"))
-                        && failed[0].contains("Escalated")
-                        && failed[0].contains(predicate),
-                    "eps/{divisor}: node {} escalates on {predicate}: {}",
-                    node.0,
-                    failed[0]
-                );
+                for (node, predicate) in nodes {
+                    let row = failed
+                        .iter()
+                        .find(|s| s.starts_with(&format!("{node:?} FAILED")))
+                        .unwrap_or_else(|| panic!("eps/{divisor}: node {} fails: {bad:?}", node.0));
+                    assert!(
+                        row.contains("Escalated") && row.contains(predicate),
+                        "eps/{divisor}: node {} escalates on {predicate}: {row}",
+                        node.0
+                    );
+                }
             }
         }
     }
 }
 
-/// The divisor of ε the assertion row is pinned at — two rungs under
-/// the floor the ladder measures at the default ε.
-const A7_DIVISOR: f64 = 128.0;
+/// The divisor of ε the assertion row is pinned at — four times
+/// under the floor the ladder measures at the default ε.
+const A7_DIVISOR: f64 = 512.0;
 
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the

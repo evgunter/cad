@@ -298,8 +298,9 @@ pub fn constrain_at(
     (applied.doc, editor_core::MateRef::new(placement, id))
 }
 
-/// [`constrain`] through `reach`, for a constraint whose clocking rider
-/// or face side reads its parts.
+/// [`constrain`] through `reach`, the door's reach parameter: the door
+/// reads none today
+/// (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
 pub fn constrain_with(
     doc: ProfileDoc,
     reach: &dyn MateReach,
@@ -685,8 +686,7 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Worl
 }
 
 /// Applies an edit, returning the new doc and any minted id, through
-/// the REFUSING reach: a mate insert whose clocking rider needs its
-/// parts' extent steps through [`step_with`] and the store's reach.
+/// the REFUSING reach ([`step_with`] hands another).
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
     step_with(doc, edit, &RefusingReach)
 }
@@ -710,8 +710,8 @@ pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
     })
 }
 
-/// [`step`] through `reach` — the store's, for a mate insert whose
-/// clocking rider is decided over its parts.
+/// [`step`] through `reach`, the door's reach parameter
+/// (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
 pub fn step_with(
     doc: ProfileDoc,
     edit: DocEdit<ProfileProgram>,

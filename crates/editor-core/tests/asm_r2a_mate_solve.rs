@@ -121,7 +121,7 @@ impl Kit {
         self.name(
             EntityKind::Edge,
             instance,
-            RoleSeg::LateralEdge(self.corners[v].clone()),
+            RoleSeg::LateralEdge(self.corners[v]),
         )
     }
 
@@ -130,7 +130,7 @@ impl Kit {
         self.name(
             EntityKind::Vertex,
             instance,
-            RoleSeg::CapVertex(end, self.corners[v].clone()),
+            RoleSeg::CapVertex(end, self.corners[v]),
         )
     }
 }
@@ -889,10 +889,6 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
         "the witness carries B's second pin onto A's: {turned:?}"
     );
 }
-
-/// Invariants that do NOT match: A's pins are 1 apart, B's are 2. The
-/// table says empty, and the refusal must quote the MEASURED clash —
-/// the radius difference, 1.
 
 /// Invariants that do NOT match: A's pins are `√2` apart (opposite
 /// corners), B's a unit (adjacent). The table says empty, and the

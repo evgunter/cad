@@ -1444,25 +1444,26 @@ impl SitedRef {
     }
 }
 
-/// **A mate side as an author writes it: a FACE name, and the node it
-/// is read at.**
+/// **A face as an author writes it for a mate: a FACE name, and the
+/// node it is read at.**
 ///
-/// [`SitedRef`]'s shape with the name's kind fixed by the type, because
-/// a mate declares a FACE-PAIR contact. It lowers
-/// (`impl From<SitedFace> for Operand`) to the read a mate stores: a
-/// one-name selection of `at`'s output, which the door mints as a
-/// `Face` variable, so the selection's body read is an ordinary DAG
-/// edge and the name resolves against `at`'s own evaluated table
-/// through the N5 ladder every other authored name takes.
+/// [`SitedRef`]'s shape with the name's kind fixed by the type. It
+/// lowers (`impl From<SitedFace> for Operand`) to a one-name selection
+/// of `at`'s output, which the door mints as a `Face` variable, so the
+/// selection's body read is an ordinary DAG edge and the name resolves
+/// against `at`'s own evaluated table through the N5 ladder every
+/// other authored name takes. A mate reads it inside a pose — the
+/// plane of the face ([`crate::pose::PoseDef::Plane`]).
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
 /// that re-derives one without re-asking the kind.
 ///
 /// ```
+/// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, Formula, Mate, MateFrame,
-///     MatePrimitive, RecipeNodeId, SideRead, SitedFace, StableName,
+///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     StableName, Target,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1470,18 +1471,18 @@ impl SitedRef {
 ///     path: Vec::new(),
 /// })
 /// .expect("a face name is a face");
-/// let frame = MateFrame::from_face();
+/// let plane = |face: FaceName| {
+///     Operand::Pose(Box::new(PoseDef::Plane {
+///         face: SitedFace::at_mint(face).into(),
+///     }))
+/// };
+/// let flipped = Operand::Pose(Box::new(PoseDef::Flip {
+///     pose: plane(face.clone()),
+/// }));
 /// let _: Mate<Formula> = Mate {
-///     a: SideRead::Face(SitedFace::at_mint(face.clone()).into()),
-///     b: SideRead::Face(SitedFace::at_mint(face).into()),
+///     on: plane(face),
+///     to: Target::Pose(flipped),
 ///     class: ContactClass::Rest,
-///     alignment: Alignment {
-///         a: frame.clone(),
-///         b: frame,
-///         primitive: MatePrimitive::FrameCoincidence,
-///         sense: AxisSense::Aligned,
-///         clocking: None,
-///     },
 /// };
 /// ```
 ///
