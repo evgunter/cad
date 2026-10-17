@@ -5904,3 +5904,23 @@ Residue filed by the unit: `wire-rs-defaults-two-missed-records-to-empty`,
 pass, filed here) `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5263 (merged-chord rule): full review NOT mergeable, one MAJOR
+
+The reviewer built a legal recipe the rule mis-names: a chord that crosses
+the merged-away boundary between the two constituents. The pick read only
+the chord's middle, so it cited one piece confidently (and flipped with the
+cut's extent), and the vertex pass then refused a bug-framed `Emission`
+where main had refused typed `MergedChordConstituents`. Its sibling
+`rim_holding` reads the whole chord. Fix pass sent: pick only a constituent
+that holds the whole chord, otherwise keep the typed refusal; propagate
+containment errors; restore a guard that a legal recipe never reads as a
+kernel bug. The lesson is the brief's: "the fixture passes" is not "the
+rule is stated", and the reviewer's mutants proved the fixture caught wrong
+picks but not wrong premises.
+
+Filed `a-chord-spanning-two-merged-constituents-has-no-name` (design): what
+a spanning chord is named, and whether N2 should state the chord-descent
+rule at all (new ratified text, so Ev's if so).
+
+Signed (WIRE orchestrator).
