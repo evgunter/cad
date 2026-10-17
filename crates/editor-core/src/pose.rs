@@ -431,12 +431,13 @@ impl<R> RoleRead<R> {
 impl<R: core::fmt::Debug> core::fmt::Debug for RoleRead<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // A plain read dumps as the bare read, as it serializes.
-        match self.role {
-            None => self.read.fmt(f),
+        let Self { read, role } = self;
+        match role {
+            None => read.fmt(f),
             Some(role) => f
                 .debug_struct("RoleRead")
-                .field("read", &self.read)
-                .field("role", &role)
+                .field("read", read)
+                .field("role", role)
                 .finish(),
         }
     }
