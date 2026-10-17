@@ -5,7 +5,8 @@ title: The entity door's kind is unforgeable but the key it is read off is the c
 status: open
 opened: 2026-09-13
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 

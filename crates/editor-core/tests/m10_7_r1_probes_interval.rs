@@ -16,9 +16,8 @@ use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar, GeomPred,
-    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
-    ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
-    select_where,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate, select_where,
 };
 use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
@@ -40,7 +39,6 @@ fn failures(
 ) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let read = |ev: &editor_core::Evaluation<geom_core::Sym<geom_core::Interval>>| {

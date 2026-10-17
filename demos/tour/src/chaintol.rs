@@ -172,14 +172,16 @@ fn drive_dials() -> (SymBudget, SymRules) {
 }
 
 /// One leaf's evaluation options over the WHOLE declared box, in the
-/// driver's own lane (`ProfileLift::Guided`, as `drive` sets it).
+/// driver's own lane: the box varies its axes, so the profile lift is
+/// guided (`EvalOptions::profile_lift`), as every leaf of a drive is.
 fn whole_box(doc: &ProfileDoc) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    EvalOptions {
+    let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
-    }
+    };
+    debug_assert_eq!(opts.profile_lift(), ProfileLift::Guided);
+    opts
 }
 
 /// Every node that failed or was poisoned, in evaluation order —

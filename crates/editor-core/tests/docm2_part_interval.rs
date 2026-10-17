@@ -115,8 +115,18 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
 /// widened run threaded through it.
 fn widened_runs(width: f64) -> (ProfileDoc, Evaluation<Interval>, Evaluation<Interval>) {
     let doc = widened_document(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
@@ -257,7 +267,18 @@ const A7_DIVISOR: f64 = 512.0;
 fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     let width = Tol::witness().eps() / A7_DIVISOR;
     let doc = widened_document(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "nominal: {:?}",
@@ -265,7 +286,6 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     );
     assert_parts_are_their_bodies(&nominal, &doc, "nominal");
 
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()

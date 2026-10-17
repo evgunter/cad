@@ -41,8 +41,8 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, SitedRef, SlideAxis,
-    StableName, Target, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, StableName,
+    Target, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -1022,7 +1022,6 @@ fn var_of(doc: &ProfileDoc, param: &VarName) -> editor_core::VarId {
 fn seeded(doc: &ProfileDoc, opts: &EvalOptions, param: VarName) -> EvalOptions {
     EvalOptions {
         seed: Some(var_of(doc, &param)),
-        profile_lift: ProfileLift::Guided,
         ..opts.clone()
     }
 }
@@ -1033,7 +1032,6 @@ fn boxed(doc: &ProfileDoc, opts: &EvalOptions, param: VarName, lo: f64, hi: f64)
             var_of(doc, &param),
             BoxAxis::Varying { lo, hi },
         )])))),
-        profile_lift: ProfileLift::Guided,
         ..opts.clone()
     }
 }
@@ -1713,10 +1711,7 @@ fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
 #[test]
 fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
     let b = bolted("msolve14-a4");
-    let base_opts = EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..b.opts.clone()
-    };
+    let base_opts = b.opts.clone();
     let base = run_at::<Dual64>(&b.doc, &base_opts, None);
     for (name, p) in vertices(&base, b.bolt) {
         assert_eq!(
@@ -1905,7 +1900,6 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         for seed in seeds {
             let o = EvalOptions {
                 seed,
-                profile_lift: ProfileLift::Guided,
                 ..opts.clone()
             };
             let d = run_at::<Dual64>(&doc, &o, None);

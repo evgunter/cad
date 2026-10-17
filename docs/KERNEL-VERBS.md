@@ -16,9 +16,10 @@ complete; curved per wired germ classes plane×cyl / plane×sphere /
 plane×cone (the ellipse and the circle) —
 the C5 SECTION table has two more closed-form classes — sphere×sphere
 since VERBS-SPHSPH and the DECLARED-coaxial cylinder×sphere since
-VERBS-CYLSPH — but no join arm consumes either, and the second sits
-additionally behind the axis-shaped declaration channel
-(`docs/AXIS-DECLARATION-DESIGN.md`), which is unbuilt),
+VERBS-CYLSPH — but no join arm consumes either; the axis-shaped
+declaration channel the second was to sit behind is retired (DESIGN
+`[coincidence]`: coaxiality is one `Axis` read twice, or a margin
+decided Zero)),
 split, constant-radius edge fillets (**nine analytic support-pair
 arms**: plane–plane, plane–sphere and the coaxial-revolution seven —
 sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone,
@@ -611,3 +612,19 @@ circle is in-lane but uncertifiable (no constructor mints one), and
 genuinely-oblique trihedral corners build through tiers 1–2 and report
 `VolumeUncomputable` — a gap in the props inventory (no sphere-face
 quadrature lane), not in the body.
+
+- **Curved booleans: which arms are wired** (the per-arm list DESIGN `[topology.conventions]` points to). A face kind with
+  no arm refuses typed `CurvedBooleanUnsupported` /
+  `CurvedPairUnsupported` naming the pair, never falling through to a
+  containment verdict a curved boundary can defeat. The wired germ join
+  arms are a plane against a plane, cylinder, sphere or cone, and two
+  spheres or two parallel cylinders along their radical plane
+  (`boolean::join`'s dispatch); a plane cuts a cone in a parabola or a
+  hyperbola only outside the conic inventory, and that pair refuses
+  naming the conic. Cone and torus operands answer where their face
+  pairs are certified with no event on them; every other curved pair
+  with an event on it refuses typed at its section frame or at the
+  join. The curved
+  extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
+  certified extent needs a foot point plus a bound on the patch's
+  reach past it, a derivation not yet written (C12.1).
