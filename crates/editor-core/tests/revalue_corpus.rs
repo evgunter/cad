@@ -62,14 +62,15 @@ enum Move {
     /// All by the same relative [`MOVE`], a zero one not at all: two
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
-    /// The census's fallback for a document whose branches
-    /// [`Move::Apart`] moves, never a gating row's: on a document of
-    /// lengths it is a dilation — of every length but the profile's,
-    /// which the pinned lift holds at the nominal
-    /// (`work/intent/the-pinned-profile-lift-launders-at-sym.md`) — so a
-    /// laundered quantity that depends
-    /// only on ratios of the variables (an angle, a unit normal's
-    /// component, a fraction of a domain) does not move under it.
+    /// The fallback for a document whose branches [`Move::Apart`]
+    /// moves, and the pinned move of three gating rows (`cut_cylinder`,
+    /// `plate_param`, `boss_union`), each saying why. On a document of
+    /// lengths it is a dilation — of every length, the profile's
+    /// included, under the guided lift the replay session takes — so a
+    /// laundered quantity that depends only on ratios of the variables
+    /// (an angle, a unit normal's component, a fraction of a domain)
+    /// does not move under it: a row pinned in step has no coverage of
+    /// those, and its apart move's parting is an open item.
     InStep,
 }
 
@@ -140,7 +141,9 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
 }
 
 /// A unit row's session: the door's replay session
-/// ([`editor_core::coincide::with_replay_session`]).
+/// ([`editor_core::coincide::with_replay_session`]), opened for its
+/// tier and recorder alone. A unit row evaluates no document, so the
+/// options the session hands over are not read.
 fn session<R>(f: impl FnOnce() -> R) -> R {
     editor_core::coincide::with_replay_session(EvalOptions::default(), |_| f()).0
 }
@@ -148,8 +151,11 @@ fn session<R>(f: impl FnOnce() -> R) -> R {
 /// `doc`'s decisions under the box `at`, in the door's replay session
 /// with its lift ([`editor_core::coincide::with_replay_session`]): the
 /// instrument reads exactly what the door replays.
-fn replayed<R>(at: &BTreeMap<VarId, f64>, f: impl FnOnce(&EvalOptions) -> R) -> R {
-    editor_core::coincide::with_replay_session(options(at), f).0
+fn replayed<R>(
+    at: &BTreeMap<VarId, f64>,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    editor_core::coincide::with_replay_session(options(at), f)
 }
 
 fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
@@ -262,7 +268,7 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
             .collect()
     };
     let (env, env0) = (env_at(&at_p1), env_at(&at_p0));
-    let p1 = replayed(&at_p1, |opts| build(doc, opts));
+    let p1 = replayed(&at_p1, |opts| build(doc, opts)).0;
     replayed(&at_p0, |opts| {
         let p0 = build(doc, opts);
         let common = in_step(&p0, &p1);
@@ -288,18 +294,28 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
         );
         Some(found)
     })
+    .0
 }
 
 /// One gating row: the document's decisions re-value to the `p1`
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
+///
+/// `flips` is the same for a decision the builds answer with different
+/// signs: the flipping decisions' predicates IN ORDER, each with its
+/// item, and `after` the predicates re-valued away after them. Given,
+/// both are held exactly — the row reds when an owed flip goes and when
+/// any other decision flips, under any name. Not given, a flip whose
+/// margins re-value in agreement is not asserted (the contract before
+/// the field), and `after` must be empty.
 fn holds(
     name: &str,
     mode: Move,
     floor: usize,
     owed: &[(&str, &str)],
-    owed_flips: &[(&str, &str, &str)],
+    flips: &[(&str, &str)],
+    after: &[&str],
 ) {
     let cd = corpus::documents()
         .into_iter()
@@ -331,20 +347,25 @@ fn holds(
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
     );
-    // A flip owed by an item, `(flipping predicate, predicate re-valued
-    // away after it, item)`: the row holds the flips and what follows
-    // them EXACTLY, so it reds when the owed flip goes (the entry comes
-    // out with its fix) and when any other decision flips.
-    let want_flips: BTreeSet<&str> = owed_flips.iter().map(|(f, _, _)| *f).collect();
-    let want_after: BTreeSet<&str> = owed_flips.iter().map(|(_, a, _)| *a).collect();
-    if !owed_flips.is_empty() {
-        let got_flips: BTreeSet<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
+    if !flips.is_empty() {
+        for (_, item) in flips {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(item);
+            assert!(
+                path.is_file(),
+                "{name}: the owed flip's item {item} is no file"
+            );
+        }
+        let got: Vec<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
+        let want: Vec<&str> = flips.iter().map(|(p, _)| *p).collect();
         assert_eq!(
-            got_flips, want_flips,
+            got, want,
             "{name}: the decisions the builds answered with different signs are not the owed \
-             ones ({owed_flips:?}) — {found:?}"
+             ones, in order ({flips:?}) — {found:?}"
         );
     }
+    let want_after: BTreeSet<&str> = after.iter().copied().collect();
     assert_eq!(
         found.after_flip, want_after,
         "{name}: a margin re-values away from the p1 build after a decision the builds answered \
@@ -362,32 +383,42 @@ fn holds(
 // static, or sends it to the weaker move, goes red.
 macro_rules! rows {
     ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*]
-        $(, flips [$($flip:expr),*])?;)*) => {$(
+        $(, flips [$($flip:expr),*], after [$($after:expr),*])?;)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, Move::$mode, $floor, &[$($owed),*], &[$($($flip),*)?]);
+            holds(
+                $doc,
+                Move::$mode,
+                $floor,
+                &[$($owed),*],
+                &[$($($flip),*)?],
+                &[$($($after),*)?],
+            );
         }
     )*};
 }
 
+/// The item that owes `boss_union`'s in-step flip.
+const BOSS_UNION_FLIP: &str = "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md";
+
 rows! {
     // In step: moved apart, a point sits exactly on a loop at the nominal
-    // (`point_in_loop_arm`, margin 0), so the builds part at decision
-    // 6035 of 15539
+    // (`point_in_loop_arm`, margin 0, decision 6035), so the builds
+    // part after it, from decision 6036 of 15539
     // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
     revalue_plate_param: "plate_param", InStep, 3938, [];
     // In step: moved apart, its `bool_pair_gap` margins are decided in
-    // another order and the builds part at `pcurve_chart_azimuth_frame`
+    // another order and the builds part after decision 3996, the first
+    // difference at #3997 (`pcurve_chart_azimuth_frame`)
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
     // which NOTHING here pins). In step, a branch angle on its cut at the
     // nominal flips, owed below.
     revalue_boss_union: "boss_union", InStep, 3243, [],
         flips [
-            ("curve_pair_span_branch", "curve_pair_span_end_side",
-             "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md"),
-            ("curve_pair_span_end_side", "curve_pair_span_end_side",
-             "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md")
-        ];
+            ("curve_pair_span_branch", BOSS_UNION_FLIP),
+            ("curve_pair_span_end_side", BOSS_UNION_FLIP)
+        ],
+        after ["curve_pair_span_end_side"];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
@@ -659,11 +690,15 @@ fn revalue_mirrors_every_op_as_sym_builds_it() {
 }
 
 /// **The instrument and the door replay in one session.** `plate_param`'s
-/// decisions, built through [`editor_core::coincide::with_replay_session`]
-/// once under the instrument's zero-offset box and once as the door
-/// replays it (every variable a symbol), are one list, predicate and sign,
-/// with one set of session counts: the instrument reads what the door
-/// reads, and a session opened anywhere else would part them.
+/// decisions at the nominal, built through the instrument's own door
+/// ([`replayed`], the session every row opens) and as the coincidence
+/// door replays it ([`editor_core::coincide::with_replay_session`] with
+/// every variable a symbol), are one list, predicate and sign, with one
+/// set of session counts. The instrument's session is the door's in
+/// what it is: the lift guided, and DEFERRING — no margin's form is
+/// built unless a reader asks, so nothing is discharged eagerly. An
+/// eager session, another budget's freezes or the pinned lift in
+/// [`replayed`] parts the two readings.
 #[test]
 fn the_instrument_and_the_door_replay_in_one_session() {
     let cd = corpus::documents()
@@ -675,17 +710,34 @@ fn the_instrument_and_the_door_replay_in_one_session() {
         .iter()
         .map(|(id, _)| (*id, 0.0))
         .collect();
-    let read = |base: EvalOptions| {
-        let (decisions, counts) =
-            editor_core::coincide::with_replay_session(base, |opts| build(doc, opts));
-        let key: Vec<_> = decisions.iter().map(|d| (d.predicate, d.sign)).collect();
-        (key, counts)
-    };
-    let instrument = read(options(&at_p0));
-    let door = read(EvalOptions {
-        symbols: true,
-        ..EvalOptions::default()
+    let key = |d: &[Decision]| -> Vec<_> { d.iter().map(|x| (x.predicate, x.sign)).collect() };
+    let (instrument, instrument_counts) = replayed(&at_p0, |opts| {
+        assert_eq!(
+            opts.profile_lift,
+            editor_core::ProfileLift::Guided,
+            "the replay reads the guided lift"
+        );
+        key(&build(doc, opts))
     });
-    assert!(!instrument.0.is_empty(), "the replay decides");
-    assert_eq!(instrument, door, "one session, one reading");
+    let (door, door_counts) = editor_core::coincide::with_replay_session(
+        EvalOptions {
+            symbols: true,
+            ..EvalOptions::default()
+        },
+        |opts| key(&build(doc, opts)),
+    );
+    assert!(!instrument.is_empty(), "the replay decides");
+    assert_eq!(
+        (
+            instrument_counts.symbolic,
+            instrument_counts.checks_expanded
+        ),
+        (0, 0),
+        "a deferring session discharges nothing eagerly: {instrument_counts:?}"
+    );
+    assert_eq!(
+        (instrument, instrument_counts),
+        (door, door_counts),
+        "one session, one reading"
+    );
 }

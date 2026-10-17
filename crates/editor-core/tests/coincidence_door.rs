@@ -1142,64 +1142,77 @@ fn a_union_records_a_vertex_touch_once() {
 
 /// **The door's cost on `node`'s rows, measured**: the deferred replay,
 /// then each row's margin discharged, with its time and its DAG's size,
-/// under `TERMS` terms (the drive's default unset) and the drive's
-/// retry ladder unless `NORETRY`. Release builds; `--nocapture`.
+/// in the door's own session (`coincide::with_replay_session`); a dial
+/// opens another, at `TERMS` terms (the door's 256 unset) and without
+/// the drive's retry ladder under `NORETRY`. Release builds;
+/// `--nocapture`.
 fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
     use geom_core::sym::deferred;
     use geom_core::{Sym, SymBudget, SymRules};
-    let opts = editor_core::EvalOptions {
+    let symbols = editor_core::EvalOptions {
         symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
         ..editor_core::EvalOptions::default()
     };
     let t = std::time::Instant::now();
-    let ((), counts) = deferred::with_deferred_session(
-        SymBudget {
-            max_terms: std::env::var("TERMS")
-                .ok()
-                .and_then(|t| t.parse().ok())
-                .unwrap_or(editor_core::drive::DEFAULT_SYM_MAX_TERMS),
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        },
-        SymRules::shipped(),
-        if std::env::var_os("NORETRY").is_some() {
-            geom_core::SymRetry::none()
-        } else {
-            editor_core::drive::DEFAULT_SYM_RETRY
-        },
-        || {
-            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &opts,
-                Tol::witness(),
+    // The door's own session (`coincide::with_replay_session`), unless a
+    // dial asks for another: `TERMS=<n>` a budget, `NORETRY` no ladder.
+    let dialled = std::env::var_os("TERMS").is_some() || std::env::var_os("NORETRY").is_some();
+    let body = |opts: &editor_core::EvalOptions| {
+        let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
+            doc,
+            None,
+            &editor_core::CancelToken::new(),
+            opts,
+            Tol::witness(),
+        );
+        eprintln!("replay {:?}", t.elapsed());
+        let rows = ev
+            .value(node)
+            .expect("the node replays")
+            .coincidences
+            .to_vec();
+        for r in &rows {
+            let t = std::time::Instant::now();
+            let d = deferred::discharge(r.margin);
+            eprintln!(
+                "ROW {:?} {:?} {:?} {:?} {:?}",
+                r.site,
+                r.relation,
+                d,
+                t.elapsed(),
+                deferred::dag_size(r.margin)
             );
-            eprintln!("replay {:?}", t.elapsed());
-            let rows = ev
-                .value(node)
-                .expect("the node replays")
-                .coincidences
-                .to_vec();
-            for r in &rows {
-                let t = std::time::Instant::now();
-                let d = deferred::discharge(r.margin);
-                eprintln!(
-                    "ROW {:?} {:?} {:?} {:?} {:?}",
-                    r.site,
-                    r.relation,
-                    d,
-                    t.elapsed(),
-                    deferred::dag_size(r.margin)
-                );
-                if !d {
-                    for f in deferred::render(r.margin) {
-                        eprintln!("  FORM {f}");
-                    }
+            if !d {
+                for f in deferred::render(r.margin) {
+                    eprintln!("  FORM {f}");
                 }
             }
-        },
-    );
+        }
+    };
+    let ((), counts) = if dialled {
+        let opts = editor_core::EvalOptions {
+            profile_lift: editor_core::ProfileLift::Guided,
+            ..symbols
+        };
+        deferred::with_deferred_session(
+            SymBudget {
+                max_terms: std::env::var("TERMS")
+                    .ok()
+                    .and_then(|t| t.parse().ok())
+                    .unwrap_or(256),
+                max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+            },
+            SymRules::shipped(),
+            if std::env::var_os("NORETRY").is_some() {
+                geom_core::SymRetry::none()
+            } else {
+                editor_core::drive::DEFAULT_SYM_RETRY
+            },
+            || body(&opts),
+        )
+    } else {
+        coincide::with_replay_session(symbols, |opts| body(opts))
+    };
     eprintln!("total {:?} {counts:?}", t.elapsed());
 }
 
