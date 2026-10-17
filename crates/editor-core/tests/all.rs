@@ -794,6 +794,8 @@ mod intent_s3_a_poses;
 mod intent_s3_a_prime_moves;
 #[path = "intent_s3_b_placements.rs"]
 mod intent_s3_b_placements;
+#[path = "intent_s3_c_mates.rs"]
+mod intent_s3_c_mates;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]

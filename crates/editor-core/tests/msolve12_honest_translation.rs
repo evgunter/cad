@@ -236,9 +236,7 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
                                         format!("clash {predicate}")
                                     }
                                     Err(
-                                        stop @ (FoldStop::OutOfRange
-                                        | FoldStop::Unleverable(_)
-                                        | FoldStop::NoRepresentative { .. }),
+                                        stop @ (FoldStop::OutOfRange | FoldStop::Unleverable(_)),
                                     ) => {
                                         panic!(
                                             "every arm here decides angles and every meeting \

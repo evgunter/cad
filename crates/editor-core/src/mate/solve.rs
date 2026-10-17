@@ -1716,12 +1716,6 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
                         clash,
                     }));
                 }
-                Err(FoldStop::NoRepresentative { held, added }) => unreachable!(
-                    "a mate pins a frame, an axis or a plane, whose closure the representative \
-                     stage covers: {} against {}",
-                    held.name(),
-                    added.name()
-                ),
             };
             if matches!(held.subgroup, Subgroup::Empty) {
                 return Err(Box::new(MateFault::Contradictory {
