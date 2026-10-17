@@ -7194,62 +7194,83 @@ mod tag_vocabulary_tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-mod alignment_key {
-    //! The mate datum's authored LENGTHS reach the content key.
-    //!
-    //! No fixture in the suite authors a `PlanarRest` — every mate in
-    //! `asm_r2b_assembly` is `FrameCoincidence`, and a lone planar
-    //! rest is under-determined, so no end-to-end row can carry this.
-    //! Which is exactly the condition under which a length silently
-    //! stops being hashed: two documents differing only in the
-    //! standoff would share a memo entry and one would be served the
-    //! other's answer. Dropping the length from the key reds this row
-    //! and nothing else in the crate.
+mod bundle_key {
+    //! A bundle's shape reaches the content key: what each constraint
+    //! states, a mate's target word and its world read's arms, and a
+    //! value's mate and freedom. Its numbers are slots, keyed with the
+    //! slots. Dropping any of these from the feed would let two
+    //! documents differing only there share a memo entry, and one be
+    //! served the other's placement.
 
-    use super::{KeyHasher, feed_alignment};
-    use crate::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
+    use super::{KeyHasher, feed_bundle};
+    use crate::mate::{Constraint, Coord, Mate, SlideAxis, Target, Value, WorldRead};
+    use crate::node::ConstraintId;
+    use crate::pose::PoseRole;
 
-    fn datum(primitive: MatePrimitive) -> Alignment {
-        let frame = MateFrame::on_part(crate::Placement::IDENTITY);
-        Alignment {
-            a: frame.clone(),
-            b: frame,
-            primitive,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        }
+    const ON: crate::VarId = crate::VarId::new(1, 1);
+    const TO: crate::VarId = crate::VarId::new(2, 2);
+    const BY: crate::VarId = crate::VarId::new(3, 3);
+
+    fn id(k: u32) -> ConstraintId {
+        ConstraintId(crate::MintId::new(k, u64::from(k)))
     }
 
-    fn key(primitive: MatePrimitive) -> crate::eval::ContentKey {
+    fn mate(to: Target) -> Constraint {
+        Constraint::of_mate(
+            id(10),
+            Mate {
+                on: ON,
+                to,
+                class: crate::mate::ContactClass::Rest,
+            },
+        )
+    }
+
+    fn value(mate: ConstraintId, coord: Coord) -> Constraint {
+        Constraint::of_value(
+            id(11),
+            Value {
+                mate,
+                coord,
+                by: BY,
+            },
+        )
+    }
+
+    fn key(bundle: &[Constraint]) -> crate::eval::ContentKey {
         let mut h = KeyHasher::new();
-        feed_alignment(&mut h, &datum(primitive));
+        feed_bundle(&mut h, bundle);
         h.finish()
     }
 
     #[test]
-    fn a_planar_rest_standoff_moves_the_key() {
-        assert_ne!(
-            key(MatePrimitive::PlanarRest { offset: 0.0 }),
-            key(MatePrimitive::PlanarRest { offset: 0.25 }),
-            "the standoff is authored data and must reach the key"
-        );
-    }
-
-    /// And the primitives that author no length still separate from
-    /// each other and from a rest at zero standoff — the tag is doing
-    /// its own job, so the row above is testing the payload.
-    #[test]
-    fn the_primitive_choice_separates_on_its_own() {
+    fn a_mates_target_word_and_world_arms_move_the_key() {
         let keys = [
-            key(MatePrimitive::FrameCoincidence),
-            key(MatePrimitive::Coaxial),
-            key(MatePrimitive::Clocking),
-            key(MatePrimitive::PlanarRest { offset: 0.0 }),
+            key(&[mate(Target::Pose(TO))]),
+            key(&[mate(Target::World(WorldRead::Frame))]),
+            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy)))]),
+            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy).flip()))]),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {
-                assert_ne!(a, b, "each primitive keys distinctly");
+                assert_ne!(a, b, "each target shape keys distinctly");
+            }
+        }
+    }
+
+    #[test]
+    fn a_values_mate_and_freedom_move_the_key() {
+        let with = |v: Constraint| key(&[mate(Target::Pose(TO)), v]);
+        let keys = [
+            key(&[mate(Target::Pose(TO))]),
+            with(value(id(10), Coord::Spin)),
+            with(value(id(10), Coord::Slide(SlideAxis::X))),
+            with(value(id(10), Coord::Slide(SlideAxis::Y))),
+            with(value(id(12), Coord::Slide(SlideAxis::Y))),
+        ];
+        for (i, a) in keys.iter().enumerate() {
+            for b in &keys[i + 1..] {
+                assert_ne!(a, b, "each value keys distinctly");
             }
         }
     }

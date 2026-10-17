@@ -508,20 +508,6 @@ impl Mint {
         id
     }
 
-    /// This mint with `entries` logged too, in order, where a test
-    /// pushes nodes by hand rather than through the insert door: each
-    /// entry's ordinal must be the next one.
-    #[cfg(test)]
-    pub(crate) fn logged(mut self, entries: impl IntoIterator<Item = Minted>) -> Self {
-        self.log.extend(entries);
-        assert_eq!(
-            self.out_of_order(),
-            None,
-            "a hand-built log counts up from one"
-        );
-        self
-    }
-
     /// The first log entry whose ordinal is not its place in the log —
     /// a repeat, a gap or a step down — `None` for a log whose ordinals
     /// count up from one, the only log a mint writes.

@@ -7805,13 +7805,15 @@ mod tests {
     use crate::program::ProfileProgram;
     use crate::test_support::len;
 
-    /// **The datum question is answered by the edit too**: the insert
-    /// of a mate and a slot edit at a mate's frame-offset step write a
-    /// mate's alignment datum, and nothing else does — not the insert
-    /// of another node, not a slot edit at any other address, not the
-    /// rebind that moves a head (a reference, not the datum), not the
-    /// structural edit that shrinks a pattern under one. The per-mate
-    /// admission is asked at exactly the edits this answers `true` for.
+    /// **The constraint question is answered by the edit too**: the
+    /// insert of a placement holding a mate, an `AddConstraint`, an
+    /// `AddValue` and a re-point at a mate's pose write a constraint, and
+    /// nothing else does — not the insert of another node, not a slot
+    /// edit at a world read's number (a number, never a kind), not the
+    /// rebind that moves a face (a reference, not the constraint), not
+    /// the structural edit that shrinks a pattern under one. The
+    /// per-constraint admission is asked at exactly the edits this
+    /// answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
         let id = crate::node::RecipeNodeId::new(0, 1);
@@ -7820,33 +7822,54 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame::from_face();
-        let face = |node| {
-            crate::mate::SideRead::Face(crate::Operand::from(crate::node::SitedFace::at_mint(
-                crate::names::FaceName::new(name(node)).expect("a face"),
-            )))
+        let plane = |node| {
+            crate::Operand::Pose(Box::new(crate::pose::PoseDef::Plane {
+                face: crate::Operand::from(crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(node)).expect("a face"),
+                )),
+            }))
         };
-        let mate: DocEdit<ProfileProgram> = DocEdit::place(
-            vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
-            vec![crate::mate::Mate {
-                a: face(id),
-                b: face(crate::node::RecipeNodeId::new(0, 2)),
-                class: crate::mate::ContactClass::Rest,
-                alignment: crate::mate::Alignment {
-                    a: frame.clone(),
-                    b: frame,
-                    primitive: crate::mate::MatePrimitive::FrameCoincidence,
-                    sense: crate::mate::AxisSense::Aligned,
-                    clocking: None,
-                },
-            }],
-        );
-        assert!(mate.writes_a_mates_datum());
-        let step = crate::node::SlotId::MateFrameStep {
-            constraint: crate::node::ConstraintId(crate::MintId::new(0, 4)),
-            side: crate::mate::MateSide::B,
+        let mate = crate::mate::Mate {
+            on: plane(crate::node::RecipeNodeId::new(0, 3)),
+            to: crate::mate::Target::Pose(plane(crate::node::RecipeNodeId::new(0, 2))),
+            class: crate::mate::ContactClass::Rest,
+        };
+        let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
+        let writing: [DocEdit<ProfileProgram>; 4] = [
+            DocEdit::place(
+                vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
+                vec![mate.clone()],
+            ),
+            DocEdit::AddConstraint {
+                placement: id,
+                mate: Box::new(mate.clone()),
+                fresh: Vec::new(),
+            },
+            DocEdit::AddValue {
+                placement: id,
+                value: Box::new(crate::mate::Value {
+                    mate: constraint,
+                    coord: crate::mate::Coord::Spin,
+                    by: crate::test_support::ang(0.5),
+                }),
+                fresh: Vec::new(),
+            },
+            DocEdit::SetParam {
+                node: id,
+                slot: crate::node::SlotId::Operand(crate::OperandSlot::Side {
+                    constraint,
+                    side: crate::mate::MateSide::To,
+                }),
+                value: crate::SlotValue::Read(plane(crate::node::RecipeNodeId::new(0, 5))),
+                fresh: Vec::new(),
+            },
+        ];
+        for edit in &writing {
+            assert!(edit.writes_a_mates_datum(), "{edit:?} writes a constraint");
+        }
+        let step = crate::node::SlotId::WorldSpin {
+            constraint,
             step: 0,
-            arg: crate::node::RigidArg::RotationAngle,
         };
         let at_a_step: [DocEdit<ProfileProgram>; 2] = [
             DocEdit::SetParam {
@@ -7865,7 +7888,10 @@ mod tests {
             },
         ];
         for edit in &at_a_step {
-            assert!(edit.writes_a_mates_datum(), "{edit:?} writes a frame step");
+            assert!(
+                !edit.writes_a_mates_datum(),
+                "{edit:?} moves a world read's number, never its kind"
+            );
         }
         let others: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {
