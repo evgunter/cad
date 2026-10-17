@@ -1621,4 +1621,3 @@ fn a_canceled_door_stops_in_its_replay() {
         Err(editor_core::coincide::Canceled)
     );
 }
-

@@ -292,6 +292,50 @@ fn a1_a_world_read_that_is_no_pose_refuses_world_read() {
     );
 }
 
+/// **A world read nested past its bound refuses `TooDeep`** before its
+/// kinds are read: the world's frame spun about z one turn more than
+/// [`editor_core::MAX_WORLD_READ_DEPTH`] allows, read at its origin.
+/// The read is written inside its mate, so the door's bound is what
+/// holds a saved mate within the load door's nesting limit.
+///
+/// *Breaks if* the door admits a read deeper than the bound (a save
+/// could then write a file the load door refuses), or reads the kinds
+/// of one first.
+#[test]
+fn a1_a_world_read_past_its_bound_refuses_too_deep() {
+    let (doc, ids, _, body) = instances("msolve10-a1-world-deep", 2);
+    let mut world = WorldRead::Frame;
+    // Each spin about z (two deep) adds one; the role adds one more.
+    for _ in 0..editor_core::MAX_WORLD_READ_DEPTH - 2 {
+        world = world.spin(
+            WorldRead::through(editor_core::pose::PoseRole::Z),
+            fixture::ang(0.0),
+        );
+    }
+    let to = WorldRead::Role {
+        pose: Box::new(world),
+        role: editor_core::pose::PoseRole::Origin,
+    };
+    let depth = to.depth();
+    assert_eq!(depth, editor_core::MAX_WORLD_READ_DEPTH + 1);
+    let too_deep = editor_core::Mate {
+        on: fixture::point_of(cap(ids[1], body, CapEnd::Start)),
+        to: Target::World(to),
+        class: ContactClass::Rest,
+    };
+    let fault = fixture::door_refusal(&doc, too_deep);
+    assert!(
+        matches!(
+            fault,
+            MateFault::WorldRead {
+                mate,
+                fault: WorldReadFault::TooDeep { depth: d },
+            } if mate.placement == ids[1] && d == depth
+        ),
+        "{fault:?}"
+    );
+}
+
 /// **A value's own admission refuses at insert**: a value naming no
 /// constraint of its bundle, or a value rather than a mate
 /// (`ValueNamesNoMate`); a value on a freedom its mate's kind fixes — a

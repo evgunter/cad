@@ -1898,6 +1898,7 @@ pub fn world_read_fault_tag(fault: &WorldReadFault) -> &'static str {
         WorldReadFault::SlidDirection => "slid_direction",
         WorldReadFault::About => "about",
         WorldReadFault::FlippedPoint => "flipped_point",
+        WorldReadFault::TooDeep { .. } => "too_deep",
     }
 }
 

@@ -585,8 +585,9 @@ fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
 /// `kiss_carry`'s union carries one vertex-vertex contact record at the
 /// kiss `(1, 1, 1)`. Placed at a pose (a quarter turn about +z, then a
 /// translation), the gathered body is the body a `Transform` of the
-/// union by the same step places at the identity, bit for bit, and not
-/// the unposed one; and the copy's record resolves in the gathered
+/// union by the same step places at the identity, vertex for vertex to
+/// the rounding of the pin's one re-composition, and not the unposed
+/// one; and the copy's record resolves in the gathered
 /// body to two vertices standing at the kiss, moved by the pose.
 ///
 /// Red if the copy ignores its pose (the digest equals the unposed
@@ -619,11 +620,34 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     let (posed, _) = place_at(doc.clone(), union, &pose);
     let (moved, by) = insert(doc, xform(union, t, axis, angle));
     let (moved, _) = place(moved, by);
+    // The pin writes the pose as spins and slides read back from the
+    // frame's numbers (`pin_at`), so the posed copy stands where the
+    // transform's does to the rounding of that one re-composition:
+    // every vertex within 4 ulps of the transform's (measured 4.4e-16
+    // at most, 14 coordinates moved in their last bits).
+    let points = |doc: &ProfileDoc| {
+        let body = product(doc, &ev(doc), Tol::witness()).expect("the world gathers");
+        let mut points: Vec<_> = body
+            .vertex_points()
+            .map(|(k, p)| (k, [p.x, p.y, p.z]))
+            .collect();
+        points.sort_by_key(|(k, _)| *k);
+        points
+    };
+    let (at_pose, transformed) = (points(&posed), points(&moved));
     assert_eq!(
-        digest(&posed),
-        digest(&moved),
-        "the posed copy is the transform's body at the identity"
+        at_pose.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+        transformed.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+        "the posed copy has the transform's vertices"
     );
+    for ((key, p), (_, q)) in at_pose.iter().zip(&transformed) {
+        for (a, b) in p.iter().zip(q) {
+            assert!(
+                (a - b).abs() <= 4.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0),
+                "the posed copy is the transform's body at the identity: {key:?} {p:?} {q:?}"
+            );
+        }
+    }
     assert_ne!(digest(&posed), digest(&unposed), "and the pose moved it");
 
     let run = ev(&posed);

@@ -6008,8 +6008,9 @@ class MateFault:
     `on` does not read its copy; `mate_kinds_differ` the `mate` and its
     `on_kind` and `to_kind`; `mate_world_read` the `mate`, with the
     world read's word as `inner_variant` (`role`, `along`,
-    `slid_direction`, `about`, `flipped_point`); `mate_side_unevaluated`
-    the `mate`, the `side` and the pose's own `error`. A value's faults
+    `slid_direction`, `about`, `flipped_point`, `too_deep`);
+    `mate_side_unevaluated` the `mate`, the `side` and the pose's own
+    `error`. A value's faults
     name the value as `value_ref`: `mate_value_names_no_mate` the id it
     names as `named`, `mate_not_a_freedom` the `coord` and, where the
     mate's kind alone fixes it, `mate_kind`, and `mate_no_chart` `why`

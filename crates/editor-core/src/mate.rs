@@ -167,41 +167,67 @@ impl<S: crate::Slot> WorldRead<S> {
         }
     }
 
+    /// **How many reads deep this read nests**: the world's frame is
+    /// one, and each construction is one more than the deepest read it
+    /// moves or reads along or about.
+    pub fn depth(&self) -> usize {
+        1 + match self {
+            Self::Frame => 0,
+            Self::Role { pose, .. } | Self::Flip { pose } => pose.depth(),
+            Self::Slide {
+                pose, along: line, ..
+            }
+            | Self::Spin {
+                pose, about: line, ..
+            } => pose.depth().max(line.depth()),
+        }
+    }
+
     /// **The kind this read is**, or the first construction its kinds
     /// refuse: a slide's along a direction or an axis and of no
     /// direction, a spin's about an axis, a flip of no point, a role
-    /// its pose's kind offers.
+    /// its pose's kind offers. A read nested deeper than
+    /// [`MAX_WORLD_READ_DEPTH`] refuses before its kinds are read.
     ///
     /// # Errors
     ///
-    /// [`WorldReadFault`] naming the construction.
+    /// [`WorldReadFault`] naming the construction, or
+    /// [`WorldReadFault::TooDeep`].
     pub fn kind(&self) -> Result<crate::VarKind, WorldReadFault> {
+        let depth = self.depth();
+        if depth > MAX_WORLD_READ_DEPTH {
+            return Err(WorldReadFault::TooDeep { depth });
+        }
+        self.kind_within()
+    }
+
+    fn kind_within(&self) -> Result<crate::VarKind, WorldReadFault> {
         use crate::VarKind as K;
         Ok(match self {
             Self::Frame => K::Frame,
             Self::Role { pose, role } => {
-                let found = pose.kind()?;
+                let found = pose.kind_within()?;
                 if role.of() != found {
                     return Err(WorldReadFault::Role { role: *role, found });
                 }
                 role.kind()
             }
             Self::Slide { pose, along, .. } => {
-                if !matches!(along.kind()?, K::Direction | K::Axis) {
+                if !matches!(along.kind_within()?, K::Direction | K::Axis) {
                     return Err(WorldReadFault::Along);
                 }
-                match pose.kind()? {
+                match pose.kind_within()? {
                     K::Direction => return Err(WorldReadFault::SlidDirection),
                     kind => kind,
                 }
             }
             Self::Spin { pose, about, .. } => {
-                if about.kind()? != K::Axis {
+                if about.kind_within()? != K::Axis {
                     return Err(WorldReadFault::About);
                 }
-                pose.kind()?
+                pose.kind_within()?
             }
-            Self::Flip { pose } => match pose.kind()? {
+            Self::Flip { pose } => match pose.kind_within()? {
                 K::Point => return Err(WorldReadFault::FlippedPoint),
                 kind => kind,
             },
@@ -291,6 +317,17 @@ impl<S: crate::Slot> WorldRead<S> {
     }
 }
 
+/// **The deepest world read a mate holds** ([`WorldRead::depth`]):
+/// fifteen. The `place_at` gesture writes at most nine — the world's
+/// xy plane read through its role after three spins and three slides
+/// (`mate::pin`), each about or along an axis read two deep — and
+/// inline at a landing off the identity appends at most six more, the
+/// landing's own spins and slides. A world read is written inside its
+/// mate, never as a variable (spec Q7), so this bound is what holds a
+/// saved mate within the load door's nesting limit
+/// (`persist::nesting::ENVELOPE`).
+pub const MAX_WORLD_READ_DEPTH: usize = 15;
+
 /// **Why a world read is no pose** ([`WorldRead::kind`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorldReadFault {
@@ -309,6 +346,13 @@ pub enum WorldReadFault {
     About,
     /// A flip of a point, which has no sense.
     FlippedPoint,
+    /// A read nested deeper than [`MAX_WORLD_READ_DEPTH`]: the world
+    /// read is written inside the mate, so the depth a save writes is
+    /// bounded where the read is admitted, as an expression's is.
+    TooDeep {
+        /// The read's depth ([`WorldRead::depth`]).
+        depth: usize,
+    },
 }
 
 impl core::fmt::Display for WorldReadFault {
@@ -326,6 +370,11 @@ impl core::fmt::Display for WorldReadFault {
             }
             Self::About => f.write_str("a world read spins about what is no axis"),
             Self::FlippedPoint => f.write_str("a world read flips a point, which has no sense"),
+            Self::TooDeep { depth } => write!(
+                f,
+                "a world read nests {depth} reads deep, past the {MAX_WORLD_READ_DEPTH} a mate \
+                 holds; read a pose of the world's geometry, or move the world less"
+            ),
         }
     }
 }

@@ -6506,7 +6506,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "world_read_fault_tag",
-        values: &["about", "along", "flipped_point", "role", "slid_direction"],
+        values: &["about", "along", "flipped_point", "role", "slid_direction", "too_deep"],
         delegates: &[],
     },
 ];

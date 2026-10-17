@@ -579,9 +579,9 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
         only.0.insert(healthy, leaf());
         only.options()
     };
-    let mixed_doc = mixed_ids[..2]
-        .iter()
-        .fold(mixed_doc, |doc, &id| fixture::pinned(doc, id, &healthy_only));
+    let mixed_doc = mixed_ids[..2].iter().fold(mixed_doc, |doc, &id| {
+        fixture::pinned(doc, id, &healthy_only)
+    });
     let mixed_doc = mixed_ids[2..]
         .iter()
         .fold(mixed_doc, |doc, &id| nominally_pinned(doc, id));
