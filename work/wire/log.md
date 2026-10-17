@@ -5744,3 +5744,19 @@ is already on WIRE's two rows.
 - 2026-10-10 — Seam note from CONTACTHOLD: evidence for `a-boolean-drops-its-operands-own-contact-records`. In topo, an operand's records re-enter a boolean only as `BooleanDeclarations::carried_a`/`carried_b` (author declarations), and `ContactRecords::carried()` drops face-granularity records outright. INTENT's F deletes `CarriedContacts` with no replacement named (note left on INTENT's log). The at-rest record fork (`[ev]` PR 4547) would make the carry one function over one list. (CONTACTHOLD orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
 - 2026-10-12 — Seam note from SYM: SYM-17 Phase 2 (Ev's answer on PR 4902; `docs/SYM-17-SPEC.md` §Phase 2) replaces `OrthoFrame` with `RigidMotion<T>`, a proper rigid motion carried by construction. `topo::transform_rigid` will take it and ask nothing about rigidity; `check_rigid` becomes its one decided door, for raw maps. The type acts on `UnitVec3`, and pose inverses become transposes. Branch `sym/17-rotation-readout`. Touches linalg, `transform.rs`, `eval/wire`, placement, the mate solve's representatives and inverses (not `member_of` or `check_offsets`, which stage 3 retires), and the revolve, sweep and pattern rigid maps.
+
+## 2026-10-17 — an orchestrator picks up the track
+
+WIRE had no orchestrator since 2026-09-20 and nothing in flight (no open
+`wire/` PR, no `wire/` branch on the remote). Status `active`.
+
+The slate is **101/30** and was last read against the tree a month ago,
+before INTENT built D10 stages 2, 4 B/E/F (the declare surface is gone)
+and stage 3 A/A′. Nobody parked WIRE's rows under the D10 hold. So the
+first work is a triage, not a dispatch: each live row read against the
+tree as STALE (close), HELD (park on the most specific INTENT row that
+fires it, and move to a held successor so this track does not wait on
+its slowest blocker), or LIVE; then the live slate is cut to budget on
+its priority seam. Three read-only lanes are doing the per-row reads.
+
+Signed (WIRE orchestrator).
