@@ -34,6 +34,14 @@ value whose freedom the bundle's other constraints fix
 (`NotAFreedom` with no kind, `mate/value.rs`'s `settle`) where it
 evaluates. F's measure-free door lifts it: each moves to the door.
 
+In this window a value is written only on a single-mate bundle, so a
+multi-mate bundle's decisions are pinned by a bundle with no values.
+`crates/editor-core/tests/msolve11_mate_log.rs`'s
+`each_decision_is_on_the_log_of_the_node_that_made_it` folds a rest and
+a coaxial mate on the cap and asserts the fold's intersection is on the
+cap's log. F's migration restates it as one `Axis`–`Axis` mate plus
+its `Slide(Z)` and `Spin` values, as the other value sites already are.
+
 ## Two B interims F closes (INTENT stage 3 B's review, PR 5232, 2026-10-17)
 
 Both reviewers of B raised these, and F's rule ends both. Each is

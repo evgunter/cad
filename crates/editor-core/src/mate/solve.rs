@@ -474,7 +474,7 @@ pub(crate) fn rests_in_value<T: SolveScalar>(map: &Affine3<T>, reach: f64, band:
     ];
     let magnitude = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
     let turn = magnitude(off[0]) + magnitude(off[1]) + magnitude(off[2]);
-    let moved = magnitude(map.translation) + turn * T::from_f64(reach);
+    let moved = magnitude(map.translation) + turn * T::from_computed(reach);
     geom_core::k_stats::decide(
         "solve_copy_at_identity",
         geom_core::predicate::Margin::of(moved),

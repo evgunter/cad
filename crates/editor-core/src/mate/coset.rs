@@ -604,7 +604,7 @@ fn parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * T::from_f64(arm.get());
+    let levered = u.get().cross(v.get()) * T::from_computed(arm.get());
     match UnitVec3::new(levered, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some((line, levered.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
@@ -631,7 +631,7 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, T::from_f64(arm.get())),
+            Margin::levered(cosine, T::from_computed(arm.get())),
             band,
         )? {
             Sign::Zero => None,
@@ -1612,7 +1612,7 @@ fn candidate_translation<T: SolveScalar>(
                 unreachable!("two planes the table separates meet in its prismatic line")
             };
             let e = d.get().cross(n.get());
-            e * (m.get().dot(delta) * (T::from_f64(arm.get()) / sine))
+            e * (m.get().dot(delta) * (T::from_computed(arm.get()) / sine))
         }
         // A line crossing the plane at the cosine the verdict decided:
         // the point where it does, either side held.
@@ -1652,7 +1652,7 @@ fn candidate_translation<T: SolveScalar>(
             Cylindrical { direction: v, .. } | Prismatic { direction: v },
             Separated::Sine(sine),
         ) => {
-            let arm = T::from_f64(arm.get());
+            let arm = T::from_computed(arm.get());
             let w = u.get().cross(v.get()) * arm;
             u.get() * (v.get().cross(w).dot(delta) * (arm / sine / sine))
         }

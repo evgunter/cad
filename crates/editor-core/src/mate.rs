@@ -791,7 +791,7 @@ pub fn reference_about<T: SolveScalar>(
     let chord = ((one + one) * one_plus_c).sqrt();
     let sign = geom_core::k_stats::decide(
         "mate_chart_reference_antipode",
-        geom_core::predicate::Margin::levered(chord, T::from_f64(arm)),
+        geom_core::predicate::Margin::levered(chord, T::from_computed(arm)),
         band,
     )
     .map_err(|_| crate::NodeErrorKind::PoseDegenerate {
@@ -1060,7 +1060,7 @@ impl<T: geom_core::Real> Lever<T> {
     /// the number the funnel decided are one value.
     pub fn margin(self) -> Margin<T> {
         match self {
-            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
+            Self::Residual { value, arm } => Margin::levered(value, T::from_computed(arm)),
         }
     }
 }

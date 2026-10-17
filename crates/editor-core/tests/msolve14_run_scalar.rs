@@ -935,9 +935,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// shaft is gone with the rider; every instance is pinned over its
 /// geometry, so its pose is the identity to that pin's rounding.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xf006_51e3_7f39_7b01),
-    (1e-6, 0x4592_8faa_7b43_09a7),
-    (1e-12, 0xff04_1bf2_4be5_0f27),
+    (1e-9, 0xc428_4898_86f3_c0ac),
+    (1e-6, 0xbbbf_0157_83ff_383e),
+    (1e-12, 0x6188_63eb_60b8_a4ee),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1791,8 +1791,10 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 /// lane's rounding, so at a fine enough ε it escalates with no box at
 /// all (the spec's §5 (b),
 /// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`).
-/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12, none does.
-const INTERVAL_ESCALATIONS: [(f64, &str, &str); 0] = [];
+/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12, the pinned
+/// chain's axes-parallel margin does at 1e-12.
+const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
+    [(1e-12, "pinned-chain", "mate_axes_parallel")];
 
 /// The escalation `id` fails with in `ev`, if its fault is one: a mate
 /// fault `Indeterminate`.
