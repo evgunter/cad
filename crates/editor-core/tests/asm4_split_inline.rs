@@ -2082,3 +2082,112 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
         other => panic!("expected RankedRunReordered, got {other:?}"),
     }
 }
+
+/// r1 probe (claim 7, A4): an instance pinned at a pose of its own, of
+/// a part whose one world copy is a `Place` pinned against a raw
+/// construction of the part (a member of the document's one kind under
+/// the stage's interim). The instance shows that copy at pose ∘ rep;
+/// inline splices the construction unmoved and moves only constraints
+/// that read the part's world, so the spliced copy should still sit at
+/// pose ∘ rep.
+#[test]
+fn r1_inline_at_a_pose_moves_a_copy_pinned_against_a_construction() {
+    use editor_core::{
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, FrameBase, MateFrame,
+        MatePrimitive, Placement, SideRead,
+    };
+    let pdoc = ProfileDoc::empty(DocumentId::derive("r1-inline-anchor-part"), Tol::witness());
+    let (pdoc, p1) = on_frame(
+        pdoc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (pdoc, anchor) = insert(
+        pdoc,
+        Node::Extrude {
+            profile: p1.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (pdoc, p2) = on_frame(
+        pdoc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.25)],
+    );
+    let (pdoc, body) = insert(
+        pdoc,
+        Node::Extrude {
+            profile: p2.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (pdoc, place) = insert(
+        pdoc,
+        Node::place(vec![editor_core::BodyRead::from(editor_core::Operand::Node(body))]),
+    );
+    let cap = StableName {
+        kind: EntityKind::Face,
+        node: anchor,
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+    };
+    let _ = CapEnd::End;
+    let pin = editor_core::Mate {
+        a: SideRead::Face(fixture::head_at(anchor, cap).into()),
+        b: SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::on_part(Placement::literal(&editor_core::Frame::translation([
+                2.0, 0.0, 0.0,
+            ]))),
+            b: MateFrame::on_part(Placement::IDENTITY),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let pdoc = fixture::constrain_at(pdoc, place, pin).0;
+    let _ = FrameBase::Part;
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(pdoc.clone(), Tol::witness());
+    let o = with_resolver(store.clone());
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let part_poses = editor_core::solve_document(&pdoc, &reach, Tol::witness());
+    println!("r1 part pose of the place: {:?}", part_poses.placement(&pdoc, place));
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(DocumentId::derive("r1-inline-anchor-host"), Tol::witness());
+    let (host, inst) = pinned_at(host, doc_ref, [0.0, 0.0, 5.0]);
+    let host_ev = run(&host, &o);
+    let host_product = product_named(&host, &host_ev, Tol::witness()).expect("host product");
+    let inlined = inline(&host, inst, &resolver, Tol::witness());
+    let inlined = match inlined {
+        Ok(i) => i,
+        Err(e) => panic!("r1: inline refused (fine if typed): {e}"),
+    };
+    let spliced = inlined.node_map[&place];
+    let poses = editor_core::solve_document(&inlined.doc, &reach, Tol::witness());
+    let got = poses.placement(&inlined.doc, spliced);
+    println!("r1 spliced pose: {got:?}");
+    let ev = run(&inlined.doc, &o);
+    let product = product_named(&inlined.doc, &ev, Tol::witness()).expect("inlined product");
+    let bbox = |b: &topo::Body<f64>| {
+        let mut lo = [f64::INFINITY; 3];
+        let mut hi = [f64::NEG_INFINITY; 3];
+        for (_, p) in b.vertex_points() {
+            let p = [p.x, p.y, p.z];
+            for k in 0..3 {
+                lo[k] = lo[k].min(p[k]);
+                hi[k] = hi[k].max(p[k]);
+            }
+        }
+        (lo, hi)
+    };
+    let (h, i) = (bbox(&host_product.0), bbox(&product.0));
+    println!("r1 host bbox {h:?} inlined bbox {i:?}");
+    assert_eq!(h, i, "inline moved the copy");
+}
