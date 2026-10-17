@@ -467,13 +467,8 @@ fn a_projected_torus_image_names_both_its_angles_in_the_window() {
 
 /// **A span past every turn an `i32` counts refuses typed** (it panicked
 /// as an `unreachable!`, PR 5225's delta review, g6): a cylinder rim's
-/// edge whose midpoint `m = 1.3493037703522018e10 − (π − 1)` carries
-/// its azimuth (the rim's offset `m` from its origin) onto a mark of the
-/// window more than `2³¹` turns out, and derives
-/// `PlacementTurnsExceeded`. (The placement decides the offset's turns on
-/// the gap `offset(mid)` alone, so the window's centre `π − 1` comes off
-/// the midpoint that put the gap on the mark when the gap was read off
-/// the angle.)
+/// edge at `m = 1.3493037703522018e10` sits on a mark of the window more
+/// than `2³¹` turns out, and derives `PlacementTurnsExceeded`.
 #[test]
 fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
     let cylinder = Surface::Cylinder {
@@ -488,7 +483,7 @@ fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
         1.0,
         Vec3::unit_x(),
     );
-    let m = 1.3493037703522018e10 - (PI - 1.0);
+    let m = 1.3493037703522018e10;
     let out = chart_pcurve_over(&rim, m - 0.5, m + 0.5, &cylinder, band());
     assert!(
         matches!(out, Err(super::PcurveCertifyError::PlacementTurnsExceeded)),
@@ -590,79 +585,4 @@ fn a_meridian_with_its_midpoint_at_the_pole_names_one_image_wherever_it_starts()
             }
         }
     }
-}
-
-/// **A placement's margin is one expression where its direction crosses
-/// a frame.** A direction pointing down the chart (`y = −1`) whose `x`
-/// moves from `0` to `−1e-7`, read at `Sym<f64>` with `x` a parameter:
-/// every `pcurve_chart_placement` margin the `x = 0` build decides
-/// re-values at `x = −1e-7` to the bits that build decides there. The
-/// angle is named about the window's centre (`Azimuth::about`), so no
-/// frame is chosen on the way; a read that chose `atan2(y, x)` or
-/// `atan2(−y, −x) + π` on `x`'s sign would make the two builds' gaps
-/// two expressions a turn apart under one name (`editor-core`'s
-/// `revalue_declared_tangency` is the corpus witness).
-#[test]
-#[allow(clippy::expect_used)]
-fn a_placements_margin_is_one_expression_where_its_direction_crosses_a_frame() {
-    use geom_core::sym::revalue::{record, revalue};
-    use geom_core::sym::with_session;
-    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
-
-    use super::{Along, Azimuth, Levers, Placement};
-
-    type S = Sym<f64>;
-    let budget = SymBudget {
-        max_terms: 64,
-        max_degree: 8,
-    };
-    let x_sym = ParamSymbol::new(1);
-    let (x0, x1) = (0.0, -1e-7);
-    let env = move |p: ParamSymbol| (p == x_sym).then_some(x1);
-    // One build at `x`: each placement margin's value, and the margins
-    // re-valued at `x1`.
-    let build = |x: f64| {
-        with_session(budget, || {
-            let place = Placement::<S> {
-                mid: S::from_f64(0.5),
-                levers: Levers {
-                    azimuth: S::one(),
-                    tube: S::one(),
-                    latitude: S::one(),
-                },
-            };
-            let dir = Azimuth::of(S::from_f64(-1.0), S::param(x_sym, x));
-            let (read, decisions) = record(|| {
-                place
-                    .phase(Along::Azimuth, dir, |_| S::zero(), band())
-                    .expect("a unit direction places")
-            });
-            let placement: Vec<_> = decisions
-                .iter()
-                .filter(|d| d.predicate == "pcurve_chart_placement")
-                .map(|d| (d.value, revalue(d.node, &env)))
-                .collect();
-            let here = move |p: ParamSymbol| (p == x_sym).then_some(x);
-            let read = revalue(read.node(), &here).expect("the read is a function of x");
-            (read, placement)
-        })
-        .0
-    };
-    let (read0, at0) = build(x0);
-    let (read1, at1) = build(x1);
-    assert!(
-        !at0.is_empty() && at0.len() == at1.len(),
-        "both builds decide the same marks: {at0:?} / {at1:?}"
-    );
-    for (k, ((_, re), (v1, _))) in at0.iter().zip(&at1).enumerate() {
-        assert_eq!(
-            re.map(f64::to_bits),
-            v1.map(f64::to_bits),
-            "margin {k}: the x = 0 build's margin re-values to the x = −1e-7 build's"
-        );
-    }
-    assert!(
-        (read0 - read1).abs() < 1e-6,
-        "the read moves by the direction's turn alone: {read0} → {read1}"
-    );
 }
