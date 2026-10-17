@@ -251,8 +251,9 @@
 //! wall is the start's own radial), which the A1 fold takes as the
 //! zero form — `atan2` of the zero form over a form non-negative by
 //! syntax, positive wherever the arc exists, and the `r² = 0` box is
-//! one clause 1 refuses first — and on the definitely-negative frame
-//! the azimuth's `+ π` leaves `cos π = −1`; the rim identity closes
+//! one clause 1 refuses first — and on the far side of the window's cut
+//! line (`pcurve_chart_cut_side`'s other side) the azimuth's `+ π`
+//! leaves `cos π = −1`; the rim identity closes
 //! what is left. Nothing read a sign: the fold is a fact about
 //! `atan2`'s value on a syntactic class, the same posture as the
 //! half-angle branch.

@@ -463,7 +463,9 @@ chart's principal window, so where a carrier's parameter happens to
 start moves neither the stored image nor any joint element. A chart
 coordinate is a coordinate in the chart's cover and never wraps. An
 angle read off the geometry becomes one only through a stated
-reference, and every whole-period question uses the channel's own
+reference; an azimuth's is the side of the principal window's cut line
+its direction lies on, decided in metres (`pcurve_chart_cut_side`), so
+the read's one cut is the window's own. Every whole-period question uses the channel's own
 period, which the chart owns: by renaming where no reader tells the
 copies apart, through the marks where one does. No whole-period
 integer is read off a value.

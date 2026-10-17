@@ -586,3 +586,98 @@ fn a_meridian_with_its_midpoint_at_the_pole_names_one_image_wherever_it_starts()
         }
     }
 }
+
+/// **`x = 0` is no decision boundary of the azimuth read.** A direction
+/// pointing down the chart (`y = −1`), read at `Sym<f64>` with its `x` a
+/// parameter: the frame is decided across the window's cut line, so `x`
+/// crossing zero flips nothing, and every `pcurve_chart_placement` margin
+/// the `x = 0` build decides re-values at `x` ten band-widths negative to
+/// the bits that build decides there, under the one name. (Under a frame
+/// decided on `x`'s sign the downward direction sat on a second cut, a
+/// landmark a quarter arc's radial lands on; `editor-core`'s
+/// `revalue_declared_tangency` and `boss_union` are the corpus witnesses.)
+#[test]
+#[allow(clippy::expect_used)]
+fn a_downward_direction_reads_one_expression_either_side_of_x_zero() {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+
+    use super::{Along, Azimuth, Levers, Placement};
+
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let x_sym = ParamSymbol::new(1);
+    let (x0, x1) = (0.0, -10.0 * band().escalate());
+    let build = |x: f64| {
+        with_session(budget, || {
+            let place = Placement::<S> {
+                mid: S::from_f64(0.5),
+                levers: Levers {
+                    azimuth: S::one(),
+                    tube: S::one(),
+                    latitude: S::one(),
+                },
+            };
+            let dir = Azimuth::of(S::from_f64(-1.0), S::param(x_sym, x));
+            let env = move |p: ParamSymbol| (p == x_sym).then_some(x1);
+            let (_, decisions) = record(|| {
+                place
+                    .phase(Along::Azimuth, dir, |_| S::zero(), band())
+                    .expect("a unit direction places")
+            });
+            decisions
+                .iter()
+                .filter(|d| d.predicate.starts_with("pcurve_chart_"))
+                .map(|d| (d.predicate, d.value, revalue(d.node, &env)))
+                .collect::<Vec<_>>()
+        })
+        .0
+    };
+    let (at0, at1) = (build(x0), build(x1));
+    assert!(
+        !at0.is_empty() && at0.len() == at1.len(),
+        "both builds decide the same decisions: {at0:?} / {at1:?}"
+    );
+    for (k, ((n0, _, re), (n1, v1, _))) in at0.iter().zip(&at1).enumerate() {
+        assert_eq!(n0, n1, "decision {k}: one name either side");
+        assert_eq!(
+            re.map(f64::to_bits),
+            v1.map(f64::to_bits),
+            "decision {k} ({n0}): one expression either side of x = 0"
+        );
+    }
+}
+
+/// **A direction on the window's cut reads the closed end, at every
+/// scalar.** The direction at angle `ANGLE_WINDOW_START`, the window's
+/// cut, lies on the frame decision's line: its margin is zero, the read
+/// takes `atan2(−y, −x) + π`, and names it `τ − 1`, the window's closed
+/// end, as placement's tie-break does; at `Interval` the enclosure is the
+/// angle's own, not a turn wide.
+#[test]
+fn a_direction_on_the_windows_cut_reads_its_closed_end_at_every_scalar() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::Azimuth;
+
+    let r = 0.75;
+    let (s, c) = ANGLE_WINDOW_START.sin_cos();
+    let closed = ANGLE_WINDOW_START + TAU;
+    let at_f64 = Azimuth::of(s * r, c * r).principal(band());
+    assert!(
+        (at_f64 - closed).abs() < 1e-12,
+        "f64: the cut reads the closed end {closed}: {at_f64}"
+    );
+    let f = Interval::from_f64;
+    let at_iv = Azimuth::of(f(s * r), f(c * r)).principal(band());
+    assert!(
+        at_iv.lo() <= closed + 1e-12
+            && at_iv.hi() >= closed - 1e-12
+            && at_iv.hi() - at_iv.lo() < 1e-12,
+        "Interval: the cut reads the closed end, a narrow enclosure: {at_iv:?}"
+    );
+}
