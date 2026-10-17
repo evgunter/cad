@@ -419,6 +419,12 @@ pub use editor_core::{
 // `head_face` the face of the member's part a head names, which a face
 // frame reads. `OVERCONSTRAINED_RECOURSE` and `CONTRADICTORY_RECOURSE`
 // are the two recourse sentences the solve's own refusals end on.
+/// Why a part's face did not read to a pose through a part cache
+/// ([`MateReach::face_pose`]), by the same payload rule: the part does
+/// not resolve, the part's table has no row for the name or ties it,
+/// the readback refuses the carrier, or the product's scalar pins no
+/// `f64`.
+pub use editor_core::FacePoseRefusal;
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -439,27 +445,13 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, Constraint, FrameBase, Lever, Mate,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRef, MateSide, Member,
-    OVERCONSTRAINED_RECOURSE, PartReach, PlacerRow, Placing, PoseRefusal, PoseSymmetry,
-    ReachRefusal, RefusingReach, SideRead, SolvedPoses, Space, Subgroup, SubgroupFamily, head_face,
-    head_of, mate_reach, member_of, member_reading, relative_freedom_components, solve_document,
+    CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever, Mate,
+    MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
+    PartReach, PinRefusal, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Value,
+    WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of, member_reading, pin_at,
+    reference_about, relative_freedom_components, solve_document,
 };
-/// Why a mate's face base did not resolve to a pose, which
-/// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
-///
-/// A face base ([`MateFrame::from_face`]) names no face: it
-/// takes the canonical pose of the face its side's head names in the
-/// mated part ([`head_face`]) as the side's frame, read through the
-/// mated part's own evaluation (`MateReach::face_pose`, whose refusal
-/// is [`FacePoseRefusal`], carried beside the instance, its part and
-/// the face): the part does not resolve, the part's table has no row
-/// for the name or ties it, the readback refuses the carrier (no
-/// canonical frame), or the product's scalar pins no `f64` — or the
-/// head names no face of the part at all. A
-/// consumer that could match `FaceUnresolved` and not name this type
-/// would read all of that out of the message prose.
-pub use editor_core::{FacePoseRefusal, FaceRefusal};
 
 // The class-admission table (`ClassAdmission`, read through
 // `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
@@ -469,7 +461,7 @@ pub use editor_core::{FacePoseRefusal, FaceRefusal};
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact

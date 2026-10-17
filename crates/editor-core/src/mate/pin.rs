@@ -15,8 +15,12 @@
 //! copy in silence.
 //!
 //! This is a helper for migration, tests and demos, not an authoring
-//! gesture: the façade's "place part" writes a plane mate and its
-//! values instead.
+//! gesture. The authoring gesture is [`place_at`]: "place this copy
+//! at `P`" writes a plane mate on the copy's first planar face to the
+//! world plane that face lies in at `P`, and the three values that
+//! put the copy at `P` in that mate's chart — so the copy can then be
+//! slid and spun by its numbers. A copy with no planar face falls back
+//! to [`pin_at`], and the answer says so.
 
 use geom_core::linalg::Mat3;
 use geom_core::predicate::Band;
@@ -84,30 +88,26 @@ impl core::fmt::Display for PinRefusal {
 
 impl core::error::Error for PinRefusal {}
 
-/// **A mate pinning the copy read through `body` to the world at
-/// `pose`**: `on` a frame read off the copy's geometry by the module's
-/// rule, `to` the world's frame spun and slid to where that frame sits
-/// at `pose`. `body` is the operand the copy is read through (a
-/// placement's shape, an instance's own output), evaluated in `doc`
-/// under `opts` as it stands, before placement.
-///
-/// # Errors
-///
-/// [`PinRefusal`]: the copy has no value, no body, is placed already,
-/// or offers no frame.
-pub fn pin_at(
+/// **The copy read through `body`, evaluated as it stands, before
+/// placement**: its node, its first solid and its name table.
+fn copy_of(
     doc: &crate::ProfileDoc,
     body: &Operand,
-    pose: &Frame,
     opts: &EvalOptions,
     tol: Tol,
-) -> Result<Mate<Formula>, PinRefusal> {
+) -> Result<
+    (
+        RecipeNodeId,
+        std::sync::Arc<topo::Body<f64>>,
+        crate::names::NameTable,
+    ),
+    PinRefusal,
+> {
     let node = match body {
         Operand::Output { node, .. } | Operand::Node(node) => *node,
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
         _ => return Err(PinRefusal::NoNode),
     };
-    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
     let evaluation: Evaluation<f64> =
         crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
@@ -133,6 +133,29 @@ pub fn pin_at(
     let table = var
         .and_then(|var| evaluation.table(var))
         .ok_or(PinRefusal::NotABody { node })?;
+    Ok((node, solid, table.clone()))
+}
+
+/// **A mate pinning the copy read through `body` to the world at
+/// `pose`**: `on` a frame read off the copy's geometry by the module's
+/// rule, `to` the world's frame spun and slid to where that frame sits
+/// at `pose`. `body` is the operand the copy is read through (a
+/// placement's shape, an instance's own output), evaluated in `doc`
+/// under `opts` as it stands, before placement.
+///
+/// # Errors
+///
+/// [`PinRefusal`]: the copy has no value, no body, is placed already,
+/// or offers no frame.
+pub fn pin_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Mate<Formula>, PinRefusal> {
+    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
+    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let no_frame = PinRefusal::NoFrame { node };
     // The first edge by id with an axis, and the first vertex by id off
@@ -257,4 +280,145 @@ pub(crate) fn moved_by(
         }
     }
     world
+}
+
+/// **How [`place_at`] placed a copy.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedBy {
+    /// A plane mate on the copy's first planar face and its three
+    /// values.
+    PlanarFace,
+    /// The copy has no planar face: pinned over a frame read off its
+    /// geometry ([`pin_at`]), which leaves no freedom to set.
+    Pin,
+}
+
+/// **The "place part" gesture's constraints** ([`place_at`]): the
+/// mate, then the values that name it, each a freedom and its number.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Placed {
+    /// The mate.
+    pub mate: Mate<Formula>,
+    /// Its values, to add once the mate's id is minted.
+    pub values: Vec<(super::Coord, Formula)>,
+    /// How the copy was placed: a gesture whose copy has no planar face
+    /// says so in its report.
+    pub by: PlacedBy,
+}
+
+/// **The "place part" gesture** (ruling, scope): the copy read through
+/// `body` placed at `pose`, as constraints its author can then move by
+/// their numbers — a plane mate on the copy's first planar face by id
+/// (`on` its plane, outward normal and all) to the world plane that
+/// face lies in at `pose`, and the three values (slides along the
+/// chart's `x` and `y`, and the spin) that put the copy at `pose` in
+/// that mate's chart ([`super::Value`]). The values are computed from
+/// `pose`, never assumed zero, so re-evaluating reproduces `pose` to
+/// the rounding of one re-composition.
+///
+/// The world plane is the world's frame swung onto the face's normal at
+/// `pose` by the shortest turn ([`super::reference_about`]) and slid to
+/// the face's point, read through its `xy` plane. A copy with no planar
+/// face falls back to [`pin_at`] ([`PlacedBy::Pin`]).
+///
+/// # Errors
+///
+/// [`PinRefusal`], as [`pin_at`]'s.
+pub fn place_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    use geom_core::linalg::Point3;
+    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
+    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let planar = solid.faces().find_map(|(face, _)| {
+        let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+        if kind != geom::SurfaceKind::Plane {
+            return None;
+        }
+        let at = topo::readback::face_pose(&solid, face).ok()?;
+        let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+        let normal = UnitVec3::new(normal, topo::query::DATUM_UNIT_NORM, band).ok()?;
+        let name = table.name_of(&EntityRef {
+            body: 0,
+            key: EntityKey::Face(face),
+        })?;
+        Some((name.clone(), at.origin, normal))
+    });
+    let Some((face, origin, normal)) = planar else {
+        return Ok(Placed {
+            mate: pin_at(doc, body, pose, opts, tol)?,
+            values: Vec::new(),
+            by: PlacedBy::Pin,
+        });
+    };
+    let at = pose.affine();
+    let on = crate::pose::PoseValue::Plane { origin, normal };
+    let to = crate::pose::PoseValue::Plane {
+        origin: at.transform_point(origin),
+        normal: UnitVec3::new(at.linear * normal.get(), topo::query::DATUM_UNIT_NORM, band)
+            .map_err(|_| PinRefusal::Band)?,
+    };
+    let crate::pose::PoseValue::Plane {
+        origin: world_origin,
+        normal: world_normal,
+    } = to
+    else {
+        unreachable!("the target was built a plane")
+    };
+    let reach = super::part_reach(&solid).map_err(|_| PinRefusal::NoFrame { node })?;
+    let datum = (origin - Point3::origin()).norm() + (world_origin - Point3::origin()).norm();
+    let arm = super::coset::Arm::of(reach, datum).map_err(|_| PinRefusal::Band)?;
+    let swung = |n: UnitVec3<f64>| {
+        super::reference_about(n, arm.get(), band).map_err(|_| PinRefusal::NoFrame { node })
+    };
+    // The world plane: the world's frame swung onto the normal, slid to
+    // the face's point, read through its `xy` plane.
+    let x = swung(world_normal)?;
+    let n = world_normal.get();
+    let frame = geom_core::linalg::Mat3::from_cols(x, n.cross(x), n);
+    let world = super::WorldRead::Role {
+        pose: Box::new(moved_by(
+            super::WorldRead::Frame,
+            frame,
+            world_origin - Point3::origin(),
+        )),
+        role: PoseRole::Xy,
+    };
+    let chart =
+        super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
+            .map_err(|_| PinRefusal::NoFrame { node })?
+            .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
+    let constant = |value: f64, dim| {
+        Formula::literal(value, dim).unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
+    };
+    let values = vec![
+        (
+            super::Coord::Slide(super::SlideAxis::X),
+            constant(chart.slide_at(&at, super::SlideAxis::X), Dimension::Length),
+        ),
+        (
+            super::Coord::Slide(super::SlideAxis::Y),
+            constant(chart.slide_at(&at, super::SlideAxis::Y), Dimension::Length),
+        ),
+        (
+            super::Coord::Spin,
+            constant(chart.spin_at(&at), Dimension::Angle),
+        ),
+    ];
+    let on = Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::select(body.clone(), vec![face]),
+    }));
+    Ok(Placed {
+        mate: Mate {
+            on,
+            to: Target::World(world),
+            class: super::ContactClass::Rest,
+        },
+        values,
+        by: PlacedBy::PlanarFace,
+    })
 }

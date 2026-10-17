@@ -52,7 +52,7 @@ pub(crate) mod value;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
-pub use pin::{PinRefusal, pin_at};
+pub use pin::{PinRefusal, Placed, PlacedBy, pin_at, place_at};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };

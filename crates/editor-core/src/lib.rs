@@ -163,10 +163,10 @@ pub use mate::{
     CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint, ConstraintKind,
     Coord, Coset, FacePoseRefusal, FreedomRefusal, Lever, LeverRefusal, Mate, MateFault, MateReach,
     MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PinRefusal, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach,
-    SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Value, WorldRead,
-    WorldReadFault, class_admission, head_face, head_of, member_of, member_reading, pin_at,
-    reference_about, relative_freedom_components, solve_document,
+    PinRefusal, Placed, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Value,
+    WorldRead, WorldReadFault, class_admission, head_face, head_of, member_of, member_reading,
+    pin_at, place_at, reference_about, relative_freedom_components, solve_document,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

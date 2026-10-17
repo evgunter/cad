@@ -117,6 +117,17 @@ impl<T: SolveScalar> Chart<T> {
         }
     }
 
+    /// **The value a spin takes at relative pose `m`** — what a gesture
+    /// writes to put the copy at `m`.
+    pub(crate) fn spin_at(&self, m: &Affine3<T>) -> T {
+        self.spin(m)
+    }
+
+    /// **The value a slide along `along` takes at relative pose `m`**.
+    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: SlideAxis) -> T {
+        self.slide(m, self.axis(along))
+    }
+
     /// The slide of the copy at relative pose `m` along `axis`: its
     /// origin measured from the target's.
     fn slide(&self, m: &Affine3<T>, axis: UnitVec3<T>) -> T {
