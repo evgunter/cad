@@ -16,9 +16,10 @@ complete; curved per wired germ classes plane×cyl / plane×sphere /
 plane×cone (the ellipse and the circle) —
 the C5 SECTION table has two more closed-form classes — sphere×sphere
 since VERBS-SPHSPH and the DECLARED-coaxial cylinder×sphere since
-VERBS-CYLSPH — but no join arm consumes either, and the second sits
-additionally behind the axis-shaped declaration channel
-(`docs/AXIS-DECLARATION-DESIGN.md`), which is unbuilt),
+VERBS-CYLSPH — but no join arm consumes either; the axis-shaped
+declaration channel the second was to sit behind is retired (DESIGN
+`[coincidence]`: coaxiality is one `Axis` read twice, or a margin
+decided Zero)),
 split, constant-radius edge fillets (**nine analytic support-pair
 arms**: plane–plane, plane–sphere and the coaxial-revolution seven —
 sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone,
