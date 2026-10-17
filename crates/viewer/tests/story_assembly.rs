@@ -84,16 +84,16 @@ fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
 }
 
 /// **A sail's rest on one of the hub's walls**: the sail's underside
-/// on the wall, its middle at the wall's middle. A wall's outward
-/// normal is the hub's `∓y`, flipped to `±y`; the shortest turn
-/// carrying the hub's `z` there keeps its `x`, so the chart's `x` is
-/// the hub's and its `y` is `±y × x = ∓z`. The sail's origin is its
-/// underside's middle and the wall's middle is `HUB_SIDE / 2` up the
-/// hub, so the slide along the chart's `y` is `∓HUB_SIDE / 2`; `spin`
-/// turns the blade about the wall's normal from the hub's `x`.
+/// on the wall, its middle at the wall's middle. The chart is the
+/// hub's frame swung onto the wall's outward normal, the hub's `∓y`
+/// (front, back): the shortest turn there keeps the hub's `x`, so the
+/// chart's `y` is `∓y × x = ±z`. The sail's origin is its underside's
+/// middle and the wall's middle is `HUB_SIDE / 2` up the hub, so the
+/// slide along the chart's `y` is `±HUB_SIDE / 2`; `spin` turns the
+/// blade about the wall's normal from the hub's `x`.
 fn sail_choice(front: bool, spin: f64) -> viewer::matetool::MateChoice {
     let up = HUB_SIDE / 2.0;
-    rest_choice([0.0, if front { -up } else { up }], spin)
+    rest_choice([0.0, if front { up } else { -up }], spin)
 }
 
 /// A session over a throwaway document — the story starts from

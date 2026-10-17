@@ -111,6 +111,69 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, revolve)
 }
 
+/// **A body with no planar face is pinned, and the gesture says so.**
+/// The revolve gesture places the ring it made; a ring of revolution
+/// has no planar face to rest a plane mate on, so the "place part"
+/// gesture falls back to the pin — one mate to the world, no values to
+/// move it by, the copy where it was made — and the outcome's notice
+/// says so. Breaks if the fallback leaves the copy loose, writes values
+/// a pin does not leave, places it anywhere but where it was made, or
+/// goes unsaid.
+#[test]
+fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(plane),
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [R, 0.0],
+                radius: RO,
+            })],
+        },
+    );
+    let outcome = session.perform(SessionOp::AddRevolve {
+        profile,
+        axis_through: len2([0.0, 0.0]),
+        axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+        angle: ang(TAU),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [_, placement] = outcome.minted[..] else {
+        panic!("the revolve and its placement: {:?}", outcome.minted)
+    };
+    assert_eq!(
+        outcome.placed,
+        vec![viewer::session::PlaceReport {
+            placement,
+            by: Ok(editor_core::PlacedBy::Pin),
+        }],
+        "the ring is pinned: it has no planar face"
+    );
+    let notices: Vec<String> = viewer::frame::outcome_notices(&outcome)
+        .map(|notice| notice.text().to_owned())
+        .collect();
+    assert!(
+        notices.iter().any(|text| text.contains("no planar face")),
+        "the gesture says how it placed the copy: {notices:?}"
+    );
+    session.pump();
+    let doc = session.committed_doc();
+    let bundle = crate::fixture::bundle(doc, placement);
+    assert!(
+        matches!(bundle.as_slice(), [pin]
+            if pin.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))),
+        "one mate to the world and no values: {bundle:?}"
+    );
+    let band = pncad::geom_core::predicate::Band::linear(tol).expect("a band");
+    assert!(
+        common::solve(&session, doc, tol).at_identity(placement, band),
+        "the ring stands where it was made"
+    );
+}
+
 #[test]
 fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     let tol = Tol::witness();
@@ -311,8 +374,15 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 
     // Undo walks back across the reopened log one edit at a time (the
     // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, then the extrude; redo restores the
-    // whole document.
+    // extrude's world placement, its three values, then its mate, then
+    // its insert — then the extrude; redo restores the whole document.
+    for _ in 0..4 {
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+        assert!(
+            !session.committed_doc().placements().is_empty(),
+            "the placement's values and mate go before it"
+        );
+    }
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         session.committed_doc().placements().is_empty(),
@@ -335,9 +405,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    // Five edits: the plane, the sketch frame, the profile, the extrude
-    // and its placement.
-    for _ in 0..5 {
+    // Nine edits: the plane, the sketch frame, the profile, the extrude,
+    // its placement, and the placement's mate and three values.
+    for _ in 0..9 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");

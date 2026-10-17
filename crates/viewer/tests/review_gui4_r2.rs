@@ -281,9 +281,11 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
 
 /// **A second mate on the same pair refuses typed and is recoverable.**
 /// The first mate and its values pin post_b, so a second rest of the
-/// same faces is a mate beyond the pin: the door refuses it
-/// `Overconstrained` and commits nothing; undo then takes the first
-/// one off. No crash, no silent success, no silent drop.
+/// same faces a centimetre lower is a mate beyond the pin that
+/// contradicts it: the door admits it (it measures nothing) and the
+/// evaluation refuses post_b's bundle typed, naming both; undo takes
+/// the second off, and the assembly works again. No crash, no silent
+/// success, no silent drop.
 #[test]
 fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
     let tol = Tol::witness();
@@ -304,41 +306,52 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
-    // The same pair again: the same rest, with no values, which the
-    // first mate and its values already fix.
+    // The same pair again, the shelf's underside slid a centimetre
+    // along its own normal (a standoff), with no values: the two rests
+    // cannot both hold.
+    let lower = {
+        use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+        let seat = crate::fixture::flip(crate::fixture::plane(proposal.to.clone()));
+        pncad::document::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(seat.clone()),
+            along: RoleRead::through(seat, PoseRole::Normal),
+            by: common::len(0.01),
+        }))
+    };
+    let mut second = proposal.mate.clone();
+    second.to = pncad::document::Target::Pose(lower);
     let outcome = session.perform(SessionOp::AddMate {
         placement: bench.post_b,
-        mate: Box::new(proposal.mate.clone()),
+        mate: Box::new(second),
         values: Vec::new(),
     });
     // post_b's bundle already pins it, so the second mate is a mate
-    // beyond the pin: the door refuses it typed and commits nothing.
-    assert!(outcome.committed.is_empty(), "nothing was committed");
-    match &outcome.refusal {
-        Some(Refusal::Edit(error)) => assert!(
-            matches!(
-                error.as_ref(),
-                pncad::document::EditError::MateRefused { fault, .. }
-                    if matches!(
-                        fault.as_ref(),
-                        pncad::document::MateFault::Overconstrained { placement, .. }
-                            if *placement == bench.post_b
-                    )
-            ),
-            "the second mate is overconstrained: {error}"
-        ),
-        other => panic!("a mate beyond the pin refuses, got {other:?}"),
-    }
+    // beyond the pin: the evaluation refuses the bundle typed, naming
+    // the pair.
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    for row in session.tree_rows() {
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "the refused mate left no trace: {row:?}"
+    {
+        let (_, ev) = session.landed_pair().expect("landed");
+        let fault = match ev
+            .result(bench.post_b)
+            .and_then(|r| r.error())
+            .map(|e| &e.kind)
+        {
+            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
+            other => panic!("a mate beyond the pin refuses, got {other:?}"),
+        };
+        assert!(
+            matches!(
+                &fault,
+                pncad::document::MateFault::Contradictory { held, added, .. }
+                    if held.placement == bench.post_b && added.placement == bench.post_b
+                        && held != added
+            ),
+            "the second mate contradicts the first: {fault:?}"
         );
     }
 
-    // Undo removes the first mate; the assembly works again.
+    // Undo removes the second mate; the assembly works again.
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();

@@ -3915,7 +3915,7 @@ mod properties_pane_tests {
         });
         // A pick is on the drawn copy, and says so.
         let line = format!(
-            "pick a: face of Place {}; pick b: —",
+            "on: face of Place {}; to: —",
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -6086,7 +6086,7 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's instance-pick refusal says the kept label
+    /// **The mate tool's same-copy refusal says the kept label
     /// while the landed document is behind**: the run that would land
     /// the rename and the delete is held, so the landed document still
     /// says the picked copy's placement by its old label and the survival step keeps the
@@ -6143,9 +6143,9 @@ mod properties_pane_tests {
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
-        // the pair as one member, naming that member's placement.
+        // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("(head: {plinth})")),
+            said.contains(&format!("both picks are on {plinth},")),
             "the refusal says the kept label: {said}"
         );
     }

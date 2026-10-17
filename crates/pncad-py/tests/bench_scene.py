@@ -53,26 +53,24 @@ import math
 
 import pncad
 from pncad import (
-    Alignment,
-    AxisSense,
     CapEnd,
     ContactClass,
+    Coord,
     Doc,
     DocRef,
     EntityKind,
     Formula,
     Frame,
     Mate,
-    MateFrame,
-    MatePrimitive,
     NamePat,
     Node,
     PartSelect,
     PatternKind,
-    Placement,
+    PoseDef,
     SegPat,
     SegTag,
     Selector,
+    WorldRead,
     content_pin,
     evaluate,
     m,
@@ -130,7 +128,11 @@ def prism(seed, width, depth, height):
     SEATING face is its top cap and its datum face is the origin plane.
     Four nodes: the sketch frame, the section drawn on it, the extrude
     that consumes both, and the placement that puts the extrude in the
-    part's world — what an instance of the part delivers.
+    part's world where it stands — what an instance of the part
+    delivers. The placement rests the extrude's base cap on the world's
+    floor, a plane mate with three zero values: the body's own
+    coordinates are the world's, and an edit that grows the part grows
+    it up from its base.
     """
     doc = Doc(seed)
     profile = doc.insert(
@@ -144,8 +146,26 @@ def prism(seed, width, depth, height):
             plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
-    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
+    body = doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    placement = doc.place(body, [])
+    on_floor(doc, placement, body, one(evaluate(doc).select(body, cap_selector(CapEnd.Start))))
     return doc
+
+
+def on_floor(doc, placement, at, base, resolver=None):
+    """`placement`'s copy standing on the world's floor by its face
+    `base`, read at `at`: a plane mate to the world's `xy` plane
+    flipped, so the face's outward normal points down, and three zero
+    values — the copy's own coordinates are the world's as far as the
+    floor allows. Answers the mate's address."""
+    mate = doc.constrain(
+        placement,
+        Mate(PoseDef.plane(at, base), WorldRead.through("xy").flip(), ContactClass.Rest),
+        resolver=resolver,
+    )
+    for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin()):
+        doc.add_value(mate, coord, 0)
+    return mate
 
 
 def post(height=POST_HEIGHT, section=POST_SECTION):
@@ -204,72 +224,82 @@ def instance_face(store, doc, node, side):
     return one(found)
 
 
-def mate_frame(origin):
-    """The scene's mate frames: +z axis, +x clocking reference."""
-    return MateFrame(
-        origin=(origin[0] * m, origin[1] * m, origin[2] * m),
-        axis=(0.0, 0.0, 1.0),
-        reference=(1.0, 0.0, 0.0),
+def face_facing(store, doc, node, normal):
+    """The face of `node`'s copy whose outward normal is `normal`, read
+    off THIS evaluation: a prism's six faces each face one way, so
+    the normal picks one. Read through `Evaluation.face_frame`, whose
+    outward normal is its sense times its axis."""
+    ev = evaluate(doc, resolver=store)
+
+    def outward(name):
+        pose = ev.face_frame(node, name)
+        sign = 1.0 if pose.sense else -1.0
+        return tuple(round(sign * c, 9) + 0.0 for c in pose.axis)
+
+    return one([name for name in ev.all_faces(node) if outward(name) == normal])
+
+
+def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
+    """`placement`'s copy seated by its face `on` resting on the face
+    `to`: a plane mate, the target flipped so the two faces face each
+    other, and the two slides and the spin that set where on `to` the
+    copy rests. `on` and `to` are `(node, face name)` pairs; `at` is
+    `(slide x, slide y)` in metres, the spin zero — the two bodies'
+    own axes agree.
+
+    Answers the mate's address and its three values' addresses.
+    """
+    mate = doc.constrain(
+        placement,
+        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
+        resolver=resolver,
     )
+    values = [
+        doc.add_value(mate, Coord.slide("x"), at[0] * m),
+        doc.add_value(mate, Coord.slide("y"), at[1] * m),
+        doc.add_value(mate, Coord.spin(), 0),
+    ]
+    return mate, values
 
 
-def seat(a_frame, b_frame, primitive=None):
-    """The scene's alignment: two frames meeting, axes aligned, no
-    clocking rider. A seat given as `OWN_FACE` is the face frame: that
-    side's own head face, whichever head the side has; any other seat
-    is an authored frame at that point."""
+#: The stand's two seats, as (the copy's seat, the target's seat) in
+#: document order, each naming the part it places first — the mate is
+#: a constraint in that part's bundle: the shelf's underside on the
+#: near post's top, then the far post's top under the shelf. A post's
+#: seat is its cap's centre, a shelf's an authored point of its
+#: underside.
+STAND_SEATS = ((SEAT_A, POST_SEAT), (POST_SEAT, SEAT_B))
 
-    def frame(spelling):
-        if spelling is OWN_FACE:
-            return MateFrame.from_face()
-        return mate_frame(spelling)
-
-    return Alignment(
-        frame(a_frame),
-        frame(b_frame),
-        primitive or MatePrimitive.frame_coincidence(),
-        AxisSense.Aligned,
-    )
-
-
-#: A side framed on its own head face, as the tour authors each post
-#: side: the frame is whatever face that side's head names (for a
-#: post side, its top cap), resolved by the solve from the part's own
-#: evaluation — so a post whose height changes moves the seat with it.
-#: A marker here; `seat` spells it as `MateFrame.from_face()`.
-OWN_FACE = "the side's own head face"
-
-#: The stand's two mates, as (a seat, b seat) in document order, each
-#: naming the part it places first — the mate is a constraint in that
-#: part's bundle: the shelf's underside to the near post's top, then
-#: the far post's top to the shelf's underside. The
-#: post sides are the cap face, the shelf sides authored points (the
-#: shelf's own datum, not a face of it).
-STAND_SEATS = ((SEAT_A, OWN_FACE), (OWN_FACE, SEAT_B))
+#: The values each stand mate is set to, from its seats. A value is
+#: charted on the target's own frame swung onto its face's outward
+#: normal: on the post's top cap that is the post's own x and y, so the
+#: shelf's slides are the post's seat less the shelf's; on the shelf's
+#: underside it is the half-turn about the shelf's x, so the far post's
+#: y slide runs along the shelf's -y.
+SHELF_ON_POST = (POST_SEAT[0] - SEAT_A[0], POST_SEAT[1] - SEAT_A[1])
+POST_UNDER_SHELF = (SEAT_B[0] - POST_SEAT[0], POST_SEAT[1] - SEAT_B[1])
 
 
 # ---- The assembly documents ----
 
 
 def lying():
-    """The pose each flat-packed post copy is pinned to the world at:
+    """The pose each flat-packed post copy is placed in the world at:
     laid on its SIDE — a rotation, which is why the frame stores a
     general linear part and not a translation — and set beside the
     bench."""
-    return Placement.literal(
-        Frame.rotate_then_translate(
-            (0.0, 1.0, 0.0),
-            -math.pi / 2 * pncad.rad,
-            ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
-        )
+    return Frame.rotate_then_translate(
+        (0.0, 1.0, 0.0),
+        -math.pi / 2 * pncad.rad,
+        ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
     )
 
 
-def layout(post_ref, shelf_ref, posts=Node.pattern):
+def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     """The flat-pack: one post instance patterned along +y, plus the
     shelf, nothing touching — A5's disjoint half.
 
-    Every world pin carries FLAT_PACK_GAP along +x, which is how the
+    Every world placement carries FLAT_PACK_GAP along +x, which is how the
     flat-pack shares one montage cell with the assembled bench: a
     layout document's placements ARE its subject, so where the parts
     sit has to be something this document SAYS.
@@ -277,7 +307,7 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     The post instance's bundle is empty: it is a loose copy, its part's
     own coordinates and no part of the product, which is what a pattern
     master is here. The pattern steps along +y, which the turn about +y
-    each copy is pinned at leaves where it was.
+    each copy is laid at leaves where it was.
 
     `posts` is the node the placed family is said with, and the two it
     admits take the same `(input, count, kind)`: `Node.pattern`, the
@@ -289,7 +319,9 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     The product is the posts' copies, then the shelf's: each pattern
     instance is projected out of the family by `Node.part` and placed,
     and a fused `placed_union` family, one body, is placed whole; the
-    shelf instance is pinned to the world itself.
+    shelf instance is pinned to the world itself. Each is placed by the
+    "place part" gesture at its pose (`Doc.place(..., pose=)`,
+    `Doc.pin`), read through `store`.
 
     Answers the document and its three nodes, in document order.
     """
@@ -302,64 +334,58 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
             PatternKind.linear((Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)), Formula.length_in(PATTERN_SPACING, m)),
         )
     )
-    shelf_i = doc.insert(
-        Node.instantiate_part(
-            shelf_ref,
-            [
-                Mate.world_pin(
-                    Placement.literal(
-                        Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m))
-                    )
-                )
-            ],
-        )
+    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, []))
+    doc.pin(
+        shelf_i,
+        Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m)),
+        resolver=store,
     )
     if posts is Node.pattern:
         for i in range(PATTERN_COUNT):
             doc.place(
                 doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))),
-                [Mate.world_pin(lying())],
+                pose=lying(),
+                resolver=store,
             )
     else:
-        doc.place(family, [Mate.world_pin(lying())])
+        doc.place(family, pose=lying(), resolver=store)
     return doc, post_i, family, shelf_i
 
 
-def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
+def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
     Only the near post is pinned to the world; each other instance's
-    bundle is the one mate that places it — the shelf on the near post,
-    the far post under the shelf. Answers the document, its three
-    instances and its two mates' addresses, each in document order.
+    bundle is the one mate that places it and its three values — the
+    shelf on the near post, the far post under the shelf. Answers the
+    document, its three instances and its two mates' addresses, each in
+    document order.
     """
     doc = Doc(STAND_SEED)
-    post_a = doc.insert(
-        Node.instantiate_part(
-            post_ref,
-            [
-                Mate.world_pin(
-                    Placement.literal(Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)))
-                )
-            ],
-        )
-    )
+    post_a = doc.insert(Node.instantiate_part(post_ref, []))
+    doc.pin(post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)), resolver=store)
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, []))
     post_b = doc.insert(Node.instantiate_part(post_ref, []))
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
-    # The post's seat is its head's face, and the constraint door
-    # resolves it through the store, since the face is the part's.
-    mate_1 = doc.constrain(
+    mate_1, _ = rest(
+        doc,
         shelf_i,
-        Mate(shelf_i, s_bottom, post_a, a_top, class_, seat(*STAND_SEATS[0], primitive)),
+        (shelf_i, s_bottom),
+        (post_a, a_top),
+        SHELF_ON_POST,
+        class_,
         resolver=store,
     )
-    mate_2 = doc.constrain(
+    mate_2, _ = rest(
+        doc,
         post_b,
-        Mate(post_b, b_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[1], primitive)),
+        (post_b, b_top),
+        (shelf_i, s_bottom),
+        POST_UNDER_SHELF,
+        class_,
         resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
@@ -389,7 +415,7 @@ def write(store):
     store rather than keeping these.
     """
     (post_doc, post_ref), (shelf_doc, shelf_ref) = parts(store)
-    layout_doc, _, _, _ = layout(post_ref, shelf_ref)
+    layout_doc, _, _, _ = layout(store, post_ref, shelf_ref)
     store.create(layout_doc)
     stand_doc, _, _ = stand(store, post_ref, shelf_ref)
     store.create(stand_doc)

@@ -38,7 +38,7 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-a placement's bundle of `Mate`s and `Value`s places each copy
+a placement's bundle of `Mate`s and `MateValue`s places each copy
 (`Doc.place`, `Doc.constrain`, `Doc.add_value`), `solve_document` poses
 them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
@@ -3560,7 +3560,7 @@ class DocEdit:
         the copy."""
 
     @staticmethod
-    def add_value(placement: NodeId, value: Value) -> DocEdit:
+    def add_value(placement: NodeId, value: MateValue) -> DocEdit:
         """Add `value` to `placement`'s bundle: one freedom a mate of the
         bundle leaves, set to a number (`Doc.add_value` answers its
         address). Refuses typed on `EditError`:
@@ -3857,7 +3857,7 @@ class Doc:
         to it; it is not among the document's nodes (`order`,
         `node_count`)."""
 
-    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | Value]]:
+    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue]]:
         """A placement's bundle: each constraint by its address, with
         its mate or its value as written, in the bundle's order. Raises `EditError`
         (`constraint_on_non_placement`) for a node that holds no bundle,
@@ -5692,14 +5692,14 @@ def evaluate(
 # BUNDLE: the constraints it holds, each addressed by a `MateRef`,
 # never a node. A constraint is a `Mate`, two poses of one kind
 # equated — `on` read off the copy's geometry, `to` a pose of the
-# space it joins or a `WorldRead` — or a `Value` setting one freedom a
+# space it joins or a `WorldRead` — or a `MateValue` setting one freedom a
 # mate leaves. A bundle that pins the copy fully puts it in its
 # target's space, and pinned, transitively, to the world it is in the
 # product. A bundle that pins less is a LOOSE copy: it lives in a space
 # of its own, not in the product, and nothing outside it is compared
 # with it (`Evaluation.loose`). `Node.instantiate_part` is a loose
 # copy until a constraint pins it. `SolvedPoses.pose` is a placement's
-# pose in its target's space; `SolvedPoses.placement` its world pose.
+# pose in its space; `SolvedPoses.placement` its world pose.
 
 class MateSide:
     """Which pose of a mate a diagnostic is about: `On`, the copy's,
@@ -5761,7 +5761,7 @@ class Mate:
     plain plane mate equates outward normals, so two faces resting
     against each other carry a flip on the target
     (`PoseDef.flip(PoseDef.plane(...))`). A mate holds no number: what
-    it leaves free is set by a `Value`, and a standoff is a slide of the
+    it leaves free is set by a `MateValue`, and a standoff is a slide of the
     target plane along its own normal.
 
     `class_` is the declared contact class; ask `class_admission`
@@ -5814,8 +5814,8 @@ class Coord:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class Value:
-    """A value: one freedom a mate of the same bundle leaves, set to a
+class MateValue:
+    """A mate's value: one freedom a mate of the same bundle leaves, set to a
     number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
     is the constant zero).
 
@@ -6155,7 +6155,7 @@ class MateFault:
 
 class SolvedPoses:
     """The document's solved poses: each placement's pose in its
-    target's space, and the per-placement refusals."""
+    space, and the per-placement refusals."""
 
     def fault(self, placement: NodeId) -> Optional[MateFault]:
         """The placement's recorded fault. Recorded against the
@@ -6168,18 +6168,18 @@ class SolvedPoses:
         again to speak the current labels."""
 
     def pose(self, placement: NodeId) -> Optional[Frame]:
-        """The placement's solved pose in its target's space: where its
-        bundle puts its copy relative to the copy it is pinned to (the
-        world, or another placement's copy), and in a loose copy's own
-        space the pose it is evaluated at. `None` for a node that is no
-        placement, or one whose bundle refused."""
+        """The placement's solved pose in its space: where its copy sits
+        in the world's coordinates for a copy pinned, transitively,
+        against the world, and in a loose copy's own coordinates for one
+        pinned to it. `None` for a node that is no placement, or one
+        whose bundle refused."""
 
     def placement(self, doc: Doc, placement: NodeId) -> Frame:
         """The placement's WORLD pose, at the document's own
-        parameters: its solved pose composed into the world pose of the
-        copy it is pinned to. A copy pinned to the world at `pose`
-        returns that pose's frame bit for bit, and at the identity the
-        identity.
+        parameters: its pose in its space, for a copy pinned,
+        transitively, against the world. A copy pinned to the world at a
+        pose returns that pose, to the rounding of the values its pin is
+        computed in.
 
         `doc` must be the document this solve is OF. Passing another
         would compose this document's poses onto that one's

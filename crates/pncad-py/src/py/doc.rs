@@ -1411,7 +1411,7 @@ impl Doc {
                                 Py::new(py, super::mate::Mate(mate))?.into_any()
                             }
                             d::ConstraintKind::Value(value) => {
-                                Py::new(py, super::mate::Value(value))?.into_any()
+                                Py::new(py, super::mate::MateValue(value))?.into_any()
                             }
                         };
                         Ok((at, held))
@@ -1777,7 +1777,7 @@ impl Doc {
         coord: &super::mate::Coord,
         by: super::expr::SlotArg,
     ) -> PyResult<super::mate::MateRef> {
-        let value = super::mate::Value::of(py, mate.0.id, coord.0, &by)?;
+        let value = super::mate::MateValue::of(py, mate.0.id, coord.0, &by)?;
         let edit = d::DocEdit::AddValue {
             placement: mate.0.placement,
             value: Box::new(value.0),
@@ -4760,7 +4760,7 @@ impl DocEdit {
     /// `mate_refused` with the door's fault — `mate_value_names_no_mate`,
     /// `mate_not_a_freedom`, `mate_no_chart`.
     #[staticmethod]
-    fn add_value(placement: &NodeId, value: &super::mate::Value) -> Self {
+    fn add_value(placement: &NodeId, value: &super::mate::MateValue) -> Self {
         Self {
             inner: d::DocEdit::AddValue {
                 placement: placement.0,

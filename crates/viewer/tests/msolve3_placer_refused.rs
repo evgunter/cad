@@ -3,11 +3,13 @@
 //! The finding's document — a mate onto a pattern copy whose
 //! direction slot is `1e200` — once drew a row about a member that
 //! did not resolve, about a pattern that resolves and is well-formed
-//! apart from one slot. A mate's pose that does not evaluate is
-//! `SideUnevaluated`, carrying the evaluation layer's own refusal, so
-//! the placement's row states the mate's words and draws the pattern's
-//! refusal as a line of its own. The row is the chrome's whole channel
-//! for a refusal, so what it says is the measurement.
+//! apart from one slot. A mate's target reads the pattern's copy, so
+//! the pattern is upstream of the placement: a pattern that refuses
+//! poisons the placement through it, and the placement's row points at
+//! the pattern's, which states the direction refusal in its own words.
+//! A target the pattern no longer defines is the mate's own refusal
+//! (`SideUnevaluated`). The row is the chrome's whole channel for a
+//! refusal, so what it says is the measurement.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -94,46 +96,34 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let fault = mate_fault(&ev, mate);
     assert!(
-        matches!(
-            &fault,
-            MateFault::SideUnevaluated {
-                side: MateSide::To,
-                ..
-            }
-        ),
-        "the mate's target does not evaluate: {fault:?}"
+        matches!(ev.result(mate), Some(NodeResult::Poisoned { through }) if *through == pattern),
+        "the placement is poisoned through the pattern its mate reads: {:?}",
+        ev.result(mate)
     );
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
     let row = common::row_of(&rows, mate);
-    let Some(NodeResult::Failed(error)) = ev.result(mate) else {
-        panic!("the mate's placement is Failed in the evaluation");
-    };
-    // The WHOLE rendered cause, not a substring of it: the mate's own
-    // line in the kernel's words, and the pattern's refusal as the line
-    // under it, as the pattern's own row would draw it — a wrong role
-    // word, a wrong refusal kind or a wrong node all fail here.
-    assert_eq!(
-        row.status,
-        RowStatus::Failed {
-            message: error.spoken(&doc, &ev),
-            carried: vec![viewer::tree::CarriedLine {
-                document: viewer::tree::THIS_DOCUMENT.to_owned(),
-                line: format!(
-                    "Pattern {} failed: the pattern direction has no finite length (a \
-                     component overflows the norm or is not a number). Recourse: {}",
-                    test_utils::refusal::tag(pattern.0.digest()),
-                    geom_core::RANGE_RECOURSE
-                ),
-            }],
-        },
-        "the row states the mate's words and carries the pattern's refusal"
+    assert!(
+        matches!(row.status, RowStatus::Poisoned { through, .. } if through == pattern),
+        "the placement's row points at the pattern: {:?}",
+        row.status
     );
-
-    // The pattern's own row states its own cause too: the placement's
-    // fault reads the pattern, and a bundle's reads poison nothing
-    // upstream of them.
+    // The pattern's row is the cause, in the kernel's words — the WHOLE
+    // rendered cause: a wrong role word, a wrong refusal kind or a wrong
+    // node all fail here.
+    let Some(NodeResult::Failed(error)) = ev.result(pattern) else {
+        panic!("the pattern is Failed in the evaluation");
+    };
+    assert_eq!(
+        error.spoken(&doc, &ev),
+        format!(
+            "Pattern {} failed: the pattern direction has no finite length (a component \
+             overflows the norm or is not a number). Recourse: {}",
+            test_utils::refusal::tag(pattern.0.digest()),
+            geom_core::RANGE_RECOURSE
+        ),
+        "the pattern's own words name the direction"
+    );
     let placer = common::row_of(&rows, pattern);
     assert!(
         matches!(placer.status, RowStatus::Failed { .. }),
@@ -309,45 +299,35 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
     assert_the_mate_is_blamed(&ev, &doc, s.mate, s.pattern);
 }
 
-/// **When the named node fails in its own right, both rows are loud and
-/// neither points at the other** — the counter-case to the row above,
-/// whose named node evaluates.
-///
-/// The fault reaches the mate's placement alone, so blame decides only
-/// its own row; the named node's row is the evaluation's own verdict
-/// about it.
-fn assert_both_loud(
+/// **When the named node fails in its own right, it is the cause and
+/// the mate's placement points at it** — the counter-case to the row
+/// above, whose named node evaluates. The mate's target reads the named
+/// node, so the placement is poisoned through it, and the named node's
+/// row is the evaluation's own verdict about it, in its own words.
+fn assert_the_named_node_is_the_cause(
     ev: &Evaluation<f64>,
     doc: &Doc<ProfileProgram>,
     mate: RecipeNodeId,
     named: RecipeNodeId,
 ) {
     let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
-    for id in [mate, named] {
-        let Some(NodeResult::Failed(error)) = ev.result(id) else {
-            panic!("{id:?} must be Failed in the evaluation");
-        };
-        let status = common::status_of(&rows, id);
-        assert!(
-            matches!(&status, RowStatus::Failed { message, .. } if *message == error.spoken(doc, ev)),
-            "{id:?} carries its own words: {status:?}"
-        );
-    }
-    assert_no_row_links(&rows);
-    let pointed: Vec<RecipeNodeId> = rows
-        .iter()
-        .filter(|row| matches!(row.status, RowStatus::Poisoned { through, .. } if through == mate || through == named))
-        .map(|row| row.id)
-        .collect();
-    assert_eq!(
-        pointed,
-        Vec::<RecipeNodeId>::new(),
-        "no row is sent anywhere"
+    let Some(NodeResult::Failed(error)) = ev.result(named) else {
+        panic!("{named:?} must be Failed in the evaluation");
+    };
+    let status = common::status_of(&rows, named);
+    assert!(
+        matches!(&status, RowStatus::Failed { message, .. } if *message == error.spoken(doc, ev)),
+        "{named:?} carries its own words: {status:?}"
     );
+    assert!(
+        matches!(common::status_of(&rows, mate), RowStatus::Poisoned { through, .. } if through == named),
+        "the mate's placement points at the named node"
+    );
+    assert_no_row_links(&rows);
 }
 
-/// A pattern shrunk to ZERO copies: the mate's target does not evaluate,
-/// and the pattern fails on its own.
+/// A pattern shrunk to ZERO copies fails on its own, and the mate's
+/// placement, whose target reads it, points at it.
 #[test]
 fn a_pattern_of_no_copies_fails_beside_the_mate() {
     let tol = Tol::witness();
@@ -363,16 +343,5 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
         tol,
     );
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
-    let fault = mate_fault(&ev, s.mate);
-    assert!(
-        matches!(
-            fault,
-            MateFault::SideUnevaluated {
-                side: MateSide::To,
-                ..
-            }
-        ),
-        "the fixture strands the mate's target: {fault:?}"
-    );
-    assert_both_loud(&ev, &doc, s.mate, s.pattern);
+    assert_the_named_node_is_the_cause(&ev, &doc, s.mate, s.pattern);
 }

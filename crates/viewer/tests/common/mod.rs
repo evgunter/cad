@@ -299,8 +299,8 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
 
 /// **Perform one authoring op and answer the node it made**: its first
 /// committed edit inserts that node, and every later edit is the world's
-/// (A10) — the new body's placement, or the target's placements
-/// re-pointed or withdrawn.
+/// (A10) — the new body's placement and the mate and values that place
+/// it, or the target's placements re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -330,6 +330,8 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                     slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
                     ..
                 } | DocEdit::DeleteNode { .. }
+                    | DocEdit::AddConstraint { .. }
+                    | DocEdit::AddValue { .. }
             ),
             "every later edit is the world's: {edit:?}"
         );

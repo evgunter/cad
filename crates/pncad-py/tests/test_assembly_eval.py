@@ -98,7 +98,6 @@ from bench_scene import (
     ROOT_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
-    OWN_FACE,
     POST_HEIGHT,
     POST_SECTION,
     POST_VOLUME,
@@ -1291,17 +1290,15 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             (0.0, ROOT_OFFSET_Y, 0.0),
             "the near post's spot",
         )
-        # A seat is an authored point (`mate_frame(NAME, tol)`) or the
-        # side's own head face (`MateFrame::from_face()`, the post's
-        # cap), read in document order.
-        seats = re.findall(
-            r"^\s+[ab]: (?:mate_frame\((\w+), tol\)|(MateFrame::from_face\(\))),$", stand, re.M
-        )
-        self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "MateFrame::from_face()": OWN_FACE}
+        # The two mates' seats, read in document order: whatever spells
+        # the values that put each shelf seat on its post's cap, the
+        # tour names the shelf's seat by its constant.
+        seats = re.findall(r"\b(SEAT_[AB])\b", stand)
+        self.assertEqual(len(seats), 2, "the stand no longer names exactly two seats")
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B}
         self.assertScene(
-            tuple(named[point or face] for point, face in seats),
-            tuple(seat for mate in STAND_SEATS for seat in mate),
+            tuple(named[seat] for seat in seats),
+            tuple(seat for mate in STAND_SEATS for seat in mate if seat in named.values()),
             "the stand's mate seats",
         )
 

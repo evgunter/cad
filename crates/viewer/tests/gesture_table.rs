@@ -1215,10 +1215,10 @@ fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
     let face = index
         .face_at(
             session.evaluation().expect("the inline seam landed"),
-            &common::asm::down_at(0.0, 0.0),
+            &common::asm::down_at(0.02, 0.02),
         )
         .expect("the pick is not refused")
-        .expect("the plate is under a ray straight down at the origin");
+        .expect("the plate is under a ray straight down at its middle");
     session.perform(SessionOp::Select(Selection::Face(face)));
     assert!(session.standing().live(), "the picked face resolves");
     assert_eq!(

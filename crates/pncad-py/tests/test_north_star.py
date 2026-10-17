@@ -4225,7 +4225,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # INTO a document — so it is pinned below the loop with
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
-            # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
+            # `Mate` (now two poses and a `WorldRead`, with `MateValue`),
             # `assemble`, `Assembly`, `AssemblyError`,
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the

@@ -6417,6 +6417,11 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     }
     new.nodes.insert(id, node);
     let fresh = lowering.finish(new)?;
+    // Each constraint's own admission speaks before the cycle check,
+    // as `add_constraint`'s does.
+    for (k, &c) in minted.iter().enumerate() {
+        admit_written_constraint(new, id, c, k, tol, reach)?;
+    }
     check_acyclic(new)?;
     // The solve's own per-constraint admission (A11 rule 1), asked of
     // the document the placement now stands in — its walks read the
@@ -6428,9 +6433,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // a later edit strands is N5's. The other edits that write a datum
     // — an `AddConstraint`, a slot edit at a frame-offset step — ask
     // the same admission (`DocEdit::writes_a_mates_datum`).
-    for (k, &c) in minted.iter().enumerate() {
-        admit_written_constraint(new, id, c, k, tol, reach)?;
-    }
     Ok((id, fresh, outputs, minted))
 }
 
@@ -6505,8 +6507,11 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     };
     check_written_node(doc, new, placement, &written, Writes::Node, tol)?;
     let fresh = lowering.finish(new)?;
-    check_acyclic(new)?;
+    // The constraint's own admission speaks before the cycle check: a
+    // mate whose `on` reads a copy through its own placement is no
+    // mate of that copy, which is the more specific refusal.
     admit_written_constraint(new, placement, id, k, tol, reach)?;
+    check_acyclic(new)?;
     Ok((id, fresh))
 }
 

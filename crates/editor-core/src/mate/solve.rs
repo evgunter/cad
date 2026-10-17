@@ -793,7 +793,9 @@ pub(crate) fn own_copy_side<P>(
 
 /// **Whether `on` reads the copy `placement` defines**, before
 /// placement: every operation its definition reaches is one of a
-/// `Place`'s shapes, or an instance's own output.
+/// `Place`'s shapes, or an instance's own output. A read that reaches
+/// nothing live (its body deleted) is stranded, which is the
+/// evaluation's to refuse (N5), never this door's.
 pub(crate) fn on_reads_the_copy<P>(
     doc: &Doc<P>,
     placement: RecipeNodeId,
@@ -808,7 +810,7 @@ pub(crate) fn on_reads_the_copy<P>(
         Some(Node::InstantiatePart { .. }) => vec![placement],
         _ => return false,
     };
-    !reached.is_empty() && reached.iter().all(|(at, _)| copied.contains(at))
+    reached.iter().all(|(at, _)| copied.contains(at))
 }
 
 /// **The class door of a mate's own admission**: the class inside the

@@ -272,6 +272,16 @@ pub fn pinned(
 /// off the copy's geometry equated with the world's frame moved to
 /// where that frame sits at `pose`. A `Place` is read through its first
 /// shape, an instance through its own copies; `opts` evaluates them.
+///
+/// A copy whose body does not evaluate has no geometry to read a frame
+/// off, and a fixture that places one is about the failure: it is
+/// pinned all the same — a plane mate on a face of the body by a bare
+/// name, which is never read, to the world's `xy` plane, and the three
+/// values naming it — so the placement stands against the world and
+/// is poisoned through its body, as the product reads it. A copy whose
+/// value is no body `pin_at` reads (a boolean's result is not one)
+/// stands loose: such a fixture is about the recipe, and where the copy
+/// stands is read by nothing. Any other refusal is the fixture's bug.
 pub fn pin(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -289,18 +299,64 @@ pub fn pin(
         ),
         other => panic!("{placement} is no placement: {other:?}"),
     };
-    let mate = editor_core::pin_at(doc, &copy, pose, opts, tol)
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    edited(
+    let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
+        Ok(mate) => (mate, Vec::new()),
+        Err(editor_core::PinRefusal::Unevaluated { node }) => {
+            use pncad::document::{Coord, SlideAxis, Target, WorldRead};
+            let face = StableName {
+                kind: EntityKind::Face,
+                node,
+                path: Vec::new(),
+            };
+            let on =
+                pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
+                    face: pncad::document::Operand::select(copy, vec![face]),
+                }));
+            let mate = pncad::document::Mate {
+                on,
+                to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
+                class: pncad::select::ContactClass::Rest,
+            };
+            let zero = vec![
+                (Coord::Slide(SlideAxis::X), len(0.0)),
+                (Coord::Slide(SlideAxis::Y), len(0.0)),
+                (Coord::Spin, ang(0.0)),
+            ];
+            (mate, zero)
+        }
+        Err(editor_core::PinRefusal::NotABody { .. }) => return doc.clone(),
+        Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
+    };
+    let applied = apply(
         doc,
-        DocEdit::AddConstraint {
+        &DocEdit::AddConstraint {
             placement,
             mate: Box::new(mate),
             fresh: Vec::new(),
         },
         tol,
+        &RefusingReach,
     )
-    .0
+    .expect("the pin is admitted");
+    let [id] = applied.record.minted_constraints[..] else {
+        unreachable!("a mate mints one constraint id")
+    };
+    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
+        edited(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(pncad::document::Value {
+                    mate: id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            tol,
+        )
+        .0
+    })
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and

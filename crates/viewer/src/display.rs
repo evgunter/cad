@@ -389,18 +389,19 @@ impl core::fmt::Display for DisplayFault {
 
 impl core::error::Error for DisplayFault {}
 
-/// Every constraint naming `instance`, document order of the placements
+/// Every mate naming `instance`, document order of the placements
 /// holding them and bundle order within one — the
 /// completely-unconstrained test's evidence, read from the AUTHORED
 /// bundles (a dangling face read still names its node; participation is
 /// about what the document says, not about what currently resolves).
 ///
-/// A mate names the instance when a face its poses read is one of the
-/// instance's, wherever the mate sits, and when it sits in the
-/// instance's own bundle and does not read the world. A mate to the
-/// world, and the values naming it, are where the document stands the
-/// instance, not a relation to another copy, so they leave the instance
-/// free to probe, the way an instance standing on the world always was.
+/// A mate between two copies names the instance when it sits in the
+/// instance's own bundle or a face its poses read is one of the
+/// instance's, wherever it sits. A mate to the world, and the values
+/// naming it, are where the document stands a copy, not a relation to
+/// another copy, so they leave the instance free to probe, the way an
+/// instance standing on the world always was. A value is a freedom of
+/// its mate, so the mate is what names the instance.
 pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<MateRef> {
     let names_instance = |pose: VarId| {
         pose_selections(doc, pose).into_iter().any(|read| {
@@ -411,23 +412,16 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Ma
     doc.placements()
         .into_iter()
         .flat_map(|placement| {
-            let bundle = bundle_of(doc, placement);
-            let on_world = |id: ConstraintId| {
-                bundle.iter().any(|c| {
-                    c.id == id && c.mate().is_some_and(|m| matches!(m.to, Target::World(_)))
-                })
-            };
-            bundle
+            bundle_of(doc, placement)
                 .iter()
-                .filter(|constraint| match (constraint.mate(), constraint.value()) {
-                    (Some(mate), _) => {
-                        let own = placement == instance && !matches!(mate.to, Target::World(_));
-                        own || names_instance(mate.on)
-                            || mate.to.pose().is_some_and(|&to| names_instance(to))
-                    }
-                    (None, Some(value)) => placement == instance && !on_world(value.mate),
-                    (None, None) => false,
-                })
+                .filter(
+                    |constraint| match constraint.mate().map(|mate| (mate.on, &mate.to)) {
+                        Some((on, Target::Pose(to))) => {
+                            placement == instance || names_instance(on) || names_instance(*to)
+                        }
+                        Some((_, Target::World(_))) | None => false,
+                    },
+                )
                 .map(|constraint| MateRef::new(placement, constraint.id))
                 .collect::<Vec<_>>()
         })

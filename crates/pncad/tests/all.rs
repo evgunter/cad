@@ -3820,9 +3820,17 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     dir.write("part.pncad", &edited);
 
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm2a_assembly(&dir, "asm2a-pin-asm", doc_ref, 1);
+    // The instance is loose: its own evaluation is what refuses, before
+    // anything could read its geometry to pin it.
+    let (doc, instance) = insert(
+        pncad::document::ProfileDoc::empty(
+            pncad::document::DocumentId::derive("asm2a-pin-asm"),
+            Tol::witness(),
+        ),
+        pncad::document::Node::instantiate_part(doc_ref),
+    );
     let ev = asm2a_eval(&doc, &ws);
-    match ev.result(ids[0]) {
+    match ev.result(instance) {
         Some(pncad::document::NodeResult::Failed(e)) => match &e.kind {
             pncad::document::NodeErrorKind::Part { doc_ref: r, fault } => {
                 assert_eq!(*r, doc_ref, "the refusal names WHICH reference");

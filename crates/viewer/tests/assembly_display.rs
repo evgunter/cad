@@ -895,7 +895,7 @@ fn a_landing_mate_discards_the_probe_value() {
         asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
+    assert_eq!(outcome.committed.len(), 4, "the mate and its three values");
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",

@@ -64,13 +64,12 @@ from pncad import (
     import_step,
     run_checks,
     subject_body,
-    Alignment,
-    AxisSense,
+    Coord,
     ContactClass,
-    MateFrame,
     Mate,
     Placement,
-    MatePrimitive,
+    PoseDef,
+    WorldRead,
     assemble,
     circle,
     content_pin,
@@ -316,29 +315,24 @@ evaluate(doc, resolver=evaluate(doc))  # ty: error
 # semantics live in.
 Node.instantiate_part(doc.id)  # ty: error
 
-# A world pin's pose is a PLACEMENT, not a coordinate triple: an
-# improper or non-rigid map is refused at the edit door, and there is
+# A placement's pose is a FRAME, not a coordinate triple: an improper
+# or non-rigid map is refused where the frame is built, and there is
 # no translation-only shortcut that would hide it.
-Mate.world_pin((0 * m, 0 * m, 1 * m))  # ty: error
+doc.pin(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # A placement's bundle is a sequence of `Mate`s, not a pose.
 doc.place(solid, Placement.identity())  # ty: error
 
-# A mate's reference is a node AND a name: the node it is read at, then
-# the stable NAME TEXT `Evaluation.select` answers in. A node id where
-# the name goes names a recipe step and not an entity of its product.
-seat = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
-meeting = Alignment(seat, seat, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
-Mate(solid, solid, solid, solid, ContactClass.Rest, meeting)  # ty: error
+# A mate equates two POSES: a pose read off the copy, and a pose or a
+# world read. Name text where a pose goes names nothing.
+Mate("a-name", WorldRead.frame(), ContactClass.Rest)  # ty: error
 
-# A mate frame's origin is three LENGTHS and its axis three plain
-# numbers: a direction carries no dimension, and swapping the two is
-# the mistake the split spelling exists to catch.
-MateFrame((0.0, 0.0, 0.0), (0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0))  # ty: error
+# A world read moves along and about other WORLD READS: a document's
+# pose cannot be read inside a mate's world.
+WorldRead.frame().slide(PoseDef.plane(solid, "a-name"), 1 * m)  # ty: error
 
-# The planar rest's standoff is a LENGTH — it is a distance along an
-# axis, not a bare number.
-MatePrimitive.planar_rest(0.0)  # ty: error
+# Which freedom a value sets is a `Coord`, never its word.
+doc.add_value(doc.constrain(solid, Mate(PoseDef.plane(solid, "a-name"), WorldRead.frame(), ContactClass.Rest)), "slide_x", 1 * m)  # ty: error
 
 # The gather and the gate take a document AND an evaluation of it:
 # neither is derivable from the other, and the pair is the signature.
@@ -362,8 +356,8 @@ update_references(doc, doc.id, content_pin(doc).hex)  # ty: error
 # evaluation it should be read on.
 evaluate(doc).face_frame(solid)  # ty: error
 
-# A pose's origin is three LENGTHS: reading it as bare floats is the
-# same dimension mistake `MateFrame` catches above.
+# A pose's origin is three LENGTHS: reading it as bare floats is a
+# dimension mistake.
 pose = evaluate(doc).face_frame(solid, "a-name")
 origin_floats: tuple[float, float, float] = pose.origin  # ty: error
 

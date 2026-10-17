@@ -29,7 +29,8 @@ use viewer::tree::RowStatus;
 
 /// Every disagreement between the solve's blame and the evaluation's
 /// rows, over every placement: a faulted placement must be `Failed`
-/// with that exact fault; an unfaulted one must be `Ok`.
+/// with that exact fault; an unfaulted one must be `Ok`, or poisoned
+/// through a faulted placement whose copy its mates read.
 fn disagreements(
     session: &DocSession,
     doc: &Doc<ProfileProgram>,
@@ -50,6 +51,7 @@ fn disagreements(
                 out.push(format!("{id:?}: solve faults {fault:?}, row is {other:?}"))
             }
             (None, Some(NodeResult::Ok(_))) => {}
+            (None, Some(NodeResult::Poisoned { through })) if poses.fault(*through).is_some() => {}
             (None, other) => out.push(format!("{id:?}: unfaulted placement, row is {other:?}")),
         }
     }
@@ -108,9 +110,10 @@ fn check(
 /// **A refusal reaches the placement chained to the one that refused,
 /// pumped between the edits**: post_b's sound mate evaluates, a
 /// contradiction then breaks the shelf's bundle it is placed against,
-/// and post_b's row reports the refusal rather than the `Ok` its memo
-/// entry still held. The reverse closes the row — remove one of the
-/// pair and every row returns to `Ok` off the faulted prior.
+/// and post_b — whose mate reads the shelf's copy — is poisoned through
+/// the shelf rather than served the `Ok` its memo entry still held. The
+/// reverse closes the row — remove one of the pair and every row
+/// returns to `Ok` off the faulted prior.
 #[test]
 fn a_bundle_refusal_reaches_the_placement_that_evaluated_before_it() {
     let tol = Tol::witness();
@@ -135,11 +138,14 @@ fn a_bundle_refusal_reaches_the_placement_that_evaluated_before_it() {
     let held = rest_shelf_on(&mut session, &bench, bench.post_a, 0.0);
     let offender = rest_shelf_on(&mut session, &bench, bench.post_a, 0.01);
     assert_eq!(offender.placement, bench.shelf_i);
-    let (doc, second) = check(&session, tol, "after the offender");
-    let carried = placement_fault(&second, bench.post_b);
-    assert_eq!(
-        Some(&carried),
-        common::solve(&session, &doc, tol).fault(bench.post_b)
+    let (_, second) = check(&session, tol, "after the offender");
+    assert!(
+        matches!(
+            second.result(bench.post_b),
+            Some(NodeResult::Poisoned { through }) if *through == bench.shelf_i
+        ),
+        "post_b is poisoned through the shelf: {:?}",
+        second.result(bench.post_b)
     );
     assert!(second.recomputed >= 1, "post_b must have re-run");
 

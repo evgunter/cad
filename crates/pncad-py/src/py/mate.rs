@@ -227,7 +227,7 @@ pub(crate) enum TargetArg {
 /// direction to direction is parallel. A plain plane mate equates
 /// outward normals, so two faces resting against each other carry a
 /// flip on the target (`PoseDef.flip`). A mate holds no number: what
-/// it leaves free is set by a `Value`, and a standoff is a slide of the
+/// it leaves free is set by a `MateValue`, and a standoff is a slide of the
 /// target plane along its own normal.
 ///
 /// `class_` is the declared contact class (trailing underscore:
@@ -370,7 +370,7 @@ impl Coord {
     }
 }
 
-/// **A value**: one freedom a mate of the same bundle leaves, set to a
+/// **A mate's value**: one freedom a mate of the same bundle leaves, set to a
 /// number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
 /// is the constant zero).
 ///
@@ -388,7 +388,7 @@ impl Coord {
 /// point mate's rotation (`mate_no_chart`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Value(pub(crate) d::Value<d::Formula>);
+pub(crate) struct MateValue(pub(crate) d::Value<d::Formula>);
 
 /// **The mate a value names**: its id, or its address.
 #[derive(FromPyObject)]
@@ -408,7 +408,7 @@ impl MateIdArg {
     }
 }
 
-impl Value {
+impl MateValue {
     /// The value `by` on `coord` of `mate`, `by` read at the
     /// freedom's dimension.
     pub(crate) fn of(
@@ -423,7 +423,7 @@ impl Value {
 }
 
 #[pymethods]
-impl Value {
+impl MateValue {
     #[new]
     fn new(
         py: Python<'_>,
@@ -459,7 +459,7 @@ impl Value {
 
     fn __repr__(&self) -> String {
         format!(
-            "Value({}, {}, {})",
+            "MateValue({}, {}, {})",
             self.0.mate,
             Coord(self.0.coord).__repr__(),
             self.0.by
@@ -1201,8 +1201,8 @@ fn pose_err(
     super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
 
-/// The document's solved poses: each placement's pose in its target's
-/// space, and the per-placement refusals.
+/// The document's solved poses: each placement's pose in its space,
+/// and the per-placement refusals.
 ///
 /// It keeps a copy of the document as it solved it: a fault is the
 /// solve's, recorded over that version, so its words are spoken from it
@@ -1230,22 +1230,21 @@ impl SolvedPoses {
             .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
-    /// **The placement's solved pose in its target's space**: where its
-    /// bundle puts its copy relative to the copy it is pinned to (the
-    /// world, or another placement's copy), and in a loose copy's own
-    /// space the pose it is evaluated at. `None` when the solve placed
-    /// nothing there: a node that is no placement, or a placement whose
-    /// bundle refused.
+    /// **The placement's solved pose in its space**: where its copy
+    /// sits in the world's coordinates for a copy pinned, transitively,
+    /// against the world, and in a loose copy's own coordinates for one
+    /// pinned to it. `None` when the solve placed nothing there: a node
+    /// that is no placement, or a placement whose bundle refused.
     fn pose(&self, placement: &NodeId) -> Option<Frame> {
         self.0.relative(placement.0).map(Frame)
     }
 
     /// **The placement's world pose, at the document's own
-    /// parameters**: its solved pose composed into the world pose of
-    /// the copy it is pinned to.
+    /// parameters**: its pose in its space, for a copy pinned,
+    /// transitively, against the world.
     ///
-    /// A copy pinned to the world at `pose` returns that pose's frame,
-    /// bit for bit, and at the identity the identity.
+    /// A copy pinned to the world at a pose returns that pose, to the
+    /// rounding of the values its pin is computed in.
     ///
     /// `doc` must be the document this solve is OF: passing a different
     /// one would compose this document's poses onto that one's
@@ -1410,7 +1409,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
     m.add_class::<WorldRead>()?;
     m.add_class::<Coord>()?;
-    m.add_class::<Value>()?;
+    m.add_class::<MateValue>()?;
     m.add_class::<Placed>()?;
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;

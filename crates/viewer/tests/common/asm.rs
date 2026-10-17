@@ -336,15 +336,16 @@ pub use super::{down_at, up_at};
 /// the post free to slide and spin in the shelf's plane; the values put
 /// its top cap's middle under the shelf at `b_x` along it and midway
 /// across it, unturned. Each value is measured on the two parts' own
-/// coordinates (the post's origin from the shelf's, along the shelf's
-/// `x` and `y`): both caps' normals are the parts' own `z`, so neither
-/// frame is swung.
+/// coordinates — the post's origin from the shelf's — along the
+/// shelf's frame swung onto the underside's outward normal, its own
+/// `−z`: the half-turn about its `x`, so the chart's `y` is the
+/// shelf's `−y`.
 pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
         (Coord::Slide(SlideAxis::X), len(b_x - POST_SECTION / 2.0)),
         (
             Coord::Slide(SlideAxis::Y),
-            len(SHELF_DEPTH / 2.0 - POST_SECTION / 2.0),
+            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
         ),
         (Coord::Spin, ang(0.0)),
     ]

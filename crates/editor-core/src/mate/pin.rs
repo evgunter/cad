@@ -116,13 +116,41 @@ fn copy_of(
     if value.motion.is_some() {
         return Err(PinRefusal::AlreadyPlaced { node });
     }
+    let port = match body {
+        Operand::Output { port, .. } => *port,
+        Operand::Var(var) => match doc.var(*var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Output { port, .. }) => *port,
+            _ => 0,
+        },
+        _ => 0,
+    };
     let solid = match &value.payload {
-        ValuePayload::Body(b) => std::sync::Arc::clone(b),
+        ValuePayload::Body(b)
+        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => {
+            std::sync::Arc::clone(b)
+        }
         ValuePayload::Copies(copies) => copies
             .bodies
             .first()
             .cloned()
             .ok_or(PinRefusal::NotABody { node })?,
+        ValuePayload::Instances(bodies) => bodies
+            .first()
+            .cloned()
+            .ok_or(PinRefusal::NotABody { node })?,
+        ValuePayload::Split { above, below } => {
+            let half = crate::names::SplitHalf::of_output_body(u32::from(port))
+                .ok_or(PinRefusal::NotABody { node })?;
+            let side = if half == crate::names::SplitHalf::Above {
+                above
+            } else {
+                below
+            };
+            match side {
+                crate::eval::SplitSide::Body(b) => std::sync::Arc::clone(b),
+                crate::eval::SplitSide::Empty => return Err(PinRefusal::NotABody { node }),
+            }
+        }
         _ => return Err(PinRefusal::NotABody { node }),
     };
     let var = match body {

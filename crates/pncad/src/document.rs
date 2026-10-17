@@ -415,8 +415,8 @@ pub use editor_core::{
 // `Subgroup`, each copy's `Space`), and `MateFault` — the typed refusal
 // every door carries. `pin_at` pins a copy to the world at a pose over
 // its own geometry; `place_at` is the "place part" gesture's
-// constraints (`Placed`, and `PlacedBy` saying whether the copy had a
-// planar face to rest). `member_of` is A11's member vocabulary itself
+// constraints (`PlacedBy` saying whether the copy had a planar face to
+// rest). `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
 // of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
@@ -450,7 +450,7 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever, Mate,
     MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PartReach, PinRefusal, Placed, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    PartReach, PinRefusal, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Value,
     WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of, member_reading, pin_at,
     place_at, reference_about, relative_freedom_components, solve_document,

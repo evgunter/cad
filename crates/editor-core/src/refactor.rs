@@ -642,13 +642,83 @@ fn remap_with_selects(
     // the remapped node keeps the source id, and the insert reads it as
     // the selection authored afresh in the target (or as the one an
     // earlier reader carried).
+    let anonymous_pose = |var: VarId| {
+        source.var_name(var).is_none()
+            && matches!(
+                source.var(var).map(crate::Var::def),
+                Some(crate::var::VarDef::Pose(_))
+            )
+    };
     let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
         Some(select) => rd_output(slot, select.body).map(|_| var),
+        None if anonymous_pose(var) => Ok(var),
         None => rd_output(slot, var),
     };
     let carried = remap_node(node, &rd)?;
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
+    // A selection authored afresh over its carried body, its names
+    // remapped.
+    let reselected = |slot: crate::OperandSlot, var: VarId| -> Result<crate::Operand, RemapMiss> {
+        let Some(select) = source.selection(var) else {
+            unreachable!("asked of a selection")
+        };
+        let body = rd_output(slot, select.body)?;
+        let names = select
+            .names
+            .iter()
+            .map(|n| {
+                remap_name(n, node_map, step_map, out_map).map_err(|missing| RemapMiss::Name {
+                    name: Box::new(n.clone()),
+                    missing,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(crate::Operand::select(
+            crate::Operand::Var(body),
+            crate::var::Select::canonical(selection_kind(source, var), names),
+        ))
+    };
     for (slot, var) in node.operand_rows() {
+        if anonymous_pose(var) {
+            // A pose written in place crosses as its definition, each
+            // read in it carried as the read itself would be and each
+            // number re-pointed at the variables the target holds.
+            let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, RemapMiss> {
+                if let Some(&held) = vars.map.get(&leaf) {
+                    return Ok(Some(crate::Operand::Var(held)));
+                }
+                if source.selection(leaf).is_some() {
+                    return reselected(slot, leaf).map(Some);
+                }
+                if anonymous_pose(leaf) {
+                    return Ok(None);
+                }
+                rd_output(slot, leaf).map(|carried| Some(crate::Operand::Var(carried)))
+            };
+            let mut scalar = |formula: Formula| -> Result<Formula, RemapMiss> {
+                let mut missed = None;
+                let mapped = formula.substitute_vars(&mut |read| {
+                    let dim = kind_of(source, read)?;
+                    match vars.map.get(&read) {
+                        Some(&held) => Some(Formula::from(&crate::Expr::var(held, dim))),
+                        None => {
+                            missed.get_or_insert(read);
+                            None
+                        }
+                    }
+                });
+                match (mapped, missed) {
+                    (Ok(mapped), None) => Ok(mapped),
+                    (_, missed) => Err(RemapMiss::Read {
+                        slot,
+                        var: missed.unwrap_or(var),
+                        output: false,
+                    }),
+                }
+            };
+            selects.insert(var, rewritten_pose_with(source, var, &mut leaf, &mut scalar)?);
+            continue;
+        }
         let Some(select) = source.selection(var) else {
             continue;
         };
@@ -3644,20 +3714,33 @@ fn rewritten_pose<P, E>(
     var: VarId,
     leaf: &mut impl FnMut(VarId) -> Result<Option<crate::Operand>, E>,
 ) -> Result<crate::Operand, E> {
+    rewritten_pose_with(doc, var, leaf, &mut |formula| Ok(formula))
+}
+
+/// [`rewritten_pose`] with each scalar's written formula mapped by
+/// `scalar` — a carry's, re-pointing the named variables it reads.
+fn rewritten_pose_with<P, E>(
+    doc: &Doc<P>,
+    var: VarId,
+    leaf: &mut impl FnMut(VarId) -> Result<Option<crate::Operand>, E>,
+    scalar: &mut impl FnMut(Formula) -> Result<Formula, E>,
+) -> Result<crate::Operand, E> {
     if let Some(operand) = leaf(var)? {
         return Ok(operand);
     }
     match doc.var(var).map(crate::Var::def) {
         Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
-            let written = def.try_map(
-                &mut |_, &read| rewritten_pose(doc, read, leaf),
-                &mut |slot, &scalar| {
-                    Ok(Formula::from(
-                        doc.written(&crate::Expr::var(scalar, slot.dimension())),
-                    ))
-                },
-            )?;
-            Ok(crate::Operand::Pose(Box::new(written)))
+            // `try_map` calls the two closures one after the other, never
+            // together, so the one `scalar` is lent to each in turn.
+            let scalar = std::cell::RefCell::new(scalar);
+            let mut read =
+                |_, &r: &VarId| rewritten_pose_with(doc, r, leaf, &mut **scalar.borrow_mut());
+            let written = def.try_map(&mut read, &mut |slot, &s| {
+                (scalar.borrow_mut())(Formula::from(
+                    doc.written(&crate::Expr::var(s, slot.dimension())),
+                ))
+            });
+            Ok(crate::Operand::Pose(Box::new(written?)))
         }
         _ => Ok(doc.written_operand(var)),
     }

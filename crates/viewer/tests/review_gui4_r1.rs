@@ -366,7 +366,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         asm::middle_seat_values(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
-    assert_eq!(first.committed.len(), 1);
+    assert_eq!(first.committed.len(), 4, "the mate and its three values");
     let [superseded] = &first.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -862,7 +862,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
-    let instance = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
+    let instance = asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol);
     let pattern = common::insert_into(
         &mut doc,
         Node::Pattern {
@@ -892,7 +892,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             },
             tol,
         );
-        doc = common::placed(&doc, copy, tol).0;
+        doc = common::placed_read(&doc, copy.into(), &bench.opts(), tol).0;
     }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
