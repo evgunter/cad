@@ -440,17 +440,14 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 471 is
-    // the placing op's own log on this part: the world pin's pose, which
-    // the solve folds to an affine representative, admitted at the
-    // decided rigidity door where the copy is placed, then placement and
-    // validation of the placed body. (Eight of them are that admission,
-    // which `work/intent/the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion.md`
-    // retires by having the solve mint the rigid motion.) 728 is the part's, on its own
+    // two instances passes when both lose the same decisions. 463 is
+    // the placing op's own log on this part (the world pin's literal
+    // pose admitted at the decided rigidity door, once, then placement
+    // and validation of the placed body); 728 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log,
     // decided once (the pinned lift reuses the pre-pass's validated
     // form).
-    assert_eq!(first.len(), 471, "the instantiate op's own decisions");
+    assert_eq!(first.len(), 463, "the instantiate op's own decisions");
     assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 

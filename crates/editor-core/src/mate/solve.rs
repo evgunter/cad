@@ -754,6 +754,12 @@ impl Record {
     /// recorded as `placement`'s.
     fn unit<R>(&self, placement: RecipeNodeId, work: impl FnOnce() -> R) -> R {
         let (out, recording) = detached(work);
+        self.keep(placement, recording);
+        out
+    }
+
+    /// Keeps `recording` as `placement`'s, as [`Record::unit`] does.
+    fn keep(&self, placement: RecipeNodeId, recording: Detached) {
         match self {
             Self::Caller => splice(recording),
             Self::PerMate(kept) => kept
@@ -762,7 +768,6 @@ impl Record {
                 .or_default()
                 .push(recording),
         }
-        out
     }
 
     /// What the units kept, for the solve's answer to carry.
@@ -2071,6 +2076,22 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
     if target_placement && let Some(fault) = solved.fault(target) {
         return Err(Box::new(fault.clone()));
     }
+    // A lone world pin's frame is its pose, as its own placement chain
+    // evaluates it (identity and witness steps kept marked), so a
+    // pinned copy sits at its pose bit for bit at every scalar, is
+    // placed with no motion re-admitted, and derives no side frame. A
+    // pose that does not evaluate falls to the fold, which refuses it.
+    if let [only] = mates.as_slice()
+        && only.data.is_world_pin()
+        && let (Ok(pose), recording) =
+            detached(|| only.data.alignment.a.offset.motion_at(s.env, s.band))
+    {
+        s.record.keep(placement, recording);
+        let factor = s
+            .record
+            .unit(placement, || pair_left_factor(s, only))?;
+        return Ok(Solved::World(pose, factor));
+    }
     let coset = fold_bundle(s, &mates)?;
     if !coset.subgroup.is_determined() {
         return Ok(Solved::Loose);
@@ -2089,16 +2110,6 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
         .record
         .unit(placement, || pair_left_factor(s, first))?;
     if first.target_side().is_world() {
-        // A lone world pin's frame is its pose, as its own placement
-        // chain evaluates it (identity and witness steps kept marked),
-        // so a pinned copy sits at its pose bit for bit at every scalar
-        // and is placed with no motion re-admitted.
-        if let [only] = mates.as_slice()
-            && only.data.is_world_pin()
-            && let Ok(pose) = only.data.alignment.a.offset.motion_at(s.env, s.band)
-        {
-            return Ok(Solved::World(pose, factor));
-        }
         return Ok(Solved::World(marked(coset.representative), factor));
     }
     if !target_placement {

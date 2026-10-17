@@ -605,9 +605,10 @@ store.create(shelf)
 layout = Doc("bench-layout")
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
 
-# Two nodes run: the instance, and the world every document holds.
+# One node runs: the instance. The world every document holds is
+# scheduled nowhere.
 before = evaluate(layout, resolver=store)
-assert (before.reused, before.recomputed) == (0, 2)
+assert (before.reused, before.recomputed) == (0, 1)
 pinned_volume = before.value(shelf_i).body().mass_properties().volume
 
 # Someone thickens the shelf and saves it. The assembly still pins
@@ -628,7 +629,7 @@ except EvaluationError as refusal:
 # the node is a memo hit, and what it serves is the body the
 # document's own DocRef pins.
 memoized = evaluate(layout, resolver=store, prior=before)
-assert (memoized.reused, memoized.recomputed) == (2, 0)
+assert (memoized.reused, memoized.recomputed) == (1, 0)
 assert memoized.part_evaluations == 0, "the seam was not crossed"
 assert memoized.value(shelf_i).body().mass_properties().volume == pinned_volume
 

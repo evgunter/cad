@@ -369,3 +369,27 @@ fn dual_interval_evaluates_with_the_interval_value_channel() {
         );
     }
 }
+
+#[test]
+fn s3b_probe_boss_union() {
+    use geom_core::Interval;
+    let docs = documents();
+    let doc = docs.iter().find(|d| d.name == "boss_union").unwrap();
+    let ev_i = eval::<Interval>(&doc.doc);
+    for id in doc.doc.ids() {
+        let n = doc.doc.node(id).unwrap();
+        let v = ev_i.value(id);
+        let desc = match v.map(|v| &v.payload) {
+            Some(editor_core::ValuePayload::Body(b)) => format!("body faces={} digest={:?}", b.faces().count(), body_digest(b)),
+            Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body: b, .. })) => format!("boolbody faces={} digest={:?}", b.faces().count(), body_digest(b)),
+            Some(other) => format!("{:?}", std::mem::discriminant(other)),
+            None => format!("{:?}", ev_i.result(id)),
+        };
+        eprintln!("S3BP {id} {} {desc}", format!("{n:?}").chars().take(60).collect::<String>());
+    }
+    let r = editor_core::assemble(&doc.doc, &ev_i, Tol::witness());
+    eprintln!("S3BP assemble {:?}", r.err().map(|e| format!("{e:?}")).map(|s| s.len()));
+    let ev_f = eval::<f64>(&doc.doc);
+    eprintln!("S3BP f64 sched {:?}", ev_f.nodes.len());
+    eprintln!("S3BP products {:?} {:?}", editor_core::product(&doc.doc, &ev_f, Tol::witness()).map(|p| p.solids().count()).err(), editor_core::product(&doc.doc, &ev_i, Tol::witness()).map(|p| p.solids().count()).err());
+}
