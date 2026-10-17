@@ -619,22 +619,6 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     let (posed, _) = place_at(doc.clone(), union, &pose);
     let (moved, by) = insert(doc, xform(union, t, axis, angle));
     let (moved, _) = place(moved, by);
-    {
-        let pa = product(&posed, &ev(&posed), Tol::witness()).unwrap();
-        let pb = product(&moved, &ev(&moved), Tol::witness()).unwrap();
-        let va: Vec<_> = pa.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
-        let vb: Vec<_> = pb.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
-        eprintln!("PROBE nverts {} {}", va.len(), vb.len());
-        let mut worst = 0.0f64;
-        let mut nbits = 0;
-        for (a, b) in va.iter().zip(&vb) {
-            for k in 0..3 {
-                worst = worst.max((a[k] - b[k]).abs());
-                if a[k].to_bits() != b[k].to_bits() { nbits += 1; if nbits < 6 { eprintln!("PROBE diff {:?} {:?}", a, b); } }
-            }
-        }
-        eprintln!("PROBE worst {worst:e} differing coords {nbits}");
-    }
     assert_eq!(
         digest(&posed),
         digest(&moved),
