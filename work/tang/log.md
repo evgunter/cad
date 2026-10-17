@@ -1008,3 +1008,14 @@ siblings went to WIRE and EMIT.
     - import: none in the corpus.
   - The first three are lane-shape gaps that planned units close: the lever arm over the faces, pose-based witness certificates, and blend rails as structural selectors. The fourth is the in-band case D2 forbids a conventional form for.
   - Retracted: the round-2 claim that a G2 join's margin falls in band. The order-3 jet margin is about 1e-3 m, against a band of about 1e-8.
+
+## 2026-10-16 — the orchestrator hands the track back
+
+- Merged:
+  - [ev] PR 5216 (D2: a two-surface edge is `{ pair, selector }`, Ev's decision; fork-log row 152);
+  - PR 5220 (the half-turn under a solid's own face at the edge-edge event);
+  - PR 5204 (U-lever);
+  - PR 5203 (U2p).
+- U-lever's item closes. The pinch item records U2a, U-lever and U2p as built; U2b and U2c remain.
+- Not dispatched: the D2 selector build (units 1–8 on `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`, P2) and the rest of the open slate. No row is at P0 or above.
+- The orchestrator steps off, and the program goes `ready`. No lanes are live, and no check-ins are scheduled.
