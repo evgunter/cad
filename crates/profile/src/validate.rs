@@ -1161,6 +1161,10 @@ pub enum ProfileError {
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
+    /// The sketch plane's placement has a component that is not finite
+    /// for every value it stands for (poison, an infinity, or an
+    /// enclosure reaching one), so the profile has no place in space.
+    PlaneNotFinite,
     /// A loop has no vertex. One is enough: D1's full turn is one
     /// segment at one vertex.
     EmptyLoop {
@@ -1305,6 +1309,10 @@ impl fmt::Display for ProfileError {
         match self {
             Self::Band(e) => write!(f, "profile validation could not form a band: {e}"),
             Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
+            Self::PlaneNotFinite => f.write_str(
+                "the profile's sketch plane is not finite, so the profile has no place in \
+                 space. Recourse: give the plane finite values",
+            ),
             Self::EmptyLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has no vertex; a closed loop needs at least one \
@@ -1933,8 +1941,9 @@ impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
     /// each arc's carrier and sweep — through [`Real::from_f64`]; the
-    /// plane taken as given (validation is 2-D and reads nothing of it
-    /// — [`ValidatedProfile::plane`]); everything else carried. No
+    /// plane taken as given once it is finite (validation is 2-D and
+    /// decides nothing of it — [`ValidatedProfile::plane`]); everything
+    /// else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
     /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
     /// from a raw profile, by [`ConstructedProfile`]'s three validations
@@ -1970,12 +1979,22 @@ impl ValidatedProfile<f64> {
     /// forms can differ in is a `Dual64` derivative channel: constants
     /// embed with `+0.0` where a negated constant's derivative at `U`
     /// would be `-0.0` — equal as numbers, read by no predicate.
-    #[must_use]
-    pub fn lift_onto<U: Real>(self, plane: crate::SketchPlane<U>) -> ValidatedProfile<U> {
-        ValidatedProfile {
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError::PlaneNotFinite`] for a `plane` with a component
+    /// that is not finite, as [`Profile::validate`] refuses one.
+    pub fn lift_onto<U: Real>(
+        self,
+        plane: crate::SketchPlane<U>,
+    ) -> Result<ValidatedProfile<U>, ProfileError> {
+        if !plane_is_finite(&plane) {
+            return Err(ProfileError::PlaneNotFinite);
+        }
+        Ok(ValidatedProfile {
             plane,
             loops: self.loops.into_iter().map(|lp| lp.lift()).collect(),
-        }
+        })
     }
 }
 
@@ -2115,6 +2134,13 @@ fn recording_loops<T: Decide, L: LoopInput<T>>(
     Ok((vp, CanonicalStructure { loops }))
 }
 
+/// Whether every component of `plane`'s placement is finite for every
+/// value it stands for ([`Real::is_bounded`]): validation is 2-D and
+/// decides nothing on the plane, but a validated profile carries it.
+fn plane_is_finite<T: Real>(plane: &SketchPlane<T>) -> bool {
+    plane.placement.components().iter().all(|c| c.is_bounded())
+}
+
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
 /// over any loop that reads as a [`ProfileLoop`]: a table, or a
 /// [`ConstructedLoop`] whose provenance its caller carries.
@@ -2127,6 +2153,9 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
 ) -> Result<ValidatedProfile<T>, ProfileError> {
     {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
+        if !plane_is_finite(&plane) {
+            return Err(ProfileError::PlaneNotFinite);
+        }
         // The exact-order band for the containment representative
         // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::least();

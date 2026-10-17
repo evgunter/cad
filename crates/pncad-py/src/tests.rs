@@ -5896,6 +5896,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "near_full_arc",
             "nesting_too_deep",
             "non_simple",
+            "plane_not_finite",
             "ray_casting_exhausted",
             "sliver_loop",
             "structure",
