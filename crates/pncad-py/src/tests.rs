@@ -5873,8 +5873,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "double_flip",
             "kind",
             "not_a_copy",
-            "projection",
             "read_kind",
+            "role",
             "scalar_kind",
             "unminted",
         ],
@@ -8481,10 +8481,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "pose_admits_tag",
-        literals: 5,
+        literals: 6,
         held_by: &[Holder::Test {
             name: "pose_admits_tags_are_stable",
-            holds: "the five words",
+            holds: "the six words",
         }],
     },
     MintingItem {

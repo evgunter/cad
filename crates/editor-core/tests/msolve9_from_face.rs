@@ -645,7 +645,15 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "the CHART axis, sense left out"
     );
     let z = |f: &Frame| f.columns[2];
-    assert_eq!(z(&aligned), pose.axis.to_array());
+    // The axis's heading is a quarter turn, whose cosine rounds to
+    // 6e-17, so the two reads agree to the rounding of that component.
+    let close = |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= 1e-16);
+    assert!(
+        close(z(&aligned), pose.axis.to_array()),
+        "{:?} against {:?}",
+        z(&aligned),
+        pose.axis
+    );
     let opposed = resolve_through_the_solve(
         "msolve9-a2-sense-opposed",
         part,
@@ -654,9 +662,8 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         AxisSense::Opposed,
     )
     .expect("resolves");
-    assert_eq!(
-        z(&opposed),
-        [-pose.axis.x, -pose.axis.y, -pose.axis.z],
+    assert!(
+        close(z(&opposed), [-pose.axis.x, -pose.axis.y, -pose.axis.z]),
         "the mate's own sense turns the pair round"
     );
 }
