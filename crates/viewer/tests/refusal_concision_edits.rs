@@ -1027,7 +1027,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("MateRefused({arm})"),
             EditError::MateRefused {
-                node: s(9, "Mate"),
+                node: s(7, "Place"),
                 fault: Box::new(fault),
                 held: Default::default(),
             },

@@ -125,11 +125,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "InstantiatePart {} failed: the mate solve refused: constraint {c} of this \
+            "InstantiatePart {} failed: the mate solve refused: constraint 1 of this \
              node's a reference has no derived pose: Pattern {p}, on its derivation, \
              refuses. Recourse: repair Pattern {p}",
             test_utils::refusal::tag(mate.0.digest()),
-            c = crate::fixture::bundle(&doc, cap)[0].id,
             p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
