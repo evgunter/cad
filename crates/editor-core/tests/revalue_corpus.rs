@@ -20,6 +20,12 @@
 //! A DAG that reaches an opaque value (`Real::from_computed`, an unnamed
 //! axis) re-values to nothing and is counted, not compared: no identity
 //! is proved over it either.
+//!
+//! Every build runs in the coincidence door's own replay session
+//! ([`editor_core::coincide::with_replay_session`]: deferring, the door's
+//! budget, the guided profile lift), so the instrument reads exactly what
+//! the door replays
+//! (`the_instrument_and_the_door_replay_in_one_session`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
@@ -40,8 +46,7 @@ use std::sync::Arc;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{CancelToken, EvalOptions, Evaluation, FreeVar, ProfileDoc, VarId, evaluate};
 use geom_core::sym::revalue::{Decision, record, revalue};
-use geom_core::sym::with_session_rules;
-use geom_core::{ParamSymbol, Sym, SymBudget, SymRules, Tol};
+use geom_core::{ParamSymbol, Sym, Tol};
 
 use crate::corpus;
 
@@ -131,25 +136,17 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
     }
 }
 
-/// A session at the shipped budget, or, under `REVALUE_TIER=off`, at a
-/// zero-term budget: the identity tier switched off, which re-valuation
-/// does not read (it walks the DAG, which a session records at any
-/// budget). The census takes it for the documents whose discharge walks
-/// at `Sym<f64>`, with every variable a symbol, outrun a run.
+/// A unit row's session: the door's replay session
+/// ([`editor_core::coincide::with_replay_session`]).
 fn session<R>(f: impl FnOnce() -> R) -> R {
-    let off = std::env::var("REVALUE_TIER").is_ok_and(|v| v == "off");
-    let budget = if off {
-        SymBudget {
-            max_terms: 0,
-            max_degree: 0,
-        }
-    } else {
-        SymBudget {
-            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        }
-    };
-    with_session_rules(budget, SymRules::shipped(), f).0
+    editor_core::coincide::with_replay_session(EvalOptions::default(), |_| f()).0
+}
+
+/// `doc`'s decisions under the box `at`, in the door's replay session
+/// with its lift ([`editor_core::coincide::with_replay_session`]): the
+/// instrument reads exactly what the door replays.
+fn replayed<R>(at: &BTreeMap<VarId, f64>, f: impl FnOnce(&EvalOptions) -> R) -> R {
+    editor_core::coincide::with_replay_session(options(at), f).0
 }
 
 fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
@@ -259,9 +256,9 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
             .collect()
     };
     let (env, env0) = (env_at(&at_p1), env_at(&at_p0));
-    let p1 = session(|| build(doc, &options(&at_p1)));
-    session(|| {
-        let p0 = build(doc, &options(&at_p0));
+    let p1 = replayed(&at_p1, |opts| build(doc, opts));
+    replayed(&at_p0, |opts| {
+        let p0 = build(doc, opts);
         let common = in_step(&p0, &p1);
         let parts = common < p0.len().max(p1.len());
         if parts && !prefix {
@@ -616,4 +613,36 @@ fn revalue_mirrors_every_op_as_sym_builds_it() {
         drifted.is_empty(),
         "ops whose re-valued margin is not Sym<f64>'s at p1: {drifted:?}"
     );
+}
+
+/// **The instrument and the door replay in one session.** `plate_param`'s
+/// decisions, built through [`editor_core::coincide::with_replay_session`]
+/// once under the instrument's zero-offset box and once as the door
+/// replays it (every variable a symbol), are one list, predicate and sign,
+/// with one set of session counts: the instrument reads what the door
+/// reads, and a session opened anywhere else would part them.
+#[test]
+fn the_instrument_and_the_door_replay_in_one_session() {
+    let cd = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "plate_param")
+        .expect("plate_param is a corpus document");
+    let doc = &cd.doc;
+    let at_p0: BTreeMap<VarId, f64> = continuous_vars(doc)
+        .iter()
+        .map(|(id, _)| (*id, 0.0))
+        .collect();
+    let read = |base: EvalOptions| {
+        let (decisions, counts) =
+            editor_core::coincide::with_replay_session(base, |opts| build(doc, opts));
+        let key: Vec<_> = decisions.iter().map(|d| (d.predicate, d.sign)).collect();
+        (key, counts)
+    };
+    let instrument = read(options(&at_p0));
+    let door = read(EvalOptions {
+        symbols: true,
+        ..EvalOptions::default()
+    });
+    assert!(!instrument.0.is_empty(), "the replay decides");
+    assert_eq!(instrument, door, "one session, one reading");
 }

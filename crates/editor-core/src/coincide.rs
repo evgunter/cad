@@ -46,6 +46,8 @@ use crate::node::{Node, RecipeNodeId};
 
 mod replay;
 
+pub use replay::with_replay_session;
+
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
 /// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).

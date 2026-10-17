@@ -1353,27 +1353,19 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
-        // The replay alone, as `coincide/replay.rs` runs it: its budget
-        // and options spelled again here, kept in step with it by hand.
+        // The replay alone, in the door's own session.
         let replay = (!nodes.is_empty()).then(|| {
-            geom_core::sym::deferred::with_deferred_session(
-                geom_core::SymBudget {
-                    max_terms: 256,
-                    max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+            coincide::with_replay_session(
+                editor_core::EvalOptions {
+                    symbols: true,
+                    ..editor_core::EvalOptions::default()
                 },
-                geom_core::SymRules::shipped(),
-                editor_core::drive::DEFAULT_SYM_RETRY,
-                || {
-                    let opts = editor_core::EvalOptions {
-                        symbols: true,
-                        profile_lift: editor_core::ProfileLift::Guided,
-                        ..editor_core::EvalOptions::default()
-                    };
+                |opts| {
                     let _: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
                         &cd.doc,
                         None,
                         &editor_core::CancelToken::new(),
-                        &opts,
+                        opts,
                         Tol::witness(),
                     );
                 },
