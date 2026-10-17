@@ -552,12 +552,12 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     );
     out.push(("seats", doc, p.opts()));
 
-    // A coaxial mate cut to DETERMINED by a rest at a standoff and a
-    // spin: the cylindrical-planar row, and a value's turn about the
-    // pin's line.
+    // A coaxial mate cut to DETERMINED by its two values: a slide
+    // along the pin's line seating the bolt's foot 0.25 above the
+    // slab's top, and a turn about that line.
     let p = parts("msolve14-c-coax");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-coax", 1);
-    let (doc, _) = fixture::constrain_at(
+    let (doc, coaxial) = fixture::constrain_at(
         doc,
         bolts[0],
         fixture::mate(
@@ -566,17 +566,14 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
             ContactClass::Rest,
         ),
     );
-    let (doc, rest) = fixture::constrain_at(
+    let doc = with_value(
         doc,
-        bolts[0],
-        fixture::mate(
-            fixture::plane(head(p.bolt_foot(bolts[0]))),
-            fixture::flip(standoff(fixture::plane(head(p.slab_top(slab))), len(0.25))),
-            ContactClass::Rest,
-        ),
+        coaxial,
+        Coord::Slide(SlideAxis::Z),
+        len(SLAB_HEIGHT + 0.25),
     );
-    let doc = with_value(doc, rest, Coord::Spin, ang(0.3));
-    out.push(("coaxial-rest-spin", doc, p.opts()));
+    let doc = with_value(doc, coaxial, Coord::Spin, ang(0.3));
+    out.push(("coaxial-slide-spin", doc, p.opts()));
 
     // A lone rest: the bolt is LOOSE, its own space's root.
     let p = parts("msolve14-c-loose");
@@ -930,7 +927,8 @@ fn run_at<T: editor_core::EvalScalar>(
 ///
 /// And again for INTENT stage 3 C (all three rows): a mate is two poses
 /// read off geometry, so every seat of the corpus is a rest and its
-/// values, the coaxial and pin documents read the parts' edges, the
+/// values, the coaxial document is one edge mate and its slide and
+/// spin values, the pin documents read the parts' edges, the
 /// world pin is a frame read off the slab equated with a world read,
 /// the patterned bolt and the standoff carry their parameters in a
 /// value and a pose construction rather than a placer, and the clocked

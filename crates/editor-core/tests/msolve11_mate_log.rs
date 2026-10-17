@@ -238,11 +238,12 @@ impl Scene {
         .doc;
     }
 
-    /// The cap seated on copy 1: its bottom cap resting on the copy's
-    /// top cap, its lateral edge on the copy's (a coaxial mate, which
-    /// the fold intersects with the rest), and its spin set — pinned.
-    fn seat_cap(&mut self) -> MateRef {
-        let rest = self.add(
+    /// The cap folded onto copy 1: its bottom cap resting on the
+    /// copy's top cap and its lateral edge on the copy's (a coaxial
+    /// mate, which the fold intersects with the rest). The spin about
+    /// the edge is left free.
+    fn fold_cap(&mut self) {
+        self.add(
             self.cap,
             fixture::rest(self.bottom(self.cap), self.copy_top(), ContactClass::Rest),
         );
@@ -254,8 +255,22 @@ impl Scene {
                 ContactClass::Rest,
             ),
         );
-        self.value(rest, Coord::Spin, ang(0.0));
-        rest
+    }
+
+    /// The cap seated on copy 1: its lateral edge on the copy's (one
+    /// coaxial mate), slid `BLOCK_HEIGHT` along it so its bottom cap
+    /// meets the copy's top cap, and its spin set — pinned.
+    fn seat_cap(&mut self) {
+        let coaxial = self.add(
+            self.cap,
+            fixture::mate(
+                self.block_edge(self.cap),
+                self.copy_edge(),
+                ContactClass::Rest,
+            ),
+        );
+        self.value(coaxial, Coord::Slide(SlideAxis::Z), len(BLOCK_HEIGHT));
+        self.value(coaxial, Coord::Spin, ang(0.0));
     }
 
     /// The other block seated on the base with its origin over
@@ -308,8 +323,8 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 
 /// **Each decision is on the node that made it.** Two placements: the
 /// cap, held by a rest and a coaxial mate against copy 1 of a pattern
-/// (read at a `Part` that projects it) and spun by a value, and the other block, held by a rest and three
-/// values against the base.
+/// (read at a `Part` that projects it), and the other block, held by a
+/// rest and three values against the base.
 ///
 /// - The fold's intersection — the table's split adding the coaxial
 ///   mate to what the rest left (`mate_axes_parallel`), then the
@@ -326,7 +341,7 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 #[test]
 fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let mut s = scene("msolve11-home");
-    s.seat_cap();
+    s.fold_cap();
     s.seat_other(6.0, 6.0);
     let ev = fixture::run(&s.doc, &s.opts);
     let names =
@@ -368,9 +383,9 @@ fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNo
 }
 
 /// **A reused placement carries the log a fresh evaluation of it
-/// carries.** The cap's bundle folds a rest and a coaxial mate against
-/// a pattern copy, so its log holds the fold's intersection and the
-/// spin's chart. A constraint added to ANOTHER placement leaves the
+/// carries.** The cap's bundle is a coaxial mate against a pattern
+/// copy and its slide and spin values, so its log holds the values'
+/// charts. A constraint added to ANOTHER placement leaves the
 /// cap's reads and key as they were, so the memo serves it, and the
 /// served row carries the decisions its fold recorded — the ones a
 /// fresh evaluation of it records.
@@ -388,13 +403,16 @@ fn a_reused_placement_carries_the_log_a_fresh_one_does() {
         reused_value(&first, &later, s.cap),
         "the cap's reads and key did not move, so the memo serves it"
     );
+    let fresh_log = log(&fresh, s.cap);
     assert!(
-        !log(&fresh, s.cap).is_empty(),
-        "the fold decides something about the cap"
+        fresh_log
+            .iter()
+            .any(|v| v.predicate == "mate_chart_reference_antipode"),
+        "the fold charts the cap's values: {fresh_log:?}"
     );
     assert_eq!(
         log(&later, s.cap),
-        log(&fresh, s.cap),
+        fresh_log,
         "the served cap carries the decisions a fresh fold records"
     );
 }

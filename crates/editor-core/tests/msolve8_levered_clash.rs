@@ -875,22 +875,20 @@ fn c4_poses_of_another_document_reaches_no_row() {
 // ---- A3: verdicts that must not move under the witness ----
 
 /// **A determined bundle determines, and a V-block leaves its line.**
-/// The A11 rule-1 exemplar — a coaxial mate, a rest and a spin value —
-/// pins the copy standing on `T`, its lateral edge on `T`'s; two plane
-/// mates on two adjacent side walls, flush with `T`'s (the planes'
-/// line minted by the parallel verdict), leave the prismatic residual
-/// along that line, so that copy is loose.
+/// The A11 rule-1 exemplar — a coaxial mate and its slide and spin
+/// values — pins the copy standing on `T`, its lateral edge on `T`'s
+/// and slid the box's unit height along it; two plane mates on two
+/// adjacent side walls, flush with `T`'s (the planes' line minted by
+/// the parallel verdict), leave the prismatic residual along that
+/// line, so that copy is loose.
 ///
 /// *Breaks if* the exemplar's verdicts move under the witness.
 #[test]
 fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let mut r = rig("msolve8-determined");
-    r.add(r.lateral(r.b, 0), r.lateral(r.t, 0));
-    let rest = r.add(
-        r.cap(r.b, CapEnd::Start),
-        fixture::flip(r.cap(r.t, CapEnd::End)),
-    );
-    r.doc = with_value(r.doc, rest, Coord::Spin, ang(0.0));
+    let coaxial = r.add(r.lateral(r.b, 0), r.lateral(r.t, 0));
+    r.doc = with_value(r.doc, coaxial, Coord::Slide(SlideAxis::Z), len(1.0));
+    r.doc = with_value(r.doc, coaxial, Coord::Spin, ang(0.0));
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
     assert!(
         poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::World),
