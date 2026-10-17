@@ -232,3 +232,79 @@ fn r2_own_copy_side_through_a_pattern_memo() {
     assert_ne!(before, fresh, "the spacing edit moves the mover");
     assert_eq!(memo, fresh, "a memo run serves the copy where a fresh run puts it");
 }
+
+fn extrude_at(doc: ProfileDoc, at: [f64; 3], half: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(doc, at, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, half)]);
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+/// A copy pinned against a construction that lives in a loose space:
+/// which space does it land in?
+#[test]
+fn r2_pinned_against_a_construction_of_a_loose_space() {
+    use editor_core::{Operand, Space};
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-loose-construction"), Tol::witness());
+    let (doc, a) = extrude_at(doc, [0.0, 0.0, 0.0], 0.5);
+    let (doc, b2) = extrude_at(doc, [0.0, 0.0, 0.0], 0.2);
+    let (doc, c) = extrude_at(doc, [0.0, 0.0, 0.0], 0.1);
+    let (doc, l) = step(doc, DocEdit::place(vec![a.into()], vec![]));
+    let l = l.unwrap();
+    let cap = fixture::fname(a, RoleSeg::Cap(CapEnd::Start));
+    let placed_cap = editor_core::StableName {
+        kind: cap.kind,
+        node: l,
+        path: vec![RoleSeg::Placed { of: editor_core::NameRef::new(cap) }],
+    };
+    let part_pin = |target: editor_core::SideRead<Operand>| editor_core::Mate {
+        a: target,
+        b: editor_core::SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::on_part(Placement::IDENTITY),
+            b: MateFrame::on_part(Placement::IDENTITY),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let on_l = editor_core::SideRead::Face(Operand::select(Operand::output(l, 0), vec![placed_cap]));
+    let (doc, l2) = step(doc, DocEdit::place(vec![b2.into()], vec![part_pin(on_l)]));
+    let l2 = l2.unwrap();
+    let (doc, s) = insert(
+        doc,
+        Node::Subtract {
+            from: Operand::output(l, 0).into(),
+            tool: Operand::output(l2, 0).into(),
+        },
+    );
+    let ev = run(&doc, &editor_core::EvalOptions::default());
+    eprintln!("R2-LC space L={:?} L2={:?} S={:?}", ev.space(l), ev.space(l2), ev.space(s));
+    eprintln!("R2-LC S result ok={:?}", ev.value(s).is_some());
+    let Some(v) = ev.value(s) else { panic!("S failed: {:?}", ev.result(s)) };
+    let name = v
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face && n.node == s)
+        .or_else(|| v.name_table.iter().map(|(n, _)| n.clone()).find(|n| n.kind == editor_core::EntityKind::Face));
+    let name = name.expect("a face name");
+    eprintln!("R2-LC picked {name:?}");
+    let on_s = editor_core::SideRead::Face(Operand::select(Operand::output(s, 0), vec![name]));
+    let (doc, p) = step(doc, DocEdit::place(vec![c.into()], vec![part_pin(on_s)]));
+    let p = p.unwrap();
+    let ev = run(&doc, &editor_core::EvalOptions::default());
+    eprintln!("R2-LC P result={:?} space={:?}", ev.result(p).map(|r| matches!(r, NodeResult::Ok(_))), ev.space(p));
+    if let Some(NodeResult::Failed(e)) = ev.result(p) {
+        eprintln!("R2-LC P refusal: {}", e.kind);
+    }
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness());
+    eprintln!("R2-LC product: {:?}", product.as_ref().map(|p| p.solid_copies.len()).map_err(|e| e.to_string()));
+    assert_ne!(ev.space(p), Space::World, "a copy pinned against a body of loose space L is in L's space, not the world's");
+}
