@@ -525,11 +525,6 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// booleans too — the strategy is a property of the run, not of
     /// the document, and results are bit-identical either way.
     boolean_sweep: topo::SweepStrategy,
-    /// Where profile geometry comes from, inherited across the seam
-    /// for the same reason `boolean_sweep` is: it is a property of the
-    /// RUN, so a referenced document must be elaborated the way its
-    /// instantiator is being elaborated.
-    profile_lift: super::ProfileLift,
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
@@ -549,7 +544,6 @@ impl<'a, T: Decide> PartCache<'a, T> {
         chain: &'a [DocRef],
         reached: Reached<T>,
         boolean_sweep: topo::SweepStrategy,
-        profile_lift: super::ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -557,7 +551,6 @@ impl<'a, T: Decide> PartCache<'a, T> {
             chain,
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
-            profile_lift,
             symbols: false,
             entries: Mutex::new(reached.0),
             evaluations: AtomicUsize::new(0),
@@ -694,7 +687,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             parallel: false,
             boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
-            profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
             // is keyed by THIS document's variable ids, and a referenced
             // document is a different document with its own variables
@@ -713,6 +705,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // part's variable ids collide with another document's.
             symbols: self.symbols,
         };
+        // No profile lift is set here, because none is inherited: it is
+        // read off what the evaluation binds
+        // (`EvalOptions::profile_lift_over`), and with
+        // no box and no seed a referenced document runs at its own
+        // nominal, so it is built as its instantiator's build would build
+        // it — pinned, with its own variables' values.
         let evaluation = super::evaluate_nested::<T>(
             doc,
             &super::CancelToken::new(),
@@ -1055,7 +1053,6 @@ mod tests {
                 chain,
                 Reached::none(),
                 defaults.boolean_sweep,
-                defaults.profile_lift,
                 Tol::witness(),
             )
         };

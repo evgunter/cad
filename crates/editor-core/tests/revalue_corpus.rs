@@ -713,7 +713,7 @@ fn the_instrument_and_the_door_replay_in_one_session() {
     let key = |d: &[Decision]| -> Vec<_> { d.iter().map(|x| (x.predicate, x.sign)).collect() };
     let (instrument, instrument_counts) = replayed(&at_p0, |opts| {
         assert_eq!(
-            opts.profile_lift,
+            opts.profile_lift(),
             editor_core::ProfileLift::Guided,
             "the replay reads the guided lift"
         );

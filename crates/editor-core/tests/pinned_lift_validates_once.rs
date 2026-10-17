@@ -299,10 +299,8 @@ fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_a
         &doc,
         None,
         &CancelToken::new(),
-        &EvalOptions {
-            profile_lift: ProfileLift::Guided,
-            ..EvalOptions::default()
-        },
+        &crate::corpus::options_under(&doc, ProfileLift::Guided)
+            .expect("the document has a continuous variable"),
         tol,
     );
     let err = guided
