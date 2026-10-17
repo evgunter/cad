@@ -4859,21 +4859,20 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
-/// **The checks window's escalated evidence ends in the decision that
-/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
-/// definite sign and its margin is a thickness, so every band-decided
-/// arm ends in its lever plus the tolerance that decides it, valued at
-/// `|m|/K` where the verdict carries a margin and without a value where
-/// it does not (a zero, a straddle); an enclosure across zero is passed
-/// by no tolerance and names the lever alone. A source that is not that decision's
-/// ends in its own payload's recourse and no invented lever. No row the
-/// window writes itself advises lowering the tolerance.
+/// **The checks window's escalated evidence ends in the reading that
+/// escalated** (D4 ¶1 (i)). A shell's role off its volume is read off the
+/// volume's certified enclosure alone (D10), so an enclosure holding
+/// zero, an end at zero and a straddle each name what the enclosure read
+/// and end as the kernel's or the file's, offering no tolerance. A
+/// source that is not that reading's ends in its own payload's recourse
+/// and no invented lever. No row the window writes itself advises
+/// lowering the tolerance.
 #[test]
 fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
     use geom_core::{Band, Indeterminate, MarginDiag};
     use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    const LEVER: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
     let shell = ShellKey::default();
     // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     let band = Band::new(1e-9, 1e-8).expect("a band");
@@ -4899,40 +4898,28 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     };
     let head =
         "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
-    let sign = "the sign of a shell's volume is undecided: ";
-    let in_band =
-        |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
+    let sign = "the certified enclosure of a shell's volume holds zero: ";
     let pinned = [
         (
-            "in band, outer side",
+            "an end read in band, outer side",
             escalated(MarginDiag::value(5e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
-                in_band("5e-9")
-            ),
+            format!("{head}{sign}its volume over area reads 5e-9. {LEVER}"),
         ),
         (
-            "in band, void side",
+            "an end read in band, void side",
             escalated(MarginDiag::value(-2e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
-                in_band("-2e-9")
-            ),
+            format!("{head}{sign}its volume over area reads -2e-9. {LEVER}"),
         ),
         (
-            "in band, bracket across zero",
+            "an enclosure across zero",
             escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
-            format!(
-                "{head}{sign}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
-            ),
+            format!("{head}{sign}its volume over area lies in [-2e-9, 3e-9]. {LEVER}"),
         ),
         (
             "invalid margin",
             escalated(MarginDiag::INVALID),
             format!(
-                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                 band (1e-9, 1e-8). {LEVER}; an unreadable margin may indicate a kernel or file \
-                 defect worth reporting"
+                "{head}{sign}its volume could not be read (NaN or a refused enclosure). {LEVER}"
             ),
         ),
         (
@@ -4940,37 +4927,16 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             S::ZeroVolume {
                 shell,
                 verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(-5.0e-10),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
-                 tolerance below 5e-11 m"
-            ),
-        ),
-        (
-            "zero, of no size",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
                     margin: MarginDiag::value(0.0),
                     band,
                 },
             },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}"
-            ),
+            format!("{head}a shell's certified volume, or an end of its bracket, is zero. {LEVER}"),
         ),
         (
             "straddle",
             S::Straddles { shell },
-            format!(
-                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
-                 {LEVER}"
-            ),
+            format!("{head}a shell's certified volume bracket straddles zero. {LEVER}"),
         ),
     ];
     for (name, source, want) in pinned {
@@ -4978,8 +4944,9 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         assert_eq!(text, want, "{name}");
         // The finding ends in the shell-role decision's ending read at
         // rest; the shell door's own Display reads it at a build.
-        let arm = source.arm().expect("the shell-role decision's refusal");
-        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
+        let ending = source
+            .recourse(geom_brep::recourse::Reading::AtRest)
+            .expect("the shell-role decision's refusal");
         assert!(text.ends_with(&ending), "{name}: {text}");
         let built = source.ending().expect("the shell-role decision's refusal");
         let whole = source.to_string();

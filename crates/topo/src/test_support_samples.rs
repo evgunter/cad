@@ -1507,7 +1507,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
             },
-            sliver: None,
+        },
+    ));
+    s.push((
+        "OrientationUndecided".to_owned(),
+        ValidationError::OrientationUndecided {
+            solid,
+            reading: crate::OrientationUnread::Volume {
+                margin: None,
+                aimed: 0,
+                set_aside: Vec::new(),
+            },
         },
     ));
 

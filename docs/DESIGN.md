@@ -354,7 +354,12 @@ curve pairs.
 
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
-  raw `<` on control-flow paths.
+  raw `<` on control-flow paths. Nor does an instrument represent a
+  tie-break the band forbids it to make: where its reading would turn
+  on a choice inside the band that its answer cannot depend on, it is
+  posed so that the choice does not arise (a ray within the band of an
+  edge meets the edge, half a crossing for each face the edge bounds;
+  within the band of a vertex it reads nothing).
 - At `T = f64` predicates are total: margins within K·ε escalate (the
   *sliver band* — semantically indeterminate even under exact
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
@@ -833,8 +838,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
    it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume only where no
-   face offers an aim; definitely inside-out ⇒ invalid, and a solid
+   aimed at one of its faces, the certified signed volume where no ray
+   reads; definitely inside-out by any reading ⇒ invalid (a certified
+   negative volume refuses even where a ray reads its side), and a solid
    whose side no reading decides refuses — an orientation probe, not a
    thinness gate, at every door). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
@@ -1807,9 +1813,14 @@ sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
 shell and poses no role question; a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
-certified sign of its volume only where none of its faces offers an
-aim. A ray's reading lies in band only where a pair does, so how thin a
-result is gets judged by its pairs alone. The door's
+certified sign of its volume where no ray reads. A ray that passes
+within the band of an edge meets it, half a crossing for each face the
+edge bounds ([verdicts]), and reads the role as the sign of its count
+of crossings; it refuses only on two faces that do not meet whose
+crossings lie in band of each other, a pair, and a ray that meets a
+corner or a wedge reads nothing. The volume's sign is certified by its
+enclosure alone, never held against the band, so how thin a result is
+gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel

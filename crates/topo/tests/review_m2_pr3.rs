@@ -512,6 +512,24 @@ fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
     (body, seed, split)
 }
 
+/// The lamina's one tier-3 finding once every other check passes: its two
+/// faces are digons of zero area on one plane, so no face offers a ray
+/// to aim and its volume is zero, and check 7 refuses a solid whose
+/// orientation no reading decides.
+fn assert_only_its_orientation_unread(body: &Body<f64>) {
+    let found = validate_geometric(body, Tol::witness());
+    assert!(
+        matches!(
+            found.as_ref().map_err(Vec::as_slice),
+            Err([ValidationError::OrientationUndecided {
+                reading: topo::OrientationUnread::Volume { .. },
+                ..
+            }])
+        ),
+        "the lamina's one finding is its unread orientation: {found:?}"
+    );
+}
+
 /// Bring a hand-built body to REST in `chart`: restate every edge's
 /// description as an image in that chart, carrier and interval
 /// verbatim.
@@ -591,7 +609,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     );
 
     // Coplanar variant through Shared (the ratified sharing story):
-    // definitely smooth, tier 3 clean.
+    // definitely smooth, checks 1–6 clean.
     let (mut body, seed, split) = lamina();
     let key = body
         .set_face_surface(
@@ -605,7 +623,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     body.set_face_surface(split.face, FaceSurface::Shared { key, sense: true })
         .unwrap();
     describe_every_edge_in(&mut body, key);
-    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+    assert_only_its_orientation_unread(&body);
 }
 
 /// SURVIVES: the mvfs seed story — Nurbs at rest is refused by name
@@ -651,10 +669,10 @@ fn survives_nurbs_seed_gate_and_clear() {
         ),
         "{errs:?}"
     );
-    // Clearing it through the public setter makes tier 3 pass.
+    // Clearing it through the public setter leaves only check 7's.
     body.set_face_surface(seed.face, FaceSurface::Shared { key, sense: true })
         .unwrap();
-    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+    assert_only_its_orientation_unread(&body);
     let _ = seed;
 }
 

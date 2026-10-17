@@ -95,3 +95,13 @@ refuses typed there instead of reading a sign. The witness is `topo`'s
 for a +1e-13 m³ slab. `shell_signed_volume`'s raw `volume < 0.0` has no
 such guard. Routing the writer through `classify_shells_of`, as the fix
 above says, closes that too.
+
+## Measured (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+`topo::classify_shells_of` now reads a shell's role with the kernel's
+one reader (`props::shell_role`): a solid's only shell is `Outer` by
+arity, any other is read off a ray aimed at one of its faces, and its
+volume's sign only where no face offers an aim that reads. It refuses
+`RayInBand`/`Ray` beside the volume's refusals. Routing step-export
+through it, this row's fix, now inherits that reader; the refusal
+mapping gains those two arms.

@@ -311,6 +311,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
+#[path = "shell_role_reader.rs"]
+mod shell_role_reader;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]

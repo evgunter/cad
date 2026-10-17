@@ -152,6 +152,10 @@ crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation 
 crates/topo/src/shell.rs	1	constant	n as f64	a count
 crates/topo/src/shell.rs	1	constant	points.len() as f64	a point count
 crates/topo/src/shell.rs	1	constant	us.len() as f64	a sample count
+crates/topo/src/side_reader.rs	1	constant	along	the aimed ray's fixed incidence (AIM_INCIDENCE, 60° to the face): it only steers a ray whose start lies beyond every face
+crates/topo/src/side_reader.rs	1	constant	across	the aimed ray's fixed incidence (AIM_INCIDENCE, 60° to the face): it only steers a ray whose start lies beyond every face
+crates/topo/src/side_reader.rs	1	constant	turn_cos	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
+crates/topo/src/side_reader.rs	1	constant	turn_sin	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
 crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule

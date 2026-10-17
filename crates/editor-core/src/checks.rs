@@ -584,8 +584,8 @@ fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'
 // - Escalated renders the refusal's data view,
 //   [`ShellClassifyError::payload`] (no stage prefix and no arena key,
 //   neither of which a document user can act on), then the shell-role
-//   decision's ending read at rest ([`topo::props::SHELL_ROLE`] on
-//   [`ShellClassifyError::arm`]): the checks window reads a body at rest.
+//   decision's ending read at rest ([`ShellClassifyError::recourse`]):
+//   the checks window reads a body at rest.
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -620,12 +620,8 @@ impl crate::finding::Finding for SaidFinding<'_> {
             ),
             CheckEvidence::Escalated { source } => {
                 write!(f, "the component count is unknowable: {}", source.payload())?;
-                match source.arm() {
-                    Some(arm) => write!(
-                        f,
-                        ". {}",
-                        topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest)
-                    ),
+                match source.recourse(geom_brep::recourse::Reading::AtRest) {
+                    Some(recourse) => write!(f, ". {recourse}"),
                     None => Ok(()),
                 }
             }
@@ -1534,7 +1530,9 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
                 Err(
                     source @ (ShellClassifyError::Escalated { .. }
                     | ShellClassifyError::ZeroVolume { .. }
-                    | ShellClassifyError::Straddles { .. }),
+                    | ShellClassifyError::Straddles { .. }
+                    | ShellClassifyError::RayInBand { .. }
+                    | ShellClassifyError::Corner { .. }),
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
@@ -1542,7 +1540,9 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
                         evidence: CheckEvidence::Escalated { source },
                     });
                 }
-                Err(source @ ShellClassifyError::Props { .. }) => {
+                Err(
+                    source @ (ShellClassifyError::Props { .. } | ShellClassifyError::Ray { .. }),
+                ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
                         subject: FindingSubject::Output { root, output_ix },

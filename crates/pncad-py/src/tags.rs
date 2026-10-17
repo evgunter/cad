@@ -3097,6 +3097,9 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
         ShellClassifyError::Straddles { .. } => "straddles",
+        ShellClassifyError::RayInBand { .. } => "ray_in_band",
+        ShellClassifyError::Corner { .. } => "corner",
+        ShellClassifyError::Ray { .. } => "ray",
     }
 }
 
@@ -3163,6 +3166,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::VolumeSignUnresolved { .. } => "volume_sign_unresolved",
+        ValidationError::OrientationUndecided { .. } => "orientation_undecided",
         ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
         ValidationError::UnrecordedContact { .. } => "unrecorded_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",

@@ -404,6 +404,23 @@ impl Band {
         Ok(Self { zero, escalate })
     }
 
+    /// **The band a certified enclosure's sign alone is read against**:
+    /// zero at the smallest normal `f64` and escalation at twice it, so
+    /// an [`Interval`](crate::interval::Interval) wholly on one side of
+    /// zero decides that side, one holding zero is indeterminate, and
+    /// nothing in between is held against a tolerance. For a sign the
+    /// design certifies by its enclosure alone, never against the run's
+    /// band (D10: a shell's role and a solid's orientation off the sign
+    /// of its volume, where no ray reads). Not a tolerance: no recourse
+    /// offers to tighten below a margin read against it.
+    #[must_use]
+    pub const fn enclosure_sign() -> Self {
+        Self {
+            zero: f64::MIN_POSITIVE,
+            escalate: 2.0 * f64::MIN_POSITIVE,
+        }
+    }
+
     /// **The tolerance below which `margin` is decided**, `|m|/K`: below
     /// it the band's escalation edge falls under `|m|`. The one home of
     /// the value every sized recourse offers to tighten below

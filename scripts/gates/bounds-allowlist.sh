@@ -740,15 +740,14 @@ BOUNDS_ALLOWLIST=(
   # run at once, so the two doors are one registry body at one bound.
   'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 23 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
   # `validate_geometric` keeping its verdict, and
   # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
-  # door's own `CertifiedBounds` bound; the 8 private passes they share
-  # (`validate_geometric_kept`, the composed door keeping check 7's
-  # slivers for `AtRestBody::validate`, `structural_via`,
+  # door's own `CertifiedBounds` bound; the 7 private passes they share
+  # (`structural_via`,
   # `validate_geometric_certified`,
   # `tier3_local_checks`, `tier3_local_checks_marked`,
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
@@ -762,7 +761,7 @@ BOUNDS_ALLOWLIST=(
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 23 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
