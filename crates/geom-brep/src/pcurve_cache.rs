@@ -1442,7 +1442,8 @@ impl<T: SpanLocate> Pcurve<T> {
         }
     }
 
-    /// The azimuth channel shifted by `k` whole periods — the only
+    /// The azimuth channel shifted by `k` whole periods, as a length
+    /// only through [`Period::times`] — the only
     /// branch freedom a pcurve on a periodic chart has (module docs:
     /// the branch is chosen once, by the face's loop walk, and never
     /// per sample). [`Pcurve::map_affine`] with the first channel of
@@ -1465,9 +1466,9 @@ impl<T: SpanLocate> Pcurve<T> {
     /// but harmless, and the loop walk never computes a nonzero `k`
     /// there.
     #[must_use]
-    pub fn shift_branch(&self, k: T, period: T) -> Self {
+    pub fn shift_branch(&self, k: i32, period: Period<T>) -> Self {
         self.map_affine(ChartMap {
-            u: AxisMap::shift(k * period),
+            u: AxisMap::shift(period.times(k)),
             v: AxisMap::identity(),
         })
     }
@@ -10106,7 +10107,7 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let wrapped = base.shift_branch(1.0, TAU);
+        let wrapped = base.shift_branch(1, Period::new(TAU));
         let wrapped_for_shift = wrapped.clone();
         let Some((a, _, _, _)) = base.harmonic_form() else {
             panic!("the closed-form lane stores harmonic images")

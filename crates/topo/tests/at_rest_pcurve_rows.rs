@@ -64,8 +64,8 @@ fn wrong_branch_row(
         matches!(cache.pcurve(), Pcurve::Harmonic { .. }),
         "a cylinder sheet's rows are harmonic"
     );
-    let tau = core::f64::consts::TAU;
-    let shifted = cache.pcurve().shift_branch(1.0, tau);
+    let period = geom_brep::Period::new(core::f64::consts::TAU);
+    let shifted = cache.pcurve().shift_branch(1, period);
     let edge = body.get_half_edge(he).unwrap().edge;
     let curve = body
         .get_curve_geom(body.get_edge(edge).unwrap().curve)

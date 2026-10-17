@@ -1734,7 +1734,7 @@ fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> ChartArm<T> {
 /// seam case, but at the chart's own period rather than `τ`. Without
 /// this the walk reports the wrap as a discontinuity: a symptom, not
 /// the cause.
-fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
+fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<T>> {
     // `τ` belongs to the AZIMUTH charts. A spline chart — the
     // payload's or an approximating surface's fit — has whatever period
     // its knot domain says, and only if the net actually closes; handing
@@ -1743,7 +1743,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
         return None;
     }
     let Some(payload) = surface.spline_chart() else {
-        return Some(T::tau());
+        return Some(Period::new(T::tau()));
     };
     let (u0, u1) = payload.knot_values_u().domain();
     let (nu, nv) = payload.control_counts();
@@ -1759,7 +1759,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
             _ => return None,
         }
     }
-    Some(u1 - u0)
+    Some(Period::new(u1 - u0))
 }
 
 /// The meridional (second-channel) lever arm where that channel is
@@ -1823,10 +1823,14 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// periods along the second channel. A translation's linear part is the
 /// identity, so every image form takes it exactly
 /// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
-pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
+pub(crate) fn shift_polar_branch<T: Real>(
+    pcurve: &Pcurve<T>,
+    k: i32,
+    period: Period<T>,
+) -> Pcurve<T> {
     pcurve.map_affine(geom_brep::ChartMap {
         u: geom_brep::AxisMap::identity(),
-        v: geom_brep::AxisMap::shift(k * period),
+        v: geom_brep::AxisMap::shift(period.times(k)),
     })
 }
 
@@ -4168,18 +4172,17 @@ fn decide_joint<T: Decide>(
     entry_t: T,
     prev: geom_core::Point2<T>,
     vertex: geom_core::Point3<T>,
-    u_period: Option<T>,
+    u_period: Option<Period<T>>,
     band: Band,
 ) -> Result<JointElement, PinMiss> {
     let surface = chart.surface();
     let tau = T::tau();
     let spline = surface.spline_chart().is_some();
     let arm = joint_arm(chart, vertex);
-    let whole = |k: i32| T::from_f64(f64::from(k));
     let twin = sphere_twin(surface, image);
     let orbit = Orbit::of(surface, image);
     let gap = prev.x - image.eval(entry_t).x;
-    let marks = |p: T| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
+    let marks = |p: Period<T>| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
     let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
     let m = match (rule, u_period) {
         (AzimuthRule::Marks, Some(p)) => marks(p).map_err(PinMiss::from)?,
@@ -4217,7 +4220,10 @@ fn decide_joint<T: Decide>(
     // A spline chart has no angular second channel (`polar_arm` is
     // `None`), so its lift is the sheet moved by the azimuth periods.
     if spline {
-        let lifted = sheet.shift_branch(whole(ku), u_period.unwrap_or_else(T::zero));
+        let lifted = match u_period {
+            Some(p) => sheet.shift_branch(ku, p),
+            None => sheet.clone(),
+        };
         spline_gap_closes(chart, lifted.eval(entry_t), prev, band)?;
     }
     let deck = Deck {
@@ -4358,11 +4364,11 @@ impl Orbit {
 
     /// The step of `period` this orbit counts in, as the period its
     /// marks are read in.
-    pub(crate) fn step<T: Real>(self, period: T) -> Period<T> {
-        Period::new(match self.steps() {
+    pub(crate) fn step<T: Real>(self, period: Period<T>) -> Period<T> {
+        match self.steps() {
             1 => period,
-            n => period * T::from_f64(1.0 / f64::from(n)),
-        })
+            n => Period::new(period.length() * T::from_f64(1.0 / f64::from(n))),
+        }
     }
 }
 
@@ -4406,7 +4412,7 @@ enum NearRead {
 fn near_pole_gap_closes<T: Decide>(
     arm: ChartArm<T>,
     gap: T,
-    period: T,
+    period: Period<T>,
     orbit: Orbit,
     astride: Option<[i32; 2]>,
     band: Band,
@@ -4473,7 +4479,7 @@ pub(crate) fn lever_periods<T: Decide>(
     name: &'static str,
     arm: ChartArm<T>,
     gap: T,
-    period: T,
+    period: Period<T>,
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
@@ -4573,7 +4579,7 @@ fn spline_gap_closes<T: Decide>(
 fn joint_has_room<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
-    u_period: Option<T>,
+    u_period: Option<Period<T>>,
     orbit: Orbit,
     band: Band,
 ) -> bool {
@@ -4732,13 +4738,13 @@ fn chart_edge<T: Decide>(
 /// a plane. `chart_u_period` answers `τ` for a PLANE — it defaults every
 /// non-spline chart to the azimuth period — so a reader that must tell a
 /// plane from a periodic chart asks this one.
-pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> Option<T> {
+pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> Option<Period<T>> {
     match *chart {
         Surface::Plane { .. } => None,
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => Some(T::tau()),
+        | Surface::Torus { .. } => Some(Period::new(T::tau())),
         Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
     }
 }
@@ -6073,7 +6079,15 @@ mod stretch_meter {
         for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
             let s = flat_chart(span);
             let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
-            let out = decide_joint(chart(&s), &image, 0.0, at, vertex, Some(1.0), band());
+            let out = decide_joint(
+                chart(&s),
+                &image,
+                0.0,
+                at,
+                vertex,
+                Some(geom_brep::Period::new(1.0)),
+                band(),
+            );
             let want = if reset {
                 JointElement::Reset(Deck::IDENTITY)
             } else {
@@ -6109,7 +6123,15 @@ mod stretch_meter {
         let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
             let image = Pcurve::free_harmonic(Point2::new(0.0, v), zero, zero, zero);
             let prev = Point2::new(gap, v);
-            decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
+            decide_joint(
+                chart(surface),
+                &image,
+                0.0,
+                prev,
+                vertex,
+                Some(geom_brep::Period::new(tau)),
+                band(),
+            )
         };
         let read = |out: Result<JointElement, super::PinMiss>| match out {
             Ok(element) => format!("{element:?}"),
@@ -6214,12 +6236,26 @@ mod stretch_meter {
         let one = ChartArm::Angular(0.5 * band().zero());
         for (orbit, period_over) in [(Orbit::Periods, 1), (Orbit::HalfPeriodsWithTwin, 2)] {
             for (sign, gap) in [(1, tau), (-1, -tau)] {
-                let first = near_pole_gap_closes(both, gap, tau, orbit, None, band());
+                let first = near_pole_gap_closes(
+                    both,
+                    gap,
+                    geom_brep::Period::new(tau),
+                    orbit,
+                    None,
+                    band(),
+                );
                 assert!(
                     matches!(first, NearRead::Closes(0)),
                     "{orbit:?}, gap {gap}, a whole turn within ε: the image itself first: {first:?}"
                 );
-                let over = near_pole_gap_closes(one, gap, tau, orbit, None, band());
+                let over = near_pole_gap_closes(
+                    one,
+                    gap,
+                    geom_brep::Period::new(tau),
+                    orbit,
+                    None,
+                    band(),
+                );
                 assert!(
                     matches!(over, NearRead::Closes(m) if m == sign * period_over),
                     "{orbit:?}, gap {gap}, only the image a period over within ε: {over:?}"
@@ -6257,7 +6293,15 @@ mod stretch_meter {
             let flat = Vec2::new(0.0, 0.0);
             let image = Pcurve::free_harmonic(Point2::new(0.0, d), flat, flat, flat);
             let prev = Point2::new(gap, d);
-            match decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band()) {
+            match decide_joint(
+                chart(&cone),
+                &image,
+                0.0,
+                prev,
+                vertex,
+                Some(geom_brep::Period::new(tau)),
+                band(),
+            ) {
                 Ok(JointElement::Shift(deck)) if deck.v == 0 && !deck.twin => {
                     format!("u = {}", deck.u)
                 }
@@ -6342,7 +6386,7 @@ mod stretch_meter {
                 "each_branch_row",
                 ChartArm::Angular(lever),
                 gap,
-                tau,
+                geom_brep::Period::new(tau),
                 super::Orbit::Periods,
                 band(),
             );
@@ -6388,7 +6432,7 @@ mod stretch_meter {
             "undecided_mark_row",
             arm,
             2.0 * tau,
-            tau,
+            geom_brep::Period::new(tau),
             super::Orbit::Periods,
             band(),
         );
@@ -6696,7 +6740,7 @@ mod polar_shift_tests {
                     sense,
                     torus,
                 },
-        } = shift_polar_branch(&wall, 3.0, period)
+        } = shift_polar_branch(&wall, 3, geom_brep::Period::new(period))
         else {
             panic!("the wall arm keeps its variant and its image kind");
         };
@@ -6721,7 +6765,7 @@ mod polar_shift_tests {
         let Pcurve::Spiric {
             image: SpiricImage::Cap { p0, pm, pa },
             ..
-        } = shift_polar_branch(&cap, 3.0, period)
+        } = shift_polar_branch(&cap, 3, geom_brep::Period::new(period))
         else {
             panic!("the cap arm keeps its variant and its image kind");
         };
@@ -6738,7 +6782,8 @@ mod polar_shift_tests {
             Vec2::new(-0.5, 1.0),
             Vec2::new(0.125, -0.375),
         );
-        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form()
+        let Some((p0, pa, pb, pl)) =
+            shift_polar_branch(&harmonic, 3, geom_brep::Period::new(period)).harmonic_form()
         else {
             panic!("the harmonic arm keeps its variant");
         };
@@ -8264,7 +8309,7 @@ mod lift_rows {
             f(0.0),
             Point2::new(f(prev.0), f(prev.1)),
             vertex,
-            Some(T::tau()),
+            Some(geom_brep::Period::new(T::tau())),
             band(k),
         )
     }
@@ -8660,7 +8705,7 @@ mod room_fence_tests {
         joint_has_room(
             DescribedChart::of(surface).unwrap(),
             vertex,
-            Some(core::f64::consts::TAU),
+            Some(geom_brep::Period::new(core::f64::consts::TAU)),
             Orbit::of(surface, &image),
             tight(),
         )
@@ -8753,11 +8798,11 @@ mod villarceau_joint_tests {
                             radius: big,
                             u_ref: d * psi.cos() + lean * psi.sin(),
                         };
-                        for k in [-1.0_f64, 0.0, 2.0] {
+                        for k in [-1, 0, 2] {
                             let image = geom_brep::chart_pcurve(&carrier, &surface, band)
                                 .unwrap()
-                                .shift_branch(k, TAU);
-                            let image = shift_polar_branch(&image, -k, TAU);
+                                .shift_branch(k, Period::new(TAU));
+                            let image = shift_polar_branch(&image, -k, Period::new(TAU));
                             let (t0, t1) = (0.3, 0.3 + TAU);
                             let row = geom_brep::PcurveCache::certify(
                                 image, t0, t1, &carrier, &surface, band,
@@ -8772,7 +8817,7 @@ mod villarceau_joint_tests {
                                 t0,
                                 row.pcurve().eval(t1),
                                 carrier.eval(t0),
-                                Some(TAU),
+                                Some(geom_brep::Period::new(TAU)),
                                 band,
                             );
                             let periods = (focal.sense, focal.vl);

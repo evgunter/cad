@@ -3237,7 +3237,7 @@ fn run_azimuth_images<T: Decide>(
                     )?,
                 };
                 prev_k = k;
-                base.shift_branch(T::from_f64(f64::from(k)), tau)
+                base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
         let (lo, hi) =
@@ -3297,7 +3297,7 @@ fn nearest_branch<T: Decide>(
         "split_window_branch",
         arm,
         gap,
-        T::tau(),
+        geom_brep::Period::new(T::tau()),
         crate::pcurves::Orbit::Periods,
         band,
     )

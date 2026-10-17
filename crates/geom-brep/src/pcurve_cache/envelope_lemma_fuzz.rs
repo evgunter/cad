@@ -31,9 +31,9 @@ mod projected_searches;
 
 use super::{
     AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck, Winding, carrier_harmonic, chart_image_harmonic,
-    chart_pcurve, derive_harmonic, focal_section_envelope, incidence, orthonormal_chart,
-    periodic_envelope,
+    PcurveCache, PcurveCertifyError, PcurveCheck, Period, Winding, carrier_harmonic,
+    chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope, incidence,
+    orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
 use geom_core::predicate::Band;
@@ -846,8 +846,14 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
         }
     };
     let mut stored = jittered(&derived, jitter);
-    let k = s.range(-1.5, 1.5).round();
-    stored = stored.shift_branch(k, TAU);
+    // A whole turn of the window either way, or none: one draw, read
+    // as its sign.
+    let k = match s.range(-1.5, 1.5).round() {
+        r if r < 0.0 => -1,
+        r if r > 0.0 => 1,
+        _ => 0,
+    };
+    stored = stored.shift_branch(k, Period::new(TAU));
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
         stored = stored.map_affine(twin(0.0));
     }
@@ -882,7 +888,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // renamed by a whole period is a lifted copy, no row (C4), and its
     // envelope reads the period as its offset, which the bound above
     // still dominates.
-    if mode == 3 && images_exactly(class) && k == 0.0 {
+    if mode == 3 && images_exactly(class) && k == 0 {
         assert!(
             envelope <= noise,
             "{}: a renamed exact image costs {envelope:e}; terms {:?} — {}",

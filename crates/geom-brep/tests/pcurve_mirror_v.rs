@@ -23,7 +23,7 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
-    SpiricImage, SurfaceKey, SurfacePair, WallTorus,
+    Period, SpiricImage, SurfaceKey, SurfacePair, WallTorus,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -379,7 +379,7 @@ fn the_nurbs_arms_are_map_points_and_agree_with_a_re_validated_rebuild() {
 /// `m5_pr6_pcurves` pin its coefficients; this row is the other four.
 #[test]
 fn shift_branch_translates_u_and_leaves_v_bit_identical_in_every_kind() {
-    let (k, period) = (2.0, core::f64::consts::TAU);
+    let (k, period) = (2, Period::new(core::f64::consts::TAU));
     for (name, p, t0, t1) in kinds() {
         let s = p.shift_branch(k, period);
         assert_eq!(
@@ -390,10 +390,10 @@ fn shift_branch_translates_u_and_leaves_v_bit_identical_in_every_kind() {
         for (i, t) in schedule(t0, t1).enumerate() {
             let (a, b) = (p.eval(t), s.eval(t));
             assert!(
-                (b.x - a.x - k * period).abs() <= 1e-12,
+                (b.x - a.x - period.times(k)).abs() <= 1e-12,
                 "{name}: u moved by {} at sample {i}, not {}",
                 b.x - a.x,
-                k * period
+                period.times(k)
             );
             assert_eq!(
                 a.y.to_bits(),

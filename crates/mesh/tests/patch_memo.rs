@@ -22,7 +22,7 @@
 use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::{FocalImage, Pcurve, PcurveCache};
+use geom_brep::{AxisMap, ChartMap, FocalImage, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
@@ -569,8 +569,14 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             continue;
         };
         let cache: PcurveCache<f64> = cache.clone();
+        // The nudge is a translation of the chart's first channel, not a
+        // whole period, so it is a chart map rather than a branch shift.
+        let nudge = ChartMap {
+            u: AxisMap::shift(NUDGE),
+            v: AxisMap::identity(),
+        };
         let shifted = match cache.pcurve().clone() {
-            image @ Pcurve::Harmonic { .. } => image.shift_branch(1.0, NUDGE),
+            image @ Pcurve::Harmonic { .. } => image.map_affine(nudge),
             Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
                 p0: Point2::new(p0.x + NUDGE, p0.y),
                 pl,
@@ -591,7 +597,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
             // The nudge is a translation of the chart, which the
             // projected image's deck map absorbs.
-            projected @ Pcurve::Projected(_) => projected.shift_branch(1.0, NUDGE),
+            projected @ Pcurve::Projected(_) => projected.map_affine(nudge),
             // The fixture's charts are a cylinder's and a plane's, so
             // no spiric image is stored on them; the azimuth shift is
             // still the one field, were one to arrive.
