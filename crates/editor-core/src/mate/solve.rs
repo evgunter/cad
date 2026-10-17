@@ -178,6 +178,10 @@ impl Space {
     }
 }
 
+/// A placement's answer: its space and its motion there (`None` the
+/// identity).
+type Placed<T> = (Space, Option<Affine3<T>>);
+
 /// **Every placement's answer, read off an evaluation** — for a caller
 /// outside one: where each copy sits, which space it lives in, or why
 /// its placement refused. Built by [`SolvedPoses::of`] from the
@@ -192,7 +196,7 @@ pub struct SolvedPoses<T: Decide = f64> {
     document: crate::ident::DocumentId,
     /// Each placement's answer: its space and its motion in that
     /// space's coordinates (`None` the identity), or its refusal.
-    placed: BTreeMap<RecipeNodeId, Result<(Space, Option<Affine3<T>>), MateFault>>,
+    placed: BTreeMap<RecipeNodeId, Result<Placed<T>, MateFault>>,
     /// Each placed copy's reach about its space's origin, an `f64`
     /// upper bound ([`super::part_reach`]): the arm a turn of it is
     /// measured over ([`SolvedPoses::at_identity`]).

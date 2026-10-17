@@ -516,7 +516,7 @@ where
             let own: Results<T> =
                 BTreeMap::from([(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)))]);
             let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
-            let out = wire_instantiate_part(id, doc_ref, interface, placed.0.clone(), env, tol)?;
+            let out = wire_instantiate_part(id, doc_ref, interface, placed.0, env, tol)?;
             Ok(out.moved(placed))
         }
     }

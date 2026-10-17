@@ -3429,7 +3429,7 @@ pub fn split(
     let doc_ref = DocRef { id: part_id, pin };
     let instance = remainder
         .insert(Node::instantiate_part_with(
-            doc_ref.clone(),
+            doc_ref,
             InterfaceRecord { crossings },
         ))
         .map_err(rem_refused)?;
