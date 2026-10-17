@@ -5868,3 +5868,25 @@ Acted on from the `For the orchestrator` sections:
 WIRE reads 31/30 until the union pin closes its row.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5262 (refusal endings): style review, mergeable; fix pass sent
+
+The review found no MAJOR. Taken into the fix pass:
+- **C2 MINOR, the sharpest:** `CountOutOfRange.admits` stated the
+  integer cast's range, not the slot's domain, so a stations count of
+  −3 told the author "it admits at least 0", and 0 still refuses
+  (Stations ≥ 2). A test pinned the false domain. The fix: each caller
+  passes its slot's own domain. One variant, one meaning.
+- **C5 half-fix:** `witness.rs` carries the same stale `M6` premise one
+  file from the stubs the PR re-cited.
+- **C6:** the declare-door prose sweep missed the phrase "declare door"
+  and every non-`src` file. The repeat lesson is the discipline's §5:
+  name what the pattern cannot match, then search that gap.
+- **S1:** `ProfileAnchor { loop_: 0 }` is the fake-coordinate shape the
+  PR removed from `wire_profile`, left in an arm it edited.
+
+Class, filed by the fix pass rather than fixed: eval/ handles internal
+breaks three ways a few lines apart (`unreachable!`, typed refusal,
+silent default), and `run_op` carries node-kind facts as loose Options.
+
+Signed (WIRE orchestrator).
