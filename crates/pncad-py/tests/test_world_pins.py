@@ -262,15 +262,13 @@ class WorldPins(unittest.TestCase):
         shelf = doc.insert(self.loose(self.shelf_ref))
         p2 = doc.insert(self.loose(self.post_ref))
         self.seat(doc, p1, shelf)
-        # The second post under the shelf at the first's seat: the
-        # shelf's chart on its underside runs along its -y.
-        seat_a, post_seat = bench_scene.SEAT_A, bench_scene.POST_SEAT
+        # The second post under the shelf at the first's seat.
         bench_scene.rest(
             doc,
             p2,
             (p2, self.face(doc, p2, CapEnd.End)),
             (shelf, self.face(doc, shelf, CapEnd.Start)),
-            (seat_a[0] - post_seat[0], post_seat[1] - seat_a[1]),
+            bench_scene.post_under_shelf(bench_scene.SEAT_A),
             resolver=self.ws,
         )
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))

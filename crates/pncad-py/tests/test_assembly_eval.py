@@ -1309,8 +1309,9 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         )
         # The two mates' seats, read in document order: whatever spells
         # the values that put each shelf seat on its post's cap, the
-        # tour names the shelf's seat by its constant.
-        seats = re.findall(r"\b(SEAT_[AB])\b", stand)
+        # tour names the shelf's seat by its constant, each in its own
+        # mate's values.
+        seats = list(dict.fromkeys(re.findall(r"\b(SEAT_[AB])\b", stand)))
         self.assertEqual(len(seats), 2, "the stand no longer names exactly two seats")
         named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B}
         self.assertScene(

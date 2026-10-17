@@ -277,14 +277,23 @@ def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
 #: underside.
 STAND_SEATS = ((SEAT_A, POST_SEAT), (POST_SEAT, SEAT_B))
 
-#: The values each stand mate is set to, from its seats. A value is
-#: charted on the target's own frame swung onto its face's outward
-#: normal: on the post's top cap that is the post's own x and y, so the
-#: shelf's slides are the post's seat less the shelf's; on the shelf's
-#: underside it is the half-turn about the shelf's x, so the far post's
-#: y slide runs along the shelf's -y.
-SHELF_ON_POST = (POST_SEAT[0] - SEAT_A[0], POST_SEAT[1] - SEAT_A[1])
-POST_UNDER_SHELF = (SEAT_B[0] - POST_SEAT[0], POST_SEAT[1] - SEAT_B[1])
+def shelf_on_post(seat):
+    """The slides that rest the shelf on a post's top with the shelf's
+    `seat` over the top's centre: the post's seat less the shelf's,
+    along the chart of the mate's target, the post's own `x` and `y`."""
+    return (POST_SEAT[0] - seat[0], POST_SEAT[1] - seat[1])
+
+
+def post_under_shelf(seat):
+    """The slides that stand a post under the shelf's underside with
+    its top's centre at the shelf's `seat`: along the chart of the
+    mate's target, the shelf's `x` and its `-y`."""
+    return (seat[0] - POST_SEAT[0], POST_SEAT[1] - seat[1])
+
+
+#: The values each stand mate is set to, from its seats.
+SHELF_ON_POST = shelf_on_post(SEAT_A)
+POST_UNDER_SHELF = post_under_shelf(SEAT_B)
 
 
 # ---- The assembly documents ----

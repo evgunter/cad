@@ -156,20 +156,6 @@ class BenchWorkspace(unittest.TestCase):
         doc.pin(node, pose, resolver=self.ws)
         return node
 
-    def shelf_on(self, doc, shelf_i, post_i, at=SHELF_ON_POST, class_=ContactClass.Rest):
-        """The shelf's underside resting on the post's top, set by its
-        values where `at` puts it: the stand's first seat. Answers the
-        mate's address and its values'."""
-        return rest(
-            doc,
-            shelf_i,
-            (shelf_i, self.instance_face(doc, shelf_i, CapEnd.Start)),
-            (post_i, self.instance_face(doc, post_i, CapEnd.End)),
-            at,
-            class_,
-            resolver=self.ws,
-        )
-
 
 #: The two nodes `bench_scene.layout`'s `posts=` admits, by the name
 #: this file reports a failure under. Every expectation below is
@@ -1784,10 +1770,10 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             ),
             resolver=self.ws,
         )
-        at = b_seat or SEAT_A
+        slide = bench_scene.shelf_on_post(b_seat or SEAT_A)
         for coord, by in (
-            (Coord.slide("x"), (POST_SEAT[0] - at[0]) * m),
-            (Coord.slide("y"), (POST_SEAT[1] - at[1]) * m),
+            (Coord.slide("x"), slide[0] * m),
+            (Coord.slide("y"), slide[1] * m),
             (Coord.spin(), 0),
         ):
             doc.add_value(mate, coord, by)
