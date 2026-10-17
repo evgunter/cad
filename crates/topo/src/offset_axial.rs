@@ -2137,6 +2137,9 @@ fn mint_carrier<T: Decide>(
             | geom_brep::SectionError::Spiric(geom::SpiricInvalid::Escalated(source)) => {
                 ReplaceFaceError::Escalated { source }
             }
+            geom_brep::SectionError::DegenerateTorus(refusal) => {
+                ReplaceFaceError::DegenerateTorus { edge, refusal }
+            }
             geom_brep::SectionError::RoutesToGeneralRung { .. }
             | geom_brep::SectionError::Spiric(geom::SpiricInvalid::NotTwoOvals) => refuse(
                 "a rim whose moved cap stands at or past the torus wall's inner equator, or \

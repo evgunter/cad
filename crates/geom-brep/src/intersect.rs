@@ -28,7 +28,7 @@
 //!   divides runs, and refuses [`SectionError::DegenerateOperand`] when
 //!   it is not definitely positive (`pn_aperture_*`, `coc_aperture_*`).
 //!   This is the file's BAND posture on an operand convention — the one
-//!   `pt_tube_guard` takes on the torus — and it is a posture, not a
+//!   `torus_tube_positive` takes on the torus — and it is a posture, not a
 //!   numerical necessity: `sin α` of a stored `α` is relatively exact,
 //!   and a quotient by it is the correctly rounded value for the datum
 //!   as stored. A body at rest holds the convention against ZERO (tier-3
@@ -116,6 +116,7 @@ use crate::dihedral::{
 };
 use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 
@@ -452,11 +453,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// declines — has still said the pose is its own, and `implemented`
 /// stands; what it would not mint is that arm's refusal to give, not
 /// this question's. An arm that refuses BEFORE its pose trileans run —
-/// an operand guard ([`SectionError::DegenerateOperand`],
-/// [`SectionError::DegenerateTorus`]) — has classified nothing, and the
-/// pose is not served: a gate must not admit what it cannot classify.
-/// `note` is then the guard's own text, or this function's statement
-/// where the arm's refusal carries none.
+/// an operand guard ([`SectionError::DegenerateOperand`]) — has
+/// classified nothing, and the pose is not served: a gate must not
+/// admit what it cannot classify. `note` is then the guard's own text,
+/// or this function's statement where the arm's refusal carries none.
+/// A torus outside its ring convention is refused as a shape, not as a
+/// pose ([`SectionError::DegenerateTorus`], returned): its refusal ends
+/// in the half's lever, which no routing note carries.
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
@@ -487,7 +490,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// # Errors
 ///
 /// [`SectionError::Escalated`] — a pose trilean (or an operand guard)
-/// in the band. [`SectionError::WrongLane`] only if this dispatch
+/// in the band; [`SectionError::RadiusEscalated`], a radius guard in
+/// the band; [`SectionError::DegenerateTorus`], a torus not shown
+/// inside its ring convention. [`SectionError::WrongLane`] only if this dispatch
 /// itself is wrong — it names each arm's seats in the arm's order — so
 /// it is a kernel bug, returned typed rather than read as a verdict.
 /// Nothing else is returned.
@@ -563,13 +568,10 @@ pub fn route_pose<T: Decide>(
         // arm runs ahead of its pose trileans. The pose is unknown, and
         // a gate must not admit what it cannot classify.
         Err(SectionError::DegenerateOperand { what }) => refused(what),
-        Err(SectionError::DegenerateTorus) => refused(
-            "the torus is not a ring (R > r > 0 is not decided), so the arm refuses \
-             it before classifying any pose",
-        ),
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::RadiusEscalated { .. }
+            | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::UnequalRadii),
         ) => Err(e),
@@ -640,19 +642,14 @@ pub enum SectionError {
     /// a same-surface locus is a coincidence to declare/merge, never an
     /// intersection curve.
     CoincidentSurfaces,
-    /// The torus operand violates the ring convention `R > r > 0` (a
-    /// spindle or horn torus, or a nonpositive tube radius — both
-    /// inequalities are decided, `pt_tube_guard` then `ring_torus_convention`,
-    /// the convention's one home [`geom::ring_torus`]):
-    /// its meridian circles meet or cross on
-    /// the axis, so no closed form here is well-posed. Every validated
-    /// body already upholds the convention (`sweep::revolve` refuses
-    /// degenerate tori at construction; tier-3 check 1 refuses a tube
-    /// radius that is not positive as `UnrepresentableSurfaceDatum` and
-    /// a horn or spindle as `DegenerateTorus`, at rest) — this refusal
-    /// is the arm's own
-    /// insurance against pre-validate operands, e.g. STEP-minted tori.
-    DegenerateTorus,
+    /// The torus operand is not shown inside the ring convention
+    /// `R > r > 0`, in band or decided, a half at a time
+    /// ([`TorusRefusal`]): a horn or spindle torus's meridian circles
+    /// meet or cross on the axis, so no closed form here is well-posed.
+    /// Doors that read unvalidated bodies (`topo::replace_face_offset`)
+    /// reach it, so it ends in the half's lever, as tier 3's
+    /// `DegenerateTorus` does.
+    DegenerateTorus(TorusRefusal),
     /// The conic carrier constructor refused (near-circular tilt or a
     /// degenerate axis) — the constructor is the one deciding door for
     /// axis ordering (spec §1) and its verdict stands.
@@ -757,12 +754,7 @@ impl core::fmt::Display for SectionError {
                  they share a surface rather than meet along a curve. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::DegenerateTorus => write!(
-                f,
-                "the torus is not a ring (its minor radius is not definitely below its \
-                 major one), so no closed-form section is classified; a validated body \
-                 has a ring torus, so this one is corrupt"
-            ),
+            Self::DegenerateTorus(refusal) => refusal.fmt(f),
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
             Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
         }
@@ -2730,24 +2722,17 @@ pub enum PlaneTorusSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pt_tube_guard` — margin `r` (meters) — then `ring_torus_convention`
-///    ([`geom::ring_torus`]) —
-///    margin `R − r` (meters), decided before any classification: the
-///    ring convention `R > r > 0` is TWO inequalities and each gets
-///    its own named trilean, because `R − r` alone waves through a
-///    nonpositive tube radius whenever the difference stays positive
-///    (`r = −0.3` against `R = 0.75` has `R − r = 1.05`, and the
-///    unguarded arm minted a negative-radius meridian circle — the
-///    fix-pass red probe). A spindle/horn torus's meridian circles
-///    meet or cross on the axis, so no closed form below is
-///    well-posed on one. The invariant already holds on every
-///    validated body (`sweep::revolve` refuses degenerate tori at
-///    construction; tier-3 check 1 refuses them at rest —
-///    `UnrepresentableSurfaceDatum` for a tube radius that is not
-///    positive, `DegenerateTorus` for a horn or spindle), so
-///    these refusals ([`SectionError::DegenerateTorus`]) are
-///    insurance against pre-validate operands, not a missing
-///    invariant.
+/// 1. The ring convention `R > r > 0`, decided before any
+///    classification as TWO inequalities, a half at a time
+///    ([`TorusRefusal::require`]): `torus_tube_positive` — margin `r`
+///    (meters) — then `ring_torus_convention` — margin `R − r` (meters).
+///    `R − r` alone waves through a nonpositive tube radius whenever the
+///    difference stays positive (`r = −0.3` against `R = 0.75` has
+///    `R − r = 1.05`, and the unguarded arm minted a negative-radius
+///    meridian circle). A spindle/horn torus's meridian circles meet or
+///    cross on the axis, so no closed form below is well-posed on one;
+///    either half's refusal, in band or decided, is
+///    [`SectionError::DegenerateTorus`].
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
@@ -2787,7 +2772,8 @@ pub enum PlaneTorusSection<T: Real> {
 ///
 /// # Errors
 ///
-/// [`SectionError`] — wrong-lane kinds, the degenerate-torus guard,
+/// [`SectionError`] — wrong-lane kinds, the ring-convention guard
+/// ([`SectionError::DegenerateTorus`], in band or decided),
 /// in-band escalations (F6), the general-rung routing refusal, or the
 /// spiric constructor's own refusal ([`SectionError::Spiric`]).
 pub fn plane_torus_section<T: Decide>(
@@ -2818,20 +2804,7 @@ pub fn plane_torus_section<T: Decide>(
         return Err(wrong());
     };
 
-    // The ring convention `R > r > 0` is TWO margins, each decided by
-    // name (doc item 1): a tube radius that is definitely a positive
-    // length, then a major radius that definitely clears it.
-    match decide("pt_tube_guard", Margin::of(r), band).map_err(SectionError::Escalated)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
-    }
-    match geom::ring_torus(big_r, r, band)
-        .map_err(SectionError::Escalated)?
-        .sign
-    {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
-    }
+    TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
     // The axis tilt is levered at the extent for the fork alone. Each
     // served row below decides the displacement it puts on its minted

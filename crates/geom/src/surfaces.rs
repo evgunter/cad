@@ -547,7 +547,7 @@ impl<T: Real> Surface<T> {
     /// stated: the variant docs above state them in prose,
     /// `step-import`'s `CONICAL_SURFACE` arm restates the cone's as an
     /// `f64` literal, and `geom_brep`'s section arms decide the same
-    /// datums (`pt_tube_guard`, `coc_cylinder_radius`) on the
+    /// datums (`torus_tube_positive`, `coc_cylinder_radius`) on the
     /// tolerance band rather than against zero — a different posture
     /// on the same fact, recorded where each is.
     ///
