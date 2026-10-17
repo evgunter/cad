@@ -495,12 +495,15 @@ fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
 /// scalar.** A ball's poles carry a parallel of radius zero: its azimuth
 /// moves nothing, every copy is the same point, and its placement's lever
 /// (its reach from the axis, over its span and over its own turn) is zero.
-/// The placement names no other copy (zero turns) at `f64` and at
-/// `Interval` alike, never deciding marks at a zero lever (PR 5225's delta
-/// review, G1).
+/// The placement names no other copy (zero turns), and the parallel's
+/// derived image is the one read, at `f64` and at `Interval` alike: its
+/// azimuth `0` along the span (the parallel's `u_ref` is the chart's, and
+/// a radius of zero turns no orientation), its latitude
+/// `π/2`, never deciding marks at a zero lever (PR 5225's delta review, G1
+/// and S2).
 #[test]
 fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
-    use geom_core::{Interval, Real};
+    use geom_core::{Bounds, Interval, Real};
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -519,6 +522,10 @@ fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
         0,
         "f64"
     );
+    let at_f64 = chart_pcurve_over(&pole, 1.0, 3.0, &sphere, band())
+        .unwrap()
+        .eval(2.0);
+    assert_eq!((at_f64.x, at_f64.y), (0.0, FRAC_PI_2), "f64: {at_f64:?}");
     let f = Interval::from_f64;
     let (pole, sphere) = (pole.map_scalar(f), sphere.map_scalar(f));
     let place = super::Placement::over((f(2.0), f(2.0)), &pole, &sphere);
@@ -527,4 +534,55 @@ fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
         0,
         "Interval"
     );
+    let at = chart_pcurve_over(&pole, f(1.0), f(3.0), &sphere, band())
+        .unwrap()
+        .eval(f(2.0));
+    assert!(
+        at.x.lo() <= at_f64.x
+            && at_f64.x <= at.x.hi()
+            && at.y.lo() <= FRAC_PI_2
+            && FRAC_PI_2 <= at.y.hi()
+            && at.x.hi() - at.x.lo() < 1e-12,
+        "Interval: the image is f64's, tightly: {at:?}"
+    );
+}
+
+/// **A meridian whose midpoint is at its pole names one image wherever
+/// its carrier starts.** A meridian edge whose span's midpoint is at a
+/// pole, or `10⁻¹³` to `10⁻³` rad past it, derives the same image when its
+/// carrier is started on the far half of its great circle (the frame
+/// negated, the span moved by `π`). The half is read against `d̂` turned
+/// to the chart's own side, so both starts read one number; where the
+/// midpoint's half is in band, the half is the chart's, never the one the
+/// carrier's `t = 0` point is on (PR 5225's delta review, g8). An offset
+/// exactly on the band's edge (`10⁻⁸` at the witness ε) is left out: the
+/// two parameterizations evaluate the midpoint `1e-16` apart, so one
+/// decides and the other does not, as any decided quantity does at its
+/// edge; there the two images are twins, naming the same points.
+#[test]
+fn a_meridian_with_its_midpoint_at_the_pole_names_one_image_wherever_it_starts() {
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let near = circle(o, -Vec3::unit_y(), 1.0, Vec3::unit_x());
+    let far = circle(o, -Vec3::unit_y(), 1.0, -Vec3::unit_x());
+    for off in [0.0, 1e-13, 1e-10, 3e-9, 1e-6, 1e-3] {
+        for pole in [FRAC_PI_2, -FRAC_PI_2] {
+            let mid = pole + off;
+            let (a, b) = (mid - 0.3, mid + 0.3);
+            let p = chart_pcurve_over(&near, a, b, &sphere, band()).unwrap();
+            let q = chart_pcurve_over(&far, a - PI, b - PI, &sphere, band()).unwrap();
+            for s in [0.0, 0.5, 1.0] {
+                let (u, v) = (p.eval(a + s * 0.6), q.eval(a - PI + s * 0.6));
+                assert!(
+                    (u.x - v.x).abs() < 1e-9 && (u.y - v.y).abs() < 1e-9,
+                    "pole {pole}, off {off:e}, at {s} of the span: {u:?} against {v:?}"
+                );
+            }
+        }
+    }
 }

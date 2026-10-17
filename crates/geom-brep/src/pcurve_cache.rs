@@ -4944,8 +4944,16 @@ impl<T: Decide> Azimuth<T> {
     /// one of the direction's names: in `(−π/2, 3π/2]` where the frame
     /// decides its side, and in `atan2`'s own `(−π, π]` where that
     /// decision is in band (the direct formula, the tie-break), so in
-    /// `(−π, 3π/2]` in all.
+    /// `(−π, 3π/2]` in all. A direction of no length (or, at `Interval`,
+    /// one whose enclosure reaches zero length: no bounded reciprocal)
+    /// names no angle, and every angle names its zero-length vector alike:
+    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
+    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
+    /// centre on the axis).
     pub fn principal(self, band: Band) -> T {
+        if !(T::one() / self.length()).is_bounded() {
+            return T::zero();
+        }
         stable_azimuth(self.y, self.x, band)
     }
 }
@@ -7672,7 +7680,9 @@ pub(crate) enum Along {
 /// pole or apex vertex read over no length), at the farthest its carrier
 /// reaches over its own interval; only a carrier wholly on the axis has
 /// none. The tube angle at the torus's minor radius; the latitude at the
-/// sphere's radius.
+/// sphere's radius. A chart without one of those angles carries `1` in
+/// its slot, which no arm reads (no arm places a tube angle off a torus,
+/// or a latitude off a sphere).
 #[derive(Clone, Copy, Debug)]
 struct Levers<T> {
     azimuth: T,
@@ -8179,23 +8189,7 @@ fn derive_class<T: Decide>(
                         p0: Point2::new(
                             place.phase(
                                 Along::Azimuth,
-                                // Taken in band, the meridian is a
-                                // tie-break, and its centre may sit on the
-                                // axis (a sub-band rim), where its radial
-                                // part is zero and names no direction
-                                // (`atan2(0, 0)` reads `0` at `f64` and no
-                                // angle at `Interval`): every meridian of a
-                                // carrier centred on the axis is as far
-                                // from it, so it is read off the chart's
-                                // own `u_ref`, at every scalar alike. A
-                                // centre off the axis, however close,
-                                // keeps its own direction, which the
-                                // class-fidelity envelope reads.
-                                if !(T::one() / w_r.norm()).is_bounded() {
-                                    Azimuth::of(T::zero(), T::one())
-                                } else {
-                                    Azimuth::of(w_r.dot(cv), w_r.dot(u_ref))
-                                },
+                                Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
                                 |_| T::zero(),
                                 band,
                             )?,
@@ -8708,22 +8702,43 @@ fn derive_class<T: Decide>(
                     // The half of the great circle the edge lies on is
                     // the one its span's midpoint is on, never the one its
                     // carrier's `t = 0` point happens to be on (C4: where
-                    // the parameter starts moves no stored image). On the
-                    // far half the same meridian reads with `d̂` negated,
-                    // `σ` negated and `δ` at `π − δ`. A midpoint on the
-                    // pole, or within the band of it, is on neither half
-                    // decidedly (the twin joint reads it) and keeps `d̂`,
-                    // a tie-break (D9): either half names the edge there.
+                    // the parameter starts moves no stored image). The
+                    // half is read against `d̂` turned first to the chart's
+                    // own side (toward `u_ref`, or toward `axis × u_ref`
+                    // where that is in band; `d̂` is a unit horizontal, so
+                    // not both), so every start of the carrier reads the
+                    // same number. On the other half the same meridian
+                    // reads with `d̂` negated, `σ` negated and `δ` at
+                    // `π − δ`. A midpoint on the pole, or within the band
+                    // of it, is on neither half decidedly, and either half
+                    // names the edge there (the twin joint reads it): it
+                    // takes the chart's side, a D9 tie-break.
                     let (s_m, c_m) = place.mid().sin_cos();
                     let at_mid = radial(form.a * c_m + form.b * s_m);
-                    let far = matches!(
+                    let toward = |along: Vec3<T>| match decide(
+                        "pcurve_sphere_chart_meridian_frame",
+                        Margin::levered(d_hat.dot(along), radius),
+                        band,
+                    ) {
+                        Ok(Sign::Negative) => Some(true),
+                        Ok(Sign::Positive) => Some(false),
+                        Ok(Sign::Zero) | Err(_) => None,
+                    };
+                    let turned = toward(u_ref).or_else(|| toward(cv)).unwrap_or(false);
+                    let chart_side = if turned {
+                        d_hat * (T::zero() - T::one())
+                    } else {
+                        d_hat
+                    };
+                    let other = matches!(
                         decide(
                             "pcurve_sphere_chart_meridian_side",
-                            Margin::of(at_mid.dot(d_hat)),
+                            Margin::of(at_mid.dot(chart_side)),
                             band,
                         ),
                         Ok(Sign::Negative)
                     );
+                    let far = turned != other;
                     let (d_hat, sigma, reach) = if far {
                         let flipped = match sigma {
                             Winding::Pos => Winding::Neg,
