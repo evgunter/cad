@@ -123,27 +123,31 @@
 //! the rest (this module's `a_corrupted_pcurve_fails_typed` and
 //! `the_envelope_dominates_a_dense_resampling` rows).
 //!
-//! One boundary on that corollary, because the trilean has a band:
-//! certification admits an **ε-shell around the family** (the winding
-//! decision classifies `|pl.x − β|·r ≤ ε` as Zero), and a pcurve in
-//! that shell is not exactly of the four-coefficient shape. The
-//! envelope's fidelity term carries that drift explicitly — every
-//! coefficient's offset from the re-derived image, metered at the
-//! chart's arm — so the stored bound dominates the true sup for every
-//! input the gate admits, not merely for the exact-in-family caches
-//! the minting lane produces.
+//! One boundary on that corollary: certification admits an **ε-shell
+//! around the family** in each image's real coefficients (a phase, a
+//! free channel's four), so a pcurve in that shell is not exactly the
+//! derivation's. The envelope's fidelity term carries that drift
+//! explicitly — every coefficient's offset from the re-derived image,
+//! metered at the chart's arm — so the stored bound dominates the true
+//! sup for every input the gate admits, not merely for the
+//! exact-in-family caches the minting lane produces. An angle's
+//! windings are no part of the shell: they are integers, compared
+//! exactly ([`PcurveCertifyError::WindingMismatch`]).
 //!
 //! # Domain validity (spec §3)
 //!
 //! A row certifies against its carrier and its chart alone, on **one
 //! branch**: on a periodic chart the azimuth channel of a
-//! [`Pcurve::Harmonic`] is `α + β·t` with a *single* stored `α` and a
-//! winding `β ∈ {−1, 0, +1}`. There is no per-sample branch choice to
-//! get wrong: the M2 PR 5 meridian finding ("nearest-previous
+//! [`Pcurve::Harmonic`] is a [`Channel::Angle`], a *single* stored phase
+//! and an integer count of windings, so `phase + w·t` with `w ∈ {−1, 0,
+//! 1}` on every closed-form table. There is no per-sample branch choice
+//! to get wrong: the M2 PR 5 meridian finding ("nearest-previous
 //! per-sample unwrapping is a bug") is generalized here by making the
 //! wrong unwrap **unrepresentable** — a τ jump cannot be expressed. The
-//! one-period statement certified here is the row's own azimuth extent
-//! ([`PcurveCheck::AzimuthPeriod`]).
+//! row's azimuth spans at most one period because its carrier's
+//! interval does (the edge certificate's `interval_span_winding`,
+//! [`crate::CertifyError::WindingExceeded`]) and its windings are at
+//! most one per carrier period.
 //!
 //! No caller's window enters the certificate, and nothing here tells a
 //! row from the same row a whole period over: both certify
@@ -1323,7 +1327,9 @@ impl<T: Real> Pcurve<T> {
     /// # Errors
     ///
     /// `None` for a [`SpiricImage::Wall`] image, per the paragraph
-    /// above. Every other variant answers `Some`, exactly.
+    /// above, and for a harmonic image whose angle channel stores a
+    /// count with no negation in `i32` ([`Pcurve::map_affine`]'s two
+    /// refusals). Every other image answers `Some`, exactly.
     #[must_use]
     pub fn mirror_v(&self) -> Option<Self> {
         if matches!(
@@ -2687,7 +2693,7 @@ pub enum EnvelopeStatement {
     /// slacks (the trilean-admitted ε-shell around the exact
     /// axis-aligned family, metered through the chart's derivative-net
     /// stretch bounds) are folded in explicitly, exactly as the
-    /// harmonic lane's fidelity term carries its winding drift; a
+    /// harmonic lane's fidelity term carries its coefficients' drift; a
     /// boundary row pays its
     /// snap to the domain end, a collapsed row is taken at the stored
     /// parameter itself and pays the channel's drift alone. Every slack
@@ -3401,12 +3407,21 @@ impl<T: Decide> PcurveCache<T> {
     /// The check sequence (fixed order, D9; every margin in metres):
     ///
     /// 1. **Lane**: the chart and carrier kinds are ones this module
-    ///    certifies in closed form; the azimuth channel of a periodic
-    ///    chart is `α + β·t` with `β ∈ {−1, 0, +1}` (a named trilean
-    ///    selection over a finite structural set, not a guess).
+    ///    certifies in closed form. On a [`Pcurve::Harmonic`] image, the
+    ///    **kind check**: each channel is its chart coordinate's kind, a
+    ///    [`Channel::Angle`] where the coordinate is an angle and a
+    ///    [`Channel::Free`] where it is not
+    ///    ([`PcurveCertifyError::ChannelKindMismatch`]); and the stored
+    ///    windings are counts a closed-form table holds, at most one
+    ///    turn per carrier period
+    ///    ([`PcurveCertifyError::ChartWindingUnsupported`]). Structure,
+    ///    compared with no decision.
     /// 2. **Interval**: `t₁ − t₀` is definitely forward, metered
-    ///    through the carrier's own rate; the pcurve's azimuth extent
-    ///    does not definitely exceed one period.
+    ///    through the carrier's own rate. The image's angles span at
+    ///    most one period because the carrier's interval does (the edge
+    ///    certificate's `interval_span_winding`); a spline net's
+    ///    projected image, whose parameter is no angle, has its own
+    ///    period gate here.
     /// 3. **Schedule**: `|S(P(tᵢ)) − C(tᵢ)| ≤ ε` at the
     ///    [`CERT_SAMPLES`] schedule — evaluated through
     ///    `Surface::eval` and `Curve3::eval` directly, so the closed
@@ -3424,13 +3439,15 @@ impl<T: Decide> PcurveCache<T> {
     ///      ([`EnvelopeStatement::MapResidualClosedForm`]) — on a
     ///      periodic chart the carrier's incidence with the chart plus
     ///      the stored image's fidelity to the image re-derived from the
-    ///      carrier. Fidelity carries every drift step 1 admits (an
-    ///      ε-shell around the exact harmonic family), so the stored
-    ///      envelope bounds the pcurve actually certified; it is zero on
-    ///      every minted cache, and exists so the certificate is honest
-    ///      for every input `certify` admits, attach-path ones
-    ///      included. A refusal names its term
-    ///      ([`PcurveCheck::EnvelopeTerm`]).
+    ///      carrier. The **winding compare** comes first: the stored
+    ///      windings equal the derived name's exactly, or the row refuses
+    ///      as [`PcurveCertifyError::WindingMismatch`]. Fidelity then
+    ///      carries every drift the real coefficients admit (an ε-shell
+    ///      around the exact harmonic family), so the stored envelope
+    ///      bounds the pcurve actually certified; it is zero on every
+    ///      minted cache, and exists so the certificate is honest for
+    ///      every input `certify` admits, attach-path ones included. A
+    ///      refusal names its term ([`PcurveCheck::EnvelopeTerm`]).
     ///    - [`Pcurve::IsoLine`] / [`Pcurve::IsoArc`]: the traversed
     ///      row's control-difference hull
     ///      ([`EnvelopeStatement::MapResidualIsoHull`]).
@@ -3890,7 +3907,8 @@ fn plane_image<T: Real>(
 /// - **Plane chart**: the map is affine, so the pcurve's coefficients
 ///   map through one by one.
 /// - **Cylinder chart**: the azimuth channel is `α + β·t` with
-///   `β ∈ {−1, 0, +1}` (the stored windings, [`Channel::Angle`]). For `β = 0` the
+///   `β ∈ {−1, 0, +1}` (the stored windings, [`Channel::Angle`],
+///   [`angle_windings`]). For `β = 0` the
 ///   radial vector is constant and folds into the constant term; for
 ///   `β = ±1` the angle-sum identity
 ///   `cos(α + βt) = cos α·cos t − β·sin α·sin t` puts the radial
@@ -5836,10 +5854,12 @@ fn fidelity<T: Decide>(
 ///    azimuth — and on a torus `vl` is a unit sign
 ///    (`pcurve_focal_section_tube_rate`, levered at `r`).
 /// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
-///    carrier's rate; the azimuth's extent — its endpoint difference,
-///    since it is monotone — gated against one period at the chart's
-///    azimuth arm, and on a torus the tube angle's extent at `r`
-///    (`pcurve_tube_period`, [`PcurveCertifyError::TubePeriodExceeded`]).
+///    carrier's rate. No period gate: the carrier (an ellipse, a
+///    circle) has its interval held to one period by the edge
+///    certificate (`interval_span_winding`), and the image's azimuth
+///    advances monotonically one turn per carrier period (the true
+///    anomaly's), its tube angle at the unit rate check 1 decides, so
+///    neither spans more than one period where the carrier does not.
 /// 3. **Schedule**: the shared [`CERT_SAMPLES`] residuals, the closed
 ///    form's cross-check on the witness lane
 ///    ([`geom_core::Witness::Inexact`]), recording no verdict.
@@ -5946,28 +5966,6 @@ fn run_focal_section_checks<T: Decide>(
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
-    }
-    let mut gates = vec![(
-        "pcurve_azimuth_period",
-        boxed.u_max - boxed.u_min,
-        arm,
-        PcurveCheck::AzimuthPeriod,
-        PcurveCertifyError::AzimuthPeriodExceeded,
-    )];
-    if let Some(r) = tube {
-        gates.push((
-            "pcurve_tube_period",
-            boxed.v_max - boxed.v_min,
-            r,
-            PcurveCheck::TubePeriod,
-            PcurveCertifyError::TubePeriodExceeded,
-        ));
-    }
-    for (name, extent, lever, check, exceeded) in gates {
-        match decide(name, Margin::levered(T::tau() - extent, lever), band).map_err(esc(check))? {
-            Sign::Positive | Sign::Zero => {}
-            Sign::Negative => return Err(exceeded),
-        }
     }
 
     // ---- Check 3: the schedule, the closed form's cross-check. ----
@@ -6423,38 +6421,12 @@ fn run_spiric_checks<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
-    if let (
-        SpiricImage::Wall { sense, .. },
-        &Surface::Torus {
-            minor_radius: chart_minor,
-            ..
-        },
-    ) = (image, surface)
-    {
-        // ONE angular channel is gated here, and the other is gated by
-        // STRUCTURE rather than by a decide that cannot fire.
-        //
-        // The minor angle moves at `sense`, so its extent is the span
-        // and it needs the same one-period headroom every periodic
-        // chart's second channel needs.
-        //
-        // The AZIMUTH does not: `u(t) = u0 + μ·sense·atan2(f(t), d)`
-        // with `f > 0` over the whole two-oval regime, so
-        // `atan2(f, d) ∈ (0, π)` and the channel's TOTAL swing — over
-        // the whole period, let alone a span — is under `π < τ`. A
-        // headroom decide over that is a gate whose verdict is fixed
-        // at compile time, which the discipline calls documentation
-        // rather than a check; the bound is the variant's own
-        // `SpiricImage::Wall` derivation and nothing here can widen
-        // it. Stated instead of spent.
-        let headroom = Margin::levered(T::tau() - (*sense * span).abs(), chart_minor);
-        match decide("pcurve_azimuth_period", headroom, band)
-            .map_err(esc(PcurveCheck::AzimuthPeriod))?
-        {
-            Sign::Positive | Sign::Zero => {}
-            Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
-        }
-    }
+    // No period gate on a wall image: its carrier (a spiric) has its
+    // interval held to one period by the edge certificate
+    // (`interval_span_winding`); the minor angle moves at the unit
+    // `sense` check 1 decides, so it spans what the carrier does, and
+    // the azimuth `u0 + μ·sense·atan2(f, d)` swings under `π` over the
+    // whole period (`f > 0` over the two-oval regime).
 
     // ---- Check 3: the schedule, in metres through the map. ----
     schedule_residuals(
@@ -10336,44 +10308,113 @@ mod tests {
     }
 
     /// **Windings are structure, compared exactly** (C4; `[ev]` PR 5113's
-    /// first decision). A rim's image with its azimuth's winding negated
-    /// is no number a corruption moved: certification refuses it as the
-    /// windings' mismatch, naming both, at `Interval` (where check 3's
-    /// cross-check, which an `f64` row reads first, is not run).
+    /// first decision). On a rim (derived winding 1) and a seam line
+    /// (derived 0) of a cylinder, the row whose azimuth stores the derived
+    /// count certifies, at `f64` and at `Interval`; every count one off it
+    /// refuses at both lanes. At `Interval` check 3's schedule is not run,
+    /// so the refusal is the compare's own: `WindingMismatch`, naming
+    /// both counts, reached in check 4's fidelity term. At `f64` check
+    /// 3's cross-check reads the one-off image first, and refuses it as
+    /// its residual (`ResidualExceeded` at `MapResidual`). A count no
+    /// closed-form table holds (the rim's 2) refuses at check 1 as
+    /// `ChartWindingUnsupported`, at both lanes.
     #[test]
     fn a_rows_windings_are_compared_exactly() {
         use geom_core::Interval;
         let f = Interval::from_f64;
-        let cyl = cylinder(0.5).map_scalar(f);
-        let carrier = Curve3::Circle {
+        let rim = Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
             radius: 0.5,
             u_ref: Vec3::unit_x(),
+        };
+        let seam = Curve3::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        for (name, carrier, derived) in [("rim", rim, 1), ("seam", seam, 0)] {
+            let Pcurve::Harmonic {
+                u: Channel::Angle { phase, winding },
+                v,
+            } = chart_pcurve(&carrier, &cylinder(0.5), band()).unwrap()
+            else {
+                panic!("{name}: a cylinder row's azimuth is an angle")
+            };
+            assert_eq!(winding, derived, "{name}: the derived count");
+            let at = |w: i32| Pcurve::Harmonic {
+                u: Channel::Angle { phase, winding: w },
+                v,
+            };
+            let lift_channel = |c: Channel<f64>| match c {
+                Channel::Angle { phase, winding } => Channel::Angle {
+                    phase: f(phase),
+                    winding,
+                },
+                Channel::Free { c, a, b, l } => Channel::Free {
+                    c: f(c),
+                    a: f(a),
+                    b: f(b),
+                    l: f(l),
+                },
+            };
+            let lift = |p: Pcurve<f64>| {
+                let (u, v) = channels_of(&p);
+                Pcurve::Harmonic {
+                    u: lift_channel(u),
+                    v: lift_channel(v),
+                }
+            };
+            let (cyl, carrier_iv) = (cylinder(0.5).map_scalar(f), carrier.map_scalar(f));
+            for stored in [derived - 1, derived, derived + 1] {
+                let at_f64 =
+                    PcurveCache::certify(at(stored), 0.0, PI, &carrier, &cylinder(0.5), band());
+                let at_iv = PcurveCache::certify(
+                    lift(at(stored)),
+                    f(0.0),
+                    f(PI),
+                    &carrier_iv,
+                    &cyl,
+                    band(),
+                );
+                if stored == derived {
+                    assert!(
+                        at_f64.is_ok() && at_iv.is_ok(),
+                        "{name}: the derived count certifies: {at_f64:?} / {at_iv:?}"
+                    );
+                    continue;
+                }
+                // A count no closed-form table holds refuses at check 1, at
+                // both lanes, before anything is read.
+                if stored.abs() > 1 {
+                    assert!(
+                        matches!(at_f64, Err(PcurveCertifyError::ChartWindingUnsupported))
+                            && matches!(at_iv, Err(PcurveCertifyError::ChartWindingUnsupported)),
+                        "{name}, stored {stored}: check 1 refuses: {at_f64:?} / {at_iv:?}"
+                    );
+                    continue;
+                }
+                assert!(
+                    matches!(
+                        at_f64,
+                        Err(PcurveCertifyError::ResidualExceeded {
+                            check: PcurveCheck::MapResidual,
+                            ..
+                        })
+                    ),
+                    "{name}, stored {stored}: f64 refuses at check 3: {at_f64:?}"
+                );
+                assert!(
+                    matches!(
+                        at_iv,
+                        Err(PcurveCertifyError::WindingMismatch {
+                            stored: [Some(s), None],
+                            derived: [Some(d), None],
+                        }) if s == stored && d == derived
+                    ),
+                    "{name}, stored {stored}: Interval refuses at the compare: {at_iv:?}"
+                );
+            }
         }
-        .map_scalar(f);
-        let Pcurve::Harmonic {
-            u: Channel::Angle { phase, winding: 1 },
-            v,
-        } = chart_pcurve(&carrier, &cyl, band()).unwrap()
-        else {
-            panic!("a rim winds once with the chart frame")
-        };
-        let flipped = Pcurve::Harmonic {
-            u: Channel::Angle { phase, winding: -1 },
-            v,
-        };
-        let out = PcurveCache::certify(flipped, f(0.0), f(PI), &carrier, &cyl, band());
-        assert!(
-            matches!(
-                out,
-                Err(PcurveCertifyError::WindingMismatch {
-                    stored: [Some(-1), None],
-                    derived: [Some(1), None],
-                })
-            ),
-            "{out:?}"
-        );
     }
 
     /// **A row's channels are its chart's.** The same rim's image with

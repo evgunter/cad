@@ -101,3 +101,10 @@ harmonic), and the focal-section envelope's torus `meridional + phase`
 (the meridional chord lies in `span(ρ̂, n̂)` and the phase remainder
 along `ρ̂`, so they are not orthogonal; each already reads its own pair
 exactly).
+
+## PCERT B2a (PR 5244, 2026-10-17)
+
+topo's `split_chart_azimuth_linear` gate is gone: a cylinder image's
+azimuth is a `geom_brep::Channel::Angle`, which has no harmonic pair, so
+`chart_v_du` takes it by type and reads only the axial channel's pair
+(`topo-v-var`).
