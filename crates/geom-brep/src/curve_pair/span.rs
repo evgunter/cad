@@ -57,7 +57,7 @@
 //! too, else the place's.
 
 use geom::{CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
-use geom_core::k_stats::{decide_reported, straddle};
+use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
@@ -337,18 +337,28 @@ impl<'a, T: Decide> Span<'a, T> {
     /// **What `q` is against the span**: the two readings at its foot
     /// found from `near`, composed (module docs), deciding nothing of its
     /// own. The carrier is read first, and a point it reads off is off
-    /// the span with no place read.
+    /// the span with no place read. Otherwise its reading goes on the
+    /// frame after the place's, so a refusal of the carrier's is the last
+    /// on the frame; at an end, which no carrier reading decides, its
+    /// escalation is superseded.
     ///
     /// # Errors
     ///
     /// Whichever reading the answer rests on refused (module docs).
     pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
         let foot = self.carrier.foot(q, near);
-        let on = foot.on_carrier(band);
+        let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
         if on == Ok(OnCarrier::Off) {
+            k_stats::splice(carrier);
             return Ok(Reading::Off);
         }
-        Ok(match self.place_at(&foot, band) {
+        let place = self.place_at(&foot, band);
+        if matches!(place, Ok(Place::End(_))) {
+            k_stats::splice_superseded(carrier);
+        } else {
+            k_stats::splice(carrier);
+        }
+        Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside { t }) => match on? {
                 OnCarrier::On { margin } => Reading::On { t, margin },
