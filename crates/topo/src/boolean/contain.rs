@@ -661,7 +661,7 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS, band)?
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic, band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -1328,9 +1328,10 @@ pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainEr
 /// Its caller, the boolean reduction's point split, turns a definite
 /// miss into a broken-invariant refusal, because a split point was
 /// placed on that carrier by an exact row upstream. The boundary
-/// pre-pass asks the same distance of a circle edge under the same row
-/// name, folded the same way
-/// ([`crate::splitting::containment::LoopEdge::contact`]).
+/// pre-pass reads a circle edge through the point-on-span reading
+/// instead ([`crate::splitting::containment::LoopEdge::contact`]), whose
+/// gap row reads this distance at the point's exact foot
+/// (`work/cleave/point-on-circle-is-a-second-point-on-carrier-reading.md`).
 pub(super) fn point_on_circle<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,

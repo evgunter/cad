@@ -184,3 +184,81 @@ fn g6_unreachable_through_the_public_door() {
     eprintln!("{}", hits.join("\n"));
     assert!(!hits.iter().any(|h| h.contains("panicked true")), "{}", hits.join("\n"));
 }
+
+/// G1: g5's reachers at Interval: does Interval name f64's copy?
+#[test]
+fn g5i_cone_ruling_through_the_apex_both_scalars() {
+    use geom_core::{Bounds, Interval, Real};
+    let f = Interval::from_f64;
+    let cone = Surface::Cone { apex: Point3::new(0.0, 0.0, 0.0), axis: Vec3::unit_z(), half_angle: 0.4, u_ref: Vec3::unit_x() };
+    let mut bad = Vec::new();
+    for phi in [0.0_f64, 2.3, -1.0, 5.0] {
+        let dir = Vec3::new(0.4_f64.sin() * phi.cos(), 0.4_f64.sin() * phi.sin(), 0.4_f64.cos());
+        for origin_t in [0.0_f64, 0.7] {
+            let line = Curve3::Line { origin: Point3::new(0.0, 0.0, 0.0) + dir * origin_t, dir };
+            for (a, b) in [(0.5, 1.5), (-1.5, -0.5), (-1.0, 1.0), (-0.7, 1.0)] {
+                let (a, b) = (a - origin_t, b - origin_t);
+                let r64 = chart_pcurve_over(&line, a, b, &cone, band());
+                let ri = chart_pcurve_over(&line.map_scalar(f), f(a), f(b), &cone.map_scalar(f), band());
+                let m = 0.5 * (a + b);
+                match (&r64, &ri) {
+                    (Ok(p), Ok(q)) => {
+                        let (pm, qm) = (p.eval(m), q.eval(f(m)));
+                        if !(qm.x.lo() <= pm.x && pm.x <= qm.x.hi()) {
+                            bad.push(format!("phi {phi} o {origin_t} [{a},{b}]: f64 {pm:?} vs Interval {qm:?}"));
+                        }
+                    }
+                    (Err(_), Err(_)) => {}
+                    _ => bad.push(format!("phi {phi} o {origin_t} [{a},{b}]: f64 {:?} vs Interval {:?}", r64.as_ref().map(|p| p.eval(m)), ri.as_ref().map(|_| ()))),
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// G1: a zero-lever edge (a pole's zero-radius parallel, a cone apex's)
+/// restated whole periods off: is it placed in the window, or kept as read?
+#[test]
+fn g7_zero_lever_edge_restated_periods_off() {
+    let sphere = Surface::Sphere { center: Point3::new(0.0, 0.0, 0.0), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+    let cone = Surface::Cone { apex: Point3::new(0.0, 0.0, 0.0), axis: Vec3::unit_z(), half_angle: 0.4, u_ref: Vec3::unit_x() };
+    let pole = circle(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), 0.0, Vec3::unit_x());
+    let apex = circle(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), 0.0, Vec3::unit_x());
+    let mut lines = Vec::new();
+    let mut bad = Vec::new();
+    for (name, s, c) in [("sphere pole", &sphere, &pole), ("cone apex", &cone, &apex)] {
+        for k in [0.0, 1.0, -3.0, 10.0] {
+            for (t0, t1) in [(0.0, TAU), (0.3, 1.3)] {
+                let (a, b) = (t0 + k * TAU, t1 + k * TAU);
+                let r = chart_pcurve_over(c, a, b, s, band());
+                let m = r.as_ref().map(|i| i.eval(0.5 * (a + b)));
+                lines.push(format!("{name} k {k} [{t0},{t1}]: {m:?}"));
+                if let Ok(m) = m { if !win(m.x) { bad.push(format!("{name} k {k} [{t0},{t1}]: u {} out of window", m.x)); } }
+            }
+        }
+    }
+    eprintln!("{}", lines.join("\n"));
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// G2: a meridian whose midpoint is on (or within band of) its pole,
+/// started near and started far: same image, or twins?
+#[test]
+fn g8_meridian_midpoint_at_the_pole_restarted() {
+    let sphere = Surface::Sphere { center: Point3::new(0.0, 0.0, 0.0), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+    let near = circle(Point3::new(0.0, 0.0, 0.0), -Vec3::unit_y(), 1.0, Vec3::unit_x());
+    let far = circle(Point3::new(0.0, 0.0, 0.0), -Vec3::unit_y(), 1.0, -Vec3::unit_x());
+    let mut lines = Vec::new();
+    for off in [0.0, 1e-13, 1e-10, 1e-8, 1e-6, 1e-3] {
+        for pole in [FRAC_PI_2, -FRAC_PI_2] {
+            let mid = pole + off;
+            let (a, b) = (mid - 0.3, mid + 0.3);
+            let p = chart_pcurve_over(&near, a, b, &sphere, band()).map(|i| i.eval(mid));
+            let q = chart_pcurve_over(&far, a - PI, b - PI, &sphere, band()).map(|i| i.eval(mid - PI));
+            let same = matches!((&p, &q), (Ok(p), Ok(q)) if (p.x - q.x).abs() < 1e-9 && (p.y - q.y).abs() < 1e-9);
+            lines.push(format!("pole {pole:.3} off {off:e}: near {p:?} far {q:?} same {same}"));
+        }
+    }
+    eprintln!("{}", lines.join("\n"));
+}

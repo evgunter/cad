@@ -37,7 +37,8 @@
 //! [`BoundaryCrossing::Unread`]. So does every refusal `meet` types past
 //! the band's own escalation, and a face holding a lone vertex (a pierce
 //! ring), which has no boundary pre-pass: the caller keeps its frontier
-//! door.
+//! door. A refusal's meetings are not read: a stretch that escalates
+//! holds meetings whose stretch is undecided.
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
 use geom_core::{Band, Decide, Point3};
@@ -134,9 +135,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         if met.shared.is_some() {
             continue;
         }
-        // A run's points stand beside a meeting at an end, which is the
-        // endpoint arms' question: no crossing of their own.
-        for m in met.points.iter().filter(|m| !m.run) {
+        for m in &met.points {
             match m.on_a {
                 Hit::On { t, .. } => crossings.push(t),
                 Hit::End(_) => {}
@@ -214,8 +213,8 @@ mod crossing_rows {
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
     use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
-    use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
+    use crate::boolean::{BooleanError, Operand};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_brep::curve_pair::Span;
@@ -353,12 +352,18 @@ mod crossing_rows {
     /// `(cos θ*, sin θ*, 0.5)`, `θ* = 0.05`, whose parameter is the
     /// azimuth: its speed runs from `1` (the minor semi-axis) to about
     /// `400` (the major), and is about `20` at `θ*`, where it crosses the
-    /// wall sheet's ruling. With `z` the band's zero, a span starting
-    /// `0.8·z` of parameter before `θ*` carries the meeting a chord of
-    /// `16·z` inside it, and finds it. A span starting `0.04·z` before
-    /// `θ*` carries it a chord of `0.8·z` in, at its end, and is clear.
-    /// Read by the parameter at either semi-axis, each would be the
-    /// other's answer.
+    /// wall sheet's ruling, which its tangent leaves at `1/20`. With `z`
+    /// the band's zero, a span starting `20·z` of parameter before `θ*`
+    /// carries the meeting a chord of `400·z` inside it, its end `20·z`
+    /// off the ruling, past the band, and finds it. A span starting
+    /// `0.04·z` before `θ*` carries it a chord of `0.8·z` in, at its end,
+    /// and is clear; read by the parameter at the major semi-axis, it
+    /// would carry it `16·z` in. A span starting `0.8·z` before carries
+    /// it `16·z` in, but its end lies `0.8·z` off the ruling, within the
+    /// zero band: the end, read first, is a meeting, and the crossing
+    /// `16·z` in, past the escalation from it, is a second in the same
+    /// stretch, so whether the two are two crossings or one run is
+    /// undecided and it escalates (`curve_pair_meet_stretch`).
     #[test]
     fn a_swept_spans_end_is_read_by_its_chord_to_the_meeting() {
         let tol = Tol::witness();
@@ -382,7 +387,7 @@ mod crossing_rows {
             semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
         };
-        let read = |gap: f64| {
+        let attempt = |gap: f64| {
             boundary_crossing(
                 &body,
                 Operand::B,
@@ -391,15 +396,24 @@ mod crossing_rows {
                 (theta - gap * z, theta + 0.01),
                 band,
             )
-            .unwrap()
         };
-        match read(0.8) {
+        let read = |gap: f64| attempt(gap).unwrap();
+        match read(20.0) {
             BoundaryCrossing::At { t, at, .. } => {
                 assert!((t - theta).abs() < 1e-12, "at the ruling: {t}");
                 assert!(matches!(at, FaceContainment::OnEdge(_)), "on it: {at:?}");
             }
-            other => panic!("16·z inside the span, the meeting is found: {other:?}"),
+            other => panic!("400·z inside the span, the meeting is found: {other:?}"),
         }
+        assert!(
+            matches!(
+                attempt(0.8),
+                Err(BooleanError::Escalated { ref diag, .. })
+                    if diag.predicate == Some("curve_pair_meet_stretch")
+            ),
+            "the end 0.8·z off the ruling and the crossing 16·z in, one stretch: {:?}",
+            attempt(0.8)
+        );
         assert!(
             matches!(read(0.04), BoundaryCrossing::Clear),
             "0.8·z from the span's start, the meeting is its end: {:?}",

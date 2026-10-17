@@ -244,6 +244,7 @@ fn a_pole_start_reads_its_residual_as_one_pair() {
     let derivation = Derivation::SphereMeridian {
         pole: true,
         sigma: Winding::Neg,
+        far: false,
     };
     let incidence_of = |form: Harmonic3<f64>| -> f64 {
         let mut terms = EnvelopeTerms::new();
@@ -307,8 +308,13 @@ fn a_still_parallel_reads_its_pair_whole() {
         s,
         Vec3::unit_x(),
     );
-    let (image, derivation) =
-        derive_harmonic(&carrier, &sphere, super::Placement::own(&carrier), band()).unwrap();
+    let (image, derivation) = derive_harmonic(
+        &carrier,
+        &sphere,
+        super::Placement::own(&carrier, &sphere),
+        band(),
+    )
+    .unwrap();
     assert!(
         matches!(
             derivation,
@@ -571,7 +577,15 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
 /// reads its radial circle at `0.7·escalate`, in the band, and takes
 /// the meridian (where check 2 then escalates, as the moving class's
 /// winding gate does: no carrier of a cylinder this thin certifies).
-/// The coefficient sum reads `1.4·escalate` and decides it moving.
+/// The coefficient sum reads `1.4·escalate` and decides it moving. The
+/// rim's centre is on the axis, so its radial part is exactly zero and
+/// names no direction: the meridian, taken in band as a tie-break, reads
+/// its azimuth off the chart's `u_ref` (exactly `0`), at `f64` and at
+/// `Interval` alike, where it read `atan2(0, 0)` and refused only at
+/// `Interval` (PR 5225's delta review, G1). Its placement's lever is the
+/// rim's reach from the axis, `0.7·escalate`: not zero, so the copy is
+/// named, by the marks' tie-break in band, and both scalars name the
+/// same one, a whole number of turns from `0`.
 #[test]
 fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     let r = 0.7 * band().escalate();
@@ -582,27 +596,34 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         r,
         Vec3::unit_x(),
     );
+    let derived = derive_harmonic(
+        &carrier,
+        &surface,
+        super::Placement::own(&carrier, &surface),
+        band(),
+    );
+    let Ok((Pcurve::Harmonic { p0: at_f64, .. }, Derivation::CylinderMeridian)) = derived else {
+        panic!("f64: the sub-band rim takes the meridian: {derived:?}")
+    };
+    assert_eq!(
+        at_f64.x - TAU * (at_f64.x / TAU).round(),
+        0.0,
+        "f64: the meridian's azimuth is 0 modulo a turn: {at_f64:?}"
+    );
     let f = Interval::from_f64;
-    for (scalar, derived) in [
-        (
-            "f64",
-            derive_harmonic(&carrier, &surface, super::Placement::own(&carrier), band())
-                .map(|(_, d)| d),
+    let (carrier, surface) = (carrier.map_scalar(f), surface.map_scalar(f));
+    let derived = derive_harmonic(
+        &carrier,
+        &surface,
+        super::Placement::own(&carrier, &surface),
+        band(),
+    );
+    assert!(
+        matches!(
+            &derived,
+            Ok((Pcurve::Harmonic { p0, .. }, Derivation::CylinderMeridian))
+                if p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
         ),
-        (
-            "Interval",
-            derive_harmonic(
-                &carrier.map_scalar(f),
-                &surface.map_scalar(f),
-                super::Placement::own(&carrier.map_scalar(f)),
-                band(),
-            )
-            .map(|(_, d)| d),
-        ),
-    ] {
-        assert!(
-            matches!(derived, Ok(Derivation::CylinderMeridian)),
-            "{scalar}: the sub-band rim takes the meridian: {derived:?}"
-        );
-    }
+        "Interval: the sub-band rim takes the meridian on f64's copy {at_f64:?}: {derived:?}"
+    );
 }

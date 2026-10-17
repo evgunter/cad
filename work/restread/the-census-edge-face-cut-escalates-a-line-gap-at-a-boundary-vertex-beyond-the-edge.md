@@ -16,7 +16,7 @@ Found by JOIN's near-tangent census measurement (`near-tangent-boolean-results-s
 `crates/topo/src/census.rs` `ef_overlap_cells` decides `pm_census_ef_cut_gap`,
 a face boundary vertex's distance from the edge's LINE, and pushes an
 escalation before reading the vertex's span along the edge.
-`on_edge_interior` does the same with `pm_census_ve_line_gap`. In
+`on_edge_interior` did the same with `pm_census_ve_line_gap`, until FUSE's stage c3 (PR 5227) moved it onto `Span::contact`, which reads the span first. In
 near-tangent results the vertex lies within the band of the line, past
 the edge's end:
 

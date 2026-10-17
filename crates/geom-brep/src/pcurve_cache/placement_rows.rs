@@ -286,6 +286,248 @@ fn every_edge_of_a_rim_is_placed_in_the_window_at_its_midpoint() {
     }
 }
 
+/// One line per line arm of the derivation, with an edge's span: a
+/// cylinder's meridian, a cone's ruling, and a ruling whose span is
+/// centred on the apex (its midpoint on the axis, so its azimuth's lever
+/// is the reach of its ends, [`super::Levers`]).
+fn line_arms() -> Vec<Arm> {
+    let (x, z) = (Vec3::unit_x(), Vec3::unit_z());
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let phi: f64 = 2.3;
+    let alpha: f64 = 0.4;
+    let ruling = Vec3::new(
+        alpha.sin() * phi.cos(),
+        alpha.sin() * phi.sin(),
+        alpha.cos(),
+    );
+    let cone = Surface::Cone {
+        apex: o,
+        axis: z,
+        half_angle: alpha,
+        u_ref: x,
+    };
+    vec![
+        (
+            "cylinder meridian",
+            Surface::Cylinder {
+                origin: o,
+                axis: z,
+                radius: 1.0,
+                u_ref: x,
+            },
+            Curve3::Line {
+                origin: Point3::new(phi.cos(), phi.sin(), 0.0),
+                dir: z,
+            },
+            (0.3, 2.0),
+        ),
+        (
+            "cone ruling",
+            cone.clone(),
+            Curve3::Line {
+                origin: o + ruling * 0.5,
+                dir: ruling,
+            },
+            (0.2, 1.5),
+        ),
+        (
+            "cone ruling across the apex",
+            cone,
+            Curve3::Line {
+                origin: o,
+                dir: ruling,
+            },
+            (-1.0, 1.0),
+        ),
+    ]
+}
+
+/// `carrier` started `by` further along: a circle's frame turned by `by`
+/// about its axis, a line's origin moved `by` along it. The restarted
+/// carrier at `t − by` is the first at `t`.
+fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
+    match *carrier {
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => circle(
+            center,
+            axis,
+            radius,
+            u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
+        ),
+        Curve3::Line { origin, dir } => Curve3::Line {
+            origin: origin + dir * by,
+            dir,
+        },
+        _ => unreachable!("only circles and lines are restarted here"),
+    }
+}
+
+/// **A carrier restarted derives one placed image** (C4: where a
+/// carrier's parameter happens to start moves neither the stored image
+/// nor its certificate). Every circle arm's carrier with its frame
+/// turned, and every line arm's with its origin moved, by
+/// `by ∈ {0.7, −2.1, π, 5.5}`, the edge's span moved back by as much,
+/// derives an image that meets the first at every point of the span,
+/// both its angular channels in their windows at the midpoint, and
+/// certifies with the same envelope. A sphere meridian started on the
+/// far half of its great circle is among them (`by = π`): it reads its
+/// half at the span's midpoint, not at its `t = 0` point.
+#[test]
+fn a_carrier_restarted_derives_one_placed_image() {
+    let band = band();
+    let restartable = arms()
+        .into_iter()
+        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle { .. }))
+        .chain(line_arms());
+    for (name, surface, carrier, (t0, t1)) in restartable {
+        let derive = |carrier: &Curve3<f64>, (a, b): (f64, f64)| {
+            let image = chart_pcurve_over(carrier, a, b, &surface, band)
+                .unwrap_or_else(|e| panic!("{name}: derives over [{a}, {b}]: {e:?}"));
+            let cache = PcurveCache::certify(image.clone(), a, b, carrier, &surface, band)
+                .unwrap_or_else(|e| panic!("{name}: certifies over [{a}, {b}]: {e:?}"));
+            (image, cache.certificate().envelope)
+        };
+        let (base, envelope) = derive(&carrier, (t0, t1));
+        for by in [0.7, -2.1, PI, 5.5] {
+            let moved = restarted(&carrier, by);
+            let (a, b) = (t0 - by, t1 - by);
+            let (image, env) = derive(&moved, (a, b));
+            for s in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                let (p, q) = (image.eval(a + s * (b - a)), base.eval(t0 + s * (t1 - t0)));
+                assert!(
+                    (p.x - q.x).abs() < 1e-9 && (p.y - q.y).abs() < 1e-9,
+                    "{name}, restarted by {by}, at {s} of the span: {p:?} against {q:?}"
+                );
+            }
+            let mid = image.eval(0.5 * (a + b));
+            assert!(in_window(mid.x), "{name}, restarted by {by}: {mid:?}");
+            if let Some(second) = second_window(&surface) {
+                assert!(second(mid.y), "{name}, restarted by {by}: {mid:?}");
+            }
+            assert!(
+                (env - envelope).abs() < 1e-12,
+                "{name}, restarted by {by}: the envelope {env:e} against {envelope:e}"
+            );
+        }
+    }
+}
+
+/// **A projected torus image names both its angles in the window.** A
+/// rational arc of a torus's meridian circle (a spline carrier, so the
+/// projected image) whose tube angle runs across the window's cut at
+/// `τ − 1`, from `5.0` to `5.8`, is placed with its deck origin naming
+/// the azimuth and the tube angle in the window at the span's midpoint
+/// (`v_off`).
+#[test]
+fn a_projected_torus_image_names_both_its_angles_in_the_window() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::KnotVector;
+    use std::sync::Arc;
+    let band = band();
+    let (major, minor, phi) = (2.0_f64, 0.5_f64, 1.1_f64);
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let radial = Vec3::new(phi.cos(), phi.sin(), 0.0);
+    let centre = Point3::new(0.0, 0.0, 0.0) + radial * major;
+    let at = |v: f64| centre + (radial * v.cos() + Vec3::unit_z() * v.sin()) * minor;
+    let (a, span) = (5.0_f64, 0.8_f64);
+    let h = 0.5 * span;
+    let peak =
+        centre + (radial * (a + h).cos() + Vec3::unit_z() * (a + h).sin()) * (minor / h.cos());
+    let arc = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![at(a), peak, at(a + span)],
+            vec![1.0, h.cos(), 1.0],
+        )
+        .unwrap(),
+    ));
+    let image = chart_pcurve_over(&arc, 0.0, 1.0, &torus, band).unwrap();
+    assert!(
+        matches!(image, super::Pcurve::Projected(_)),
+        "a spline images projected: {image:?}"
+    );
+    let mid = image.eval(0.5);
+    assert!(in_window(mid.x), "the azimuth at the midpoint: {mid:?}");
+    assert!(in_window(mid.y), "the tube angle at the midpoint: {mid:?}");
+    assert!(
+        (mid.x - phi).abs() < 1e-9 && (mid.y - (a + h - TAU)).abs() < 1e-9,
+        "the midpoint names the meridian's azimuth and its tube angle a turn down: {mid:?}"
+    );
+}
+
+/// **A span past every turn an `i32` counts refuses typed** (it panicked
+/// as an `unreachable!`, PR 5225's delta review, g6): a cylinder rim's
+/// edge at `m = 1.3493037703522018e10` sits on a mark of the window more
+/// than `2³¹` turns out, and derives `PlacementTurnsExceeded`.
+#[test]
+fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let rim = circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    );
+    let m = 1.3493037703522018e10;
+    let out = chart_pcurve_over(&rim, m - 0.5, m + 0.5, &cylinder, band());
+    assert!(
+        matches!(out, Err(super::PcurveCertifyError::PlacementTurnsExceeded)),
+        "{out:?}"
+    );
+}
+
+/// **A pole's zero-radius parallel keeps the angle it reads, at every
+/// scalar.** A ball's poles carry a parallel of radius zero: its azimuth
+/// moves nothing, every copy is the same point, and its placement's lever
+/// (its reach from the axis, over its span and over its own turn) is zero.
+/// The placement names no other copy (zero turns) at `f64` and at
+/// `Interval` alike, never deciding marks at a zero lever (PR 5225's delta
+/// review, G1).
+#[test]
+fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
+    use geom_core::{Interval, Real};
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let pole = circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        0.0,
+        Vec3::unit_x(),
+    );
+    let place = super::Placement::over((2.0, 2.0), &pole, &sphere);
+    assert_eq!(
+        place.turns(super::Along::Azimuth, 7.0, band()).unwrap(),
+        0,
+        "f64"
+    );
+    let f = Interval::from_f64;
+    let (pole, sphere) = (pole.map_scalar(f), sphere.map_scalar(f));
+    let place = super::Placement::over((f(2.0), f(2.0)), &pole, &sphere);
+    assert_eq!(
+        place.turns(super::Along::Azimuth, f(7.0), band()).unwrap(),
+        0,
+        "Interval"
+    );
+}
 // ---- review 5225 r2 probes ----
 
 fn r2_villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {

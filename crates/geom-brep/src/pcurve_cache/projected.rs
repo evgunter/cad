@@ -1167,23 +1167,22 @@ pub(crate) fn project<T: Decide>(
     image.tube = tube;
     // C4's placement: the deck origin names the image's azimuth, and on
     // a torus its tube angle, in the principal window at the span's
-    // midpoint, so where the carrier's parameter starts moves no image.
-    // Each is levered where its angle moves the geometry, in metres (D4):
-    // the azimuth at the carrier point's distance from the chart's axis
-    // there, the tube angle at the torus's minor radius.
-    let place = span.map_or_else(|| super::Placement::own(carrier), super::Placement::over);
+    // midpoint, so where the carrier's parameter starts moves no image;
+    // each levered by `Placement`'s one rule.
+    let place = span.map_or_else(
+        || super::Placement::own(carrier, surface),
+        |span| super::Placement::over(span, carrier, surface),
+    );
     let at = image.eval(place.mid());
-    let deck = |angle: T, lever: T| {
-        Ok::<_, PcurveCertifyError>(match place.turns(angle, lever, band)? {
+    let deck = |along, angle: T| {
+        Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
             0 => T::zero(),
             k => super::Period::new(T::tau()).times(-k),
         })
     };
-    let q = carrier.eval(place.mid()) - origin;
-    let axis = e[2];
-    image.u_off = deck(at.x, (q - axis * q.dot(axis)).norm())?;
-    if let Surface::Torus { minor_radius, .. } = *surface {
-        image.v_off = deck(at.y, minor_radius)?;
+    image.u_off = deck(super::Along::Azimuth, at.x)?;
+    if matches!(image.chart, ProjectedChart::Torus { .. }) {
+        image.v_off = deck(super::Along::Tube, at.y)?;
     }
     Ok(image)
 }

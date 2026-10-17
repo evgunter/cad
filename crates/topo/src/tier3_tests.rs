@@ -3448,8 +3448,9 @@ mod line_conic_review {
     /// through the apex touches the post there and nowhere else (above
     /// the cap on one side of the apex, outside the wall on the other).
     /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
-    /// pass 5 never sees the arc, and the cross-solid backstop is what
-    /// refuses.
+    /// pass 5 never sees the arc, and the cross-solid backstop refuses;
+    /// pass 5′ reads the touch itself, the rim's and the wedge edge's
+    /// interiors meeting with no record.
     #[test]
     fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
         let (mut body, cap) = post();
@@ -3478,12 +3479,19 @@ mod line_conic_review {
             )),
             "the backstop holds the cap against the wedge: {errors:?}"
         );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-            "no census lane reads the touch itself: {errors:?}"
-        );
+        let rim_touch = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeEdgeCross { side: None, .. },
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(rim_touch, 1, "pass 5′ reads the touch itself: {errors:?}");
     }
 }
 

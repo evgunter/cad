@@ -106,13 +106,18 @@ use crate::m10_9_pins_interval::measured_studies;
 /// → `[1305, 1211, 2997]`. No dispute fired. With the wedge levered at
 /// its faces' extent as well, the two moves add: bracket `[1433, 1096,
 /// 2059]` and pad `[1305, 1211, 3543]`, the wedge's `frozen` (+75, +546)
-/// on top of the placement's.
+/// on top of the placement's. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) moves `frozen` alone, the marks' forms built
+/// from three points: plate 741 → 729, annulus 920 → 940, link 548 → 542,
+/// bracket 2059 → 2110, pad 3543 → 3558. No decision moved and no dispute
+/// fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1032, 726, 741]),
-    ("r1_annulus", [550, 471, 920]),
-    ("r2_link", [348, 295, 548]),
-    ("r2_filleted_bracket", [1433, 1096, 2059]),
-    ("r2_rounded_pad", [1305, 1211, 3543]),
+    ("two_hole_plate", [1032, 726, 729]),
+    ("r1_annulus", [550, 471, 940]),
+    ("r2_link", [348, 295, 542]),
+    ("r2_filleted_bracket", [1433, 1096, 2110]),
+    ("r2_rounded_pad", [1305, 1211, 3558]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
