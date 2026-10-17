@@ -611,3 +611,20 @@ standing on a block's top edge (the sunk rod,
 a common ruling — has no body yet: the union refuses at the boolean's
 curved-pierce door, and so does a block ∪ cylinder at its join lane;
 that is the boolean's ground, not the band's.
+
+## Conventions every sweep keeps
+
+Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+
+- **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
+  makes a one-band wire sweep unrepresentable, so axis-touching full
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
+- **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
+  extruded holes are cap-to-cap tunnels
+  (one shell, genus); full-revolve holes are cavities (a second shell,
+  through `topo::insert_void`); partial revolve is extrude-shaped and carries
+  holes in its one shell. Sweeps emit single-shell primary boundaries.

@@ -745,7 +745,7 @@ impl OutputNames {
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus
-/// the reserved PR 3 / M6 slots and the node's content key.
+/// the reserved witness slot and the node's content key.
 #[derive(Debug, Clone)]
 pub struct NodeValue<T: Decide> {
     /// What the node's op produced.
@@ -856,7 +856,9 @@ pub struct NodeValue<T: Decide> {
     /// placement equals a recompute's bit for bit (the D9 argument the
     /// verdicts above ride on).
     pub placement: Option<FramePlacement>,
-    /// RESERVED empty slot: the solved witness assignment (M6 fills).
+    /// RESERVED empty slot: the solved witness assignment, filled by
+    /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
+    /// when constraint-driven sketches have a consumer.
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
     pub content_key: ContentKey,
@@ -969,7 +971,10 @@ pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
 /// [`geom_core::k_stats::Escalation`]s in decision order.
 pub type EscalationLog = Vec<geom_core::k_stats::Escalation>;
 
-/// M6's solved-assignment slot, as a type stub (spec D2).
+/// The sketch solver's solved-assignment slot, as a type stub (spec
+/// D2): no solver is in the tree, and `docs/DESIGN.md`
+/// `[open.sketch-solver]` adopts one when constraint-driven sketches
+/// have a consumer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WitnessSlot {}
 
@@ -1718,17 +1723,24 @@ pub enum NodeErrorKind {
     /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
-    /// input), surfaced typed rather than panicking.
-    ProfileAnchor {
-        /// The canonical loop index that failed to match.
-        loop_: u32,
-    },
+    /// input), surfaced typed rather than panicking. It names no loop:
+    /// the derivation reports only that it failed.
+    ProfileAnchor,
     /// The naming anchor, the replay record and the program's minted
     /// step ids do not describe one program, so the profile's pieces
     /// have no names — an internal invariant break, surfaced typed.
     ProfilePieces {
         /// Where the three disagree.
         fault: PiecesFault,
+    },
+    /// The profile op found no record of the f64 pass it builds on —
+    /// no precompute at all, or no replay record for a program loop
+    /// the guided lift replays — an internal invariant break, surfaced
+    /// typed.
+    ProfileRecordMissing {
+        /// The program loop with no replay record; `None` when the
+        /// whole precompute is absent.
+        loop_: Option<u32>,
     },
     /// The extrude op refused.
     Extrude(ExtrudeError),
@@ -2097,10 +2109,16 @@ pub enum NodeErrorKind {
         /// Why.
         source: crate::expr::EvalError,
     },
-    /// A pattern count that is not at least 1.
-    NonPositiveCount {
+    /// A `Count` slot evaluated outside the range it admits: below its
+    /// least value, or past the largest value the integer it is read
+    /// into holds.
+    CountOutOfRange {
+        /// The slot read.
+        slot: SlotId,
         /// The evaluated count.
         count: i64,
+        /// The values the slot admits, both ends included.
+        admits: core::ops::RangeInclusive<i64>,
     },
     /// A linear pattern's spacing evaluated definitely below zero. A
     /// spacing is a size; which way the copies step is the direction's
@@ -2272,9 +2290,11 @@ pub enum NodeErrorKind {
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
-    /// poisoning descendants only, GQ2/W5). NEVER constructed before
-    /// the M6 solver: the arm exists so the solver lands as logic,
-    /// not a schema change.
+    /// poisoning descendants only, GQ2/W5). NEVER constructed while no
+    /// sketch solver is in the tree (`docs/DESIGN.md`
+    /// `[open.sketch-solver]`, which waits on constraint-driven
+    /// sketches having a consumer): the arm exists so the solver lands
+    /// as logic, not a schema change.
     WitnessBifurcation(crate::witness::WitnessBifurcation),
     /// An `InstantiatePart` node could not produce its part's placed
     /// body (ASM-2A D-3). The reference names WHICH document was being
@@ -2456,14 +2476,25 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfileReplay { loop_, error } => {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
-            Self::ProfileAnchor { loop_ } => write!(
+            Self::ProfileAnchor => write!(
                 f,
-                "profile loop {loop_} did not match back to a loop of the program, which is \
-                 a kernel bug"
+                "a loop of the validated profile did not match back to a loop of the program. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::ProfilePieces { fault } => {
                 write!(f, "the profile's pieces have no names: {fault}")
             }
+            Self::ProfileRecordMissing { loop_: None } => write!(
+                f,
+                "the profile's f64 pass left no record for its op to build on. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::ProfileRecordMissing { loop_: Some(loop_) } => write!(
+                f,
+                "profile loop {loop_} has no replay record from the f64 pass to guide its \
+                 lift. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::SpaceMismatch { a, b } => {
                 let space = |s: &crate::mate::Space| match s.loose() {
@@ -2670,8 +2701,9 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
-                    slot.label()
+                    "the node's wiring expected its {} input, which is absent. {}",
+                    slot.label(),
+                    geom_core::KERNEL_DEFECT_ENDING
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -2687,7 +2719,7 @@ impl crate::spoken::Say for NodeErrorKind {
                     verb: *verb,
                     given: *given,
                 };
-                write!(f, "{refusal} (a kernel bug)")
+                write!(f, "{refusal}. {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
@@ -2717,8 +2749,23 @@ impl crate::spoken::Say for NodeErrorKind {
                 "a scalar the pose reads did not evaluate: {source}. Recourse: define it from \
                  values the document holds"
             ),
-            Self::NonPositiveCount { count } => {
-                write!(f, "pattern count {count} is not at least 1")
+            Self::CountOutOfRange {
+                slot,
+                count,
+                admits,
+            } => {
+                let (least, most) = (*admits.start(), *admits.end());
+                write!(
+                    f,
+                    "the {} input evaluated to {count}, and it admits ",
+                    slot.label()
+                )?;
+                if most == i64::MAX {
+                    write!(f, "at least {least}")?;
+                } else {
+                    write!(f, "{least} to {most}")?;
+                }
+                f.write_str(". Recourse: make it evaluate within that range")
             }
             Self::NegativeSpacing { spacing, reversed } => {
                 write!(
@@ -4926,8 +4973,8 @@ mod tag {
             NORMAL = 9,
             DIRECTION = 10,
         }
-        /// A union's or an intersect's argument form, read before its
-        /// declared pairs: a family read whole, or reads spelled.
+        /// A union's or an intersect's argument form: a family read
+        /// whole, or reads spelled.
         bodies {
             FAMILY = 1,
             SPELLED = 2,

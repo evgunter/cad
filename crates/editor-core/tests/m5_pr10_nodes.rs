@@ -302,7 +302,9 @@ fn mismatched_sections_refuse_before_the_frontier() {
 }
 
 /// A v-degree the section count cannot carry refuses typed, before any
-/// surface is built.
+/// surface is built, naming the slot's own domain `1 ..= sections − 1`.
+/// The domain has an upper end on every target, so this row pins the
+/// bounded sentence everywhere.
 #[test]
 fn an_unusable_v_degree_refuses_typed() {
     let (doc, _, profiles) = loft_doc();
@@ -314,10 +316,21 @@ fn an_unusable_v_degree_refuses_typed() {
         },
     );
     with_failure(&doc, loft, |kind| match kind {
-        NodeErrorKind::Skin(sweep::SkinError::BadDegree { degree, sections }) => {
-            assert_eq!((*degree, *sections), (3, 3));
+        NodeErrorKind::CountOutOfRange {
+            slot,
+            count,
+            admits,
+        } => {
+            assert_eq!(*slot, editor_core::SlotId::VDegree);
+            assert_eq!(*count, 3);
+            assert_eq!(*admits, 1..=2, "three sections admit degrees 1 to 2");
+            assert_eq!(
+                kind.to_string(),
+                "the v degree input evaluated to 3, and it admits 1 to 2. Recourse: make it \
+                 evaluate within that range"
+            );
         }
-        other => panic!("expected BadDegree, got {other:?}"),
+        other => panic!("expected CountOutOfRange, got {other:?}"),
     });
 }
 
@@ -407,7 +420,33 @@ fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
         },
     );
     with_failure(&doc, sweep, |kind| match kind {
-        NodeErrorKind::NonPositiveCount { count } => assert_eq!(*count, -3),
-        other => panic!("expected NonPositiveCount, got {other:?}"),
+        NodeErrorKind::CountOutOfRange {
+            slot,
+            count,
+            admits,
+        } => {
+            assert_eq!(
+                *slot,
+                editor_core::SlotId::Stations,
+                "the slot read is named"
+            );
+            assert_eq!(*count, -3, "the evaluated count is carried");
+            assert_eq!(*admits.start(), 2, "a sweep needs at least two stations");
+            // The upper end is what a `usize` holds: none an `i64`
+            // cannot reach on a 64-bit target, `u32::MAX` on wasm32.
+            let range = match i64::try_from(usize::MAX) {
+                Ok(most) => format!("2 to {most}"),
+                Err(_) => "at least 2".to_owned(),
+            };
+            assert_eq!(
+                kind.to_string(),
+                format!(
+                    "the stations input evaluated to -3, and it admits {range}. Recourse: make it \
+                     evaluate within that range"
+                ),
+                "the sentence names the slot it read, the value and the slot's domain"
+            );
+        }
+        other => panic!("expected CountOutOfRange, got {other:?}"),
     });
 }
