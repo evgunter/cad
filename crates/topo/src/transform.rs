@@ -567,6 +567,17 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }
+            // The pair's keys are stable; the declaration maps as a
+            // chart image's does.
+            EdgeDescription::OnPair { pair } => {
+                let on_pair = EdgeDescriptionSpec::on_pair(*pair);
+                match old.authority() {
+                    geom_brep::EdgeAuthority::Declared(mc) => {
+                        on_pair.declared_by(map_mapped_curve(map, &mc))
+                    }
+                    geom_brep::EdgeAuthority::Derived => on_pair,
+                }
+            }
             // A chart image is a PARAMETER-SPACE fact, invariant under
             // a rigid map: the mapped SURFACE carries the whole map,
             // and the image on it is the image it always was (M6-3;
@@ -598,17 +609,24 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        let mapped =
-            crate::policy_lane::certify(spec, start, end, surfaces, band).map_err(|refusal| {
-                match refusal {
-                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                        TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-                    }
-                    crate::policy_lane::ByPolicy::Refused(source) => {
-                        TransformError::Certify { edge: ek, source }
-                    }
+        // A rigid motion keeps every length, so the wedge's reach is the
+        // source body's, read before `out`'s curves are half mapped.
+        let reach = crate::wedge_reach(
+            body,
+            crate::edge_faces(body, ek),
+            old.carrier(),
+            (param_start, param_end),
+        );
+        let mapped = crate::policy_lane::certify(spec, start, end, surfaces, reach, band).map_err(
+            |refusal| match refusal {
+                crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                    TransformError::NurbsLaneUnsupported { edge: ek, scalar }
                 }
-            })?;
+                crate::policy_lane::ByPolicy::Refused(source) => {
+                    TransformError::Certify { edge: ek, source }
+                }
+            },
+        )?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }

@@ -618,6 +618,17 @@ pub enum ShellError<T: Real> {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
     },
+    /// A wall seam the rim surgery shortens to the cavity's corner,
+    /// stored as the pair its two faces under-determine, reads mixed
+    /// over its kept stretch when the must-carry rule is asked again
+    /// ([`geom_brep::reask_pair`]): a corner at one station and smooth
+    /// at its neighbour.
+    RimSeamMixed {
+        /// The seam.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// The join the shell ends with ([`crate::Body::join_edges`])
     /// refused on the assembled body.
     Join {
@@ -743,6 +754,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the finished thin solid's edges could not be parametrized on its faces. \
                  {KERNEL_DEFECT_ENDING}"
+            ),
+            Self::RimSeamMixed { stations, .. } => write!(
+                f,
+                "a wall seam the rim shortens, {stations}. Recourse: change the wall \
+                 thickness, or move the geometry"
             ),
             Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
@@ -2811,10 +2827,10 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     body.kef(off_pole).map_err(rim_error)?;
     let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
     let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
-    let moved = re_anchored(body, eb, station, p_gb, designated)?;
+    let moved = re_anchored(body, eb, station, p_gb, designated, band)?;
     body.kev_describing(to_station, &[(eb, moved)], tol)
         .map_err(rim_error)?;
-    let moved = re_anchored(body, ea, pole, p_ga, designated)?;
+    let moved = re_anchored(body, ea, pole, p_ga, designated, band)?;
     let killed = body
         .kev_describing(to_pole, &[(ea, moved)], tol)
         .map_err(rim_error)?;
@@ -3056,10 +3072,10 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         .map_err(rim_error)?;
     // Each strut's `he_minus` runs from its ring corner to its cut point,
     // which the collapse merges away.
-    let moved = re_anchored(body, seam, m_a, p_start, designated)?;
+    let moved = re_anchored(body, seam, m_a, p_start, designated, band)?;
     body.kev_describing(strut_a.he_minus, &[(seam, moved)], tol)
         .map_err(rim_error)?;
-    let moved = re_anchored(body, top, m_b, p_end, designated)?;
+    let moved = re_anchored(body, top, m_b, p_end, designated, band)?;
     body.kev_describing(strut_b.he_minus, &[(top, moved)], tol)
         .map_err(rim_error)?;
     Ok((
@@ -3224,13 +3240,16 @@ fn along<T: Decide>(
 /// the merged seam. It is the child a split at `onto` keeps
 /// ([`geom_brep::EdgeCurve::split_specs`]), so the description is
 /// restricted to the shortened interval exactly as a split restricts
-/// it.
+/// it; a pair is asked the must-carry rule again over that interval
+/// ([`geom_brep::reask_pair`]), since the verdict reads the edge's
+/// extent and stations, which the shortening moves.
 fn re_anchored<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     moved: VertexKey,
     onto: geom_core::Point3<T>,
     designated: FaceKey,
+    band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
     let data = proven(&body.edges, edge, EntityId::Edge);
     let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
@@ -3249,11 +3268,83 @@ fn re_anchored<T: Decide>(
         });
     };
     let (kept_before, kept_after) = curve.split_specs(landed);
-    Ok(if starts_there {
+    let mut kept = if starts_there {
         kept_after
     } else {
         kept_before
-    })
+    };
+    if let geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } = kept.description {
+        kept.description = body
+            .reask_on(
+                pair,
+                crate::edge_faces(body, edge),
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                declared,
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
+    }
+    // An image is asked the same over the kept stretch, as every door
+    // that keeps one is. Every edge re-anchored here is a seam of the
+    // designated chart, with both faces on its one surface key, which
+    // the rule leaves alone, so no input reaches its demand here.
+    if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
+        && let Some(description) = body
+            .reask_chart_on(
+                edge,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?
+    {
+        kept.description = description;
+    }
+    Ok(kept)
+}
+
+/// The shell's refusal of a wall seam the rim shortens, whose pair the
+/// must-carry rule refuses over the kept stretch ([`re_anchored`]).
+fn rim_seam_refusal<T: Real>(edge: EdgeKey, refusal: geom_brep::PairRefusal) -> ShellError<T> {
+    match refusal {
+        geom_brep::PairRefusal::Mixed(stations) => ShellError::RimSeamMixed { edge, stations },
+        geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
+            source: escalation.diag(),
+        },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod rim_seam_rows {
+    use super::{ShellError, rim_seam_refusal};
+    use crate::entity::EdgeKey;
+
+    /// **A shortened seam read mixed refuses as the rim's seam**, naming
+    /// the two stations and ending in the shell's lever. No door is known
+    /// to build the pose (a kept stretch whose stations straddle a crease
+    /// the full seam's did not), so the row pins the refusal the re-ask
+    /// maps to rather than a body that reaches it.
+    #[test]
+    fn a_mixed_rim_seam_refuses_naming_its_stations() {
+        let stations = geom_brep::MixedStations {
+            transverse: 3,
+            smooth: 4,
+        };
+        let refusal: ShellError<f64> =
+            rim_seam_refusal(EdgeKey::default(), geom_brep::PairRefusal::Mixed(stations));
+        let ShellError::RimSeamMixed { stations: got, .. } = refusal else {
+            panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
+        };
+        assert_eq!(got, stations);
+        let text = refusal.to_string();
+        assert!(
+            text.starts_with("a wall seam the rim shortens, ")
+                && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
+            "the refusal names the seam and the shell's lever: {text}"
+        );
+    }
 }
 
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
@@ -3679,6 +3770,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
+        | ReplaceFaceError::MixedEdge { edge, .. }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
@@ -4713,14 +4805,14 @@ fn moved_walls<T: Decide>(
                             } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5243,7 +5335,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        geom_brep::carrier_speed::speed_range(carrier).1,
+                        geom::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,

@@ -54,9 +54,10 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 mod carrier_net;
-pub mod carrier_speed;
+pub mod carrier_resolution;
 pub mod certify;
 pub mod conic_bend;
+pub mod curve_pair;
 pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
@@ -88,15 +89,18 @@ pub mod pcurve_cache;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
+pub mod roots;
 pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
 
+pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
+    IntersectionDraft, NurbsLane, StatedImage, edge_extent, folded_parallelism, sample_param,
+    schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -104,16 +108,18 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, SecondOrderWalk,
-    SmoothJoin, Station, StationHook, classify_dihedral, classify_material_pairing,
-    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
-    must_carry_description, must_carry_over_edge, second_order_walk, tangent_second_order,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
+    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
+    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
+    second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, nurbs_pair_limbs,
-    plane_nurbs_limbs,
+    IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
+    analytic_rung3, arc_rim_candidates, first_within, is_analytic, nurbs_pair_limbs, pick_arc_rim,
+    plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -166,11 +172,11 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
-    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
+    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
+    ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_periods,
+    chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

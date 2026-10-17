@@ -736,7 +736,7 @@ pub fn gathers_on_this_thread() -> u64 {
 /// Every arm of [`ProductError`]: an evaluation of another document
 /// ([`ProductError::EvaluationOfAnotherDocument`]); a root that
 /// failed, was poisoned, or is absent from this evaluation; a document
-/// whose roots denote no body ([`ProductError::NoBodyRoots`]); the
+/// whose roots denote no body (`ProductError::NoBodyRoots`); the
 /// kernel's graft and at-rest validity refusals.
 pub fn product<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
@@ -889,7 +889,7 @@ pub struct OwnSpace<T: Decide> {
     /// Why nothing places it.
     pub cause: crate::mate::Unplaced,
     /// The space's gather, kept rather than raised: a space whose
-    /// roots denote no body ([`ProductError::NoBodyRoots`], an
+    /// roots denote no body (`ProductError::NoBodyRoots`, an
     /// instance only a measure in the group reads) holds nothing to
     /// check, and any other refusal is the gate's to raise
     /// ([`crate::AssemblyError::Space`]).
@@ -950,10 +950,10 @@ pub struct SolidOrigin {
 ///
 /// Every arm of [`ProductError`], including
 /// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
-/// not an evaluation of `doc`; [`ProductError::PlacedUnderTwoRoots`],
+/// not an evaluation of `doc`; `ProductError::PlacedUnderTwoRoots`,
 /// from the recipe before any root is read, when two roots place one
 /// body through transforms and part selections; and
-/// [`ProductError::Naming`] when two roots' rows would still name one
+/// `ProductError::Naming` when two roots' rows would still name one
 /// aggregate entity or collide on one name — never resolved silently.
 pub fn product_named<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,

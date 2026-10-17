@@ -143,7 +143,7 @@
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
 //!   the factorization's own certifications. A constructed root set
 //!   that disagrees with the certified count
-//!   ([`QuarticRoots::CountDisagrees`]) blocks the ray, carrying both
+//!   ([`Unsettled::CountDisagrees`]) blocks the ray, carrying both
 //!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
@@ -202,6 +202,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::recourse::Reading;
+use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -463,7 +464,7 @@ pub enum PointInSolidError {
     },
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
-    /// certify ([`QuarticRoots::CountDisagrees`]). The certified count is
+    /// certify ([`Unsettled::CountDisagrees`]). The certified count is
     /// the wrong one: the sign ladder's discriminant carries `f64`
     /// rounding its band does not charge
     /// (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
@@ -1428,9 +1429,25 @@ pub(super) fn wall_outline<T: Decide>(
         Err(_) => return unsupported(),
     };
     // The images skip null scaffolding; the loop must be the images'
-    // own chain, each half-edge's `next` the following image's.
+    // own chain, each half-edge's `next` past any null halves the
+    // following image's. A null half is zero-length, so the chain it
+    // sits in bounds what it bounds without it: mid-Boolean, a vertex of
+    // the face's own that pierced the other operand leaves its run's
+    // strut in the loop.
     for (i, image) in images.iter().enumerate() {
-        let next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        let mut next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        for _ in 0..body.half_edges.len() {
+            let half = body.get_half_edge(next).ok_or_else(corrupt)?;
+            let edge = body.get_edge(half.edge).ok_or_else(corrupt)?;
+            if body
+                .edge_curve_linked(half.edge, edge)
+                .certified()
+                .is_some()
+            {
+                break;
+            }
+            next = half.next;
+        }
         if images.get((i + 1) % images.len()).map(|n| n.he) != Some(next) {
             return unsupported();
         }
@@ -2509,15 +2526,14 @@ fn torus_chart_windows<T: Decide>(
 /// **One joint of a torus chart walk**: the side `(entry, exit)` moved
 /// onto the branch of `prev`, the exit before it, when the walk meets
 /// there. The branch is decided as structure, per channel
-/// ([`geom_brep::whole_periods`]): sign decisions at the half-period
+/// ([`geom_brep::Period::decide`]): sign decisions at the half-period
 /// marks, metered through the channel's rate as the closure is, so the
 /// shift is a whole number of periods `k·τ` with `k` a literal. Where a
 /// mark is undecided, the closure is asked on both branches astride it
 /// (`pcurves::branches_astride`): on neither, the walk does not meet.
 /// `None` where the walk does not meet: the gap sits on a mark (half a
-/// period from either branch), is out of the branch reach, meets on
-/// neither branch astride an undecided mark, or the shifted entry is not
-/// the exit.
+/// period from either branch), meets on neither branch astride an
+/// undecided mark, or the shifted entry is not the exit.
 ///
 /// # Errors
 ///
@@ -2534,10 +2550,14 @@ fn torus_chart_joint<T: Decide>(
     use geom_brep::BranchMiss;
     let tau = T::tau();
     let name = "bool_torus_chart_branch";
-    let whole = |k: i32| T::from_f64(f64::from(k)) * tau;
+    let period = geom_brep::Period::new(tau);
+    let whole = |k: i32| period.times(k);
     let shift = |gap: T, arm: SupSpeed<T>| {
         let meter = |g| Margin::metered_sup(g, arm);
-        match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+        match period
+            .decide(name, gap, meter, band)
+            .map_err(|stop| stop.miss)
+        {
             Ok(k) => Ok(Some(whole(k))),
             Err(BranchMiss::Undecided(diag)) => {
                 let meets_on = |k: i32| {
@@ -2553,7 +2573,7 @@ fn torus_chart_joint<T: Decide>(
                     _ => Err(PointInSolidError::Escalated { face, diag }),
                 }
             }
-            Err(BranchMiss::OnMark | BranchMiss::OutOfReach) => Ok(None),
+            Err(BranchMiss::OnMark) => Ok(None),
         }
     };
     let (Some(ku), Some(kv)) = (
@@ -4625,7 +4645,7 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
 /// * a ray all but perpendicular to the axis has a resolvent root
 ///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
-/// * a [`QuarticRoots::CountDisagrees`] blocks that ray
+/// * an [`Unsettled::CountDisagrees`] blocks that ray
 ///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// **So this door refuses over a BAND around a tangency, and the band is
@@ -4641,8 +4661,9 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign. The
-/// caller wraps it in its own error type.
+/// [`RootRefusal::Escalated`] — an in-band classifying sign, which the
+/// caller wraps in its own error type — and [`RootRefusal::Unsettled`],
+/// a count the ladder does not certify.
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -4651,7 +4672,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<QuarticRoots<T>, Indeterminate> {
+) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
@@ -4670,15 +4691,9 @@ pub(super) fn line_torus_roots<T: Decide>(
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
     match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
-        QuarticRoots::Certified { count, ts: ys } => {
-            let mut ts = [T::zero(); 4];
-            for (t, y) in ts.iter_mut().zip(ys).take(count) {
-                // Undo the depression: `t = y − b`.
-                *t = y - b;
-            }
-            Ok(QuarticRoots::Certified { count, ts })
-        }
-        other => Ok(other),
+        // Undo the depression: `t = y − b`.
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
+        Roots::Miss => Ok(Roots::Miss),
     }
 }
 
@@ -4703,20 +4718,20 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
 /// [`RayFault::Graze`] and [`RayFault::Blocked`], as above.
 fn torus_crossings<T: Decide>(
     face: FaceKey,
-    roots: QuarticRoots<T>,
-) -> Result<Option<(usize, [T; 4])>, RayFault<PointInSolidError>> {
+    roots: Result<QuarticRoots<T>, Unsettled>,
+) -> Result<Option<Found<T, 4>>, RayFault<PointInSolidError>> {
     match roots {
-        QuarticRoots::Miss => Ok(None),
-        QuarticRoots::Uncertain => Err(RayFault::Graze),
-        QuarticRoots::Certified { count, ts } => Ok(Some((count, ts))),
-        QuarticRoots::CountDisagrees {
+        Ok(Roots::Miss) => Ok(None),
+        Ok(Roots::Certified(found)) => Ok(Some(found)),
+        Err(Unsettled::CountDisagrees {
             certified,
             constructed,
-        } => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
+        }) => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
             face,
             certified,
             constructed,
         })),
+        Err(_) => Err(RayFault::Graze),
     }
 }
 
@@ -5239,12 +5254,16 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let roots = line_torus_roots(q, d, center, axis, major_radius, minor_radius, band)
-                    .map_err(escalate)?;
-                let Some((count, ts)) = torus_crossings(face, roots)? else {
+                let roots =
+                    match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
+                        Ok(roots) => Ok(roots),
+                        Err(RootRefusal::Unsettled(why)) => Err(why),
+                        Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                    };
+                let Some(found) = torus_crossings(face, roots)? else {
                     continue;
                 };
-                for &t in &ts[..count] {
+                for &t in found.roots() {
                     let p = q + d * t;
                     match point_on_torus_in_face(
                         face,
@@ -6038,7 +6057,7 @@ mod joint_branch_rows {
     #[test]
     fn a_joint_whole_periods_out_meets_as_a_theorem_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let arms = (
@@ -6078,5 +6097,53 @@ mod joint_branch_rows {
             matches!(joint, Ok(None)),
             "the walk does not meet on either branch: {joint:?}"
         );
+    }
+
+    /// A torus wall whose bottom parallel's carrier runs 5 and 10
+    /// periods below the azimuth it covers walks to its principal twin's
+    /// windows: the walk reads each joint's element from the marks at
+    /// zero however far out the gap lies, so the point-in-solid windows
+    /// are the twin's, not a refusal.
+    #[test]
+    fn a_torus_wall_stated_periods_off_walks_to_its_twins_windows() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        type Window = (
+            ((f64, f64), (f64, f64)),
+            (Option<(f64, f64)>, Option<(f64, f64)>),
+        );
+        let windows = |periods: f64| -> Window {
+            let (body, face) = crate::boolean::boxes::tests::torus_wall_below(
+                periods,
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                (0.3, 1.9),
+                (-0.7, 0.8),
+            );
+            (
+                torus_chart_windows(&body, face, band).unwrap().unwrap(),
+                torus_face_windows(&body, face, 2.0, 0.5, band).unwrap(),
+            )
+        };
+        let flat = |((u, v), (fu, fv)): Window| {
+            let pair = |w: Option<(f64, f64)>| w.map_or([f64::NAN; 2], |(a, b)| [a, b]);
+            [
+                [u.0, u.1, v.0, v.1],
+                [pair(fu)[0], pair(fu)[1], pair(fv)[0], pair(fv)[1]],
+            ]
+        };
+        let twin = flat(windows(0.0));
+        for periods in [5.0, 10.0] {
+            let far = flat(windows(periods));
+            for (x, y) in far.iter().flatten().zip(twin.iter().flatten()) {
+                // A wrapped coordinate reads `None` on both, as NaN.
+                assert!(
+                    (x - y).abs() < 1e-12 || (x.is_nan() && y.is_nan()),
+                    "{periods} periods: {far:?} against {twin:?}"
+                );
+            }
+        }
     }
 }

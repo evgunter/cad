@@ -452,7 +452,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // at a break against either operand, which subdividing the
             // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 margin,
             }) => {
                 found = Some((d, upper(margin)));
@@ -462,11 +466,20 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 ref cause,
             }) if matches!(
                 cause.predicate,
-                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+                Some(
+                    "ssi_hull_sup"
+                        | "ssi_hull_sup_chart"
+                        | "ssi_hull_value"
+                        | "ssi_hull_value_chart"
+                )
             ) =>
             {
                 found = Some((d, f64::NAN));
@@ -1139,10 +1152,13 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullValueChart,
+            limb: SsiLimb::ImageMiss,
             margin,
         } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
+        other => panic!(
+            "CORRUPT-PCURVE: expected limb 2's value at a break, where the carrier is on the \
+             wall and the pcurve misses, got {other}"
+        ),
     }
 }
 
@@ -2655,7 +2671,14 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
         }
-        match geom_brep::plane_nurbs_limbs::<f64>(&carrier, &cutting_plane(), &wall, 1.0, band()) {
+        match geom_brep::plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &cutting_plane(),
+            &wall,
+            1.0,
+            band(),
+        ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
                 assert_eq!(
                     got, want,
@@ -4947,7 +4970,7 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let margins: Vec<f64> = rounds
         .iter()
         .map(|round| match round.margin {
-            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSup => {
+            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSupChart => {
                 match m.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(m) => m,
                     other => panic!("a point margin: {other:?}"),

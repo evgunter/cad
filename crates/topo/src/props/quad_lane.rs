@@ -569,8 +569,8 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's larger semi-axis) times its span, a spiric's speed bound
-/// `r(R − r)/f_min` times its span.
+/// ellipse's larger semi-axis) times its span, a spiric's piecewise
+/// [`spiric::spiric_length_bound`].
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
@@ -580,9 +580,9 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
             (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
         }
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
-            .and_then(|q| spiric::spiric_length_bound(&q))
+            .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
-                what: "a spiric edge whose span's rate window has no certified positive f",
+                what: "a spiric edge with a piece whose f is not certified positive",
             })?,
         Curve3::Nurbs(_) => {
             return Err(PropsError::QuadratureUnsupported {
@@ -1669,7 +1669,7 @@ mod tests {
                 ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol), None),
                 (
                     "a 2 m sliver box 1e-4 wide, inside out",
-                    sliver_box(1e-4, tol).revert(),
+                    sliver_box(1e-4, tol).revert().unwrap(),
                     None,
                 ),
             ];

@@ -38,8 +38,8 @@ use crate::node::RecipeNodeId;
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
 ///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
-///    [`Self::CarrierUnplaced`],
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
+///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -303,6 +303,26 @@ pub enum NamingError {
         /// Its carrier's kind.
         carrier: geom::CurveKind,
     },
+    /// A **crossing at a vertex whose partner the boolean read nothing
+    /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
+    /// a vertex of the other operand whose neighbourhood no wedge or
+    /// corner reading classes its edges against, so the boolean holds no
+    /// class for them, and the crossing's senses cannot be read. The
+    /// boolean builds such a result soundly; what is missing is a rule
+    /// that reads the edges against the partner's neighbourhood
+    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
+    PartnerUnread {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The partner, `unread.partner`: the other operand's vertex, in
+        /// that operand's clone keys. A field of its own so the sentence
+        /// renders it as one (`pncad-py`'s prose census decides a
+        /// rendered binding only at a variant's own field).
+        partner: VertexKey,
+        /// The boolean's record: the operand vertex whose edges went
+        /// unclassed, the partner it met and why that read nothing.
+        unread: topo::UnreadPartner,
+    },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
     /// least row on its line) to several edges, or the fold tied two of
@@ -490,6 +510,30 @@ impl crate::spoken::Say for NamingError {
                  parameter for a point, so whether the edge holds a point it is read against \
                  cannot be said",
                 carrier.name()
+            ),
+            Self::PartnerUnread {
+                vertex,
+                partner,
+                unread,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
+                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
+                 the boolean classed none of the vertex's edges and the crossing there has no \
+                 senses to name it by; reading them against the partner's neighbourhood is not \
+                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                match unread.operand {
+                    topo::Operand::A => "A",
+                    topo::Operand::B => "B",
+                },
+                match unread.neighbourhood {
+                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
+                    topo::UnreadNeighbourhood::NoBisector =>
+                        "on an edge of two faces, neither holding a bisector to read their wedge by",
+                    topo::UnreadNeighbourhood::ConeUnread =>
+                        "at an edge or corner read as a polygon cone, some edge of which no \
+                         reference decides",
+                }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
@@ -1753,6 +1797,23 @@ mod display_tests {
                 vec!["gives no parameter for a point", "holds a point"],
             ),
             (
+                NamingError::PartnerUnread {
+                    vertex: two_vertices().0,
+                    partner: two_vertices().1,
+                    unread: topo::UnreadPartner {
+                        operand: topo::Operand::B,
+                        vertex: two_vertices().0,
+                        partner: two_vertices().1,
+                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    },
+                },
+                vec![
+                    "inside one smooth face",
+                    "classed none of the vertex's edges",
+                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                ],
+            ),
+            (
                 NamingError::Settle(topo::SettleError::Dead {
                     vertex: two_vertices().0,
                     reached: topo::Cell::Vertex(two_vertices().1),
@@ -1832,7 +1893,8 @@ mod display_tests {
                 | NamingError::MemberEdgeTied { .. }
                 | NamingError::ConventionalVertex { .. }
                 | NamingError::ClosedCarrierUnread { .. }
-                | NamingError::CarrierUnplaced { .. } => Some(UNRULED_FRAMING),
+                | NamingError::CarrierUnplaced { .. }
+                | NamingError::PartnerUnread { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1856,6 +1918,7 @@ mod display_tests {
                 NamingError::ClosedCarrierUnread { .. } => 15,
                 NamingError::Settle(_) => 16,
                 NamingError::CarrierUnplaced { .. } => 17,
+                NamingError::PartnerUnread { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

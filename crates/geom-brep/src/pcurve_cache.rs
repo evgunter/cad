@@ -149,7 +149,7 @@
 //! row from the same row a whole period over: both certify
 //! identically. Which branch (`α + kτ`) a half-edge takes is the
 //! loop's fact, decided in `topo::pcurves`: at each joint the walk
-//! decides the deck element as an integer ([`whole_periods`]), with
+//! decides the deck element as an integer ([`Period::decide`]), with
 //! half the step to the next orbit point as room (half a period, or a
 //! quarter on a sphere, whose twin sits half a period over), and each
 //! loop winds at most one period per channel. A joint's
@@ -1688,6 +1688,12 @@ pub enum PcurveCertifyError {
     /// carried whole, as the plane × NURBS lane carries it from the same
     /// producer ([`crate::PlaneNurbsRefusal::CarrierDomain`]).
     CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
+    /// The fitted lane's limb 2 has no certified net of the carrier
+    /// over a span of the image's domain: the carrier-enclosure door's
+    /// refusal, naming the carrier's kind and the span, carried whole as
+    /// the edge certificate carries it
+    /// ([`crate::PlaneNurbsRefusal::CarrierEnclosure`]).
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
     /// module's own schedule checks. It ends by the SSI decision it
@@ -1723,12 +1729,6 @@ pub enum PcurveCertifyError {
     /// one period on a torus chart: more than one turn of a Villarceau
     /// circle.
     TubePeriodExceeded,
-    /// A stored image's whole-period branch sits more than
-    /// [`MAX_BRANCH_PERIODS`] periods from the image re-derived from its
-    /// carrier, or a walked joint's from its predecessor's
-    /// ([`BranchMiss::OutOfReach`]): a branch no producer is known to
-    /// reach, refused by type rather than searched for.
-    BranchOutOfReach,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -1843,6 +1843,11 @@ impl core::fmt::Display for PcurveCertifyError {
                 limb.name()
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            Self::CarrierEnclosure(refusal) => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at limb 2 — \
+                 {refusal}"
+            ),
             // Each escalation ends in its decision's own labelled
             // ending, read at a build: the door that reads it at rest
             // asks `ending` instead of rendering this.
@@ -1891,12 +1896,6 @@ impl core::fmt::Display for PcurveCertifyError {
                  one full period of the torus — split the edge first (the winding gate, tube \
                  side)"
             ),
-            Self::BranchOutOfReach => write!(
-                f,
-                "pcurve certification: the image's whole-period branch is more than \
-                 {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
-                 known to mint, refused rather than searched for"
-            ),
             Self::ResidualExceeded { check, sample } => {
                 let claim = if check.bounds_a_miss() {
                     "the certificate cannot show the pcurve represents the carrier through the map"
@@ -1928,6 +1927,13 @@ impl core::fmt::Display for PcurveCertifyError {
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
+    /// The check this refusal restates, or `None` for a refusal no check
+    /// of this door owns ([`Self::decided`]'s first half).
+    #[must_use]
+    pub fn refused_check(&self) -> Option<PcurveCheck> {
+        self.decided().map(|(check, _)| check)
+    }
+
     /// The check this refusal restates and the arm it refused on, or
     /// `None` for a refusal no check of this door owns: an unsupported
     /// class, a missing operand, a band the tolerance cannot form, a
@@ -1957,8 +1963,8 @@ impl PcurveCertifyError {
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
+            | Self::CarrierEnclosure(_)
             | Self::ChartWindingUnsupported
-            | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
         })
@@ -2048,12 +2054,41 @@ impl PcurveCheck {
     /// at the SSI door `P` is a witness and the same value over-reads
     /// the carrier's distance from the surface ([`SsiLimb::check`]).
     /// The hull's sup is the envelope over the window. A limb this door
-    /// never decides is `None`.
+    /// never decides is `None`: among them [`SsiLimb::ImageMiss`], the
+    /// SSI door's tell, which this door does not run, since its image
+    /// is the one under judgement and a miss at a break is that image's
+    /// whichever side the carrier lies.
     fn of_fitted_limb(limb: SsiLimb) -> Option<Self> {
         match limb {
-            SsiLimb::HullSup => Some(Self::Envelope),
+            SsiLimb::HullSupChart => Some(Self::Envelope),
             SsiLimb::HullValueChart => Some(Self::MapResidual),
-            SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => None,
+            SsiLimb::OnLocus
+            | SsiLimb::HullSup
+            | SsiLimb::HullValue
+            | SsiLimb::ImageMiss
+            | SsiLimb::Tube => None,
+        }
+    }
+
+    /// The plane × NURBS incidence limb this check of an exact image's
+    /// certificate restates, where `OnPair`'s lane reads its wall side
+    /// through that image ([`crate::plane_nurbs_incidence`]):
+    /// [`Self::of_fitted_limb`] read back. The map residual is
+    /// `|S(P(t)) − C(t)|` at a point, [`SsiLimb::HullValueChart`]'s
+    /// quantity, and the envelope (or one of its terms) bounds it over
+    /// the span, [`SsiLimb::HullSupChart`]'s. `None` for a check that
+    /// restates no limb.
+    #[must_use]
+    pub fn incidence_limb(self) -> Option<SsiLimb> {
+        match self {
+            Self::MapResidual => Some(SsiLimb::HullValueChart),
+            Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
+            Self::ParamSpan
+            | Self::ChartWinding
+            | Self::AzimuthPeriod
+            | Self::TubePeriod
+            | Self::ChartIncidence
+            | Self::Sector => None,
         }
     }
 }
@@ -2401,27 +2436,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    // A spline's image spans its own knot domain, which the composite
-    // pairs it on; any other carrier's spans `params`' outer ends (its
-    // bracket's, so the image covers the interval at every scalar),
-    // held there.
+    // The image spans the carrier's certificate span, the edge
+    // certificate's rule (`carrier_span`).
     let eval = |t| carrier.eval(t);
-    let schedule = match carrier {
-        Curve3::Nurbs(net) => {
-            crate::edge_nurbs::Schedule::new(&eval, net.domain(), net.knot_values().domain())
-        }
-        _ => {
-            let (lo, hi) = (
-                params.0.lo().min(params.1.lo()),
-                params.0.hi().max(params.1.hi()),
-            );
-            crate::edge_nurbs::Schedule::new(
-                &eval,
-                (lo, hi),
-                (T::from_computed(lo), T::from_computed(hi)),
-            )
-        }
-    };
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
     let (t0, t1) = schedule.domain();
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
@@ -2458,7 +2477,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
-        | P::ChartSpeed(_)) => unreachable!(
+        | P::ChartSpeed(_)
+        | P::CarrierEnclosure(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -2750,8 +2770,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 /// # Errors
 ///
 /// [`PcurveCertifyError::FittedCertificate`] when the bound refuses or
-/// the carrier cannot be enclosed, or the image stops short of the
-/// edge.
+/// the image stops short of the edge;
+/// [`PcurveCertifyError::CarrierEnclosure`] when the carrier has no
+/// certified net over a span of the image's domain.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
@@ -2782,23 +2803,20 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
     let (d0, d1) = image.knots().domain();
-    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+    let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
+    if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
-            limb: Some(SsiLimb::HullSup),
+            limb: Some(SsiLimb::HullSupChart),
             what: "the image's domain stops short of the edge's interval, so its hull \
                    bound says nothing about the edge's ends",
             magnitude: None,
         });
     }
-    use crate::ssi::certify::{
-        CHART_HULL, Hull, Refused, chart_breaks, chart_round, hull_limb, subdivide,
-    };
-    use geom_core::spline::algebra::range_grid_points;
-    // Each round's composite against this chart alone, cut at `cuts`
-    // besides the image's knots and the domain's uniform grid. A spline
-    // carrier enters as its own net; a closed-form one as its enclosing
-    // net over the round's breaks, so a halving shrinks its remainder
-    // too.
+    use crate::ssi::certify::{CHART_HULL, Refused, carrier_chart_round, chart_grid, hull_limb};
+    // Each round's composite against this chart alone, the carrier read
+    // through the carrier-enclosure door over the image's domain, cut at
+    // `cuts` besides the round's grid: a halving shrinks a closed form's
+    // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
     let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
     let schart = (
@@ -2807,48 +2825,11 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         chart.weight_channel(),
         &scoords[..],
     );
-    let stopped = if let Curve3::Nurbs(net) = carrier {
-        let grid = chart_breaks(net.knots(), image.knots());
-        let coords = net.certified_coords();
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-                chart_round(
-                    (net.knots(), net.weight_channel(), &coords),
-                    pimage,
-                    schart,
-                    &extra,
-                )
-            },
-            band,
-        )
-    } else {
-        let (lo, hi) = image.knots().domain();
-        let knots: Vec<f64> = image.knots().interior_knots().map(|(k, _)| k).collect();
-        let grid = range_grid_points(lo, hi, crate::ssi::certify::SSI_CERT_SPANS, &knots);
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
-                breaks.extend([lo, hi]);
-                breaks.sort_by(f64::total_cmp);
-                breaks.dedup();
-                let enclosed = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
-                    crate::ssi::SsiError::UnsupportedCertificate {
-                        what: "the carrier has no certified enclosure over a span of its \
-                               image's domain",
-                    },
-                )?;
-                let weights = vec![1.0; enclosed.knots.control_count()];
-                chart_round(
-                    (&enclosed.knots, &weights, &enclosed.coords),
-                    pimage,
-                    schart,
-                    &[],
-                )
-            },
-            band,
-        )
-    };
+    let grid = chart_grid(carrier, image.knots());
+    let stopped = crate::ssi::certify::subdivide(
+        |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
+        band,
+    );
     let stopped = stopped.map_err(ssi_refusal)?;
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
@@ -2863,7 +2844,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 /// Its one producer is [`fitted_lane`], which runs limb 2's hull
 /// against the row's chart and nothing else: the composite refuses
 /// [`SsiError::UnsupportedCertificate`](crate::ssi::SsiError), and the
-/// limb's verdict a definite [`SsiError::CertificateLimb`] or an
+/// limb's verdict a definite [`SsiError::CertificateLimb`](crate::ssi::SsiError::CertificateLimb) or an
 /// escalated `CertificateEscalated`. Those are the arms written out.
 ///
 /// **Escalations leave by a different door.** They are the only
@@ -2884,6 +2865,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             return PcurveCertifyError::FittedLimb { limb, margin };
         }
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of
@@ -4745,29 +4727,13 @@ fn incidence<T: Decide>(
     }
 }
 
-/// The furthest a branch may sit from the one it is read against, in
-/// whole periods, before [`whole_periods`] refuses it
-/// ([`BranchMiss::OutOfReach`]).
-///
-/// **Why a cap, and why four.** The search steps one period at a time
-/// from `k = 0`, two sign decisions a step, so an uncapped search over
-/// a gap of `n` periods costs `2n` decisions and over an unbounded box
-/// would not terminate. Four is not derived from a bound. It is room
-/// above the branches producers are known to reach: the derivation
-/// answers on the principal branch, a row's azimuth extent is gated to
-/// one period (`AzimuthPeriodExceeded`), and a closed loop's walk
-/// closes through at most one period at its seam. A helical producer,
-/// whose rows legitimately sit further out, would need the cap raised
-/// or its branch read off its winding. The refusal says so by type
-/// rather than as a residual
-/// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
-pub const MAX_BRANCH_PERIODS: i32 = 4;
-
-/// Why [`whole_periods`] decided no branch.
+/// Why a [`Period`] decided no branch.
 #[derive(Clone, Debug)]
 pub enum BranchMiss {
     /// A half-period mark is undecided: the gap is not resolved to one
-    /// branch at this width (D4 ¶3, escalate-never-guess).
+    /// branch at this width (D4 ¶3, escalate-never-guess). A gap that is
+    /// not a finite number, or whose branch no `i32` names, decides no
+    /// mark either, and reads here with an invalid margin.
     Undecided(Indeterminate),
     /// The gap sits ON a half-period mark (the mark decided Zero): it
     /// is half a period from two branches and is the gap of neither — a
@@ -4775,91 +4741,475 @@ pub enum BranchMiss {
     /// twin as its own orbit point, with half the period, so a twin is
     /// never this).
     OnMark,
-    /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
-    OutOfReach,
 }
 
-/// **A branch, decided as structure**: the whole number of periods `k`
-/// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
-/// is read off the half period of room a branch has, by sign decisions
-/// against the half-period marks (`name`, metered through `meter`),
-/// never by rounding the gap — so a chart image shifted by it carries
-/// `α + k·τ` with `k` a constant rather than an opaque function of the
-/// parameters (C4: "the branch per face is chosen once by the loop
-/// walk"). The loop walk pins each row's branch with it
-/// (`topo::pcurves`), and check 4's fidelity reads a stored image's
-/// branch, and a sphere image's twin, against its re-derivation with
-/// it.
-///
-/// # Errors
-///
-/// [`BranchMiss`]: a mark undecided, the gap on a mark, or the gap out
-/// of reach.
-pub fn whole_periods<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<T, BranchMiss> {
-    whole_period_count(name, gap, period, meter, band).map(|k| T::from_f64(f64::from(k)))
+/// Where [`Period::decide`] stopped short of a branch: the miss, and the
+/// two branches `[j, j + 1]` either side of the mark it stopped on (none
+/// for a gap that names no mark at all, or where `j + 1` is past
+/// `i32::MAX`).
+#[derive(Clone, Debug)]
+pub struct WalkStop {
+    /// Why no branch was decided.
+    pub miss: BranchMiss,
+    /// The branches either side of the mark the walk stopped on.
+    pub astride: Option<[i32; 2]>,
 }
 
-/// [`whole_periods`]' `k` as the integer it is, for a caller that
-/// stores the branch as structure (`topo`'s joint elements).
+/// **A periodic channel's period**: the length one whole turn of the
+/// channel spans, which every whole-period question of that channel is
+/// asked of. Today that is τ in azimuth, its half on a sphere joint's
+/// orbit (whose twin sits half a period over), and the first-channel
+/// period a loop walk decides its joints in. Two questions go through
+/// it:
+/// - a joint's deck element, and check 4's branch, decided by the
+///   half-period marks ([`Period::decide`]);
+/// - a deck element's shift, `k` periods as a length ([`Period::times`]).
 ///
-/// # Errors
-///
-/// [`whole_periods`]'.
-pub fn whole_period_count<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<i32, BranchMiss> {
-    let half = T::from_f64(0.5);
-    let mark = |k: i32, side: T| {
-        decide(
-            name,
-            meter(gap - (T::from_f64(f64::from(k)) + side) * period),
-            band,
-        )
-    };
-    let mut k = 0;
-    // What is already known about the marks either side of `k`: moving
-    // up one period learns the lower mark, moving down the upper.
-    let (mut below, mut above) = (false, false);
-    loop {
-        if !above {
-            match mark(k, half).map_err(BranchMiss::Undecided)? {
-                Sign::Negative => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
-                Sign::Positive => {
-                    k += 1;
-                    (below, above) = (true, false);
-                    if k > MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
-                    }
-                    continue;
-                }
+/// No whole-period integer is read off a value: [`Period::decide`]
+/// decides it through the marks, and every other integer is structure.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Period<T> {
+    length: T,
+}
+
+impl<T: Real> Period<T> {
+    /// The channel's period, one whole turn of it.
+    pub fn new(length: T) -> Self {
+        Self { length }
+    }
+
+    /// The period as a length.
+    pub fn length(self) -> T {
+        self.length
+    }
+
+    /// `k` whole periods, as a length: a deck element's shift, or the
+    /// advance of a winding of `k`.
+    pub fn times(self, k: i32) -> T {
+        T::from_f64(f64::from(k)) * self.length
+    }
+}
+
+impl<T: Decide> Period<T> {
+    /// **A branch, decided as structure**: the whole number of periods
+    /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
+    /// is read off the half period of room a branch has, by sign
+    /// decisions against the half-period marks (`name`, metered through
+    /// `meter`), read outward from zero, never by rounding the gap. The
+    /// marks either side of zero first; then, on the side the gap lies,
+    /// the marks 1, 2, 4, 8, ... periods out until one is not cleared
+    /// (decided past, away from zero), and a bisection between it and
+    /// the last cleared. A gap that clears a mark clears every mark
+    /// nearer zero (the meter grows with the gap's distance from the
+    /// mark), so the mark the walk stops on is the first, from zero, that
+    /// the gap does not clear; where that mark decides Zero
+    /// ([`BranchMiss::OnMark`]) the gap is within the band's zero of it
+    /// in the meter's units, and the branches astride it are the gap's
+    /// own nearest. Out to two periods the marks asked are the ones a
+    /// step-by-step walk asks, in its order.
+    ///
+    /// No cap: the walk asks O(log k) marks however far out the gap
+    /// lies, and stops only on a mark it does not clear. Once images are
+    /// placed over their edges' spans (C4's placement, unit B of the
+    /// `[ev]` PR 5142 answer), a joint's gap is within about two periods
+    /// and the walk is a handful of decisions; until then a carrier
+    /// stated far off puts its gap that far out. A gap that is not
+    /// finite, or whose branch is past `i32`, decides nothing and stops
+    /// as undecided.
+    ///
+    /// # Errors
+    ///
+    /// [`WalkStop`]: a mark undecided, or the gap on a mark, each with
+    /// the branches astride it.
+    pub fn decide(
+        self,
+        name: &'static str,
+        gap: T,
+        meter: impl Fn(T) -> Margin<T>,
+        band: Band,
+    ) -> Result<i32, WalkStop> {
+        // A gap that names no branch reads as an unreadable margin, and
+        // the funnel records it as it records any. Two paths reach it: a
+        // gap that is not finite, which decided no mark, and a gap that
+        // clears the mark past `i32::MAX`, whose branch no `i32` names.
+        // A stop ON a mark keeps that mark's own miss (`across` below).
+        let unnamed = || WalkStop {
+            miss: BranchMiss::Undecided(
+                match decide(name, Margin::of(T::from_f64(f64::NAN)), band) {
+                    Err(cause) => cause,
+                    Ok(sign) => unreachable!("an unreadable margin classified {sign:?}"),
+                },
+            ),
+            astride: None,
+        };
+        if !geom_core::is_finite_length(gap) {
+            return Err(unnamed());
+        }
+        let half = T::from_f64(0.5);
+        // The mark `i + ½` periods up (`up`), or `i + ½` down, and
+        // whether the gap clears it: decided past it, away from zero.
+        // Spelled `k + side` with `k` the branch below or above it, as
+        // a step-by-step walk spells it, so the forms a decision builds
+        // are that walk's.
+        let mark = |i: i32, up: bool| {
+            let at = if up {
+                T::from_f64(f64::from(i)) + half
+            } else {
+                T::from_f64(f64::from(-i)) + (T::zero() - half)
+            };
+            let sign = decide(name, meter(gap - at * self.length), band);
+            let cleared = matches!(
+                (&sign, up),
+                (Ok(Sign::Positive), true) | (Ok(Sign::Negative), false)
+            );
+            (sign, cleared)
+        };
+        // The branch across the first mark, from zero, the gap does not
+        // clear: `i` periods out where the gap is decided short of it,
+        // else the stop on it with the branches astride it.
+        let across = |i: i32, up: bool, sign: Result<Sign, Indeterminate>| {
+            // The branch is `±i`, which an `i32` always names; the pair
+            // astride the mark is named only where both of its ends are
+            // (not past `i32::MAX`), and the stop keeps the mark's own
+            // miss either way.
+            let astride = || {
+                let i = i64::from(i);
+                let [lo, hi] = if up { [i, i + 1] } else { [-i - 1, -i] };
+                Some([i32::try_from(lo).ok()?, i32::try_from(hi).ok()?])
+            };
+            match sign {
+                Ok(Sign::Zero) => Err(WalkStop {
+                    miss: BranchMiss::OnMark,
+                    astride: astride(),
+                }),
+                Ok(_) => Ok(if up { i } else { -i }),
+                Err(cause) => Err(WalkStop {
+                    miss: BranchMiss::Undecided(cause),
+                    astride: astride(),
+                }),
+            }
+        };
+        let up = match mark(0, true) {
+            (_, true) => true,
+            (sign @ (Ok(Sign::Zero) | Err(_)), false) => return across(0, true, sign),
+            (_, false) => match mark(0, false) {
+                (_, true) => false,
+                (sign, false) => return across(0, false, sign),
+            },
+        };
+        // Mark 0 is cleared. Gallop out (marks 1, 2, 4, 8, ...) to the
+        // first the gap does not clear, then bisect between it and the
+        // last it clears: the marks it clears are those nearer zero, so
+        // the mark found is the first uncleared from zero, and the walk
+        // asks O(log k) marks however far out the gap lies.
+        let (mut cleared, mut probe) = (0, 1);
+        let mut stop = loop {
+            let (sign, past) = mark(probe, up);
+            if !past {
+                break (probe, sign);
+            }
+            if probe == i32::MAX {
+                return Err(unnamed());
+            }
+            cleared = probe;
+            probe = probe.saturating_mul(2);
+        };
+        while stop.0 - cleared > 1 {
+            let mid = cleared + (stop.0 - cleared) / 2;
+            match mark(mid, up) {
+                (_, true) => cleared = mid,
+                (sign, false) => stop = (mid, sign),
             }
         }
-        if !below {
-            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
-                Sign::Positive => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
-                Sign::Negative => {
-                    k -= 1;
-                    (below, above) = (false, true);
-                    if k < -MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+        across(stop.0, up, stop.1)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod period_rows {
+    use geom_core::{Band, Interval, Margin, Real, SpanLocate};
+
+    use super::{BranchMiss, Period, WalkStop};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).expect("a band")
+    }
+
+    /// **The marks are read from zero, however far out.** A gap 25 and a
+    /// fraction periods out decides `25`; seven half periods decide `7`
+    /// on an orbit whose step is half a period.
+    #[test]
+    fn a_far_gap_decides_its_branch_with_no_cap() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        assert!(matches!(
+            period.decide("t", 25.3 * tau, Margin::of, band()),
+            Ok(25)
+        ));
+        assert!(matches!(
+            period.decide("t", -25.3 * tau, Margin::of, band()),
+            Ok(-25)
+        ));
+        let half = Period::new(tau / 2.0);
+        assert!(matches!(
+            half.decide("t", 3.5 * tau, Margin::of, band()),
+            Ok(7)
+        ));
+    }
+
+    /// **A far gap on a mark names the branches astride it.** A bracket
+    /// straddling the mark 40.5 periods out decides neither branch, and
+    /// the walk stops on that mark with `[40, 41]`.
+    #[test]
+    fn a_far_gap_on_a_mark_stops_astride_it() {
+        let mark = Interval::from_f64(40.5 * f64::tau());
+        let gap =
+            (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
+        match Period::new(Interval::tau()).decide("t", gap, Margin::of, band()) {
+            Err(WalkStop {
+                miss: BranchMiss::OnMark | BranchMiss::Undecided(_),
+                astride: Some([40, 41]),
+            }) => {}
+            other => panic!("the walk stops on the mark at 40.5 periods: {other:?}"),
+        }
+    }
+
+    /// The step-by-step walk the gallop stands for: each mark from zero
+    /// in turn, out to the first the gap does not clear.
+    fn step_walk(gap: f64, asked: &core::cell::RefCell<Vec<f64>>) -> Result<i32, String> {
+        let tau = f64::tau();
+        let mark = |at: f64| {
+            let m = gap - at * tau;
+            asked.borrow_mut().push(m);
+            geom_core::k_stats::decide("t", Margin::of(m), band())
+        };
+        let on = |k: i32, side: f64| f64::from(k) + side;
+        let mut k = 0;
+        let (mut below, mut above) = (false, false);
+        loop {
+            if !above {
+                match mark(on(k, 0.5)) {
+                    Ok(geom_core::Sign::Negative) => {}
+                    Ok(geom_core::Sign::Positive) => {
+                        (k, below, above) = (k + 1, true, false);
+                        continue;
                     }
-                    continue;
+                    other => return Err(format!("{other:?} [{k}, {}]", k + 1)),
                 }
             }
+            if !below {
+                match mark(on(k, -0.5)) {
+                    Ok(geom_core::Sign::Positive) => {}
+                    Ok(geom_core::Sign::Negative) => {
+                        (k, below, above) = (k - 1, false, true);
+                        continue;
+                    }
+                    other => return Err(format!("{other:?} [{}, {k}]", k - 1)),
+                }
+            }
+            return Ok(k);
         }
-        return Ok(k);
+    }
+
+    /// **The gallop answers as the step-by-step walk does**, on branches,
+    /// on marks and in band, from 40 periods down to 40 up; out to two
+    /// periods it asks the same marks in the same order.
+    #[test]
+    fn the_gallop_answers_as_the_step_walk_does() {
+        let tau = f64::tau();
+        let band = band();
+        let mut gaps = Vec::new();
+        for k in -40..=40 {
+            for frac in [0.0, 0.2, 0.49, -0.3] {
+                gaps.push((f64::from(k) + frac) * tau);
+            }
+            let mark = (f64::from(k) + 0.5) * tau;
+            gaps.extend([
+                mark,
+                mark + 0.5 * band.zero(),
+                mark + 0.5 * (band.zero() + band.escalate()),
+            ]);
+        }
+        for gap in gaps {
+            let (walked, galloped) = (
+                core::cell::RefCell::new(Vec::new()),
+                core::cell::RefCell::new(Vec::new()),
+            );
+            let want = step_walk(gap, &walked);
+            let got = Period::new(tau)
+                .decide(
+                    "t",
+                    gap,
+                    |m| {
+                        galloped.borrow_mut().push(m);
+                        Margin::of(m)
+                    },
+                    band,
+                )
+                .map_err(|stop| {
+                    let [lo, hi] = stop.astride.expect("a finite gap stops on a mark");
+                    let sign = match stop.miss {
+                        BranchMiss::OnMark => "Ok(Zero)".to_owned(),
+                        BranchMiss::Undecided(cause) => format!("{:?}", Err::<(), _>(cause)),
+                    };
+                    format!("{sign} [{lo}, {hi}]")
+                });
+            assert_eq!(got, want, "gap {:.6} periods", gap / tau);
+            if (gap / tau).abs() <= 2.5 {
+                assert_eq!(
+                    *galloped.borrow(),
+                    *walked.borrow(),
+                    "gap {:.6} periods",
+                    gap / tau
+                );
+            }
+        }
+    }
+
+    /// **A far gap costs O(log k) marks**, and a branch past `i32`
+    /// decides nothing: a billion periods out answers in under a hundred
+    /// marks, and three billion stops undecided with no mark named.
+    #[test]
+    fn a_far_gap_costs_log_k_marks() {
+        let tau = f64::tau();
+        let asked = core::cell::Cell::new(0);
+        let meter = |m| {
+            asked.set(asked.get() + 1);
+            Margin::of(m)
+        };
+        let period = Period::new(tau);
+        assert!(matches!(
+            period.decide("t", (1e9 + 0.25) * tau, meter, band()),
+            Ok(1_000_000_000)
+        ));
+        assert!(asked.get() < 100, "{} marks", asked.get());
+        assert!(matches!(
+            period.decide("t", -3e9 * tau, Margin::of, band()),
+            Err(WalkStop {
+                miss: BranchMiss::Undecided(_),
+                astride: None
+            })
+        ));
+    }
+
+    /// **A branch an `i32` names is answered, to its last value.** A
+    /// gap just past `i32::MAX` periods decides `i32::MAX`, and its
+    /// mirror `−i32::MAX`: the pair astride a mark is formed only where
+    /// the walk stops on one.
+    #[test]
+    fn a_branch_at_i32_max_is_answered() {
+        let tau = f64::tau();
+        let k = f64::from(i32::MAX);
+        let period = Period::new(tau);
+        let up = period.decide("t", (k + 0.1) * tau, Margin::of, band());
+        let down = period.decide("t", -(k + 0.1) * tau, Margin::of, band());
+        assert!(matches!(up, Ok(i32::MAX)), "up: {up:?}");
+        assert!(matches!(down, Ok(-2_147_483_647)), "down: {down:?}");
+    }
+
+    test_utils::gated_to!["crates/geom-brep/src/pcurve_cache.rs"];
+
+    /// **The gallop answers as the step-by-step walk does at `Interval`,
+    /// levered** (a counterexample search: the seed varies). Enclosures
+    /// of every width from a point to two periods, centred out to 300
+    /// periods, half of them within 1e-7 periods of a half-period mark,
+    /// metered at a lever of 0.37: the answer, the miss and the pair
+    /// astride it agree with a walk that asks every mark from zero.
+    #[test]
+    fn the_gallop_answers_as_the_step_walk_does_at_interval() {
+        use geom_core::k_stats::decide;
+        use geom_core::{Real as _, Sign};
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("pcurve_cache::period_rows::gallop_at_interval");
+        let tau = Interval::tau();
+        let arm = Interval::from_f64(0.37);
+        let band = band();
+        let meter = |g| Margin::levered(g, arm);
+        let step_walk = |gap: Interval| -> String {
+            let half = Interval::from_f64(0.5);
+            let mark = |k: i32, side: Interval| {
+                decide(
+                    "t",
+                    meter(gap - (Interval::from_f64(f64::from(k)) + side) * tau),
+                    band,
+                )
+            };
+            let (mut k, mut below, mut above) = (0i32, false, false);
+            loop {
+                if !above {
+                    match mark(k, half) {
+                        Ok(Sign::Negative) => {}
+                        Ok(Sign::Positive) => {
+                            (k, below, above) = (k + 1, true, false);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k, k + 1]),
+                        Err(_) => return format!("Undecided {:?}", [k, k + 1]),
+                    }
+                }
+                if !below {
+                    match mark(k, Interval::zero() - half) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Negative) => {
+                            (k, below, above) = (k - 1, false, true);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k - 1, k]),
+                        Err(_) => return format!("Undecided {:?}", [k - 1, k]),
+                    }
+                }
+                return format!("Ok({k})");
+            }
+        };
+        let widths = [0.0, 1e-12, 1e-9, 3e-8, 1e-3, 0.4, 2.0];
+        for trial in 0..fuzz::scaled(20_000) {
+            let mut c = rng.range(-300.0, 300.0);
+            if rng.unit() < 0.5 {
+                c = c.round() + 0.5 + rng.range(-5e-8, 5e-8);
+            }
+            let w = widths[rng.below(widths.len())];
+            let gap = (tau * Interval::from_f64(c)).enclosure_hull(tau * Interval::from_f64(c + w));
+            let got = match Period::new(tau).decide("t", gap, meter, band) {
+                Ok(k) => format!("Ok({k})"),
+                Err(WalkStop {
+                    miss: BranchMiss::OnMark,
+                    astride: Some(a),
+                }) => format!("OnMark {a:?}"),
+                Err(WalkStop {
+                    miss: BranchMiss::Undecided(_),
+                    astride: Some(a),
+                }) => format!("Undecided {a:?}"),
+                Err(other) => format!("{other:?}"),
+            };
+            assert_eq!(
+                got,
+                step_walk(gap),
+                "seed {:#x}, trial {trial}: centre {c} periods, width {w}",
+                fuzz::seed()
+            );
+        }
+    }
+
+    /// **A gap that names no number decides nothing.** An infinite or
+    /// NaN gap stops at once as undecided, with no mark: an infinite
+    /// margin would read every mark definite and the walk would never
+    /// end.
+    #[test]
+    fn a_gap_that_is_not_finite_stops_undecided() {
+        let period = Period::new(f64::tau());
+        for gap in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(
+                matches!(
+                    period.decide("t", gap, Margin::of, band()),
+                    Err(WalkStop {
+                        miss: BranchMiss::Undecided(_),
+                        astride: None
+                    })
+                ),
+                "{gap}"
+            );
+        }
     }
 }
 
@@ -4918,15 +5268,13 @@ fn fidelity<T: Decide>(
     };
     let tau = T::tau();
     let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // A channel's branch, decided as the literal it is (`whole_periods`).
+    // A channel's branch, decided by the channel's own period
+    // ([`Period::decide`]), as the literal it is.
     let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
-        whole_periods(
-            name,
-            offset,
-            tau,
-            |gap| Margin::levered(gap, arm.get()),
-            band,
-        )
+        Period::new(tau)
+            .decide(name, offset, |gap| Margin::levered(gap, arm.get()), band)
+            .map(|k| T::from_f64(f64::from(k)))
+            .map_err(|stop| stop.miss)
     };
     // The azimuth's branch, and on a sphere whether the stored image is
     // `P_d` or its involution twin `(u + π, π − v)`: both are branches
@@ -4938,7 +5286,6 @@ fn fidelity<T: Decide>(
     // it.
     let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
         Ok(k) => (Some(k), (q0, qa, qb, ql)),
-        Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
         Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => match surface {
             Surface::Sphere { .. } => {
                 let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
@@ -4950,9 +5297,6 @@ fn fidelity<T: Decide>(
                 );
                 match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
                     Ok(k) => (Some(k), twin),
-                    Err(BranchMiss::OutOfReach) => {
-                        return Err(PcurveCertifyError::BranchOutOfReach);
-                    }
                     // Neither name's branch decides: `P_d` is kept
                     // (D9), read raw.
                     Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, (q0, qa, qb, ql)),
@@ -4972,11 +5316,7 @@ fn fidelity<T: Decide>(
         None => offset.abs(),
     };
     let k_v = if angular_v {
-        match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
-            Ok(k) => Some(k),
-            Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
-        }
+        branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v).ok()
     } else {
         Some(T::zero())
     };
@@ -9974,7 +10314,7 @@ mod tests {
         };
         for margin in [cause.margin, geom_core::MarginDiag::INVALID] {
             let ssi = crate::ssi::SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 cause: Indeterminate { margin, ..cause },
             };
             let want = ssi.ending(Reading::AtRest);
@@ -9983,7 +10323,7 @@ mod tests {
                 matches!(
                     pcurve,
                     PcurveCertifyError::FittedEscalated {
-                        decision: SsiDecision::Limb(SsiLimb::HullSup),
+                        decision: SsiDecision::Limb(SsiLimb::HullSupChart),
                         ..
                     }
                 ),

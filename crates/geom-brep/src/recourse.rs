@@ -869,17 +869,17 @@ mod tests {
             ),
         ];
         let file = ReadAt::File(FileCoincidence::new(1e-9));
-        let span = "Recourse: move the geometry so this edge is not vanishingly short; an edge of \
-                    no length, or a reversed one, is one no kernel construction mints, so this \
-                    is a kernel defect";
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length; an \
+                    edge of no length, or a reversed one, is one no kernel construction mints, so \
+                    this is a kernel defect";
         let meter = "Recourse: move the geometry so this spline edge runs steadily forward, never \
                      stalling or turning back; if it does neither, the speed floor has reached \
                      its limit, which is worth reporting";
         let floor = "Recourse: split the face clear of any pole, cusp or pinch; if it has none, \
                      this may indicate a kernel bug worth reporting";
-        let arm = "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                   tightly there; an edge of no length or a cone's point leaves no angle to \
-                   measure; a radius below zero is a defect";
+        let arm = "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                   curves tightly there; faces of no extent or a cone's point leave no \
+                   angle to measure; a radius below zero is a defect";
         let angle = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let defect = KERNEL_OR_FILE_DEFECT_ENDING.to_owned();
         // `None` where the decision has no import door: the offset

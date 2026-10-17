@@ -93,7 +93,7 @@ use crate::tolerance::Tol;
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
     /// parameters in this session's EARLY normal form, and a decision
-    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    /// that rests on the record is counted `crate::SymCounts::registered`.
     Recorded,
     /// Already recorded — the same two nodes, or two nodes the registry
     /// already resolves to one. Idempotent, and cheap: nothing is
@@ -493,6 +493,25 @@ pub trait Real:
     /// harmless within the session-boxed model range (D4 ¶4); changing it
     /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
+
+    /// **`self · k` for `k` an exact power of two** — the scale a
+    /// subdivision's `2⁻ʳ` applies to a sum it formed unscaled. The
+    /// value is the product's, `self * Self::from_f64(k)`, and that is
+    /// the default: exact at `f64` wherever the result is normal, and
+    /// the same expression at the symbolic and dual scalars.
+    ///
+    /// What the method is FOR is the interval scalar, where a general
+    /// product against a point folds corners and certifies each one
+    /// through a 2Prod witness. A power of two only moves an exponent,
+    /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
+    /// wherever both results are strictly above the smallest normal
+    /// (a product just under it rounds up onto it), and the general product
+    /// everywhere else — a result in the subnormal range, an overflow,
+    /// a poisoned operand, or a `k` that is not a positive normal power
+    /// of two. A `k` that is not one is never wrong, only not faster.
+    fn scale_pow2(self, k: f64) -> Self {
+        self * Self::from_f64(k)
+    }
 
     /// The sine and cosine together (argument in radians) — **the
     /// primitive**.

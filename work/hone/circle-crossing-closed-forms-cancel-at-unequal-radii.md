@@ -23,7 +23,10 @@ about `u·r₁²`, and the meeting sits off the smaller carrier by up to
 its whole radius.
 
 - `crates/topo/src/boolean/carrier_cross.rs` `meetings`, the coplanar
-  circle × circle arm: the two crossing candidates.
+  circle × circle arm: retired. `carrier_cross` reads
+  `geom_brep::curve_pair::meet`, whose coplanar circles read their
+  distance as a first harmonic with exact metre extremes (stage (c) of
+  `work/fuse/the-curve-pair-reader.md`).
 - `crates/topo/src/boolean/rim_wedge.rs`, the coplanar-circles arm of
   the rim candidates (`x` and `y2 = re² − x²`).
 - `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`: the
@@ -44,10 +47,11 @@ from the origin, its crossings sat off the smaller carrier by up to
 
 ## Where to look
 
-`seg.rs` `Circles` (`radical`, `crossings`) takes `a` and `h²` from the clearances,
+`geom_core::Circles` (`radical`, `half_chord`; `crates/geom-core/src/arc/pair.rs`) takes `a` and `h²` from the clearances,
 `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
 `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`:
 at most 3.6 ulps off either carrier across the same range, and an
-identity, so Interval encloses. A shared `geom_core` home for it is
-`work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
-these sites before it lands mints a copy at each.
+identity, so Interval encloses. It is the one home for that algebra;
+fixing these sites with a local spelling mints a copy at each.
+
+2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.

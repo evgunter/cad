@@ -1782,13 +1782,13 @@ fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
     }
 }
 
-/// **A split re-mints the cut profiles' steps in the part's own order,
+/// **A split re-mints the cut profiles' steps from the part's own mint,
 /// and its step map says so, however the source minted them.** The cut
 /// profile's step 2 was re-minted by a reshaping, so its ids come from
-/// two different edits. The part document mints its one profile's steps
-/// from its own empty mint, in step order, and the step map pairs each
-/// old id with the id in the same position; the same split minted twice
-/// mints the same ids (D9).
+/// two different edits. The part document mints its one profile's five
+/// ids from its own empty mint and no more, and the step map pairs each
+/// old id with the id the part's program holds in the same position;
+/// the same split minted twice mints the same ids (D9).
 #[test]
 fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
@@ -1887,5 +1887,245 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
             );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
+    }
+}
+
+/// Whether `map` keeps the order of every pair of the ids it maps
+/// (keys ascend, so their images must).
+fn keeps_id_order(map: &editor_core::StepMap) -> bool {
+    let images: Vec<_> = map.values().collect();
+    images.windows(2).all(|w| w[0] < w[1])
+}
+
+/// The lateral edge of extrude `body` that starts at `step`'s leg.
+fn lateral_edge(body: RecipeNodeId, step: editor_core::StepId) -> StableName {
+    StableName {
+        kind: editor_core::EntityKind::Edge,
+        node: body,
+        path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+            step,
+            role: editor_core::PieceRole::Leg,
+        })],
+    }
+}
+
+/// A pair boolean's ranked `EdgeCrossing` run over two lateral edges of
+/// `body`, told apart by the steps `a` and `b`, in name order.
+fn ranked_run(
+    body: RecipeNodeId,
+    minter: RecipeNodeId,
+    a: editor_core::StepId,
+    b: editor_core::StepId,
+) -> StableName {
+    let mut run: Vec<editor_core::RunLine> = [a, b]
+        .into_iter()
+        .map(|step| editor_core::RunLine {
+            line: editor_core::NameRef::new(lateral_edge(body, step)),
+            sense: Some(editor_core::Sense::Outside),
+        })
+        .collect();
+    run.sort();
+    StableName {
+        kind: editor_core::EntityKind::Vertex,
+        node: minter,
+        path: vec![
+            RoleSeg::EdgeCrossing(run),
+            RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: 0, of: 2 }),
+        ],
+    }
+}
+
+/// The run's lines, in the order the name holds them.
+fn run_lines(name: &StableName) -> Vec<StableName> {
+    match name.path.first() {
+        Some(RoleSeg::EdgeCrossing(run)) => run.iter().map(|l| (*l.line).clone()).collect(),
+        other => panic!("an edge-crossing run, got {other:?}"),
+    }
+}
+
+/// **A split and an inline keep a profile's step ids in name order,
+/// however a `SetProgram` left them in the program.** The reshaping
+/// re-mints step 2 after every other step, so the source program holds
+/// its ids out of order. A ranked run over two lateral edges of one
+/// extrude, told apart by those steps, is ranked along its least line;
+/// the part and the host spell it with the same line least and the same
+/// rank, so it is the name their emitters mint (ASSEMBLY.md A4,
+/// *Acceptance*: name-resolution identity, up to minted ids).
+#[test]
+fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
+    let (doc, [f2, p2, e2], _) = reshaped_component("asm4-order", 2, false);
+    let old = flat_ids(&doc, p2);
+    assert!(
+        old[2] > old[3],
+        "the fixture holds its ids out of program order: {old:?}"
+    );
+    let was = ranked_run(e2, e2, old[2], old[3]);
+    assert_eq!(
+        run_lines(&was)[0],
+        lateral_edge(e2, old[3]),
+        "the step re-minted last lies on the greater line"
+    );
+
+    let out = split(
+        &doc,
+        &BTreeSet::from([f2, p2, e2]),
+        DocumentId::derive("asm4-order-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    assert!(
+        keeps_id_order(&out.step_map),
+        "the split's step map keeps id order: {:?}",
+        out.step_map
+    );
+    let part_profile = out.node_map[&p2];
+    let minted = flat_ids(&out.part, part_profile);
+    let expected: Vec<_> = old.iter().map(|s| out.step_map[s]).collect();
+    assert_eq!(
+        minted, expected,
+        "the part's program holds each step's image"
+    );
+    let reds = std::collections::BTreeMap::new();
+    let crossed = editor_core::remap_name(&was, &out.node_map, &out.step_map, &reds)
+        .expect("the split's maps cover the run");
+    let e2_part = out.node_map[&e2];
+    assert_eq!(
+        crossed,
+        ranked_run(
+            e2_part,
+            e2_part,
+            out.step_map[&old[2]],
+            out.step_map[&old[3]]
+        ),
+        "the part spells the run with its least line and its rank as the source did"
+    );
+    assert_eq!(
+        run_lines(&crossed)[0],
+        editor_core::remap_name(&run_lines(&was)[0], &out.node_map, &out.step_map, &reds)
+            .expect("covered"),
+        "the least line is the image of the least line"
+    );
+
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-order-host"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let inlined = inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("legal");
+    assert!(
+        keeps_id_order(&inlined.step_map),
+        "the inline's step map keeps id order: {:?}",
+        inlined.step_map
+    );
+    let e2_host = inlined.node_map[&e2];
+    assert_eq!(
+        editor_core::remap_name(&was, &inlined.node_map, &inlined.step_map, &reds)
+            .expect("the inline's maps cover the run"),
+        ranked_run(
+            e2_host,
+            e2_host,
+            inlined.step_map[&old[2]],
+            inlined.step_map[&old[3]]
+        ),
+        "the host spells the run with its least line and its rank as the part did"
+    );
+}
+
+/// **Across two profiles the order is not kept, and a name it would
+/// break refuses the inline.** The part's first profile has a step
+/// re-minted after the second profile was inserted, so the two
+/// profiles' ids interleave. The host mints the first profile's ids
+/// before the second's, so each profile keeps its own order and the
+/// re-minted step falls below the second profile's steps
+/// (`refactor::in_id_order` says why no dealing can do better). A
+/// name embedding a ranked run whose lines are told apart by those two
+/// steps would change the run's least line, so the inline refuses it,
+/// typed, rather than carry a reference that no longer resolves.
+#[test]
+fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
+    let (doc, [_, p2, _], _) = reshaped_component("asm4-two", 2, false);
+    let order = doc.ids();
+    let (p1, e1) = (order[PROFILE_POSITION], order[BODY_POSITION]);
+    let program = match doc.node(p1) {
+        Some(Node::Profile(p)) => p.clone(),
+        other => panic!("a profile, got {other:?}"),
+    };
+    let mut ids = program.kept_in_place();
+    ids[0][1] = None;
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetProgram {
+            node: p1,
+            loops: program
+                .loops
+                .iter()
+                .map(editor_core::LoopProgram::authored)
+                .collect(),
+            ids,
+            fresh: Vec::new(),
+        },
+    );
+    let (first, second) = (flat_ids(&doc, p1), flat_ids(&doc, p2));
+    let late = first[1];
+    assert!(
+        second.iter().all(|&s| s < late) && second.iter().any(|&s| s > first[0]),
+        "the two profiles' ids interleave: {first:?}, {second:?}"
+    );
+    let inline_into = |part: ProfileDoc, label: &str| {
+        let mut store = PartStore::default();
+        let doc_ref = store.insert(part, Tol::witness());
+        let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+        let resolver = Arc::new(store) as Arc<dyn editor_core::PartResolver>;
+        inline(&host, instance, &resolver, Tol::witness())
+    };
+
+    let inlined = inline_into(doc.clone(), "asm4-two-host").expect("legal");
+    let within = |ids: &[editor_core::StepId]| -> editor_core::StepMap {
+        ids.iter().map(|s| (*s, inlined.step_map[s])).collect()
+    };
+    assert!(
+        keeps_id_order(&within(&first)) && keeps_id_order(&within(&second)),
+        "each profile keeps its own order: {:?}",
+        inlined.step_map
+    );
+    assert!(
+        inlined.step_map[&late] < inlined.step_map[&second[0]],
+        "across the two profiles the re-minted step falls below the second's: {:?}",
+        inlined.step_map
+    );
+
+    // A face name embedding a ranked run told apart by those two steps
+    // (an appearance is keyed by a face).
+    let crossing = StableName {
+        kind: editor_core::EntityKind::Face,
+        node: e1,
+        path: vec![RoleSeg::CornerFace(editor_core::NameRef::new(ranked_run(
+            e1, e1, late, second[0],
+        )))],
+    };
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: crossing.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8 {
+                r: 1,
+                g: 2,
+                b: 3,
+                a: 255,
+            }),
+        },
+    );
+    match inline_into(doc, "asm4-two-host") {
+        Err(InlineError::RankedRunReordered { name }) => {
+            assert_eq!(name.name(), &crossing, "the refusal names the run");
+        }
+        other => panic!("expected RankedRunReordered, got {other:?}"),
     }
 }

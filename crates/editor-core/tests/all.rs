@@ -157,6 +157,8 @@ mod edit_blend_canonical;
 mod edit_blend_one_box_of_two;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
+#[path = "edit_concave_bar.rs"]
+mod edit_concave_bar;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -167,6 +169,8 @@ mod edit_has_minted;
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
+#[path = "edit_one_cycle_members.rs"]
+mod edit_one_cycle_members;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
@@ -718,6 +722,8 @@ mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
 
+#[path = "a_mate_on_a_full_turn_bore_names.rs"]
+mod a_mate_on_a_full_turn_bore_names;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
@@ -752,6 +758,8 @@ mod emit_split_duplicate;
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_curved_flush.rs"]
+mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]

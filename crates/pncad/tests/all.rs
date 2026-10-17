@@ -374,6 +374,8 @@ fn breach_is_matchable(breach: Breach) -> &'static str {
         Breach::Unresolved => "unresolved",
         Breach::Unwalked => "unwalked",
         Breach::Disagrees => "disagrees",
+        Breach::Scaffolding => "scaffolding",
+        Breach::Degenerate => "degenerate",
     }
 }
 
@@ -4731,9 +4733,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   them: the split's and the inline's id rewrite of one name, for a
 ///   Rust caller carrying its own names across a `NodeMap`; the
 ///   Python surface holds no `NodeMap`, and the names a split or an
-///   inline carries reach it already rewritten. `Unmapped` is its
-///   refusal (a node or a profile step the maps do not cover), and
-///   goes where it goes.
+///   inline carries reach it already rewritten. `RemapError` is its
+///   refusal, `Unmapped` (a node or a profile step the maps do not
+///   cover) or a ranked run the maps reorder, and both go where it
+///   goes.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
 ///   value carries for the diagnosis ladder. A consumer can hold one
 ///   (`NodeValue::fragment_groups`) and make an empty one, and can read
@@ -4905,7 +4908,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4995,6 +4998,7 @@ const NOT_CARRIED: [&str; 95] = [
     "is_axis",
     "rebind_suggestions",
     "remap_name",
+    "RemapError",
     "Unmapped",
     "resolve_with_prior",
     "seed_env",

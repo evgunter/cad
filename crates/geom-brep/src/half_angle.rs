@@ -3,7 +3,7 @@
 //! that is a trigonometric polynomial in the conic's own angle. The
 //! caller (a "door") computes the residual's harmonics and names their
 //! rows; what this answers is a value or a typed refusal
-//! ([`LadderRefusal`]), and the caller's own decision and error
+//! ([`RootRefusal`]), and the caller's own decision and error
 //! vocabulary wrap it.
 //!
 //! A residual that is a trigonometric polynomial `F(θ)` of degree TWO —
@@ -13,7 +13,7 @@
 //! [`certified_subdivision`], decided on the residual itself in the
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
-//! tangency `Uncertain`).
+//! tangency refused typed, [`crate::roots::Unsettled`]).
 //!
 //! The subdivision is not bound to degree two: a residual of degree `N`
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
@@ -25,7 +25,7 @@
 //! **The ladder runs first, for its escalations only.** Under the
 //! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
 //! which the certified quartic ladder ([`crate::quartic`]) decides; an in-band
-//! sign it meets escalates ([`LadderRefusal::Escalated`]), and that `Err` is
+//! sign it meets escalates ([`RootRefusal::Escalated`]), and that `Err` is
 //! all [`half_angle_roots`] keeps. Its answers are dropped: they are
 //! decided in its root variable `τ`, arc length only to first order
 //! about the anchor (and along an ellipse only up to the ratio of its
@@ -69,7 +69,7 @@
 //! charged): `noise`, a residual error of `noise / f_per_metre` metres,
 //! `f_per_metre` the door's floor on `|F|` per metre of residual. The
 //! subdivision charges it to every Taylor term it reads (its docs), so a
-//! pose whose noise is past the band answers `Uncertain` there. A
+//! pose whose noise is past the band refuses there. A
 //! rounding estimate on `f64`, run on every scalar; the `Interval` lane
 //! carries its own enclosure.
 //!
@@ -84,40 +84,19 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::{QuarticRows, depressed_quartic_roots};
+use crate::roots::{RootRefusal, Roots, Unsettled};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
 /// torus ([`crate::ConicTorusHarmonics`]).
 pub const MAX_DEGREE: usize = 4;
 
 /// What [`certified_subdivision`] (and so [`half_angle_roots`]) answers
-/// about a residual round the whole turn.
-#[derive(Debug, Clone, Copy)]
-pub enum TrigRoots<T> {
-    /// A certified count of zero: the carrier misses the surface.
-    Miss,
-    /// No certain count — a tangency, a meter that refuses, a walk past
-    /// its budget, or a count no degree-`N` polynomial has.
-    Uncertain,
-    /// A certified count (even, at most twice the residual's degree) and
-    /// the carrier parameters `θ` of those roots, unordered, in
-    /// `thetas[..count]`, each within `π` of the arc's midpoint.
-    Certified {
-        /// How many of `thetas` are roots.
-        count: usize,
-        /// The roots, `thetas[..count]`.
-        thetas: [T; 2 * MAX_DEGREE],
-    },
-}
-
-/// Why [`half_angle_roots`] refused.
-#[derive(Debug, Clone, Copy)]
-pub enum LadderRefusal {
-    /// The ladder met an in-band sign: the caller's decision escalates.
-    Escalated(Indeterminate),
-    /// The polynomial is of degree past two, which the quartic does not
-    /// describe.
-    PastDegreeTwo,
-}
+/// about a residual round the whole turn: [`Roots::Miss`], or a
+/// certified count (even, at most twice the residual's degree) of
+/// carrier parameters `θ`, each within `π` of the arc's midpoint. A
+/// trigonometric residual is never read as a zero constant here, so it
+/// has no [`Roots::On`] arm.
+pub type TrigRoots<T> = Roots<T, { 2 * MAX_DEGREE }>;
 
 /// A trigonometric polynomial `Σₖ cos[k]·cos kθ + sin[k]·sin kθ` of
 /// degree `degree ≤ MAX_DEGREE`; coefficients past `degree`, and
@@ -131,13 +110,37 @@ pub struct TrigPoly<T> {
     pub degree: u8,
 }
 
-impl<T: geom_core::Real> TrigPoly<T> {
+/// A trigonometric polynomial of degree two,
+/// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`: what
+/// [`half_angle_roots`] takes, since its quartic in the tangent half-angle
+/// describes no higher degree.
+#[derive(Clone, Copy)]
+pub struct DegreeTwo<T> {
+    /// The constant.
+    pub c0: T,
+    /// The first harmonic's cosine coefficient.
+    pub c1: T,
+    /// The first harmonic's sine coefficient.
+    pub s1: T,
+    /// The second harmonic's cosine coefficient.
+    pub c2: T,
+    /// The second harmonic's sine coefficient.
+    pub s2: T,
+}
+
+impl<T: geom_core::Real> DegreeTwo<T> {
     /// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`.
-    pub fn second(c0: T, c1: T, s1: T, c2: T, s2: T) -> Self {
+    pub fn new(c0: T, c1: T, s1: T, c2: T, s2: T) -> Self {
+        Self { c0, c1, s1, c2, s2 }
+    }
+
+    /// The same polynomial as a [`TrigPoly`].
+    #[must_use]
+    pub fn poly(&self) -> TrigPoly<T> {
         let z = T::zero();
-        Self {
-            cos: [c0, c1, c2, z, z],
-            sin: [z, s1, s2, z, z],
+        TrigPoly {
+            cos: [self.c0, self.c1, self.c2, z, z],
+            sin: [z, self.s1, self.s2, z, z],
             degree: 2,
         }
     }
@@ -278,29 +281,25 @@ const POLE_CANDIDATES: u32 = 32;
 ///
 /// # Errors
 ///
-/// [`LadderRefusal::Escalated`], the ladder's in-band sign, and
-/// [`LadderRefusal::PastDegreeTwo`] for a polynomial of degree past two,
-/// which the quartic does not describe.
+/// [`RootRefusal::Escalated`], the ladder's in-band sign, and
+/// [`RootRefusal::Unsettled`], the subdivision's.
 pub fn half_angle_roots<T: Decide>(
-    f: &TrigPoly<T>,
+    f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
     slack: &RootSlack<'_, T>,
     band: Band,
-) -> Result<TrigRoots<T>, LadderRefusal> {
-    if f.degree > 2 {
-        return Err(LadderRefusal::PastDegreeTwo);
-    }
-    ladder_roots(f, &residual, &frame, rows, band).map_err(LadderRefusal::Escalated)?;
+) -> Result<TrigRoots<T>, RootRefusal> {
+    ladder_roots(f, &residual, &frame, rows, band)?;
     Ok(certified_subdivision(
-        f,
+        &f.poly(),
         &residual,
         &frame.walk,
         &rows.verify,
         Some(slack),
         band,
-    ))
+    )?)
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
@@ -309,7 +308,7 @@ pub fn half_angle_roots<T: Decide>(
 /// decides the roots in the residual's own metres.
 #[allow(clippy::too_many_lines)] // the anchor search and the quartic, one walk
 fn ladder_roots<T: Decide>(
-    f: &TrigPoly<T>,
+    f: &DegreeTwo<T>,
     residual: &impl Fn(T) -> T,
     frame: &HalfAngleFrame<T>,
     rows: &HalfAngleRows,
@@ -320,7 +319,7 @@ fn ladder_roots<T: Decide>(
         speed_lo,
         lever,
     } = *frame;
-    let (c0, c1, s1, c2, s2) = (f.cos[0], f.cos[1], f.sin[1], f.cos[2], f.sin[2]);
+    let DegreeTwo { c0, c1, s1, c2, s2 } = *f;
     // **The noise meter** (module docs, "The harmonics' noise"): where
     // the harmonics' evaluation error, `noise / f_per_metre` metres, is
     // definitely past the band's escalation threshold, the ladder does
@@ -401,9 +400,28 @@ fn ladder_roots<T: Decide>(
         let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
             - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
         // Its answer is not read (the subdivision answers); an in-band
-        // sign it meets is the door's escalation.
-        depressed_quartic_roots(p, q, s, lever, &rows.quartic, band)?;
-        return Ok(());
+        // sign it meets is the door's escalation. Its `CountDisagrees` is
+        // dropped with its count, unlike the line × torus door's, where
+        // the quartic's coefficients are the residual's own and a
+        // disagreement is a classification invariant: here they come
+        // through the anchor rotation, pole division and rescale, whose
+        // rounding nothing meters (module docs), and the module docs
+        // record it disagreeing across definite crossings.
+        return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
+            Err(RootRefusal::Escalated(diag)) => Err(diag),
+            Ok(_)
+            | Err(RootRefusal::Unsettled(
+                Unsettled::CountDisagrees { .. }
+                | Unsettled::Tangency
+                | Unsettled::Resolvent
+                | Unsettled::SignInBand
+                | Unsettled::Meter
+                | Unsettled::Exhausted
+                | Unsettled::ImpossibleCount
+                | Unsettled::AtApex
+                | Unsettled::Degenerate,
+            )) => Ok(()),
+        };
     }
     Ok(())
 }
@@ -485,14 +503,23 @@ const BISECTIONS: u32 = 64;
 ///   piece holds at most one root, and holds one exactly when its ends'
 ///   signs differ; that root is bisected on the residual itself to the
 ///   scalar's resolution and must then read ON the surface (`side`,
-///   `Zero`), or the answer is `Uncertain` — and, where the caller hands
+///   `Zero`), or the walk refuses [`Unsettled::SignInBand`] — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
-///   too. The bisection closes on two adjacent scalars, and the root is
+///   too, or it refuses [`Unsettled::Meter`]. The bisection closes on two adjacent scalars, and the root is
 ///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
-///   holds a double root — a tangency — and the answer is `Uncertain`,
-///   never a certified `Miss`.
+///   holds a double root — a tangency — and the walk refuses
+///   [`Unsettled::Tangency`], never a certified `Miss`.
+///
+/// # Errors
+///
+/// [`Unsettled`] as above, [`Unsettled::Exhausted`] past the piece
+/// budget, and [`Unsettled::ImpossibleCount`] for an odd count round the
+/// turn or more roots than the degree allows.
+///
+/// The same Taylor bound, over a piece of a harmonic, is
+/// `curve_pair::pose::window`'s.
 ///
 /// `F` shares the residual's sign. The clear margin is read in metres
 /// through the CEILING `f_per_metre_hi` (capped at `residual_reach`), so
@@ -522,7 +549,7 @@ pub fn certified_subdivision<T: Decide>(
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
-) -> TrigRoots<T> {
+) -> Result<TrigRoots<T>, Unsettled> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -601,7 +628,7 @@ pub fn certified_subdivision<T: Decide>(
         })
         .collect::<Option<Vec<_>>>()
     else {
-        return TrigRoots::Uncertain;
+        return Err(Unsettled::SignInBand);
     };
     let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
@@ -610,7 +637,7 @@ pub fn certified_subdivision<T: Decide>(
     // not, since one in the walk's tail past `mid + π` re-centres to the
     // front, and no reader relies on the order (the type is documented
     // unordered). A walk past the core's piece budget answers
-    // `Uncertain`, as a visit that stops does.
+    // [`Unsettled::Exhausted`].
     let pieces: Vec<((T, Sign), (T, Sign))> = ends.windows(2).map(|w| (w[0], w[1])).collect();
     let mut roots: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
@@ -689,7 +716,7 @@ pub fn certified_subdivision<T: Decide>(
                 let turn = lo - reported(lo);
                 root = nearer(close(l - turn, r - turn));
                 if !on(root) {
-                    return Step::Stop(TrigRoots::Uncertain);
+                    return Step::Stop(Unsettled::SignInBand);
                 }
             }
             if let Some(meter) = slack {
@@ -712,27 +739,27 @@ pub fn certified_subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Step::Stop(TrigRoots::Uncertain),
+                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter),
                 }
             }
             roots.push(root);
             return Step::Settled;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(TrigRoots::Uncertain);
+            return Step::Stop(Unsettled::Tangency);
         }
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(TrigRoots::Uncertain);
+            return Step::Stop(Unsettled::SignInBand);
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     });
     match walk {
         Ok(None) => {}
-        Ok(Some(answer)) => return answer,
-        Err(_) => return TrigRoots::Uncertain,
+        Ok(Some(why)) => return Err(why),
+        Err(_) => return Err(Unsettled::Exhausted),
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -741,15 +768,9 @@ pub fn certified_subdivision<T: Decide>(
     // `2N` is more than a degree-`N` polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
-        return TrigRoots::Uncertain;
+        return Err(Unsettled::ImpossibleCount);
     }
-    let count = roots.len();
-    if count == 0 {
-        return TrigRoots::Miss;
-    }
-    let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-    thetas[..count].copy_from_slice(&roots);
-    TrigRoots::Certified { count, thetas }
+    Roots::of(&roots).ok_or(Unsettled::ImpossibleCount)
 }
 
 #[cfg(test)]
@@ -782,7 +803,7 @@ mod subdivision_guard_rows {
         residual: &impl Fn(f64) -> f64,
         noise: f64,
         eps: f64,
-    ) -> TrigRoots<f64> {
+    ) -> Result<TrigRoots<f64>, Unsettled> {
         let frame = SubdivisionFrame {
             t0: -0.5,
             t1: 0.5,
@@ -816,7 +837,7 @@ mod subdivision_guard_rows {
     }
 
     fn sine(s1: f64) -> TrigPoly<f64> {
-        TrigPoly::second(0.0, 0.0, s1, 0.0, 0.0)
+        DegreeTwo::new(0.0, 0.0, s1, 0.0, 0.0).poly()
     }
 
     /// **The monotone test charges `F′` its share of the noise.** `F` read
@@ -825,7 +846,7 @@ mod subdivision_guard_rows {
     /// `0.8·10⁻³` — as a wiggle about `θ = 0` that crosses zero several
     /// times. `F′` there is `10⁻³`, less than the `2·noise` its rounding
     /// may move it by, so the piece is not certified monotone and the
-    /// answer is `Uncertain`. Charged nothing, the piece reads monotone,
+    /// walk refuses. Charged nothing, the piece reads monotone,
     /// one crossing is bisected, and two certified roots stand for a
     /// residual that crosses zero more often.
     #[test]
@@ -838,10 +859,11 @@ mod subdivision_guard_rows {
         let truth = sign_changes(&residual);
         assert!(truth > 2, "the wiggle crosses zero, read {truth} changes");
         match walk(&f, &residual, 0.8e-3, 1e-9) {
-            TrigRoots::Certified { count, .. } => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, truth, "certified {count} roots of {truth}");
             }
-            TrigRoots::Uncertain => {}
+            Err(_) => {}
             other => panic!("{other:?} for a residual crossing {truth} times"),
         }
     }
@@ -857,17 +879,18 @@ mod subdivision_guard_rows {
     /// certified `Miss`.
     #[test]
     fn a_fourth_order_graze_is_not_read_clear() {
-        let f = TrigPoly::second(-3.0 + 3e-4, 4.0, 0.0, -1.0, 0.0);
+        let f = DegreeTwo::new(-3.0 + 3e-4, 4.0, 0.0, -1.0, 0.0).poly();
         let value = |t: f64| f.cos[0] + f.cos[1] * t.cos() + f.cos[2] * (2.0 * t).cos();
         assert_eq!(sign_changes(&value), 2);
         match walk(&f, &value, 0.0, 1e-9) {
-            TrigRoots::Certified { count, thetas } => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, 2, "certified {count} roots of 2");
-                for &t in &thetas[..count] {
+                for &t in found.roots() {
                     assert!(value(t).abs() <= 1e-9, "root {t} reads {:e}", value(t));
                 }
             }
-            TrigRoots::Uncertain => {}
+            Err(_) => {}
             other => panic!("{other:?} for a residual crossing twice"),
         }
     }
@@ -913,10 +936,11 @@ mod subdivision_guard_rows {
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
         match certified_subdivision(&f, &value, &frame, &ROWS, None, band) {
-            TrigRoots::Certified { count, .. } => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, truth, "certified {count} roots of {truth}");
             }
-            TrigRoots::Uncertain => {}
+            Err(_) => {}
             other => panic!("{other:?} for a residual crossing {truth} times"),
         }
     }
@@ -925,7 +949,7 @@ mod subdivision_guard_rows {
     /// `sin θ` resolved only to steps of `20ε` — never zero, its sign
     /// change a jump from `−10ε` to `+10ε` — the harmonics exact to within
     /// that step (declared as the noise). Bisection closes on the jump,
-    /// where the residual reads `10ε` off, so the answer is `Uncertain`;
+    /// where the residual reads `10ε` off, so the walk refuses;
     /// not checked, the jump is certified a root.
     #[test]
     fn a_root_that_reads_off_the_surface_is_not_certified() {
@@ -933,8 +957,8 @@ mod subdivision_guard_rows {
         let step = 20.0 * eps;
         let residual = |t: f64| step * ((t.sin() / step).floor() + 0.5);
         let got = walk(&sine(1.0), &residual, step, eps);
-        if let TrigRoots::Certified { count, thetas } = got {
-            for &t in &thetas[..count] {
+        if let Ok(Roots::Certified(found)) = got {
+            for &t in found.roots() {
                 let off = residual(t).abs();
                 assert!(off <= eps, "root {t} reads {off:e} off the surface");
             }
@@ -947,7 +971,7 @@ mod subdivision_guard_rows {
     /// next scalar `b` it steps from `−0.3` to `+1.5` zeros: the bracket
     /// closes on them, `a` reads ON and `b` does not. `a`'s last bit is
     /// odd, so their midpoint rounds onto `b`; reported there the root
-    /// reads off the surface and the answer is `Uncertain`.
+    /// reads off the surface and the walk refuses.
     #[test]
     fn a_steep_root_is_reported_at_the_bracket_end_on_the_surface() {
         let eps = 1e-9;
@@ -961,13 +985,13 @@ mod subdivision_guard_rows {
         };
         assert!(residual(a).abs() < eps && residual(b) > eps, "a ON, b off");
         let (s, c) = a.sin_cos();
-        let f = TrigPoly::second(0.0, -s, c, 0.0, 0.0);
+        let f = DegreeTwo::new(0.0, -s, c, 0.0, 0.0).poly();
         match walk(&f, &residual, 0.0, eps) {
-            TrigRoots::Certified { count: 2, thetas } => {
+            Ok(Roots::Certified(found)) if found.count() == 2 => {
                 assert!(
-                    thetas[..2].contains(&a),
+                    found.roots().contains(&a),
                     "the roots {:?} miss a",
-                    &thetas[..2]
+                    found.roots()
                 );
             }
             other => panic!("{other:?} for a residual crossing twice, once at a"),
@@ -980,7 +1004,7 @@ mod subdivision_guard_rows {
     /// near the arc falls on a piece the harmonics read clear (the first
     /// cut's piece from `0.185` to `0.578`) and is lost, while the change
     /// at `π` is bisected. Round a closed turn that leaves an odd count,
-    /// which is `Uncertain`; not checked, one root is certified for a
+    /// which the walk refuses; not checked, one root is certified for a
     /// residual that crosses twice.
     #[test]
     fn an_odd_count_is_not_certified() {
@@ -990,10 +1014,11 @@ mod subdivision_guard_rows {
         };
         assert_eq!(sign_changes(&residual), 2);
         match walk(&sine(1.0), &residual, 0.0, 1e-9) {
-            TrigRoots::Certified { count, .. } => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count % 2, 0, "certified an odd count, {count}");
             }
-            TrigRoots::Uncertain => {}
+            Err(_) => {}
             other => panic!("{other:?} for a residual crossing twice"),
         }
     }

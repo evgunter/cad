@@ -1382,6 +1382,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
         ProfileError::EmptyProfile => "empty_profile",
+        ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",
@@ -1535,6 +1536,11 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        // A side refused only on in-band shells is the Boolean's
+        // `Escalated` on the same decision, so it carries the Boolean's word.
+        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
+            boolean_error_tag(BooleanErrorKind::Escalated)
+        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1641,7 +1647,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
-        BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
+        BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
@@ -1653,6 +1659,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
+        BooleanErrorKind::MixedSeam => "mixed_seam",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
@@ -1668,6 +1675,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
+        BooleanErrorKind::Revert => "revert",
     }
 }
 
@@ -1711,6 +1719,9 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
+        SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
+        SkinError::ArcWeightNotAPoint { .. } => "arc_weight_not_a_point",
+        SkinError::IncompatibleAtEnclosure { .. } => "incompatible_at_enclosure",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
@@ -1728,8 +1739,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
-        LoftError::PlacementNotAPoint { .. } => "placement_not_a_point",
-        LoftError::SectionNotAPoint { .. } => "section_not_a_point",
+        LoftError::PlacementNotFinite { .. } => "placement_not_finite",
+        LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1784,6 +1795,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
+        NamingError::PartnerUnread { .. } => "partner_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1815,6 +1827,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Pcurve { .. } => "pcurve",
+        ShellError::RimSeamMixed { .. } => "rim_seam_mixed",
         ShellError::Join { refusal } => join_refusal_tag(refusal),
         ShellError::NotValid { .. } => "not_valid",
     }
@@ -2586,6 +2599,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        SplitError::RankedRunReordered { .. } => "ranked_run_reordered",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2625,6 +2639,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -2990,6 +3005,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: false } => "cusp",
         R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
+        R::SameRadius => "same_radius",
+        R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
     }
 }
@@ -3003,6 +3020,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
         S::CoaxialSphere => "coaxial_sphere",
+        S::CrossingCylinders => "crossing_cylinders",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",
@@ -3120,6 +3138,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
         ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::MixedDihedral { .. } => "mixed_dihedral",
         ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",

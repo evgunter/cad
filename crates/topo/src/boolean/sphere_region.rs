@@ -61,7 +61,7 @@
 //!
 //! Past that, every reading is about one ray ([`crate::ray_walk`]): a
 //! closest crossing at a vertex, a tie with the closest crossing, a
-//! tangency of the ray with an arc (the root door's `Uncertain`), or an
+//! tangency of the ray with an arc (the root door's refusal), or an
 //! arc lying in the ray's plane grazes; a direction with no tangent
 //! share, or a great circle that meets no arc (it lies wholly on one
 //! side), gives nothing to read; and the next is tried. Root counts that
@@ -85,19 +85,16 @@
 //! - `bool_sphere_region_cross`: the sine between the ray and the arc's
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_roots_*`: the first-harmonic door's own meters.
-//! - `bool_sphere_region_arc_{span,on,end,trim}`: the boundary reading
-//!   of an arc ([`ConicArc::hit`]'s rows, on a circle): its gap to a
-//!   period, `p`'s distance from its circle and from either end, and
-//!   which side of the ends `p` is — or `p`'s foot, where `p` is in the
-//!   band of the circle. `bool_sphere_region_arc_straddle` is
-//!   the name an ellipse's straddle would carry; a circle never does.
+//! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
+//!   sits against the arc is [`ConicArc::hit`], the on-carrier and span
+//!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
+//!   is the name an ellipse's straddle would carry; a circle never does.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
-    rounding_charge,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -106,6 +103,8 @@ use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::PointInLoopError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows, SCHEDULE};
 use crate::validate::decide;
+use geom_brep::roots::{RootRefusal, Roots};
+use geom_brep::rounding_charge;
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_sphere_region_roots_noise",
@@ -118,9 +117,6 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 /// The boundary reading's rows (module docs).
 const BOUNDARY: ConicRows = ConicRows {
     span: "bool_sphere_region_arc_span",
-    on: "bool_sphere_region_arc_on",
-    end: "bool_sphere_region_arc_end",
-    trim: "bool_sphere_region_arc_trim",
     straddle: "bool_sphere_region_arc_straddle",
 };
 
@@ -317,11 +313,18 @@ impl<T: Decide> SphereFaceRegion<T> {
                 }
             };
             match k
-                .hit(p, BOUNDARY, band)
+                .hit(p, band)
                 .map_err(|e| RegionRefusal::Escalated(e.diag))?
             {
                 ConicHit::On(_) | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
+                // A circle's `Past` stands on its nearest foot and walks
+                // nothing, so this does not arise; were it to, the point
+                // is unplaced against the boundary and no ray reading
+                // starts from it.
+                ConicHit::Unsettled => {
+                    return Err(RegionRefusal::RayExhausted { outer: self.outer });
+                }
             }
         }
         let w = p - self.center;
@@ -367,15 +370,16 @@ impl<T: Decide> SphereFaceRegion<T> {
         let g = a.cross(t);
         let mut crossings = Crossings::new();
         for (j, arc) in self.arcs.iter().enumerate() {
-            let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
-                FirstHarmonicRoots::Miss => continue,
-                FirstHarmonicRoots::Certified(thetas) => thetas,
+            let thetas = match self.ray_roots(arc, g, band) {
+                Ok(Roots::Miss) => continue,
+                Ok(Roots::Certified(found)) => found,
                 // The arc in the ray's plane, or a tangency.
-                FirstHarmonicRoots::OnSurface | FirstHarmonicRoots::Uncertain => {
+                Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => {
                     return Err(RayFault::Graze);
                 }
+                Err(RootRefusal::Escalated(diag)) => return Err(in_band(diag)),
             };
-            for theta in thetas {
+            for &theta in thetas.roots() {
                 let start = row("bool_sphere_region_span", arc.radius * (theta - arc.t0))?;
                 let end = row("bool_sphere_region_span", arc.radius * (arc.t1 - theta))?;
                 if start == Sign::Negative || end == Sign::Negative {
@@ -416,7 +420,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         arc: &RegionArc<T>,
         g: Vec3<T>,
         band: Band,
-    ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
+    ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         let v_ref = arc.axis.cross(arc.u_ref);
         let offset = arc.center - self.center;
         let d = g.dot(offset);
@@ -502,7 +506,7 @@ mod tests {
                         matches!(
                             region.contains(at(rim + off, az), band),
                             Err(RegionRefusal::Escalated(diag))
-                                if diag.predicate == Some("bool_sphere_region_arc_on")
+                                if diag.predicate == Some("curve_carrier_gap")
                         ),
                         "in the band: forward {forward}, azimuth {az}, {off:e} off"
                     );
@@ -558,7 +562,7 @@ mod tests {
     /// sphere — a unit and more from the face — a point within the band
     /// of the great circle is plainly outside the lune, at every offset
     /// in and below the band. Reading the distance to the whole circle
-    /// refused every one of these on `bool_sphere_region_arc_on`.
+    /// refused every one of these on its distance row.
     #[test]
     fn a_point_in_band_of_an_arcs_circle_past_the_arc_is_off_it() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -576,7 +580,7 @@ mod tests {
 
     /// **On a partial arc, the boundary reading is the arc's own**: within
     /// the zero band of the arc's interior on the boundary, in the band
-    /// refused on the arc's distance, past it on its side — the lune
+    /// refused on the on-carrier reading's gap, past it on its side — the lune
     /// lies on the `+y` side of the meridian at azimuth 0.
     #[test]
     fn a_point_near_a_partial_arc_is_read_by_its_distance_from_it() {
@@ -595,7 +599,7 @@ mod tests {
                     matches!(
                         region.contains(off_meridian(theta, off), band),
                         Err(RegionRefusal::Escalated(diag))
-                            if diag.predicate == Some("bool_sphere_region_arc_on")
+                            if diag.predicate == Some("curve_carrier_gap")
                     ),
                     "in band: theta {theta}, {off:e}"
                 );

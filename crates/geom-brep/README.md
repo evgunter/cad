@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
 | C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -458,10 +458,21 @@ a sphere's twin bit) that carries its image onto the end of the
 half-edge before it in its loop, or a reset marker at a pole or apex
 (and on a spline chart where the net's own `u` stretch is not decided
 past the band).
+On a periodic channel the image is placed over the edge's span in the
+chart's principal window, so where a carrier's parameter happens to
+start moves neither the stored image nor any joint element. A chart
+coordinate is a coordinate in the chart's cover and never wraps. An
+angle read off the geometry becomes one only through a stated
+reference, and every whole-period question uses the channel's own
+period, which the chart owns: by renaming where no reader tells the
+copies apart, through the marks where one does. No whole-period
+integer is read off a value.
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
-coarser key works. Its parameter *is* the carrier's
+coarser key works; this holds on every closed channel, each with its
+own period (τ in azimuth, a torus's τ in its second angle, the knot
+domain's length on a spline net decided closed in that direction). Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
@@ -512,9 +523,19 @@ UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
 image's sector condition refuses one); no caller's window enters
-it. The face's rows lift its loops, and `topo::pcurves` certifies the
+it. On a periodic chart a harmonic image's winding is structure the
+row stores, never decided in metres: the row holds its windings (`β`,
+and `σ` where the second channel is an angle) as the derivation's own
+values, `certify` compares them with the image it re-derives exactly,
+and the image's sweep is the carrier's own span, which the edge
+certificate decides at the carrier's rate. The envelope is the row's
+one statement in metres. A row is its placed image: a lifted copy is
+the row together with a deck element and is never certified again.
+The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer, with
+of periods on each periodic channel, and on a sphere the involution
+twin) as an integer, by the half-period marks read outward from zero,
+however many periods that is, with no cap and with
 half the step to the next point of the joint's orbit as room: half a
 period on a cylinder, cone or torus, and a quarter period on a sphere,
 whose twin sits half a period over in azimuth. Where two points as far
@@ -546,7 +567,13 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. A
+covers refuses at the producer rather than reaching rest uncached.
+A closed-form class gate is a lane choice (D3): in band or definite,
+the carrier takes a lane whose certificate does not rest on the class,
+its projected image where the chart has one. Whether the carrier lies
+on the chart at all is a residual, not a class gate: a miss is the
+lever on a declared carrier and a defect only on one the kernel
+derived. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
@@ -566,10 +593,28 @@ drift and frame terms — with the schedule its cross-check), `Projected`
 (the projected image above, on an analytic chart), `Fitted` and `General`
 (on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
-parameter stays chart-neutral. The description form every conventional
-edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
-`EdgeAuthority` recording who declared the locus; that collapse and its
-fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
+parameter stays chart-neutral. A two-surface edge is `EdgeDescription::Intersection { pair, selector }`,
+a curve of the pair's intersection picked by a structural selector where
+the curve is known in advance (a closed form of the pair, or a curve
+chosen in a region of 2-D overlap; stated by a construction, recovered
+by an import; certified by its own meter and incidence on both surfaces, each surface's chart-image certificate, the `|S(P(t)) − C(t)|`
+statement its pcurve carries) or by a witness where it must be derived
+numerically (certified by its transversality or order-k jet margin);
+`EdgeDescription::Chart { surface, pcurve,
+wrap }` is a locus one chart defines (wraps, iso lines, splits whose two
+faces share one surface), with `EdgeAuthority` recording who determined
+the locus. Which form an edge between two faces takes is decided in one
+home, `topo::rest_locus` (`RestLocus`): one surface
+record is one surface; two records the carrier-equality ladder reads
+as one carrier over the faces' region are one surface too, since
+incidence on both is incidence on one, and the edge rests in the first
+record's chart; two distinct carriers, or a kind outside the ladder,
+are the pair, carrying a structural selector where the pair's curve has
+a closed form and a witness otherwise; a coincidence in band
+is refused at the structural act that made the two faces adjacent, and
+a rung that cannot decide or a region that does not read refuses typed,
+naming the lane. The chart collapse and its fence are
+`docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
 mesher's trimmed path; a rational `General` image refuses typed there.
@@ -600,14 +645,35 @@ conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
-table, and every candidate it proposes is settled by one point-on-span
-reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
-are closed forms that solve in one conic's angle and measure in metres; a
+table, and every candidate it proposes is settled against each span by
+the point-on-span reading, which composes geom's one-carrier readings
+(the point's foot, and whether it lies on the carrier) with the span's
+reading of its ends, and decides nothing of its own; a point is decided
+off a carrier only on a lower bound on its distance to the whole
+carrier.
+Line, circle and ellipse pairs are closed forms that solve in one conic's
+angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
 is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under
 a `Zero` reading is placed by the exactly degenerate formula, never by the
-generic one.
+generic one. Two spans meet along stretches. A *stretch* is a longest
+interval of one span which is nowhere definitely off the other; a
+*meeting* is a longest interval of one span which is everywhere
+definitely on the other, a single point for a crossing or a touch and a
+longer interval for a shared run. Each span's ends are read against the
+other span before anything else. A stretch holding exactly one meeting
+is reported as that meeting, which takes the whole stretch; a stretch
+holding no meeting, or more than one, escalates, since between two
+meetings in one stretch the spans are nowhere definitely apart and
+whether they are two crossings or one run is undecided. Two curves may
+cross any number of times, and each crossing in a stretch of its own is
+its own meeting; a candidate nearer a found meeting than the band's
+escalation width cannot be decided distinct from it, so it is not read
+again.
+A closed form that already holds a meeting divides that meeting's root out
+of its equation and solves only for the others. The reader is given no
+topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
@@ -674,7 +740,18 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule `TangentNotIntrinsic` fires only on `ContactMark::Tangent`. NURBS-
+rule fires only on `ContactMark::Tangent`, refusing a conventional
+description there (`OnPair`, or a `Chart` that is not a wrap, declared
+or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
+built at, the run's. An edge whose stations read definitely
+transverse at one and definitely smooth at its neighbour brackets an
+unsampled in-band point and is refused (`MixedDihedral`, naming the two
+stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+and every constructor refuses it typed but one: the blend's contact
+edge, routed smooth by its carrier's construction, ends a mixed reading
+as `SurgeryInvariant`, the surgery contradicting its own routing, since
+the rolling ball's exact contact cannot read a corner anywhere along
+it. NURBS-
 and `Approx`-adjacent edges are exempt by kind (`Unmarked`). Curved
 contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 
@@ -701,14 +778,19 @@ never from the features near it. Every case follows by set algebra: a
 feature wholly inside `R` goes with it, as a feature wholly inside a
 Boolean's tool goes with the tool, a void and a free solid inside it
 included; a protrusion or an island wholly inside `F` is absorbed, the
-island's voids becoming the solid's; a hole whose mouth lies wholly on
+island's voids, which lie in `F`, filled with it; a hole whose mouth lies wholly on
 the face `F` covers is sealed, a through-hole turning blind and a blind
 hole a void; and a feature crossing the band surface has a result too.
 What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
-through-feature wholly inside the material a convex straight band's
-cut-off removes (the ruled fillet's, the plane–plane fillet's and
-chamfer's), between the band's two caps. Every other case refuses, a
+feature wholly inside the material a straight band's cut-off removes or
+fills, attached to the rest of the body only by cycles on the band's
+caps: a through-feature between the two caps on the ruled fillet and
+the plane–plane fillet and chamfer (a bore under a convex band, a bar
+between the end walls under a concave one), and a cup on one cap on
+the plane–plane band (a blind bore under a convex band, a pin under a
+concave one), each of whose faces that meet the cap is a plane or a
+cylinder. Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary
@@ -717,9 +799,10 @@ features and the end faces' cycles (`FaceClearanceUncertified`,
 measurement and a face it cannot certify either way as a bound
 (`FaceClearance`); and a request whose every reading is inside but
 that no carve takes refuses `WhollyInside` (a void or an island with no
-cap cycle). So a blind feature entering from an end face, or a hole
-whose mouth a concave fill covers, refuses as a bound where its wall
-meets the end face's plane, while a blind hole entering from a support
+cap cycle). So a cup on the ruled band, whose far faces have no exact
+region to be read in, or a hole whose mouth a concave fill covers,
+refuses as a bound where its wall meets the end face's plane, while a
+blind hole entering from a support
 face is read at the screen, its ring nearer the edge than the band
 sets back, and refuses there although it lies wholly inside. A
 crossing refuses as an unbuilt case too, not as an exception to the
