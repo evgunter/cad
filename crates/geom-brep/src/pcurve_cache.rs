@@ -5642,32 +5642,37 @@ fn fidelity<T: Decide>(
     };
     let tau = T::tau();
     let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // A channel's branch, decided by the channel's own period
-    // ([`Period::decide`]), as the literal it is.
+    // A twin's branch, decided by the channel's own period
+    // ([`Period::decide`]), as the integer it is.
+    let period = Period::new(tau);
     let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
-        Period::new(tau)
+        period
             .decide(name, offset, |gap| Margin::levered(gap, arm.get()), band)
-            .map(|k| T::from_f64(f64::from(k)))
             .map_err(|stop| stop.miss)
     };
-    // The azimuth's branch, and on a sphere whether the stored image is
-    // `P_d` or its involution twin `(u + π, π − v)`. Where the polar
-    // channel winds (a meridian), the windings say which name the row
-    // is, as structure: the twin's polar winding is the derivation's
-    // negated. Where it does not (a parallel), both names wind alike,
-    // and the two are branches of the same azimuth offset, `P_d`'s at
-    // `kτ` and the twin's at `π + kτ`: the twin is read as the second
-    // branch rather than off a fold's cut (an exact twin's offset is the
-    // centred fold's jump, which a box encloses on both sides), and is
-    // asked only where `P_d`'s branch decides none, so an image on
-    // `P_d`'s branch never pays for it.
+    // The stored row is placed as its derivation is (C4: the mint and
+    // check 4 place one image over one span, `Placement`), so on the
+    // derivation's branch the stored constants ARE the derived ones and
+    // no whole period is decided: the offsets are read as they are, and a
+    // row stored a whole period off is a different row, which refuses as
+    // its channel's term. On a sphere the stored image may instead be the
+    // derivation's involution twin `(u + π, π − v)`. Where the polar
+    // channel winds (a meridian), the windings say which name the row is,
+    // as structure: the twin's polar winding is the derivation's negated.
+    // Where it does not (a parallel), which name is nearer is one sign,
+    // the cosine of the azimuth offset (`pcurve_fidelity_twin_side`,
+    // levered at the azimuth's arm): near `0` the row is `P_d`, near `π`
+    // its twin, and in band neither, read as `P_d` (D9), where an offset
+    // that mattered refuses as its term. A twin's own branch, on both
+    // channels, is decided: its second angle, `π − v`, is no name the
+    // latitude window places.
     let sphere = matches!(surface, Surface::Sphere { .. });
     let named_twin = match (sv.winding(), dv.winding()) {
         (Some(stored), Some(derived)) if sphere && derived != 0 => Some(stored == -derived),
         _ => None,
     };
     let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
-    let twin_of = |(q0, qa, qb, ql): (Point2<T>, Vec2<T>, Vec2<T>, Vec2<T>)| {
+    let twin_of = |(q0, qa, qb, ql): HarmonicForm<T>| {
         (
             Point2::new(q0.x + T::pi(), T::pi() - q0.y),
             flip(qa),
@@ -5676,35 +5681,27 @@ fn fidelity<T: Decide>(
         )
     };
     let derived_form = (q0, qa, qb, ql);
+    let twin_form = twin_of(derived_form);
     let (k_u, twin, (q0, qa, qb, ql)) = match named_twin {
-        Some(true) => {
-            let twin = twin_of(derived_form);
-            (
-                branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u).ok(),
-                true,
-                twin,
-            )
-        }
-        Some(false) => (
-            branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u).ok(),
-            false,
-            derived_form,
+        Some(true) => (
+            branch("pcurve_fidelity_twin", p0.x - twin_form.0.x, arm_u).ok(),
+            true,
+            twin_form,
         ),
-        None => match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
-            Ok(k) => (Some(k), false, derived_form),
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) if sphere => {
-                let twin = twin_of(derived_form);
-                match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
-                    Ok(k) => (Some(k), true, twin),
-                    // Neither name's branch decides: `P_d` is kept
-                    // (D9), read raw.
-                    Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => {
-                        (None, false, derived_form)
-                    }
-                }
-            }
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, false, derived_form),
+        Some(false) => (Some(0), false, derived_form),
+        None if sphere => match decide(
+            "pcurve_fidelity_twin_side",
+            Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
+            band,
+        ) {
+            Ok(Sign::Negative) => (
+                branch("pcurve_fidelity_twin", p0.x - twin_form.0.x, arm_u).ok(),
+                true,
+                twin_form,
+            ),
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => (Some(0), false, derived_form),
         },
+        None => (Some(0), false, derived_form),
     };
     // The windings are structure (C4): the row's are the windings of
     // the name it is measured against, the derivation's or, on a
@@ -5719,20 +5716,19 @@ fn fidelity<T: Decide>(
             derived: derived_windings,
         });
     }
-    // The constant's offset less its branch. Where NO branch decides —
-    // the offset on a half-period mark, or a mark undecided at this
-    // width — the raw offset is read instead: every whole period bounds
-    // the same distance, so the raw offset is a bound too, only a
-    // looser one, and a branch that genuinely mattered leaves an offset
-    // of a half period or more that refuses as this channel's term.
-    let less_branch = |offset: T, k: Option<T>| match k {
-        Some(k) => (offset - k * tau).abs(),
-        None => offset.abs(),
+    // The constant's offset less its branch: none on the derivation's
+    // own, a twin's decided one. Where a twin's branch decides none (a
+    // mark undecided at this width), the raw offset is read: every whole
+    // period bounds the same distance, so the raw offset is a bound too,
+    // only a looser one.
+    let less_branch = |offset: T, k: Option<i32>| match k {
+        Some(0) | None => offset.abs(),
+        Some(k) => (offset - period.times(k)).abs(),
     };
-    let k_v = if angular_v {
-        branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v).ok()
+    let k_v = if twin && angular_v {
+        branch("pcurve_fidelity_twin", p0.y - q0.y, arm_v).ok()
     } else {
-        Some(T::zero())
+        Some(0)
     };
     let du = less_branch(p0.x - q0.x, k_u)
         + harmonic_sup_scalar(pa.x - qa.x, pb.x - qb.x)
