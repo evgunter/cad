@@ -314,7 +314,9 @@ Ev, 2026-10-11 (PR 4644):
 - The **viewer runs it at rest**, off the draw path, cancelled by the
   next edit. Its rows read *pending* until it lands.
 - An unproven row is **one finding**. Where the residual keeps an
-  opaque atom, its recourse is an assertion. Ev: "it's pretty fair to
+  opaque numerical computation, its recourse is an assertion. (The
+  orchestrator's reading, 2026-10-11: so is a row the door has no form
+  of; a form frozen on the budget is no special case.) Ev: "it's pretty fair to
   ask the user to assert that the two things are identical rather than
   making a special undecided case for it".
 - The box mitre's frozen feet distance is SYM's to fix

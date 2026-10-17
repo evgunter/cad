@@ -4,7 +4,7 @@
 //! sides read. On the issue's document — a pattern over a transform
 //! over the shelf, the mate read AT the transform — no placement reads
 //! the transform, so the mate declares nothing, and the seat it would
-//! have declared reaches the gate as an undeclared contact: the badge
+//! have declared reaches the gate as an unrecorded contact: the badge
 //! turns red with the gate's own refusal.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -94,7 +94,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
 }
 
 #[test]
-fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
+fn a_mate_read_below_a_pattern_declares_nothing_and_its_seat_is_a_finding() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
     let path = read_below_pattern(&bench, tol);
@@ -110,11 +110,20 @@ fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
         "the product gathers: {:?}",
         session.product_fault()
     );
-    match session.at_rest() {
-        Some(AtRestBadge::Refused { message }) => assert!(
-            message.contains("is an undeclared contact"),
-            "the seat the mate does not declare is the gate's undeclared contact: {message}"
-        ),
-        other => panic!("a mate read below a pattern turns the badge red, got {other:?}"),
-    }
+    // The seat the mate does not declare is a touch between two copies:
+    // the gather records it, the badge stays green, and the checks
+    // window reports it against the two copies (D10).
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        "an unmated seat refuses nothing: {:?}",
+        session.at_rest()
+    );
+    let report = session.checks().expect("the checks ran");
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| matches!(f.subject, pncad::document::FindingSubject::Copies { .. })),
+        "the seat is the two copies' finding: {report:?}"
+    );
 }

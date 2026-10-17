@@ -7,8 +7,8 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Contact,
-    ContactClass, ContactKind, ContactRecords, union_with,
+    AtRestBody, Backing, BooleanBody, BooleanInputs, BooleanResult, Cell, Contact, ContactKind,
+    ContactRecords,
 };
 
 fn tol() -> Tol {
@@ -19,12 +19,15 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
     finished(what, brick(x, y, z, tol()), tol())
 }
 
-fn union(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    decls: &BooleanDeclarations,
-) -> BooleanBody<f64> {
-    match union_with(a, b, decls, tol()) {
+fn union(a: &AtRestBody<f64>, b: &AtRestBody<f64>, inputs: &BooleanInputs) -> BooleanBody<f64> {
+    match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        a,
+        b,
+        inputs,
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }
@@ -39,7 +42,8 @@ fn cube_on_corner(cx: f64, cy: f64, top: f64) -> AtRestBody<f64> {
         Vec3::new(1.0, -1.0, 0.0),
         (1.0_f64 / 3.0_f64.sqrt()).acos(),
     );
-    let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
+    let turned = topo::transform_rigid(&cube, &geom_core::test_support::rigid(&turn, tol()), tol())
+        .expect("a rigid turn");
     let low = turned
         .vertex_points()
         .map(|(_, p)| p)
@@ -48,7 +52,12 @@ fn cube_on_corner(cx: f64, cy: f64, top: f64) -> AtRestBody<f64> {
     let lift = Affine3::translation(Vec3::new(cx - low.x, cy - low.y, top - low.z));
     finished(
         "the cube on its corner",
-        topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
+        topo::transform_rigid(
+            &turned,
+            &geom_core::test_support::rigid(&lift, tol()),
+            tol(),
+        )
+        .expect("a rigid lift"),
         tol(),
     )
 }
@@ -86,16 +95,16 @@ fn a_carried_citation_names_the_same_record_through_two_booleans() {
     let kiss = union(
         &a,
         &cube_on_corner(0.5, 0.5, 1.0),
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
     );
     assert_eq!(kiss.contacts.len(), 1, "{:?}", kiss.contacts);
     let corner = box_of((1.0, 2.0), (1.0, 2.0), (-1.0, 0.0), "corner");
     let two = union(
         &kiss.body,
         &corner,
-        &BooleanDeclarations {
-            carried_a: kiss.contacts.carried(ContactClass::Rest),
-            ..BooleanDeclarations::none()
+        &BooleanInputs {
+            records_a: kiss.contacts.carried(),
+            ..BooleanInputs::default()
         },
     );
     assert_eq!(two.contacts.len(), 2, "{:?}", two.contacts);
@@ -103,9 +112,9 @@ fn a_carried_citation_names_the_same_record_through_two_booleans() {
     let three = union(
         &two.body,
         &far,
-        &BooleanDeclarations {
-            carried_a: two.contacts.carried(ContactClass::Rest),
-            ..BooleanDeclarations::none()
+        &BooleanInputs {
+            records_a: two.contacts.carried(),
+            ..BooleanInputs::default()
         },
     );
     assert_eq!(three.contacts.len(), 2, "{:?}", three.contacts);
@@ -189,9 +198,10 @@ fn rekeyed_refuses_an_incident_pair_and_merges_a_duplicate() {
     });
     assert_eq!(
         refused,
-        Err(topo::RekeyRefusal::Pair(topo::ContactPairError::Incident(
-            [Cell::Vertex(on[0]), Cell::Face(face)]
-        ))),
+        Err(topo::CarryRefusal::Pair {
+            record: 0,
+            error: topo::ContactPairError::Incident([Cell::Vertex(on[0]), Cell::Face(face)])
+        }),
         "a pair the map makes incident refuses"
     );
 }

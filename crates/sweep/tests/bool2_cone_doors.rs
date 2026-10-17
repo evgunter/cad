@@ -399,7 +399,7 @@ fn every_ray_from_the_virtual_apex_grazes_and_the_door_escalates() {
     assert!(msg.contains("off its boundary"), "{msg}");
     assert!(msg.contains("grazed"), "{msg}");
     assert!(
-        msg.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        msg.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{msg}"
     );
 }

@@ -10,15 +10,16 @@
 
 use crate::common::interval::iv;
 use geom::Curve3;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Vec3};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendDecision, BlendError, FILLET3_CAP_ELLIPSE_RECOURSE};
 use sweep::test_support::{
     assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, BooleanError, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
 
+use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, tol, volume, volume_enclosure,
 };
@@ -173,11 +174,11 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// watertight. The boolean takes it with a brick beside the band and
 /// with one through it, in every op, tier-3 valid at the closed forms:
 /// the notch's overlap is its box, the slot's its box less the band's
-/// section over the slot's width. A brick wholly apart refuses at the
-/// containment door, whose rays from the far brick meet nothing and
-/// whose volume fallback is closed-form only — the boolean's open row
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
-/// pinned here so it retires with it.
+/// section over the slot's width. A brick wholly apart is sided by the
+/// containment door, whose rays from the far brick meet nothing: the
+/// closed-form volume cannot read the at-infinity side of the band an
+/// ellipse trims, and a ray aimed at a planar face of it does. `∖` keeps
+/// the filleted body, `∪` adds the brick, `∩` is empty.
 #[test]
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();
@@ -226,19 +227,25 @@ fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
         brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
         tol(),
     );
-    for (op, result) in [
-        ("subtract", topo::subtract(&operand, &apart, tol())),
-        ("union", topo::union(&operand, &apart, tol())),
+    for (op, result, want) in [
+        ("subtract", topo::subtract(&operand, &apart, tol()), v),
+        ("union", topo::union(&operand, &apart, tol()), v + 1.0),
     ] {
-        match result {
-            Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
-            other => panic!(
-                "a brick apart ({op}): the containment door's closed-form fallback refuses, got \
-                 {:?} — retire this pin with the boolean's row",
-                other.map(|_| ())
-            ),
-        }
+        let result = result.unwrap_or_else(|e| panic!("a brick apart ({op}): builds, got {e:?}"));
+        let result = &result.body().expect("not empty").body;
+        let (got, pad_r) = volume_enclosure(result);
+        assert!(
+            (got - want).abs() < 1e-12 + pad + pad_r,
+            "a brick apart ({op}): V {got} vs the closed form {want}"
+        );
     }
+    assert!(
+        matches!(
+            topo::intersect(&operand, &apart, tol()),
+            Ok(topo::BooleanResult::Empty)
+        ),
+        "a brick apart (intersect): empty"
+    );
 }
 
 /// The edge between two points of an `Interval` body, either way round.
@@ -453,28 +460,43 @@ fn drilled(s: f64, t: f64, h: f64, rad: f64) -> Body<f64> {
 /// between the elliptic arc and the old vertex, and nothing of the wall
 /// the band keeps. On the 45° wall (`s = 1`, major semi-axis `r·√2`
 /// along the wall, minor `r` down it, about `(r·√2, r)` in wall
-/// coordinates), a hole in the sliver — mid-sliver, in the cusp at the
-/// major vertex, in the cusp at the top foot — refuses
-/// `RingClearance`; a hole inside the ellipse but outside the disc of
-/// its minor semi-axis, or near its major vertex, builds, as it does
-/// on the square wall and at a 0.3 lean.
+/// coordinates), a hole wholly in the sliver — mid-sliver, or in the
+/// cusp at the major vertex — refuses as a bound at its wall: its rings
+/// read inside the sliver, through the elliptic arc, but its wall meets
+/// the window's end plane, so the reach cannot certify it inside, and a
+/// bound outranks an inside reading. The hole in the cusp at the top
+/// foot reaches past the arc (its top `(0.1, 0.0045)` is inside the
+/// ellipse, whose arc is at `0.0995` there) and refuses `RingClearance`
+/// as a measurement. A hole inside the ellipse but outside the disc of
+/// its minor semi-axis, or near its major vertex, builds, as it does on
+/// the square wall and at a 0.3 lean.
 #[test]
 fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() {
     let front = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     for (what, t, h, rad) in [
         ("mid-sliver", 0.04, 0.015, 0.004),
         ("the cusp at the major vertex", 0.004, 0.05, 0.0018),
-        ("the cusp at the top foot", 0.10, 0.003, 0.0015),
     ] {
         let body = drilled(1.0, t, h, rad);
         match Verb::Fillet.run(&body, &[front(&body)]) {
-            Err(BlendError::RingClearance { .. }) => {}
+            Err(BlendError::FaceClearance {
+                at: topo::EntityId::Face(_),
+                margin,
+                bounded: true,
+                ..
+            }) => assert_eq!(margin.sign, Sign::Negative, "{what}: definite, {margin}"),
             other => panic!(
-                "a hole at {what} is in the sliver: RingClearance, got {:?}",
+                "a hole at {what} is wholly in the sliver: a bound at its wall, got {:?}",
                 other.map(|_| ())
             ),
         }
     }
+    let body = drilled(1.0, 0.10, 0.003, 0.0015);
+    let top = Verb::Fillet.run(&body, &[front(&body)]).map(|_| ());
+    assert!(
+        matches!(top, Err(BlendError::RingClearance { bounded: false, .. })),
+        "a hole across the arc at the top foot: a measured RingClearance, got {top:?}"
+    );
     for (what, t, h, rad) in [
         (
             "inside the ellipse, outside its minor disc",
@@ -500,6 +522,30 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
     }
 }
 
+/// **The square wall's mid-sliver hole goes with the band under both
+/// verbs**: the fillet's round end reads its mouth inside the sliver,
+/// and the chamfer's chord end inside its triangle; the hole is blind,
+/// along the spine, `0.016` deep, and its floor is read inside the
+/// band's core, so it is a cup the carve takes. The band runs `2` along
+/// `x`: `ΔV = −(2A − π·a²·0.016)`.
+#[test]
+fn a_hole_in_a_square_walls_sliver_goes_with_the_band_under_both_verbs() {
+    let (rad, deep) = (0.004, 0.016);
+    let body = drilled(0.0, 0.04, 0.015, rad);
+    let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let cups = cup_faces(&body, (0.04, 0.985), rad, (0.0, deep));
+    assert_eq!(cups.len(), 3, "the hole's two half-walls and floor");
+    for verb in [Verb::Fillet, Verb::Chamfer] {
+        let section = match verb {
+            Verb::Fillet => (1.0 - core::f64::consts::FRAC_PI_4) * D * D,
+            Verb::Chamfer => D * D / 2.0,
+        };
+        let want = -(2.0 * section - core::f64::consts::PI * rad * rad * deep);
+        let what = "the square wall's mid-sliver hole";
+        assert_taken(verb, &body, &[front], D, (&cups, 1, 0), (want, 1.0), what);
+    }
+}
+
 /// **A steep wall's own edges stay clear of its sliver**: at `s = 20`
 /// (87°) the ellipse's major semi-axis is two metres, the sliver a
 /// tenth tall, and the wall's bottom edge `0.9` below the ellipse's
@@ -519,12 +565,7 @@ fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
 
 /// **A brick through a steep elliptic end**: on the `s = 3` filleted
 /// parallelogram a brick crossing the band's end arc builds in every op
-/// at the default and coarse ε, consistent with itself
-/// (`S + I = V`, `U − S = brick`). At ε = 1e-12 the subtract and the
-/// union refuse to measure their result — the quadrature cannot decide
-/// its convergence
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`)
-/// — pinned so the row reds when that lands.
+/// at every ε, consistent with itself (`S + I = V`, `U − S = brick`).
 #[test]
 fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let body = leaning(3.0);
@@ -532,31 +573,6 @@ fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
         .expect("the s = 3 fillet builds");
     let cutter = brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5), tol());
-    let operand = finished("the filleted parallelogram", out.body.clone(), tol());
-    let tool = finished("the brick", cutter.clone(), tol());
-    let run = |op| {
-        topo::boolean::boolean_op_with(
-            op,
-            &operand,
-            &tool,
-            &topo::BooleanDeclarations::none(),
-            topo::boolean::SweepStrategy::Realized,
-            tol(),
-        )
-    };
-    if tol().eps() < 1e-10 {
-        for op in [BooleanOp::Subtract, BooleanOp::Union] {
-            match run(op) {
-                Err(BooleanError::VolumeUnmeasured { .. }) => {}
-                other => panic!(
-                    "{op:?} at ε = {}: the result's volume is unmeasured, got {:?}",
-                    tol().eps(),
-                    other.map(|_| ())
-                ),
-            }
-        }
-        return;
-    }
     let (v, _) = volume_enclosure(&out.body);
     let (b, _) = volume_enclosure(&cutter);
     let mut got = [0.0; 3];

@@ -102,7 +102,7 @@ fn r2_a_coincidence_at_the_nominal_is_registered_and_discharged_over_the_box() {
         Ok(Sign::Zero),
         "and `x² − x` decides Zero over a box where it ranges over [-0.09, 0.11]"
     );
-    assert_eq!(counts.registered, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 /// **The `Interval` witness weakens as the box widens.** A registration
@@ -165,7 +165,7 @@ fn r2_the_numeric_shield_does_not_reach_a_dependency_widened_lie() {
         Ok(Sign::Zero),
         "a residual equal to −½ everywhere decides Zero: {counts:?}"
     );
-    assert_eq!(counts.registered, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 // ------------------------------------------- claim 9: the theorems
@@ -229,7 +229,7 @@ fn r2_the_rim_identity_holds_at_the_semicircle_the_major_arc_and_a_clockwise_tur
             [Ok(Sign::Zero), Ok(Sign::Zero)],
             "{label}: {counts:?}"
         );
-        assert_eq!(counts.registered, 2, "{label}: {counts:?}");
+        assert_eq!(counts.symbolic, 2, "{label}: {counts:?}");
     }
 }
 

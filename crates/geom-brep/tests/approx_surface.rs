@@ -29,7 +29,8 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface_at, certify_offset_at, offset_point, recertify_approx_at,
+    OffsetFitError, OffsetFitWall, approx_offset_surface_at, certify_offset_at, offset_point,
+    recertify_approx_at,
 };
 use geom_core::{Affine3, Point3, Vec3};
 
@@ -119,8 +120,14 @@ fn an_unreachable_tolerance_refuses_typed() {
     let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
         .expect_err("1e-18 m on a bowed patch is not reachable");
     assert!(
-        matches!(e, OffsetFitError::BudgetExhausted { .. }),
-        "expected the budget refusal, got {e}"
+        matches!(
+            e,
+            OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { .. },
+                ..
+            }
+        ),
+        "expected the sample cap's refusal, got {e}"
     );
 }
 
@@ -598,6 +605,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             a,
             b,
             move |k| arena.get(k).cloned(),
+            1.0,
             band(),
             Some(geom_brep::NurbsLane::certified()),
         )

@@ -266,7 +266,6 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         assert!(!selection.is_empty(), "the half has edges");
         let joined = r.insert(Node::Union {
             members: editor_core::Bodies::Spelled(vec![port(split, h).into(), other.into()]),
-            declare: Vec::new(),
         });
         let rounded = r.insert(Node::fillet(port(split, h), len(RADIUS), selection.clone()));
         let ev = eval_after(&r.doc, Some(&first));
@@ -292,7 +291,12 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), 0.0),
             Vec3::new(0.0, 0.0, LIFT),
         );
-        let placed = transform_rigid(side, &map, Tol::witness()).expect("a rigid placement");
+        let placed = transform_rigid(
+            side,
+            &geom_core::test_support::rigid(&map, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rigid placement");
         assert_eq!(
             bits(body_arc(&ev, moved)),
             bits(&placed),
@@ -330,7 +334,6 @@ fn a2_the_instance_is_the_instance() {
     let p2 = part(&mut r, pat, instance(2));
     let joined = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
-        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     assert!(
@@ -828,7 +831,6 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
     r.insert(Node::Subtract {
         from: a.into(),
         tool: b.into(),
-        declare: Vec::new(),
     })
 }
 

@@ -2,9 +2,8 @@
 id: plane-orientation-offers-no-tolerance-at-a-declared-rest-door
 kind: issue
 title: topo: the plane orientation rung offers no tolerance at a declared Rest door, where a smaller one would pass, because the decision carries no read
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -46,3 +45,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: the repair carries 
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

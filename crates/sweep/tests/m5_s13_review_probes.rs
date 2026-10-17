@@ -22,7 +22,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
 use sweep::test_support::{ball_poled_y, brick, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, BooleanError};
+use topo::{Body, BooleanError};
 
 fn slack() -> f64 {
     (1e3 * Tol::witness().get().eps).max(1e-9)
@@ -41,7 +41,12 @@ fn rot_x_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(0.0, -s, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world y-axis.
@@ -53,7 +58,12 @@ fn rot_y_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(s, 0.0, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn cap(r: f64, h: f64) -> f64 {
@@ -71,12 +81,11 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
     let fin = finished("the fin", fin, Tol::witness());
     let ball = ball_poled_y(0.6, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let ball = finished("the ball", ball, Tol::witness());
-    let decls = BooleanDeclarations::none();
     let r = boolean_op_with(
         BooleanOp::Union,
         &fin,
         &ball,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     );
@@ -84,7 +93,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
         BooleanOp::Union,
         &fin,
         &ball,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Idealized,
         Tol::witness(),
     );
@@ -170,12 +179,11 @@ fn probe_flipped_row_replays_bit_identical() {
     let a = finished("the slab", slab(), Tol::witness());
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let b = finished("the ball", b, Tol::witness());
-    let decls = BooleanDeclarations::none();
     let one = boolean_op_with(
         BooleanOp::Union,
         &a,
         &b,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -188,7 +196,7 @@ fn probe_flipped_row_replays_bit_identical() {
         BooleanOp::Union,
         &a,
         &b,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -216,7 +224,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
         BooleanOp::Subtract,
         &slab,
         &b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -252,7 +260,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         BooleanOp::Subtract,
         &slab,
         &b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     ) {
@@ -377,10 +385,16 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
         finished("the slab", slab(), Tol::witness()),
         finished("the turned ball", b, Tol::witness()),
     );
-    let decls = BooleanDeclarations::none();
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(BooleanOp::Union, &slab, &b, &decls, strat, Tol::witness())
-            .expect_err("two non-parallel escapes must refuse");
+        let err = boolean_op_with(
+            BooleanOp::Union,
+            &slab,
+            &b,
+            &topo::BooleanInputs::default(),
+            strat,
+            Tol::witness(),
+        )
+        .expect_err("two non-parallel escapes must refuse");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");
         };

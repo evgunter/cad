@@ -41,10 +41,7 @@
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
-    mass_properties,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary, mass_properties};
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
@@ -191,12 +188,7 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// Builds every op in both operand orders.
 /// Each body is `SOUND` by [`outcome`] (tiers 2 and 3′, the
@@ -213,26 +205,20 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
     let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let (pa, pb) = (prism_pieces(), cube_pieces(m));
-    let decls = BooleanDeclarations::default();
     for (order, x, y, vx, px, py) in [
         ("prism-cube", &prism, &cube, va, &pa, &pb),
         ("cube-prism", &cube, &prism, vb, &pb, &pa),
     ] {
         let ops: [(&str, Op, f64, Cones); 3] = [
-            ("union", topo::union_with, va + vb - shared, Cones::Union),
-            ("intersect", topo::intersect_with, shared, Cones::Intersect),
-            (
-                "subtract",
-                topo::subtract_with,
-                vx - shared,
-                Cones::Subtract,
-            ),
+            ("union", topo::union, va + vb - shared, Cones::Union),
+            ("intersect", topo::intersect, shared, Cones::Intersect),
+            ("subtract", topo::subtract, vx - shared, Cones::Subtract),
         ];
         for (op, run, want, cones) in ops {
             let what = format!("{pose}: {order} {op}");
-            let line = outcome(run(x, y, &decls, tol()), want, tol());
+            let line = outcome(run(x, y, tol()), want, tol());
             assert!(line.starts_with("OK SOUND"), "{what}: {line}");
-            let Ok(BooleanResult::Body(bb)) = run(x, y, &decls, tol()) else {
+            let Ok(BooleanResult::Body(bb)) = run(x, y, tol()) else {
                 panic!("{what}: a second run did not build");
             };
             assert_eq!(
@@ -311,9 +297,8 @@ fn a_pinch_keeps_one_vertex_per_cone() {
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
     );
     let cube = finished("the cube", cube_beyond(TWO_RUNS[0]));
-    let decls = BooleanDeclarations::default();
     for (order, x, y) in [("prism-cube", &prism, &cube), ("cube-prism", &cube, &prism)] {
-        let Ok(BooleanResult::Body(bb)) = topo::intersect_with(x, y, &decls, tol()) else {
+        let Ok(BooleanResult::Body(bb)) = topo::intersect(x, y, tol()) else {
             panic!("{order}: the intersection did not build");
         };
         let body = &bb.body;

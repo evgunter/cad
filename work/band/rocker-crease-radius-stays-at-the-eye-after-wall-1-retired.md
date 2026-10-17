@@ -2,10 +2,12 @@
 id: rocker-crease-radius-stays-at-the-eye-after-wall-1-retired
 kind: issue
 title: tour: the rocker's R_CREASE stays at R_EYE although sided headroom (PR 4092) lets the crease carve at R_BLEND
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
+pr: 4287
+closed: 2026-10-08
 ---
 
 

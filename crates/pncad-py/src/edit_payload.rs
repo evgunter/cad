@@ -291,7 +291,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::SetMembersOnNonList { node }
         | EditError::LoftSectionsSpelled { node }
-        | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::SetExtrudeSideOnNonExtrude { node }
         | EditError::WitnessOnNonSketch { node }
@@ -599,21 +598,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // (the `ProductError` arm's precedent, same refusal one door
         // over).
         EditError::EvaluationOfAnotherDocument { .. } => none,
-        // The declaring node, the side's name, and the read the side
-        // is sited at, which is not one of the node's operand reads: a
-        // read crosses as `param`, by the name the document holds for
-        // it, as every refusal naming a variable does.
-        EditError::DeclaredSiteNotAnOperand { node, name, site } => EditPayload {
-            node: Some(node.id()),
-            param: site.name(),
-            name: Some(name.name()),
-            ..none
-        },
-        EditError::DeclaredNameNotUpstream { node, name } => EditPayload {
-            node: Some(node.id()),
-            name: Some(name.name()),
-            ..none
-        },
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }

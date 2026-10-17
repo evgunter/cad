@@ -146,7 +146,7 @@ let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
@@ -184,11 +184,9 @@ rather than one size read twice. The solid is the same under every
 setting of that check (D10): the check reports, it never changes what
 was built.
 
-A declaration still has a job. Declaring a contact
-(`union_with(&a, &b, &decls)`) bridges a margin in the ambiguity band —
-"these are one plane, the residue is noise" — and it is verified, not
-believed: a declaration whose planes are definitely apart is
-`DeclarationContradicted`.
+Nothing bridges a margin in the ambiguity band: a boolean that meets
+one refuses, and its recourse is the geometry, or the tolerance where
+the margin gives one.
 
 ## 4. The edit door: refusals before anything is evaluated
 

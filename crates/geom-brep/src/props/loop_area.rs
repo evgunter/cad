@@ -66,13 +66,13 @@ pub fn loop_vector_area<T: SpanLocate>(
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 ..
             } => {
                 let w = center - ref_point;
                 let chord = e.p1() - e.p0();
-                (w.cross(chord) + axis * (major * minor * (e.t1 - e.t0))) * half
+                (w.cross(chord) + axis * (semi_u * semi_v * (e.t1 - e.t0))) * half
             }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
@@ -164,8 +164,9 @@ fn nurbs_vector_area<T: SpanLocate>(
         let Some(span) = curve.span(index) else {
             continue;
         };
-        let lo = t0.max(T::from_f64(kv.knots()[index]));
-        let hi = t1.min(T::from_f64(kv.knots()[index + 1]));
+        let held = curve.knot_values().values();
+        let lo = t0.max(held[index]);
+        let hi = t1.min(held[index + 1]);
         let half_len = ((hi - lo) * half).max(T::zero());
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {

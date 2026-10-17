@@ -20,7 +20,7 @@ assigned. The second is what a corrupt readback looks like. So every
 reader that needs to tell these apart has to rebuild the split itself:
 
 - `crates/viewer/src/idpass.rs`'s `IdAnswer::of` tests `IdMap::NOTHING`
-  first, then reads `None` as `IdAnswer::Unassigned`. It is correct
+  first, then reads `None` as `IdAnswer::Undrawn`. It is correct
   only because of that ordering.
 - `crates/viewer/src/marks.rs` (focus attribution,
   `index.name_of(id)?.as_ref().ok()?`) folds both into a skip. That
@@ -34,7 +34,10 @@ whose arms (`NotDrawn`, `OutOfRange`, `Unnamed`) each own their words.
 
 Have `name_of` return a typed value in the same style, one that keeps
 nothing, an unassigned id and an unnamed patch apart. `IdAnswer` then
-collapses into it. `idpass.rs` would read the door's answer rather than
+reads the door's split rather than rebuilding it. It does not collapse
+into it whole: `IdAnswer::Undrawn` also holds an id the index assigned
+to a part whose root the display view hides, which `name_of` names,
+and that half is a question about the view, not the index. `idpass.rs` would read the door's answer rather than
 re-derive it, and its `Display` would move beside the type, as
 `EdgeNameFault`'s already has.
 

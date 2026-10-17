@@ -116,6 +116,22 @@ pub enum Provenance {
     /// Created by [`Body::split_edge`](crate::Body::split_edge) (M3
     /// PR 1): the new interior vertex, the new (second-child) edge, and
     /// both its half-edges.
+    ///
+    /// **A copy of these records is as sound as the records.** Three
+    /// naming tables copy them out of a body before a kill drops them:
+    /// a split's `SplitNaming::joined_lineage`, and a Boolean's
+    /// `BooleanNaming::killed_lineage` and
+    /// `DiscardRow::boundary_chains`. A body holds one record per edge,
+    /// written when the key is minted (here, or by a graft forwarding
+    /// one) and never rewritten, and an arena never hands a key out
+    /// twice; so every copied hop is the one record its edge held, a
+    /// copy gives an edge no parent but its record's however often it
+    /// repeats the hop, and its hops cycle only where the records do.
+    /// None of them is a list of mints: each is written in kill order,
+    /// which can put a child before its parent. Whether the records can
+    /// be checked where they are written, and the walk that reads them
+    /// and the copies given one home, is
+    /// `work/origin/the-split-edge-lineage-walk-has-four-homes.md`.
     SplitEdge {
         /// The edge that was split (a surviving key: it becomes the
         /// first child).

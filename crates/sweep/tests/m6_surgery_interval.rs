@@ -18,13 +18,13 @@ mod certified {
 
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval};
+    use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, BooleanDeclarations, mass_properties};
+    use topo::{Body, mass_properties};
 
     const DIE_L: f64 = 1.0;
     const DIE_R: f64 = 0.12;
@@ -67,7 +67,7 @@ mod certified {
         let h = DIE_L / 2.0;
         topo::transform_rigid(
             &ball,
-            &Affine3::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))),
+            &geom_core::RigidMotion::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))).unwrap(),
             Tol::witness(),
         )
         .unwrap()
@@ -132,7 +132,7 @@ mod certified {
             BooleanOp::Subtract,
             &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
             &finished("the pip ball", pip_ball(), Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )

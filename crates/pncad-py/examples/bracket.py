@@ -93,8 +93,8 @@ def slab(doc, x, y, z):
 def main():
     doc = Doc()
 
-    # Faces that meet on one plane glue where their margins decide it,
-    # declared or not: the web stands flush on the plate, and the
+    # Faces that meet on one plane glue where their margins decide it:
+    # the web stands flush on the plate, and the
     # pocket's floor is flush with the plate's bottom.
 
     # A rounded base plate, and an upright web standing on it.

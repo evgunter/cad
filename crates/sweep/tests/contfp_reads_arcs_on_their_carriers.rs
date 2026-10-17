@@ -153,7 +153,7 @@ fn the_census_sees_a_brick_standing_in_the_lune() {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: topo::CensusContact::VertexOnFace { face, .. },
                     ..
                 } if *face == cap
@@ -239,9 +239,8 @@ fn a_slot_and_a_rounded_rectangle_answer_their_regions() {
 
 /// **`contfp` reads `q` against each edge once.** Its pre-pass places `q`
 /// off every edge, and the loop walk after it takes those readings rather
-/// than deciding them again: neither of the walk's own boundary rows
-/// (`point_in_arc_loop_conic_on`, `_trim`) is decided under `contfp`, and
-/// each of the slot's two arcs is read once, under the pre-pass's row.
+/// than deciding them again: each of the slot's two arcs is read once,
+/// under the on-carrier reading's gap row (`curve_carrier_gap`).
 /// The walk's ray rows still decide its crossings. The probes
 /// include points on an arc's carrier beyond the arc, whose `Carrier`
 /// reading the walk's crossing count takes from the pre-pass.
@@ -276,24 +275,15 @@ fn contfp_reads_each_edge_once() {
         let got = ask(&slot, cap, Point3::new(x, y, 1.0));
         let recorded = bracket.finish();
         assert_eq!(got, want, "({x}, {y})");
-        let again: Vec<_> = recorded
-            .verdicts
-            .iter()
-            .filter(|v| {
-                ["point_in_arc_loop_conic_on", "point_in_arc_loop_conic_trim"]
-                    .contains(&v.predicate)
-            })
-            .collect();
-        assert!(
-            again.is_empty(),
-            "({x}, {y}): decided again by the walk: {again:?}"
-        );
         let read = recorded
             .verdicts
             .iter()
-            .filter(|v| v.predicate == "bool_contact_arc")
+            .filter(|v| v.predicate == "curve_carrier_gap")
             .count();
-        assert_eq!(read, 2, "({x}, {y}): each arc read once");
+        assert_eq!(
+            read, 2,
+            "({x}, {y}): each arc read once, by the pre-pass alone"
+        );
     }
 }
 
@@ -737,8 +727,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
                 continue;
             };
             let (t0, t1) = c.params();
-            let inner = rr - r;
-            let (speed, _) = geom::spiric_rate_bounds(r, offset, (inner, rr + r), 1.0);
+            let (speed, _) = geom::spiric_period_rate_bounds(rr, r, offset);
             let center = c.carrier().eval(0.5 * (t0 + t1));
             let reach = speed * (t1 - t0).abs() * 0.5;
             let rv = Vec3::new(1.0, 0.0, 0.0);

@@ -80,7 +80,7 @@ def stack(count):
     concurrent test below reads.
 
     Every box is offset in y and z as well as x, so no two faces are
-    coincident: coplanar operands are the C4 undeclared-contact
+    coincident: coplanar operands are the C4 unrecorded-contact
     refusal, and a document that FAILS nodes would confuse a stopped
     run with a broken one. `count` boxes give `4 * count - 1` nodes,
     all of which succeed.

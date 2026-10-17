@@ -190,12 +190,12 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
         "no undecidable verdict rides beside the decided one: {errors:?}"
     );
     // And the declaration did its own job: the four corner rests it
-    // names are no longer reported as undeclared contacts, so the
+    // names are no longer reported as unrecorded contacts, so the
     // refusal above is not the vertex sweeps' either.
     assert!(
         !errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { .. },
                 ..
             }
@@ -223,7 +223,8 @@ fn the_embedded_pair_is_refused_undeclared_too() {
 
 /// **The other direction, so the rows above cannot pass by refusing
 /// every declared assembly.** Two cubes stacked face to face, with the
-/// interface declared at its four coincident corners: the extents are
+/// interface recorded at its four coincident corners and the four rim
+/// edges between them: the extents are
 /// definitely separable in `z`, arm 2 clears them, and the body
 /// validates with no findings at all.
 ///
@@ -252,6 +253,7 @@ fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
             topo::Cites::decided(0),
         )]);
     }
+    records.extend(crate::m9_2_census_door::rim_records(&body));
     assert_eq!(
         validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),

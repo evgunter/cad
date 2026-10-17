@@ -134,11 +134,6 @@ UNHASHABLE = {
     "`PartialEq` and `Eq` and no `Hash`, and this class mirrors its "
     "derives. Three counts read like a key, but the kernel reports a "
     "census beside the region it counted and never tallies by one",
-    "FlushFinding": "by design: `editor_core::FlushFinding` (the "
-    "document seat's `topo::flush::FlushFinding<(StableName, "
-    "StableName)>`) derives `PartialEq` and no `Hash`, and this class "
-    "mirrors its derives. `CheckFinding`'s reason, for the contact "
-    "verifier's findings",
     "Frame": "by design: `editor_core::Frame` derives `PartialEq` and "
     "no `Hash`, and this class mirrors its derives. `MateFrame`'s "
     "reason for the absolute placement: a pose is a datum the solver "

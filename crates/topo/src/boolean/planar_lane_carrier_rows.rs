@@ -235,7 +235,7 @@ fn sweep_a(
         &mut x,
         &mut y,
         crate::boolean::Operand::A,
-        &crate::boolean::DeclaredPairs::default(),
+        &crate::boolean::GluedPairs::default(),
         &mut acc,
         band,
         super::SweepStrategy::Realized,

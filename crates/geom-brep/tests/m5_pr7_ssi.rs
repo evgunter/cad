@@ -452,7 +452,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // at a break against either operand, which subdividing the
             // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 margin,
             }) => {
                 found = Some((d, upper(margin)));
@@ -462,11 +466,20 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 ref cause,
             }) if matches!(
                 cause.predicate,
-                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+                Some(
+                    "ssi_hull_sup"
+                        | "ssi_hull_sup_chart"
+                        | "ssi_hull_value"
+                        | "ssi_hull_value_chart"
+                )
             ) =>
             {
                 found = Some((d, f64::NAN));
@@ -1139,10 +1152,13 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullValueChart,
+            limb: SsiLimb::ImageMiss,
             margin,
         } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
+        other => panic!(
+            "CORRUPT-PCURVE: expected limb 2's value at a break, where the carrier is on the \
+             wall and the pcurve misses, got {other}"
+        ),
     }
 }
 
@@ -2655,7 +2671,14 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
         }
-        match geom_brep::plane_nurbs_limbs::<f64>(&carrier, &cutting_plane(), &wall, 1.0, band()) {
+        match geom_brep::plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &cutting_plane(),
+            &wall,
+            1.0,
+            band(),
+        ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
                 assert_eq!(
                     got, want,
@@ -4860,11 +4883,12 @@ fn rounds_at_the_wall(
     )
 }
 
-/// **A loop past the step budget refuses typed at the wall.** At ε 1e-14
-/// the dome's level loop takes about 18 300 marched samples, inside the
-/// branch's 20 000 steps, and limb 2 reads it in band at about 2.4e-14 m;
-/// refinement's first round asks about 23 400 steps, so the wall refuses
-/// before it, naming the one refused round. A branch never grows past the
+/// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
+/// the dome's level loop takes about 19 350 marched samples, inside the
+/// branch's 20 000 steps, and limb 2 reads it in band at about 8.8e-15 m;
+/// refinement's first round would overrun the steps, so the wall refuses
+/// before it, naming the one refused round. At 9e-15 the loop certifies
+/// on its marched samples, so 8e-15 is where this row's subject is. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
 /// carrier. One round shows no refused residual falling or stopping, so
 /// the ending is the curvature-held march's: the domain, then the
@@ -4878,14 +4902,14 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         normal: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the level loop at 1e-14") {
+    if !at_the_compiled_default("the level loop at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(8e-15));
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
     assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
-        (18_000..18_600).contains(&samples),
+        (19_100..19_600).contains(&samples),
         "the march's samples: {samples}"
     );
     assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
@@ -4898,11 +4922,12 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 }
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
-/// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at about 1.3e-14 m whatever its samples: the enclosure's
+/// the floor in its history.** At ε 8e-15 limb 2 reads the dome's `z =
+/// 0.2` arc in band at 9.0–9.4e-15 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
-/// doubles the samples and leaves the margin where it was. The rounds
-/// run from about 4 250 samples until the next would overrun the
+/// doubles the samples and leaves the margin where it was. At 9e-15 the
+/// arc certifies, so the floor sits between the two. The rounds
+/// run from about 4 490 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
 ///
@@ -4910,7 +4935,7 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 /// between-sample error falls at least as fast as the gaps, so over a
 /// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
 /// puts the line at `√G`, the geometric midpoint between flat (`1`) and
-/// that (`G`); measured `hi/lo` is about 1.19 against `√G ≥ 1.73`.
+/// that (`G`); measured `hi/lo` is about 1.04 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4920,11 +4945,11 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         normal: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the zcut at 1e-14") {
+    if !at_the_compiled_default("the zcut at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(8e-15));
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 8e-15", &r);
     assert_eq!(
         trend,
         ResidualTrend::Stalled,
@@ -4945,7 +4970,7 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let margins: Vec<f64> = rounds
         .iter()
         .map(|round| match round.margin {
-            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSup => {
+            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSupChart => {
                 match m.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(m) => m,
                     other => panic!("a point margin: {other:?}"),
@@ -4960,7 +4985,7 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.2e-14..1.7e-14).contains(&lo) && hi / lo < growth.sqrt(),
+        (8.5e-15..1e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }
@@ -5920,8 +5945,13 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// state's arm is the extent, and the march answers the line; a
 /// parameter line's own radius, about 9 mm here, would put `sin θ` times
 /// it inside the band at ε 1e-9, where the chart's reading refuses. One
-/// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
-/// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
+/// branch on the line at ε 1e-12. At 1e-6 the angle is itself inside the
+/// band, and at 1e-9 the slope across the `v = 0` side is: the wall's
+/// `v` direction runs along `y`, in the plane, and the strip's
+/// derivative box reads that slope's margin exactly, `8e-9 m`, so the
+/// side refuses as possibly tangent
+/// (`work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md`).
+/// (`μ` 0.1 refuses on limb 3 at ε 1e-12:
 /// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
@@ -5946,6 +5976,29 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
             Ok(out) => out,
             Err(e) if eps >= 1e-6 => {
                 vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                return;
+            }
+            // The side's slope margin, read exactly at `8e-9`, lies in
+            // `(1e-9, 1e-8)`: the refusal names the `v = 0` side and that
+            // margin, and any other refusal is red.
+            Err(SsiError::BoundaryTangent {
+                side:
+                    ChartSide {
+                        fixed: ChartAxis::V,
+                        end: ChartEnd::Low,
+                    },
+                verdict: ssi::BandVerdict::Undecided(cause),
+            }) if eps >= 1e-9 => {
+                let geom_core::ErrorTextReading::Value(m) =
+                    cause.margin.diagnostic_f64_for_error_text()
+                else {
+                    panic!("{at}: the side's margin was not read: {cause:?}");
+                };
+                assert!(
+                    (1e-9..1e-8).contains(&m) && (m - 8e-9).abs() <= 1e-14,
+                    "{at}: the v = 0 side's slope margin {m:e}, expected 8e-9 inside the band"
+                );
+                vacuity::stood_down(&at, "the slope across the v = 0 side is inside the band");
                 return;
             }
             Err(e) => panic!("{at}: expected the line, got {e}"),

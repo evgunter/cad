@@ -9,8 +9,8 @@
 
 use std::collections::BTreeMap;
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ang, insert, len, point, scl, step, table};
 use editor_core::{
     Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
@@ -56,7 +56,6 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), rib.into()]),
-            declare: Vec::new(),
         },
     );
     // Two notches across the rib's y = 1 seam: the first in place, the
@@ -78,7 +77,6 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![n1.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -86,7 +84,6 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         Node::Subtract {
             from: joined.into(),
             tool: notches.into(),
-            declare: Vec::new(),
         },
     );
     let (doc2, _) = step(

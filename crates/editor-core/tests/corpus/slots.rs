@@ -2,9 +2,9 @@
 //! a recipe: a plate with two crossing slots, so the SECOND subtract's
 //! A operand is itself a boolean result (boolean-of-boolean), and the
 //! second tool's floor is coplanar with the first cavity's floor — a
-//! contact the recipe DECLARES by name.
+//! contact the second subtract glues.
 //!
-//! Vocabulary: Profile, Extrude, Boolean (Subtract, declared),
+//! Vocabulary: Profile, Extrude, Boolean (Subtract),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): plate `[0,3]² × [0,1]`; slot 1
@@ -24,9 +24,7 @@
 //! plus both subtracts).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName,
-};
+use editor_core::{CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName};
 
 use crate::fixture::len;
 
@@ -69,15 +67,14 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
     // Nothing is coincident yet (the tool pierces the plate top and
-    // overhangs both ends), so this subtract declares nothing.
+    // overhangs both ends).
     let sub1 = r.insert(Node::Subtract {
         from: plate.into(),
         tool: slot1.into(),
-        declare: Vec::new(),
     });
 
-    // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared
-    // contact, and the reason the second operand is a boolean result.
+    // Slot 2: runs in x, SAME floor plane z = 0.5 — the coincident
+    // floors, and the reason the second operand is a boolean result.
     let slot2_p = r.profile(
         [0.0, 0.0, 0.5],
         [1.0, 0.0, 0.0],
@@ -89,34 +86,16 @@ pub fn document() -> CorpusDoc {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    // The first cavity's floor is slot 1's start cap, reversed onto
-    // the B side of `sub1`; slot 2's start cap is its own.
-    let cavity_floor = StableName {
-        kind: EntityKind::Face,
-        node: sub1,
-        path: vec![RoleSeg::From {
-            read: crate::fixture::out(&r.doc, slot1),
-            of: cap(slot1, CapEnd::Start).into(),
-        }],
-    };
-    let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(crate::fixture::out(&r.doc, sub1), cavity_floor),
-        SitedRef::new(
-            crate::fixture::out(&r.doc, slot2),
-            cap(slot2, CapEnd::Start),
-        ),
-    )]);
     let sub2 = r.insert(Node::Subtract {
         from: sub1.into(),
         tool: slot2.into(),
-        declare: decl,
     });
 
     r.place(sub2);
 
     CorpusDoc {
         name: "crossing_slots",
-        about: "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
+        about: "R13 / #86 crossing slots: boolean-of-boolean, coincident floors",
         edits: r.edits,
         doc: r.doc,
         result: Some(sub2),

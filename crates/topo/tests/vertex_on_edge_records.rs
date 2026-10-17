@@ -14,6 +14,23 @@ use topo::{
     ValidationError, VeContact, VertexKey, validate_pseudomanifold,
 };
 
+/// `a ∪ b` carrying `inputs`.
+fn united(
+    a: &topo::AtRestBody<f64>,
+    b: &topo::AtRestBody<f64>,
+    inputs: &topo::BooleanInputs,
+    tol: Tol,
+) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
+    topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        a,
+        b,
+        inputs,
+        topo::SweepStrategy::Realized,
+        tol,
+    )
+}
+
 /// `a` = the unit cube and `c` = x∈(0.5,1.5), y∈(−1,0), z∈(−1,0), in
 /// one arena: `c`'s top-front edge lies along `a`'s bottom-front edge
 /// over x∈(0.5,1). Each edge's interior holds the other's end there:
@@ -74,6 +91,21 @@ fn records(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
     )
 }
 
+/// The `(vertex, edge)` rows `rows`, and the edge-edge record of
+/// `edge_touch`'s overlap, as records of `body`: the overlap is a pair
+/// whose interiors meet, owed its own record (D1), which its two
+/// bounds' records confirm.
+fn with_overlap(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
+    let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let c_edge = edge_between(body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]);
+    common::records(
+        body,
+        rows.iter()
+            .map(|r| (Cell::Vertex(r.vertex), Cell::Edge(r.edge)))
+            .chain([(Cell::Edge(a_edge), Cell::Edge(c_edge))]),
+    )
+}
+
 /// The two records `edge_touch` needs, in the order its bounds come.
 fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
     let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -85,9 +117,10 @@ fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
 }
 
 /// **Unrecorded direction.** With no records, both resting vertices
-/// and the overlap between them refuse; with both records the body
-/// certifies; with one, its own event and the overlap it bounds refuse
-/// and the other event does not. Red when pass 2, or the overlap's
+/// and the overlap between them refuse; with both records and the
+/// overlap's own the body certifies, and without the overlap's the
+/// overlap refuses; with one, its own event and the overlap it bounds
+/// refuse and the other event does not. Red when pass 2, or the overlap's
 /// one-vertex bound, reads only the face rung and never the record.
 #[test]
 fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
@@ -96,7 +129,7 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
     let on_edge = |es: &[ValidationError]| -> Vec<(VertexKey, EdgeKey)> {
         es.iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnEdge { vertex, edge },
                     ..
                 } => Some((*vertex, *edge)),
@@ -109,7 +142,7 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
             .filter(|e| {
                 matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: CensusContact::EdgeEdgeOverlap { .. },
                         ..
                     }
@@ -133,15 +166,21 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
         "no records: the overlap refuses: {none:?}"
     );
 
-    let both = records(&body, &[at_a, at_c]);
+    let both = with_overlap(&body, &[at_a, at_c]);
     assert_eq!(
         errors(&body, &both),
         vec![],
         "both records: the body certifies"
     );
+    let bounds_alone = errors(&body, &records(&body, &[at_a, at_c]));
+    assert_eq!(
+        (overlaps(&bounds_alone), bounds_alone.len()),
+        (1, 1),
+        "both bounds but no edge-edge record: the overlap refuses: {bounds_alone:?}"
+    );
 
     for (kept, dropped) in [(at_a, at_c), (at_c, at_a)] {
-        let one = records(&body, &[kept]);
+        let one = with_overlap(&body, &[kept]);
         let es = errors(&body, &one);
         assert_eq!(
             on_edge(&es),
@@ -184,7 +223,7 @@ fn a_vertex_on_edge_record_without_its_event_is_stale() {
             ve(vertex_at(&body, [0.5, -1.0, -1.0]), a_edge),
         ),
     ] {
-        let set = self::records(body, &[records.as_slice(), &[bad]].concat());
+        let set = with_overlap(body, &[records.as_slice(), &[bad]].concat());
         let es = errors(body, &set);
         assert_eq!(
             es,
@@ -216,7 +255,7 @@ fn a_vertex_on_edge_record_without_its_event_is_stale() {
 /// overlap's upper bound is the wedge's vertex there, backed by its
 /// `(vertex, edge)` record onto an edge that bounds the face. Red when
 /// the edge-on-face bound reads v-on-f and v-v records only: the
-/// overlap refuses `UndeclaredContact` with both records present.
+/// overlap refuses `UnrecordedContact` with both records present.
 #[test]
 fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
     let tol = Tol::witness();
@@ -257,7 +296,7 @@ fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
     assert!(
         es.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnEdge { vertex, edge },
                 ..
             } if (*vertex, *edge) == (high, rim)
@@ -281,9 +320,7 @@ fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
         common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union_with(&a, &c, &topo::BooleanDeclarations::none(), tol).expect("a ∪ c")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&a, &c, tol).expect("a ∪ c") else {
         panic!("a ∪ c came back empty");
     };
     y
@@ -314,10 +351,9 @@ fn ends(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
 fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let tol = Tol::witness();
     let y = joined_edge_touch(tol);
-    let carried = topo::CarriedContacts {
+    let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
-        ..y.contacts.carried(topo::ContactClass::Rest)
+        ..y.contacts.carried()
     };
     for (at, rim, slab, piece) in [
         (
@@ -345,12 +381,12 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             common::brick(slab, (-0.5, 0.5), (-0.5, 0.5), tol),
             tol,
         );
-        let decls = topo::BooleanDeclarations {
-            carried_a: carried.clone(),
-            ..topo::BooleanDeclarations::none()
+        let inputs = topo::BooleanInputs {
+            records_a: carried.clone(),
+            ..topo::BooleanInputs::default()
         };
-        let topo::BooleanResult::Body(out) = topo::union_with(&y.body, &s, &decls, tol)
-            .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+        let topo::BooleanResult::Body(out) =
+            united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
         else {
             panic!("slab {slab:?}: empty");
         };
@@ -403,9 +439,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
         common::brick((0.0, 1.0), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union_with(&b, &c, &topo::BooleanDeclarations::none(), tol).expect("b ∪ c")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&b, &c, tol).expect("b ∪ c") else {
         panic!("b ∪ c came back empty");
     };
     let corner = vertex_at(&y.body, [0.0, 0.0, 0.0]);
@@ -417,10 +451,9 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
         vec![(corner, [[0.0, -0.5, 0.0], [0.0, 0.5, 0.0]])],
         "the join leaves the corner's record on b's edge"
     );
-    let carried = topo::CarriedContacts {
+    let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
-        ..y.contacts.carried(topo::ContactClass::Rest)
+        ..y.contacts.carried()
     };
     let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {
         p.iter()
@@ -441,10 +474,12 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
             (0.0, 0.5)
         };
         let s = common::finished("slab", common::brick((-0.5, 0.5), slab, z, tol), tol);
-        let mut decls = common::flush_declarations(&y.body, &s, tol);
-        decls.carried_a = carried.clone();
-        let topo::BooleanResult::Body(out) = topo::union_with(&y.body, &s, &decls, tol)
-            .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+        let inputs = topo::BooleanInputs {
+            records_a: carried.clone(),
+            ..topo::BooleanInputs::default()
+        };
+        let topo::BooleanResult::Body(out) =
+            united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
         else {
             panic!("slab {slab:?}: empty");
         };
@@ -492,8 +527,8 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
 /// box's edge runs along (0, 1, 1)/√2 through that point, which is its
 /// own edge's midpoint, and its material opens away from the cube on
 /// both sides of the cube's top-front edge, so the two edges cross skew
-/// there and the bodies meet nowhere else. Built by the boolean, with no
-/// declarations: the union crosses the two edges and records the two
+/// there and the bodies meet nowhere else. Built by the boolean: the
+/// union crosses the two edges and records the two
 /// vertices it cut them at.
 fn skew_crossing(tol: Tol) -> topo::BooleanBody<f64> {
     let cube = common::finished(
@@ -514,9 +549,7 @@ fn skew_crossing(tol: Tol) -> topo::BooleanBody<f64> {
         ),
         tol,
     );
-    let topo::BooleanResult::Body(out) =
-        topo::union_with(&cube, &box_, &topo::BooleanDeclarations::none(), tol)
-            .expect("cube ∪ box")
+    let topo::BooleanResult::Body(out) = topo::union(&cube, &box_, tol).expect("cube ∪ box")
     else {
         panic!("cube ∪ box came back empty");
     };
@@ -574,15 +607,15 @@ fn crossing_into(y: &topo::BooleanBody<f64>, slab: (f64, f64), tol: Tol) -> topo
         common::brick(slab, (-0.5, 0.5), (0.5, 1.5), tol),
         tol,
     );
-    let decls = topo::BooleanDeclarations {
-        carried_a: topo::CarriedContacts {
+    let inputs = topo::BooleanInputs {
+        records_a: topo::OperandRecords {
             vf: Vec::new(),
-            ..y.contacts.carried(topo::ContactClass::Rest)
+            ..y.contacts.carried()
         },
-        ..topo::BooleanDeclarations::none()
+        ..topo::BooleanInputs::default()
     };
-    let topo::BooleanResult::Body(out) = topo::union_with(&y.body, &s, &decls, tol)
-        .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+    let topo::BooleanResult::Body(out) =
+        united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
     else {
         panic!("slab {slab:?}: empty");
     };
@@ -675,19 +708,19 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
     }
 }
 
-/// **A split that lands on the other edge's end turns the edge-edge
-/// record into a vertex-vertex record.** Two boxes touching along a
-/// collinear overlap: `a`'s top-front edge runs x∈[0, 1] and `b`'s
-/// bottom-back edge x∈[0.5, 1.5], both on y = 0, z = 1, and the union
-/// leaves both edges whole with a vertex-on-edge record at each bound.
-/// Its bound at (0.5, 0, 1) and the overlap's edge-edge record are
-/// carried into a union with a thin plate tilted off the axes whose face passes
-/// through `a`'s end (1, 0, 1) and that enters only `b`: the plate
-/// splits `b`'s edge there, and the split's vertex meets `a`'s end
-/// vertex. The record lands as a vertex-vertex record between them,
-/// and the result certifies 3′. Red when split lineage drops a minted
-/// vertex that meets the other piece's end (3′ refuses `VertexVertex`
-/// there).
+/// **A split that lands on the other edge's end turns that end's
+/// vertex-on-edge record into a vertex-vertex record.** Two boxes
+/// touching along a collinear overlap: `a`'s top-front edge runs
+/// x∈[0, 1] and `b`'s bottom-back edge x∈[0.5, 1.5], both on y = 0,
+/// z = 1, and the union leaves both edges whole with a vertex-on-edge
+/// record at each bound and the overlap's edge-edge record. All three
+/// are carried into a union with a thin plate tilted off the axes whose
+/// face passes through `a`'s end (1, 0, 1) and that enters only `b`: the
+/// plate splits `b`'s edge there, and the split's vertex meets `a`'s end
+/// vertex. The bound at (1, 0, 1) lands on that pair, citing the bound's
+/// own record (the minted vertex is an image of `b`'s edge, D1), and the
+/// result certifies 3′. Red when the carry reads the split edge's
+/// pieces alone (3′ refuses `VertexVertex` there).
 #[test]
 fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
     let tol = Tol::witness();
@@ -701,13 +734,9 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         common::brick((0.5, 1.5), (-1.0, 0.0), (1.0, 2.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union_with(&a, &b, &topo::BooleanDeclarations::none(), tol).expect("a ∪ b")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&a, &b, tol).expect("a ∪ b") else {
         panic!("a ∪ b came back empty");
     };
-    let a_edge = edge_between(&y.body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]);
-    let b_edge = edge_between(&y.body, [0.5, 0.0, 1.0], [1.5, 0.0, 1.0]);
     assert_eq!(
         y.contacts.vertex_edge().count(),
         2,
@@ -745,41 +774,34 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         ),
         tol,
     );
-    // The overlap's bound at (0.5, 0, 1) is carried; the one at (1, 0, 1)
-    // is left to the edge-edge record, so only its lineage can place it.
-    let far: Vec<topo::CarriedRecord<VeContact>> = y
+    let near_end = y
         .contacts
-        .carried(topo::ContactClass::Rest)
-        .ve
-        .into_iter()
-        .filter(|r| same(point(&y.body, r.contact.vertex), [0.5, 0.0, 1.0]))
-        .collect();
-    assert_eq!(far.len(), 1, "the bound at (0.5, 0, 1)");
-    let decls = topo::BooleanDeclarations {
-        carried_a: topo::CarriedContacts {
-            ve: far,
-            ee: vec![topo::CarriedRecord {
-                contact: topo::EeContact {
-                    a: a_edge,
-                    b: b_edge,
-                },
-                record: 0,
-            }],
-            ..topo::CarriedContacts::default()
-        },
-        ..topo::BooleanDeclarations::none()
+        .rows()
+        .iter()
+        .position(|r| {
+            matches!(r.cells(), [topo::Cell::Vertex(v), topo::Cell::Edge(_)]
+                if same(point(&y.body, v), [1.0, 0.0, 1.0]))
+        })
+        .expect("the bound at (1, 0, 1)");
+    let inputs = topo::BooleanInputs {
+        records_a: y.contacts.carried(),
+        ..topo::BooleanInputs::default()
     };
-    let topo::BooleanResult::Body(out) =
-        topo::union_with(&y.body, &plate, &decls, tol).expect("y ∪ plate")
+    let topo::BooleanResult::Body(out) = united(&y.body, &plate, &inputs, tol).expect("y ∪ plate")
     else {
         panic!("y ∪ plate came back empty");
     };
     let at_end = |k: VertexKey| same(point(&out.body, k), [1.0, 0.0, 1.0]);
+    let record = u32::try_from(near_end).unwrap();
     assert!(
-        out.contacts
-            .vertex_vertex()
-            .any(|(a, b)| at_end(a) && at_end(b)),
-        "a vertex-vertex record at (1, 0, 1): {:?}",
+        out.contacts.rows().iter().any(|r| {
+            matches!(r.cells(), [topo::Cell::Vertex(a), topo::Cell::Vertex(b)]
+                if at_end(a) && at_end(b))
+                && r.cites
+                    .iter()
+                    .any(|c| c == topo::Backing::Carried { input: 0, record })
+        }),
+        "a vertex-vertex record at (1, 0, 1) citing the bound there: {:?}",
         out.contacts
     );
     assert_eq!(
@@ -818,21 +840,21 @@ fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
             "carried e-e pair names one edge twice",
         ),
     ] {
-        let decls = topo::BooleanDeclarations {
-            carried_a: topo::CarriedContacts {
+        let inputs = topo::BooleanInputs {
+            records_a: topo::OperandRecords {
                 ee: vec![topo::CarriedRecord {
                     contact: row,
                     record: 0,
                 }],
-                ..topo::CarriedContacts::default()
+                ..topo::OperandRecords::default()
             },
-            ..topo::BooleanDeclarations::none()
+            ..topo::BooleanInputs::default()
         };
-        let got = topo::union_with(&y.body, &s, &decls, tol).map(|_| ());
+        let got = united(&y.body, &s, &inputs, tol).map(|_| ());
         assert!(
             matches!(
                 got,
-                Err(topo::BooleanError::InvalidDeclaration {
+                Err(topo::BooleanError::InvalidInput {
                     operand: topo::Operand::A,
                     what: w,
                 }) if w == what
@@ -864,7 +886,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
     assert!(
         es.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeEdgeCross { .. },
                 ..
             }
@@ -910,7 +932,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
 
 /// **A carried `(vertex, edge)` row is validated at the door**, as its
 /// v-v and v-on-f siblings are: a key that does not resolve in its
-/// operand refuses `InvalidDeclaration` before anything runs. Red when
+/// operand refuses `InvalidInput` before anything runs. Red when
 /// the door reads carried v-on-e rows unchecked (the row would reach the
 /// substitution door and leave silently).
 #[test]
@@ -923,8 +945,8 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
         common::brick((0.2, 0.3), (-0.5, 0.5), (-0.5, 0.5), tol),
         tol,
     );
-    let decls = topo::BooleanDeclarations {
-        carried_a: topo::CarriedContacts {
+    let inputs = topo::BooleanInputs {
+        records_a: topo::OperandRecords {
             ve: vec![topo::CarriedRecord {
                 contact: VeContact {
                     vertex: corner,
@@ -932,15 +954,15 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
                 },
                 record: 0,
             }],
-            ..topo::CarriedContacts::default()
+            ..topo::OperandRecords::default()
         },
-        ..topo::BooleanDeclarations::none()
+        ..topo::BooleanInputs::default()
     };
-    let got = topo::union_with(&y.body, &s, &decls, tol).map(|_| ());
+    let got = united(&y.body, &s, &inputs, tol).map(|_| ());
     assert!(
         matches!(
             got,
-            Err(topo::BooleanError::InvalidDeclaration {
+            Err(topo::BooleanError::InvalidInput {
                 operand: topo::Operand::A,
                 what: "carried v-on-e edge key does not resolve",
             })

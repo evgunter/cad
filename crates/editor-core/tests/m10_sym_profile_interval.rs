@@ -291,22 +291,34 @@ fn eps_row(eps: f64) -> usize {
 /// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
 /// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
 /// the anonymous definition a slot's formula lowers to.
+///
+/// The faces' extent levering the wedge moves the `*/Assertion` lines
+/// as it moves [`PLATE_LEDGER`]'s: `Plain/Assertion` 1186 → 2690 and
+/// `Early/Assertion` 2229 → 4121 forms, and their digests, at every
+/// row; calls and the `*/Decision` lines hold.
+///
+/// The final non-finite check asking boundedness rather than deciding
+/// `value · 0` (`expr-non-finite-asks-value-times-zero`) takes its
+/// calls out of `Plain/Decision` (981 → 928, forms 9426 → 9415); the
+/// forms it used to build first are now built under `Plain/Assertion`
+/// (2690 → 2697). Its digests move at every row; the `Early/*` lines
+/// and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
-     Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
+     Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
+     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
+     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -549,13 +561,71 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Door/Decision` 7099 → 7181 (+82); calls, `*/Decision` forms and
 /// every decision tally hold (`m10_10_pins_interval` reads the pair's
 /// sum unchanged).
+///
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each measured by reverting it alone on the tree holding the rest:
+/// - the turning cylinder's class circle (one `σ` for the radius and
+///   orientation terms): `Plain/Decision` +267 forms and +72 frozen,
+///   `Early/Decision` +267;
+/// - the cylinder class selector's radial circle at its exact sup
+///   (`radial_amplitude`, read at the door and on both walks):
+///   `Plain/Decision` +20, `Plain/Assertion` +193 forms and +16 frozen,
+///   `Early/Decision` +20, `Early/Assertion` +193, `Door/Decision`
+///   +196;
+/// - the two fidelity channels read as one displacement's legs (`√(u² +
+///   v²)` in the envelope's total): `Plain/Decision` and
+///   `Early/Decision` +36 each;
+/// - `EnvelopeTerm::Tilt` and `EnvelopeTerm::Orientation` retired, one
+///   zero summand fewer per envelope each: `Plain/Decision` and
+///   `Early/Decision` −12 per slot, −24 in all.
+///
+/// Together `Plain/Decision` 15749/252 → 16048/324, `Plain/Assertion`
+/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8970, `Early/Assertion`
+/// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
+/// lines; calls, every decision tally and the largest form hold, and
+/// the slab does not move.
+///
+/// Check 4 reading a `cos t`/`sin t` pair at its exact sup
+/// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
+/// coefficients' norms: a longer expression per envelope term, so
+/// `Plain/Decision` 15735 → 15749 and `Early/Decision` 8657 → 8671
+/// (+14 forms each) and those lines' digests; calls, freezes and every
+/// other line hold.
+///
+/// A form's digest no longer carries a read's gate (DECIDE-10), so the
+/// `Early/Assertion` and `Door/Decision` digests move on every form the
+/// decision read built, with every count held; and the contradiction
+/// check asks the tier's algebra without the door, so the
+/// `Door/Assertion` line, 396 calls that built nothing, is gone. The
+/// slab's `Early/Assertion` digests move the same way at each ε row.
+///
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) builds its frame terms in another
+/// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
+/// forms each, and the `Plain/Assertion` digest; every call and freeze
+/// holds.
+///
+/// The wedge between an edge's faces levered at the faces' extent
+/// (`topo::wedge_reach`) rather than the edge's: each certification and
+/// each check-4 read folds the squared distances of the faces' boundary
+/// vertices and their maximum, so `Plain/Assertion` 4542 → 5753 forms
+/// (its 405 frozen held), `Early/Assertion` 5519 → 6972 and
+/// `Door/Decision` 7391 → 7987; `Early/Decision` 8970 → 8955, the arm
+/// the edge's chord no longer builds; every call, every decision tally
+/// and the largest form hold.
+///
+/// The final non-finite check asking boundedness
+/// (`expr-non-finite-asks-value-times-zero`): `Plain/Decision`
+/// 1048 → 1003 calls and 16062 → 16013 forms, `Plain/Assertion`
+/// 5753 → 5790 forms, which it now builds where the check's walk built
+/// them first, and both digests; the frozen counts, the `Early/*` and
+/// `Door/*` lines and the largest form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15735 frozen 252 digest bb9b65c26e1986776057380748e8f28c\n\
-     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8657 frozen 0 digest 11d22e34e12b763fd880057381499ac5\n\
-     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
-     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
-     Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1003 forms 16013 frozen 324 digest 5a00e900e5b75a93d7c4a204eab0bb17\n\
+     Plain/Assertion calls 654 forms 5790 frozen 405 digest eae9779dd552c4c2607469dbee61dbef\n\
+     Early/Decision calls 352 forms 8955 frozen 0 digest b7df112980f31400f624889d1eabd515\n\
+     Early/Assertion calls 654 forms 6972 frozen 0 digest f0e4564a343b8e6322ec666c5a03e5ab\n\
+     Door/Decision calls 396 forms 7987 frozen 0 digest f849cdbc1af49b153010b84116530ce4";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

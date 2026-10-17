@@ -57,24 +57,26 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, ChecksConfig, ChecksReport, Dimension, DimensionError,
-    Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartReach,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_on,
+    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
+use pncad::select::{Resolution, RunCtx, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{
+    DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
+};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -283,7 +285,7 @@ fn guard_driven(
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
 /// [`pncad::document::StepArg`] on that step, and unmoved when its
-/// value is the committed one at the bits ([`Expr::bit_eq`]).
+/// value is the committed one at the bits (`Expr::bit_eq`).
 ///
 /// # Errors
 ///
@@ -387,6 +389,10 @@ pub struct DocSession {
     tol: Tol,
     gesture: g1::Slot<Gesture, SlotValue>,
     eval: Box<dyn EvalService>,
+    /// **The coincidence door's seam**: the landed report's door runs
+    /// here, at rest, and the next request cancels it
+    /// ([`DocSession::request_eval`]).
+    door: Box<dyn DoorService>,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
@@ -745,7 +751,7 @@ impl core::fmt::Debug for LandedRun {
 /// declarations run through the kernel's own verification door
 /// (`assemble`), once per landed evaluation, so a committed mate's
 /// class verdict does not die at the commit: a `Tangent` that solves
-/// green still shows the gate refusing it, and an undeclared contact
+/// green still shows the gate refusing it, and an unrecorded contact
 /// between instances surfaces on the draw path instead of waiting for
 /// an export.
 ///
@@ -799,7 +805,8 @@ pub enum Landing {
 /// together they are one three-state fact**, and this is that fact as
 /// a value — the only thing a consumer of it is handed
 /// ([`DocSession::outstanding`] is the one site that reads both).
-/// `crates/viewer/README.md`, The session's vocabularies, argues why.
+/// `crates/viewer/README.md`, The session's vocabularies, argues why,
+/// and why [`crate::frame::Progress`] shares two of these names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outstanding {
     /// The picture answers the document the session holds: nothing is
@@ -833,6 +840,7 @@ impl DocSession {
             tol,
             gesture: g1::Slot::closed(),
             eval,
+            door: Box::new(InlineProver::new()),
             generation: Generation::FIRST,
             derived: Derived::none(),
             path: None,
@@ -842,6 +850,16 @@ impl DocSession {
         };
         session.request_eval();
         session
+    }
+
+    /// This session with its coincidence door run through `door`, in
+    /// place of the inline seam [`DocSession::new`] gives it, which runs
+    /// a landing's door inside [`DocSession::pump`]. Taken before the
+    /// first pump: a job the replaced seam holds is dropped with it.
+    #[must_use]
+    pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
+        self.door = door;
+        self
     }
 
     /// A session running the seam inline — the shape a test and the
@@ -1145,10 +1163,12 @@ impl DocSession {
     }
 
     /// The advisory-check report for the landed pair — findings in
-    /// deterministic order, and the residents that were configured
-    /// `Off`. `None` before anything lands, or when the registry
-    /// refused (which is distinct from an empty report: "not checked"
-    /// and "checked and fine" are different answers).
+    /// deterministic order, the residents that were configured `Off`,
+    /// and the coincidence door while it runs at rest
+    /// ([`ChecksReport::pending`]). `None` before anything lands, or
+    /// when the registry refused (which is distinct from an empty
+    /// report: "not checked" and "checked and fine" are different
+    /// answers).
     pub fn checks(&self) -> Option<&ChecksReport> {
         self.derived.landed.as_ref()?.checks.as_ref()
     }
@@ -1353,7 +1373,36 @@ impl DocSession {
         while let Some(done) = self.eval.poll() {
             landings.push(self.land(done));
         }
+        while let Some(done) = self.door.poll() {
+            self.settle(done);
+        }
         landings
+    }
+
+    /// **Settles a door job into the landed report it was split from**
+    /// — only that one: an answer for a landing since replaced, or one
+    /// the next request canceled, is dropped, and a report whose door
+    /// was canceled goes on reading it pending until a landing answers
+    /// again. A second answer for a report already settled is dropped
+    /// too.
+    pub fn settle(&mut self, done: DoorDone) {
+        let Some(run) = self.derived.landed.as_mut() else {
+            return;
+        };
+        if run.generation != done.generation {
+            return;
+        }
+        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+            && report.pending.contains(&CheckId::UnprovenCoincidence)
+        {
+            report.settle(findings);
+        }
+    }
+
+    /// Whether the landed report's coincidence door is still running
+    /// at rest.
+    pub fn proving(&self) -> bool {
+        self.door.busy()
     }
 
     /// Decide one result's fate. Public so the staleness rule is
@@ -1403,7 +1452,7 @@ impl DocSession {
                 // otherwise. A refusal of the registry itself leaves
                 // no report rather than a clean one: "not checked" is
                 // not "checked and fine".
-                let checks = run_checks_on(
+                let checks = run_checks_at_rest_on(
                     doc,
                     &done.evaluation,
                     Subject::Product(&product),
@@ -1441,8 +1490,14 @@ impl DocSession {
                     .kind()
                     .means_no_body()
                     .then(|| {
-                        run_checks_on(doc, &done.evaluation, Subject::EmptyProduct, &cfg, self.tol)
-                            .ok()
+                        run_checks_at_rest_on(
+                            doc,
+                            &done.evaluation,
+                            Subject::EmptyProduct,
+                            &cfg,
+                            self.tol,
+                        )
+                        .ok()
                     })
                     .flatten();
                 (Err(fault), checks)
@@ -1455,6 +1510,16 @@ impl DocSession {
         } else {
             PartFiles::Unscanned
         };
+        // **The door runs at rest**: the report reads it pending until
+        // the job lands ([`DocSession::settle`]).
+        let (checks, door) = checks.map_or((None, None), |(report, door)| (Some(report), door));
+        if let Some(job) = door {
+            self.door.submit(DoorRequest {
+                generation: done.generation,
+                doc: Arc::clone(&self.requested_doc),
+                job,
+            });
+        }
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -1666,7 +1731,7 @@ impl DocSession {
                 axis_direction,
                 angle,
             } => self.add_revolve(profile, axis_origin, axis_direction, angle),
-            SessionOp::AddBoolean { spec, declare } => self.add_boolean(spec, declare),
+            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -2079,6 +2144,22 @@ impl DocSession {
         props::slot_literal(self.committed_doc(), node, slot)
             .err()
             .map(Refusal::SlotUnit)
+    }
+
+    /// **What `SessionOp::SetInstanceHidden` would answer for
+    /// `instance`, or `None` where it would accept** — asked ahead of
+    /// the click by the control that pushes the op.
+    ///
+    /// It is the whole of that op's admission: its door runs
+    /// [`crate::display::display_check`] against the committed
+    /// document, and neither drag's table in `perform` refuses it. So
+    /// a row drawn from the LANDED document (the feature tree's) reads
+    /// the refusal for a node deleted, or fused by a boolean, since
+    /// the last landing.
+    pub fn instance_hidden_refusal(&self, instance: RecipeNodeId) -> Option<Refusal> {
+        crate::display::display_check(self.committed_doc(), instance)
+            .err()
+            .map(|fault| Refusal::Display(fault.into()))
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
@@ -2818,9 +2899,8 @@ impl DocSession {
         })
     }
 
-    /// Insert one boolean of existing bodies, carrying the declaration
-    /// of the contacts it names ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, spec: BooleanSpec, declare: Vec<FlushFinding>) -> OpOutcome {
+    /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, spec: BooleanSpec) -> OpOutcome {
         for seat in spec.operands() {
             if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2828,11 +2908,9 @@ impl DocSession {
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
-        // document like any other. An empty list is the undeclared
-        // boolean.
-        let pairs = declared_pairs(&declare);
+        // document like any other.
         let staged = self.stage_run(|run| {
-            let node = run.insert(spec.node(pairs))?;
+            let node = run.insert(spec.node())?;
             combine_in_world(run, &spec.operands(), node)?;
             Ok(node)
         });
@@ -3192,7 +3270,6 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
-            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -3293,6 +3370,32 @@ impl DocSession {
                 .map(|id| DocEdit::DeleteNode { id })
                 .collect(),
         )
+    }
+
+    /// **What `SessionOp::DeleteNode` would answer for `node` because
+    /// the committed document does not hold it, or `None` where it
+    /// does** — asked ahead of the click by the control that pushes
+    /// the op.
+    ///
+    /// It walks [`Self::delete_node`]'s own branch over the document
+    /// that op reads: an empty cascade takes the single edit, and that
+    /// edit is staged through the door ([`Self::stage_run`]) and never
+    /// recorded, so the refusal is `EditError`'s and has one home. A
+    /// selection can outlive its feature here — a face resolves
+    /// against the last LANDED run, which still holds a feature the
+    /// committed document has dropped until the next run lands, and
+    /// indefinitely after a cancel.
+    ///
+    /// Not everything `perform` can answer: a held value gesture
+    /// refuses the op before this admission runs, and a held node's
+    /// cascade is applied at the click rather than rehearsed every
+    /// frame.
+    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+        if !cascade_delete_order(self.committed_doc(), node).is_empty() {
+            return None;
+        }
+        self.stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
+            .err()
     }
 
     /// The same door for an action that takes SEVERAL edits, a fixed
@@ -3404,6 +3507,8 @@ impl DocSession {
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
         self.requested_resolver = self.run_resolver();
+        // The landing this request will replace no longer wants its door.
+        self.door.cancel();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -3563,9 +3668,9 @@ fn session_dir(path: &Path) -> PathBuf {
 /// its members travel with their declaration rather than being listed
 /// a second time here.
 ///
-/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
-/// no content to print; `eval` is a `dyn` service and implements no
-/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// The five `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` and `door` are `dyn` services and
+/// implement no `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
@@ -3583,6 +3688,7 @@ impl core::fmt::Debug for DocSession {
             tol: _,
             gesture,
             eval: _,
+            door: _,
             generation,
             requested_doc: _,
             requested_resolver: _,
@@ -3650,6 +3756,56 @@ mod tests {
         assert!(
             session.committed_doc().ids().is_empty(),
             "neither frame landed"
+        );
+    }
+
+    /// **The hide admission is asked of the document the op reads, not
+    /// of the one the tree is drawn from**: an instance deleted since
+    /// the last landing still has a tree row, and the answer for it is
+    /// the refusal `SetInstanceHidden` gives.
+    #[test]
+    fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
+        use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
+
+        use super::{DocSession, SessionOp};
+        let tol = Tol::witness();
+        let mut doc = ProfileDoc::empty(DocumentId::derive("hide-asm"), tol);
+        let instance = crate::test_support::insert_into(
+            &mut doc,
+            Node::instantiate_part(DocRef {
+                id: DocumentId::derive("hide-part"),
+                pin: ContentPin::of_bytes(b"hide-part"),
+            }),
+            tol,
+        );
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        assert!(session.instance_hidden_refusal(instance).is_none());
+        let deleted = session.perform(SessionOp::DeleteNode { node: instance });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        assert!(
+            session.tree_rows().iter().any(|row| row.id == instance),
+            "the tree still draws the landed document's row"
+        );
+        let said = session
+            .instance_hidden_refusal(instance)
+            .expect("the committed document holds no such node")
+            .to_string();
+        let got = session
+            .perform(SessionOp::SetInstanceHidden {
+                instance,
+                hidden: true,
+            })
+            .refusal
+            .expect("the op refuses a deleted instance")
+            .to_string();
+        assert_eq!(said, got);
+        assert_eq!(
+            said,
+            format!(
+                "node {} is not in the document",
+                test_utils::refusal::tag(instance.0.digest())
+            )
         );
     }
 }

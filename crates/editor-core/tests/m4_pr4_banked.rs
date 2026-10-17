@@ -118,7 +118,6 @@ fn band_cut() -> BandCut {
         Node::Subtract {
             from: a.into(),
             tool: transform.into(),
-            declare: Vec::new(),
         },
     );
     BandCut {
@@ -220,12 +219,10 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // position keeps the same coplanarity, so ONE declared list serves
     // both). The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     let (doc2, _) = step(

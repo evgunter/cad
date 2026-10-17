@@ -103,9 +103,9 @@ impl InterfaceCrossing {
 
     /// The class the crossing declares.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::flush::ContactClass> {
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
         match self.0 {
-            d::InterfaceCrossing::Mate { class, .. } => super::flush::contact_class(py, class),
+            d::InterfaceCrossing::Mate { class, .. } => super::contact::contact_class(py, class),
         }
     }
 
@@ -364,7 +364,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. } => (
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => (
             none(),
             none(),
             none(),
@@ -771,7 +772,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. } => (
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => (
             none(),
             none(),
             named(name),

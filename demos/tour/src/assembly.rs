@@ -817,6 +817,14 @@ struct Bench {
 /// the shelf's turntable first; the mate then places it in the shelf's
 /// group, so it swings with the stand and follows any edit of the
 /// shelf or the posts under it.
+/// The bench's `run_checks` reports three `unproven-coincidence`
+/// findings, one against each mate (the stand's two and the crate's), and
+/// the viewer's status line shows them as `checks: 3 finding(s)`. They
+/// are expected: each is the at-rest census's row for its mate's own seat,
+/// which D10 makes structural ("a mate-placed face is"), but no rung
+/// proves it yet. The rung is INTENT stage 4 PR H
+/// (`work/intent/placed-carriers-compare-through-their-frames.md`), and the
+/// three go quiet when it lands.
 fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);

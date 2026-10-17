@@ -102,7 +102,6 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Subtract {
             from: cube.into(),
             tool: placed.into(),
-            declare: Vec::new(),
         },
     );
 

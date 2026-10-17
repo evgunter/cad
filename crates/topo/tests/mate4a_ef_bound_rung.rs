@@ -111,7 +111,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -122,7 +122,7 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 }
 
 /// The unit's claim: nothing in the declared overhang seat is a hard
-/// `UndeclaredContact` any more. The edge-on-face overlap's two bounds
+/// `UnrecordedContact` any more. The edge-on-face overlap's two bounds
 /// (H and B, on the shelf edge's interior) are vertex-on-edge events
 /// the declared pair holds, so the overlap is backed like any other.
 ///
@@ -240,22 +240,30 @@ fn the_bare_straddle_seat_is_untouched() {
     let found = errors(&body, &ContactRecords::default());
     assert_eq!(
         format!("{found:?}"),
-        "[UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
-         face: FaceKey(8v1) }, witness: \"(0.3, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
-         face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
-         face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(10v1), \
-         face: FaceKey(8v1) }, witness: \"(0.6, 0.25, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), \
-         face: FaceKey(8v1) }, witness: \"(0.3, 0.25, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
-         face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
-         b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
-         b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\" }]",
+        "[UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
+         face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(10v1), \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.25, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.25, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
+         face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }]",
         "the bare straddle seat's whole census"
     );
 }

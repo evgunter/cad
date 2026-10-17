@@ -106,7 +106,6 @@ pub fn document() -> CorpusDoc {
         ));
         acc = r.insert(Node::Union {
             members: editor_core::Bodies::Spelled(vec![acc.into(), tr.into()]),
-            declare: Vec::new(),
         });
     }
 

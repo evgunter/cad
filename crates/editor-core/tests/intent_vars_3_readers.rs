@@ -359,7 +359,7 @@ fn the_symbol_survives_a_rename() {
         )
     });
     assert_eq!(sign, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 1, "one symbol before and after");
+    assert_eq!(counts.symbolic, 1, "one symbol before and after");
     let by_hand =
         Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0.digest()), 0.0, 0.0, 0.0);
     let (_, counts) = session(|| {
@@ -369,7 +369,7 @@ fn the_symbol_survives_a_rename() {
             Band::new(1.0e-9, 1.0e-8).unwrap(),
         )
     });
-    assert_eq!(counts.symbolic_zero, 1, "the symbol is the id's");
+    assert_eq!(counts.symbolic, 1, "the symbol is the id's");
 }
 
 // --------------------------------------------------------------- row 7

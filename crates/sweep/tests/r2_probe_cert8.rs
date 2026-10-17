@@ -179,8 +179,9 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
 /// `chart_stretch_inf` + `certified_arms` assembly, and samples the
 /// real surface for a violation of any of the four claims. Returns the
 /// worst contraction ratio seen, or `None` when the chart never entered
-/// the mode — a degenerate net, a floor at machine zero, or a poisoned
-/// assembly is a SKIP, not a counterexample.
+/// the mode — a floor at machine zero or a poisoned assembly is a SKIP,
+/// not a counterexample. A net that does not build is a failure, never a
+/// skip.
 ///
 /// `note` names the caller's chart in every message: the written row
 /// passes its tag, the randomised one its trial and replay line.
@@ -191,7 +192,8 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let points: Vec<Point3<f64>> = ctl.iter().copied().map(Point3::from_array).collect();
-    let surf = NurbsSurface::new(ku, kv, points, w.to_vec()).ok()?;
+    let surf = NurbsSurface::new(ku, kv, points, w.to_vec())
+        .unwrap_or_else(|e| panic!("{note}: the net must build: {e:?}"));
     let s: Surface<f64> = Surface::Nurbs(std::sync::Arc::new(surf));
     let i = geom_brep::chart_stretch_inf(&s);
     if !(i.inf_u > 1e-6 && i.inf_v > 1e-6) {
@@ -267,6 +269,11 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
 /// carry two obligations of which only one is safe to cut. So the floor
 /// lives here, on charts a reader can see, and the search next door
 /// carries none.
+///
+/// The rational charts' weights spread `1.6×` (each `1 + t·(w − 1)`
+/// of a steeper original); the inf floors (the quotient bound on each
+/// cell's dyadic pieces) enter them at `4×` and `8×` too
+/// (`probe_rational_charts_enter_at_wide_spreads`).
 /// A written chart: its tag, the 3x3 control net, and the nine
 /// weights.
 type WrittenChart = (&'static str, [[f64; 3]; 9], [f64; 9]);
@@ -315,7 +322,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.0],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.8986, 1.0, 1.2027, 1.0, 0.8784, 1.0, 1.4054, 1.0],
     ),
     (
         "bowed-rational",
@@ -330,7 +337,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.3],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.8986, 1.0, 1.2027, 1.0, 0.8784, 1.0, 1.4054, 1.0],
     ),
     (
         // Sheared, so u and v are not orthogonal anywhere: this is the
@@ -347,7 +354,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.7, 1.4, 0.1],
             [3.4, 2.4, 0.0],
         ],
-        [1.0, 0.8, 1.0, 1.6, 1.0, 0.6, 1.0, 2.2, 1.0],
+        [1.0, 0.9348, 1.0, 1.1957, 1.0, 0.8696, 1.0, 1.3913, 1.0],
     ),
 ];
 
@@ -363,6 +370,125 @@ fn probe_written_charts_never_break_the_certified_arms() {
             });
         println!("written chart {tag}: worst contraction ratio {worst}");
     }
+}
+
+/// `w` steepened to the weight spread `spread`: each `1 + k·(w − 1)`,
+/// with `k` the factor that puts the greatest weight `spread` times the
+/// least. Every weight stays positive at any spread.
+fn spread_to(w: &[f64; 9], spread: f64) -> [f64; 9] {
+    let (lo, hi) = w
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), x| {
+            (a.min(x - 1.0), b.max(x - 1.0))
+        });
+    let k = (spread - 1.0) / (hi - spread * lo);
+    w.map(|x| 1.0 + k * (x - 1.0))
+}
+
+/// The least `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖` of `s` sampled on a
+/// `41²` grid, boundary included: at least the true minima, to `ders`'
+/// rounding.
+fn sampled_least(s: &geom::NurbsSurface<f64>) -> [f64; 3] {
+    let mut least = [f64::INFINITY; 3];
+    for a in 0..=40 {
+        for b in 0..=40 {
+            let jet = s.ders(f64::from(a) / 40.0, f64::from(b) / 40.0);
+            for (l, x) in
+                least
+                    .iter_mut()
+                    .zip([jet.du.norm(), jet.dv.norm(), jet.du.cross(jet.dv).norm()])
+            {
+                *l = l.min(x);
+            }
+        }
+    }
+    least
+}
+
+/// The share of the sampled least each floor must read at the wide
+/// spreads: the floors measured at `0.92` of it or more on these nets
+/// (`geom`'s `STRETCH_PIECE_SPLITS` docs), with margin.
+const SHARE: f64 = 0.85;
+
+/// **The written rational nets enter at wide weight spreads.** The
+/// three rational charts with their weights steepened to `4×` and `8×`
+/// (from the witness set's `1.6×`): every floor reads at least
+/// [`SHARE`] of the sampled least, the assembly enters, and
+/// [`check_certified_arms`] holds every floor below the sampled truth. The pair-term floor this statement replaced
+/// refused all three from about `1.7×`
+/// (`work/nurbs/rational-inf-floor-reach-refines-before-reading.md`).
+#[test]
+fn probe_rational_charts_enter_at_wide_spreads() {
+    for spread in [4.0, 8.0] {
+        for (tag, ctl, w) in &WRITTEN_CHARTS[2..] {
+            let w = spread_to(w, spread);
+            let note = format!("{tag} at {spread}x");
+            let surf = geom::NurbsSurface::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                ctl.iter()
+                    .copied()
+                    .map(geom_core::Point3::from_array)
+                    .collect(),
+                w.to_vec(),
+            )
+            .unwrap_or_else(|e| panic!("{note}: the net must build: {e:?}"));
+            let truth = sampled_least(&surf);
+            let i = geom_brep::chart_stretch_inf(&Surface::Nurbs(std::sync::Arc::new(surf)));
+            for (which, floor, t) in [
+                ("inf_u", i.inf_u, truth[0]),
+                ("inf_v", i.inf_v, truth[1]),
+                ("area_inf", i.area_inf, truth[2]),
+            ] {
+                assert!(
+                    floor >= SHARE * t,
+                    "{note}: {which} {floor} is below {SHARE} of the sampled least {t}"
+                );
+            }
+            assert!(
+                check_certified_arms(ctl, &w, &note).is_some(),
+                "{note}: the assembly must enter"
+            );
+        }
+    }
+}
+
+/// **A folding chart refuses.** The flat rational net with its middle
+/// `u` row pulled past the last (`x = 0, 2, 1`): `S_u` reverses along
+/// `u`, so its true least norm and the area element's are zero, and
+/// every positive floor would be unsound. Both floors read exactly
+/// zero and the assembly refuses.
+#[test]
+fn probe_a_folding_chart_refuses() {
+    let (_, flat, w) = &WRITTEN_CHARTS[2];
+    let ctl: [[f64; 3]; 9] = core::array::from_fn(|k| {
+        let [x, y, z] = flat[k];
+        [[0.0, 2.0, 1.0][x as usize], y, z]
+    });
+    let surf = geom::NurbsSurface::new(
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        ctl.iter()
+            .copied()
+            .map(geom_core::Point3::from_array)
+            .collect(),
+        w.to_vec(),
+    )
+    .unwrap();
+    let i = geom_brep::chart_stretch_inf(&Surface::Nurbs(std::sync::Arc::new(surf)));
+    assert!(
+        i.inf_u == 0.0 && i.area_inf == 0.0 && i.inf_v > 0.0,
+        "a folding chart floors ({}, {}, {})",
+        i.inf_u,
+        i.inf_v,
+        i.area_inf
+    );
+    assert!(
+        check_certified_arms(&ctl, w, "folding chart").is_none(),
+        "a folding chart must refuse the arms"
+    );
 }
 
 /// **Randomised soundness hunt for the inf-arm assembly.** Build

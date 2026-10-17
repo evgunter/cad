@@ -166,4 +166,55 @@ mod tests {
             "a weight frozen at θ₀ moved with θ: off the θ₁ arc by {off}"
         );
     }
+
+    /// **The pin through the carrier**: the held arc's knots, control
+    /// and weights handed to a `NurbsCurve2` at `Sym`, whose point
+    /// re-values with `θ` to the point a `θ₁` carrier computes, bit for
+    /// bit. The same carrier with its weights entered as `f64`
+    /// constants (`from_f64` of the value channel: the stored weight
+    /// before `nurbs-weights-and-knots-are-the-scalar`) re-values off
+    /// the `θ₁` arc.
+    #[test]
+    fn a_point_of_a_carrier_holding_the_arc_re_values_with_its_angle() {
+        use crate::NurbsCurve2;
+        let (t0, t1) = (1.9, 2.6);
+        let m = NonZeroUsize::new(3).unwrap();
+        let ((held, frozen), _) = with_session(budget(), || {
+            let theta = S::param(ParamSymbol::new(THETA), t0);
+            let arc = HeldArc::new(S::from_f64(1.5), theta, m).unwrap();
+            let carrier =
+                NurbsCurve2::new(arc.knots.clone(), arc.control.clone(), arc.weights.clone())
+                    .unwrap();
+            let frozen = NurbsCurve2::new(
+                arc.knots.clone(),
+                arc.control.clone(),
+                carrier
+                    .weight_channel()
+                    .iter()
+                    .map(|w| S::from_f64(*w))
+                    .collect(),
+            )
+            .unwrap();
+            let t = S::from_f64(0.45);
+            let env = |s: ParamSymbol| (s == ParamSymbol::new(THETA)).then_some(t1);
+            let re = |p: Point2<S>| (revalue(p.x.node(), &env), revalue(p.y.node(), &env));
+            (re(carrier.eval(t)), re(frozen.eval(t)))
+        });
+        let arc = HeldArc::new(1.5, t1, m).unwrap();
+        let want = NurbsCurve2::new(arc.knots, arc.control, arc.weights)
+            .unwrap()
+            .eval(0.45);
+        let bits = |(x, y): (Option<f64>, Option<f64>)| (x.map(f64::to_bits), y.map(f64::to_bits));
+        assert_eq!(
+            bits(held),
+            (Some(want.x.to_bits()), Some(want.y.to_bits())),
+            "the carrier re-valued at θ₁ is the θ₁ carrier"
+        );
+        let (fx, fy) = frozen;
+        let off = (fx.unwrap() - want.x).hypot(fy.unwrap() - want.y);
+        assert!(
+            off > 1e-6,
+            "a carrier's weight frozen at θ₀ moved with θ: off by {off}"
+        );
+    }
 }

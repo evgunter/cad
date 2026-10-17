@@ -28,7 +28,9 @@ use crate::real::Real;
 pub struct Knots<T> {
     structure: KnotVector,
     /// One per knot of `structure`: each breakpoint's value copied
-    /// across its run, so the run is one quantity.
+    /// across its run, so the run is one quantity. A vector converted at
+    /// `f64` ([`From<KnotVector>`]) keeps its own knots bit for bit, so
+    /// its run copies agree on `==` and may differ in a zero's sign.
     values: Vec<T>,
 }
 
@@ -261,6 +263,15 @@ impl<T: Real> Knots<T> {
         })
     }
 
+    /// The parameter domain as held: the end runs' values at the
+    /// indices [`KnotVector::domain`] reads (`p` and `n − 1 − p`), so
+    /// at `f64` it is that door's pair bit for bit, a clamp run that
+    /// mixes `-0.0` and `0.0` included.
+    pub fn domain(&self) -> (T, T) {
+        let (n, p) = (self.values.len(), self.structure.degree());
+        (self.values[p], self.values[n - 1 - p])
+    }
+
     /// The held value of the breakpoint whose value channel is `v`
     /// (bit-equal), or `None` when no breakpoint reads as `v`.
     pub fn value_at(&self, v: f64) -> Option<T> {
@@ -456,6 +467,28 @@ mod tests {
             Knots::from(kv).on_domain(1.0, 1.0),
             Err(SplineError::DomainInvalid { .. })
         ));
+    }
+
+    /// `domain` is `KnotVector::domain` bit for bit at `f64`, a clamp
+    /// run that mixes `-0.0` and `0.0` included (the vector reads its
+    /// ends at `p` and `n − 1 − p`, and a converted vector keeps its own
+    /// bits).
+    #[test]
+    fn the_held_domain_is_the_vectors_at_f64_signed_zeros_included() {
+        for knots in [
+            vec![-0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            vec![0.0, -0.0, -0.0, 0.5, 2.0, 2.0, 2.0],
+            vec![-1.0, -1.0, -1.0, -0.0, -0.0, -0.0],
+        ] {
+            let kv = KnotVector::clamped(knots.clone(), 2).unwrap();
+            let (a, b) = kv.domain();
+            let (ha, hb) = Knots::from(kv).domain();
+            assert_eq!(
+                (ha.to_bits(), hb.to_bits()),
+                (a.to_bits(), b.to_bits()),
+                "{knots:?}"
+            );
+        }
     }
 
     #[test]

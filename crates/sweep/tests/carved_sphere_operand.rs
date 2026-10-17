@@ -12,7 +12,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{brick, finished, revolved_about_y};
 use topo::{AtRestBody, BooleanOp, SolidContainment, point_in_solid};
@@ -24,7 +24,12 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    let b = topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the ball", b, Tol::witness())
 }
 
@@ -427,7 +432,8 @@ fn the_lens_union_classifies_points_at_the_interval_scalar() {
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
         finished(
             "the ball",
-            topo::transform_rigid(&b, &Affine3::translation(to), tol).unwrap(),
+            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap(), tol)
+                .unwrap(),
             tol,
         )
     };

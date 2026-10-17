@@ -318,7 +318,6 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         doc,
         Node::Union {
             members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
-            declare: Vec::new(),
         },
         tol,
     );
@@ -327,7 +326,6 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         Node::Subtract {
             from: cube.into(),
             tool: tool.into(),
-            declare: Vec::new(),
         },
         tol,
     )

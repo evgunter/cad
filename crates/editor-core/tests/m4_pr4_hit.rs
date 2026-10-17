@@ -167,12 +167,10 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             },
         )
     };
-    let decl = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl,
         },
     );
     // Split the union.
@@ -259,7 +257,6 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

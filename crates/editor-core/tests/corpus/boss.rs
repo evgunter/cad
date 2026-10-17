@@ -61,7 +61,6 @@ pub fn document() -> CorpusDoc {
 
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-        declare: Vec::new(),
     });
 
     r.place(union);

@@ -48,7 +48,8 @@ placement step, an assertion's value and its bound — holds a read, one
 variable id, or a list of reads (a union's or intersect's `Bodies`
 spelled as its members, a placement's shapes: REFERENCES DM4), and
 nothing else; a read of a family carries one `Count` expression per
-index, each such a slot (REFERENCES DM3). A slot showing `w * 2` holds
+index, each such a slot (REFERENCES DM3), and a read of a finer pose
+at a coarser slot carries the role it is read through (D10). A slot showing `w * 2` holds
 an anonymous defined variable; a slot showing `5 mm` an anonymous free
 one. Formulas have one home: definitions, arithmetic over measured
 values included.

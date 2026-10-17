@@ -301,6 +301,8 @@ fn inward(end: ChartEnd) -> f64 {
 pub(crate) struct Pass<'a> {
     /// The wall.
     pub wall: &'a NurbsSurface<f64>,
+    /// Its chart enclosures over its own cells, read for the whole pass.
+    pub boxes: &'a NurbsBoxes<'a, f64>,
     /// Its chart speeds.
     pub speeds: ChartSpeeds,
     /// The plane.
@@ -376,7 +378,7 @@ impl Pass<'_> {
 
     /// The plane distance's partials over a chart rectangle.
     fn partials(&self, r: UvRect) -> (Interval, Interval) {
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         let n = [
             self.plane.normal.x,
             self.plane.normal.y,
@@ -521,7 +523,7 @@ impl Pass<'_> {
                 }
             }
             match side_cover(
-                &NurbsBoxes::new(self.wall),
+                self.boxes,
                 self.plane.normal_interval(),
                 (side, domain),
                 strip,
@@ -610,7 +612,7 @@ impl Pass<'_> {
         }
         let ((u0, u1), (v0, v1)) = self.domain();
         let mag = magnitude(phi);
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         for &pad in &rungs[first..] {
             let cell = self.corner_cell(corner, pad);
             let (pu, pv) = self.partials(cell);
@@ -864,7 +866,7 @@ impl Pass<'_> {
                 let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| c.holds(point)) {
                     continue;
                 }
                 if !in_start {
@@ -883,7 +885,7 @@ impl Pass<'_> {
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
-                if regions.iter().any(|r| holds(*r, point)) {
+                if regions.iter().any(|r| r.holds(point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at: its two
@@ -1259,11 +1261,6 @@ fn strip_reach<T: CertifiedBounds>(
         }
     }
     best
-}
-
-/// Whether a chart point lies in a rectangle.
-fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
-    u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
 }
 
 /// The graze refusal at `side` where the slope along it is not

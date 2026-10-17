@@ -68,7 +68,7 @@ use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
-use crate::pickcache::{self, PickCache};
+use crate::pickcache::{self, IndexSeam, PickCache};
 use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
@@ -731,6 +731,27 @@ fn fitter() -> Result<Box<dyn FitService>, StartupError> {
     }
 }
 
+/// The coincidence door's seam this build runs on — [`evaluator`]'s
+/// choice again, for its reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every landing's checks would otherwise read their
+/// door pending forever.
+fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadProver::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineProver::new()))
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -834,7 +855,7 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
-        let mut session = DocSession::new(document, tol, evaluator()?);
+        let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -919,17 +940,15 @@ impl ViewerApp {
     }
 
     /// **The one wait the toolbar names**, read from the session and
-    /// the two seams behind the picture.
+    /// the index seam ([`PickCache::index_seam`], which reads the fit
+    /// the build waits on as well as the build).
     ///
     /// **The spinner follows the work, never the name**
-    /// (`frame::Progress::Canceled`). A fit in flight is the index
-    /// build's first step from a user's seat — nothing is on screen for
-    /// it, the build follows it with no gap, and the one progress state
-    /// is what says a picture is coming.
+    /// (`frame::Progress::Canceled`).
     fn progress(&self) -> Option<frame::Progress> {
         frame::progress(
             self.session.outstanding(),
-            self.picks.indexing() || self.fit.busy(),
+            self.picks.index_seam(self.fit.as_ref()),
         )
     }
 
@@ -1163,7 +1182,7 @@ impl ViewerApp {
     /// **Not one assignment per op.** A frame queues several ops and
     /// several of them can refuse; assigning `status` from each in turn
     /// keeps the LAST, which is how dragging a driven slot came to
-    /// display `NoGesture` instead of the ratified affordance —
+    /// display `NoGesture` instead of the ratified affordance (G4) —
     /// `BeginGesture` refuses with the affordance and the same frame's
     /// `PreviewGesture` refuses `NoGesture` on top of it. `Refusal`
     /// ranks itself; this keeps the best-ranked, first-seen one, and
@@ -1305,7 +1324,7 @@ impl ViewerApp {
         // `prefs::Unusable::refusal` — the same sentence, once per
         // switch, on the channel that carries one frame's news, which
         // is the misclassification Ev ruled on for the absent file
-        // chooser. Nothing is discarded here because nothing is
+        // chooser (#2275, 2026-09-10). Nothing is discarded here because nothing is
         // attempted.
         if self.store.unusable().is_some() {
             return;
@@ -1457,7 +1476,7 @@ impl ViewerApp {
                         ui.label("nothing has been checked yet");
                     }
                     Some((report, (landed, _))) => {
-                        if report.findings.is_empty() {
+                        if report.findings.is_empty() && report.pending.is_empty() {
                             ui.label("checks: no findings");
                         }
                         for row in frame::check_rows(report, landed) {
@@ -1481,6 +1500,15 @@ impl ViewerApp {
                                     ops.push(SessionOp::Select(select));
                                 }
                             }
+                        }
+                        if let Some(line) = frame::pending_line(report) {
+                            ui.separator();
+                            crate::widgets::message_toned(
+                                ui,
+                                line,
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
                         }
                         if !report.skipped.is_empty() {
                             ui.separator();
@@ -1695,7 +1723,8 @@ impl ViewerApp {
                     // collect it.
                     ui.ctx().request_repaint();
                 }
-                Some(frame::Progress::Canceled { indexing }) => {
+                Some(frame::Progress::Canceled { index }) => {
+                    let indexing = index == IndexSeam::Building;
                     ui.separator();
                     // The recourse is UNCONDITIONAL: the cancel is
                     // what the reader has to act on, and an index
@@ -1730,6 +1759,13 @@ impl ViewerApp {
                     ui.ctx().request_repaint();
                 }
                 None => {}
+            }
+            // The door's answer is a background result too; it changes
+            // the Checks window and its badge, not the picture, so a
+            // slower wake than a spinner's is enough.
+            if self.session.proving() {
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(250));
             }
             // **The reads, one draw each.** Each is a function of
             // the typed value it reads — including its silence,
@@ -1975,7 +2011,7 @@ impl eframe::App for ViewerApp {
                     scene: &self.scene,
                     index: self.picks.index(),
                     scene_key: self.scene_key,
-                    indexing: self.picks.indexing(),
+                    indexing: self.picks.index_seam(self.fit.as_ref()),
                     revision: self.revision,
                     camera: &mut self.camera,
                     input: self.input,
@@ -2048,7 +2084,7 @@ impl eframe::App for ViewerApp {
 
         // The open tool consumes the selection vocabulary: a pick this
         // frame produced is ALSO held as a tool pick (the
-        // two-sequential-picks ruling — the same single-select value,
+        // GUI plan's two-sequential-picks ruling — the same single-select value,
         // copied into tool state). Which vocabulary each tool reads is
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
         // back as a notice through the same door as a survival drop.
@@ -2098,13 +2134,13 @@ pub(crate) struct ViewerBehavior<'a> {
     /// scene_key`), for the reads of `index` that are about the
     /// PICTURE rather than about the document.
     pub(crate) scene_key: Option<PictureKey>,
-    /// Whether a build for the picture this frame WANTS is under way —
-    /// the other half of what `index: None` means, and the half that
+    /// Whether an index for the picture this frame WANTS is on its way
+    /// — the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
-    /// ([`crate::pickcache::NotIndexed`]). Carried as a value rather than re-derived
-    /// from the session, because "someone is building one" is the pick
-    /// cache's answer and nothing else's.
-    pub(crate) indexing: bool,
+    /// ([`crate::pickcache::NotIndexed`]). The same value the toolbar's
+    /// progress state reads, from the same door, so a click and the
+    /// spinner cannot describe one wait two ways.
+    pub(crate) indexing: IndexSeam,
     pub(crate) revision: u64,
     pub(crate) camera: &'a mut Camera,
     pub(crate) input: InputMap,
@@ -2686,6 +2722,8 @@ mod tests {
         /// Where the sentence [`toolbar_drawn`] looked for landed, one
         /// rect per line, empty when it was given none.
         status: Vec<egui::Rect>,
+        /// Every text run the second frame painted, in paint order.
+        painted: Vec<String>,
         /// The clip rect that sentence was painted under: the part of
         /// a line outside it is not on screen.
         status_clip: egui::Rect,
@@ -2766,6 +2804,7 @@ mod tests {
             available: f32::NAN,
             panel: egui::Rect::NOTHING,
             status: Vec::new(),
+            painted: Vec::new(),
             status_clip: egui::Rect::NOTHING,
             rule_right: f32::NEG_INFINITY,
             floor: f32::NAN,
@@ -2804,11 +2843,10 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
-            let landed = sentence.and_then(|text| {
-                crate::pane::headless::landed_in(&output.shapes)
-                    .into_iter()
-                    .find(|landed| landed.text == text)
-            });
+            let painted = crate::pane::headless::landed_in(&output.shapes);
+            row.painted = painted.iter().map(|landed| landed.text.clone()).collect();
+            let landed =
+                sentence.and_then(|text| painted.into_iter().find(|landed| landed.text == text));
             let panel = row.panel;
             row.rule_right = output
                 .shapes
@@ -2858,6 +2896,109 @@ mod tests {
             },
             Some(CANCELED_LINE),
         )
+    }
+
+    /// **What the toolbar draws for each progress state**, planted
+    /// through the reads it takes them from: the session's
+    /// [`crate::session::Outstanding`] and the index seam, whose
+    /// building state is planted as a fit in flight — the one the
+    /// cache's own record cannot see.
+    ///
+    /// The spinner is not text and is not read here; what is asserted
+    /// is the words and the recourse beside them, in paint order.
+    #[test]
+    fn the_toolbar_draws_each_progress_state_once() {
+        use crate::evalseam::{FitService, InlineFitter};
+        use crate::pickcache::IndexSeam;
+        use crate::session::{DocSession, Outstanding};
+
+        const WORDS: [&str; 5] = [
+            "evaluating…",
+            "Cancel",
+            CANCELED_LINE,
+            "Re-evaluate",
+            "indexing…",
+        ];
+        let tol = pncad::tolerance::witness();
+        let session = |outstanding: Outstanding| {
+            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let mut session = DocSession::inline(document, tol);
+            session.pump();
+            match outstanding {
+                Outstanding::Current => {}
+                Outstanding::Evaluating => {
+                    session.perform(SessionOp::Reevaluate);
+                }
+                Outstanding::Canceled => {
+                    session.perform(SessionOp::Reevaluate);
+                    session.perform(SessionOp::CancelEvaluation);
+                    session.pump();
+                }
+            }
+            assert_eq!(
+                session.outstanding(),
+                outstanding,
+                "the fixture plants {outstanding:?}"
+            );
+            session
+        };
+        let drawn = |outstanding: Outstanding, index: IndexSeam| {
+            let row = toolbar_drawn(
+                UNBOUNDED,
+                |app| {
+                    app.session = session(outstanding);
+                    let mut fit = InlineFitter::new();
+                    if index == IndexSeam::Building {
+                        fit.submit(
+                            app.session
+                                .fit_request(app.delta)
+                                .expect("a landed plate has a body to fit"),
+                        );
+                    }
+                    app.fit = Box::new(fit);
+                    assert_eq!(
+                        app.picks.index_seam(app.fit.as_ref()),
+                        index,
+                        "the fixture plants {index:?}"
+                    );
+                },
+                None,
+            );
+            row.painted
+                .into_iter()
+                .filter(|text| WORDS.contains(&text.as_str()))
+                .collect::<Vec<_>>()
+        };
+        for (outstanding, index, expected) in [
+            (Outstanding::Current, IndexSeam::Idle, vec![]),
+            (Outstanding::Current, IndexSeam::Building, vec!["indexing…"]),
+            (
+                Outstanding::Evaluating,
+                IndexSeam::Idle,
+                vec!["evaluating…", "Cancel"],
+            ),
+            (
+                Outstanding::Evaluating,
+                IndexSeam::Building,
+                vec!["evaluating…", "Cancel"],
+            ),
+            (
+                Outstanding::Canceled,
+                IndexSeam::Idle,
+                vec![CANCELED_LINE, "Re-evaluate"],
+            ),
+            (
+                Outstanding::Canceled,
+                IndexSeam::Building,
+                vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+        ] {
+            assert_eq!(
+                drawn(outstanding, index),
+                expected,
+                "the toolbar over {outstanding:?} with the index seam {index:?}"
+            );
+        }
     }
 
     /// **The canceled line wraps whole**: at the row's own left edge,
@@ -3542,21 +3683,23 @@ mod properties_pane_tests {
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
 
-    /// **One frame of the real app**, at a 1600 by 1000 window, with
+    /// The window every whole-app row here is drawn in unless it needs
+    /// a taller one.
+    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
+
+    /// **One frame of the real app**, in a `window`-sized window, with
     /// `time` and `events` as its input: every text run it painted and
     /// where. The one frame body every whole-app row here draws with.
-    fn app_frame(
+    pub(super) fn app_frame(
         ctx: &egui::Context,
         app: &mut ViewerApp,
         frame: &mut eframe::Frame,
+        window: egui::Vec2,
         time: Option<f64>,
         events: Vec<egui::Event>,
     ) -> Vec<crate::pane::headless::Landed> {
         let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1600.0, 1000.0),
-            )),
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, window)),
             time,
             events,
             ..Default::default()
@@ -3568,6 +3711,87 @@ mod properties_pane_tests {
         // dropped rather than uploaded.
         output.textures_delta.clear();
         crate::pane::headless::landed_in(&output.shapes)
+    }
+
+    /// How many frames [`settle`] paints before it calls the app stuck.
+    const SETTLE_FRAMES: usize = 3000;
+
+    /// Whether the index attempt for the picture on screen is
+    /// answered: an index held, or its refusal. One that is neither is
+    /// one `sync` has not asked for yet.
+    pub(super) fn index_answered(app: &ViewerApp) -> bool {
+        app.picks.index().is_some() || app.picks.error().is_some()
+    }
+
+    /// **Nothing the toolbar's progress read names can change before
+    /// the next op**: no wait is outstanding (so the document landed
+    /// and its evaluation is current), and the index attempt is
+    /// answered.
+    pub(super) fn quiescent(app: &ViewerApp) -> bool {
+        app.progress().is_none() && index_answered(app)
+    }
+
+    /// **Paint until `until` holds of the app**, and answer the first
+    /// frame painted in that state. Most rows wait for
+    /// [`quiescent`]; a row whose fixture keeps a wait open on purpose
+    /// names what it waits for instead.
+    ///
+    /// The evaluation, the display fit and the index build run on
+    /// worker threads, so a fixed number of frames catches whichever
+    /// phase the scheduler reached. Everything `until` reads moves only
+    /// inside a frame (the session's and the seams' `pump`/`poll` at
+    /// its top, the cache's `sync`, an op's submit in the batch at its
+    /// end), so a frame read as settled afterwards painted that state.
+    ///
+    /// # Panics
+    ///
+    /// When [`SETTLE_FRAMES`] frames go by without `until` holding.
+    pub(super) fn settle<T>(
+        app: &mut ViewerApp,
+        until: impl Fn(&ViewerApp) -> bool,
+        mut paint: impl FnMut(&mut ViewerApp) -> T,
+    ) -> T {
+        for _ in 0..SETTLE_FRAMES {
+            let painted = paint(app);
+            if until(app) {
+                return painted;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!(
+            "the app did not settle in {SETTLE_FRAMES} frames: progress {:?}, index held {}, \
+             refusal held {}",
+            app.progress(),
+            app.picks.index().is_some(),
+            app.picks.error().is_some(),
+        );
+    }
+
+    /// **The wait answers a frame that paints nothing outstanding.**
+    /// The startup evaluation, the display fit and the index build
+    /// each run on a worker, and the toolbar says each while it runs.
+    /// A wait that stopped at the landing answers the landing frame,
+    /// whose fit was submitted in that same frame, so it paints
+    /// `indexing…`; one that stopped after a fixed count paints
+    /// whichever phase the scheduler reached.
+    #[test]
+    fn the_wait_answers_a_frame_with_nothing_outstanding() {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        let mut frame = eframe::Frame::_new_kittest();
+        let painted: Vec<String> = settle(&mut app, quiescent, |app| {
+            app_frame(&ctx, app, &mut frame, WINDOW, None, Vec::new())
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect()
+        });
+        for word in ["evaluating…", "Cancel", "indexing…"] {
+            assert!(
+                !painted.iter().any(|text| text == word),
+                "{word:?} in a settled frame: {painted:?}"
+            );
+        }
     }
 
     /// Every text the app painted with `selection` made, once it has
@@ -3618,24 +3842,13 @@ mod properties_pane_tests {
             .expect("startup that needs no graphics device");
         let mut frame = eframe::Frame::_new_kittest();
         let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
-            app_frame(&ctx, app, &mut frame, None, events)
+            app_frame(&ctx, app, &mut frame, WINDOW, None, events)
         };
         // The startup document's body is its extrude (`plate_with_hole`).
         let body = extrude();
         app.tools.open(tool);
         clicked(&mut app, picks(body));
-        let mut landed = Vec::new();
-        for _ in 0..3000 {
-            landed = paint(&mut app, Vec::new());
-            if app.session.landed_pair().is_some() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        assert!(
-            app.session.landed_pair().is_some(),
-            "the startup document lands"
-        );
+        let landed = settle(&mut app, quiescent, |app| paint(app, Vec::new()));
         if let Some(section) = section_of(tool) {
             let at = landed
                 .iter()
@@ -3729,7 +3942,9 @@ mod properties_pane_tests {
     #[test]
     fn an_undeclared_variable_is_said_once_in_the_pane() {
         let var = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
-        let verdict = format!("{var} is no longer declared");
+        let verdict = crate::session::Refusal::undeclared_wording(
+            &pncad::document::SpokenVar::new(var, None),
+        );
         let mut with = painted_with(Selection::Variable(var));
         let mut without = painted_with(Selection::None);
         assert!(
@@ -3737,7 +3952,7 @@ mod properties_pane_tests {
             "the properties pane is drawn in this frame: {without:?}"
         );
         without.retain(|text| text != "select a feature");
-        without.push(verdict.to_owned());
+        without.push(verdict);
         with.sort();
         without.sort();
         assert_eq!(with, without);
@@ -3788,50 +4003,57 @@ mod properties_pane_tests {
 
         /// One frame of the real app with `events` delivered.
         fn frame(&mut self, events: Vec<egui::Event>) -> Vec<(String, egui::Rect)> {
-            self.time += 1.0;
-            let time = Some(self.time);
             let Self {
-                ctx, app, frame, ..
+                ctx,
+                app,
+                frame,
+                time,
             } = self;
-            app_frame(ctx, app, frame, time, events)
+            Self::drawn(ctx, app, frame, time, events)
+        }
+
+        /// [`Self::frame`]'s body, over the fields [`Self::settled`]
+        /// holds apart.
+        fn drawn(
+            ctx: &egui::Context,
+            app: &mut ViewerApp,
+            frame: &mut eframe::Frame,
+            time: &mut f64,
+            events: Vec<egui::Event>,
+        ) -> Vec<(String, egui::Rect)> {
+            *time += 1.0;
+            app_frame(ctx, app, frame, WINDOW, Some(*time), events)
                 .into_iter()
                 .map(|landed| (landed.text, landed.allocated))
                 .collect()
         }
 
-        /// **Nothing the toolbar's progress read names can change
-        /// before the next op**: no wait is outstanding, and the index
-        /// attempt for the picture on screen is answered.
-        ///
-        /// Every input to it moves only inside a frame (the session's
-        /// and the two seams' `pump`/`poll`, then the cache's `sync`),
-        /// so read after one it holds until something submits, and
-        /// only an op or a new δ does. An index that is neither held
-        /// nor refused is one `sync` forgot or has not asked for yet.
-        fn settled(&self) -> bool {
-            let picks = &self.app.picks;
-            self.app.progress().is_none() && (picks.index().is_some() || picks.error().is_some())
+        /// Frames until `until` holds ([`settle`]), each moving the
+        /// pointer to `pointer` if there is one; answers the settled
+        /// frame.
+        fn settled(
+            &mut self,
+            until: impl Fn(&ViewerApp) -> bool,
+            pointer: Option<egui::Pos2>,
+        ) -> Vec<(String, egui::Rect)> {
+            let Self {
+                ctx,
+                app,
+                frame,
+                time,
+            } = self;
+            settle(app, until, |app| {
+                let events = pointer.map(egui::Event::PointerMoved).into_iter().collect();
+                Self::drawn(ctx, app, frame, time, events)
+            })
         }
 
-        /// Quiet frames until [`Self::settled`].
+        /// Quiet frames until the app is [`quiescent`].
         fn settle(&mut self) {
-            for _ in 0..3000 {
-                self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
-                if self.settled() {
-                    return;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            let picks = &self.app.picks;
-            panic!(
-                "the app did not settle in 30 s: progress {:?}, index held {}, refusal held {}",
-                self.app.progress(),
-                picks.index().is_some(),
-                picks.error().is_some(),
-            );
+            self.settled(quiescent, Some(Self::ELSEWHERE));
         }
 
-        /// The app once [`Self::settled`], in two frames with the
+        /// The app once [`quiescent`], in two frames with the
         /// pointer parked away from everything: the second is what the
         /// app draws when nothing is hovered.
         fn quiet(&mut self) -> Vec<(String, egui::Rect)> {
@@ -3884,11 +4106,31 @@ mod properties_pane_tests {
             Self::gained(&quiet, hovered)
         }
 
-        /// Click the one run reading `text`, then draw a frame with
-        /// the pointer still on it.
+        /// Where each text run reading exactly `text` was painted on a
+        /// quiet frame, in paint order.
+        fn each(&mut self, text: &str) -> Vec<egui::Pos2> {
+            self.quiet()
+                .into_iter()
+                .filter(|(run, _)| run == text)
+                .map(|(_, rect)| rect.center())
+                .collect()
+        }
+
+        /// Click the one run reading `text`, found on the next frame,
+        /// then draw a frame with the pointer still on it.
+        ///
+        /// It does not wait: rows that hold a run open on purpose
+        /// ([`gated`]) click through it, so a row that needs the
+        /// picture settled first settles first.
         fn click(&mut self, text: &str) {
             let painted = self.frame(Vec::new());
             let at = Self::only(&painted, text);
+            self.click_at(at);
+        }
+
+        /// Click at `at`, then draw a frame with the pointer still on
+        /// it.
+        fn click_at(&mut self, at: egui::Pos2) {
             let press = |pressed| egui::Event::PointerButton {
                 pos: at,
                 button: egui::PointerButton::Primary,
@@ -3900,10 +4142,10 @@ mod properties_pane_tests {
             self.frame(Vec::new());
         }
 
-        /// One quiet frame, with where each run landed and the clip
-        /// it was painted under.
+        /// One quiet frame once the app is [`quiescent`], with where
+        /// each run landed and the clip it was painted under.
         fn landed(&mut self) -> Vec<crate::pane::headless::Landed> {
-            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            self.settle();
             self.time += 1.0;
             let time = Some(self.time);
             let Self {
@@ -3913,6 +4155,7 @@ mod properties_pane_tests {
                 ctx,
                 app,
                 frame,
+                WINDOW,
                 time,
                 vec![egui::Event::PointerMoved(Self::ELSEWHERE)],
             )
@@ -4647,34 +4890,279 @@ mod properties_pane_tests {
         assert_eq!(now, before);
     }
 
+    /// A session over two instances of one part, and the two instance
+    /// ids in document order: placed in the world through one union
+    /// when `fused`, each placed on its own otherwise. Also the union's
+    /// id, when there is one.
+    ///
+    /// The part is never resolved: the display admission is a question
+    /// about the recipe's edges, so the rows fail to evaluate and the
+    /// tree draws them, with their checkboxes, all the same.
+    fn two_instances(
+        fused: bool,
+    ) -> (
+        crate::session::DocSession,
+        [RecipeNodeId; 2],
+        Option<RecipeNodeId>,
+    ) {
+        use pncad::document::{
+            Bodies, ContentPin, DocRef, DocumentId, Node, Placement, ProfileDoc,
+        };
+        let tol = pncad::tolerance::witness();
+        let part = DocRef {
+            id: DocumentId::derive("shown-part"),
+            pin: ContentPin::of_bytes(b"shown-part"),
+        };
+        let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
+        let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
+        let a = insert(&mut doc, Node::instantiate_part(part));
+        let b = insert(&mut doc, Node::instantiate_part(part));
+        let union = if fused {
+            let union = insert(
+                &mut doc,
+                Node::Union {
+                    members: Bodies::Spelled(vec![a.into(), b.into()]),
+                },
+            );
+            insert(&mut doc, Node::place_in_world(union, Placement::IDENTITY));
+            Some(union)
+        } else {
+            for instance in [a, b] {
+                insert(
+                    &mut doc,
+                    Node::place_in_world(instance, Placement::IDENTITY),
+                );
+            }
+            None
+        };
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        session.pump();
+        (session, [a, b], union)
+    }
+
+    /// **A fused instance's tree checkbox is drawn, cannot be flipped,
+    /// and says on hover what `SetInstanceHidden` would refuse with**
+    /// — the whole app, the real feature tree, each row read for its
+    /// own instance.
+    ///
+    /// The runtime value that makes it false is a checkbox gated on
+    /// anything weaker than the op's admission (the row's kind, which
+    /// a fused instance passes): hovered, it would say nothing, and
+    /// clicked it would push an op the session then refuses.
+    #[test]
+    fn a_fused_instances_tree_checkbox_is_disabled_with_the_refusal_it_would_get() {
+        let (session, ids, union) = two_instances(true);
+        let union = union.expect("the fused fixture has a union");
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
+        for (id, at) in ids.into_iter().zip(at) {
+            let said = pane
+                .app
+                .session
+                .instance_hidden_refusal(id)
+                .expect("SetInstanceHidden refuses a fused instance")
+                .to_string();
+            let quiet = pane.quiet();
+            assert_eq!(
+                Driven::gained(&quiet, pane.hovered(at)),
+                vec![said.clone()],
+                "the hover is the op's own sentence"
+            );
+            // Planted, not only compared with the one home: the words
+            // a reader gets, naming this row's instance.
+            let other = ids.into_iter().find(|&other| other != id).expect("two");
+            assert_eq!(
+                said,
+                format!(
+                    "InstantiatePart {}'s geometry is fused into Union {} together with \
+                     InstantiatePart {} — a display operation cannot address it separately",
+                    test_utils::refusal::tag(id.0.digest()),
+                    test_utils::refusal::tag(union.0.digest()),
+                    test_utils::refusal::tag(other.0.digest())
+                )
+            );
+            pane.click_at(at);
+            pane.quiet();
+            assert!(
+                pane.app.session.display().hidden().is_empty(),
+                "a refused checkbox hides nothing"
+            );
+            assert_eq!(status(&pane), None, "and pushes nothing the op refused");
+        }
+    }
+
+    /// **The same drive over two unfused instances: live, silent, and
+    /// the click hides its own row's instance** — the row that keeps
+    /// the one above from passing because the harness missed the
+    /// checkbox.
+    #[test]
+    fn an_addressable_instances_tree_checkbox_is_live_and_says_nothing() {
+        let (session, [a, _], _) = two_instances(false);
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
+        let quiet = pane.quiet();
+        assert!(Driven::gained(&quiet, pane.hovered(at[0])).is_empty());
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().hidden(),
+            &std::collections::BTreeSet::from([a])
+        );
+    }
+
+    /// **The startup document on an inline session, landed, with a
+    /// cap of its extrude selected** — and, where `stale`, the feature
+    /// that made the cap deleted and the run that would drop it
+    /// canceled, so the face still resolves against the landed run
+    /// while the committed document no longer holds its feature. Drawn
+    /// by the whole app; answers the feature the header's Delete names.
+    fn a_face_of_the_body(stale: bool) -> (Driven, RecipeNodeId) {
+        let tol = pncad::tolerance::witness();
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = crate::session::DocSession::inline(document, tol);
+        session.pump();
+        let face = cap_of(pncad::prelude::CapEnd::End);
+        let body = face.feature();
+        session.perform(SessionOp::Select(Selection::Face(face)));
+        if stale {
+            let deleted = session.perform(SessionOp::DeleteNode { node: body });
+            assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+            session.perform(SessionOp::CancelEvaluation);
+            session.pump();
+            assert!(
+                session.committed_doc().node(body).is_none(),
+                "the committed document dropped the body"
+            );
+            assert!(
+                session
+                    .landed_pair()
+                    .is_some_and(|(landed, _)| landed.node(body).is_some()),
+                "the landed run still holds it"
+            );
+        }
+        let ctx = egui::Context::default();
+        ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        app.session = session;
+        let mut pane = Driven {
+            ctx,
+            app,
+            frame: eframe::Frame::_new_kittest(),
+            time: 0.0,
+        };
+        pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        (pane, body)
+    }
+
+    /// **A face of a feature the committed document no longer holds
+    /// offers a Delete that is drawn, cannot be clicked, and says what
+    /// `DeleteNode` would refuse with** — the whole app, the real
+    /// pane, the feature dropped through the real door.
+    ///
+    /// The runtime value that makes it false is a button gated on the
+    /// landed run rather than on the document the op reads: hovered,
+    /// it would say nothing, and clicked it would push a delete the
+    /// edit door then refuses onto the status line.
+    ///
+    /// **It waits for the pick index, not for [`quiescent`].** The
+    /// fixture cancels a run, so the session stays
+    /// `Outstanding::Canceled` and the app never reaches "nothing
+    /// outstanding". Nothing is running behind the cancel, though, so
+    /// once the index attempt for the picture on screen is answered no
+    /// worker is left to change the frame.
+    #[test]
+    fn a_stale_faces_delete_is_disabled_with_the_refusal_it_would_get() {
+        let (mut pane, body) = a_face_of_the_body(true);
+        let label = pane.app.session.delete_affordance(body).label;
+        pane.settled(index_answered, Some(Driven::ELSEWHERE));
+        pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let quiet = pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let hovered = pane.hovered(Driven::only(&quiet, &label));
+        let gained = Driven::gained(&quiet, hovered);
+        let said = pane
+            .app
+            .session
+            .delete_refusal(body)
+            .expect("DeleteNode refuses a node the committed document does not hold")
+            .to_string();
+        assert_eq!(
+            gained,
+            vec![said.clone()],
+            "the hover is the op's own sentence"
+        );
+        // Planted: the words a reader gets for this row.
+        assert_eq!(
+            said,
+            format!(
+                "the edit was refused: node {} is not live. \
+                 Recourse: aim the edit at a node the document holds",
+                test_utils::refusal::tag(body.0.digest())
+            )
+        );
+        let before = status(&pane);
+        pane.click(&label);
+        assert_eq!(status(&pane), before, "a disabled button pushes nothing");
+        // The gate and the door, one answer.
+        let refused = pane
+            .app
+            .session
+            .perform(SessionOp::DeleteNode { node: body })
+            .refusal
+            .map(|refusal| refusal.to_string());
+        assert_eq!(refused, Some(said), "what the door answers the click");
+    }
+
+    /// **The same face on a feature the document holds offers a live
+    /// Delete whose hover is its cost and no refusal, and the click
+    /// deletes** — the
+    /// row that keeps the one above from passing because the harness
+    /// missed the button.
+    #[test]
+    fn a_held_faces_delete_is_live_and_says_only_its_cost() {
+        let (mut pane, body) = a_face_of_the_body(false);
+        assert!(pane.app.session.delete_refusal(body).is_none());
+        let affordance = pane.app.session.delete_affordance(body);
+        let label = affordance.label;
+        // The cost hover the affordance owes, and no refusal.
+        assert_eq!(
+            pane.gained_hovering(&label),
+            affordance.hover.into_iter().collect::<Vec<_>>()
+        );
+        pane.click(&label);
+        assert!(
+            pane.app.session.committed_doc().node(body).is_none(),
+            "the click deleted the body"
+        );
+    }
+
     /// Every text the app painted once its "Add feature" section is
-    /// opened, with the drafts `plant` wrote: one frame to lay out and
-    /// find the header, one that clicks it, then frames at a clock set
-    /// well past the section's opening animation.
+    /// opened, with the drafts `plant` wrote, in a window tall enough
+    /// to hold the section: frames until the app is [`quiescent`],
+    /// whose last is where the header is found, one that clicks it,
+    /// then frames on a clock one second apart, well past the
+    /// section's opening animation.
     fn painted_adding_a_profile(plant: impl FnOnce(&mut crate::drafts::Drafts)) -> Vec<String> {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         plant(&mut app.drafts);
         let mut frame = eframe::Frame::_new_kittest();
-        let mut run = |seconds: f64, events: Vec<egui::Event>| {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 4000.0),
-                )),
-                time: Some(seconds),
+        let mut seconds = 0.0;
+        let mut run = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            seconds += 1.0;
+            app_frame(
+                &ctx,
+                app,
+                &mut frame,
+                egui::vec2(1600.0, 4000.0),
+                Some(seconds),
                 events,
-                ..Default::default()
-            };
-            let mut output = ctx.run_ui(input, |ui| {
-                eframe::App::ui(&mut app, ui, &mut frame);
-            });
-            let landed = crate::pane::headless::landed_in(&output.shapes);
-            output.textures_delta.clear();
-            landed
+            )
         };
-        let header = run(0.0, Vec::new())
+        let header = settle(&mut app, quiescent, |app| run(app, Vec::new()))
             .into_iter()
             .find(|landed| landed.text == crate::pane::create::ADD_FEATURE)
             .expect("the creation section's header is painted")
@@ -4687,21 +5175,18 @@ mod properties_pane_tests {
             modifiers: egui::Modifiers::default(),
         };
         run(
-            1.0,
+            &mut app,
             vec![
                 egui::Event::PointerMoved(header),
                 button(true),
                 button(false),
             ],
         );
-        let mut texts = Vec::new();
-        for seconds in [2.0, 3.0] {
-            texts = run(seconds, Vec::new())
-                .into_iter()
-                .map(|landed| landed.text)
-                .collect();
-        }
-        texts
+        run(&mut app, Vec::new());
+        run(&mut app, Vec::new())
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect()
     }
 
     /// Which of three withholding reasons the app paints — the frame prompt,
@@ -5697,6 +6182,109 @@ mod properties_pane_tests {
         assert!(
             line.contains(&landed) && !line.contains("shown plate"),
             "the verdict says the landed label: {line}"
+        );
+    }
+}
+
+/// **A click in the viewport while the index seam is busy**, driven
+/// through the whole app: the value `ViewerApp::ui` hands the viewport
+/// ([`ViewerBehavior::indexing`]) is what decides which refusal the
+/// click earns, and this row is where that call site is read.
+#[cfg(test)]
+mod index_seam_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use egui_tiles::Tile;
+
+    use super::properties_pane_tests::{WINDOW, app_frame, settle};
+    use super::{Pane, ViewerApp};
+    use crate::evalseam::{FitDone, FitRequest, FitService};
+    use crate::frame::Progress;
+    use crate::pickcache::NotIndexed;
+    use crate::session::DocSession;
+
+    /// A fit seam that is always pricing and never answers: the
+    /// window between a document landing and its δ being chosen, held
+    /// open for as many frames as the row needs.
+    struct Pricing;
+
+    impl FitService for Pricing {
+        fn submit(&mut self, _request: FitRequest) {}
+        fn poll(&mut self) -> Option<FitDone> {
+            None
+        }
+        fn busy(&self) -> bool {
+            true
+        }
+    }
+
+    /// **The click is told an index is coming**, over a document that
+    /// has landed while its δ is still being fitted. That is the state
+    /// a document opens into: `sync_scene` hands the pick cache no δ,
+    /// so the cache holds no attempt and its own record reads idle, and
+    /// only a viewport handed the index seam's door hears the fit.
+    #[test]
+    fn a_click_while_the_fit_prices_the_delta_is_told_an_index_is_coming() {
+        let ctx = egui::Context::default();
+        let tol = pncad::tolerance::witness();
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = DocSession::inline(document, tol);
+        session.pump();
+        app.session = session;
+        app.fit = Box::new(Pricing);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut time = 0.0;
+        let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            time += 1.0;
+            app_frame(&ctx, app, &mut frame, WINDOW, Some(time), events)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect::<Vec<_>>()
+        };
+
+        // The fit never answers, so the app rests indexing rather than
+        // quiescent.
+        settle(
+            &mut app,
+            |app| app.progress() == Some(Progress::Indexing),
+            |app| paint(app, Vec::new()),
+        );
+        assert!(
+            !app.picks.indexing() && app.picks.index().is_none(),
+            "the fixture is the cache's idle record under a fit in flight"
+        );
+        let at = app
+            .tree
+            .tiles
+            .iter()
+            .find(|(_, tile)| matches!(tile, Tile::Pane(Pane::Viewport)))
+            .and_then(|(id, _)| app.tree.tiles.rect(*id))
+            .expect("the viewport is laid out")
+            .center();
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        paint(&mut app, vec![egui::Event::PointerMoved(at)]);
+        paint(&mut app, vec![press(true), press(false)]);
+        // Two frames: the status line's scroll area is laid out on the
+        // first frame it appears in and painted on the next.
+        paint(&mut app, Vec::new());
+        let painted = paint(&mut app, Vec::new());
+
+        assert!(
+            painted.contains(&NotIndexed::Building.to_string()),
+            "the click's refusal promises the index the toolbar is spinning for: {painted:?}"
+        );
+        assert!(
+            !painted.contains(&NotIndexed::Absent.to_string()),
+            "and does not say none is being built"
         );
     }
 }

@@ -227,7 +227,6 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let doc = fixture::place_all(doc, &[fused]);

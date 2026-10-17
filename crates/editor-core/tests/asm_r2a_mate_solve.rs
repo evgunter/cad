@@ -19,10 +19,10 @@ use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, BooleanCoincidence, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    groups, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EditError, EntityKind, Evaluation,
+    Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, groups, load, product,
+    relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -1377,97 +1377,6 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
     );
 }
 
-/// A `Rebind` with no body reaches the names no selection holds — here
-/// a union's declared pair — and never a mate side, which is a
-/// selection: the declaration's rewrite is what makes the edit
-/// acceptable, and the stranded side stays unresolved.
-#[test]
-fn row6g_a_bodiless_rebind_repairs_a_declared_pair_and_not_a_mate_side() {
-    let (doc, ids, _, body) = assembly("asm-r2a-rebind-with-declare", 3);
-    let (doc, mate_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate(
-                body,
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.0),
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    // The union reads all three instances, so its declared pair may name
-    // the second (D10: a declaration names what its node reads); the side
-    // is read at member `ids[2]`, the instance the rebind below moves the
-    // name onto. The member list then drops the second instance — a
-    // re-point that reports the name out of reach, never refuses it — so
-    // the delete leaves the name stranded and no read.
-    let (read0, read2) = (
-        crate::fixture::out(&doc, ids[0]),
-        crate::fixture::out(&doc, ids[2]),
-    );
-    let (doc, union_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
-                    ids[0].into(),
-                    ids[1].into(),
-                    ids[2].into(),
-                ]),
-                declare: vec![(
-                    (
-                        SitedRef::new(read2, in_part(ids[1], body, CapEnd::Start)),
-                        SitedRef::new(read0, in_part(ids[0], body, CapEnd::Start)),
-                    ),
-                    BooleanCoincidence::REST,
-                )],
-            }),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetMembers {
-            node: union_id,
-            members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[2].into()]),
-        },
-    );
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
-    let applied = doc
-        .apply(
-            &DocEdit::Rebind {
-                body: None,
-                from: in_part(ids[1], body, CapEnd::Start),
-                to: in_part(ids[2], body, CapEnd::Start),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the declared pair alone makes this a rebind site");
-    let Some(Node::Union { declare: pairs, .. }) = applied.doc.node(union_id) else {
-        panic!("the union is still there");
-    };
-    assert_eq!(
-        pairs[0].0.0.name,
-        in_part(ids[2], body, CapEnd::Start),
-        "the declaration's NAME was rewritten"
-    );
-    assert_eq!(
-        pairs[0].0.0.at, read2,
-        "and its site was not — a site is an authored fact, not a repair target"
-    );
-    assert_eq!(
-        crate::fixture::mate_members(&applied.doc),
-        vec![(mate_id, ids[0])],
-        "the mate's stranded side is a read, which no rebind re-points"
-    );
-}
-
 /// A mate side read at a node that never existed is a typo, refused at
 /// the insert door as the unresolved read it is.
 #[test]
@@ -1555,7 +1464,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
 /// carry passes; a role the part's product does not have is refused
 /// there rather than at the solve.
 #[test]
-fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
+fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     let (doc, ids, store, body) = assembly("asm-r2a-mate-name-door", 2);
     let ev = run(&doc, &with_resolver(store));
     assert!(
@@ -1723,6 +1632,17 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
         "the refusal quotes the kernel's deferral sentence verbatim: {message}"
     );
     assert!(message.contains("fit"), "{message}");
+}
+
+/// The `Fit` deferral sentence a refusal steers to is the KERNEL's,
+/// quoted verbatim through the re-export chain — one wording, and the
+/// mate verification cites the same constant.
+#[test]
+fn the_fit_deferral_sentence_is_quoted_not_paraphrased() {
+    assert_eq!(editor_core::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert_eq!(editor_core::names::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert!(editor_core::FIT_DEFERRAL.contains("Fit { gap }"));
+    assert!(editor_core::FIT_DEFERRAL.contains("not yet built"));
 }
 
 /// The typed escalation: a case split constructed to land INSIDE the

@@ -115,10 +115,12 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
 /// corners `T` from the cap, within the fit's certified ε. Tighter, the cap's offset fit certifies at 1e-9, and the side
 /// plane's section of it, which is no row of the fit, refuses at the
 /// plane × NURBS certificate's limb 2: on its bound, or, once the
-/// subdivision reaches a break past the band, on that break's value
-/// (`HullValueChart`, about 4.4e-7 m at 1e-9)
+/// subdivision reaches a break past the band, on that break's value,
+/// where the section's own foot is on the wall (3.5e-16 m there), so the
+/// miss is its pcurve's (`ImageMiss`, about 4.4e-7 m at 1e-9)
 /// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
-/// At 1e-12 the fit stops short, at about 1.7e-10 m.
+/// At 1e-12 the fit stops short, at the sample cap: 3.2795e-12 m on a
+/// 45 x 48 grid.
 #[test]
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
     let eps = Tol::witness().eps();
@@ -137,17 +139,25 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
         crate::common::approx::band(),
         Tol::witness(),
     );
-    if eps < 1e-10 {
-        assert!(
-            matches!(
-                moved,
-                Err(ReplaceFaceError::Fit {
-                    error: geom_brep::OffsetFitError::BudgetExhausted { .. },
-                    ..
-                })
+    if eps < 3.2795e-12 {
+        match &moved {
+            Err(ReplaceFaceError::Fit {
+                error:
+                    geom_brep::OffsetFitError::WallReached {
+                        wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                        achieved,
+                        grid,
+                        ..
+                    },
+                ..
+            }) => assert!(
+                *grid == (45, 48) && (achieved - 3.2795e-12).abs() < 1e-15,
+                "eps {eps:e}: the cap's fit stopped at {achieved:e} on {grid:?}"
             ),
-            "eps {eps:e}: expected the cap's fit to exhaust its budget, got {moved:?}"
-        );
+            other => {
+                panic!("eps {eps:e}: expected the cap's fit to reach the sample cap, got {other:?}")
+            }
+        }
         return;
     }
     if eps < 1e-7 {
@@ -158,8 +168,8 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
                     error: topo::EulerOpError::RechartFalsifies {
                         error: geom_brep::CertifyError::PlaneNurbs(
                             geom_brep::PlaneNurbsRefusal::Limb {
-                                limb: geom_brep::ssi::SsiLimb::HullSup
-                                    | geom_brep::ssi::SsiLimb::HullValueChart,
+                                limb: geom_brep::ssi::SsiLimb::HullSupChart
+                                    | geom_brep::ssi::SsiLimb::ImageMiss,
                                 ..
                             }
                         ),

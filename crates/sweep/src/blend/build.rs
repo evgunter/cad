@@ -74,8 +74,9 @@ use geom_core::{Band, Bounds, Decide, Real, Vec3};
 use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
+use super::arms::corner_chart;
 use super::battery::{BlendRequest, Link, run_battery};
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
@@ -122,6 +123,132 @@ pub struct Blended<T: Real> {
     /// ([`super::BatteryVerdict::coincidences`]) and the source body's
     /// keys ([`topo::coincidence`]).
     pub coincidences: Vec<topo::Coincidence>,
+}
+
+impl<T: Decide> Blended<T> {
+    /// `records`, the operand's, carried onto the blended body through
+    /// [`Self::lineage`] ([`topo::ContactRecords::carried_through`], at `band`
+    /// through `region`).
+    ///
+    /// # Errors
+    ///
+    /// As [`topo::ContactRecords::carried_through`].
+    pub fn carry_contacts(
+        &self,
+        records: &topo::ContactRecords,
+        band: geom_core::Band,
+        region: Option<topo::RegionLane<T>>,
+    ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
+        records.carried_through(0, &self.lineage(), &self.body, band, region)
+    }
+
+    /// **What the blend made of each source cell** (D1), read through the
+    /// closing join. The blend keeps every key it does not carve away,
+    /// in place. It removes each edge it replaces with a band
+    /// ([`super::naming::BlendNaming::blends`],
+    /// [`super::naming::BlendNaming::joined_blends`]), each corner it
+    /// rounds, each vertex it retracts to a foot, each rim edge a trim
+    /// arc replaces, and whatever else it retired: a blend face holds
+    /// none of the points of the cell it replaces, so it takes no record
+    /// from it. A source edge the band's carve split is divided into its
+    /// surviving pieces ([`super::naming::BlendNaming::meridian_remnants`],
+    /// [`super::naming::BlendNaming::slits`]) and the vertices that split
+    /// it, the carved span removed; a support face is divided into itself
+    /// and the trimlines and feet the blend minted in it, the strip it
+    /// carved away removed. A body with no birth records names no
+    /// carve, and every cell is kept.
+    #[must_use]
+    pub fn lineage(&self) -> topo::Lineage {
+        use topo::{Cell, Division, Fate, Remainder};
+        let Some(n) = self.naming.as_ref() else {
+            return topo::Lineage::new();
+        };
+        let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
+        let removed = n
+            .blends
+            .iter()
+            .map(|&(_, e)| Cell::Edge(e))
+            .chain(
+                n.joined_blends
+                    .iter()
+                    .flat_map(|(_, es)| es.iter().map(|&e| Cell::Edge(e))),
+            )
+            .chain(n.corners.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(n.feet.iter().map(|&(_, v, _)| Cell::Vertex(v)))
+            .chain(n.turn_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(n.rim_trims.iter().map(|&(_, e, _)| Cell::Edge(e)))
+            .chain(n.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(n.dead.edges.iter().map(|&e| Cell::Edge(e)))
+            .chain(n.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
+        // Every statement is a removal, and two removals of one cell
+        // merge: a band edge whose carve also left remnants keeps them.
+        let remove = |lineage: topo::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with_removal(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the blend states only removals: {e:?}"))
+        };
+        for cell in removed {
+            lineage = remove(lineage, cell, Fate::Removed);
+        }
+        let mut carved: Vec<(topo::EdgeKey, Division)> = Vec::new();
+        let mut piece = |source: topo::EdgeKey, cell: Cell, minted: bool| {
+            let at = match carved.iter().position(|(e, _)| *e == source) {
+                Some(at) => at,
+                None => {
+                    carved.push((
+                        source,
+                        Division {
+                            pieces: Vec::new(),
+                            minted: Vec::new(),
+                            remainder: Remainder::Removed,
+                        },
+                    ));
+                    carved.len() - 1
+                }
+            };
+            let d = &mut carved[at].1;
+            let list = if minted { &mut d.minted } else { &mut d.pieces };
+            if !list.contains(&cell) {
+                list.push(cell);
+            }
+        };
+        for &(remnant, source) in &n.meridian_remnants {
+            piece(source, Cell::Edge(remnant), false);
+        }
+        for &(slit, source, _) in &n.slits {
+            piece(source, Cell::Edge(slit), false);
+        }
+        for &(v, source, _) in &n.meridian_splits {
+            piece(source, Cell::Vertex(v), true);
+        }
+        for (source, division) in carved {
+            lineage = remove(lineage, Cell::Edge(source), Fate::Divided(division));
+        }
+        let mut supports: Vec<(topo::FaceKey, Vec<Cell>)> = Vec::new();
+        let minted_in = n
+            .trims
+            .iter()
+            .map(|&(t, _, f)| (f, Cell::Edge(t)))
+            .chain(n.feet.iter().map(|&(v, _, f)| (f, Cell::Vertex(v))));
+        for (f, cell) in minted_in {
+            match supports.iter_mut().find(|(g, _)| *g == f) {
+                Some((_, cells)) => cells.push(cell),
+                None => supports.push((f, vec![cell])),
+            }
+        }
+        for (f, minted) in supports {
+            lineage = remove(
+                lineage,
+                Cell::Face(f),
+                Fate::Divided(Division {
+                    pieces: vec![Cell::Face(f)],
+                    minted,
+                    remainder: Remainder::Removed,
+                }),
+            );
+        }
+        lineage
+    }
 }
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
@@ -275,30 +402,25 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
         .collect()
 }
 
-/// The octant's chart pick at one trivalent corner. The criterion:
-/// the octant is an iso-parameter
-/// rectangle exactly when the chart is aimed along an incident edge
-/// whose axis `n_a × n_b` the THIRD support's normal is parallel to,
-/// so the pick minimizes `|n_c × axis|` over the incident requested
-/// links, ORDER-FREE — it finds the admitting edge whenever one
-/// exists and falls back to the best-scoring link (the genuinely
-/// oblique trihedron, whose octant is no iso rectangle and still
-/// passes tier 3) only when none does. Returns `(u_ref, axis)`.
+/// The octant's chart pick at one trivalent corner: the chart is
+/// [`corner_chart`] over the corner's feet with the pole on the THIRD
+/// support's foot (up to sign) of one incident link. Every link yields
+/// a valid chart that way — neither pole inside the patch off a
+/// vertex — so the pick only PREFERS one: the octant is an
+/// iso-parameter rectangle exactly when that link's edge axis
+/// `n_a × n_b` is parallel to the third support's normal `n_c`, so it
+/// minimizes `|n_c × (n_a × n_b)|` over the incident requested links,
+/// ORDER-FREE, and finds the admitting edge whenever one exists. On a
+/// genuinely oblique trihedron no link admits, and the octant is a
+/// spherical triangle with two meridian sides whichever link wins.
+/// Returns `(u_ref, axis)`.
 ///
-/// **The chart follows the corner's convexity, and the invariant it
-/// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its
-/// quarter-turn (`axis × u_ref`) each pass exactly through a foot, on
-/// either material side — a convex octant's feet lie along `+n_i`
-/// from the centre, so `(u_ref, axis) = (n_a, n_a × n_b)`; a concave
-/// one's lie along `−n_i`, so `(−n_b, n_b × n_a)`. The POLE is
-/// parallel to the third foot only UP TO SIGN, inherently: the score
-/// `|n_c × axis|` is even in `axis`, so the pick cannot constrain the
-/// sign, which falls out of the winning link's stored face order
-/// (measured split: 7:1 over a cube's convex octants, 6:2 over the
-/// cavity's concave ones —
-/// `review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`,
-/// beside the seam/quarter-turn pin that holds both halves of the
-/// concave fold).
+/// **The chart follows the corner's convexity**: a convex octant's
+/// feet lie along `+n_i` from the centre, a concave one's along `−n_i`,
+/// and the seam passes through the foot `n_a` (convex) or `−n_b`
+/// (concave). The pole's sign falls out of the winding of the winning
+/// link's stored face order, so it differs between corners of one body
+/// (`review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`).
 ///
 /// **The pick always yields, over one corner.** [`CornerLinks`] carries
 /// at least one link and [`CornerFaces::third`] is total over the
@@ -330,7 +452,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     // adjacent corners apart, and the third support is exactly what
     // the score below turns on.
     if faces.vertex() != links.vertex() {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(links.vertex()),
             "a corner's chart was offered the face orbit of a different vertex",
         ));
@@ -345,7 +467,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // THIS corner's three. Necessary, not sufficient — the vertex
         // check above is what identifies the corner.
         let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(links.vertex()),
                 "a corner's chart candidate carries supports that are not two of this \
                  corner's own three faces",
@@ -360,12 +482,13 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // The third support of the corner — the one this edge does not
         // touch.
         let n_c = planar(third)?;
+        let score = n_c.cross(n_a.cross(n_b).normalize()).norm().lo().abs();
         let (u_ref, axis) = if convex {
-            (n_a, n_a.cross(n_b).normalize())
+            corner_chart([n_a, n_b, n_c])
         } else {
-            (-n_b, n_b.cross(n_a).normalize())
+            corner_chart([-n_b, -n_a, -n_c])
         };
-        Ok((n_c.cross(axis).norm().lo().abs(), u_ref, axis))
+        Ok((score, u_ref, axis))
     };
     let mut best = candidate(links.first().link())?;
     for l in links.rest() {

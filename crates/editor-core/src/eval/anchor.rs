@@ -39,7 +39,7 @@
 //! orientation parity, which positions alone cannot decide at n = 2
 //! (see `derive_naming`).
 
-use profile::{ConstructedLoop, ConstructedProfile, Segment, SegmentKind, ValidatedProfile};
+use profile::{ConstructedLoop, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
     NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
@@ -455,21 +455,16 @@ pub struct ProfileValue<T: geom_core::Real> {
 /// under the guided lift the op's own validation follows in the log.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
-    /// The replayed profile at f64 (program order). Its `plane` is the
-    /// 2-D record's assembly frame: [`ProfilePre::placement_f64`]
-    /// where there is one, the conventional `SketchPlane::xy()` where
-    /// there is not — validation is 2-D and the naming anchor is
-    /// loop-derived, so no decision reads it. What a consumer PLACES
-    /// with is `placement_f64`, never this field's plane.
-    pub profile_f64: ConstructedProfile<f64>,
-    /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
-    /// pre-pass's one validation. Its plane is `profile_f64`'s
-    /// assembly frame, with the same caveat: a consumer places with
-    /// `placement_f64` (or the lane's derived frame), never with it.
+    /// The replayed profile's canonical form at f64, minted by the
+    /// pre-pass's one validation. Its plane is the 2-D record's
+    /// assembly frame: [`ProfilePre::placement_f64`] where there is
+    /// one, the conventional `SketchPlane::xy()` where there is not —
+    /// validation is 2-D and the naming anchor is loop-derived, so no
+    /// decision reads it. A consumer places with `placement_f64` (or
+    /// the lane's derived frame), never with this plane.
     pub validated_f64: ValidatedProfile<f64>,
     /// The profile's `f64` placement, where the profile HAS one: an
-    /// authored frame's document read, or a section's lane read pinned
-    /// to `f64`. `None` for a profile on a derived frame (DM1c), whose
+    /// authored frame's document read. `None` for a profile on a derived frame (DM1c), whose
     /// only placement is the lane's — the invariant carried in the
     /// type rather than by a placeholder a reader could mistake for a
     /// placement.

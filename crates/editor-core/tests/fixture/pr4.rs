@@ -102,7 +102,6 @@ where
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, pat) = insert(
@@ -236,7 +235,6 @@ where
         Node::Subtract {
             from: ua.into(),
             tool: ub.into(),
-            declare: Vec::new(),
         },
     );
     let evu = run::<T>(&docu, None);

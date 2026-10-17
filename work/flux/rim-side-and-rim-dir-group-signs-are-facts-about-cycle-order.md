@@ -22,8 +22,10 @@ facts about cycle order rather than about the face:
 - `props_rim_side` — `linear_rim_side`'s inner `side`
   (`crates/geom-brep/src/props/curved.rs`) reads
   `b.rims.first()` and classifies `lo + hi − 2·level` on THAT rim;
-- `props_rim_dir_group` — `du_of_rims` seeds its groups from the first
-  rim and classifies every later rim's `d_u − g.1` against it.
+- `props_rim_dir_group` — `du_of_rims` seeded its groups from the
+  first rim and classified every later rim's `d_u − g.1` against it
+  (`du_of_rims` has since been deleted, with the cone's iso premise,
+  PR 4696).
 
 Both are compensated downstream (`Positive ⇒ rim.d_u_sign`,
 `Negative ⇒ .flip()`), so the flux and the readings do not depend on

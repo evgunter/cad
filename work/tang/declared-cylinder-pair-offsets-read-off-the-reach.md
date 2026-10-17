@@ -2,11 +2,10 @@
 id: declared-cylinder-pair-offsets-read-off-the-reach
 kind: issue
 title: chart_region_cyl_offset reads each declared cylinder's stored origin against the other's axis, levered from the stored origins
-status: parked
+status: open
 opened: 2026-10-07
 priority: P2
 cost: M
-blocked_on: [intent-stage4-is-built]
 refs: [cylinder-offsets-read-at-a-stored-origin-off-the-reach]
 ---
 
@@ -42,3 +41,7 @@ Found by `tang/cylinder-offsets-at-the-reach`'s sweep.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: chart_region_cyl_offset runs only on declared pairs (declared_pair_overlap reads Door 1's ContactVerdict); the declared-pair seats retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

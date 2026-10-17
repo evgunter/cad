@@ -108,9 +108,34 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// a member said as a port says the split and the half ("from Split
 /// …'s above"), where a `Part` was said by its one tag. The percentiles
 /// and maxima held.
+///
+/// The full total rose by 22 with the killed-lineage chase (`emit_topo`'s
+/// `KilledSplits`). In `crossing_slots` and its world copy, an edge read
+/// as a seam of two faces is now said as the piece of a rim it is,
+/// between its two ends. Its end vertices are said by the edges they lie
+/// on, not as a junction of seam lines. The longer sentences are the
+/// right names, not a regression. The percentiles, the maxima and the
+/// scoped row held.
+///
+/// The full total fell by 102 and its p99 by one with the vertex run
+/// (N2: an `EdgeCrossing` is a run of lines): each edge of a run is said
+/// against "the rest", where a pair was said "the other body" and "the
+/// first", in `corner_table`'s and `crossing_slots`' edge × edge vertices
+/// and the pieces whose ends cite them. No name moved: read as a set of
+/// (line, sense), every run is the pair it replaced. The maxima and the
+/// scoped row held.
+///
+/// The full total rose by 154 with the output stage's killed lineage
+/// (the records of the edges the merge kills, copied into
+/// `BooleanNaming::killed_lineage`). In `crossing_slots` and its world
+/// copy, a stretch of the first cavity's rim said as a seam of two faces
+/// is said as the piece of that rim it is, and a floor corner said as a
+/// touch of a wall is said as a crossing of two rims, as are the pieces
+/// whose ends cite it. The longer sentences are the right names, not a
+/// regression. The percentiles, the maxima and the scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 123, 196, 411_418]),
+    ("full", [19, 122, 196, 411_652]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -165,7 +190,28 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// datum, so every id minted after that datum in the revolving
 /// documents moved. (Counted on its own tree; re-taken merged over
 /// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
-const SAID_DIGEST: u64 = 0x975f_3e62_4f0b_8c18;
+///
+/// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
+/// nodes minted after the first boolean took new tags.
+///
+/// The killed-lineage chase moved it with [`NAME_WORDS`]: in
+/// `crossing_slots`, a rim piece named as a seam, two floor corners and
+/// the pieces ending at them say other words. No other document's words
+/// moved (`lib_g16_corpus_name_digests` moved that row alone).
+///
+/// Re-pinned for the vertex run: the words that moved are an
+/// `EdgeCrossing`'s, each line now "… the rest" where the pair said "…
+/// the other body and … the first", in `corner_table` and
+/// `crossing_slots`, the two documents whose pair booleans meet edge to
+/// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
+///
+/// The output stage's killed lineage moved it with [`NAME_WORDS`]: in
+/// `crossing_slots`, a stretch of the first cavity's rim named as a
+/// seam is a piece of that rim, the floor corner it ends at is a
+/// crossing of two rims rather than a touch, and the pieces ending at
+/// that corner say other words (`lib_g16_corpus_name_digests` moved
+/// that row alone).
+const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -563,16 +609,6 @@ fn refusals(
             .spoken(doc, tables),
         ),
         (
-            "SelectRefusal::PairInBand",
-            SelectRefusal::PairInBand {
-                pair: Box::new((a.clone(), b.clone())),
-                at: (a.node, b.node),
-                predicate: "bool_plane_offset",
-                source: band(),
-            }
-            .spoken(doc, tables),
-        ),
-        (
             "NodeErrorKind::CrossingUnverified",
             NodeError {
                 node: instance,
@@ -608,20 +644,16 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    let declare = Vec::new();
     r.insert(match op {
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         },
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
         BooleanOp::Intersect => Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
     })
 }
@@ -662,7 +694,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
-    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..], Vec::new());
+    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
@@ -721,7 +753,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let upper = extrude(&mut r, upper, 0.5);
     boolean(&mut r, BooleanOp::Union, lower, upper);
     let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
-    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower], Vec::new());
+    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
     for op in [BooleanOp::Subtract, BooleanOp::Union] {
@@ -759,9 +791,11 @@ fn documents_outside_the_corpus_read_apart_too() {
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
         let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
-        let (doc, _) = fixture::union_over(r.doc.clone(), &twice, Vec::new());
+        let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
+
+    docs.push(("glued rim cut by a third block".to_owned(), glued_rim().0));
 
     let mut alike = Vec::new();
     for (label, doc) in &docs {
@@ -775,6 +809,61 @@ fn documents_outside_the_corpus_read_apart_too() {
         "distinct names of one table are said alike:\n{}",
         alike.join("\n")
     );
+}
+
+/// The three-block glued rim (`fixture::glued_rim`, glued flush) as
+/// one document, and its union.
+fn glued_rim() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("name_words_glued_rim", geom_core::Tol::witness());
+    let (doc, members) = fixture::glued_rim(0.0)(doc);
+    fixture::union_over(doc, &members)
+}
+
+/// **Each seam in a run of seams is said by its two faces**, in full
+/// and within the evaluation alike: the three-block glued rim, where
+/// `c`'s wall cuts the rim of `b` glued on `a`, holds two vertices that
+/// are each the run of three seams and share the seam of `a`'s top and
+/// `c`'s wall. Said within the evaluation, a seam said as "an edge"
+/// says nothing of where the vertex is, and two such runs differ only
+/// in the seams the detail opened.
+#[test]
+fn a_run_of_seams_says_each_seam_by_its_faces() {
+    let (doc, u) = glued_rim();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    let full = Speaker::of(&doc);
+    let within = full.within(&ev);
+    let runs: Vec<StableName> = ev
+        .value(u)
+        .expect("the glued rim evaluates")
+        .name_table
+        .iter()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
+                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        runs.len(),
+        2,
+        "two vertices are runs of three seams: {runs:?}"
+    );
+    for (form, by) in [("in full", full), ("within the evaluation", within)] {
+        let said: Vec<String> = runs.iter().map(|n| by.name(n).to_string()).collect();
+        for s in &said {
+            assert_eq!(
+                s.matches("the seam of ").count(),
+                3,
+                "{form}: each seam is said by its faces: {s}"
+            );
+            assert!(
+                !s.contains("an edge"),
+                "{form}: no seam is said as an edge: {s}"
+            );
+        }
+        assert_ne!(said[0], said[1], "{form}: the two runs read apart");
+    }
 }
 
 /// **A kept name spoken again after its step was dropped says the step
@@ -921,8 +1010,8 @@ fn each_boolean_join_says_its_operation() {
 
 /// **Two copies of one body read apart where a sentence names a face of
 /// each**: the copies' faces carry names alike, since a name says the
-/// node that made it and not the node holding it, so the flush query's
-/// in-band pair and the pick's tie say each face's node.
+/// node that made it and not the node holding it, so the pick's tie
+/// says each face's node.
 #[test]
 fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
@@ -932,28 +1021,10 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, &doc, one, two, fixture::tol())
-        .expect("the copies' flush faces are decided");
-    let alike = findings
-        .iter()
-        .find(|finding| finding.pair.0.name == finding.pair.1.name)
-        .expect("the copies' end caps lie flush, and carry one name");
-    let face = alike.pair.0.name.clone();
+    // The copies' end caps carry one name: the extrude's.
+    let face = fixture::fname(block, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let by = Speaker::of(&doc).within(&ev);
     let (at_one, at_two) = (doc.spoken(one).to_string(), doc.spoken(two).to_string());
-    let band = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value(3e-11),
-        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
-        predicate: Some("bool_plane_offset"),
-        terminal_sliver: false,
-    };
-    let pair = SelectRefusal::PairInBand {
-        pair: Box::new((face.clone(), face.clone())),
-        at: (one, two),
-        predicate: "bool_plane_offset",
-        source: band,
-    }
-    .spoken(&doc, &ev);
     let hit = |node| PickHit {
         name: face.clone(),
         node,
@@ -968,13 +1039,11 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     }
     .spoken(&doc, &ev);
     let said = by.name(&face).to_string();
-    for text in [&pair, &tie] {
-        assert!(
-            text.contains(&format!("{said} on {at_one}"))
-                && text.contains(&format!("{said} on {at_two}")),
-            "each face is said with the copy holding it: {text}"
-        );
-    }
+    assert!(
+        tie.contains(&format!("{said} on {at_one}"))
+            && tie.contains(&format!("{said} on {at_two}")),
+        "each face is said with the copy holding it: {tie}"
+    );
 }
 
 /// **A failed row said within the largest corpus table costs no search

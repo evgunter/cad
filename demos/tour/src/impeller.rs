@@ -265,7 +265,6 @@ fn build_doc(tol: Tol) -> Recipe {
         &mut doc,
         Box::new(Node::Union {
             members: Bodies::Spelled(vec![hub_e.into(), group.into()]),
-            declare: Vec::new(),
         }),
     );
     Recipe { doc, group, solid }

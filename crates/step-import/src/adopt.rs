@@ -476,7 +476,9 @@ fn adopt_edges(
             // therefore requires BOTH: the two records describe one
             // locus, and this edge's carrier lies on it.
             // **The Nurbs-adjacency exemption (M7-3 item 4)** — the
-            // cap-plane × NURBS-wall rim class, exempt BY KIND
+            // cap-plane × NURBS-wall rims the `Intersection` rung above
+            // does not certify (a curved rim, whose degree-1 chart
+            // image its hull refuses; a straight one it does), exempt BY KIND
             // (mirroring tier-3 check 4's flip-B exemption,
             // `topo::validate`): coincidence is an implicit-form
             // question and a NURBS wall has no implicit form, so the
@@ -566,42 +568,55 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            // The conventional rung, since U2 collapsed the forms: a
-            // locus two COINCIDENT faces under-determine is an image
-            // in the chart they share, and the rung's own gate has
-            // just metered the carrier onto that chart
-            // (`carrier_on_surface`), so the image exists. The
-            // pushforward that used to BE the description becomes the
-            // authority record beside it (U2 Q3), which is what keeps
-            // tier 3's prefer-intrinsic reading of this edge unchanged.
+            // The conventional rung (D2): two COINCIDENT surface
+            // records are one carrier, so the locus rests in one
+            // record's chart, as `topo::rest_locus` decides (the
+            // carrier-equality ladder, over the faces' region), and the
+            // rung's own gate has just metered the carrier onto it
+            // (`carrier_on_surface`); one surface on both sides is an
+            // image in its chart. The pushforward that used to BE the
+            // description becomes the authority record beside it
+            // (U2 Q3).
             //
-            // A NURBS RIM takes the PLANE side of its own pair. The
-            // rung's gate (`nurbs_plane_pair`) is exactly "one
-            // described spline wall and one plane", so an analytic
-            // chart is always in hand — and it is the RIGHT one: the
-            // rim is the cap's boundary and lies in the cap's plane by
-            // construction, where the derived image is exact. The
-            // spline wall's own image of the same rim exists too, but
-            // it is a stored CACHE (`topo`'s `nurbs_iso_derive`), not
-            // something a construction can state, and it is not needed
-            // — a chart image names ONE of the edge's two adjacent
-            // surfaces, and either is admissible (tier 3's chart
-            // adjacency, the M5-LOG item 6(iii) rule).
-            //
-            // No gate is skipped by preferring the plane: the rim is
-            // not METERED onto the cap here the way the coincident
-            // rung meters its carrier, but certification's own
-            // `|C(t) − S(P(t))|` does exactly that a moment later, so
-            // a rim that does not lie in the cap refuses loudly rather
-            // than adopting a description of the wrong locus.
-            let chart = if nurbs_rim {
-                plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus)
+            // A plane × spline edge is an image in the PLANE side of its
+            // pair, as the native loft's rims are
+            // (`sweep::swept::describe_face_rim_at_rest`), until the
+            // pair certifies every such rim: its incidence lane
+            // (`geom_brep::plane_nurbs_incidence`) does not yet certify
+            // an arc rim, whose limb-2 hull reads a fitted chart image,
+            // and the rung is not to pick a description by what the lane
+            // can certify — a capability gap, not D2's classification
+            // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+            // The rung's gate (`nurbs_plane_pair`) is exactly "one
+            // described spline wall and one plane", so the plane is in
+            // hand, and certification's own `|C(t) − S(P(t))|` meters the
+            // edge onto it a moment later.
+            let description = if nurbs_rim {
+                EdgeDescriptionSpec::chart(
+                    plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus),
+                )
             } else {
-                fs_plus
+                let band = geom_core::Band::linear(tol).map_err(|_| {
+                    resolve(
+                        "internal: the run's tolerance forms no band, which the importer's own \
+                         tolerance gate admits no file past",
+                    )
+                })?;
+                topo::rest_locus(
+                    body,
+                    [
+                        (fs_plus, Some(sides.plus.face)),
+                        (fs_minus, Some(sides.minus.face)),
+                    ],
+                    &spec.carrier,
+                    (spec.t0, spec.t1),
+                    band,
+                )
+                .spec()
             };
             candidates.push((
                 AdoptionCandidate::MappedCurve,
-                EdgeDescriptionSpec::chart(chart).declared_by(mapped),
+                description.declared_by(mapped),
             ));
         }
 
@@ -889,7 +904,9 @@ fn line_column_match(
 /// and no exported body puts one inside a single surface); the ladder
 /// then reports every refusal typed.
 ///
-/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
+/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) the
+/// `Intersection` rung did not certify — that rung, offered first,
+/// takes a straight rim whose chart image is straight — takes the
 /// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
 /// with one root: `PlacedSegment { Line }` is the description CLASS
 /// the native loft builder stores for exactly this edge class, and it

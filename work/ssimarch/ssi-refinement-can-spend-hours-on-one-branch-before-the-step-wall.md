@@ -55,3 +55,5 @@ Choosing the envelope is Ev's.
    are non-monotone and switch limbs (`work/ssi/log.md`, 2026-10-04).
 3. Leave it: the wall bounds memory and work is bounded in principle.
    Record the worst case in the wall's doc.
+
+- 2026-10-12 (ENCL orchestrator): ENCL's `certify-and-refine-loops-spell-one-stop-rule-two-ways` is adopting one shared stop rule for the offset fit and `ssi::certify::subdivide`: improvement against the lowest bound so far, patience 2, a per-object cap and a cumulative work budget. `refine_by_certificate` is a third instance; it compares against the previous round, with `SSI_MAX_STEPS` as the only bound. Lowest-so-far with patience 2 answers the "margins are non-monotone" half of the 2026-10-04 withdrawal. The "switch limbs" half still needs a rule (a round of a different limb kind is not idle). Whether refit adopts the shared rule's stop, and its cumulative envelope, stays with this row.

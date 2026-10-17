@@ -109,7 +109,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -144,7 +144,7 @@ fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
             .filter(|e| {
                 matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: CensusContact::EdgeFaceOverlap { face, .. },
                         ..
                     } if *face == post_top

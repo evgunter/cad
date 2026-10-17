@@ -609,11 +609,12 @@ fn two_carriers_for_one_meridian_column_report_their_u_gap() {
 
 /// A sphere LUNE about a TILTED axis: two meridian half-arcs from the
 /// north pole to the south pole, `theta` apart in u, with both pole
-/// vertices placed where the CARRIER puts them rather than where the
-/// frame states them — which is how any construction that follows a
-/// curve gets them, and which leaves each one a few ulps of `radius`
-/// off the analytic pole.
-fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
+/// vertices placed `offset` off the analytic pole, perpendicular to the
+/// axis, on the far side from the lune (azimuth `π + theta/2`). That is
+/// where a construction that follows a curve leaves a pole vertex,
+/// stated as a length the fixture chooses rather than the few ulps of
+/// `radius` a carrier's evaluation happens to land at.
+fn tilted_lune(radius: f64, theta: f64, offset: f64) -> Option<Body<f64>> {
     let tol = Tol::witness();
     let raw = Vec3::new(0.3, 0.2, 1.0);
     let axis = raw * (1.0 / raw.norm());
@@ -639,7 +640,9 @@ fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
     };
     let (ta, tb) = (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2);
     let m0 = meridian(0.0);
-    let (s, n) = (m0.eval(ta), m0.eval(tb));
+    let far = core::f64::consts::PI + theta / 2.0;
+    let off = (u_ref * far.cos() + v_ref * far.sin()) * offset;
+    let (s, n) = (c - axis * radius + off, c + axis * radius + off);
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(s, true).ok()?;
     body.set_face_surface(
@@ -694,29 +697,39 @@ fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
 /// about which points have an azimuth.
 ///
 /// The exemption is the walk's rule, band included, and this row is
-/// its non-vacuity: the radius is derived from the run's own ε so the
-/// pole vertices land INSIDE the band at every row, and the largest
-/// un-exempted quantity among these azimuths is at least half a band —
-/// so what keeps the report silent is the exemption and not the band's
-/// own margin.
+/// its non-vacuity: the pole vertices are placed half a band off the
+/// pole at every row, and the un-exempted quantity at some junction
+/// is past the band. So what keeps the report silent is the exemption,
+/// not the band's own margin: with the exemption deleted from
+/// `topo::coherence`, this row reports a closure finding at every ε
+/// (measured 2026-10-12; the previous, ε-sized fixture stayed green
+/// under that deletion).
 #[test]
 fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // A pole vertex lands ~3.2e-16·R off the analytic pole (the frame
-    // is a normalised tilt, so this is a few ulps of the radius). The
-    // two poles do not land at the same distance — the placement is
-    // float, not symmetric — so the aim is three quarters of a band,
-    // which puts BOTH inside with the spread this construction has.
-    let radius = 0.75 * eps / 3.2e-16;
-    let mut built = 0;
+    // **The pole vertices sit half a band off the pole, by
+    // construction.** Each is placed `0.5·ε` off the analytic pole on a
+    // 1 m sphere, so its distance is half a band whatever the run's ε.
+    // Each meridian's end is then half a band from its vertex, a placed
+    // length that ulps of the 1 m radius do not move. Measured: every
+    // offset up to 0.99·ε builds on this sphere at every row, at eleven
+    // azimuths, so the build has the other half band as margin. Until
+    // 2026-10-12 the radius was sized from ε
+    // (`0.75·ε / 3.2e-16`, 2.3e6 m at ε = 1e-9) so that the CARRIER's
+    // few ulps of R landed the vertices in the band. That placed them
+    // at 0.6·ε, where a vertex one or two ulps of R further out stopped
+    // building (`work/nurbs/tilted-lune-sits-at-the-f64-floor-of-its-band.md`):
+    // the row measured the f64 floor, not the exemption.
+    let radius = 1.0;
+    let offset = 0.5 * eps;
     let mut widest: f64 = 0.0;
+    let mut reportable = 0;
     let mut inside = 0;
     for theta in [0.5_f64, 1.0, 2.8, 3.0] {
-        let Some(body) = tilted_lune(radius, theta) else {
-            continue;
-        };
-        built += 1;
+        let body = tilted_lune(radius, theta, offset).unwrap_or_else(|| {
+            panic!("the lune at theta = {theta} builds: its vertices are half a band off")
+        });
         let report = topo::examine_chart_coherence(&body, tol);
         assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
         let chart = body
@@ -757,6 +770,9 @@ fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
                 let d = u_raw - chart.u_of(p);
                 let gap = (d - core::f64::consts::TAU * (d / core::f64::consts::TAU).round()).abs();
                 widest = widest.max(gap * chart.radial(p));
+                if !topo::gap_is_noise(gap, chart.radial(p), eps) {
+                    reportable += 1;
+                }
             }
         }
         assert!(
@@ -765,20 +781,23 @@ fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
             report.findings
         );
     }
-    assert!(built >= 2, "the fixture must build; only {built} did");
-    assert!(inside >= 4, "only {inside} pole junctions were examined");
-    // NON-VACUITY, and its honest limit. The suppressed quantity is
-    // the same ORDER as the band on every row (0.2 … 1.0 of it across
-    // the three), and its size is ARBITRARY — the gap half of it is an
-    // `atan2` of two float-noise components, so which side of the band
-    // a given body lands on is a property of its coordinates and not
-    // of anything a reader could reason about. That is the whole
-    // argument for exempting rather than leaving it to the band: R1
-    // executed a case that crossed (a tilted-axis sphere of R ≳ 1.4 km
-    // at ε = 1e-12, reporting), and this construction sits beside it.
+    // Two pole junctions on each face's loop, two faces, four lunes.
+    assert_eq!(
+        inside, 16,
+        "every pole junction is within the band of its pole"
+    );
+    // NON-VACUITY. Each pole vertex sits on the far side of the pole
+    // from both meridians, so the azimuth the door would read there is
+    // about π from the edge's own (an `atan2` of a placed offset now,
+    // not of float noise) on a lever of half a band. The suppressed
+    // quantity is therefore past the door's own band, `gap_is_noise`
+    // false, at some junction on every row. Without the exemption this
+    // body would report, so what keeps the report silent is the
+    // exemption and not the band's margin. (The old fixture could only
+    // assert `0.2·ε`: its lever was a few ulps of R, under the band.)
     assert!(
-        widest >= 0.2 * eps,
-        "the suppressed quantity must be the band's own order, or this row is \
-         not about the exemption at all: widest {widest:e} against eps {eps:e}"
+        reportable > 0 && widest >= eps,
+        "the suppressed quantity must clear the band, or this row is not about the \
+         exemption at all: widest {widest:e} against eps {eps:e}, {reportable} junctions past it"
     );
 }

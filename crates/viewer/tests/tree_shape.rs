@@ -91,7 +91,6 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
             Node::Subtract {
                 from: accumulated.into(),
                 tool: tool.into(),
-                declare: Vec::new(),
             },
             tol,
         );
@@ -140,7 +139,6 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         &doc,
         Node::Union {
             members: Bodies::Spelled(vec![tool_a.into(), tool_b.into()]),
-            declare: Vec::new(),
         },
         tol,
     );
@@ -150,7 +148,6 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         Node::Subtract {
             from: base.into(),
             tool: compound_tool.into(),
-            declare: Vec::new(),
         },
         tol,
     );

@@ -2,10 +2,11 @@
 id: joining-a-spline-carrier-is-unbuilt
 kind: issue
 title: A curved join on a spline carrier refuses JoinCarrierUnsupported: the kept edge cannot be run on along a carrier with no period or parameter inverse
-status: open
+status: parked
 opened: 2026-10-07
-priority: P1
+priority: P2
 cost: H
+blocked_on: [nurbs-edge-crossing-rung-is-the-ring-composite]
 ---
 
 ## The finding
@@ -28,3 +29,7 @@ boolean's operand gate (`BooleanError::CurvedEdgeUnsupported`).
 A spline carrier's run-on: its knot span extended (or the two edges'
 spline images concatenated) and a parameter foot on it, so the joined
 edge is one spline with a certified interval.
+
+## Parked (2026-10-13, FUSE orchestrator)
+
+Nothing can reach a spline join until a spline edge crosses a face. Even with the operand gate deleted (`orbit/delete-the-boolean-operand-edge-gate`), the sweep refuses such an edge first, typed as `BooleanError::CrossingCarrierUnsupported`. When this join is finally reached, it refuses typed too (`JoinCarrierUnsupported`). So this row waits on REACHHOLD's NURBS crossing rung, the first producer of a spline edge between two faces. It drops to P2 because, until that rung lands, no input can reach it.

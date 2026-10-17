@@ -2,10 +2,12 @@
 id: a-swaying-rational-corner-refuses-at-the-rational-speed-meter
 kind: issue
 title: The rational speed meter refuses a swaying corner the integral arm now meters, and takes a uniform-weight curve as rational
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+branch: nurbs/rational-speed-meter
+closed: 2026-10-12
 ---
 
 
@@ -44,3 +46,33 @@ constant weight), and give the rational arm the integral arm's piece
 reading (Bernstein coefficients of the homogeneous derivative on
 pieces) or a finer schedule; measure against the enclosure ceiling the
 swaying-corner suite already has.
+
+## Closed (2026-10-12)
+
+Both halves, in `crates/geom/src/curves/nurbs.rs`:
+
+- **Arm choice.** `speed_lower_bound` takes the rational arm only when
+  the weights' value channel is not all one value; equal weights meter
+  bit for bit as their polynomial curve
+  (`a_uniform_weight_curve_meters_as_its_polynomial`).
+- **Reach.** The rational arm joins its refined-span scan, by `max`,
+  with `rational_piece_assembly`: the Bernstein coefficients of the
+  quotient rule's numerator `A′w − Aw′` (degree `2p − 1`, as products
+  of the piece rows of `A′`, `w`, `A`, `w′`) on
+  `RATIONAL_PIECE_SPLITS` = 32 pieces per span, divided by the
+  piece's `w` hull squared. At 16 pieces degree 3, `a = 4` still read
+  −0.03; 32 reaches it.
+
+The table's w₁ ×1.3 column now reads, f64 meter / enclosure ceiling:
+2.17 / 2.49, 2.65 / 2.69, 2.29 / 2.69, 1.35 / 2.69
+(`a_swaying_rational_corner_meters_positive_and_below_its_speed`); the
+0.7 column is the integral one. A rational soundness fuzz with random
+weights, the all-0.7 and 1.3× shapes and exact stalls
+(`the_rational_meter_stays_below_the_speed_and_refuses_a_stall`) holds
+both scalars under the reference. The frontier row moved: the degree-5
+0.01/100 quintic now meters and joined the adversarial row, and the
+near-cusp frontier is re-cut at y = 0.1.
+
+The sweep's other "has weights ⇒ rational" sites went onto
+`work/iso/rational-gates-test-unit-weights-not-constancy.md`; the
+`Dual` residue is `the-integral-speed-meter-drops-a-dual-weights-tangent`.

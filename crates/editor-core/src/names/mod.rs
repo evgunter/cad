@@ -32,7 +32,6 @@ mod emit_shell;
 mod emit_sweep;
 mod emit_topo;
 mod emit_union;
-mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
@@ -49,8 +48,11 @@ mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
+pub(crate) use canonical::Unrankable;
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{FAMILY, decision_words};
+pub(crate) use discriminate::{
+    CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
+};
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
@@ -62,13 +64,8 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_name,
-    member_view, name_lone_member, name_union,
-};
-pub use flush::{
-    BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
-    DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
-    declare_all, declared_pairs, find_flush_candidates,
+    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_view,
+    name_lone_member, name_union,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
@@ -83,16 +80,21 @@ pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
-    Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
+    SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
+    meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
-pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+/// The kernel's contact vocabulary, re-exported so a refusal the recipe
+/// layer renders quotes the kernel's own words.
+pub use topo::{
+    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

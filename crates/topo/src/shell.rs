@@ -198,10 +198,7 @@
 //! The pass CLEARS the map first, so it reads none of the operand's
 //! rows; that they were sound is the operand type's promise (above),
 //! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). A face whose carrier class the pass cannot
-//! derive stops carrying rows rather than refusing
-//! (`UnsupportedCarrier`; not known to be reachable through this
-//! verb). The refusal is [`ShellError::Pcurve`], a kernel finding by
+//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], a kernel finding by
 //! construction.
 //!
 //! # The record
@@ -621,6 +618,17 @@ pub enum ShellError<T: Real> {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
     },
+    /// A wall seam the rim surgery shortens to the cavity's corner,
+    /// stored as the pair its two faces under-determine, reads mixed
+    /// over its kept stretch when the must-carry rule is asked again
+    /// ([`geom_brep::reask_pair`]): a corner at one station and smooth
+    /// at its neighbour.
+    RimSeamMixed {
+        /// The seam.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// The join the shell ends with ([`crate::Body::join_edges`])
     /// refused on the assembled body.
     Join {
@@ -734,9 +742,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             // wall and the geometry.
             Self::Escalated { source } => write!(
                 f,
-                "whether the thin solid's walls and rims stay clear of each other is too close \
-                 to call: {}",
-                source.under("change the wall thickness, or move the geometry")
+                "{}",
+                source.undecided(
+                    "whether the thin solid's walls and rims stay clear of each other",
+                    source.ending("change the wall thickness, or move the geometry"),
+                )
             ),
             // Every gate before the closing mint accepted the body, so
             // its refusal (in `Debug`) is the kernel's.
@@ -744,6 +754,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the finished thin solid's edges could not be parametrized on its faces. \
                  {KERNEL_DEFECT_ENDING}"
+            ),
+            Self::RimSeamMixed { stations, .. } => write!(
+                f,
+                "a wall seam the rim shortens, {stations}. Recourse: change the wall \
+                 thickness, or move the geometry"
             ),
             Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
@@ -903,6 +918,136 @@ pub struct Shelled<T: Real> {
     pub body: Body<T>,
     /// The mint-time naming facts of the construction that built it.
     pub naming: ShellNaming,
+}
+
+impl<T: Decide> Shelled<T> {
+    /// `records`, the operand's, carried onto the thin solid through
+    /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at `band`
+    /// through `region`).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::carried_through`].
+    pub fn carry_contacts(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        band: Band,
+        region: Option<crate::RegionLane<T>>,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
+        records.carried_through(0, &self.lineage(), &self.body, band, region)
+    }
+}
+
+impl<T: Real> Shelled<T> {
+    /// **What the shell made of each operand cell** (D1), read through
+    /// the closing join. The outer walls keep their operand keys and
+    /// their places. The rim surgery opens each designated chart: on the
+    /// outer shell, every designated face is divided into the rim, the
+    /// region at each further boundary ([`RimNaming::holes`]) and the
+    /// face itself where it is a branch of a seamed band, with the
+    /// opening removed, the rings' edges and vertices minted in it; a
+    /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
+    /// ring corners its pieces end on, its span across the opening
+    /// removed; and a seam, slit or apex the chart reduction retired
+    /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
+    /// void, the designated faces are removed, the rim being their
+    /// cavity twin's. The cavity twins are new cells and no operand
+    /// record names one.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        use crate::boolean::Cell;
+        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        let naming = &self.naming;
+        let outer: Vec<&RimNaming> = naming
+            .rims
+            .iter()
+            .filter(|rim| rim.side == RimShell::Outer)
+            .collect();
+        let rims = |rim: &RimNaming| -> Vec<Cell> {
+            core::iter::once(rim.rim)
+                .chain(rim.holes.iter().map(|h| h.face))
+                .map(Cell::Face)
+                .collect()
+        };
+        let ring_vertices = |rim: &RimNaming| -> Vec<VertexKey> {
+            rim.ring_vertices
+                .iter()
+                .chain(rim.holes.iter().flat_map(|h| &h.ring_vertices))
+                .map(|&(v, _)| v)
+                .collect()
+        };
+        let rings = |rim: &RimNaming| -> Vec<Cell> {
+            rim.ring_edges
+                .iter()
+                .chain(rim.holes.iter().flat_map(|h| &h.ring_edges))
+                .map(|&(e, _)| Cell::Edge(e))
+                .chain(ring_vertices(rim).into_iter().map(Cell::Vertex))
+                .collect()
+        };
+        let every_rim: Vec<Cell> = outer.iter().flat_map(|rim| rims(rim)).collect();
+        let opened = |pieces: Vec<Cell>, minted: Vec<Cell>| {
+            Fate::Divided(Division {
+                pieces,
+                minted,
+                remainder: Remainder::Removed,
+            })
+        };
+        // Every statement is a removal, and removals of one cell merge.
+        let remove = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with_removal(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
+        };
+        let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
+        for &e in &naming.dead.edges {
+            lineage = remove(
+                lineage,
+                Cell::Edge(e),
+                opened(every_rim.clone(), Vec::new()),
+            );
+        }
+        for &v in &naming.dead.vertices {
+            lineage = remove(
+                lineage,
+                Cell::Vertex(v),
+                opened(every_rim.clone(), Vec::new()),
+            );
+        }
+        for rim in &naming.rims {
+            for &f in &rim.sources {
+                let fate = match rim.side {
+                    RimShell::Outer => {
+                        let mut pieces = rims(rim);
+                        if !pieces.contains(&Cell::Face(f)) {
+                            pieces.push(Cell::Face(f));
+                        }
+                        opened(pieces, rings(rim))
+                    }
+                    RimShell::Void => Fate::Removed,
+                };
+                lineage = remove(lineage, Cell::Face(f), fate);
+            }
+            let corners = ring_vertices(rim);
+            for root in roots(&rim.seam_pieces) {
+                let pieces: Vec<EdgeKey> = Descent::of(root, &rim.seam_pieces).cells().collect();
+                let mut minted: Vec<Cell> = Vec::new();
+                for &e in &pieces {
+                    let ends = self.body.edge_vertices(e).map(|(a, b)| [a, b]);
+                    for v in ends.into_iter().flatten() {
+                        if corners.contains(&v) && !minted.contains(&Cell::Vertex(v)) {
+                            minted.push(Cell::Vertex(v));
+                        }
+                    }
+                }
+                lineage = remove(
+                    lineage,
+                    Cell::Edge(root),
+                    opened(pieces.into_iter().map(Cell::Edge).collect(), minted),
+                );
+            }
+        }
+        lineage
+    }
 }
 
 /// Mint-time naming facts of one shell (source keys ← the operand,
@@ -1076,6 +1221,16 @@ pub struct RimNaming {
     /// source seam itself, with `side` `Void` its cavity twin (a row of
     /// [`ShellNaming::inner_edges`]). Empty on every other rim: a pole's
     /// seams are cut short, each kept whole under its key.
+    ///
+    /// Not a checked list of mints ([`crate::lineage::Minted`]): every
+    /// row's second column is the source seam, and with `side` `Outer`
+    /// the first piece keeps that very key, so its row maps the seam to
+    /// itself, which a mint list refuses. The rows are a map from each
+    /// piece to the seam it divides, written once per rim from two keys
+    /// the surgery holds. `Shelled::lineage` still reads them through
+    /// `lineage::roots` and `Descent` as if they were mints, which drops
+    /// the outer rim's seam and lists the void rim's twin among its own
+    /// pieces (`work/shell/shell-lineage-drops-an-outer-rims-divided-seam.md`).
     pub seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
@@ -2672,10 +2827,10 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     body.kef(off_pole).map_err(rim_error)?;
     let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
     let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
-    let moved = re_anchored(body, eb, station, p_gb, designated)?;
+    let moved = re_anchored(body, eb, station, p_gb, designated, band)?;
     body.kev_describing(to_station, &[(eb, moved)], tol)
         .map_err(rim_error)?;
-    let moved = re_anchored(body, ea, pole, p_ga, designated)?;
+    let moved = re_anchored(body, ea, pole, p_ga, designated, band)?;
     let killed = body
         .kev_describing(to_pole, &[(ea, moved)], tol)
         .map_err(rim_error)?;
@@ -2917,10 +3072,10 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         .map_err(rim_error)?;
     // Each strut's `he_minus` runs from its ring corner to its cut point,
     // which the collapse merges away.
-    let moved = re_anchored(body, seam, m_a, p_start, designated)?;
+    let moved = re_anchored(body, seam, m_a, p_start, designated, band)?;
     body.kev_describing(strut_a.he_minus, &[(seam, moved)], tol)
         .map_err(rim_error)?;
-    let moved = re_anchored(body, top, m_b, p_end, designated)?;
+    let moved = re_anchored(body, top, m_b, p_end, designated, band)?;
     body.kev_describing(strut_b.he_minus, &[(top, moved)], tol)
         .map_err(rim_error)?;
     Ok((
@@ -3085,13 +3240,16 @@ fn along<T: Decide>(
 /// the merged seam. It is the child a split at `onto` keeps
 /// ([`geom_brep::EdgeCurve::split_specs`]), so the description is
 /// restricted to the shortened interval exactly as a split restricts
-/// it.
+/// it; a pair is asked the must-carry rule again over that interval
+/// ([`geom_brep::reask_pair`]), since the verdict reads the edge's
+/// extent and stations, which the shortening moves.
 fn re_anchored<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     moved: VertexKey,
     onto: geom_core::Point3<T>,
     designated: FaceKey,
+    band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
     let data = proven(&body.edges, edge, EntityId::Edge);
     let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
@@ -3110,11 +3268,83 @@ fn re_anchored<T: Decide>(
         });
     };
     let (kept_before, kept_after) = curve.split_specs(landed);
-    Ok(if starts_there {
+    let mut kept = if starts_there {
         kept_after
     } else {
         kept_before
-    })
+    };
+    if let geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } = kept.description {
+        kept.description = body
+            .reask_on(
+                pair,
+                crate::edge_faces(body, edge),
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                declared,
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
+    }
+    // An image is asked the same over the kept stretch, as every door
+    // that keeps one is. Every edge re-anchored here is a seam of the
+    // designated chart, with both faces on its one surface key, which
+    // the rule leaves alone, so no input reaches its demand here.
+    if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
+        && let Some(description) = body
+            .reask_chart_on(
+                edge,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?
+    {
+        kept.description = description;
+    }
+    Ok(kept)
+}
+
+/// The shell's refusal of a wall seam the rim shortens, whose pair the
+/// must-carry rule refuses over the kept stretch ([`re_anchored`]).
+fn rim_seam_refusal<T: Real>(edge: EdgeKey, refusal: geom_brep::PairRefusal) -> ShellError<T> {
+    match refusal {
+        geom_brep::PairRefusal::Mixed(stations) => ShellError::RimSeamMixed { edge, stations },
+        geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
+            source: escalation.diag(),
+        },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod rim_seam_rows {
+    use super::{ShellError, rim_seam_refusal};
+    use crate::entity::EdgeKey;
+
+    /// **A shortened seam read mixed refuses as the rim's seam**, naming
+    /// the two stations and ending in the shell's lever. No door is known
+    /// to build the pose (a kept stretch whose stations straddle a crease
+    /// the full seam's did not), so the row pins the refusal the re-ask
+    /// maps to rather than a body that reaches it.
+    #[test]
+    fn a_mixed_rim_seam_refuses_naming_its_stations() {
+        let stations = geom_brep::MixedStations {
+            transverse: 3,
+            smooth: 4,
+        };
+        let refusal: ShellError<f64> =
+            rim_seam_refusal(EdgeKey::default(), geom_brep::PairRefusal::Mixed(stations));
+        let ShellError::RimSeamMixed { stations: got, .. } = refusal else {
+            panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
+        };
+        assert_eq!(got, stations);
+        let text = refusal.to_string();
+        assert!(
+            text.starts_with("a wall seam the rim shortens, ")
+                && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
+            "the refusal names the seam and the shell's lever: {text}"
+        );
+    }
 }
 
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
@@ -3404,6 +3634,19 @@ fn chart_read<T: Decide>(
                 reference = Some(mean);
                 T::zero()
             }
+            // A whole number of periods bringing this run's mean within
+            // half a period of the first run's. The pairs `encloses` exists
+            // for are concentric by construction (its doc), so the inner's
+            // mean lies inside the outer's span and no tie arises. It is
+            // also asked of pairs not known to nest: both orders before a
+            // band seam in the rim pairing, and `pair_rings`' two orders
+            // before it refuses. There two full-period runs' means can sit
+            // half a period apart; a tie then lands the later run on
+            // whichever branch the floor rounds to, a whole period across
+            // the flat picture (moving the centroid with it), and the
+            // nesting decision reads that placement. Only
+            // `shell_rim_nesting`'s radii read the shift, numerically at
+            // `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
         for (&p, u) in run.iter().zip(us) {
@@ -3527,6 +3770,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
+        | ReplaceFaceError::MixedEdge { edge, .. }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
@@ -4212,7 +4456,8 @@ enum EdgeArc<T: Real> {
 /// half-edge. A piece holds its arc, and so the region between the arc
 /// and its chord, in a ball about the window's midpoint point, radius a
 /// bound on the carrier's speed times the window's half-width: a
-/// spiric's [`carrier_ball`], or [`spline_speed`] for a spline. A
+/// spiric's [`carrier_ball`], or the spline's
+/// [`geom::NurbsCurve3::speed_upper_bound`] for a spline. A
 /// spline also lies in its control net's ball ([`carrier_ball`]'s),
 /// which is the smaller for a strongly rational or tightly knotted net,
 /// so a spline piece is read in the smaller of the two. A piece splits
@@ -4223,7 +4468,7 @@ enum EdgeArc<T: Real> {
 struct ArcPiece<T: Real> {
     carrier: geom::Curve3<T>,
     /// The carrier's speed bound, metres per unit of its parameter.
-    speed: T,
+    speed: geom_core::SupSpeed<T>,
     /// For a spline, the ball holding its whole control net.
     hull: Option<(geom_core::Point3<T>, T)>,
     /// From the start vertex's parameter to the end vertex's.
@@ -4236,7 +4481,7 @@ impl<T: Decide> ArcPiece<T> {
     /// half-edge and backward along a minus one.
     fn along(
         carrier: &geom::Curve3<T>,
-        speed: T,
+        speed: geom_core::SupSpeed<T>,
         hull: Option<(geom_core::Point3<T>, T)>,
         (t0, t1): (T, T),
         plus: bool,
@@ -4253,7 +4498,7 @@ impl<T: Decide> ArcPiece<T> {
     fn ball(&self) -> (geom_core::Point3<T>, T) {
         let (t0, t1) = self.window;
         let centre = self.carrier.mid_point(t0, t1);
-        let radius = self.speed * (t1 - t0).abs() * T::from_f64(0.5);
+        let radius = geom_core::bisect::reach(self.speed, (t0, t1));
         let Some((hull_centre, hull_radius)) = self.hull else {
             return (centre, radius);
         };
@@ -4282,40 +4527,6 @@ impl<T: Decide> ArcPiece<T> {
         };
         (half((t0, mid)), self.carrier.eval(mid), half((mid, t1)))
     }
-}
-
-/// **A bound on a spline's speed**, metres per unit of its parameter.
-/// About a control point `c`, the curve is `A/w` with
-/// `A = Σ Nᵢ wᵢ (Pᵢ − c)`, so `C′ = (A′ − (C − c) w′)/w`. A spline's
-/// derivative is a convex combination of its derivative coefficients
-/// `p·(Xᵢ₊₁ − Xᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so `|A′|` and `|w′|` are at most
-/// their largest; positive weights put the curve in its control hull,
-/// so `|C − c|` is at most the farthest control point's distance `d`;
-/// and `w` is at least the least weight. Hence
-/// `|C′| ≤ (max |A′ coefficient| + d · max |w′ coefficient|) / min w`.
-/// A coefficient over an empty knot span is skipped: its basis
-/// function's derivative is zero.
-fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
-    let (control, weights) = (spline.control(), spline.weight_channel());
-    let (knots, p) = (spline.knots().knots(), spline.degree());
-    let c = control[0];
-    let reach = control
-        .iter()
-        .fold(T::zero(), |r, q| r.max((*q - c).norm()));
-    let least = weights.iter().copied().fold(f64::INFINITY, f64::min);
-    let (mut point_rate, mut weight_rate) = (T::zero(), 0.0_f64);
-    for i in 0..control.len().saturating_sub(1) {
-        let du = knots[i + p + 1] - knots[i + 1];
-        if du == 0.0 {
-            continue;
-        }
-        let k = p as f64 / du;
-        let step = (control[i + 1] - c) * T::from_f64(weights[i + 1])
-            - (control[i] - c) * T::from_f64(weights[i]);
-        point_rate = point_rate.max(step.norm() * T::from_f64(k));
-        weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);
-    }
-    (point_rate + reach * T::from_f64(weight_rate)) / T::from_f64(least)
 }
 
 impl<T: Decide> MovedWall<T> {
@@ -4588,29 +4799,20 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse {
                                 center,
                                 ref axis,
-                                major,
-                                minor,
+                                semi_u,
+                                semi_v,
                                 u_ref,
-                            } => conic(center, axis, u_ref, major, minor),
-                            geom::Curve3::Spiric {
-                                major_radius,
-                                minor_radius,
-                                offset,
-                                ..
-                            } => EdgeArc::Arc(ArcPiece::along(
+                            } => conic(center, axis, u_ref, semi_u, semi_v),
+                            geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::splitting::containment::spiric_speed(
-                                    major_radius,
-                                    minor_radius,
-                                    offset,
-                                ),
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
-                            geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::along(
+                            geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                spline_speed(spline),
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5133,20 +5335,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        match carrier {
-                            geom::Curve3::Nurbs(spline) => spline_speed(spline),
-                            geom::Curve3::Spiric {
-                                major_radius,
-                                minor_radius,
-                                offset,
-                                ..
-                            } => crate::splitting::containment::spiric_speed(
-                                *major_radius,
-                                *minor_radius,
-                                *offset,
-                            ),
-                            _ => unreachable!("the helper takes a spiric or a spline"),
-                        },
+                        geom::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,
@@ -5204,7 +5393,7 @@ mod tests {
             vec![1.0, 4.0, 0.57],
         )
         .unwrap();
-        let bound = spline_speed(&spline);
+        let bound = spline.speed_upper_bound().get();
         let fastest = (0..=20_000)
             .map(|k| spline.deriv(k as f64 / 20_000.0).norm())
             .fold(0.0_f64, f64::max);
@@ -5225,14 +5414,14 @@ mod tests {
         let geom::Curve3::Nurbs(spline) = &carrier else {
             unreachable!("built a spline")
         };
-        let speed = spline_speed(spline);
+        let speed = spline.speed_upper_bound();
         let hull = crate::splitting::containment::carrier_ball(&carrier, (0.0, 1.0));
         let piece = ArcPiece::along(&carrier, speed, hull, (0.0, 1.0), true);
         let (centre, radius) = piece.ball();
         assert!(
-            speed * 0.5 > 50.0,
+            speed.get() * 0.5 > 50.0,
             "the speed ball is wide, radius {}",
-            speed * 0.5
+            speed.get() * 0.5
         );
         assert!(
             (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,
@@ -5634,5 +5823,68 @@ mod tests {
             shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
+    }
+
+    /// **The speed bound reads the held knots and weights.** A cubic
+    /// with an interior breakpoint held as the variable re-values its
+    /// bound with it (`kept`), and so does one with a held weight; with
+    /// the knot or weight read off the `f64` channel the bound would
+    /// launder it.
+    #[test]
+    fn the_speed_bound_carries_a_held_knot_and_weight() {
+        use crate::revalue_pin::{Revalued, S, revalued};
+        use core::num::NonZeroUsize;
+        let m = |n| NonZeroUsize::new(n).unwrap();
+        let control = |c: f64| {
+            [(0.0, 0.0), (1.0, 2.0), (2.0, -1.0), (3.0, 1.0), (4.0, 0.0)]
+                .map(|(x, y)| geom_core::Point3::new(S::from_f64(x), S::from_f64(y * c), S::zero()))
+                .to_vec()
+        };
+        let knot = revalued([0.4, 0.4 + 1.0e-3], |_, k| {
+            let knots = geom_core::spline::Knots::new(
+                vec![
+                    (S::from_f64(0.0), m(4)),
+                    (k, m(1)),
+                    (S::from_f64(1.0), m(4)),
+                ],
+                3,
+            )
+            .unwrap();
+            let c = geom::NurbsCurve3::new(knots, control(1.0), vec![S::one(); 5]).unwrap();
+            vec![c.speed_upper_bound().get()]
+        });
+        assert_eq!(
+            knot,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held breakpoint"
+        );
+        let weight = revalued([0.6, 0.6 + 1.0e-3], |_, w| {
+            let kv = geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap();
+            let one = S::one();
+            let c = geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(kv).lift(S::from_f64),
+                control(1.0),
+                vec![one, one, w, one, one],
+            )
+            .unwrap();
+            vec![c.speed_upper_bound().get()]
+        });
+        assert_eq!(
+            weight,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held weight"
+        );
     }
 }

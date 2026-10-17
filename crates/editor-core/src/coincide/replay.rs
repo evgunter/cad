@@ -28,9 +28,8 @@
 //! `f64`) is a different function of the variables than the one it came
 //! from, so a proof whose expression crosses such a site can be false.
 //! The sites are listed with the rows that owe their fix
-//! (`scripts/gates/from-f64-sites.tsv`: `topo-keeps-computed-values-in-t`,
-//! `sweep-keeps-computed-values-in-t` and
-//! `nurbs-weights-and-knots-are-the-scalar` hold the open ones), and the
+//! (`scripts/gates/from-f64-sites.tsv`'s `launders(…)` and
+//! `stored-carrier-data(…)` classes name the open ones), and the
 //! re-valuation row (`editor-core/tests/revalue_corpus.rs`) is what
 //! catches one.
 //!
@@ -45,14 +44,14 @@ use geom_core::sym::deferred;
 use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
-use super::{NamedCell, NamedCoincidence, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, Evaluation, ProfileLift, ValuePayload};
+use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
+use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
-/// **The tier's budget at the door's full pass**, with the drive's
-/// retry ladder: a margin whose form outgrows it is not proved, and
+/// **The door's one strength**: the tier's budget, with the drive's
+/// retry ladder. A margin whose form outgrows it is not proved, and
 /// fails fast. Measured in release: a filleted disc's two coaxial
 /// supports prove here and its two joints only from 1024 terms; a
 /// filleted box's eight mitres prove at no budget
@@ -67,6 +66,9 @@ const BUDGET: SymBudget = SymBudget {
 /// symbol.
 type Lane = Sym<f64>;
 
+/// Why a row is left unproven, and what would prove it.
+type Left = (Unreplayed, Recourse);
+
 /// **The symbolic rungs for each row of each node**: in the order
 /// given, a rung that proved the row or why the replay could not.
 /// `nodes` holds each deciding node with its rows in decision order,
@@ -75,7 +77,8 @@ pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: Tol,
-) -> Vec<Vec<Result<Rung, Unreplayed>>> {
+    cancel: &crate::CancelToken,
+) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let opts = EvalOptions {
         symbols: true,
         profile_lift: ProfileLift::Guided,
@@ -86,8 +89,10 @@ pub(super) fn rungs(
         SymRules::shipped(),
         crate::drive::DEFAULT_SYM_RETRY,
         || {
-            let ev: Evaluation<Lane> =
-                crate::eval::evaluate(doc, None, &crate::CancelToken::new(), &opts, tol);
+            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
+            if ev.outcome == EvalOutcome::Canceled {
+                return Err(Canceled);
+            }
             let band = Band::linear(tol).ok();
             nodes
                 .iter()
@@ -98,7 +103,7 @@ pub(super) fn rungs(
                             let ordinal = ordinals.entry(row.site).or_insert(0usize);
                             let at = *ordinal;
                             *ordinal += 1;
-                            prove_row(doc, &ev, node, row, at, band)
+                            prove_row(doc, &ev, node, row, at, band, cancel)
                         })
                         .collect()
                 })
@@ -109,7 +114,7 @@ pub(super) fn rungs(
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
-/// node's rows at its site.
+/// node's rows at its site. Canceled before it discharges a margin.
 fn prove_row(
     doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
@@ -117,26 +122,46 @@ fn prove_row(
     row: &NamedCoincidence,
     at: usize,
     band: Option<Band>,
-) -> Result<Rung, Unreplayed> {
+    cancel: &crate::CancelToken,
+) -> Result<Result<Rung, Left>, Canceled> {
+    // A row the replay left with no form of its own: nothing the door
+    // could read, so the recourse is the assertion.
+    let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        return Err(Unreplayed::NotReplayed);
+        return left(Unreplayed::NotReplayed);
     }
-    let value = ev.value(node).ok_or_else(|| why_no_value(ev, node))?;
-    let replayed = value
+    let Some(value) = ev.value(node) else {
+        return left(why_no_value(ev, node));
+    };
+    let Some(replayed) = value
         .coincidences
         .iter()
         .filter(|r| r.site == row.site)
         .nth(at)
         .filter(|r| r.cells == row.cells && r.relation == row.relation)
-        .ok_or(Unreplayed::OtherDecisions)?;
-    if let Some(band) = band
-        && let Some(how) = carrier_verdict(doc, ev, row, band)
-    {
-        return Ok(Rung::CarrierVerdict(how));
+    else {
+        return left(Unreplayed::OtherDecisions);
+    };
+    if cancel.is_canceled() {
+        return Err(Canceled);
     }
-    deferred::discharge(replayed.margin)
-        .map(Rung::MarginIdentity)
-        .ok_or(Unreplayed::Numeric)
+    if let Some(band) = band
+        && carrier_verdict(doc, ev, row, band)
+    {
+        return Ok(Ok(Rung::CarrierVerdict));
+    }
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
+    Ok(match deferred::discharge_or_why(replayed.margin) {
+        Ok(()) => Ok(Rung::MarginIdentity),
+        Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
+            Err((Unreplayed::Numeric, Recourse::Assert))
+        }
+        Err(deferred::Undischarged::Otherwise) => {
+            Err((Unreplayed::Numeric, Recourse::OneConstruction))
+        }
+    })
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve
@@ -152,24 +177,26 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 }
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
-/// the row decided two faces one carrier: the theorem that decided
-/// every Zero it stands on, or `None` where it is not one.
+/// the row decided two faces one carrier: whether every Zero it stands
+/// on is proven.
 fn carrier_verdict(
     doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-) -> Option<geom_core::Theorem> {
+) -> bool {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
-        _ => return None,
+        _ => return false,
     };
     let [a, b] = row.cells.each_ref().map(|cell| face_of(doc, ev, cell));
-    let ((a, fa), (b, fb)) = (a?, b?);
+    let (Some((a, fa)), Some((b, fb))) = (a, b) else {
+        return false;
+    };
     match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
-        _ => None,
+        _ => false,
     }
 }
 

@@ -90,7 +90,7 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
     let (k1, k2, map) = keys2();
     let spec = ruling_spec(k1, k2);
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
         .expect("the kernel's first certified TangentIntersection");
     assert!(matches!(
         curve.description(),
@@ -110,7 +110,7 @@ fn the_tangent_predicates_reach_the_k_funnel() {
     let spec = ruling_spec(k1, k2);
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
     let bracket = Bracket::open();
-    let _ = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap();
+    let _ = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap();
     let v = bracket.finish().verdicts;
     for name in [
         "tangent_on_surface_1",
@@ -119,6 +119,9 @@ fn the_tangent_predicates_reach_the_k_funnel() {
         "tangent_normal_parallel",
         "tangent_hull_sup",
         "tangent_tube_margin",
+        "tangent_gap",
+        "tangent_gap_orientation",
+        "tangent_gap_hull_sup",
     ] {
         assert!(
             v.iter().any(|x| x.predicate == name),
@@ -162,7 +165,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         param_end: 1.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap_err();
     let CertifyError::NotSecondOrderSeparated { .. } = err else {
         panic!("the zero-side margin is the definite refusal: {err}");
     };
@@ -172,7 +175,10 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     // which no smaller tolerance decides passing, so no tolerance is
     // offered.
     let msg = err.render(geom_brep::recourse::Reading::Build);
-    assert!(msg.contains("agree to second order"), "{msg}");
+    assert!(
+        msg.contains("not shown to curve apart at second order"),
+        "{msg}"
+    );
     assert!(
         msg.ends_with(
             "Recourse: move the geometry so the faces curve apart more clearly where they \
@@ -220,7 +226,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
         param_end: 1.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap_err();
     let CertifyError::Escalated { check, cause, .. } = err else {
         panic!("in-band second order escalates (F6): {err}");
     };
@@ -251,7 +257,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
         param_end: 1.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap_err();
     // The tilted line leaves the CYLINDER surface too, so the first
     // failing check is a typed residual/parallelism refusal — either
     // way a definite refusal naming its check, never acceptance.
@@ -284,11 +290,73 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         param_end: 1.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap_err();
     assert!(
         matches!(err, CertifyError::ResidualExceeded { .. }),
         "off-surface by 100·escalate refuses definitely: {err}"
     );
+}
+
+/// **The certificate reads the touch on the pair** (C7): the unit
+/// cylinder against the plane `x = 1 + gap`, the carrier at
+/// `x = 1 + witness`. The two residuals see the carrier; the gap
+/// `s = r₁ − σ·r₂` sees the surfaces.
+///
+/// - 1.8ε apart, the carrier halfway: each residual is 0.9ε and passes;
+///   the gap is in band and escalates.
+/// - 15ε apart, and 15ε into each other, the carrier halfway: the gap
+///   is definite either way (each residual, 7.5ε, is in band).
+/// - Touching, the carrier 11ε off along the shared normal: the
+///   heights cancel in the gap, and the residual against the cylinder
+///   refuses.
+#[test]
+fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
+    let eps = band().zero();
+    let along = |gap: f64, witness: f64| {
+        let (k1, k2, map) = arena2(cylinder(), plane_through_line(1.0 + gap, 0.0));
+        let carrier = Curve3::Line {
+            origin: Point3::new(1.0 + witness, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::TangentIntersection {
+                pair: SurfacePair::new(k1, k2),
+                witness: carrier.eval(0.5),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        (
+            k1,
+            EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()),
+        )
+    };
+    match along(1.8 * eps, 0.9 * eps).1 {
+        Err(CertifyError::Escalated {
+            check: geom_brep::CertCheck::TangentGap,
+            ..
+        }) => {}
+        other => panic!("1.8ε apart escalates on the gap: {other:?}"),
+    }
+    for gap in [15.0, -15.0] {
+        match along(gap * eps, 0.5 * gap * eps).1 {
+            Err(CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentGap,
+                ..
+            }) => {}
+            other => panic!("{gap}ε refuses definitely on the gap: {other:?}"),
+        }
+    }
+    let (k1, got) = along(0.0, 11.0 * eps);
+    match got {
+        Err(CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::SurfaceResidual { surface },
+            ..
+        }) => assert_eq!(surface, k1, "the residual against the cylinder"),
+        other => panic!("a carrier 11ε off a touching pair refuses on its residual: {other:?}"),
+    }
 }
 
 #[test]
@@ -332,7 +400,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
         param_end: 1.5,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
-    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
         .expect("the coaxial circle arm certifies this class since M5 PR 12");
     assert!(curve.certificate().max_residual < 1e-12);
 }
@@ -374,7 +442,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
         param_end: 1.5,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
-    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
         .expect("a coaxial cone-sphere contact circle is inside the circle arm");
     assert!(curve.certificate().max_residual < 1e-12);
 }
@@ -416,7 +484,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
         param_end: 1.5,
     };
     let (p0, p1) = (spec.carrier.eval(0.5), spec.carrier.eval(1.5));
-    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
+    let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()).unwrap_err();
     assert!(
         matches!(err, CertifyError::TangentCertificateUnsupported),
         "outside the lane is a routing refusal: {err}"
@@ -434,7 +502,7 @@ fn certify_ruling(
 ) -> Result<EdgeCurve<f64>, CertifyError> {
     let spec = ruling_spec(k1, k2);
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
 }
 
 /// The cylinder of radius `radius` about a z-parallel axis placed so
@@ -596,7 +664,7 @@ fn certify_line_at(
         param_start: 0.0,
         param_end: 1.0,
     };
-    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
 }
 
 /// The plane through the line `(x, 0, z)` whose normal is `+x` turned
@@ -713,7 +781,14 @@ fn certify_line_at_interval(
         param_end: t1,
     };
     let bracket = geom_core::k_stats::Bracket::open();
-    let out = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band());
+    let out = EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |k| map.get(k).cloned(),
+        geom_core::Real::from_f64(1.0),
+        band(),
+    );
     (out, bracket.finish())
 }
 

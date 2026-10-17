@@ -85,53 +85,34 @@ use geom_core::{Band, Point3, Real, Vec3};
 /// A body assembled from Euler ops and then grafted with planes holds
 /// every chord at the SCAFFOLDING door: `mev_line` and `mef_chord`
 /// mint an edge before any face surface exists, so they have no chart
-/// to name. At rest that breaks two rules at once, and the two are
-/// independent, not one report doubled:
+/// to name. At rest that breaks the transience fence (U2 Q2): an edge
+/// with two faces has a chart, so a scaffold there is a construction
+/// that stopped half-way. The fence fires regardless of dihedral class.
+/// Prefer-intrinsic (D2) does not fire as well: it keys on the
+/// description's form, and a scaffold is not a conventional form.
 ///
-/// - **Prefer-intrinsic** (D2): a definitely-transverse edge whose
-///   locus the modeler DECLARED must instead cite the intersection its
-///   two surfaces determine. It fires on a chart image too — a
-///   declared image is still a declared locus — so it is not about the
-///   scaffolding door.
-/// - **The transience fence** (U2 Q2): an edge with two faces has a
-///   chart, so a scaffold there is a construction that stopped
-///   half-way. It fires regardless of dihedral class — a SMOOTH join,
-///   which prefer-intrinsic exempts, is named by it just the same.
-///
-/// So a conventional chord at rest is named once by each, and the
-/// pairing is what this helper pins: one report per rule per edge,
-/// over exactly the edge arena, in its order, with no third kind and
-/// no cascade. **This is what the pre-P-1b rows' single count meant**;
-/// it is asserted as a bijection rather than re-baselined to twice the
-/// number, so that a rule firing twice on one edge, or missing one,
-/// still fails here.
-pub fn assert_every_chord_named_by_both_rules<T: Real>(
+/// This helper pins one report per edge, over exactly the edge arena,
+/// in its order, with no other kind and no cascade, so a rule firing
+/// twice on one edge, or missing one, fails here.
+pub fn assert_every_chord_named_by_the_fence<T: Real>(
     body: &Body<T>,
     errs: &[crate::ValidationError],
 ) {
     let edges: Vec<crate::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let named = |pick: fn(&crate::ValidationError) -> Option<crate::EdgeKey>| {
-        errs.iter().filter_map(pick).collect::<Vec<_>>()
-    };
-    let scaffolds = named(|e| match e {
-        crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
-        _ => None,
-    });
-    let transverse = named(|e| match e {
-        crate::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
-        _ => None,
-    });
+    let scaffolds: Vec<_> = errs
+        .iter()
+        .filter_map(|e| match e {
+            crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
     assert_eq!(
         scaffolds, edges,
         "the fence names every chord still at the scaffolding door, once: {errs:?}"
     );
     assert_eq!(
-        transverse, edges,
-        "prefer-intrinsic names every declared transverse chord, once: {errs:?}"
-    );
-    assert_eq!(
         errs.len(),
-        2 * edges.len(),
+        edges.len(),
         "and nothing else is reported: {errs:?}"
     );
 }
@@ -297,7 +278,7 @@ pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 ///   trades its conventional chord for the `Intersection` its two faces
 ///   determine; skip it and all `3n` stay
 ///   `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
-///   [`assert_every_chord_named_by_both_rules`] is about. So the choice
+///   [`assert_every_chord_named_by_the_fence`] is about. So the choice
 ///   belongs where a reader can see it, not inside a shared body — and
 ///   it is a line at each call site rather than a `bool` argument,
 ///   because the risk here is a reader not noticing that step.
@@ -716,6 +697,39 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     }
 }
 
+/// **Every chord stated as its pair.** A copy of `body` with each edge
+/// restated as the pair its two faces' surfaces under-determine (a
+/// straight `OnPair`, derived), and the report tier 3 owes it when
+/// every chord reads a corner: `TransverseNotIntrinsic` once per edge,
+/// in arena order, and nothing else. The classification an
+/// Euler-op-built body's chords hide while they are still scaffolds.
+pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    tol: Tol,
+) -> (Body<T>, Vec<crate::ValidationError>) {
+    let mut body = body.clone();
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    for (edge_key, edge) in &edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
+            .unwrap()
+            .surfaces();
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
+        spec.description = EdgeDescriptionSpec::OnPair {
+            pair: SurfacePair::new(s1, s2),
+            declared: None,
+        };
+        body.set_edge_curve(*edge_key, spec, tol).unwrap();
+    }
+    let want = edges
+        .into_iter()
+        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .collect();
+    (body, want)
+}
+
 /// A cube built like [`geometric_cube`] but through an arbitrary point
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
@@ -727,6 +741,52 @@ pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = Body::<T>::new();
     cube_into(&mut body, map, tol);
     body
+}
+
+/// **A wedge cornered on a block's top**: the block `[−1, 3] × [−2, 2.5]
+/// × [0, 1]`, and a parallelepiped cornered at `(0.5, 0.2, 1)` by an
+/// `opening_deg` wedge angle, its face in the block's top plane tilted
+/// about the wedge's `x` edge by `tilt` (m/m). It stands `height` tall,
+/// sunk `depth` into the block. Returns `(block, wedge)`.
+pub fn wedge_on_a_block_top(
+    opening_deg: f64,
+    tilt: f64,
+    height: f64,
+    depth: f64,
+    tol: Tol,
+) -> (Body<f64>, Body<f64>) {
+    let phi = opening_deg.to_radians();
+    let (ea, eb) = (
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
+    );
+    let p = Point3::new(0.5, 0.2, 1.0);
+    (
+        brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        mapped_cube(
+            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+            tol,
+        ),
+    )
+}
+
+/// The one planar face of `body` whose outward normal leans along
+/// `facing` in `z` (`+1` up, `−1` down).
+///
+/// # Panics
+///
+/// Unless exactly one face does.
+pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
+    let hits: Vec<_> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            matches!(crate::face_carrier(body, k),
+                Some(crate::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "one face faces {facing}");
+    hits[0]
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
@@ -747,37 +807,6 @@ pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);
-}
-
-/// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
-/// every flush face pair of `(a, b)`, on any carrier the `Rest`
-/// ladder verifies — the test author's
-/// stand-in for a recipe declaration (the author built the contact
-/// deliberately; this writes the intent down).
-///
-/// The detection is the library's ([`crate::flush`]), so this helper
-/// interprets nothing: it detects through the same door the op then
-/// verifies with, and hands the findings straight to the declare
-/// sugar. Coincidence CERTIFICATION still happens inside the op
-/// through the verified declared rung, never here.
-///
-/// **The in-band arm INVERTED here, deliberately.** The hand declarer
-/// this replaced treated an in-band pair as plausible and declared it
-/// anyway, leaving the op's declared rung to re-check it. A finding is
-/// only ever DEFINITE, so the library refuses instead — and this
-/// helper turns that refusal into a panic rather than swallowing it,
-/// which makes "every fixture that reaches this helper decides
-/// definitely" a fixture assertion instead of an assumption. A future
-/// fixture built inside the band fails loudly at its own door; the old
-/// helper would have declared it and moved on.
-pub fn flush_declarations<T: geom_core::Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    tol: Tol,
-) -> crate::BooleanDeclarations {
-    let found = crate::flush::find_flush_candidates(a, b, tol)
-        .expect("a fixture's flush pairs decide definitely");
-    crate::flush::declare_all(&found)
 }
 
 // ---------------------------------------------------------------------
@@ -1634,8 +1663,8 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     let carrier = Curve3::Ellipse {
         center: Point3::origin(),
         axis: Vec3::new(-s, 0.0, c),
-        major: 1.0 / c,
-        minor: 1.0,
+        semi_u: 1.0 / c,
+        semi_v: 1.0,
         u_ref: Vec3::new(c, 0.0, s),
     };
     let mut body = Body::<f64>::new();
@@ -1678,6 +1707,124 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     )
     .unwrap();
     (body, seed.face, seed.vertex)
+}
+
+/// **A planar cap on an arc of `carrier`** (a circle) over `span`,
+/// closed by its chord, built through the public operators: the arc's
+/// start corner at the carrier's start, its end corner at the carrier's
+/// end plus `off` (certified, so `off` lies within the run's zero band).
+/// Returns the body and the cap face.
+pub fn arc_cap(
+    carrier: Curve3<f64>,
+    span: (f64, f64),
+    off: Vec3<f64>,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
+    };
+    let mut body = Body::<f64>::new();
+    let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: center,
+        normal: axis,
+        u_ref,
+    });
+    let wall = body.add_surface(Surface::Cylinder {
+        origin: center,
+        axis,
+        radius,
+        u_ref,
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                },
+                carrier,
+                param_start: span.0,
+                param_end: span.1,
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+/// **A planar half-disc cap** ([`arc_cap`]): the unit circle's arc from
+/// `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, its end corner stored `off`
+/// along `-y` from the carrier's end. Returns the body, the cap face, and
+/// the carrier's end at `π`.
+pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
+    let carrier = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let span = (0.0, core::f64::consts::PI);
+    let end = carrier.eval(span.1);
+    let (body, cap) = arc_cap(carrier, span, -Vec3::unit_y() * off, tol);
+    (body, cap, end)
+}
+
+/// **A whole-period gap over a box**, for the rows that read a branch
+/// decided as structure. Run `f` in a fresh symbolic session at
+/// `Sym<Interval>`, handing it `(a, b)` whose difference is the
+/// polynomial `periods·τ` in a parameter over `[0.2, 0.4]`, while
+/// neither side is a constant: `a = p² + p + periods·τ`, `b = p·(p + 1)`.
+/// The value channel of `a − b` is about 0.64 rad wide (the box,
+/// with its dependency lost), so a decision on a residual built from
+/// the gap is definite only where its form is the zero polynomial.
+#[cfg(test)]
+pub(crate) fn whole_period_gap_over_a_box<R>(
+    periods: f64,
+    f: impl FnOnce(geom_core::Sym<geom_core::Interval>, geom_core::Sym<geom_core::Interval>) -> R,
+) -> (R, geom_core::sym::SymCounts) {
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget};
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    geom_core::sym::with_session(budget, || {
+        let p = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("branch_box")),
+            Interval::from_bounds(0.2, 0.4),
+            0.2,
+            0.4,
+        );
+        let one = Sym::<Interval>::one();
+        let a = p * p + p + Sym::from_f64(periods) * Sym::tau();
+        let b = p * (p + one);
+        f(a, b)
+    })
 }
 
 #[cfg(test)]

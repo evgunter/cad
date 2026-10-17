@@ -337,11 +337,11 @@ impl ResolveError {
 /// Why a name vanished.
 ///
 /// N5's arms, including [`Self::GroupResized`] and the border delta
-/// ([`Self::BorderDelta`]), plus two additions that are NOT N5's and
-/// are marked as such wherever they are read: the reserved
+/// ([`Self::BorderDelta`]), plus one addition that is NOT N5's and is
+/// marked as such wherever it is read: the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed by the M6
-/// solver) and [`Self::ConsumedByFold`]. A consumer matching this enum
-/// is matching more than N5 wrote.
+/// solver). A consumer matching this enum is matching more than N5
+/// wrote.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Diagnosis {
     /// A recorded predicate flip on the name's derivation path — the
@@ -425,66 +425,6 @@ pub enum Diagnosis {
         /// What was found there.
         cause: UpstreamCause,
     },
-    /// An n-ary union's fold consumed the entity a member-space name
-    /// denotes, by a composition that leaves no one entity for the
-    /// name to denote — NOT N5's: the arm the rule *"a composition that
-    /// breaks one name denotes one entity refuses"* adds for the
-    /// compositions other than a merge. A merge's own case is looked
-    /// through, not refused (`Node::Union`).
-    ///
-    /// Read off the accumulation's rows at the step the name is fed
-    /// to, never by re-measuring the face: which composition consumed
-    /// it is the SHAPE of the rows that descend from it
-    /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
-    /// no replacement, because none is unique: a split and a
-    /// fragmented merge leave several candidates.
-    ///
-    /// The union is not a field: the name this diagnoses is a
-    /// member-space name, minted by that union, so it is the name's own
-    /// minting node, and the refusal carrying the name already says so.
-    ConsumedByFold {
-        /// How the fold consumed it.
-        by: FoldConsumption,
-    },
-}
-
-/// Which composition of a union's fold consumed a member's entity
-/// ([`Diagnosis::ConsumedByFold`]) — the structural shape of what the
-/// accumulation holds in its place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FoldConsumption {
-    /// A later member SPLIT it: the accumulation holds fragments of
-    /// it (the name with `Fragment` qualifiers after it), bare or as
-    /// constituents of later merges, and never the name itself as a
-    /// face. The step that split it may also have merged part of it:
-    /// the name is then a constituent of a bare merged row beside its
-    /// own fragment, and that row holds only part of the face.
-    Split,
-    /// A declared MERGE consumed it and a later member split the
-    /// merged face: the accumulation holds fragments of a merged row
-    /// whose constituent set covers the name, and no bare merged row
-    /// that does.
-    FragmentedMerge,
-}
-
-// The composition as the clause of [`Diagnosis::ConsumedByFold`]'s
-// sentence that says what happened to the entity and why nothing is
-// offered in its place.
-impl core::fmt::Display for FoldConsumption {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Split => {
-                "a later member split it into fragments, some perhaps merged with \
-                 another member's face in the same step, and which piece the \
-                 reference means is not decidable from the names, so none is offered"
-            }
-            Self::FragmentedMerge => {
-                "a declared merge consumed it and a later member then split the merged \
-                 face, and which fragment the reference means is not decidable from the \
-                 names, so none is offered"
-            }
-        })
-    }
 }
 
 /// The seams on a resized group's parent that only one of the two runs
@@ -796,11 +736,6 @@ impl crate::spoken::Say for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::ConsumedByFold { by } => write!(
-                f,
-                "the union that minted it consumed it before the step its declared pair is \
-                 fed to: {by}"
-            ),
             Self::Upstream { node, cause } => write!(
                 f,
                 "{}, upstream of {}, the name's minting node, but not on its derivation path",
@@ -1472,15 +1407,11 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
         && !prior.carried(name);
     let lines = cited_lines(name, is_line);
-    let mut cascade: Option<StableName> = None;
-    walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none()
-            && lookup(new.eval, inner).is_none()
+    let cascade = first_vanished(name, |inner| {
+        lookup(new.eval, inner).is_none()
             && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
                 && !line_rows(new.eval, inner).is_empty())
-        {
-            cascade = Some(inner.clone());
-        }
+            && !retired_into_a_live_merge(new.eval, inner)
     });
     let path = derivation_nodes(name);
     let diagnosis = if let Some(through) = cascade {
@@ -1516,6 +1447,44 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             last_good,
         },
         offers,
+    })
+}
+
+/// The cascade rung's walk: the first name embedded in `name`, in
+/// [`walk_names`] order with [`Partners::Cascade`], that `absent` says
+/// the current run does not hold.
+///
+/// The rung blames an OPERAND name, and a name that retired into a
+/// merge (N3) is none: it was never a row, so its absence is no
+/// vanishing. Two kinds of name are retired. A `Merged` set's
+/// constituents are, wherever the set sits, and the walk reads through
+/// them without asking ([`Partners::Cascade`]). And a merge over a
+/// merged face lists that face's constituents re-wrapped, so beneath a
+/// constituent sits a name the inner merge retired, held by a `From`
+/// rather than a set; the walk cannot tell it from a row by its shape,
+/// so `absent` answers for it from the table, where a live merged row
+/// covers it ([`retired_into_a_live_merge`]).
+fn first_vanished<'a>(
+    name: &'a StableName,
+    mut absent: impl FnMut(&'a StableName) -> bool,
+) -> Option<StableName> {
+    let mut cascade = None;
+    walk_names(name, Partners::Cascade, &mut |inner| {
+        if cascade.is_none() && absent(inner) {
+            cascade = Some(inner.clone());
+        }
+    });
+    cascade
+}
+
+/// Whether a live merged row of `name`'s minting node covers it
+/// (`names::merged::row_covers`): the name retired into that merge
+/// (N3), so it is no row and did not vanish.
+fn retired_into_a_live_merge<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> bool {
+    eval.value(name.node).is_some_and(|v| {
+        v.name_table
+            .iter()
+            .any(|(row, _)| crate::names::merged::row_covers(row, name))
     })
 }
 
@@ -1587,7 +1556,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
                 | RoleSeg::BandCross { edge, .. } => {
                     lines.push(edge);
                 }
-                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::EdgeCrossing(run) => lines.extend(run.iter().map(|l| &*l.line)),
                 RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
                     lines.extend([&**a, &**b]);
                 }
@@ -1597,7 +1566,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
         }
         let mut children = Vec::new();
         embedded(n, Partners::Include, &mut children);
-        for c in children {
+        for (c, _) in children {
             let line = lines.iter().any(|l| core::ptr::eq(*l, c));
             if line {
                 out.push(c);
@@ -2033,7 +2002,10 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| self.cut_by(base, seg).is_some());
+            let on_parent = row
+                .path
+                .iter()
+                .any(|seg| !self.cut_by(base, seg).is_empty());
             if !on_parent {
                 continue;
             }
@@ -2041,20 +2013,39 @@ impl<'a> SeamParent<'a> {
             if fragment_tail_start(tail) != 0 {
                 return None;
             }
-            out.insert(self.normalized(self.cut_by(base, head)?));
+            let cut = self.cut_by(base, head);
+            if cut.is_empty() {
+                return None;
+            }
+            out.extend(cut.into_iter().map(|c| self.normalized(c)));
         }
         Some(out)
     }
 
-    /// The cutter across seam segment `seg` from the parent: across a
-    /// `Seam`'s or an `EdgeCrossing`'s sides ([`SeamParent::across`]),
-    /// and a `Crossing`'s face where its edge is on the parent; `None`
-    /// for a segment of any other shape, or one not on the parent.
-    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Option<&'n StableName> {
+    /// The cutters across seam segment `seg` from the parent: across a
+    /// `Seam`'s sides ([`SeamParent::across`]), every other line of an
+    /// `EdgeCrossing` run one of whose lines is on the parent, and a
+    /// `Crossing`'s face where its edge is on the parent; none for a
+    /// segment of any other shape, or one not on the parent.
+    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Vec<&'n StableName> {
         match seg {
-            RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => self.across(base, a, b),
-            RoleSeg::Crossing { edge, face, .. } => self.holds(base, edge).then_some(&**face),
-            _ => None,
+            RoleSeg::Seam { a, b } => self.across(base, a, b).into_iter().collect(),
+            RoleSeg::EdgeCrossing(run) => {
+                let Some(on) = run.iter().position(|l| self.holds(base, &l.line)) else {
+                    return Vec::new();
+                };
+                run.iter()
+                    .enumerate()
+                    .filter(|&(i, _)| i != on)
+                    .map(|(_, l)| &*l.line)
+                    .collect()
+            }
+            RoleSeg::Crossing { edge, face, .. } => self
+                .holds(base, edge)
+                .then_some(&**face)
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
         }
     }
 }
@@ -2272,9 +2263,6 @@ pub fn apply_with_names<T: Decide>(
             ..
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
-        DocEdit::SetDeclare { pairs, .. } => {
-            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
-        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2403,16 +2391,19 @@ enum Partners {
     /// Visit a band, and not a piece's walls (cascade): a wall is cited
     /// by its parent's name, which no table holds once the wall is
     /// itself cut, so a wall that does not resolve is no vanished
-    /// operand; a change of walls is the border delta's to state.
+    /// operand; a change of walls is the border delta's to state. A
+    /// `Merged` set's constituents are read through and not visited:
+    /// each retired into the merge (N3), so none is an operand
+    /// ([`first_vanished`] states the rest of that rule).
     Cascade,
     /// Skip partner positions (structural embedding only).
     Skip,
 }
 
 /// Visits every name embedded in `name`'s role path, at every depth,
-/// in path order (operand names, seam pairs, merged constituents,
-/// pattern masters — and discriminator partners iff `partners` says
-/// so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// in path order (operand names, seam pairs, pattern masters, merged
+/// constituents unless `partners` is [`Partners::Cascade`], which reads
+/// through them — and discriminator partners iff `partners` says so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
@@ -2425,8 +2416,10 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     let mut names = Vec::new();
     embedded(name, partners, &mut names);
     names.reverse();
-    while let Some(n) = names.pop() {
-        f(n);
+    while let Some((n, visited)) = names.pop() {
+        if visited {
+            f(n);
+        }
         let deeper = names.len();
         embedded(n, partners, &mut names);
         if let Some(held) = names.get_mut(deeper..) {
@@ -2435,11 +2428,12 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     }
 }
 
-/// The names [`walk_names`] visits one level down from `name`, in path
-/// order.
-fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a StableName>) {
-    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<&'a StableName>) {
-        f.push(n);
+/// The names [`walk_names`] reaches one level down from `name`, in path
+/// order, each with whether the walk visits it or only reads through it
+/// to the names below.
+fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+        f.push((n, true));
     }
     for seg in &name.path {
         match seg {
@@ -2514,15 +2508,18 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
                 edge: a, face: b, ..
-            }
-            | RoleSeg::EdgeCrossing { a, b, .. } => {
+            } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }
-            RoleSeg::Merged(names) => {
-                for n in names {
-                    visit(n, partners, f);
+            RoleSeg::EdgeCrossing(run) => {
+                for l in run {
+                    visit(&l.line, partners, f);
                 }
+            }
+            RoleSeg::Merged(names) => {
+                let visited = partners != Partners::Cascade;
+                f.extend(names.iter().map(|n| (n, visited)));
             }
             // Discrimination references, not derivation.
             RoleSeg::Fragment(q) => match q {
@@ -2935,6 +2932,40 @@ mod walk_tests {
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    /// A merged face at node 9 whose constituents wrap the operand caps
+    /// of nodes 1 and 3. The constituents are never rows, so absence is
+    /// asked only of the caps they wrap.
+    #[test]
+    fn the_cascade_walk_asks_through_a_merged_set_and_never_of_it() {
+        let wrap = |of: u64| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: NameRef::new(leaf(of)),
+            }],
+        };
+        let merged = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::Merged(vec![wrap(1), wrap(3)])],
+        };
+        // Absent: every name but the caps of `live`.
+        let held = |live: &'static [u64]| {
+            move |n: &StableName| !live.iter().any(|&k| n.node == RecipeNodeId::new(0, k))
+        };
+        assert_eq!(
+            first_vanished(&merged, held(&[1, 3])),
+            None,
+            "both caps held: a constituent, which is no row, is never blamed"
+        );
+        assert_eq!(
+            first_vanished(&merged, held(&[1])),
+            Some(leaf(3)),
+            "the walk reaches the vanished cap through its constituent"
+        );
     }
 
     #[test]

@@ -15,10 +15,10 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{AtRestBody, BooleanResult, mass_properties, union_with, validate_pseudomanifold};
+use topo::{AtRestBody, BooleanResult, mass_properties, union, validate_pseudomanifold};
 
 fn member(name: char) -> AtRestBody<f64> {
     let tol = Tol::witness();
@@ -65,8 +65,7 @@ fn the_star_fixture_folds_in_every_member_order() {
         let mut contacts = None;
         for (step, &name) in order.iter().enumerate().skip(1) {
             let next = member(name);
-            let decls = flush_declarations(&acc, &next, tol);
-            let r = union_with(&acc, &next, &decls, tol)
+            let r = union(&acc, &next, tol)
                 .unwrap_or_else(|e| panic!("{order:?} step {step} refused: {e:?}"));
             let BooleanResult::Body(bb) = r else {
                 panic!("{order:?} step {step}: an overlapping union cannot be Empty");

@@ -24,9 +24,8 @@ use editor_core::eval::WitnessSlot;
 use editor_core::{
     CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
-    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
-    resolve_with_prior,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
+    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -159,13 +158,11 @@ fn slide_union(tx: f64) -> Slide {
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     Slide {
@@ -300,7 +297,6 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -571,6 +567,147 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     }
 }
 
+// ---- Vanished: a merged name's retired constituents are no cascade ----
+
+/// Dropping a member from a union whose caps glued: the merged cap
+/// vanishes, and neither constituent is the cause. Each constituent
+/// retired into the merge (N3) and was never a row of the union, so the
+/// cascade rung does not read one as an operand that vanished first;
+/// the ladder goes on to the edit at the union, which is on the path.
+#[test]
+fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent() {
+    let s = slide_union(0.5);
+    let ev1 = run(&s.doc, None);
+    let merged = ev1
+        .value(s.union)
+        .unwrap()
+        .name_table
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
+                .then(|| n.clone())
+        })
+        .expect("the flush caps glue into one merged face");
+    let (doc2, _) = step(
+        s.doc.clone(),
+        DocEdit::SetMembers {
+            node: s.union,
+            members: editor_core::Bodies::Spelled(vec![s.a.into()]),
+        },
+    );
+    let ev2 = run(&doc2, Some(&ev1));
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &s.doc,
+            eval: &ev1,
+        },
+        &merged,
+    );
+    let Resolution::Failed(f) = res else {
+        panic!("the merged cap no longer resolves: {res:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: s.union }
+        },
+        "the cause is the SetMembers at the union, not a retired constituent"
+    );
+}
+
+/// The same at a union over that union: `U2 = U1 ∪ c`, with c flush
+/// on the glued caps, merges U1's merged cap with c's, listing U1's
+/// constituents re-wrapped (N3's flat set). Beneath each of U2's
+/// constituents sits one U1 retired, held by a `From` rather than a
+/// set. Dropping c from U2 vanishes every merged face of U2, and each
+/// is diagnosed at that edit, not through a name U1 retired.
+#[test]
+fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
+    let s = slide_union(0.5);
+    let (doc, c0) = block(s.doc.clone(), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = insert(
+        doc,
+        Node::transform(
+            c0,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+    );
+    let (doc, u2) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![s.union.into(), c.into()]),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let merged: Vec<StableName> = ev1
+        .value(u2)
+        .unwrap()
+        .name_table
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)])
+        })
+        .map(|(n, _)| n.clone())
+        .collect();
+    // The shape this pins: a U2 constituent wrapping a name U1 minted.
+    assert!(
+        merged.iter().any(|m| {
+            let [RoleSeg::Merged(cs)] = m.path.as_slice() else {
+                return false;
+            };
+            cs.iter().any(
+                |c| matches!(c.path.as_slice(), [RoleSeg::From { of, .. }] if of.node == s.union),
+            )
+        }),
+        "a U2 merge lists U1's constituents re-wrapped: {merged:#?}"
+    );
+    let (doc2, _) = step(
+        doc.clone(),
+        DocEdit::SetMembers {
+            node: u2,
+            members: editor_core::Bodies::Spelled(vec![s.union.into()]),
+        },
+    );
+    let ev2 = run(&doc2, Some(&ev1));
+    for m in &merged {
+        let res = resolve_with_prior(
+            RunCtx {
+                doc: &doc2,
+                eval: &ev2,
+            },
+            RunCtx {
+                doc: &doc,
+                eval: &ev1,
+            },
+            m,
+        );
+        let Resolution::Failed(f) = res else {
+            panic!("{m:?} no longer resolves at U2: {res:?}");
+        };
+        let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+            panic!("expected Vanished for {m:?}, got {:?}", f.error);
+        };
+        assert_eq!(
+            *diagnosis,
+            Diagnosis::RecipeEdit {
+                edit: RecipeEditRef::NodeChanged { node: u2 }
+            },
+            "{m:?}: the cause is the SetMembers at U2, not a name U1 retired"
+        );
+    }
+}
+
 // ---- Vanished: StructuralParam diagnosis ----
 
 #[test]
@@ -753,7 +890,6 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -821,140 +957,10 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 
 // ---- R6: name-level edit-time validation (banked from PR 3) ----
 
-/// **`apply_with_names` holds a declared name to the evaluation it is
-/// given where it can, and defers where it cannot**: a real pair is
-/// accepted, a typo role on an evaluated node refuses
-/// `NameUnresolvedInEvaluation`, a backward name the evaluation has
-/// not seen passes to evaluation-time resolution, and a forward name
-/// is the door's `DeclaredNameNotUpstream`, not the carve-out's.
-#[test]
-fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
-        },
-    );
-    let ev = run(&doc, None);
-    let (ra, rb) = (fixture::out(&doc, a), fixture::out(&doc, b));
-    let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    // A real pair: accepted.
-    assert!(
-        apply_with_names(
-            &doc,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::new(ra, cap_a.clone()),
-                    SitedRef::new(rb, cap_b),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .is_ok()
-    );
-    // A typo role on an EVALUATED node: refused at the edit door.
-    let bogus = minted(
-        EntityKind::Face,
-        a,
-        RoleSeg::Lateral(crate::fixture::no_piece().into()),
-    );
-    let err = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::new(ra, cap_a.clone()),
-                SitedRef::new(ra, bogus.clone()),
-            )]),
-        },
-        &ev,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .unwrap_err();
-    assert_eq!(
-        err,
-        editor_core::EditError::NameUnresolvedInEvaluation {
-            name: doc.spoken_name(&bogus)
-        }
-    );
-    // The carve-out: a name on a node the supplied evaluation has NOT
-    // seen passes through, and is resolved at evaluation. Here that
-    // evaluation predates `b`, so a role `b` does not have passes,
-    // where the same typo on the evaluated `a` refused above.
-    let bogus_b = minted(
-        EntityKind::Face,
-        b,
-        RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
-    );
-    let (early, _) = block(
-        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        1.0,
-    );
-    let ev_early = run(&early, None);
-    let deferred = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::new(ra, cap_a.clone()),
-                SitedRef::new(rb, bogus_b),
-            )]),
-        },
-        &ev_early,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .map(|_| ());
-    assert!(
-        deferred.is_ok(),
-        "a name the evaluation has not seen defers to evaluation-time resolution: {deferred:?}"
-    );
-    // A FORWARD reference is not the carve-out's: a name minted after
-    // the declaring node is refused at the door whatever the
-    // evaluation has seen, since none of the node's operands can hold
-    // it.
-    let (doc2, c) = block(doc.clone(), (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_c = minted(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
-    assert_eq!(
-        apply_with_names(
-            &doc2,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::new(ra, cap_a),
-                    SitedRef::new(rb, cap_c.clone()),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .unwrap_err(),
-        editor_core::EditError::DeclaredNameNotUpstream {
-            node: doc2.spoken(u),
-            name: doc2.spoken_name(&cap_c),
-        },
-        "a forward reference is refused at the door"
-    );
-}
-
-/// The same door, same obligation, for the OTHER payloads that carry a
-/// name. A fillet's selection is checkable exactly when a declared
-/// pair is — the minting node evaluated `Ok` — so a typo role on an
-/// evaluated node is refused here rather than surviving to the fillet's
-/// own resolution.
+/// **`apply_with_names` holds a payload name to the evaluation it is
+/// given.** A fillet's selection is checkable exactly when its minting
+/// node evaluated `Ok`, so a typo role on an evaluated node is refused
+/// here rather than surviving to the fillet's own resolution.
 #[test]
 fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door", Tol::witness());
@@ -1061,7 +1067,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -1072,6 +1077,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
+        RoleSeg::EdgeCrossing(run) => run.iter().any(|l| under(&l.line)),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // A source edge (derivation) and the band that crossed or slit
         // it (a discriminator, like a piece's wall).
@@ -1215,7 +1221,6 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         Node::Subtract {
             from: _a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -1284,7 +1289,6 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1391,7 +1395,6 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc1, n) = insert(

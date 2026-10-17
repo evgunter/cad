@@ -301,7 +301,6 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         &mut doc,
         pncad::document::Node::Union {
             members: Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
         tol,
     );
@@ -384,7 +383,6 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             &mut doc,
             pncad::document::Node::Union {
                 members: Bodies::Spelled(members.clone().into_iter().map(Into::into).collect()),
-                declare: Vec::new(),
             },
             tol,
         );
@@ -993,7 +991,6 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
 
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![bench.post_b.into(), bench.post_a.into()]),
-        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [dropped] = &outcome.withdrawn.dropped_hides[..] else {

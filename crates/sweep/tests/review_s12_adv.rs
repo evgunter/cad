@@ -4,12 +4,8 @@
 //! on a body the boolean itself built:
 //!
 //! - the TORUS gate: `union` has no per-class door of its own, so an
-//!   UNDECLARED torus must refuse at `reduce::gate_operand_pairs` —
-//!   this is what scopes the containment-fallback finding to the sphere
-//!   class. The qualifier is load-bearing: the gate reads declarations
-//!   now, and a pair they cover is admitted past it (the covered-pair
-//!   rung, `mate7a_torus_rest`). These fixtures declare nothing, so the
-//!   claim holds for them exactly as written;
+//!   torus must refuse at `reduce::gate_operand_pairs` — this is what
+//!   scopes the containment-fallback finding to the sphere class;
 //! - the RADIAL POKE: a cylinder wall escaping between its own seam
 //!   vertices, the shape that defeats a vertex probe — exact or typed,
 //!   never silent;
@@ -35,7 +31,7 @@ use std::f64::consts::PI;
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
+use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -63,9 +59,11 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     .body
 }
 
-/// PROBE 1 (charter A3): a TORUS operand. Union has no per-class door;
-/// the gate must refuse it typed (never a number). If it answers, the
-/// answer is checked and a silent lie is flagged.
+/// PROBE 1 (charter A3): a TORUS operand, the slab `|z| ≤ 0.1` across
+/// the torus `R = 1.5`, `r = 0.4` about `y`, whose faces `z = ±0.1` cut it
+/// in spiric ovals. Every op is the truth (the volume the two share, by
+/// `germ_plane_torus_spiric`'s box oracle, and tier 3) or refuses typed;
+/// a body off the truth is a silent lie.
 #[test]
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
@@ -89,19 +87,35 @@ fn probe_torus_union_is_never_silently_wrong() {
         brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness()),
         Tol::witness(),
     );
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
+    let all = (-3.0, 3.0);
+    let meet = crate::germ_plane_torus_spiric::torus_in_box((1.5, 0.4), all, all, (-0.1, 0.1));
+    let (t, s) = (2.0 * PI * PI * 1.5 * 0.4 * 0.4, 36.0 * 0.2);
+    for (op, want) in [
+        (BooleanOp::Union, s + t - meet),
+        (BooleanOp::Subtract, s - meet),
+        (BooleanOp::Intersect, meet),
+    ] {
         match boolean_op_with(
             op,
             &slab,
             &torus,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
             Err(e) => println!("torus {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
-                let v = vol(&out.body().unwrap().body);
-                panic!("torus {op:?} ANSWERED: {v} — check for silence");
+                let b = &out.body().unwrap().body;
+                assert_eq!(
+                    topo::validate_geometric(b, Tol::witness()),
+                    Ok(()),
+                    "torus {op:?}: tier 3"
+                );
+                let v = vol(b);
+                assert!(
+                    (v - want).abs() <= crate::germ_plane_torus_chord::volume_tol(want),
+                    "torus {op:?} ANSWERED {v} against the truth {want}: a silent lie"
+                );
             }
         }
     }
@@ -136,7 +150,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -168,10 +182,15 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
         Vec3::new(1.0, 0.0, 0.0),
         -PI / 2.0,
     );
-    let log1 = topo::transform_rigid(&log0, &rot, Tol::witness()).unwrap();
+    let log1 = topo::transform_rigid(
+        &log0,
+        &geom_core::test_support::rigid(&rot, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let log = topo::transform_rigid(
         &log1,
-        &Affine3::translation(Vec3::new(2.0, 0.5, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(2.0, 0.5, 0.5)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -201,7 +220,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
             op,
             &slab,
             &log,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -234,7 +253,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
     let b = topo::transform_rigid(
         &b,
-        &Affine3::translation(Vec3::new(1.5, 1.5, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(1.5, 1.5, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -248,7 +267,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
             op,
             &a,
             &b,
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         ) {
@@ -290,7 +309,7 @@ fn probe_involution_on_a_boolean_result_body() {
     );
     let v = vol(&holed);
     let original = format!("{holed:?}");
-    let rev = holed.revert();
+    let rev = holed.revert().unwrap();
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
@@ -299,7 +318,7 @@ fn probe_involution_on_a_boolean_result_body() {
         }])
     );
     assert_eq!(
-        format!("{:?}", rev.revert()),
+        format!("{:?}", rev.revert().unwrap()),
         original,
         "bitwise involution"
     );

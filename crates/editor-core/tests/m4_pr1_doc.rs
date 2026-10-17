@@ -207,7 +207,6 @@ fn author_die() -> Die {
                     node: Box::new(Node::Subtract {
                         from: body.into(),
                         tool: placed.unwrap().into(),
-                        declare: Vec::new(),
                     }),
                     fresh: Vec::new(),
                 },

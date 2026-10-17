@@ -21,7 +21,7 @@ use pncad::document::{
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{ContactClass, FlushFinding};
+use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
@@ -267,7 +267,7 @@ pub enum SessionOp {
     /// name) and collapsing them would put an `Option` in every arm.
     /// A variable is where the expression-driven affordance sends a
     /// user, so it is a dragged widget on a primary path and gets the
-    /// gesture rule the ratified preview-vs-commit decision demands.
+    /// gesture rule the ratified preview-vs-commit decision (G1) demands.
     BeginVariableGesture {
         /// The variable.
         var: VarId,
@@ -631,18 +631,9 @@ pub enum SessionOp {
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
     /// nothing.
-    ///
-    /// **The findings become the boolean's own declared pairs**: an
-    /// empty `declare` authors an undeclared boolean, and a non-empty
-    /// one a boolean carrying exactly those findings' pairs — one
-    /// insert, one undo. The door declares what it is handed and
-    /// guesses nothing.
     AddBoolean {
         /// The operation and its operands.
         spec: super::BooleanSpec,
-        /// The contacts declared, in the refusals' own finding shape,
-        /// each sited at the operand READS it names.
-        declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
     /// plane — the split tool's one committed edit. A split defines two

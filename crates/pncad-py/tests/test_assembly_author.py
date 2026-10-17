@@ -47,7 +47,8 @@ mints its declaration on the world copy of that body. `Node.mate` takes
 the node a side is read at, so a mate read at a transform that a
 `placed_union` consumes is authorable: no placement reads that
 transform, so the mate is no statement about the product, and the seat
-it would have declared is an undeclared contact (asserted below).
+it would have declared is a touch between two copies, which the
+`unproven-coincidence` check reports against them (asserted below).
 `RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
 placements copy; it is bound and tagged, and the kernel's own row
 (`intent_s2_f_mates`) reaches it.
@@ -109,6 +110,7 @@ from pncad import (
     Alignment,
     AxisSense,
     CapEnd,
+    CheckId,
     ContactClass,
     Doc,
     DocEdit,
@@ -133,6 +135,7 @@ from pncad import (
     product,
     rad,
     random_document_id,
+    run_checks,
     solve_document,
 )
 
@@ -485,13 +488,13 @@ class TestBenchStand(BenchWorkspace):
 
     def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
         """`last_maintenance` says "the LAST accepted edit", and `Doc`
-        has four doors that accept one: `apply`, `insert`, `declare`
-        and `declare_all`. A door that swaps the document without the
+        has two doors that accept one: `apply` and `insert`. A door
+        that swaps the document without the
         record leaves the reading describing an EARLIER edit, which is
         worse than no reading — it is a plausible one about the wrong
         subject.
 
-        The recorded refactorings are the fifth and sixth doors, and
+        The recorded refactorings are the third and fourth doors, and
         they answer for a whole edit LIST rather than one edit:
         `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
         is their half of the same funnel."""
@@ -524,7 +527,7 @@ class TestBenchStand(BenchWorkspace):
         # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
-        glued = doc.insert(Node.union([lower, upper]))
+        doc.insert(Node.union([lower, upper]))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate records no frame, so it reports
         # nothing. Put post_b back at an offset and re-mate it through
@@ -553,17 +556,8 @@ class TestBenchStand(BenchWorkspace):
             [(r.variant, r.node) for r in doc.last_maintenance],
             [("offset_cleared", post_b)],
         )
-        # `declare` and `declare_all`: a declared flush contact joins
-        # no groups, so each door's own reading is empty — the clear
-        # belonged to the edit before it.
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        doc.declare(glued, findings[0])
-        self.assertEqual(doc.last_maintenance, [])
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(doc.last_maintenance, [], "one group already: nothing joins")
-        doc.declare_all(glued, findings)
-        self.assertEqual(doc.last_maintenance, [])
 
     def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(
         self,
@@ -1120,8 +1114,10 @@ class TestAssemblyRefusals(BenchWorkspace):
         """The shelf is lifted by a transform and the transform is
         read by a `placed_union`; the mate is read AT the transform.
         The solve places it and the product gathers, but no placement
-        reads the transform, so the mate declares nothing and the seat
-        it would have declared reaches the gate undeclared."""
+        reads the transform, so the mate declares nothing: the seat it
+        would have declared is a touch between two copies, which the
+        gather records and the `unproven-coincidence` check reports
+        against those copies, and the gate refuses nothing."""
         doc = Doc("pncad-moved-above")
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -1168,11 +1164,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(doc, ev)
-        err = caught.exception
-        self.assertEqual(err.variant, "at_rest")
-        self.assertIn("is an undeclared contact", str(err))
+        assemble(doc, ev)
+        seats = [
+            f
+            for f in run_checks(doc, ev).findings
+            if f.check == CheckId.UnprovenCoincidence and f.copies is not None
+        ]
+        self.assertTrue(seats, "the seat is the two copies' finding")
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel
@@ -1962,7 +1960,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         return doc, instance
 
     def carried(self, findings, relation):
-        return [f for f in findings if f.attribution.relation == relation]
+        return [f for f in findings if f.attribution and f.attribution.relation == relation]
 
     def test_a_refuted_carried_declaration_names_its_mate_and_route(self):
         # The post's mate frame is TILTED 30°, so the shelf seats at an

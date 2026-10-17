@@ -286,6 +286,49 @@ fn determinism_bitwise() {
     assert_eq!(r1.1.to_bits(), r2.1.to_bits());
 }
 
+/// **A knot operation that would write a weight out of the positive
+/// regime is refused, not admitted.** On a net of the least subnormal
+/// weight a half-and-half blend rounds each half to zero, so a midpoint
+/// insertion, the same point as a refinement, and a degree-1 elevation
+/// (coefficient `½`) would each write a zero weight the constructor
+/// refuses. Each answers `WeightCollapse` at the slot instead.
+#[test]
+fn a_knot_operation_that_would_write_a_zero_weight_is_refused() {
+    let w = f64::from_bits(1);
+    let collapse = geom_core::spline::KnotAlgebraError::WeightCollapse { index: 1 };
+    let quad = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![w, w, w],
+    )
+    .expect("a least-subnormal weight is positive and finite");
+    assert_eq!(
+        quad.insert_knot(0.5, 1).unwrap_err(),
+        collapse,
+        "insert_knot"
+    );
+    assert_eq!(
+        quad.refine_knots(&[0.5]).unwrap_err(),
+        collapse,
+        "refine_knots"
+    );
+    let line = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+        vec![w, w],
+    )
+    .unwrap();
+    assert_eq!(
+        line.elevate_degree(1).unwrap_err(),
+        collapse,
+        "elevate_degree"
+    );
+}
+
 /// Spec row 3: refusals pinned — typed errors, exact variants.
 #[test]
 fn construction_refusals_are_typed_and_exact() {

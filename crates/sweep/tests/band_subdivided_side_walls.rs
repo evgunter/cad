@@ -135,22 +135,6 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
     )
 }
 
-/// The one face of `body` all of whose vertices satisfy `on`.
-fn face_on(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> FaceKey {
-    let hits: Vec<FaceKey> = body
-        .faces()
-        .map(|(f, _)| f)
-        .filter(|f| {
-            body.vertex_points().all(|(v, p)| {
-                let touches = body.faces_of_vertex(v).is_some_and(|fs| fs.contains(f));
-                !touches || on(p)
-            })
-        })
-        .collect();
-    assert_eq!(hits.len(), 1, "exactly one face lies there");
-    hits[0]
-}
-
 fn volume(body: &Body<f64>, t: Tol) -> f64 {
     topo::mass_properties(body, t).unwrap().volume
 }
@@ -590,7 +574,7 @@ fn a_rim_band_is_cut_off_at_both_ends() {
 
 /// **A boolean's merged faces leave no joint.** Two flush unit cubes
 /// unioned into a `2 × 1 × 1` box, their touching faces and coplanar
-/// sides declared: each long side is one face, and the output stage
+/// sides glued: each long side is one face, and the output stage
 /// joins the vertices where the operands' rims met (maximal edges), so
 /// the box has its 12 edges. Every edge fillets as its own band, at the
 /// rounded box's closed form.
@@ -599,28 +583,8 @@ fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
     let t = Tol::witness();
     let (ca, cb) = (cube_at(0.0, 0.0, 0.0, 1.0), cube_at(1.0, 0.0, 0.0, 1.0));
     // The touching pair (`Rest`), and the four pairs of coplanar sides
-    // (continuations) the union's merge stage glues once declared.
-    let x1 = |p: Point3<f64>| p.x == 1.0;
-    let mut decls = topo::BooleanDeclarations::none();
-    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-        face_on(&ca, x1),
-        face_on(&cb, x1),
-    ));
-    let sides: [fn(Point3<f64>) -> bool; 4] = [
-        |p| p.y == 0.0,
-        |p| p.y == 1.0,
-        |p| p.z == 0.0,
-        |p| p.z == 1.0,
-    ];
-    for side in sides {
-        decls
-            .coincident_faces
-            .push(topo::FacePairDeclaration::continuation(
-                face_on(&ca, side),
-                face_on(&cb, side),
-            ));
-    }
-    let r = topo::union_with(&ca, &cb, &decls, t).expect("flush cubes union");
+    // (continuations) the union's merge stage glues.
+    let r = topo::union(&ca, &cb, t).expect("flush cubes union");
     let body = &r.body().expect("non-empty").body;
     assert_eq!(body.faces().count(), 6, "the merged box has six faces");
     let req: Vec<_> = body.edges().map(|(k, _)| k).collect();

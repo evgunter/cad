@@ -13,7 +13,7 @@ use sweep::test_support::{cube, finished};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{AtRestBody, Body, BooleanDeclarations};
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -49,7 +49,12 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let ball = topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap();
+    let ball = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the ball", ball, Tol::witness())
 }
 
@@ -64,7 +69,7 @@ fn probe_a_pipped_cube_all_edges() {
         BooleanOp::Subtract,
         &c,
         &ball,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -143,7 +148,7 @@ fn probe_d_rim_arc_orientation() {
         BooleanOp::Subtract,
         &c,
         &ball,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -273,7 +278,7 @@ fn probe_g_door_a_fields() {
         BooleanOp::Subtract,
         &blank,
         &ball,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -316,7 +321,7 @@ fn probe_h_door_a_closed_tool() {
         BooleanOp::Union,
         &b1,
         &b2,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -329,7 +334,7 @@ fn probe_h_door_a_closed_tool() {
         BooleanOp::Subtract,
         &blank,
         &tool,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -431,7 +436,7 @@ fn probe_i_door_a_full_tool() {
             BooleanOp::Union,
             &tool,
             &ball_at(pip_r, *c),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -445,7 +450,7 @@ fn probe_i_door_a_full_tool() {
         BooleanOp::Subtract,
         &blank,
         &tool,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -513,20 +518,25 @@ fn probe_c_oblique_trihedron() {
     );
     let c2 = topo::transform_rigid(
         &c2,
-        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
+        &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let c2 = finished(
         "the turned slab",
-        topo::transform_rigid(&c2, &rot, Tol::witness()).unwrap(),
+        topo::transform_rigid(
+            &c2,
+            &geom_core::test_support::rigid(&rot, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     );
     let out = boolean_op_with(
         BooleanOp::Intersect,
         &finished("the cube", c1, Tol::witness()),
         &c2,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     );

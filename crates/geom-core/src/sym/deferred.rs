@@ -1,8 +1,8 @@
-//! **The deferring session** ([`with_deferred_session`]): every decision
+//! **The deferring session** ([`with_deferred_session`](crate::sym::deferred::with_deferred_session)): every decision
 //! is taken by the numeric channel, as the base scalar takes it, and a
 //! decision it calls `Zero` keeps its margin's node on a list instead
 //! of being discharged on the spot. A reader that wants to know whether
-//! one of those Zeros is a theorem asks for it by its margin
+//! one of those Zeros is proven asks for it by its margin
 //! ([`discharge`]), inside the same session, and pays the identity tier
 //! for that margin alone.
 //!
@@ -16,23 +16,23 @@
 //! nothing else.
 //!
 //! A margin names its entry by a number no other entry in the process
-//! carries ([`NEXT`]), so a margin carried out of its session reads as
+//! carries (`NEXT`), so a margin carried out of its session reads as
 //! no Zero in any other one, never as that one's entry of the same
 //! place. Past the last number a Zero is kept as no entry at all, which
 //! discharges as nothing: the door then reports the row unproven.
 
 use super::{SESSION, SymBudget, SymCounts, SymId, SymRetry, SymRules};
-use crate::predicate::{Decided, Indeterminate, MarginDiag, Sign, Theorem};
+use crate::predicate::{Decided, Indeterminate, MarginDiag, Sign};
 
-/// One entry of a deferring session's list: a Zero's margin, a theorem
+/// One entry of a deferring session's list: a Zero's margin, a proof
 /// already in hand, or two entries a decision stands on together
 /// ([`MarginDiag::jointly`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Pending {
     /// A margin the numeric channel called `Zero`.
     Zero(SymId),
-    /// A theorem a decision already carried.
-    Proven(Theorem),
+    /// A decision that already carried its proof.
+    Proven,
     /// Both entries.
     Both(u32, u32),
 }
@@ -97,9 +97,9 @@ pub(crate) fn join(a: Pending, b: Pending) -> Option<u32> {
 /// in no other session.
 static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-/// The last number an entry can carry: the margin's word spends four
-/// values on "none" and the theorems.
-const LAST: u32 = u32::MAX - 4;
+/// The last number an entry can carry: the margin's word spends two
+/// values on "none" and "proven".
+const LAST: u32 = u32::MAX - 2;
 
 fn push(list: &mut std::collections::HashMap<u32, Pending>, entry: Pending) -> Option<u32> {
     use std::sync::atomic::Ordering;
@@ -112,36 +112,63 @@ fn push(list: &mut std::collections::HashMap<u32, Pending>, entry: Pending) -> O
     Some(index)
 }
 
-/// **Whether `margin`'s Zero is a theorem**, and of which kind: the
-/// weakest of the theorems every Zero it stands on discharges as, run
-/// now through the installed session's tier for a margin it deferred.
-/// `None` where one of them is not a theorem, where the margin was not
-/// a Zero, or outside the session that decided it.
+/// **Whether `margin`'s Zero is proven**: every Zero it stands on
+/// discharged, run now through the installed session's tier for a
+/// margin it deferred. `false` where one of them does not discharge,
+/// where the margin was not a Zero, or outside the session that decided
+/// it.
 #[must_use]
-pub fn discharge(margin: MarginDiag) -> Option<Theorem> {
-    match margin.pending()? {
-        Pending::Proven(how) => Some(how),
-        entry => discharge_entry(entry),
-    }
+pub fn discharge(margin: MarginDiag) -> bool {
+    discharged(margin, false).is_ok()
 }
 
-fn discharge_entry(first: Pending) -> Option<Theorem> {
-    let mut stack = vec![first];
-    let mut weakest = Theorem::SymbolicZero;
+/// **Why a margin is not proven** ([`discharge_or_why`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undischarged {
+    /// The Zero that did not discharge keeps an opaque value in its
+    /// early form: a value computed apart from the parameter symbols
+    /// ([`super::SymOp::Opaque`]), which no rebuilding of the variables
+    /// exposes.
+    KeepsAnOpaqueAtom,
+    /// Any other way: a Zero whose form is over the parameter symbols
+    /// alone and is not zero, or too big for the budget, a margin that
+    /// was not a Zero, or one outside the session that decided it.
+    Otherwise,
+}
+
+/// **[`discharge`], saying why not**: `Ok` where proven, or what the
+/// first Zero that did not discharge keeps ([`Undischarged`]). The
+/// Zeros a margin stands on are tried in [`discharge`]'s order, so a
+/// Zero that discharged is never the one read.
+///
+/// # Errors
+///
+/// [`Undischarged`] where `margin` is not proven.
+pub fn discharge_or_why(margin: MarginDiag) -> Result<(), Undischarged> {
+    discharged(margin, true)
+}
+
+/// [`discharge_or_why`], reading the failed Zero's form only when
+/// `why`.
+fn discharged(margin: MarginDiag, why: bool) -> Result<(), Undischarged> {
+    let mut stack = vec![margin.pending().ok_or(Undischarged::Otherwise)?];
     while let Some(next) = stack.pop() {
         match next {
-            Pending::Proven(how) => weakest = weakest.max(how),
-            Pending::Zero(node) => {
-                let (how, _) = super::discharge_retried(node)?;
-                weakest = weakest.max(how.theorem());
-            }
-            Pending::Both(a, b) => {
-                stack.push(entry(a)?);
-                stack.push(entry(b)?);
-            }
+            Pending::Proven => {}
+            Pending::Zero(node) => match super::discharge_retried(node) {
+                Some(_) => {}
+                None if why && super::keeps_an_opaque_atom(node) == Some(true) => {
+                    return Err(Undischarged::KeepsAnOpaqueAtom);
+                }
+                None => return Err(Undischarged::Otherwise),
+            },
+            Pending::Both(a, b) => match (entry(a), entry(b)) {
+                (Some(a), Some(b)) => stack.extend([a, b]),
+                _ => return Err(Undischarged::Otherwise),
+            },
         }
     }
-    Some(weakest)
+    Ok(())
 }
 
 /// The entry at `index` of the installed session's list.
@@ -160,7 +187,7 @@ pub fn dag_size(margin: MarginDiag) -> Option<DagSize> {
     while let Some(next) = stack.pop() {
         match next {
             Pending::Zero(node) => roots.push(node),
-            Pending::Proven(_) => {}
+            Pending::Proven => {}
             Pending::Both(a, b) => {
                 stack.push(entry(a)?);
                 stack.push(entry(b)?);
@@ -214,7 +241,7 @@ pub fn render(margin: MarginDiag) -> Vec<String> {
             Pending::Zero(node) => {
                 out.push(super::report::render_early_of(node).unwrap_or_default());
             }
-            Pending::Proven(_) => {}
+            Pending::Proven => {}
             Pending::Both(a, b) => stack.extend(entry(a).into_iter().chain(entry(b))),
         }
     }

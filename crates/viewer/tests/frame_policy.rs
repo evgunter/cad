@@ -34,12 +34,14 @@ use pncad::quantity::{M, MM};
 use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
+use viewer::evalseam::{
+    FitService, IndexDone, IndexRequest, IndexService, InlineFitter, InlineIndexer, MemoReport,
+};
 use viewer::frame::{self, RankedVerdict, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickcache::{self, CacheStep, IndexLanding, IndexSeam, PickCache};
 use viewer::pickindex::{self, IdMap, PictureKey};
 use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
@@ -225,8 +227,8 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// a reader met a separator that might be a boundary and might be the
 /// notice talking. Unfalsifiable at one notice, wrong at two.
 ///
-/// Both texts here are real faults' own renderings through a real
-/// door, not prose written for the row: `NonRigidFrame` writes a
+/// Both texts here are real faults' own renderings, not
+/// prose written for the row: `NonRigidFrame` writes a
 /// `LIST_SEPARATOR` inside one sentence — the hazard
 /// `work/view/joined-notices-nest-their-own-separator.md` records as
 /// mechanical and present — and `FusedGeometry` writes an em-dash.
@@ -238,11 +240,13 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// says why a count passes over text that reads as one item too many.
 #[test]
 fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
-    let nests = frame::tool_news(
+    let nests = frame::Message::new(
+        frame::Subject::Document,
         DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string(),
         frame::Retold::Again,
     );
-    let dashes = frame::tool_news(
+    let dashes = frame::Message::new(
+        frame::Subject::Document,
         AdmissionFault::FusedGeometry {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
             body: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
@@ -653,8 +657,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         ),
         (
             frame::tool_news(
-                "blend: the held edges are on another body",
-                frame::Retold::Again,
+                &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
             ),
             "what a tool has to say",
         ),
@@ -749,6 +752,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                     },
                 }],
                 skipped: Vec::new(),
+                pending: Vec::new(),
             })),
             frame::Subject::Document,
             "so do the advisory checks",
@@ -1177,8 +1181,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     let mixed = [
         cursor("the picking paths disagree"),
         frame::tool_news(
-            "blend: the held edges are on another body",
-            frame::Retold::Again,
+            &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
         ),
     ];
     let RankedVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
@@ -1286,6 +1289,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
             document: DocumentId(1),
             findings: Vec::new(),
             skipped: Vec::new(),
+            pending: Vec::new(),
         })),
         None,
         "checked and fine is not a finding — the rule that lived in a \
@@ -1296,6 +1300,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
             document: DocumentId(1),
             findings: Vec::new(),
             skipped: vec![CheckId::Connectedness],
+            pending: Vec::new(),
         })),
         None,
         "and a SKIPPED check does not light it either: not checked and \
@@ -1404,17 +1409,17 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
 
 /// **The profiles badge counts, in agreeing words, and says it is the
 /// document's.** One and two are the two nouns; the subject is the
-/// document because no camera move brings an undrawable arc back.
+/// document because no camera move brings an undrawable point back.
 #[test]
 fn the_profiles_badge_counts_what_it_could_not_draw() {
     for (undrawn, label) in [
         (
             1,
-            "profiles: 1 profile with an arc the viewport cannot draw",
+            "profiles: 1 profile with a point the viewport cannot draw",
         ),
         (
             2,
-            "profiles: 2 profiles with an arc the viewport cannot draw",
+            "profiles: 2 profiles with a point the viewport cannot draw",
         ),
     ] {
         let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
@@ -1595,6 +1600,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
             },
         }],
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     let badge = frame::checks_badge(Some(&report)).expect("a finding badges");
     assert_eq!(badge.affordance(), frame::Affordance::Opens);
@@ -1795,7 +1801,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     ];
     let folded = input::fold_events(&map, &camera, viewport, &cursor_only);
     assert!(
-        !frame::folded_moved(&folded),
+        !frame::folded_is_a_camera_event(&folded),
         "cursor events denote no camera operation"
     );
 
@@ -1806,7 +1812,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
         delta_px: [12.0, 0.0],
     }];
     let moved = input::fold_events(&map, &camera, viewport, &orbit);
-    assert!(frame::folded_moved(&moved));
+    assert!(frame::folded_is_a_camera_event(&moved));
     assert!(matches!(
         moved.applied.first(),
         Some(CameraOp::Orbit { .. })
@@ -2032,8 +2038,9 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(7, id),
             Some(7),
             Ok(std::slice::from_ref(&hit.name))
@@ -2043,26 +2050,40 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        idpass::disagreement(&index, answer(6, id), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(6, id),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), None, Ok(&[])),
+        idpass::compare(&index, &DisplayView::none(), answer(7, id), None, Ok(&[])),
         None
     );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, IdMap::NOTHING),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     // A real disagreement reports both sides.
-    let report = idpass::disagreement(
+    let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
+        &DisplayView::none(),
         answer(7, IdMap::NOTHING),
         Some(7),
         Ok(std::slice::from_ref(&hit.name)),
-    )
-    .expect("nothing vs a face is a disagreement");
+    ) else {
+        panic!("nothing vs a face is a disagreement");
+    };
     assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
@@ -2090,13 +2111,26 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .clone();
     let tied = [hit.name.clone(), second];
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&tied)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&tied)
+        ),
         None,
         "the id pass named one of the tied faces, which is agreement"
     );
     let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
-    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), Ok(&tied))
-        .expect("a face outside the tie is a disagreement");
+    let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
+        &index,
+        &DisplayView::none(),
+        answer(7, outside_id),
+        Some(7),
+        Ok(&tied),
+    ) else {
+        panic!("a face outside the tie is a disagreement");
+    };
     assert_eq!(report.from_ray, tied.to_vec());
     assert!(
         report.to_string().contains("tied between"),
@@ -2201,8 +2235,9 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(7, id),
             Some(7),
             Ok(std::slice::from_ref(&edge.name))
@@ -2212,7 +2247,13 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&named)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&named)
+        ),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -2249,8 +2290,9 @@ fn a_twin_copys_face_is_a_disagreement() {
         panic!("the left copy draws the twin face once");
     };
     assert!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(3, *other),
             Some(3),
             Ok(std::slice::from_ref(&hit.name))
@@ -2850,16 +2892,16 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pickcache::unindexed(&click, None, true),
+        pickcache::unindexed(&click, None, IndexSeam::Building),
         Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pickcache::unindexed(&click, None, false),
+        pickcache::unindexed(&click, None, IndexSeam::Idle),
         Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
     );
-    for indexing in [true, false] {
+    for seam in [IndexSeam::Building, IndexSeam::Idle] {
         assert_eq!(
             pickcache::unindexed(
                 &[
@@ -2867,12 +2909,12 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
                     input::PickAction::ClearHover,
                 ],
                 None,
-                indexing,
+                seam,
             ),
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
+        assert_eq!(pickcache::unindexed(&[], None, seam), None);
     }
     assert_ne!(
         pickcache::NotIndexed::Building.to_string(),
@@ -2911,7 +2953,7 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
     let click = [input::PickAction::Select([10.0, 10.0])];
 
     assert_eq!(
-        pickcache::unindexed(&click, Some(&held), false),
+        pickcache::unindexed(&click, Some(&held), IndexSeam::Idle),
         Some(pickcache::NotIndexed::AnotherPicture),
         "an index is in hand, so the refusal is not about an absence",
     );
@@ -2922,7 +2964,7 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
                 input::PickAction::ClearHover,
             ],
             Some(&held),
-            false,
+            IndexSeam::Idle,
         ),
         None,
         "and the act filter is the same one: a hover is not news here \
@@ -2949,30 +2991,89 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
 /// owe, times the index seam's two.
 #[test]
 fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
-    assert_eq!(frame::progress(Outstanding::Current, false), None);
+    assert_eq!(frame::progress(Outstanding::Current, IndexSeam::Idle), None);
     assert_eq!(
-        frame::progress(Outstanding::Evaluating, false),
+        frame::progress(Outstanding::Evaluating, IndexSeam::Idle),
         Some(frame::Progress::Evaluating)
     );
     assert_eq!(
-        frame::progress(Outstanding::Canceled, false),
-        Some(frame::Progress::Canceled { indexing: false }),
+        frame::progress(Outstanding::Canceled, IndexSeam::Idle),
+        Some(frame::Progress::Canceled {
+            index: IndexSeam::Idle
+        }),
         "a spinner over no running work would be a lie",
     );
     assert_eq!(
-        frame::progress(Outstanding::Canceled, true),
-        Some(frame::Progress::Canceled { indexing: true }),
+        frame::progress(Outstanding::Canceled, IndexSeam::Building),
+        Some(frame::Progress::Canceled {
+            index: IndexSeam::Building
+        }),
         "a cancel with an index build still running is one state that \
          carries the work, not a second indicator beside it",
     );
     assert_eq!(
-        frame::progress(Outstanding::Current, true),
+        frame::progress(Outstanding::Current, IndexSeam::Building),
         Some(frame::Progress::Indexing)
     );
     assert_eq!(
-        frame::progress(Outstanding::Evaluating, true),
+        frame::progress(Outstanding::Evaluating, IndexSeam::Building),
         Some(frame::Progress::Evaluating),
         "an index for a superseded generation is about to be discarded",
+    );
+}
+
+/// **The index seam is building while EITHER record says so**: the
+/// cache's outstanding attempt, or the fit its first build waits on.
+///
+/// The last row is the state a document opens into. The fit is pricing
+/// the δ, so the cache is handed none and holds no attempt — its own
+/// record reads idle — and a click there is still owed the sentence
+/// that says an index is coming, the one the toolbar's `indexing…`
+/// carries as its hover.
+#[test]
+fn the_index_seam_is_building_through_the_fit_its_first_build_waits_on() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let idle_fit = InlineFitter::new();
+    let mut busy_fit = InlineFitter::new();
+    busy_fit.submit(
+        session
+            .fit_request(common::plate_delta())
+            .expect("a landed plate has a body to fit"),
+    );
+    assert!(busy_fit.busy(), "the fixture holds a fit in flight");
+
+    let mut idle = PickCache::inline();
+    assert!(!idle.indexing());
+    assert_eq!(idle.index_seam(&idle_fit), IndexSeam::Idle);
+
+    let mut asked = PickCache::inline();
+    assert_eq!(
+        asked.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(
+        asked.index_seam(&idle_fit),
+        IndexSeam::Building,
+        "an outstanding build is building with no fit behind it",
+    );
+
+    assert_eq!(idle.sync(session.index_inputs(), None), CacheStep::Nothing);
+    assert!(
+        !idle.indexing() && idle.index().is_none(),
+        "while the δ is being priced the cache holds nothing at all",
+    );
+    assert_eq!(
+        idle.index_seam(&busy_fit),
+        IndexSeam::Building,
+        "and the seam is building anyway: the fit is the build's first step",
+    );
+    let click = [input::PickAction::Select([10.0, 10.0])];
+    assert_eq!(
+        pickcache::unindexed(&click, idle.index(), idle.index_seam(&busy_fit)),
+        Some(pickcache::NotIndexed::Building),
+        "so a click in that window is told an index is coming, not that \
+         none is being built",
     );
 }
 
@@ -3465,10 +3566,8 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         },
         None,
     );
-    let panel = frame::tool_news(
-        "mate tool: no landed evaluation to derive frames from",
-        frame::Retold::Again,
-    );
+    let panel =
+        frame::tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
     let notices = [declined, dropped, panel];
     let acted = [SessionOp::Select(Selection::None)];
 
@@ -3747,6 +3846,61 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     ];
     for (what, notice, retold) in cases {
         assert_eq!(frame::tool_notice(&notice, None).retold(), retold, "{what}");
+    }
+}
+
+/// **A panel's refusal is document news in its panel's words**, and
+/// the same click says it again. One seated tool and every form: the
+/// form's name is the sentence's opening, so a form worded as another
+/// goes red by name, and a form added without a row here goes red on
+/// the count.
+#[test]
+fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
+    use viewer::tools::{FormKind, ToolKind};
+
+    let why = "the distance is not a number";
+    let forms = [
+        (
+            FormKind::AddDatum,
+            "add datum: the distance is not a number",
+        ),
+        (
+            FormKind::AddProfile,
+            "add profile: the distance is not a number",
+        ),
+        (FormKind::Extrude, "extrude: the distance is not a number"),
+        (
+            FormKind::EditProfile,
+            "edit profile: the distance is not a number",
+        ),
+        (
+            FormKind::RevertProfile,
+            "revert profile: the distance is not a number",
+        ),
+        (FormKind::Label, "label: the distance is not a number"),
+    ];
+    assert_eq!(forms.len(), FormKind::ALL.len(), "every form has a row");
+    let cases = forms
+        .into_iter()
+        .map(|(form, text)| (format!("{form:?}"), form.refuses(&why), text))
+        .chain([(
+            "a seated tool".to_owned(),
+            ToolKind::Revolve.refuses(&why),
+            "revolve tool: the distance is not a number",
+        )]);
+    for (what, refusal, text) in cases {
+        let message = frame::tool_news(&refusal);
+        assert_eq!(message.text(), text, "{what}: the panel's words");
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Document,
+            "{what}: a refusal at a panel's button answers an act aimed at the document"
+        );
+        assert_eq!(
+            message.retold(),
+            frame::Retold::Again,
+            "{what}: the same click says it again"
+        );
     }
 }
 

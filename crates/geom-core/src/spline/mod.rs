@@ -11,7 +11,11 @@
 //! derivatives at a generic scalar — is ring-ops-only generic code in
 //! [`basis`], with the span index passed in as structure. The
 //! [`locate`] seam is the one bridge: per-scalar span selection,
-//! sealed, with each instantiation's semantics documented there. No
+//! sealed, with each instantiation's semantics documented there. The
+//! derivative's coefficient factor and net, at a generic scalar, have
+//! their one home in [`derivative`], with the quotient bound every
+//! first-order rational derivative bound reads, on pieces halved from
+//! the quotient formed once over each span or cell. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!
@@ -44,27 +48,38 @@
 
 pub mod algebra;
 pub mod basis;
+pub mod blossom;
 pub mod compose;
+pub mod derivative;
 pub mod hull;
 pub mod knot_values;
 pub mod knots;
 pub mod locate;
 pub mod net;
+pub mod pieces;
 pub mod projective;
 pub mod range;
+pub mod weight_scale;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
+pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
-    sub_segment,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
+pub use derivative::{
+    CellAxis, CellBlock, CellQuotients, CellSecondQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece,
+    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
+    span_derivative_scale, speed_pieces, stretch_pieces,
+};
+pub use hull::{
+    C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
+};
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
-    knot_difference,
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
+    derivative_knot_slice, knot_difference, weight_in_regime,
 };
-pub use locate::{SpanLocate, SpanSet, poison_from};
+pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
-pub use projective::{ProjectivePoint, ProjectiveScalar};
+pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};

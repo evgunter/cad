@@ -177,7 +177,7 @@ fn both_seats_bare_are_still_loud() {
         // must still be reported as an unattributed contact.
         let contacts: Vec<_> = found
             .iter()
-            .filter(|e| matches!(e, ValidationError::UndeclaredContact { .. }))
+            .filter(|e| matches!(e, ValidationError::UnrecordedContact { .. }))
             .collect();
         assert!(
             !contacts.is_empty(),

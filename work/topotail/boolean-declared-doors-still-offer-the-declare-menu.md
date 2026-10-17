@@ -2,9 +2,9 @@
 id: boolean-declared-doors-still-offer-the-declare-menu
 kind: issue
 title: topo: the Boolean's escalations at doors whose pair is already declared still offer 'declare the coincidence'
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -120,3 +120,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: the remaining lever
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## Closed (2026-10-11, stage 4 F)
+
+No escalation offers a declaration: `COINCIDENCE_RECOURSE` is the geometry arm alone, and the `Sectors` settled ending lost its declare arm. Whether each site should carry its own lever (the repair shape here) is `boolean-coincidence-route-still-holds-join-and-self-check-decisions`'s, which stays open.

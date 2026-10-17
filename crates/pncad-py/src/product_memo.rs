@@ -238,6 +238,7 @@ fn clone_product(
         contacts: product.contacts.clone(),
         coincidences: product.coincidences.clone(),
         cited_inputs: product.cited_inputs.clone(),
+        census: product.census.clone(),
         refused_at_rest: product.refused_at_rest.clone(),
         solid_copies: product.solid_copies.clone(),
         copies: product.copies.clone(),

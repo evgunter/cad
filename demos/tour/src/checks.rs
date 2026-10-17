@@ -107,16 +107,13 @@ fn boolean_doc(
         match op {
             BooleanOp::Union => Node::Union {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             BooleanOp::Intersect => Node::Intersect {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             BooleanOp::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         },
         tol,

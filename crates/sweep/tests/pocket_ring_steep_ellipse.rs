@@ -7,7 +7,9 @@
 //! - a cylinder (r = 1) against a convex quad prism whose cap lies in the
 //!   plane `z = k·x`, turned `ψ` about the axis; each long edge of the
 //!   quad cuts the cap's ellipse `(cos φ, sin φ, k cos φ)` twice. Oracle:
-//!   a polar quadrature of cylinder ∩ prism, good to about 1e-6.
+//!   cylinder ∩ prism in closed form, each prism face's height
+//!   integrated over the disc against its footprint
+//!   ([`prism_in_cylinder`]).
 //! - a thin plate pierced by a round rod tilted `θ` from `z`, whose caps
 //!   cut the rod's wall in ellipses of aspect `1/cos θ`. Oracle: each
 //!   slice, scaled by `cos θ` along `x`, is a disc against a rectangle,
@@ -23,7 +25,7 @@ use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanResult};
 
-use crate::common::differential::{area, disc_clip_area, outcome};
+use crate::common::differential::{area, ccw, disc_clip_area, disc_clip_moments, outcome};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -73,6 +75,18 @@ fn at_v(a: (f64, f64), b: (f64, f64), v: f64) -> f64 {
     a.0 + (b.0 - a.0) * (v - a.1) / (b.1 - a.1)
 }
 
+/// The prism's convex quad in its cap plane's own `(u, v)`: each long
+/// edge through its two ellipse sites ([`uv`]), cut at `v = ±cap`.
+fn quad(k: f64, sites: [f64; 4], cap: f64) -> [(f64, f64); 4] {
+    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
+    [
+        (at_v(e1a, e1b, -cap), -cap),
+        (at_v(e2a, e2b, -cap), -cap),
+        (at_v(e2a, e2b, cap), cap),
+        (at_v(e1a, e1b, cap), cap),
+    ]
+}
+
 /// The prism: a convex quad in the plane `z = k x` (local u along
 /// `(1, 0, k)/√(1+k²)`, v along y), extruded `h` along the plane's
 /// normal (`side`) and turned `psi` about `z`. `sites` = (edge-1 φ
@@ -85,13 +99,7 @@ fn prism_turned(
     side: ExtrudeSide,
     psi: f64,
 ) -> Body<f64> {
-    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
-    let quad = [
-        (at_v(e1a, e1b, -cap), -cap),
-        (at_v(e2a, e2b, -cap), -cap),
-        (at_v(e2a, e2b, cap), cap),
-        (at_v(e1a, e1b, cap), cap),
-    ];
+    let quad = quad(k, sites, cap);
     let lp = bulge_loop(
         quad.iter()
             .map(|&(u, v)| (Point2::new(u, v), 0.0))
@@ -113,29 +121,123 @@ fn prism_turned(
         .body
 }
 
-/// Volume of cylinder (r = 1, z ∈ [zlo, zhi]) ∩ prism by a polar
-/// midpoint quadrature over the disc of the vertical extent inside the
-/// prism (the prism is convex: an interval per vertical line).
-fn oracle_intersection(prism_planes: &[(Vec3<f64>, f64)], zlo: f64, zhi: f64, n: usize) -> f64 {
-    let mut v = 0.0;
+/// The prism's corners, as [`prism_turned`] builds it: the quad in the
+/// cap plane, then the same quad moved `h` along the extrusion.
+fn prism_corners(k: f64, sites: [f64; 4], cap: f64, h: f64, along: bool, psi: f64) -> [V3; 8] {
+    let s = 1.0 / (1.0 + k * k).sqrt();
+    let n = Vec3::new(-k, 0.0, 1.0) * (s * if along { h } else { -h });
+    let ux = Vec3::new(1.0, 0.0, k) * s;
+    let vy = Vec3::new(0.0, 1.0, 0.0);
+    let quad = quad(k, sites, cap);
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), psi);
+    core::array::from_fn(|i| {
+        let (u, v) = quad[i % 4];
+        let lift = if i < 4 { Vec3::zero() } else { n };
+        turn.transform_vec(ux * u + vy * v + lift)
+    })
+}
+
+type V3 = Vec3<f64>;
+
+/// The half-spaces `n · p ≤ d` of the prism with `corners`, `n` outward.
+fn prism_half_spaces(corners: &[V3; 8]) -> Vec<(V3, f64)> {
+    let centroid = corners.iter().fold(Vec3::zero(), |acc, c| acc + *c) * (1.0 / 8.0);
+    let mut faces: Vec<[usize; 3]> = vec![[0, 1, 2], [4, 5, 6]];
+    faces.extend((0..4).map(|i| [i, (i + 1) % 4, 4 + (i + 1) % 4]));
+    faces
+        .iter()
+        .map(|f| {
+            let p = f.map(|i| corners[i]);
+            let n = (p[1] - p[0]).cross(p[2] - p[0]);
+            let n = if n.dot(centroid - p[0]) > 0.0 { -n } else { n };
+            (n, n.dot(p[0]))
+        })
+        .collect()
+}
+
+/// **The volume of the unit-radius cylinder about `z`, between the
+/// heights `zs`, against the convex prism with `corners`**
+/// ([`prism_corners`]), closed form. The slab's two planes join the
+/// prism's half-spaces, so the region is one convex polytope with the
+/// disc's line through it: each vertical line through the disc meets it
+/// in one segment, from a face whose outward normal points down to one
+/// whose normal points up. The volume is the sum over its faces of their
+/// height over the disc against their footprint, signed by the normal's
+/// `z`: the height is linear, and its integral is
+/// [`disc_clip_moments`]'. The faces come from the planes' triple
+/// intersections that every half-space holds.
+fn prism_in_cylinder(corners: &[V3; 8], zs: (f64, f64)) -> f64 {
+    let mut planes = prism_half_spaces(corners);
+    planes.push((Vec3::new(0.0, 0.0, 1.0), zs.1));
+    planes.push((Vec3::new(0.0, 0.0, -1.0), -zs.0));
+    let on = |(n, d): (V3, f64), p: V3| (n.dot(p) - d).abs() <= 1e-9 * n.norm();
+    let mut vertices: Vec<V3> = Vec::new();
+    for i in 0..planes.len() {
+        for j in i + 1..planes.len() {
+            for k in j + 1..planes.len() {
+                let [(a, da), (b, db), (c, dc)] = [planes[i], planes[j], planes[k]];
+                let det = a.dot(b.cross(c));
+                if det.abs() < 1e-12 * a.norm() * b.norm() * c.norm() {
+                    continue;
+                }
+                let p = (b.cross(c) * da + c.cross(a) * db + a.cross(b) * dc) * (1.0 / det);
+                let inside = planes.iter().all(|&(n, d)| n.dot(p) - d <= 1e-9 * n.norm());
+                if inside && !vertices.iter().any(|v| (*v - p).norm() < 1e-9) {
+                    vertices.push(p);
+                }
+            }
+        }
+    }
+    planes
+        .iter()
+        .map(|&(n, d)| {
+            let face: Vec<V3> = vertices
+                .iter()
+                .copied()
+                .filter(|&v| on((n, d), v))
+                .collect();
+            if face.len() < 3 || n.z.abs() < 1e-12 * n.norm() {
+                return 0.0;
+            }
+            // The face's corners in turn about their mean, seen down `z`.
+            let mid = face.iter().fold(Vec3::zero(), |acc, v| acc + *v) * (1.0 / face.len() as f64);
+            let mut footprint: Vec<(f64, f64)> = face.iter().map(|v| (v.x, v.y)).collect();
+            footprint.sort_by(|p, q| {
+                let at = |r: &(f64, f64)| (r.1 - mid.y).atan2(r.0 - mid.x);
+                at(p).total_cmp(&at(q))
+            });
+            let (area, mx, my) = disc_clip_moments(1.0, &ccw(footprint));
+            (d * area - n.x * mx - n.y * my) / n.z.abs()
+        })
+        .sum()
+}
+
+/// The quad prism's volume: its cap's area times its height.
+fn prism_volume(k: f64, sites: [f64; 4], cap: f64, h: f64) -> f64 {
+    area(&quad(k, sites, cap)).abs() * h
+}
+
+/// The quadrature [`prism_in_cylinder`] is checked against: a polar
+/// midpoint rule over the disc of each vertical line's extent inside
+/// the half-spaces `planes` (`n · p ≤ d`) and the heights `zs`,
+/// independent of the face sum.
+fn prism_in_cylinder_by_quadrature(planes: &[(V3, f64)], zs: (f64, f64), n: usize) -> f64 {
     let (nr, nt) = (n, 4 * n);
+    let mut v = 0.0;
     for i in 0..nr {
         let r = (i as f64 + 0.5) / nr as f64;
         for j in 0..nt {
             let t = (j as f64 + 0.5) / nt as f64 * core::f64::consts::TAU;
             let (x, y) = (r * t.cos(), r * t.sin());
-            let (mut lo, mut hi) = (zlo, zhi);
-            for &(nrm, d) in prism_planes {
-                // nrm · p <= d, p = (x, y, z)
+            let (mut lo, mut hi) = zs;
+            for &(nrm, d) in planes {
                 let c = nrm.x * x + nrm.y * y;
-                if nrm.z.abs() < 1e-15 {
-                    if c > d {
-                        hi = lo - 1.0;
-                    }
-                } else if nrm.z > 0.0 {
+                if nrm.z > 0.0 {
                     hi = hi.min((d - c) / nrm.z);
-                } else {
+                } else if nrm.z < 0.0 {
                     lo = lo.max((d - c) / nrm.z);
+                } else if c > d {
+                    hi = f64::NEG_INFINITY;
                 }
             }
             if hi > lo {
@@ -146,29 +248,80 @@ fn oracle_intersection(prism_planes: &[(Vec3<f64>, f64)], zlo: f64, zhi: f64, n:
     v * (1.0 / nr as f64) * (core::f64::consts::TAU / nt as f64)
 }
 
-/// The prism's half-spaces `(n, d)`, `n · p ≤ d`, for the oracle.
-fn prism_planes(k: f64, sites: [f64; 4], cap: f64, h: f64, along: bool) -> Vec<(Vec3<f64>, f64)> {
-    let s = 1.0 / (1.0 + k * k).sqrt();
-    let n = Vec3::new(-k, 0.0, 1.0) * s;
-    let ux = Vec3::new(1.0, 0.0, k) * s;
-    let vy = Vec3::new(0.0, 1.0, 0.0);
-    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
-    let quad = [
-        (at_v(e1a, e1b, -cap), -cap),
-        (at_v(e2a, e2b, -cap), -cap),
-        (at_v(e2a, e2b, cap), cap),
-        (at_v(e1a, e1b, cap), cap),
-    ];
-    let sg = if along { 1.0 } else { -1.0 };
-    let mut planes = vec![(n * -sg, 0.0), (n * sg, h)];
-    for i in 0..4 {
-        let (a, b) = (quad[i], quad[(i + 1) % 4]);
-        let (du, dv) = (b.0 - a.0, b.1 - a.1);
-        let nrm = ux * dv + vy * (-du);
-        let d = nrm.x * (ux.x * a.0) + nrm.y * a.1 + nrm.z * (ux.z * a.0);
-        planes.push((nrm, d));
+/// The facet planes `n · p ≤ d` (`n` outward) of the convex hull of
+/// `points`: every plane through three of them that holds the rest on
+/// one side.
+fn hull_planes(points: &[V3]) -> Vec<(V3, f64)> {
+    let mut planes: Vec<(V3, f64)> = Vec::new();
+    for i in 0..points.len() {
+        for j in i + 1..points.len() {
+            for k in j + 1..points.len() {
+                let n = (points[j] - points[i]).cross(points[k] - points[i]);
+                if n.norm() < 1e-9 {
+                    continue;
+                }
+                let n = n * (1.0 / n.norm());
+                let d = n.dot(points[i]);
+                let side: Vec<f64> = points.iter().map(|p| n.dot(*p) - d).collect();
+                let (n, d) = if side.iter().all(|&t| t <= 1e-9) {
+                    (n, d)
+                } else if side.iter().all(|&t| t >= -1e-9) {
+                    (-n, -d)
+                } else {
+                    continue;
+                };
+                if !planes
+                    .iter()
+                    .any(|&(m, e)| (m - n).norm() < 1e-9 && (e - d).abs() < 1e-9)
+                {
+                    planes.push((n, d));
+                }
+            }
+        }
     }
     planes
+}
+
+/// The face sum over [`prism_corners`] agrees with the quadrature over
+/// the hull of the vertices the kernel built ([`prism_turned`]), steep
+/// and shallow, along and against; and the quad's area times the height
+/// is the prism's volume the kernel measures.
+#[test]
+fn the_prism_in_cylinder_oracle_agrees_with_a_quadrature() {
+    for (k, sites, psi, along) in [
+        (0.5, [190.0, 195.0, 260.0, 90.0], 0.0, true),
+        (2.0, [200.0, 230.0, 300.0, 120.0], 1.1, false),
+        (6.0, [225.0, 240.0, 320.0, 110.0], 1.658, false),
+    ] {
+        let side = if along {
+            ExtrudeSide::Along
+        } else {
+            ExtrudeSide::Against
+        };
+        let body = prism_turned(k, sites, 2.0, 1.5, side, psi);
+        let exact = prism_in_cylinder(&prism_corners(k, sites, 2.0, 1.5, along, psi), (-8.0, 8.0));
+        let built: Vec<V3> = body
+            .vertex_points()
+            .map(|(_, p)| p - Point3::origin())
+            .collect();
+        let hull = hull_planes(&built);
+        assert_eq!(
+            hull.len(),
+            6,
+            "k = {k}: the built prism's hull has six faces"
+        );
+        let quadrature = prism_in_cylinder_by_quadrature(&hull, (-8.0, 8.0), 400);
+        assert!(
+            (exact - quadrature).abs() < 3e-5,
+            "k = {k}: the face sum {exact} against the quadrature of the built prism {quadrature}"
+        );
+        let measured = topo::mass_properties(&body, tol()).unwrap().volume;
+        let closed = prism_volume(k, sites, 2.0, 1.5);
+        assert!(
+            (measured - closed).abs() < 1e-9,
+            "k = {k}: the prism measures {measured} against {closed}"
+        );
+    }
 }
 
 /// **The quad prism battery**: steep and shallow tilted quad prisms
@@ -180,7 +333,7 @@ fn prism_planes(k: f64, sites: [f64; 4], cap: f64, h: f64, along: bool) -> Vec<(
 fn steep_quad_prism_battery() {
     let cyl_z = (-8.0, 16.0);
     let base = cylinder(1.0, cyl_z.0, cyl_z.1);
-    let vc = topo::mass_properties(&base, tol()).unwrap().volume;
+    let vc = core::f64::consts::PI * cyl_z.1;
     let site_sets: [[f64; 4]; 4] = [
         [190.0, 195.0, 260.0, 90.0],
         [200.0, 230.0, 300.0, 120.0],
@@ -200,18 +353,12 @@ fn steep_quad_prism_battery() {
                     ("against", ExtrudeSide::Against, false),
                 ] {
                     let h = 1.5;
-                    let turn = Affine3::rotation_about_axis(
-                        Point3::origin(),
-                        Vec3::new(0.0, 0.0, 1.0),
-                        psi,
-                    );
                     let pr = prism_turned(k, sites, 2.0, h, side, psi);
-                    let vp = topo::mass_properties(&pr, tol()).unwrap().volume;
-                    let planes: Vec<_> = prism_planes(k, sites, 2.0, h, along)
-                        .into_iter()
-                        .map(|(n, d)| (turn.transform_vec(n), d))
-                        .collect();
-                    let vi = oracle_intersection(&planes, cyl_z.0, cyl_z.0 + cyl_z.1, 1200);
+                    let vp = prism_volume(k, sites, 2.0, h);
+                    let vi = prism_in_cylinder(
+                        &prism_corners(k, sites, 2.0, h, along, psi),
+                        (cyl_z.0, cyl_z.0 + cyl_z.1),
+                    );
                     for (op, want_ab, want_ba) in [
                         ("U", vc + vp - vi, vc + vp - vi),
                         ("S", vc - vi, vp - vi),
@@ -223,47 +370,9 @@ fn steep_quad_prism_battery() {
                             } else {
                                 (&pr, &base)
                             };
-                            let got = door(op, l, r);
-                            let line = match got {
-                                Err(e) => {
-                                    let s = format!("{e:?}");
-                                    format!("ERR {}", s.chars().take(110).collect::<String>())
-                                }
-                                Ok(res) => match res.body() {
-                                    None => format!("EMPTY want={want:.6}"),
-                                    Some(bb) => {
-                                        let t2 = topo::validate_closed(&bb.body).is_ok();
-                                        let t3 = topo::validate_pseudomanifold(
-                                            &bb.body,
-                                            &bb.contacts,
-                                            tol(),
-                                        )
-                                        .is_ok();
-                                        let cert =
-                                            topo::validate_geometric_certificate(&bb.body, tol())
-                                                .is_ok();
-                                        match topo::mass_properties(&bb.body, tol()) {
-                                            Ok(m) => {
-                                                let good = (m.volume - want).abs() < 2e-5;
-                                                format!(
-                                                    "OK {} t2={t2} t3p={t3} cert={cert} v={:.9} \
-                                                     want~{want:.6}",
-                                                    if good && t2 && t3 && cert {
-                                                        "SOUND"
-                                                    } else {
-                                                        "BAD"
-                                                    },
-                                                    m.volume
-                                                )
-                                            }
-                                            Err(e) => format!("OK-UNMEASURED {e:?}"),
-                                        }
-                                    }
-                                },
-                            };
                             println!(
-                                "R1BAT k={k} sites={sites:?} psi={psi} {sname} {op} {order} => \
-                                 {line}"
+                                "R1BAT k={k} sites={sites:?} psi={psi} {sname} {op} {order} => {}",
+                                outcome(door(op, l, r), want, tol())
                             );
                         }
                     }
@@ -525,7 +634,7 @@ fn steep_ellipse_poses_build_sound() {
 
     let cyl_z = (-8.0, 16.0);
     let base = cylinder(1.0, cyl_z.0, cyl_z.1);
-    let vc = topo::mass_properties(&base, tol()).unwrap().volume;
+    let vc = core::f64::consts::PI * cyl_z.1;
     let all: [Run; 6] = [
         ("U", "AB"),
         ("U", "BA"),
@@ -548,13 +657,11 @@ fn steep_ellipse_poses_build_sound() {
     for (k, sites, psi, runs) in quads {
         let (h, side) = (1.5, ExtrudeSide::Against);
         let pr = prism_turned(k, sites, 2.0, h, side, psi);
-        let vp = topo::mass_properties(&pr, tol()).unwrap().volume;
-        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), psi);
-        let planes: Vec<_> = prism_planes(k, sites, 2.0, h, false)
-            .into_iter()
-            .map(|(n, d)| (turn.transform_vec(n), d))
-            .collect();
-        let vi = oracle_intersection(&planes, cyl_z.0, cyl_z.0 + cyl_z.1, 1200);
+        let vp = prism_volume(k, sites, 2.0, h);
+        let vi = prism_in_cylinder(
+            &prism_corners(k, sites, 2.0, h, false, psi),
+            (cyl_z.0, cyl_z.0 + cyl_z.1),
+        );
         for (op, order) in runs {
             let volume = match (op, order) {
                 ("U", _) => vc + vp - vi,
@@ -567,7 +674,7 @@ fn steep_ellipse_poses_build_sound() {
             } else {
                 (&pr, &base)
             };
-            if let Some(m) = miss(ops(op, l, r), volume, 2e-5) {
+            if let Some(m) = miss(ops(op, l, r), volume, 1e-7) {
                 misses.push(format!("k={k} sites={sites:?} psi={psi} {op} {order}: {m}"));
             }
         }

@@ -22,7 +22,7 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
 
@@ -45,8 +45,14 @@ fn boxed(b: Bounds) -> AtRestBody<f64> {
 /// `ball` turned by `turn` before it is moved to `c`.
 fn placed(ball: topo::Body<f64>, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let turned = topo::transform_rigid(&ball, &turn, tol).unwrap();
-    let moved = topo::transform_rigid(&turned, &Affine3::translation(c), tol).unwrap();
+    let turned =
+        topo::transform_rigid(&ball, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let moved = topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap();
     finished("the ball", moved, tol)
 }
 
@@ -97,22 +103,14 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
-        (
-            "a ∪ b",
-            va + vb - shared,
-            topo::union_with(a, b, &none, tol),
-        ),
-        (
-            "b ∪ a",
-            va + vb - shared,
-            topo::union_with(b, a, &none, tol),
-        ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
+        ("b ∪ a", va + vb - shared, topo::union(b, a, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         let label = format!("{pose}, {op}");
@@ -317,21 +315,19 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
         .body
         .clone();
     let ball = ball_y(0.5, Vec3::new(0.3, 2.0, 1.2));
-    let none = BooleanDeclarations::none();
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&slab, &ball, &none, tol)),
-        ("b ∪ a", topo::union_with(&ball, &slab, &none, tol)),
-        ("a ∖ b", topo::subtract_with(&slab, &ball, &none, tol)),
-        ("b ∖ a", topo::subtract_with(&ball, &slab, &none, tol)),
-        ("a ∩ b", topo::intersect_with(&slab, &ball, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&ball, &slab, &none, tol)),
+        ("a ∪ b", topo::union(&slab, &ball, tol)),
+        ("b ∪ a", topo::union(&ball, &slab, tol)),
+        ("a ∖ b", topo::subtract(&slab, &ball, tol)),
+        ("b ∖ a", topo::subtract(&ball, &slab, tol)),
+        ("a ∩ b", topo::intersect(&slab, &ball, tol)),
+        ("b ∩ a", topo::intersect(&ball, &slab, tol)),
     ] {
         assert!(
             matches!(
                 out,
-                Err(BooleanError::Join(
-                    topo::SplitJoinError::SectionLoopUndecided { .. }
-                ))
+                Err(BooleanError::Join(ref j))
+                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
             ),
             "the well, {op}: wanted the role read's refusal, got {:?}",
             out.map(|_| "a body")
@@ -502,14 +498,13 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         // widths here, and every op escalates certifying a pcurve on the
         // sphere's chart (in the merge, or the pcurve pass) before any
         // ring is read — on main too.
-        let none = BooleanDeclarations::none();
         for (op, got) in [
-            ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-            ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
-            ("a ∖ b", topo::subtract_with(&a, &b, &none, tol)),
-            ("b ∖ a", topo::subtract_with(&b, &a, &none, tol)),
-            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+            ("a ∪ b", topo::union(&a, &b, tol)),
+            ("b ∪ a", topo::union(&b, &a, tol)),
+            ("a ∖ b", topo::subtract(&a, &b, tol)),
+            ("b ∖ a", topo::subtract(&b, &a, tol)),
+            ("a ∩ b", topo::intersect(&a, &b, tol)),
+            ("b ∩ a", topo::intersect(&b, &a, tol)),
         ] {
             let err = got.err().map(|e| format!("{e:?}"));
             assert!(

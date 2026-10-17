@@ -1651,20 +1651,6 @@ fn select_refusal_tags_are_stable() {
         "datum_has_no_value"
     );
     assert_eq!(
-        select_refusal_tag(&SelectRefusal::NodeHasNoValue(
-            pncad::document::NodeStanding::Failed {
-                node: RecipeNodeId::new(0, 0)
-            }
-        )),
-        "node_has_no_value"
-    );
-    assert_eq!(
-        select_refusal_tag(&SelectRefusal::NodeHasNoOutput {
-            node: RecipeNodeId::new(0, 0)
-        }),
-        "node_has_no_output"
-    );
-    assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {
             dim: Dimension::Angle,
         }),
@@ -1690,7 +1676,7 @@ fn select_refusal_tags_are_stable() {
 }
 
 /// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
-/// the Python mirror (`py/flush.rs`) is forced to carry a wildcard
+/// the Python mirror (`py/contact.rs`) is forced to carry a wildcard
 /// arm and the compile-time drift alarm is unavailable — an unknown
 /// class refuses typed (`unclassified`) at the crossing instead.
 ///
@@ -1719,25 +1705,6 @@ fn the_contact_class_mirror_matches_the_kernel() {
         "Tangent crossed into the mirror with M9-1; a class the binding \
          cannot name refuses typed at the crossing instead"
     );
-}
-
-/// LIB-PYG5: the declare-sugar refusal tags, exercised through the
-/// real doors on the default (no-Python) path. The `Edit` arm
-/// carries the document layer's own tag through.
-#[test]
-fn declare_error_tags_are_stable() {
-    use crate::tags::declare_error_tag;
-    use pncad::select::declare_all;
-
-    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
-    let empty = declare_all(
-        &doc,
-        pncad::document::RecipeNodeId::new(0, 1),
-        &[],
-        Tol::witness(),
-    )
-    .expect_err("declaring no findings refuses");
-    assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
 /// The binding matches `Formula::literal`'s OWN refusals rather than
@@ -2414,6 +2381,7 @@ fn node_error_tags_are_the_published_words() {
         Chamfer => "chamfer",
         Boolean => "boolean",
         Transform => "transform",
+        Motion => "motion",
         Skin => "skin",
         Loft => "loft",
         CurvedSolidFrontier => "curved_solid_frontier",
@@ -2421,7 +2389,6 @@ fn node_error_tags_are_the_published_words() {
         ToleranceConflict => "tolerance_conflict",
         ParamBox => "param_box",
         Seed => "seed",
-        SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
@@ -2454,10 +2421,6 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
-        DeclareResolve => "declare_resolve",
-        DeclareSiteNotAnOperand => "declare_site_not_an_operand",
-        DeclareUnsupportedPair => "declare_unsupported_pair",
-        DeclaredContactUnbacked => "declared_contact_unbacked",
         UnionFoldStep => "union_fold_step",
         FilletSelectionEmpty => "fillet_selection_empty",
         ChamferSelectionEmpty => "chamfer_selection_empty",
@@ -2465,7 +2428,6 @@ fn node_error_tags_are_the_published_words() {
         ShellLaneUnsupported => "shell_lane_unsupported",
         FaceFrameNotPlanar => "face_frame_not_planar",
         FaceFrameReadback => "face_frame_readback",
-        DerivedFrameSection => "derived_frame_section",
         FrameDirectionDegenerate => "degenerate_direction",
         FrameDirectionNonFiniteLength => "non_finite_direction",
         FrameDirectionUnderflowedLength => "underflowed_direction",
@@ -2794,25 +2756,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
-    carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
-    carries(
-        &E::DeclaredSiteNotAnOperand {
-            node: sp(1),
-            name: named(),
-            site: pncad::document::SpokenVar::new(
-                pncad::document::VarId(id(2).0),
-                Some(pncad::document::VarName::new("lid").expect("a var name")),
-            ),
-        },
-        &["node", "param", "name"],
-    );
-    carries(
-        &E::DeclaredNameNotUpstream {
-            node: sp(1),
-            name: named(),
-        },
-        &["node", "name"],
-    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -3565,7 +3508,9 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
-        BlendDecision::TurnIsosceles,
+        BlendDecision::TurnFeetGap,
+        BlendDecision::TurnOverrunChord,
+        BlendDecision::TurnFeet,
         BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
@@ -3812,8 +3757,10 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-            reason: "boxes refused".into()
+            refusal: pncad::topo::BooleanError::ClassificationInvariant {
+                what: "boxes refused"
+            }
+            .into()
         }),
         "separation_unavailable"
     );
@@ -3889,8 +3836,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["other_root", "other_output"],
     );
     let unavailable = E::SeparationUnavailable {
-        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-        reason: "boxes refused".into(),
+        refusal: pncad::topo::BooleanError::ClassificationInvariant {
+            what: "boxes refused",
+        }
+        .into(),
     };
     carries(&unavailable, &["reason", "boolean_variant"]);
 
@@ -3969,9 +3918,19 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
+    let E::SeparationUnavailable { refusal } = &unavailable else {
+        unreachable!("built as the separation arm above")
+    };
+    let words = check_payload(&unavailable);
     assert_eq!(
-        check_payload(&unavailable).reason.as_deref(),
-        Some("boxes refused")
+        words.reason.as_deref(),
+        Some(refusal.to_string().as_str()),
+        "the reason is the kernel's own sentence, whole"
+    );
+    assert_eq!(
+        words.boolean_variant,
+        Some("classification_invariant"),
+        "the class is the arm the refusal is"
     );
 }
 
@@ -3982,7 +3941,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
 /// [`reads_as_prose`], and every door in this crate obeys the rule the
 /// assertion stands for — the binding never authors a `Debug` dump.
 /// Three `ValidationError` arms once broke that rule from the OTHER
-/// side, the kernel wording them out of `Debug`: `UndeclaredContact`
+/// side, the kernel wording them out of `Debug`: `UnrecordedContact`
 /// rendered its `CensusContact` as `{contact:?}`, `StaleContactDeclaration`
 /// its `StaleDeclaration` the same way, and the `witness` the kernel
 /// built with `format!("{p:?}")` carried a `Point3`'s field braces.
@@ -4006,7 +3965,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     // Both arms are built here rather than by evaluating a document:
     // this row is about the RENDERING, and a default arena key is
     // enough to render one — nothing dereferences it.
-    let census = ValidationError::UndeclaredContact {
+    let census = ValidationError::UnrecordedContact {
         contact: CensusContact::VertexOnFace {
             vertex: VertexKey::default(),
             face: FaceKey::default(),
@@ -4014,6 +3973,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         // The kernel builds this field as a coordinate triple
         // (`census::witness`), so it carries no braces of its own.
         witness: "(0.0, 0.0, 0.0)".to_owned(),
+        margin: None,
     };
     let stale = ValidationError::StaleContactDeclaration {
         declaration: StaleDeclaration::VertexOnFace {
@@ -4048,7 +4008,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     );
     assert!(
         message.ends_with("Recourse: declare the named contact class, or move the geometry"),
-        "the undeclared-contact recourse is the actionable half: {message}"
+        "the unrecorded-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -4127,12 +4087,13 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
     // unit closes was raised about: declare-this versus
     // you-cannot-declare-this, off one refusal.
     assert_eq!(
-        project(&ValidationError::UndeclaredContact {
+        project(&ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce {
                 edge: Default::default(),
                 face: FaceKey::default(),
             },
             witness: "(0.0, 0.0, 0.0)".to_owned(),
+            margin: None,
         })
         .contact_kind,
         Some("edge_face_pierce")
@@ -4820,13 +4781,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "attribution_tag",
-        values: &[
-            "carried_declined",
-            "carried_refuted",
-            "declined",
-            "refuted",
-            "unattributed",
-        ],
+        values: &["carried_declined", "carried_refuted", "declined", "refuted"],
         delegates: &[],
     },
     TagEntry {
@@ -4873,6 +4828,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_corner",
             "unsupported_geometry",
             "unsupported_run_out",
+            "wholly_inside",
         ],
         delegates: &["join_refusal_tag"],
     },
@@ -4881,6 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_loop_containment_unsupported",
             "band",
+            "carry_refused",
             "classification_invariant",
             "coincident_shell",
             "contact_contradicted",
@@ -4890,6 +4847,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
+            "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",
             "curved_pair_unsupported",
@@ -4897,44 +4855,51 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
+            "edge_undescribed",
             "escalated",
             "euler",
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
-            "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
             "germ_section_spiric",
             "graft_recertify",
+            "held_pierce_unbuilt",
             "inside_out_operand",
-            "invalid_declaration",
+            "invalid_input",
             "join",
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "lineage_row",
             "merge",
+            "mixed_seam",
+            "nesting_unread",
+            "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
             "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
+            "partner_along_face",
             "pcurves",
             "pieces",
-            "pinch_cones_on_separate_keys",
+            "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
+            "rest_piece_unread",
             "result_invalid",
             "result_volume_implausible",
+            "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
-            "seam_contradicted",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
-            "tangent_slit_arm_unbuilt",
+            "split_lineage_cycle",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -5024,16 +4989,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "axes_meet",
             "co_ruled",
             "coaxial",
+            "common_foot",
             "cusp",
-            "equal_angles",
             "on_carrier",
             "same_opposite",
             "same_oriented",
-            "seam",
+            "same_radius",
+            "surface_tangent",
             "tangent",
-            "tangent_contact",
         ],
         delegates: &[],
     },
@@ -5077,7 +5043,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
-            "import_anchor",
+            "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -5085,11 +5051,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_fusion",
         ],
         delegates: &[],
-    },
-    TagEntry {
-        function: "declare_error_tag",
-        values: &["no_findings"],
-        delegates: &["edit_error_tag"],
     },
     TagEntry {
         function: "distribution_fault_tag",
@@ -5122,8 +5083,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "construction_reads_observed",
             "continuous_var_cannot_be_count",
             "declare_names_missing_node",
-            "declared_name_not_upstream",
-            "declared_site_not_an_operand",
             "defines_nothing",
             "definition_cycle",
             "definition_too_large",
@@ -5188,7 +5147,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_target_missing_node",
             "rebind_unknown_name",
             "selection_shape",
-            "set_declare_on_non_declaring",
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
@@ -5401,6 +5359,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_carries_metadata",
             "part_dead_gauge",
             "placement_pose_crosses",
+            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5467,8 +5426,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "far_section_not_forward",
             "far_stacking_escalated",
             "pcurve",
+            "placement_not_finite",
             "reversed_stacking",
             "seam_structure",
+            "section_not_finite",
             "section_structure",
             "skin",
             "stacking_escalated",
@@ -5550,21 +5511,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "carrier_unplaced",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
             "emission",
             "escalated",
-            "fragment_lineage_cycle",
             "member_edge_tied",
             "merged_chord",
             "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
+            "partner_unread",
             "seam_vertex_parentage",
             "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
+            "unsettled_vertex",
         ],
         delegates: &["band_error_tag", "rim_share_tag"],
     },
@@ -5578,14 +5541,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_empty",
             "crossing_unverified",
             "curved_solid_frontier",
-            "declare_resolve",
-            "declare_site_not_an_operand",
-            "declare_unsupported_pair",
-            "declared_contact_unbacked",
             "degenerate_direction",
             "degenerate_spacing",
             "degenerate_step",
-            "derived_frame_section",
             "empty_half",
             "empty_operand",
             "empty_placement_list",
@@ -5626,6 +5584,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_unsupported",
             "missing_input",
             "missing_slot",
+            "motion",
             "naming",
             "negative_spacing",
             "non_finite_direction",
@@ -5656,7 +5615,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_replay",
             "revolve",
             "seed",
-            "seed_pinned_section",
             "select_kind",
             "select_resolve",
             "shell",
@@ -5706,8 +5664,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "readback_error_tag",
             "replay_error_tag",
             "resolve_error_tag",
-            "resolve_error_tag",
             "revolve_error_tag",
+            "rigid_motion_error_tag",
             "seed_error_tag",
             "shell_error_tag",
             "skin_error_tag",
@@ -5775,7 +5733,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "ortho_frame_error_tag",
+        function: "orthonormalize_error_tag",
         values: &[
             "degenerate_u_axis",
             "degenerate_v_axis",
@@ -5938,6 +5896,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "near_full_arc",
             "nesting_too_deep",
             "non_simple",
+            "plane_not_finite",
             "ray_casting_exhausted",
             "sliver_loop",
             "structure",
@@ -6051,16 +6010,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
+            "placed_axis",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
             "sliver_rim",
             "smooth_join_refuted",
+            "turn",
             "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
             "void_insertion",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "rigid_motion_error_tag",
+        values: &["non_finite", "not_rigid", "undecided"],
         delegates: &[],
     },
     TagEntry {
@@ -6105,16 +6071,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "select_refusal_tag",
         values: &[
-            "across_spaces",
             "bad_value",
             "datum_has_no_value",
-            "distinct_finding",
             "in_band",
-            "node_has_no_output",
-            "node_has_no_value",
             "not_a_datum",
             "not_a_length",
-            "pair_in_band",
             "tied_disagrees",
             "unreadable",
         ],
@@ -6158,6 +6119,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partition",
             "pcurve",
             "rim",
+            "rim_seam_mixed",
             "roles",
             "thickness",
             "wall_clearance",
@@ -6167,13 +6129,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "skin_error_tag",
         values: &[
+            "arc_weight_not_a_point",
             "bad_degree",
             "degenerate_section",
             "domain_not_unit",
             "fit",
+            "incompatible_at_enclosure",
             "knot_algebra",
             "no_parameter_step",
             "path_tangent_reversal",
+            "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
             "structure",
@@ -6235,7 +6200,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "anonymous_var_unread",
             "assertion_bound",
-            "declared_name_not_upstream",
             "definition_cycle",
             "definition_reads_unminted_var",
             "definition_too_large",
@@ -6298,6 +6262,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_id_collides",
             "part_name_reaches_remainder",
             "placing_mate_left",
+            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6317,7 +6282,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6359,7 +6324,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "adoption",
             "assembly",
             "dangling_reference",
-            "declaration_unresolved",
             "instance",
             "invalid_eps_override",
             "join",
@@ -6369,6 +6333,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nothing_to_import",
             "pcurves",
             "placement",
+            "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
             "structure",
@@ -6455,8 +6420,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "certify",
             "corrupt",
-            "non_finite_map",
-            "not_rigid",
             "null_scaffold",
             "nurbs_lane_unsupported",
             "nurbs_placeholder",
@@ -6517,6 +6480,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "approx_certification",
             "approx_lane_unsupported",
+            "arc_end_off_corner",
             "back_pointer_mismatch",
             "band",
             "census_escalated",
@@ -6551,6 +6515,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
+            "mixed_dihedral",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
@@ -6587,6 +6552,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
+            "sliver_inside_out",
             "solid_outer_shells",
             "solid_without_shells",
             "split_vertex_orbit",
@@ -6596,8 +6562,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tangent_not_intrinsic",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
-            "undeclared_contact",
             "unreachable_half_edge",
+            "unrecorded_contact",
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
@@ -6662,9 +6628,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    // One fact (A9, A11 (2)): two nodes in different spaces, which the
-    // pick and the flush detector each refuse to order or compare.
-    ("across_spaces", 2),
     ("ambiguous", 4),
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
@@ -6684,9 +6647,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("containment", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),
-    // One fact at two doors: `node::declared_side_fault`, asked by the
-    // edit doors and by the load door.
-    ("declared_name_not_upstream", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
     ("definition_cycle", 2),
@@ -6764,7 +6724,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("no_such_body", 2),
     ("no_such_name", 2),
     ("node_failed", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
@@ -6802,6 +6762,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // A split's and an inline's refusal of a ranked run its re-minted
+    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
+    ("ranked_run_reordered", 2),
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),
@@ -6827,10 +6790,18 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    // One fact: one `SplitLineageCycle`, met by the Boolean
+    // (`BooleanErrorKind::SplitLineage`) or by naming
+    // (`NamingError::SplitLineage`);
+    // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
+    ("split_lineage_cycle", 2),
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
+    // A coincidence: a crossing side the band left undecided, and a
+    // rigidity margin the decided door left undecided.
+    ("undecided", 2),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
@@ -6879,6 +6850,22 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
 /// words `ring_contact_tag` names a ring meeting its outer loop, the
 /// other ring in the outer loop's place, so a caller reads one
 /// vocabulary for one shape. Red where either map re-spells a shape.
+/// **One split-lineage cycle, one word.** The Boolean and naming both
+/// refuse a `SplitLineageCycle` they meet, and a caller reading the tag
+/// reads one fact. Red if either map spells it apart.
+#[test]
+fn a_split_lineage_cycle_has_one_word_wherever_it_is_met() {
+    use crate::tags::{boolean_error_tag, naming_error_tag};
+    use pncad::topo::{BooleanErrorKind, SplitLineageCycle};
+    let cycle = SplitLineageCycle {
+        edge: Default::default(),
+    };
+    assert_eq!(
+        boolean_error_tag(BooleanErrorKind::SplitLineage),
+        naming_error_tag(&pncad::select::NamingError::SplitLineage(cycle))
+    );
+}
+
 #[test]
 fn ring_pair_words_are_the_outer_contact_words() {
     use crate::tags::{ring_contact_tag, ring_pair_contact_tag};

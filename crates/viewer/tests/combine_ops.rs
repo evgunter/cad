@@ -64,7 +64,7 @@ const OVERLAP: f64 = 0.005 * 0.01 * 0.006;
 
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
-    DocSession::inline(Doc::empty_derived("combine-start", tol), tol)
+    crate::common::inline_without_door(Doc::empty_derived("combine-start", tol), tol)
 }
 
 /// The two overlapping blocks (module docs), the second placed by a
@@ -115,8 +115,7 @@ fn assert_volume(session: &mut DocSession, node: RecipeNodeId, want: f64, tol: T
 
 /// **The acceptance row**: a two-body boolean authored from nothing,
 /// evaluated, saved, reloaded and re-evaluated. The two boxes share no
-/// plane, so the union has no contact to declare and lands as one
-/// undeclared insert.
+/// plane, and the union lands as one insert.
 #[test]
 fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let tol = Tol::witness();
@@ -125,16 +124,11 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
-    // An op declaring nothing authors an empty declaration.
     assert!(matches!(
         session.committed_doc().node(union),
-        Some(Node::Union {
-            declare,
-            ..
-        }) if declare.is_empty()
+        Some(Node::Union { .. })
     ));
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
@@ -210,7 +204,6 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     let doc = session.committed_doc();
     let Some(Node::Union {
         members: Bodies::Spelled(members),
-        declare,
     }) = doc.node(union)
     else {
         panic!("one union node: {:?}", doc.node(union));
@@ -220,7 +213,6 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         [a, b, c].map(|n| doc.output(n, 0)),
         "three spelled members, the picks' reads in pick order"
     );
-    assert!(declare.is_empty(), "nothing declared: {declare:?}");
     assert_eq!(
         common::world(doc),
         [union],
@@ -252,7 +244,6 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let union = outcome.minted[0];
@@ -310,7 +301,6 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     assert_eq!(
@@ -388,7 +378,6 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
                 from: a.into(),
                 tool: b.into(),
             },
-            declare: Vec::new(),
         },
     );
     let b_minus_a = session_insert(
@@ -398,7 +387,6 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
                 from: b.into(),
                 tool: a.into(),
             },
-            declare: Vec::new(),
         },
     );
     let first = body_volume(&mut session, a_minus_b, tol);
@@ -416,7 +404,6 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Intersect(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     assert_volume(&mut session, meet, OVERLAP, tol);
@@ -461,10 +448,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
                 tool: wrong.into(),
             },
         ] {
-            let refused = session.perform(SessionOp::AddBoolean {
-                spec,
-                declare: Vec::new(),
-            });
+            let refused = session.perform(SessionOp::AddBoolean { spec });
             assert!(
                 matches!(
                     &refused.refusal,
@@ -482,7 +466,6 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![a.into(), a.into()]),
-            declare: Vec::new(),
         },
     );
     assert_volume(&mut session, doubled, va, tol);
@@ -493,7 +476,6 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
                 from: a.into(),
                 tool: a.into(),
             },
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -614,7 +596,6 @@ fn several_bodies_are_not_one_body_at_a_seat() {
         for op in [
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
-                declare: Vec::new(),
             },
             SessionOp::AddTransform {
                 input: wrong.into(),
@@ -855,7 +836,6 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![part.into(), fused.into()]),
-            declare: Vec::new(),
         },
     );
     let va = A[0] * A[1] * A[2];
@@ -1130,7 +1110,6 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     for op in [
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![body.into(), other.into()]),
-            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: body.into(),
@@ -1184,14 +1163,12 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     for op in [
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![plane.into(), body.into()]),
-            declare: Vec::new(),
         },
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: body.into(),
                 tool: plane.into(),
             },
-            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: plane.into(),
@@ -1354,8 +1331,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
                 from: first,
                 tool: second,
             },
-            declare,
-        }) if first == Operand::from(a) && second == Operand::from(b) && declare.is_empty()
+        }) if first == Operand::from(a) && second == Operand::from(b)
     ));
 
     // Deleting the REMOVED body's node empties that seat and leaves
@@ -1628,14 +1604,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             // about the member under test.
             Seat::Member => SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![body.into(), (filled(Seat::Member)).into()]),
-                declare: Vec::new(),
             },
             Seat::SubtractFrom | Seat::SubtractTool => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: (filled(Seat::SubtractFrom)).into(),
                     tool: (filled(Seat::SubtractTool)).into(),
                 },
-                declare: Vec::new(),
             },
             Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget).into(),
@@ -1960,7 +1934,6 @@ fn a_tool_closes_on_its_own_committed_edit() {
                     (RecipeNodeId::new(0, tagged(1))).into(),
                     (RecipeNodeId::new(0, tagged(2))).into(),
                 ]),
-                declare: Vec::new(),
             },
         ),
         (
@@ -2220,7 +2193,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             Node::Subtract {
                 from: body.into(),
                 tool: other.into(),
-                declare: Vec::new(),
             },
         ),
         // The n-ary union at its minimal size. Its two members are
@@ -2234,14 +2206,12 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             "union",
             Node::Union {
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
-                declare: Vec::new(),
             },
         ),
         (
             "intersect",
             Node::Intersect {
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
-                declare: Vec::new(),
             },
         ),
         (
@@ -3458,9 +3428,9 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
 
 /// **A union across two flush contacts lands as one action.** The
 /// block has a channel cut across its top, so its top is TWO faces, and
-/// a boss bridging the channel rests on both. The union declares
-/// nothing and commits one step. Red if it refuses, or lands anything
-/// but the channelled block plus the boss.
+/// a boss bridging the channel rests on both. The union commits one
+/// step. Red if it refuses, or lands anything but the channelled block
+/// plus the boss.
 #[test]
 fn a_union_across_two_flush_contacts_lands_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];
@@ -3488,7 +3458,6 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
                 from: block.into(),
                 tool: channel.into(),
             },
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -3519,7 +3488,6 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
     let steps = session.history().len();
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![channelled.into(), boss.into()]),
-        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [union] = outcome.minted[..] else {
@@ -3613,7 +3581,6 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
     );
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
-        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }

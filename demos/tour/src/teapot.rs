@@ -997,7 +997,6 @@ fn build_doc(tol: Tol) -> Recipe {
             doc,
             Node::Union {
                 members: Bodies::Spelled(vec![cup.into(), b]),
-                declare: Vec::new(),
             },
             tol,
         )

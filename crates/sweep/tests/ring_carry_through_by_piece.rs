@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{cube, prism, realized};
@@ -27,7 +27,12 @@ fn sub(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 fn at(b: Body<f64>, x: f64, y: f64, z: f64) -> Body<f64> {
-    topo::transform_rigid(&b, &Affine3::translation(Vec3::new(x, y, z)), tol()).unwrap()
+    topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(Vec3::new(x, y, z)).unwrap(),
+        tol(),
+    )
+    .unwrap()
 }
 
 /// A vertical bore of radius `rad` about `(x, y)`, from `z` up `h`.
@@ -386,7 +391,8 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
 /// the wall, which the subtract places as an ON event: in either order
 /// it builds at its closed form (the cube less the bore and the pocket's
 /// `0.02 × 0.2`), valid at tiers 3 and 3′, the pocket's floor vertex
-/// recorded touching the ruling. Its top face's boundary then passes
+/// recorded touching the ruling and its edge recorded lying along it.
+/// Its top face's boundary then passes
 /// through the rim vertex twice, so the rim's ring carries the pocket's
 /// edges, and a fillet of the rim alone refuses on that chain.
 #[test]
@@ -415,13 +421,13 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         ("pocket first", &pocketed, &hole),
     ] {
         use sweep::test_support::finished;
+        use topo::BooleanResult;
         use topo::boolean::{SweepStrategy, boolean_op_with};
-        use topo::{BooleanDeclarations, BooleanResult};
         let r = boolean_op_with(
             BooleanOp::Subtract,
             &finished("a", a.clone(), tol()),
             &finished("b", b.clone(), tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );
@@ -454,7 +460,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
                 bb.contacts.vertex_edge().count(),
                 bb.contacts.edge_edge().count(),
             ),
-            (0, 0, 1, 0),
+            (0, 0, 1, 1),
             "{what}: [v-v, v-f, v-e, e-e] records"
         );
         let rim = rim_at(&body, 1.0, 0.2);
@@ -477,12 +483,12 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
 /// sliver, and r = 0.201 refuses with an enclosure about −0.001.
 mod interval_lane {
     use crate::common::interval::{iv, p2, v3};
-    use geom_core::{Affine3, Bounds, Interval, Tol};
+    use geom_core::{Bounds, Interval, Tol};
     use sweep::blend::BlendError;
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, prism};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{AtRestBody, BooleanDeclarations, EdgeKey};
+    use topo::{AtRestBody, EdgeKey};
 
     fn t() -> Tol {
         Tol::witness()
@@ -500,13 +506,17 @@ mod interval_lane {
             iv(0.3),
             t(),
         );
-        let diamond =
-            topo::transform_rigid(&diamond, &Affine3::translation(v3(0.0, 0.0, 0.8)), t()).unwrap();
+        let diamond = topo::transform_rigid(
+            &diamond,
+            &geom_core::RigidMotion::translation(v3(0.0, 0.0, 0.8)).unwrap(),
+            t(),
+        )
+        .unwrap();
         let body: AtRestBody<Interval> = boolean_op_with(
             BooleanOp::Subtract,
             &finished("the cube", cube(1.0, t()), t()),
             &finished("the diamond", diamond, t()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             t(),
         )

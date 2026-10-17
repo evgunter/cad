@@ -14,7 +14,7 @@
 //! typed wherever it could matter.
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
-use geom_core::k_stats::Magnitude;
+use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::sphere_region::RegionRefusal;
@@ -124,21 +124,19 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
 /// **The escalations each site raises**: every decision paired with each
 /// way its sites' readings can stand, and `None` for a refusal that names
 /// no decision. A pair not here is raised nowhere.
-pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 13] = {
+pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 11] = {
     use ContainDecision as C;
-    use Escalation::{Decided, Margin, Straddle};
+    use Escalation::{Margin, Straddle};
     use LoopDecision as L;
     [
         (None, Margin),
         (Some(C::Loop(L::Boundary)), Margin),
         (Some(C::Loop(L::Boundary)), Straddle),
-        (Some(C::Loop(L::Boundary)), Decided),
         (Some(C::Loop(L::Ray)), Margin),
         (Some(C::Loop(L::ArcSpan)), Margin),
         (Some(C::Loop(L::ArcSpan)), Straddle),
         (Some(C::Loop(L::Plane)), Margin),
         (Some(C::ArcEnd), Margin),
-        (Some(C::ArcEnd), Decided),
         (Some(C::OneCircle), Margin),
         (Some(C::Carrier), Margin),
         (Some(C::WindowPeriod), Margin),
@@ -259,6 +257,77 @@ pub enum ContainError {
     /// A curved face's chart read refused. The reads are the solid
     /// door's own, so the refusal is its, carried whole.
     Curved(super::solid_contain::PointInSolidError),
+    /// The point lies in the band of an arc's end, and the vertex pass
+    /// placed it definitely clear of both of the edge's stored corners
+    /// ([`ContainDecision::ArcEnd`]'s definite arm, D4 ¶1 (iv)). Two
+    /// definite readings that disagree, carried with the arc's ends
+    /// read against those corners.
+    ArcEndClearOfCorners(Box<ArcEndGaps>),
+}
+
+/// **An arc's two carrier ends read against its edge's two stored
+/// corners** (`bool_contact_arc_end_vertex`), every one decided: what
+/// [`ContainError::ArcEndClearOfCorners`] carries. The two passes of
+/// [`boundary_pre_pass`] part only by as much as an end sits off its
+/// corner: the boundary reading puts the point at an end on its raw
+/// chord to the end's point, the distance the vertex pass reads to the
+/// corner. So where every end lies at a corner the parting is the band's,
+/// reachable only at `K < 2`. Certification pins each end within the
+/// run's zero band of its corner (`geom_brep`'s
+/// `carrier_endpoint_{start,end}`), and the ends here are read through
+/// the same `Curve3::eval`, so an end off both corners is read where a
+/// caller's band is finer than the run's, or where the certifier's
+/// distance and this reading's part by rounding across a band whose
+/// width `(K − 1)·zero` is narrower than that rounding: the kernel's two
+/// readings of one end disagreeing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArcEndGaps {
+    /// `gaps[i][j]`: the carrier's start (`i = 0`) or end (`i = 1`)
+    /// against the edge's start (`j = 0`) or end (`j = 1`) corner, in
+    /// the loop's order, with the margin each was decided on.
+    pub(crate) gaps: [[(Magnitude, MarginDiag); 2]; 2],
+    /// The band they were decided against.
+    pub(crate) band: Band,
+}
+
+impl ArcEndGaps {
+    /// The end of the arc that lies definitely off both corners, as its
+    /// gap to its own corner and then to the other: its own is the one
+    /// the other end does not lie at, or the one of its own index where
+    /// that end lies at neither. `None` where every end lies at a corner.
+    fn off_end(&self) -> Option<(MarginDiag, MarginDiag)> {
+        let off =
+            |end: &[(Magnitude, MarginDiag); 2]| end.iter().all(|(m, _)| *m == Magnitude::Positive);
+        let i = self.gaps.iter().position(off)?;
+        let other = self.gaps[1 - i];
+        let own = other
+            .iter()
+            .position(|(m, _)| *m == Magnitude::Zero)
+            .map_or(i, |j| 1 - j);
+        Some((self.gaps[i][own].1, self.gaps[i][1 - own].1))
+    }
+
+    /// Whether an end of the arc lies definitely off both corners.
+    #[must_use]
+    pub fn off_corner(&self) -> bool {
+        self.off_end().is_some()
+    }
+}
+
+impl core::fmt::Display for ArcEndGaps {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let zero = self.band.zero();
+        match self.off_end() {
+            Some((own, far)) => write!(
+                f,
+                "the end lies {own:e} m from its own corner, {far:e} m from the other"
+            ),
+            None => write!(
+                f,
+                "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
+            ),
+        }
+    }
 }
 
 impl From<PointInLoopError> for ContainError {
@@ -325,6 +394,11 @@ impl core::fmt::Display for ContainError {
             Self::Uncrossable(u) => write!(
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
+            ),
+            Self::ArcEndClearOfCorners(gaps) => write!(
+                f,
+                "contfp: the point lies at an arc's end clear of its corners: {gaps}. Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
             ),
         }
     }
@@ -587,7 +661,7 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS, band)?
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic, band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -611,32 +685,30 @@ fn boundary_pre_pass<T: Decide>(
             // passes disagree only by as much as the carrier's ends
             // sit off the stored vertices, on its own row
             // (`bool_contact_arc_end_vertex`). Certification pins each
-            // carrier end to its vertex within the zero band of the
-            // band the body was CERTIFIED at (`geom_brep`'s
-            // `carrier_endpoint_{start,end}` rows); a body certified
-            // at a coarser band than this query's carries up to that
-            // band's `ε`, which is no defect, so the answer is always
-            // an escalation — on that margin where it is in band, and
-            // otherwise on the row itself.
+            // carrier end within the run's zero band of its vertex
+            // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), and the
+            // ends are read through the same `Curve3::eval`; [`ArcEndGaps`]
+            // says where each of its arms is read. An end in band of a
+            // corner escalates on that margin; with every one decided,
+            // the finding carries them.
             OnEdge::End => {
                 let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
                     unreachable!("only a conic or spiric arc reads End")
                 };
-                let ends = (lp.verts[i], lp.verts[(i + 1) % lp.verts.len()]);
-                for c in carrier_ends {
-                    for v in [ends.0, ends.1] {
-                        if let Err(diag) = decide(END_VERTEX, Margin::norm3(v - c), band) {
-                            return Err(ContainError::on(ContainDecision::ArcEnd, diag));
-                        }
-                    }
-                }
-                // Every end decided against every vertex: the row,
-                // decided, still leaves the point in the band of the end.
-                return Err(ContainError::Escalated {
-                    decision: Some(ContainDecision::ArcEnd),
-                    escalation: Escalation::Decided,
-                    diag: crate::invalid_margin::invalid(band, END_VERTEX),
-                });
+                let ([c0, c1], v0, v1) = (
+                    carrier_ends,
+                    lp.verts[i],
+                    lp.verts[(i + 1) % lp.verts.len()],
+                );
+                let gap = |c: Point3<T>, v: Point3<T>| {
+                    decide_magnitude_reported(END_VERTEX, Margin::norm3(v - c), band)
+                        .map_err(|diag| ContainError::on(ContainDecision::ArcEnd, diag))
+                };
+                let gaps = [[gap(c0, v0)?, gap(c0, v1)?], [gap(c1, v0)?, gap(c1, v1)?]];
+                return Err(ContainError::ArcEndClearOfCorners(Box::new(ArcEndGaps {
+                    gaps,
+                    band,
+                })));
             }
         }
     }
@@ -676,9 +748,6 @@ const ROWS: BoundaryRows = BoundaryRows {
     line: &EDGE_ROWS,
     conic: ConicRows {
         span: "bool_contact_arc_span",
-        on: "bool_contact_arc",
-        end: "bool_contact_arc_end",
-        trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
     },
     spiric: SpiricRows {
@@ -781,6 +850,50 @@ pub(crate) enum CurvedPlacement {
     /// On the carrier (or not tested yet, where the boundary walk
     /// already answered): the trim's verdict, `None` for no verdict.
     Trim(Option<FaceContainment>),
+}
+
+/// **Where a point lies against a face of any kind**: the one read
+/// that places a vertex-on-face record, at rest by the census's confirm
+/// and in a boolean's carry onto the pieces of a divided face, and a
+/// section witness in its face. On a plane, `q` is first decided on the
+/// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
+/// decision's nonzero, then [`contfp`] places it; on a curved face the
+/// chart trim places it ([`curved_face_placement`]). `Trim(None)` is the
+/// curved trim's remainder, a face it does not read.
+///
+/// # Errors
+///
+/// [`PlacementError::OnPlane`] where the on-plane margin is in band, and
+/// [`PlacementError::Door`] carrying the containment door's own refusal.
+pub(crate) fn face_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<CurvedPlacement, PlacementError> {
+    let f = proven(&body.faces, face, EntityId::Face);
+    match *body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => {
+            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
+                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
+                    .map(|at| CurvedPlacement::Trim(Some(at)))
+                    .map_err(PlacementError::Door),
+                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
+                Err(diag) => Err(PlacementError::OnPlane(diag)),
+            }
+        }
+        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+}
+
+/// Why [`face_placement`] placed nothing.
+#[derive(Clone, Debug)]
+pub(crate) enum PlacementError {
+    /// The point's margin from the face's plane is in band.
+    OnPlane(Indeterminate),
+    /// The containment door refused, its refusal carried whole.
+    Door(ContainError),
 }
 
 /// The placement behind [`curved_face_containment`] (see
@@ -1215,9 +1328,10 @@ pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainEr
 /// Its caller, the boolean reduction's point split, turns a definite
 /// miss into a broken-invariant refusal, because a split point was
 /// placed on that carrier by an exact row upstream. The boundary
-/// pre-pass asks the same distance of a circle edge under the same row
-/// name, folded the same way
-/// ([`crate::splitting::containment::LoopEdge::contact`]).
+/// pre-pass reads a circle edge through the point-on-span reading
+/// instead ([`crate::splitting::containment::LoopEdge::contact`]), whose
+/// gap row reads this distance at the point's exact foot
+/// (`work/cleave/point-on-circle-is-a-second-point-on-carrier-reading.md`).
 pub(super) fn point_on_circle<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
@@ -1312,7 +1426,7 @@ mod tests {
         let tighten = |lever: &str, size: &str| {
             format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
         };
-        use Escalation::{Decided, Margin, Straddle};
+        use Escalation::{Margin, Straddle};
         let rows = [
             (
                 loop_(LoopDecision::Boundary),
@@ -1354,12 +1468,6 @@ mod tests {
             ),
             (loop_(LoopDecision::Plane), Margin, above, PLANE.to_owned()),
             (Some(ContainDecision::ArcEnd), Margin, above, END.to_owned()),
-            (
-                Some(ContainDecision::ArcEnd),
-                Decided,
-                poisoned,
-                END.to_owned(),
-            ),
             (
                 Some(ContainDecision::ArcEnd),
                 Margin,
@@ -1590,5 +1698,114 @@ mod tests {
             }
         }
         assert!(loops > 0, "the fixture must have loops to check");
+    }
+
+    /// The point a band of `K < sqrt(2)` reads at the half-disc's arc end
+    /// and clear of its corner: `0.95·zero` off the circle and `0.95·zero`
+    /// along it from the end, so `≈ 1.34·zero` from the corner at the end.
+    fn beside_the_arc_end(end: Point3<f64>, zero: f64) -> Point3<f64> {
+        end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0)
+    }
+
+    /// **A point at an arc's end the vertex pass placed clear of its
+    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), through the
+    /// public door on a body the public operators built.
+    ///
+    /// - **An end off both corners**, here at a band finer than the
+    ///   run's: the cap's corner stands `off = zero/2` from its arc's
+    ///   end, certified at the run's band, and `contfp` reads it at a band
+    ///   of zero `off/50`. The finding leads with the gap to the end's own
+    ///   corner, `off`. It logs no escalation, each end is decided once
+    ///   against each corner, and it ends in the arc end's lever at a
+    ///   build and through the Boolean.
+    /// - **The band's own parting no longer parts them**: on a cap whose
+    ///   corner is its arc's end, the boundary reading puts a point at the
+    ///   end only on its raw chord to the end's point, the distance the
+    ///   vertex pass reads to the corner. A point `≈ 1.34·zero` from the
+    ///   corner at `K = 1.25` is clear of both, with its foot within the
+    ///   zero band of the end along the arc, which the side of the end
+    ///   cannot place beside a chord past the band: it escalates on that
+    ///   straddle (`curve_pair_span_end_straddle`). At the run's `K` the
+    ///   same point is the vertex reading's escalation.
+    #[test]
+    fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
+        use crate::boolean::{BooleanError, Operand};
+        use crate::test_support_fixtures::half_disc_cap;
+        use geom_core::{ErrorTextReading, k_stats::Bracket};
+        let tol = Tol::witness();
+        let run = Band::linear(tol).unwrap();
+        let zero = run.zero();
+        let lever = "Recourse: move the point clear of the arc's end";
+        let read = |m: MarginDiag| match m.diagnostic_f64_for_error_text() {
+            ErrorTextReading::Value(v) => v,
+            other => panic!("a point reading: {other:?}"),
+        };
+        let finding = |what: &str, body: &Body<f64>, face, q, band| {
+            let bracket = Bracket::open();
+            let got = contfp(body, face, Vec3::unit_z(), q, band);
+            let log = bracket.finish();
+            let Err(ContainError::ArcEndClearOfCorners(gaps)) = &got else {
+                panic!("{what}: the finding: {got:?}");
+            };
+            assert!(log.escalations.is_empty(), "{what}: no escalation: {log:?}");
+            assert_eq!(
+                log.verdicts
+                    .iter()
+                    .filter(|v| v.predicate == END_VERTEX)
+                    .count(),
+                4,
+                "{what}: each end decided once against each corner"
+            );
+            let built = got.as_ref().unwrap_err().to_string();
+            assert!(built.ends_with(lever), "{what}: {built}");
+            let boolean = BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: got.as_ref().unwrap_err().clone(),
+            }
+            .to_string();
+            assert!(boolean.ends_with(lever), "{what}: {boolean}");
+            **gaps
+        };
+        let off = zero / 2.0;
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let gaps = finding("off its corner", &body, cap, end, fine);
+        let Some((own, far)) = gaps.off_end() else {
+            panic!("an end lies off both corners at the finer band: {gaps:?}");
+        };
+        assert!(
+            (read(own) - off).abs() <= 4.0 * f64::EPSILON && (read(far) - 2.0).abs() < 1e-9,
+            "the finding leads with the end's own corner, `off` away: {own:e}, {far:e}"
+        );
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = beside_the_arc_end(end, zero);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        assert!(
+            matches!(
+                contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(ContainError::Escalated { diag, .. })
+                    if diag.predicate == Some("curve_pair_span_end_straddle")
+            ),
+            "the band's own parting escalates on the end's straddle"
+        );
+        if run.escalate() / zero <= 1.4 {
+            test_utils::vacuity::stood_down(
+                "a_point_at_an_arc_end_clear_of_its_corners_is_a_finding",
+                "the run's K is too narrow to read the corner gap in band",
+            );
+        } else {
+            assert!(
+                matches!(
+                    contfp(&body, cap, Vec3::unit_z(), q, run),
+                    Err(ContainError::Escalated {
+                        decision: Some(ContainDecision::Loop(LoopDecision::Boundary)),
+                        escalation: Escalation::Margin,
+                        diag,
+                    }) if diag.predicate == Some("bool_contact_vertex")
+                ),
+                "at the run's K the corner gap is in band, and escalates"
+            );
+        }
     }
 }

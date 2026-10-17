@@ -2,12 +2,14 @@
 id: a-dip-inside-a-rest-contact-is-refused-by-the-result-gate
 kind: issue
 title: An edge-in-face contact beside a declared Rest contact has no section segment, so the REST zip admits it (a dip inside the contact reaches the result gate; a line kiss beside it ships failing tier 3′)
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: M
 design: true
 refs: [a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face]
+closed: 2026-10-13
+pr: 4820
 ---
 
 
@@ -151,9 +153,36 @@ them (`boolean::ops::carry_rows`). That is the remap half of
 "mint or remap", and the two rows share one fix site. The undeclared
 union is now the declared one, body and records alike.
 `rest_zip_admission.rs`'s
-`a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared` pins
+`a_line_kiss_beside_a_tangent_site_records_its_contact` pinned
 that.
 
 ## Re-homed at ZIP's close (2026-10-11)
 
 Moved from ZIP to FUSE: what is left is `boolean::ops::carry_rows` dropping the vertex-on-face records the reduction mints, which is the same fix site as FUSE's `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`.
+
+## 2026-10-11, the line kiss's records land (FLUSH, `flush/corner-ruling-tier3`)
+
+The dropped records were a vertex-on-face record whose face the section
+divided, chased by key to a piece that did not hold the vertex. FLUSH's
+`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`
+fixes that in `carry_rows` (`Descendants::holder`), and shape 2's ten
+poses now pass tier 3′ in both orders; the pin is flipped and renamed
+`a_line_kiss_beside_a_tangent_site_records_its_contact`. Shape 1 (the
+dip) is untouched by that fix.
+
+## 2026-10-13, closed: fixed by INTENT stage 4 A and PRs 4650 / 4820 (FUSE, carry-rows-after-4820)
+
+Measured on main `0d2117d0` with a temporary probe (never committed)
+in `boolean_op_with` that ran `validate_pseudomanifold(body, contacts)`
+on every body the door ships, over the topo, sweep and editor-core `ci`
+suites (8,390 tests, about 18,000 results). Across all of it there is no
+`StaleContactDeclaration`.
+
+- **Shape 1**, the dip
+  (`rest_zip_admission::a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice`):
+  20/20 pass tier 3′. Stage 4 A deleted the declared-REST zip, and the
+  join builds the dip sound.
+- **Shape 2**, the line kiss
+  (`rest_zip_admission::a_line_kiss_beside_a_tangent_site_records_its_contact`):
+  40/40 pass. FLUSH's PR 4650 landed the records, and PR 4820's
+  `place_found` carries them.

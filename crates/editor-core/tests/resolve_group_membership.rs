@@ -163,7 +163,6 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: u.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
@@ -183,7 +182,6 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: sub.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     (doc, sub, tr, cut)
@@ -387,7 +385,6 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
-                declare: Vec::new(),
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
@@ -525,7 +522,6 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into(), cblock.into()]),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -578,7 +574,6 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -650,7 +645,6 @@ fn plate_and_bar() -> (
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, plate, bar, tr, u)
@@ -824,7 +818,6 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
                     m[order[1]].into(),
                     plate.into(),
                 ]),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -883,7 +876,6 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         Node::Subtract {
             from: bar.into(),
             tool: notch.into(),
-            declare: Vec::new(),
         },
     );
     let u = |reach: f64| {
@@ -918,7 +910,6 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         Node::Subtract {
             from: notched.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     );
     let Some(Node::Profile(p)) = doc.node(u_profile) else {

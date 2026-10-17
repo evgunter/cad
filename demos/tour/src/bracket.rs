@@ -30,17 +30,17 @@
 //! The chamfer builds: each chord's band ends where it meets a side
 //! wall of its leg, cut off in that wall's plane in a chord at 45° to
 //! it, and the corner piece loses `4·(d²/2)·√2`, which the scene
-//! asserts and renders; the offcuts' chords chamfer the same way, each
-//! inside its own solid. The fillet builds too, each band cut off in an
-//! arc of the side wall's elliptic section of its cylinder, at
-//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell no band
-//! builds at this plane: both section faces' whole rims chamfered. Each
-//! corner of a section face is a turn, two of its three edges
-//! requested, whose dihedrals differ — a right angle at the cap chord,
-//! 45° or 135° at the section edge on the side wall — so one band
-//! reaches past the mitre, the overrun
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
-//! step 5).
+//! asserts; the offcuts' chords chamfer the same way, each inside its
+//! own solid. The fillet builds too, each band cut off in an arc of the
+//! side wall's elliptic section of its cylinder, at `4·(1 − π/4)·r²·√2`
+//! on either half. Both section faces' whole rims chamfer too, which
+//! the scene asserts and renders. Each corner of a section face is a
+//! turn, two of its three edges requested, whose dihedrals differ — a
+//! right angle at the cap chord, 45° or 135° at the section edge on the
+//! side wall — so one band's foot on the side wall's cap edge is
+//! further, and that band runs past the mitre, cut off by the other's
+//! face there: the overrun (`crates/sweep/README.md`, "Where a straight
+//! band ends, and where it turns").
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -51,12 +51,12 @@ use core::f64::consts::{PI, SQRT_2};
 use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 
-use pncad::document::{NodeErrorKind, Operand, RefusingReach};
+use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
-    Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
+    LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector,
+    SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -281,19 +281,11 @@ pub(crate) fn probe_body(tol: Tol) -> Body<pncad::geom_core::k_stats::Probe> {
     body_at(&ev, body)
 }
 
-/// One wall cell: the blend a split half is asked for, and the
-/// refusal it pins.
-struct WallProbe {
-    n: u32,
-    what: &'static str,
-    node: AuthoredNode,
-    pinned: fn(&BlendError) -> bool,
-}
-
 /// The trim and the break: asserts what the split builds, the chamfer
-/// of the corner piece's four cap chords at its closed form, and pins
-/// what the walls refuse; answers the sentence the stop's note carries.
-fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
+/// of the corner piece's four cap chords, and of both section faces'
+/// whole rims, at their closed forms; answers the sentence the stop's
+/// note carries and the body it renders.
+fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
     let Trimmed {
         doc,
         split,
@@ -369,56 +361,65 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let off_filleted = rounded(doc, offcuts, off_chords);
     assert_volume("the filleted offcuts", off_filleted, off - delta_f);
 
-    let retire = "retire the probe, and render what the kernel now builds";
-    let probes: [WallProbe; 1] = [WallProbe {
-        n: 3,
-        what: "both section faces' whole rims, chamfered by name",
-        node: Node::chamfer(corner, len(SETBACK), rim),
-        pinned: |e| {
-            matches!(
-                e,
-                BlendError::UnsupportedRunOut {
-                    detail: pncad::sweep::blend::battery::TURN_NOT_ISOSCELES,
-                    ..
-                }
-            )
-        },
-    }];
-    for WallProbe {
-        n,
-        what,
-        node,
-        pinned,
-    } in probes
-    {
-        let mut probe = doc.clone();
-        let broken = insert(&mut probe, node, tol);
-        let ev = eval(&probe, tol);
-        let outcome = ev.value(broken).ok_or_else(|| {
-            &ev.node_error(broken)
-                .expect("a node with no value carries its refusal")
-                .kind
-        });
-        crate::walls::wall(
-            "bracket",
-            n,
-            what,
-            outcome,
-            |e| matches!(e, NodeErrorKind::Blend { error, .. } if pinned(error)),
-            retire,
-        );
+    // Both section faces' whole rims: each corner of a section face is
+    // a turn whose dihedrals differ — a right angle at the cap chord,
+    // 45° or 135° at the section edge — so the band whose foot on the
+    // side wall's cap edge is further runs past the mitre, cut off by
+    // the other band's face there (the overrun).
+    let mut rims_doc = doc.clone();
+    let rims = insert(&mut rims_doc, Node::chamfer(corner, len(SETBACK), rim), tol);
+    let rimmed = volume(&body_at(&eval(&rims_doc, tol), rims), tol);
+    assert_volume(
+        "the corner piece, both section faces' rims chamfered",
+        rimmed,
+        kept - 2.0 * rim_taken(SETBACK),
+    );
+    Broken {
+        note: format!(
+            "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = \
+             whole; its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = \
+             {broken:.6} (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; \
+             filleted at r = {SETBACK}, each band cut off in an elliptic arc, they reach V = \
+             {filleted:.6} and {off_filleted:.6} (less 4·(1 − π/4)·r²·√2); and both section \
+             faces' whole rims chamfer to V = {rimmed:.6}, each corner's far band cut off past \
+             its mitre by the near band's side wall (the overrun)"
+        ),
+        doc: rims_doc,
+        rims,
     }
-    format!(
-        "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
-         its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = {broken:.6} \
-         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; filleted at r = \
-         {SETBACK}, each band cut off in an elliptic arc, they reach V = {filleted:.6} and \
-         {off_filleted:.6} (less 4·(1 − π/4)·r²·√2), and breaking the section faces' whole \
-         rims refuses as the overrun past an asymmetric mitre (wall 3)"
-    )
 }
 
-/// The bracket's stop: the document's chamfered corner piece.
+/// **What chamfering one section face's whole rim at `d` takes from its
+/// leg.** In the face's own frame — `u` across it from the side wall
+/// `y = 0` (which meets it at 45°) toward `y = 1` (at 135°), `z` up, `w`
+/// into the leg — the leg is `w ≥ 0`, `w ≤ u ≤ √2 + w`, `0 ≤ z ≤
+/// DEPTH`, and the four chamfer planes, each through its edge's two
+/// trimlines `d` in on either face, keep `z + w ≥ d`, `DEPTH − z + w ≥
+/// d`, `u + (√2 − 1)·w ≥ d` and `√2 − u + (√2 + 1)·w ≥ d`. The cap
+/// chords' planes read `z` alone and the section edges' `u` alone, so at
+/// depth `w < d` the kept slice is a rectangle, `DEPTH − 2d + 2w` tall
+/// and `√2 − 2d + 2√2·w` wide until both side planes leave the side
+/// walls at `w = d/√2`, then `√2` wide; from `w = d` on nothing is
+/// taken. The chamfer takes `∫₀ᵈ (DEPTH·√2 − slice) dw`. At each corner
+/// the two planes' line is the mitre, and the far plane's trace on the
+/// side wall past it is the overrun.
+fn rim_taken(d: f64) -> f64 {
+    let (p, q, t) = (DEPTH - 2.0 * d, SQRT_2 - 2.0 * d, d / SQRT_2);
+    let narrow = p * q * t + (SQRT_2 * p + q) * t * t + 4.0 * SQRT_2 / 3.0 * t * t * t;
+    let full = SQRT_2 * (p * (d - t) + d * d - t * t);
+    DEPTH * SQRT_2 * d - narrow - full
+}
+
+/// The trim and the break's narration, and the corner piece with both
+/// section faces' whole rims chamfered, which the stop renders.
+struct Broken {
+    note: String,
+    doc: Doc<ProfileProgram>,
+    rims: RecipeNodeId,
+}
+
+/// The bracket's stop: the document's corner piece, both section faces'
+/// whole rims chamfered.
 pub fn stop(tol: Tol) -> Stop {
     let (doc, node) = document(tol);
     let ev = eval(&doc, tol);
@@ -428,9 +429,9 @@ pub fn stop(tol: Tol) -> Stop {
         DEPTH * (5.0 + R * R * (1.0 - PI / 4.0)),
     );
     let trimmed = trimmed_and_broken(&doc, node, tol);
-    let note = split_and_break(&trimmed, node, tol);
-    let ev = eval(&trimmed.doc, tol);
-    let body = body_at(&ev, trimmed.chamfer);
+    let Broken { note, doc, rims } = split_and_break(&trimmed, node, tol);
+    let ev = eval(&doc, tol);
+    let body = body_at(&ev, rims);
     Stop {
         name: "bracket",
         caption: String::new(),
@@ -446,19 +447,18 @@ pub fn stop(tol: Tol) -> Stop {
             azim: -55.0,
             up: 'z',
         },
-        bodies: vec![
-            SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, trimmed.chamfer),
-        ],
+        bodies: vec![SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, rims)],
     }
 }
 
 #[cfg(test)]
 mod tests {
     /// The stop builds: the bracket and its halves at their closed
-    /// forms, the chamfered corner piece at `4·(d²/2)·√2` less, and
-    /// every wall refusing as it pins.
+    /// forms, the corner piece's cap chords chamfered at `4·(d²/2)·√2`
+    /// less, and both section faces' whole rims chamfered at
+    /// `rim_taken` less per face.
     #[test]
-    fn the_stop_builds_its_chamfered_corner_piece_and_pins_its_walls() {
+    fn the_stop_builds_its_chamfered_corner_piece() {
         let stop = super::stop(pncad::geom_core::Tol::witness());
         assert_eq!(stop.bodies.len(), 1, "the chamfered corner piece");
     }

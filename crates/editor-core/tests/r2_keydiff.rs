@@ -133,7 +133,6 @@ fn r2_measure_free_content_keys() {
             node: Box::new(Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         },

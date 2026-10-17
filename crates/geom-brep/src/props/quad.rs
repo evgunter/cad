@@ -13,18 +13,26 @@
 //! traversed with the interior on its left about the outward normal):
 //!
 //! ```text
-//! A_s   = Σ_loops ∮ u dv   (signed UV area; A_s = s_f·|Ω|)
+//! A_s   = −Σ_loops ∮ (v − v_a) du   (signed UV area; A_s = s_f·|Ω|)
 //! area  = r·|A_s|
 //! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
 //! ```
 //!
-//! — the loops' own traversal signs carry `s_f`, a ring's opposite to
-//! its face's, so no separate orientation classification is needed;
-//! what is decided is that the stored loops say so (no junction a period
-//! off on the chart, every ring wound against its face). The boundary is the face's
-//! **pcurves** (PR 6 caches; C4's first hot consumer): per edge the
-//! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
-//! interval.
+//! — `v du` because it is a global 1-form on the cylinder (the azimuth
+//! is periodic, its differential is not), so the form reads a loop
+//! that winds the cylinder — a seamless band's rim — and a loop whose
+//! images sit in different branches of the chart alike; `u dv` reads
+//! neither. The loops' own traversal signs carry `s_f`, a ring's
+//! opposite to its face's, so no separate orientation classification
+//! is needed; what is decided is that the stored loops say so (every
+//! junction closes, a whole number of turns apart in the azimuth; each
+//! loop winds at most once and the face's loops none together, which
+//! makes the form independent of the anchor level `v_a`; every loop
+//! that does not wind, other than a non-band face's own, is wound
+//! against its face).
+//! The boundary is the face's **pcurves** (PR 6 caches; C4's first hot
+//! consumer): per edge the contribution is
+//! `σ·∫ (v_a − v(t))·u'(t) dt` over the stored carrier interval.
 //!
 //! # The integrand substrate is certification arithmetic
 //!
@@ -152,17 +160,18 @@
 //! documented slack there, unchanged).
 
 use geom_core::Bounds;
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, last_at_or_below,
+    CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
+use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
 
@@ -343,6 +352,13 @@ pub struct TrimEdgeQ {
     /// Enclosure of `(cos t₀, sin t₀)` (module docs: algebraic, from
     /// the carrier frame and the endpoint vertex point, ε-padded).
     pub trig0: (Interval, Interval),
+    /// Enclosure of `(cos t₁, sin t₁)` at the interval's end, recovered
+    /// from the END vertex as `trig0` is from the start's. Where the
+    /// loop's junctions are read ([`chart_end`]), the end is this
+    /// vertex's own bracket rather than the start's carried through the
+    /// span, which on a steep conic widens it by the conic's tilt.
+    /// `None` reads the end through the span.
+    pub trig1: Option<(Interval, Interval)>,
     /// The pcurve certificate envelope (metres through the map) — the
     /// map-residual honesty pad's per-edge input.
     pub env: Interval,
@@ -360,11 +376,6 @@ impl TrimEdgeQ {
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
-
-/// Shorthand: a point bracket.
-pub(super) fn pt(x: f64) -> Interval {
-    Interval::point(x)
-}
 
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
@@ -529,21 +540,28 @@ impl HarmChan {
 // The composite rule (module docs: h·f(m) + F₂·h³/24 per piece)
 // ---------------------------------------------------------------------
 
-/// `σ·∫_{a}^{b} u(t)·v'(t) dt` for one harmonic edge at `pieces`
-/// resolution, plus the edge's two honesty pads (endpoint-bracket and
-/// map-residual — the latter needs `radius` for the metric length).
-fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Interval {
+/// `σ·∫_{a}^{b} (anchor − v(t))·u'(t) dt` for one harmonic edge at
+/// `pieces` resolution — its share of `−∮ (v − anchor) du` — plus the
+/// edge's two honesty pads (endpoint-bracket and map-residual — the
+/// latter needs `radius` for the metric length).
+fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Interval) -> Interval {
     let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
         return Interval::refused();
     }
-    let du = e.u.deriv();
-    let dv = e.v.deriv();
-    // f = u·v'; f'' = u''·v' + 2·u'·v'' + u·v'''.
-    let ddu = du.deriv();
-    let ddv = dv.deriv();
-    let dddv = ddv.deriv();
+    let p = HarmChan {
+        c0: pt(anchor) - e.v.c0,
+        ca: -e.v.ca,
+        cb: -e.v.cb,
+        cl: -e.v.cl,
+    };
+    let dp = p.deriv();
+    let dq = e.u.deriv();
+    // f = p·q'; f'' = p''·q' + 2·p'·q'' + p·q'''.
+    let ddp = dp.deriv();
+    let ddq = dq.deriv();
+    let dddq = ddq.deriv();
     let mut total = Interval::zero();
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
@@ -561,24 +579,24 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     let (spread_c, spread_s) = (spread_cos(h2), spread_sin(h2));
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
-        let p = a + span * (i as f64 / pieces as f64);
-        let m = p + h * 0.5;
+        let lo = a + span * (i as f64 / pieces as f64);
+        let m = lo + h * 0.5;
         // Thin midpoint value.
         let (cm, sm) = trig_at(e.trig0, m - a);
-        let fm = e.u.eval(cm, sm, pt(m)) * dv.eval(cm, sm, pt(m));
+        let fm = p.eval(cm, sm, pt(m)) * dq.eval(cm, sm, pt(m));
         // f'' hull over the piece (midpoint spread by ± h/2).
         let (cr, sr) = rotate(cm, sm, spread_c, spread_s);
-        let tr = Interval::from_bounds(p, p + h);
-        let f2 = ddu.eval(cr, sr, tr) * dv.eval(cr, sr, tr)
-            + pt(2.0) * du.eval(cr, sr, tr) * ddv.eval(cr, sr, tr)
-            + e.u.eval(cr, sr, tr) * dddv.eval(cr, sr, tr);
+        let tr = Interval::from_bounds(lo, lo + h);
+        let f2 = ddp.eval(cr, sr, tr) * dq.eval(cr, sr, tr)
+            + pt(2.0) * dp.eval(cr, sr, tr) * ddq.eval(cr, sr, tr)
+            + p.eval(cr, sr, tr) * dddq.eval(cr, sr, tr);
         total = total + pt(h) * fm + f2 * h3_24;
     }
     // Endpoint-bracket pad: |f| near the ends times the t-bracket
     // widths (module docs).
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
     let t_all = Interval::from_bounds(a, b);
-    let f_mag = (e.u.eval(c_all, s_all, t_all) * dv.eval(c_all, s_all, t_all)).mag();
+    let f_mag = (p.eval(c_all, s_all, t_all) * dq.eval(c_all, s_all, t_all)).mag();
     let wt = e.t0.width() + e.t1.width();
     let pad = f_mag * wt;
     let total = total + Interval::from_bounds(-pad, pad);
@@ -604,55 +622,6 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
     .mag()
 }
 
-/// One side of an enclosure, **keeping the refusal**: `NaN` whenever
-/// the enclosure may not certify.
-///
-/// Interval arithmetic carries its refusal in the decoration, so a refused
-/// bracket's endpoints are ordinary numbers and a bare `.lo()`/`.hi()`
-/// hands a consumer a plausible bound with nothing behind it. `NaN` is
-/// what every consumer on these paths already reads as "no bound" —
-/// the `is_finite` tests, the margin classifiers, the gauges and the
-/// knot-collapse windows all refuse on it — so this is the one door
-/// that turns the decoration back into the value those readers expect.
-pub(super) fn lo_or_refuse(x: Interval) -> f64 {
-    if !x.is_certified() { f64::NAN } else { x.lo() }
-}
-
-/// [`lo_or_refuse`] for the upper end.
-fn hi_or_refuse(x: Interval) -> f64 {
-    if !x.is_certified() { f64::NAN } else { x.hi() }
-}
-
-/// Midpoint of a bracket (structure selection for integration limits;
-/// the bracket's width is repaid by the endpoint pad). A refused
-/// bracket has no midpoint, and says so.
-pub(super) fn mid(x: Interval) -> f64 {
-    if !x.is_certified() {
-        return f64::NAN;
-    }
-    (x.lo() + x.hi()) * 0.5
-}
-
-/// Interval absolute value: `|x|` as an enclosure.
-pub(super) trait AbsEnclosure {
-    fn abs_enclosure(self) -> Interval;
-}
-
-impl AbsEnclosure for Interval {
-    fn abs_enclosure(self) -> Interval {
-        if !self.is_certified() {
-            return self;
-        }
-        if self.lo() >= 0.0 {
-            self
-        } else if self.hi() <= 0.0 {
-            -self
-        } else {
-            Interval::from_bounds(0.0, self.mag())
-        }
-    }
-}
-
 // ---------------------------------------------------------------------
 // Face assembly: refinement loop + K funnel
 // ---------------------------------------------------------------------
@@ -668,6 +637,86 @@ pub(super) fn classify_len<T: Decide>(
 ) -> Result<Sign, PropsError> {
     geom_core::k_stats::decide(name, margin.lift::<T>(), band)
         .map_err(|cause| PropsError::Escalated { cause, check })
+}
+
+/// **A lane's refinement schedule**: rounds `0..=last`, each an
+/// independent recomputation over twice the previous round's pieces
+/// ([`RoundWindow`]). A lane states its last round once, here, and its
+/// loop, its exit ([`round_exit`]) and its convergence reading
+/// ([`Schedule::converged`]) all take it from the one value.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Schedule {
+    last: usize,
+}
+
+impl Schedule {
+    /// The schedule whose last round is `last`.
+    pub(super) const fn to(last: usize) -> Self {
+        Self { last }
+    }
+
+    /// A lane with no rounds to refine: its one pass is its last.
+    pub(super) const ONE_PASS: Self = Self { last: 0 };
+
+    /// The schedule's last round.
+    pub(super) const fn last(self) -> usize {
+        self.last
+    }
+
+    /// The round a window enters the schedule at.
+    pub(super) fn first(self, window: RoundWindow) -> usize {
+        debug_assert!(
+            window.first <= self.last,
+            "a window resuming at round {} is past this lane's last round {}",
+            window.first,
+            self.last
+        );
+        window.first.min(self.last)
+    }
+
+    /// **Whether `round` met the reporting target**, from its
+    /// `props_quad_converged` reading of `target_len − width_len`.
+    ///
+    /// Only a definite `Positive` converges, and a definite `Negative`
+    /// does not. A margin within the band — `Zero` or the ambiguity
+    /// band — is no answer either way: at a round with a successor it
+    /// refines, since the next round's enclosure, about 8× narrower,
+    /// decides it; at the last round it escalates, since there the width
+    /// may be under the target and a budget refusal would misstate it.
+    /// A `Zero` reading carries no diagnostic, so at the last round the
+    /// same margin is re-asked through the funnel's positive gate, which
+    /// rejects it with one; that path alone records the predicate twice.
+    /// The margin is finite by [`mean_boundary_displacement`]'s
+    /// invariant, so the band is the only escalation the reading carries.
+    pub(super) fn converged<T: Decide>(
+        self,
+        round: usize,
+        reading: Result<Sign, PropsError>,
+        (target_len, width_len): (f64, f64),
+        band: Band,
+    ) -> Result<bool, PropsError> {
+        let last = round >= self.last;
+        match reading {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            Ok(Sign::Zero) if !last => Ok(false),
+            Ok(Sign::Zero) => {
+                match geom_core::k_stats::decide_positive(
+                    "props_quad_converged",
+                    Margin::of(target_len - width_len).lift::<T>(),
+                    band,
+                ) {
+                    Ok(()) => Ok(true),
+                    Err(cause) => Err(PropsError::Escalated {
+                        cause,
+                        check: PropsCheck::Converged,
+                    }),
+                }
+            }
+            Err(PropsError::Escalated { .. }) if !last => Ok(false),
+            Err(other) => Err(other),
+        }
+    }
 }
 
 /// The convergence meter: the flux enclosure's width expressed as the
@@ -809,7 +858,7 @@ pub(super) fn round_exit(
 /// trim (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads), over every loop of the face,
 /// the outer first: the Green form is a sum over edges, so a ring
-/// contributes its own `∮ u dv` with its own winding.
+/// contributes its own `−∮ v du` with its own winding.
 ///
 /// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
 /// summed over the same loops; `eps` is the run's ε (the convergence
@@ -818,7 +867,8 @@ pub(super) fn round_exit(
 /// # Errors
 ///
 /// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// a loop a period off on the chart ([`PropsError::ChartPeriodJump`]),
+/// a loop that winds the cylinder by no whole number of turns, or loops
+/// that wind it together ([`PropsError::LoopsWindChart`]),
 /// a ring wound with its face at any round it returns
 /// ([`PropsError::RingWoundWithFace`]), or
 /// the typed [`PropsError::QuadratureBudget`] refusal when the
@@ -856,22 +906,20 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
-        window.first
-    );
-    require_no_period_jump::<T>(loops, radius, band)?;
+    let winds = loop_windings::<T>(loops, radius, band)?;
+    let anchor = level_anchor(loops)?;
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(QUAD_MAX_ROUNDS);
+    let schedule = Schedule::to(QUAD_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = QUAD_INIT_PIECES << first;
-    for round in first..=QUAD_MAX_ROUNDS {
-        // Signed UV area at this resolution, per loop: A_s = Σ ∮ u dv.
+    for round in first..=schedule.last() {
+        // Signed UV area at this resolution, per loop:
+        // A_s = −Σ ∮ (v − anchor) du.
         let per_loop: Vec<Interval> = loops
             .iter()
             .map(|edges| {
                 edges.iter().fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, pieces, radius)
+                    a + harmonic_edge_integral(e, anchor, pieces, radius)
                 })
             })
             .collect();
@@ -883,13 +931,17 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
         // which is a degenerate face and not a tolerance question.
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        if schedule.converged::<T>(
+            round,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        )? {
             // Face-extent gate on the CONVERGED enclosure: the area
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
@@ -908,12 +960,12 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
+            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         if let Some(out) = round_exit(
             round,
-            QUAD_MAX_ROUNDS,
+            schedule.last(),
             window,
             FaceCutBounds { flux, area },
             (width_len, target_len),
@@ -921,7 +973,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             // An open enclosure is read too (a sign walk settles on
             // one), and it encloses the face's flux only if its rings
             // are holes.
-            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
+            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
             return Ok(out);
         }
         pieces *= 2;
@@ -934,7 +986,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     let (a, b) = e.limits();
     let (trig, t) = if end == e.forward {
-        (trig_at(e.trig0, b - a), b)
+        (e.trig1.unwrap_or_else(|| trig_at(e.trig0, b - a)), b)
     } else {
         (e.trig0, a)
     };
@@ -944,59 +996,107 @@ fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     )
 }
 
-/// **No junction of a loop is a period off on the chart**
-/// (`props_quad_junction_period`, [`PropsError::ChartPeriodJump`]).
+/// How far an edge's chart point at one end of its traversal, read at
+/// its [`TrimEdgeQ::limits`], may sit from the image of the vertex it
+/// stands for, in the chart metric `R·|Δu| + |Δv|`: the pcurve's
+/// certificate envelope (a distance in metres, which that metric
+/// exceeds by at most `√2`, taken as `3/2`), plus the end's parameter
+/// bracket half-width times the edge's speed bound in that metric. The
+/// trig brackets need no term: [`chart_end`]'s enclosures carry them.
+fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
+    let (a, b) = e.limits();
+    let bracket = if end == e.forward { e.t1 } else { e.t0 };
+    let span = b - a;
+    let speed = if span > 0.0 {
+        edge_metric_length(e, radius) / span
+    } else {
+        0.0
+    };
+    (1.5 * certified_hi(e.env) + speed * bracket.width() * 0.5) * (1.0 + 1e-12)
+}
+
+/// **Every junction of every loop closes on the cylinder, and the
+/// loops wind it as a face's boundary does** — the periodic-chart
+/// closure decision ([`super::closure`]) on the quadrature's chart
+/// images.
 ///
-/// `∮ u dv` is Green's form for a closed curve of the chart, and the
-/// azimuth is periodic: an image stored a period off its neighbour, or
-/// a loop that winds the cylinder, closes in space and not on the
-/// chart, and its `∮ u dv` is not the region's area. Each edge's chart
-/// image ends where the next one's starts to within the stored
-/// geometry's tolerance, or a whole period away, `2πR` in the metric
-/// `R·|Δu| + |Δv|`; the gap is decided against half a period, so a jump
-/// is definite and a tolerance-scale gap is never near the margin. This
-/// is NOT a decision that the loop closes to tolerance: the closed
-/// forms decide that in space (`props_loop_closed`), on carriers whose
-/// ends meet at shared vertices, and the residue a tolerance-scale gap
-/// leaves in this lane's integral is
-/// `work/quad/cylinder-quadrature-integrates-loops-that-close-only-to-the-vertex-tolerance`.
-/// A loop with no period jump winds the cylinder zero times, so the
-/// face's loops do too.
-fn require_no_period_jump<T: Decide>(
+/// Each junction's gap is read off the two ends' chart images, each
+/// through its own vertex's trig bracket ([`chart_end`]): the azimuth
+/// metered at the radius, the level bare, and the slack the two ends'
+/// [`end_slack`] ([`super::closure::interval_loop_turns`]).
+///
+/// Returns, per loop, whether it winds.
+fn loop_windings<T: Decide>(
     loops: &[&[TrimEdgeQ]],
     radius: Interval,
     band: Band,
-) -> Result<(), PropsError> {
+) -> Result<Vec<bool>, PropsError> {
+    let mut windings = Vec::with_capacity(loops.len());
     for edges in loops {
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            let (u1, v1) = chart_end(e, true);
-            let (u0, v0) = chart_end(next, false);
-            let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
-            if classify_len::<T>(
-                "props_quad_junction_period",
-                Margin::of(hi_or_refuse(gap - pt(core::f64::consts::PI) * radius)),
-                band,
-                PropsCheck::Inventory,
-            )? != Sign::Negative
-            {
-                return Err(PropsError::ChartPeriodJump);
-            }
-        }
+        let junctions = edges
+            .iter()
+            .zip(edges.iter().cycle().skip(1))
+            .map(|(e, next)| {
+                let (u1, v1) = chart_end(e, true);
+                let (u0, v0) = chart_end(next, false);
+                super::closure::IntervalJunction {
+                    delta: [u1 - u0, v1 - v0],
+                    lever: [radius, pt(1.0)],
+                    slack: end_slack(e, true, radius) + end_slack(next, false, radius),
+                }
+            });
+        let [k, _] = super::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
+        windings.push([k]);
     }
-    Ok(())
+    super::closure::require_boundary_windings(&windings)?;
+    Ok(windings.iter().map(|&[k]| k != 0).collect())
 }
 
-/// **Every ring winds against its face**, through the closed forms' own
-/// decision ([`super::curved::require_holes_wound_against`], the mean
-/// width `2·A/P` of the face's whole and of each ring, in m² over m) at
+/// The level the Green form is taken about: the middle of the levels
+/// the face's edges start at. Any level gives the same form once the
+/// loops wind zero times together ([`loop_windings`]); one inside the
+/// face keeps a short face far along the axis at the conditioning of
+/// its own height rather than of its distance from the chart origin.
+///
+/// Read after [`loop_windings`], which has decided every edge's start
+/// point (a refused one escalates there), so every level here is
+/// finite. A face with no edge has none, and no extent.
+///
+/// # Errors
+///
+/// [`PropsError::DegenerateFace`] for a face whose loops hold no edge.
+fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
+    let (lo, hi) = loops
+        .iter()
+        .flat_map(|edges| edges.iter())
+        .map(|e| mid(chart_end(e, false).1))
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v), hi.max(v))
+        });
+    if lo <= hi {
+        Ok(lo + (hi - lo) * 0.5)
+    } else {
+        Err(PropsError::DegenerateFace)
+    }
+}
+
+/// **Every ring that does not wind the cylinder winds against its
+/// face**, through the closed forms' own decision
+/// ([`super::curved::require_holes_wound_against`], the mean width
+/// `2·A/P` of the face's whole and of each such ring, in m² over m) at
 /// the interval scalar: a ring definitely opposite to the whole passes,
 /// one definitely the same way refuses
 /// ([`PropsError::RingWoundWithFace`]), and an enclosure that straddles
-/// the band escalates rather than takes a side. A face with no ring
+/// the band escalates rather than takes a side. A ring that winds is a
+/// band's rim, whose own `∮` depends on the anchor, so it is no hole and
+/// is passed over, as the closed form passes over it
+/// (`curved::cylinder_holes`); on such a face every loop that does not
+/// wind is a hole, the first one stored included. A face with one loop
 /// decides nothing here.
 fn require_holes_wound_against(
     loops: &[&[TrimEdgeQ]],
     per_loop: &[Interval],
+    winds: &[bool],
     a_s: Interval,
     radius: Interval,
     band: Band,
@@ -1016,11 +1116,17 @@ fn require_holes_wound_against(
             .iter()
             .fold(Interval::zero(), |l, edges| l + length(edges)),
     );
+    // Without a winding loop the face's own loop is the first, and the
+    // others are its holes; with one, the face is a band and every loop
+    // that does not wind is a hole, wherever it is stored.
+    let band_face = winds.iter().any(|&w| w);
     let holes: Vec<(Interval, Interval)> = loops
         .iter()
         .zip(per_loop)
-        .skip(1)
-        .map(|(edges, &ring)| (radius * ring, length(edges)))
+        .zip(winds)
+        .enumerate()
+        .filter(|&(i, (_, &winds))| !winds && (band_face || i > 0))
+        .map(|(_, ((edges, &ring), _))| (radius * ring, length(edges)))
         .collect();
     super::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
@@ -1032,10 +1138,12 @@ fn require_holes_wound_against(
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
 /// coefficients — the thin `f(m)` the composite rule needs on spline
-/// channels. Pure certification arithmetic (knots are `f64` structure;
-/// every knot difference is formed in the ring so its rounding is
-/// outward, matching `deriv_coeff`). Sound for any `t`; outside the
-/// span's closure it is the polynomial extension.
+/// channels. Sound for any `t`; outside the span's closure it is the
+/// polynomial extension, which the composite rule reads where a vertex
+/// pad puts a node past the domain.
+///
+/// A `t` inside the span's closure is the piece's blossom on the
+/// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
@@ -1048,13 +1156,24 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
+/// The evaluation [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
+///
+/// A `t` lying whole in the span's closure is the piece's blossom on
+/// the diagonal ([`diagonal_in_span`], every level
+/// [`Certification::between`]). Any other `t` — a vertex pad's node past
+/// the domain, or one straddling a span end — is the polynomial
+/// extension: de Boor's recurrence with the affine step
+/// `(1 − α)·x + α·y`, sound for any `α`, since a ratio past `[0, 1]` is
+/// no combination between its sources.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
+    if let Some(value) = diagonal_in_span(u, p, first, active, t) {
+        return value;
+    }
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
@@ -1111,9 +1230,9 @@ enum Level {
 impl Level {
     /// The derivative of `pair`, as a level.
     fn of(pair: SplineCoeffs<'_, Interval>) -> Self {
-        match pair.derivative() {
-            Some(buf) => Self::Spline(buf),
-            None => Self::Loose(Loose::below(pair.knots()), pair.derivative_coeffs()),
+        match Loose::from_derived(pair.derived()) {
+            Ok(buf) => Self::Spline(buf),
+            Err(loose) => Self::Loose(loose, pair.derivative_coeffs()),
         }
     }
 
@@ -1371,18 +1490,6 @@ const QUAD2_REFINE_SPANS: usize = 16;
 /// A ring-bracketed 3-vector (a control point, an enclosure).
 pub type RVec3 = [Interval; 3];
 
-pub(super) fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-pub(super) fn rv_dot(a: RVec3, b: RVec3) -> Interval {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
 fn widen(x: Interval, pad: f64) -> Interval {
     if !x.is_certified() {
@@ -1447,22 +1554,36 @@ enum Loose {
 }
 
 impl Loose {
-    /// The structure of a derivative of degree `degree` on the raw knot
-    /// list `knots`, where no clamped vector spells it: [`Loose::Raw`]
-    /// at degree ≥ 1, [`Loose::Const`] at 0. The one place that is
-    /// decided.
+    /// A [`Derived`]'s clamped payload, or the structure no clamped
+    /// vector spells.
+    fn from_derived<V>(derived: Derived<'_, V>) -> Result<V, Self> {
+        match derived {
+            Derived::Vector(v) => Ok(v),
+            Derived::SpanConstant(breaks) => Err(Self::Const {
+                knots: breaks.to_vec(),
+            }),
+            Derived::Discontinuous { knots, degree } => Err(Self::Raw {
+                knots: knots.to_vec(),
+                degree,
+            }),
+        }
+    }
+
+    /// The structure of a [`Loose::Raw`] level's derivative, of degree
+    /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
+    /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
+    /// [`KnotVector::derived`]'s.
+    ///
+    /// `knots` is a clamped vector's knot list with an outer pair dropped
+    /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
+    /// that is what [`raw_span`] searches by and what puts
+    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
         } else {
             Self::Const { knots }
         }
-    }
-
-    /// The derivative structure of `kv` where [`KnotVector::derivative`]
-    /// has none.
-    fn below(kv: &KnotVector) -> Self {
-        Self::of(kv.derivative_knot_slice().to_vec(), kv.degree() - 1)
     }
 
     /// The structure one derivative down and the line step onto it, or
@@ -1680,9 +1801,7 @@ impl PatchGrid {
     fn step(dir: &Dir) -> Option<(Dir, DerivTake)> {
         match dir {
             Dir::Kv(kv) => {
-                let below = kv
-                    .derivative()
-                    .map_or_else(|| Dir::Loose(Loose::below(kv)), Dir::Kv);
+                let below = Loose::from_derived(kv.derived()).map_or_else(Dir::Loose, Dir::Kv);
                 let kv = kv.clone();
                 // The one knot-vector step (`TensorCoeffs`'s too).
                 Some((
@@ -1984,9 +2103,9 @@ fn patch_flux_exact(
                         mid: mid_v,
                         t: nv_j,
                     };
-                    let fm = rv_dot(
-                        s.vec(cu, cv),
-                        rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
+                    let fm = dot(
+                        &s.vec(cu, cv),
+                        &cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv)),
                     );
                     row = row + *wv_j * fm;
                 }
@@ -2051,11 +2170,11 @@ impl Ladder {
     /// ([`rational_patch_face`] docs derive why the quotient's other
     /// triple products vanish).
     fn num(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
-        rv_dot(
-            self.a.vec(u, v),
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &self.a.vec(u, v),
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
         )
     }
@@ -2069,10 +2188,10 @@ impl Ladder {
         let av = grid_vec(self.av.as_ref(), u, v);
         let auu = grid_vec(self.auu.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
-        rv_dot(au, rv_cross(auu, av))
-            + rv_dot(a, rv_cross(grid_vec(self.auuu.as_ref(), u, v), av))
-            + pt(2.0) * rv_dot(a, rv_cross(auu, auv))
-            + rv_dot(a, rv_cross(au, grid_vec(self.auuv.as_ref(), u, v)))
+        dot(&au, &cross(&auu, &av))
+            + dot(&a, &cross(&grid_vec(self.auuu.as_ref(), u, v), &av))
+            + pt(2.0) * dot(&a, &cross(&auu, &auv))
+            + dot(&a, &cross(&au, &grid_vec(self.auuv.as_ref(), u, v)))
     }
 
     /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv) +
@@ -2083,27 +2202,27 @@ impl Ladder {
         let av = grid_vec(self.av.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let avv = grid_vec(self.avv.as_ref(), u, v);
-        rv_dot(av, rv_cross(au, avv))
-            + rv_dot(a, rv_cross(grid_vec(self.auvv.as_ref(), u, v), av))
-            + pt(2.0) * rv_dot(a, rv_cross(auv, avv))
-            + rv_dot(a, rv_cross(au, grid_vec(self.avvv.as_ref(), u, v)))
+        dot(&av, &cross(&au, &avv))
+            + dot(&a, &cross(&grid_vec(self.auvv.as_ref(), u, v), &av))
+            + pt(2.0) * dot(&a, &cross(&auv, &avv))
+            + dot(&a, &cross(&au, &grid_vec(self.avvv.as_ref(), u, v)))
     }
 
     /// `N_u = A·(A_uu×A_v) + A·(A_u×A_uv)` (the `A_u·(A_u×A_v)` term
     /// vanishes identically).
     fn num_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
-        rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.auu.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &a,
+            &cross(
+                &grid_vec(self.auu.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
-        ) + rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.auv.as_ref(), u, v),
+        ) + dot(
+            &a,
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.auv.as_ref(), u, v),
             ),
         )
     }
@@ -2111,17 +2230,17 @@ impl Ladder {
     /// `N_v = A·(A_uv×A_v) + A·(A_u×A_vv)`.
     fn num_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
-        rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.auv.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &a,
+            &cross(
+                &grid_vec(self.auv.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
-        ) + rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.avv.as_ref(), u, v),
+        ) + dot(
+            &a,
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.avv.as_ref(), u, v),
             ),
         )
     }
@@ -2134,9 +2253,9 @@ impl Ladder {
         let au = grid_vec(self.au.as_ref(), u, v);
         let av = grid_vec(self.av.as_ref(), u, v);
         let (w0, wu, wv) = (w.chan(u, v), w.chan_u(u, v), w.chan_v(u, v));
-        let base = rv_cross(au, av);
-        let ta = rv_cross(au, a);
-        let tb = rv_cross(a, av);
+        let base = cross(&au, &av);
+        let ta = cross(&au, &a);
+        let tb = cross(&a, &av);
         [
             w0 * base[0] - wv * ta[0] - wu * tb[0],
             w0 * base[1] - wv * ta[1] - wu * tb[1],
@@ -2184,12 +2303,12 @@ impl Ladder {
         let auu = grid_vec(self.auu.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let terms = [
-            (w.chan(u, v), rv_cross(auu, av)),
-            (w.chan(u, v), rv_cross(au, auv)),
-            (-w.chan_uv(u, v), rv_cross(au, a)),
-            (-w.chan_v(u, v), rv_cross(auu, a)),
-            (-w.chan_uu(u, v), rv_cross(a, av)),
-            (-w.chan_u(u, v), rv_cross(a, auv)),
+            (w.chan(u, v), cross(&auu, &av)),
+            (w.chan(u, v), cross(&au, &auv)),
+            (-w.chan_uv(u, v), cross(&au, &a)),
+            (-w.chan_v(u, v), cross(&auu, &a)),
+            (-w.chan_uu(u, v), cross(&a, &av)),
+            (-w.chan_u(u, v), cross(&a, &auv)),
         ];
         fold_terms(&terms)
     }
@@ -2204,12 +2323,12 @@ impl Ladder {
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let avv = grid_vec(self.avv.as_ref(), u, v);
         let terms = [
-            (w.chan(u, v), rv_cross(auv, av)),
-            (w.chan(u, v), rv_cross(au, avv)),
-            (-w.chan_vv(u, v), rv_cross(au, a)),
-            (-w.chan_v(u, v), rv_cross(auv, a)),
-            (-w.chan_uv(u, v), rv_cross(a, av)),
-            (-w.chan_u(u, v), rv_cross(a, avv)),
+            (w.chan(u, v), cross(&auv, &av)),
+            (w.chan(u, v), cross(&au, &avv)),
+            (-w.chan_vv(u, v), cross(&au, &a)),
+            (-w.chan_v(u, v), cross(&auv, &a)),
+            (-w.chan_uv(u, v), cross(&a, &av)),
+            (-w.chan_u(u, v), cross(&a, &avv)),
         ];
         fold_terms(&terms)
     }
@@ -2250,7 +2369,7 @@ impl Ladder {
             (Some(g), Some(s)) => g.at_v(s, v),
             _ => zero,
         };
-        rv_dot(a, rv_cross(au, av)) / w.a.at_v(&sl.w, v)[0].powi(3)
+        dot(&a, &cross(&au, &av)) / w.a.at_v(&sl.w, v)[0].powi(3)
     }
 
     /// `A·(A_u×A_v)` from a slice, at one v collapse — the flux
@@ -2267,7 +2386,7 @@ impl Ladder {
             (Some(g), Some(s)) => g.at_v(s, v),
             _ => zero,
         };
-        rv_dot(a, rv_cross(au, av))
+        dot(&a, &cross(&au, &av))
     }
 
     /// **The EXACT v integral** `∫ N dv` over one v-cell, from a
@@ -2326,7 +2445,7 @@ fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    hi_or_refuse((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
+    certified_hi((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2820,7 +2939,7 @@ fn area_midpoint_taylor<E>(
             // keeps the arithmetic over that tiling enclosing too.
             let cell_area = (pt(c_uhi) - pt(c_ulo)) * (pt(c_vhi) - pt(c_vlo));
             let mean = widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
-                .clamped_to(lo_or_refuse(c.g_hull), hi_or_refuse(c.g_hull));
+                .clamped_to(lo_or_refuse(c.g_hull), certified_hi(c.g_hull));
             acc = acc + cell_area * mean;
         }
     }
@@ -3386,12 +3505,6 @@ fn rational_patch_face<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD2_RATIONAL_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round \
-         {QUAD2_RATIONAL_MAX_ROUNDS}",
-        window.first
-    );
     let (u0, u1, v0, v1) = rect.corners();
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
@@ -3596,13 +3709,14 @@ fn rational_patch_face<T: Decide>(
     };
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(QUAD2_RATIONAL_MAX_ROUNDS);
+    let schedule = Schedule::to(QUAD2_RATIONAL_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = QUAD2_INIT_PIECES << first;
     // The last round's flux width, bounded from below before any round
     // runs ([`last_round_width_lo`]): its cut lists are the schedule's
     // last, its hulls are the blocks above, and under the exact-v arm
     // it carries no v remainder.
-    let last_pieces = QUAD2_INIT_PIECES << QUAD2_RATIONAL_MAX_ROUNDS;
+    let last_pieces = QUAD2_INIT_PIECES << schedule.last();
     let last_cuts_u = knot_aligned_cuts(u0, u1, last_pieces, &knots_u);
     let last_cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), last_pieces), &knots_v);
     // The hulls a cell in block `(bu, bv)` reads: its `f_uu` hull, and
@@ -3618,7 +3732,7 @@ fn rational_patch_face<T: Decide>(
         block_hulls,
         boundary_defect * p_bound,
     );
-    for round in first..=QUAD2_RATIONAL_MAX_ROUNDS {
+    for round in first..=schedule.last() {
         let mut flux = Interval::zero();
         let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
         let cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), pieces), &knots_v);
@@ -3675,13 +3789,17 @@ fn rational_patch_face<T: Decide>(
             });
         }
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        if schedule.converged::<T>(
+            round,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        )? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -3719,12 +3837,12 @@ fn rational_patch_face<T: Decide>(
             }
         }
         debug_assert!(
-            round < QUAD2_RATIONAL_MAX_ROUNDS || pieces == last_pieces,
+            round < schedule.last() || pieces == last_pieces,
             "the schedule's last round is the bound's"
         );
         if let Some(out) = round_exit(
             round,
-            QUAD2_RATIONAL_MAX_ROUNDS,
+            schedule.last(),
             window,
             FaceCutBounds { flux, area },
             (width_len, target_len),
@@ -3840,15 +3958,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD2_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
-        window.first
-    );
     let rect = PatchRect::new(rect)?;
     let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
+    // That lane checks a window against its own last round.
     if weights.iter().any(|w| *w != 1.0) {
         return rational_patch_face::<T>(
             kv_u,
@@ -3863,6 +3977,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             window,
         );
     }
+    debug_assert!(
+        window.first <= QUAD2_MAX_ROUNDS,
+        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
+        window.first
+    );
     // The derivative grids, built once (mixed partials commute on
     // spline nets exactly).
     let s = PatchGrid::base(&TensorChannels::from_fn(
@@ -3897,7 +4016,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(QUAD2_MAX_ROUNDS);
+    let schedule = Schedule::to(QUAD2_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = QUAD2_INIT_PIECES << first;
     // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
     // hull contains every cell's, so the per-cell remainder
@@ -3915,25 +4035,25 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let g_suu = grid_vec(suu.as_ref(), over_all.0, over_all.1);
     let g_suv = grid_vec(suv.as_ref(), over_all.0, over_all.1);
     let g_svv = grid_vec(svv.as_ref(), over_all.0, over_all.1);
-    let g_f_uu = rv_dot(g_su, rv_cross(g_suu, g_sv))
-        + rv_dot(
-            g_s,
-            rv_cross(grid_vec(suuu.as_ref(), over_all.0, over_all.1), g_sv),
+    let g_f_uu = dot(&g_su, &cross(&g_suu, &g_sv))
+        + dot(
+            &g_s,
+            &cross(&grid_vec(suuu.as_ref(), over_all.0, over_all.1), &g_sv),
         )
-        + pt(2.0) * rv_dot(g_s, rv_cross(g_suu, g_suv))
-        + rv_dot(
-            g_s,
-            rv_cross(g_su, grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
+        + pt(2.0) * dot(&g_s, &cross(&g_suu, &g_suv))
+        + dot(
+            &g_s,
+            &cross(&g_su, &grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
         );
-    let g_f_vv = rv_dot(g_sv, rv_cross(g_su, g_svv))
-        + rv_dot(
-            g_s,
-            rv_cross(grid_vec(suvv.as_ref(), over_all.0, over_all.1), g_sv),
+    let g_f_vv = dot(&g_sv, &cross(&g_su, &g_svv))
+        + dot(
+            &g_s,
+            &cross(&grid_vec(suvv.as_ref(), over_all.0, over_all.1), &g_sv),
         )
-        + pt(2.0) * rv_dot(g_s, rv_cross(g_suv, g_svv))
-        + rv_dot(
-            g_s,
-            rv_cross(g_su, grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
+        + pt(2.0) * dot(&g_s, &cross(&g_suv, &g_svv))
+        + dot(
+            &g_s,
+            &cross(&g_su, &grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
         );
 
     // AREA: the shared [`area_midpoint_taylor`] rule (#313's integral
@@ -3951,9 +4071,9 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         |b| -> Result<AreaCell, PropsError> {
             let over = (Collapse::Over(b.u), Collapse::Over(b.v));
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
-            let cm = rv_cross(
-                grid_vec(su.as_ref(), m.0, m.1),
-                grid_vec(sv.as_ref(), m.0, m.1),
+            let cm = cross(
+                &grid_vec(su.as_ref(), m.0, m.1),
+                &grid_vec(sv.as_ref(), m.0, m.1),
             );
             let (h_su, h_sv) = (
                 grid_vec(su.as_ref(), over.0, over.1),
@@ -3961,19 +4081,19 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             );
             // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
             let d_u = rv_add(
-                rv_cross(grid_vec(suu.as_ref(), over.0, over.1), h_sv),
-                rv_cross(h_su, grid_vec(suv.as_ref(), over.0, over.1)),
+                cross(&grid_vec(suu.as_ref(), over.0, over.1), &h_sv),
+                cross(&h_su, &grid_vec(suv.as_ref(), over.0, over.1)),
             );
             let d_v = rv_add(
-                rv_cross(grid_vec(suv.as_ref(), over.0, over.1), h_sv),
-                rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
+                cross(&grid_vec(suv.as_ref(), over.0, over.1), &h_sv),
+                cross(&h_su, &grid_vec(svv.as_ref(), over.0, over.1)),
             );
             Ok(AreaCell {
                 g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
                 g_u: norm_hi(d_u),
                 g_v: norm_hi(d_v),
                 g_hull: {
-                    let c = rv_cross(h_su, h_sv);
+                    let c = cross(&h_su, &h_sv);
                     (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
                 },
             })
@@ -3998,13 +4118,17 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     {
         let flux = widen(exact, boundary_defect * p_bound);
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        if Schedule::ONE_PASS.converged::<T>(
+            0,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        )? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4038,7 +4162,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // runs ([`last_round_width_lo`]): one block — the whole rectangle,
     // whose hulls are the global ones above — and the integral
     // schedule's last cut lists.
-    let last_pieces = QUAD2_INIT_PIECES << QUAD2_MAX_ROUNDS;
+    let last_pieces = QUAD2_INIT_PIECES << schedule.last();
     let last_round_width_lo = last_round_width_lo(
         (
             &knot_aligned_cuts(u0, u1, last_pieces, &knots_u),
@@ -4048,7 +4172,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         |_, _| (g_f_uu, Some(g_f_vv)),
         boundary_defect * p_bound,
     );
-    for round in first..=QUAD2_MAX_ROUNDS {
+    for round in first..=schedule.last() {
         let mut flux = Interval::zero();
         // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
         // gives: this lane reaches the composite only where the exact
@@ -4067,11 +4191,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                     Collapse::At(c_ulo.midpoint(c_uhi)),
                     Collapse::At(c_vlo.midpoint(c_vhi)),
                 );
-                let fm = rv_dot(
-                    s.vec(m.0, m.1),
-                    rv_cross(
-                        grid_vec(su.as_ref(), m.0, m.1),
-                        grid_vec(sv.as_ref(), m.0, m.1),
+                let fm = dot(
+                    &s.vec(m.0, m.1),
+                    &cross(
+                        &grid_vec(su.as_ref(), m.0, m.1),
+                        &grid_vec(sv.as_ref(), m.0, m.1),
                     ),
                 );
                 flux = flux
@@ -4083,13 +4207,17 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let flux = widen(flux, boundary_defect * p_bound);
         // Convergence: the shared mean-boundary-displacement meter.
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        if schedule.converged::<T>(
+            round,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        )? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4119,12 +4247,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             }
         }
         debug_assert!(
-            round < QUAD2_MAX_ROUNDS || pieces == last_pieces,
+            round < schedule.last() || pieces == last_pieces,
             "the schedule's last round is the bound's"
         );
         if let Some(out) = round_exit(
             round,
-            QUAD2_MAX_ROUNDS,
+            schedule.last(),
             window,
             FaceCutBounds { flux, area },
             (width_len, target_len),
@@ -4236,27 +4364,25 @@ fn vertex_slack(p: RPt2) -> f64 {
     0.5 * (p.0.width() + p.1.width())
 }
 
-/// De Casteljau bisection of a bracketed Bézier control polygon: the
-/// two halves at `λ = ½`, each again a Bézier polygon of the same
-/// degree whose first and last points are the arc's endpoints there
-/// and whose hull contains its half of the arc.
-///
-/// The rounding lands OUTWARD in every bracket, so both halves are
+/// Bisection of a bracketed Bézier control polygon: the two halves at
+/// `λ = ½`, each again a Bézier polygon of the same degree whose first
+/// and last points are the arc's endpoints there and whose hull
+/// contains its half of the arc. Each channel's row is restricted to
+/// `[0, ½]` and `[½, 1]` ([`restrict_bernstein`]), so both halves are
 /// certified enclosures of the same arc rather than re-approximations
 /// of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let half = pt(0.5);
-    let lerp = |x: RPt2, y: RPt2| -> RPt2 { (x.0 + (y.0 - x.0) * half, x.1 + (y.1 - x.1) * half) };
-    let mut level: Vec<RPt2> = block.to_vec();
-    let mut left = vec![level[0]];
-    let mut right = vec![level[level.len() - 1]];
-    while level.len() > 1 {
-        level = level.windows(2).map(|w| lerp(w[0], w[1])).collect();
-        left.push(level[0]);
-        right.push(level[level.len() - 1]);
-    }
-    right.reverse();
-    (left, right)
+    let half = |channel: &[Interval], (a, b): (f64, f64)| {
+        restrict_bernstein(channel, (pt(a), pt(b)))
+            .unwrap_or_else(|_| vec![Interval::refused(); channel.len()])
+    };
+    let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
+    let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();
+    let zip = |x: Vec<Interval>, y: Vec<Interval>| x.into_iter().zip(y).collect::<Vec<RPt2>>();
+    (
+        zip(half(&xs, (0.0, 0.5)), half(&ys, (0.0, 0.5))),
+        zip(half(&xs, (0.5, 1.0)), half(&ys, (0.5, 1.0))),
+    )
 }
 
 /// Why [`bezier_blocks`] refused.
@@ -4675,9 +4801,9 @@ fn flux_at(
     cu: Collapse<'_>,
     cv: Collapse<'_>,
 ) -> Interval {
-    rv_dot(
-        s.vec(cu, cv),
-        rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
+    dot(
+        &s.vec(cu, cv),
+        &cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv)),
     )
 }
 
@@ -4688,7 +4814,7 @@ fn area_at(
     cu: Collapse<'_>,
     cv: Collapse<'_>,
 ) -> Interval {
-    let c = rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv));
+    let c = cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv));
     (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
 }
 
@@ -4715,15 +4841,15 @@ fn area_cell(
 ) -> (Interval, f64, f64) {
     let h_su = grid_vec(su, u, v);
     let h_sv = grid_vec(sv, u, v);
-    let c = rv_cross(h_su, h_sv);
+    let c = cross(&h_su, &h_sv);
     // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
     let d_u = rv_add(
-        rv_cross(grid_vec(suu, u, v), h_sv),
-        rv_cross(h_su, grid_vec(suv, u, v)),
+        cross(&grid_vec(suu, u, v), &h_sv),
+        cross(&h_su, &grid_vec(suv, u, v)),
     );
     let d_v = rv_add(
-        rv_cross(grid_vec(suv, u, v), h_sv),
-        rv_cross(h_su, grid_vec(svv, u, v)),
+        cross(&grid_vec(suv, u, v), &h_sv),
+        cross(&h_su, &grid_vec(svv, u, v)),
     );
     (
         (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt(),
@@ -5002,7 +5128,7 @@ fn chord_polygon_area(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
                     0.5 * hu * cell_gu + 0.5 * hv * cell_gv,
                 )
-                .clamped_to(lo_or_refuse(cell_g), hi_or_refuse(cell_g));
+                .clamped_to(lo_or_refuse(cell_g), certified_hi(cell_g));
                 col = col + (pt(c1) - pt(c0)) * mean;
             }
             if top < v0 {
@@ -5124,11 +5250,6 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= TRIM_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {TRIM_MAX_ROUNDS}",
-        window.first
-    );
     if chords.len() < 3 {
         return Err(PropsError::QuadratureUnsupported {
             what: "a trim loop of fewer than three chart images — a region with no \
@@ -5175,15 +5296,15 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         None => (refused_vec(), refused_vec(), refused_vec()),
     };
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
-    let cross = rv_cross(h_su, h_sv);
-    let sup_f = rv_dot(s_hull, cross).mag();
+    let normal = cross(&h_su, &h_sv);
+    let sup_f = dot(&s_hull, &normal).mag();
     // Whole-box `sup|f|` and `sup g` are the PADS' levers only — the
     // gap, the vertex connectors, the sliver. The area RULE reads its
     // own per-cell hulls ([`area_cell`]): a whole-box hull inside a
     // fixed-resolution midpoint rule is a pad that does not shrink with
     // the cell, which is how an ordinary curved chart came out
     // `DegenerateFace`.
-    let sup_g = (cross[0].sqr() + cross[1].sqr() + cross[2].sqr()).sqrt();
+    let sup_g = (normal[0].sqr() + normal[1].sqr() + normal[2].sqr()).sqrt();
     // The chart's own metric RATE, bounded above over the trim box:
     // the door crosses each cell's chart variation to metres with it
     // rather than taking a caller's length (`TrimChord`'s docs, and
@@ -5196,7 +5317,8 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // along `du`.
     let v_reach = (kv_v.domain().1 - kv_v.domain().0).abs();
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(TRIM_MAX_ROUNDS);
+    let schedule = Schedule::to(TRIM_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = TRIM_INIT_PIECES << first;
     // **The AREA is taken once, at the ENTERING round's chords, and
     // that is a cost decision rather than a fact about the width.**
@@ -5210,7 +5332,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // "one more call" at the last round is two orders of magnitude of
     // work, not one call's worth.
     let mut area_at_first: Option<Interval> = None;
-    for round in first..=TRIM_MAX_ROUNDS {
+    for round in first..=schedule.last() {
         let cells = trim_cells::<T>(chords, pieces, su.as_ref(), sv.as_ref(), band)?;
         if cells.len() < 3 {
             return Err(PropsError::QuadratureUnsupported {
@@ -5265,14 +5387,14 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             let (hs, hc) = match certified_box(bu, bv) {
                 Some(ov) => (
                     s.vec(ov.0, ov.1),
-                    rv_cross(
-                        grid_vec(su.as_ref(), ov.0, ov.1),
-                        grid_vec(sv.as_ref(), ov.0, ov.1),
+                    cross(
+                        &grid_vec(su.as_ref(), ov.0, ov.1),
+                        &grid_vec(sv.as_ref(), ov.0, ov.1),
                     ),
                 ),
                 None => (refused_vec(), refused_vec()),
             };
-            lune_f += a * rv_dot(hs, hc).mag();
+            lune_f += a * dot(&hs, &hc).mag();
             lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
@@ -5326,13 +5448,17 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             )
         });
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        if schedule.converged::<T>(
+            round,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        )? {
             // The perimeter this gate levers by is the DOOR's, derived
             // from the cells above — not a caller's field. A lane that
             // takes the caller's is
@@ -5368,7 +5494,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         }
         if let Some(out) = round_exit(
             round,
-            TRIM_MAX_ROUNDS,
+            schedule.last(),
             window,
             FaceCutBounds { flux, area },
             (width_len, target_len),
@@ -5385,6 +5511,28 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **A node straddling its span's end, whose true value lies past
+    /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the
+    /// degree-1 piece with coefficients `−1, 0`), the node
+    /// `[1⁻, 1⁺]` may be `1 + 2⁻⁵²`, where the piece reads `2⁻⁵²`. A node
+    /// not whole in the span's closure takes the affine extension, which
+    /// encloses it; the blossom would meet it with the sources' hull
+    /// `[−1, 0]` and lose it. Red when the closure test is loosened to
+    /// an overlap.
+    #[test]
+    fn a_node_straddling_its_span_end_is_enclosed_by_the_extension() {
+        let past = 1.0f64.next_up();
+        let t = Interval::from_bounds(1.0f64.next_down(), past);
+        let got = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], t);
+        assert!(
+            got.contains(past - 1.0),
+            "{got:?} misses the extension's value {:e} at {past}",
+            past - 1.0
+        );
+        let inside = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], pt(0.5));
+        assert!(inside.contains(-0.5), "{inside:?}");
+    }
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary
@@ -5545,6 +5693,7 @@ mod tests {
             t1: pt(tau),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_up = TrimEdgeQ {
@@ -5554,6 +5703,7 @@ mod tests {
             t1: pt(2.0),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         // Top: parameterized by t = u, v = 2 + 0.5 sin t, traversed
@@ -5565,6 +5715,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_down = TrimEdgeQ {
@@ -5574,6 +5725,7 @@ mod tests {
             t1: pt(2.0),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let edges = [rim, seam_up, top, seam_down];
@@ -5581,7 +5733,7 @@ mod tests {
         let eps = Tol::witness().get().eps;
         let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band)
             .expect("the band face converges");
-        let exact = 2.0 * tau; // ∮ u dv = 4π
+        let exact = 2.0 * tau; // −∮ v du = 4π
         assert!(
             out.flux.lo() <= exact && exact <= out.flux.hi(),
             "flux {:?} must bracket {exact}",
@@ -5592,7 +5744,9 @@ mod tests {
             "area {:?} must bracket {exact}",
             out.area
         );
-        // Independent dense oracle: midpoint sum of Σ σ·∫u·v' dt.
+        // Independent dense oracle: midpoint sum of Σ σ·∫u·v' dt, the
+        // other Green form, equal to the lane's on a loop closed on the
+        // chart.
         let mut acc = 0.0;
         let n = 200_000;
         for e in &edges {
@@ -5639,6 +5793,7 @@ mod tests {
             t1: pt(span),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let outer = vec![
@@ -5675,6 +5830,7 @@ mod tests {
             t1: pt(from + pi),
             forward: !hole,
             trig0,
+            trig1: None,
             env: pt(0.0),
         };
         let mut ring = vec![
@@ -5688,7 +5844,7 @@ mod tests {
     }
 
     /// **A ring is a loop of its own.** The rectangle less the circle
-    /// measures `2 − 0.09π`, the ring's `∮ u dv` entering with its own
+    /// measures `2 − 0.09π`, the ring's `−∮ v du` entering with its own
     /// clockwise winding.
     #[test]
     fn a_ring_subtracts_its_own_area() {
@@ -5742,19 +5898,519 @@ mod tests {
         );
     }
 
-    /// **A loop stored a period off on the chart refuses**
-    /// (`props_quad_junction_period`): the ring's second arc carried
-    /// `2π` along the azimuth closes in space, not on the chart.
+    /// **A loop stored a period off on the chart measures as the loop
+    /// it stores**: the ring's second arc carried `2π` along the
+    /// azimuth closes in space and not on the chart, and `−∮ v du` reads
+    /// only each edge's own `du`, so the ringed rectangle measures
+    /// `2 − 0.09π` exactly as the unshifted one does. A jump at a
+    /// junction of a loop that does not wind is no defect.
     #[test]
-    fn a_loop_a_period_off_on_the_chart_refuses() {
+    fn a_loop_a_period_off_on_the_chart_measures_as_stored() {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
         let [outer, ring] = ringed_rectangle(true, core::f64::consts::TAU);
-        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
+            .expect("the shifted ring converges");
+        let exact = 2.0 - 0.09 * core::f64::consts::PI;
         assert!(
-            matches!(got, Err(PropsError::ChartPeriodJump)),
-            "got {got:?}"
+            out.area.lo() <= exact && exact <= out.area.hi(),
+            "area {:?} must bracket {exact}",
+            out.area
         );
+    }
+
+    /// A seamless band of the unit cylinder: a rim circle at `v = lift`
+    /// traversed `+u`, and an ellipse rim `v = lift + 2 + k·cos u` (the
+    /// wall cut by an oblique plane) traversed `−u` — two loops of one
+    /// edge each, each winding the cylinder once.
+    fn ellipse_band(k: f64, lift: f64) -> [TrimEdgeQ; 2] {
+        let tau = core::f64::consts::TAU;
+        let rim = |v: HarmChan, forward| TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v,
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: Some((pt(1.0), pt(0.0))),
+            env: pt(0.0),
+        };
+        [
+            rim(chan(lift, 0.0, 0.0, 0.0), true),
+            rim(chan(lift + 2.0, k, 0.0, 0.0), false),
+        ]
+    }
+
+    /// **A seamless band with an ellipse rim measures**: its loops each
+    /// wind the cylinder once, against each other, and the band's area
+    /// is `2π·2` whatever the cut's tilt `k` and wherever along the axis
+    /// it sits (`lift`) — the oblique cut's mean height is its height on
+    /// the axis. `∮ u dv` reads the ellipse rim as `−2πk` and the
+    /// circle rim as nothing.
+    #[test]
+    fn a_seamless_band_with_an_ellipse_rim_measures() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let exact = 2.0 * core::f64::consts::TAU;
+        for (k, lift) in [(0.0, 0.0), (0.4, 0.0), (-0.7, 0.0), (0.4, 1000.0)] {
+            let [bottom, top] = ellipse_band(k, lift);
+            let out = cylinder_cut_face::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &[&[bottom], &[top]],
+                eps,
+                band,
+            )
+            .unwrap_or_else(|e| panic!("k {k}, lift {lift}: the band refuses: {e:?}"));
+            for (what, x) in [("flux", out.flux), ("area", out.area)] {
+                assert!(
+                    x.lo() <= exact && exact <= x.hi(),
+                    "k {k}, lift {lift}: {what} {x:?} must bracket {exact}"
+                );
+            }
+        }
+    }
+
+    /// The cylinder lane over `loops` at radius 1, at both scalars the
+    /// funnel decides at.
+    fn at_both_scalars(
+        loops: &[&[TrimEdgeQ]],
+    ) -> [(&'static str, Result<FaceCutBounds, PropsError>); 2] {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        [
+            (
+                "f64",
+                cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), loops, eps, band),
+            ),
+            (
+                "Interval",
+                cylinder_cut_face::<Interval>(pt(1.0), Interval::zero(), loops, eps, band),
+            ),
+        ]
+    }
+
+    /// One whole-turn edge at level `v`, its azimuth running `rate` turns
+    /// per turn of its parameter.
+    fn turning(rate: f64, v: f64, forward: bool) -> TrimEdgeQ {
+        TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, rate),
+            v: chan(v, 0.0, 0.0, 0.0),
+            t0: pt(0.0),
+            t1: pt(core::f64::consts::TAU),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        }
+    }
+
+    /// **Loops that wind the cylinder together refuse**
+    /// ([`PropsError::LoopsWindChart`]): a band's ellipse rim alone, and
+    /// both rims run the same way, each close and wind once, and bound
+    /// nothing; `−∮ (v − anchor) du` over them is a number that moves
+    /// with the anchor.
+    #[test]
+    fn loops_that_wind_the_cylinder_together_refuse() {
+        let [bottom, top] = ellipse_band(0.4, 0.0);
+        let mut same_way = top;
+        same_way.forward = true;
+        for (what, loops) in [
+            ("the ellipse rim alone", vec![&[top][..]]),
+            ("both rims run +u", vec![&[bottom][..], &[same_way][..]]),
+        ] {
+            for (scalar, got) in at_both_scalars(&loops) {
+                assert!(
+                    matches!(got, Err(PropsError::LoopsWindChart)),
+                    "{what} at {scalar}: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **Four whole rims bound no single face**
+    /// ([`PropsError::LoopsWindChart`]): wound `+ + − −` or `+ − − +` up
+    /// the axis, each turns once and together they turn zero times, but a
+    /// connected face has at most two winding loops.
+    #[test]
+    fn four_winding_rims_bound_no_single_face() {
+        for senses in [[true, true, false, false], [true, false, false, true]] {
+            let rims: Vec<TrimEdgeQ> = senses
+                .iter()
+                .enumerate()
+                .map(|(i, &up)| turning(1.0, i as f64, up))
+                .collect();
+            let loops: Vec<&[TrimEdgeQ]> = rims.iter().map(core::slice::from_ref).collect();
+            for (scalar, got) in at_both_scalars(&loops) {
+                assert!(
+                    matches!(got, Err(PropsError::LoopsWindChart)),
+                    "{senses:?} at {scalar}: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A loop that winds twice is no face's boundary**
+    /// ([`PropsError::LoopsWindChart`]): two rims whose azimuth runs two
+    /// turns, opposite ways, close at their junctions and wind zero
+    /// times together, but each crosses itself. Read as a band they would
+    /// measure twice its `2π·2`.
+    #[test]
+    fn a_pair_of_loops_winding_twice_refuses() {
+        let (a, b) = (turning(2.0, 0.0, true), turning(2.0, 2.0, false));
+        for (scalar, got) in at_both_scalars(&[&[a], &[b]]) {
+            assert!(
+                matches!(got, Err(PropsError::LoopsWindChart)),
+                "at {scalar}: {got:?}"
+            );
+        }
+    }
+
+    /// **A loop that stops short of a whole turn does not close**
+    /// ([`PropsError::ChartLoopOpen`]): a rim running one and a half
+    /// turns, or 0.4 of one, ends half a turn or 0.4 of one from where it
+    /// starts — a gap of `π` or `0.8π` metres at radius 1, against a
+    /// slack of `3ε`.
+    #[test]
+    fn a_loop_that_stops_short_of_a_whole_turn_does_not_close() {
+        for (what, loops) in [
+            (
+                "a pair at 1.5 turns",
+                vec![
+                    vec![turning(1.5, 0.0, true)],
+                    vec![turning(1.5, 2.0, false)],
+                ],
+            ),
+            ("0.4 of a turn", vec![vec![turning(0.4, 0.0, true)]]),
+        ] {
+            let loops: Vec<&[TrimEdgeQ]> = loops.iter().map(Vec::as_slice).collect();
+            for (scalar, got) in at_both_scalars(&loops) {
+                assert!(
+                    matches!(got, Err(PropsError::ChartLoopOpen)),
+                    "{what} at {scalar}: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A loop open in the level does not close**
+    /// ([`PropsError::ChartLoopOpen`]): the rectangle `[0, 2] × [0, 1]`
+    /// with its top stored at `v = 6`, five metres above where its sides
+    /// end. Its azimuth closes, so no winding reading sees it.
+    #[test]
+    fn a_rectangle_whose_top_is_off_its_sides_does_not_close() {
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u,
+            v,
+            t0: pt(0.0),
+            t1: pt(span),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let outer = [
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(0.0, 0.0, 0.0, 0.0),
+                2.0,
+                true,
+            ),
+            line(
+                chan(2.0, 0.0, 0.0, 0.0),
+                chan(0.0, 0.0, 0.0, 1.0),
+                1.0,
+                true,
+            ),
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(6.0, 0.0, 0.0, 0.0),
+                2.0,
+                false,
+            ),
+            line(
+                chan(0.0, 0.0, 0.0, 0.0),
+                chan(0.0, 0.0, 0.0, 1.0),
+                1.0,
+                false,
+            ),
+        ];
+        for (scalar, got) in at_both_scalars(&[&outer]) {
+            assert!(
+                matches!(got, Err(PropsError::ChartLoopOpen)),
+                "at {scalar}: {got:?}"
+            );
+        }
+    }
+
+    /// The rectangle `[0, 2] × [0, 1]` whose sides end where `v` reads
+    /// through `side_v` and whose top is stored at `1 + top_off`.
+    fn rectangle_with(
+        side_v: HarmChan,
+        side_trig0: (Interval, Interval),
+        top_off: f64,
+    ) -> [TrimEdgeQ; 4] {
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u,
+            v,
+            t0: pt(0.0),
+            t1: pt(span),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let side = |u0: f64, forward: bool| TrimEdgeQ {
+            u: chan(u0, 0.0, 0.0, 0.0),
+            v: side_v,
+            t0: pt(0.0),
+            t1: pt(1.0),
+            forward,
+            trig0: side_trig0,
+            trig1: None,
+            env: pt(0.0),
+        };
+        [
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(0.0, 0.0, 0.0, 0.0),
+                2.0,
+                true,
+            ),
+            side(2.0, true),
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(1.0 + top_off, 0.0, 0.0, 0.0),
+                2.0,
+                false,
+            ),
+            side(0.0, false),
+        ]
+    }
+
+    /// **A junction its brackets cannot decide is never measured**
+    /// (review of PR 4839, the verifier's probe). Each side's level is
+    /// read through a whole-circle trig bracket, `v = −a + a·cos t + c·t`
+    /// with `v(1) = 1` exactly, so its end is known only to about `2a`;
+    /// the top is stored `0.45·a` above it. Read off the gap's lower
+    /// bound the junction looked closed and the face measured `2 + 2g`.
+    /// The gap's upper bound is beyond the slack and its lower bound is
+    /// not, so it escalates — at `a = 10³·ε` (the verifier's `450ε`
+    /// opening) and `a = 1e-3`, at `f64` and at `Interval`.
+    #[test]
+    fn a_junction_its_brackets_cannot_decide_is_never_measured() {
+        let whole = (
+            Interval::from_bounds(-1.0, 1.0),
+            Interval::from_bounds(-1.0, 1.0),
+        );
+        let eps = Tol::witness().get().eps;
+        for a in [1e3 * eps, 1e-3] {
+            let c = 1.0 - a * (1.0_f64.cos() - 1.0);
+            let outer = rectangle_with(chan(-a, a, 0.0, c), whole, 0.45 * a);
+            for (scalar, got) in at_both_scalars(&[&outer]) {
+                assert!(
+                    matches!(
+                        got,
+                        Err(PropsError::Escalated {
+                            check: PropsCheck::Inventory,
+                            ..
+                        })
+                    ),
+                    "a {a:e} at {scalar}: an undecidable junction escalates: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A junction open by the vertex tolerance closes**
+    /// ([`super::super::closure::VERTEX_SLACK`]).
+    /// The rectangle with its top stored `2ε` above its sides' ends, every
+    /// bracket thin: the gap is the two carriers' ends about their
+    /// vertex, which the vertex term allows, so the face measures. Without
+    /// that term the excess is `2ε`, in the band, and it escalates.
+    #[test]
+    fn a_junction_open_by_the_vertex_tolerance_closes() {
+        let eps = Tol::witness().get().eps;
+        let outer = rectangle_with(chan(0.0, 0.0, 0.0, 1.0), (pt(1.0), pt(0.0)), 2.0 * eps);
+        for (scalar, got) in at_both_scalars(&[&outer]) {
+            let out = got.unwrap_or_else(|e| panic!("at {scalar}: the face refuses: {e:?}"));
+            let exact = 2.0 * 2.0_f64.mul_add(eps, 1.0);
+            assert!(
+                out.area.lo() <= exact && exact <= out.area.hi(),
+                "at {scalar}: area {:?} must bracket {exact}",
+                out.area
+            );
+        }
+    }
+
+    /// **A band reads its holes by winding, in any loop order.** The band
+    /// between the rim `v = 0` and the cut `v = 3 + 0.5·cos u`, with a
+    /// circular hole of radius 0.4: wound against the face it measures
+    /// `3·2π − 0.16π` stored first, middle or last; wound with it, it
+    /// refuses ([`PropsError::RingWoundWithFace`]) wherever it is stored
+    /// — read by position, a hole stored first is the face's own loop
+    /// and is added.
+    #[test]
+    fn a_band_reads_its_holes_by_winding_in_any_loop_order() {
+        let tau = core::f64::consts::TAU;
+        let rim = |v: HarmChan, forward| TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v,
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let hole = |forward| TrimEdgeQ {
+            u: chan(2.0, 0.4, 0.0, 0.0),
+            v: chan(1.2, 0.0, 0.4, 0.0),
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let bottom = [rim(chan(0.0, 0.0, 0.0, 0.0), true)];
+        let top = [rim(chan(3.0, 0.5, 0.0, 0.0), false)];
+        let (against, with) = ([hole(false)], [hole(true)]);
+        let exact = 3.0 * tau - core::f64::consts::PI * 0.16;
+        for (order, (h, b, t)) in [(0, 1, 2), (1, 0, 2), (2, 1, 0)].into_iter().enumerate() {
+            let place = |ring: &'static str| {
+                let mut loops: [&[TrimEdgeQ]; 3] = [&[], &[], &[]];
+                loops[b] = &bottom;
+                loops[t] = &top;
+                loops[h] = if ring == "against" { &against } else { &with };
+                loops
+            };
+            for (scalar, got) in at_both_scalars(&place("against")) {
+                let out = got.unwrap_or_else(|e| panic!("order {order} at {scalar}: {e:?}"));
+                assert!(
+                    out.area.lo() <= exact && exact <= out.area.hi(),
+                    "order {order} at {scalar}: area {:?} must bracket {exact}",
+                    out.area
+                );
+            }
+            for (scalar, got) in at_both_scalars(&place("with")) {
+                assert!(
+                    matches!(got, Err(PropsError::RingWoundWithFace)),
+                    "order {order} at {scalar}, the hole wound with the face: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// The ellipse band's convergence width at `round` alone, metered as
+    /// [`mean_boundary_displacement`]: read off an open round, the
+    /// target vanishing and the band far below the width, so the round
+    /// definitely misses, and above the junctions' own rounding, so they
+    /// close.
+    fn band_width_at(round: usize) -> f64 {
+        let [bottom, top] = ellipse_band(0.4, 0.0);
+        let band = geom_core::Band::new(1e-13, 2e-13).unwrap();
+        match cylinder_cut_face_rounds::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&[bottom], &[top]],
+            1e-300,
+            band,
+            RoundWindow::at(round),
+        ) {
+            Ok(RoundOutcome::Open { bounds, .. }) => {
+                mean_boundary_displacement(bounds.flux, bounds.area).unwrap()
+            }
+            other => panic!("round {round} must stay open under a vanishing target: {other:?}"),
+        }
+    }
+
+    /// **A convergence margin within the band refines at a round with a
+    /// successor and escalates at the last one** (`Schedule::converged`).
+    /// The ellipse band at round 3 and at the schedule's last, its
+    /// target set at that round's own width, under a band scaled to it:
+    /// once inside the zero band, once in the ambiguity band above it.
+    /// At round 3 neither converges and neither refuses — the window
+    /// hands back its open round; at the last round both escalate, where
+    /// a budget refusal would carry a width that did not miss.
+    #[test]
+    fn a_margin_in_the_band_refines_until_the_last_round_and_escalates_there() {
+        let [bottom, top] = ellipse_band(0.4, 0.0);
+        let loops: [&[TrimEdgeQ]; 2] = [&[bottom], &[top]];
+        for round in [3, QUAD_MAX_ROUNDS] {
+            let width = band_width_at(round);
+            let band = geom_core::Band::new(1e-3 * width, 1e-2 * width).unwrap();
+            for (what, target) in [
+                ("zero band", width),
+                ("ambiguity band", width * (1.0 + 5e-3)),
+            ] {
+                let got = cylinder_cut_face_rounds::<f64>(
+                    pt(1.0),
+                    Interval::zero(),
+                    &loops,
+                    target / QUAD_TARGET_LEN_FACTOR,
+                    band,
+                    RoundWindow::at(round),
+                );
+                if round < QUAD_MAX_ROUNDS {
+                    assert!(
+                        matches!(got, Ok(RoundOutcome::Open { refusal: None, .. })),
+                        "round {round}, {what}: an in-band margin refines: {got:?}"
+                    );
+                } else {
+                    match got {
+                        Err(PropsError::Escalated { cause, check }) => {
+                            assert_eq!(check, PropsCheck::Converged, "{what}");
+                            assert_eq!(cause.predicate, Some("props_quad_converged"), "{what}");
+                        }
+                        other => {
+                            panic!("the last round, {what}: an in-band margin escalates: {other:?}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **No budget refusal carries a width under its target.** The
+    /// hopeless-endpoint loop with its start bracket's half-width `w`
+    /// at, and 0.2% either side of, the value that puts the last
+    /// round's margin in the zero band at ε = 1e-9 (review R2 of PR 4839,
+    /// measured: margin 1.0e-8 at `w = 2.3891717e-6`, linear in `w`). Each
+    /// of the three escalates; read as unconverged, each refused the
+    /// budget with a width under its target. The value is measured at
+    /// the default ε only, and the row stands down loudly elsewhere.
+    #[test]
+    fn a_budget_refusal_never_carries_a_width_under_its_target() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        if eps != 1e-9 {
+            test_utils::vacuity::stood_down(
+                "the last-round zero-band witness",
+                "its bracket width is measured at ε = 1e-9 only",
+            );
+            return;
+        }
+        let centre = 2.389_171_737_005_034e-6 * (1.0 + 9.998_457_735e-9 / 1.014_001_542e-6);
+        for step in [-1.0_f64, 0.0, 1.0] {
+            let w = centre * step.mul_add(2e-3, 1.0);
+            let e = TrimEdgeQ {
+                u: chan(0.0, 1.0, 0.0, 0.0),
+                v: chan(0.0, 0.0, 1.0, 0.0),
+                t0: Interval::from_bounds(-w, w),
+                t1: pt(core::f64::consts::TAU),
+                forward: true,
+                trig0: (pt(1.0), pt(0.0)),
+                trig1: None,
+                env: pt(0.0),
+            };
+            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[e]], eps, band) {
+                Err(PropsError::Escalated { cause, .. }) => {
+                    assert_eq!(cause.predicate, Some("props_quad_converged"), "w {w:e}");
+                }
+                other => panic!("w {w:e}: the last round's in-band margin escalates: {other:?}"),
+            }
+        }
     }
 
     /// Endpoint ignorance that no refinement narrows cannot converge:
@@ -5771,6 +6427,7 @@ mod tests {
             t1: pt(core::f64::consts::TAU),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -6256,11 +6913,14 @@ mod tests {
                 t1: Interval::from_bounds(mid1 - w * 0.5, mid1 + w * 0.5),
                 forward: true,
                 trig0: (pt(t0_true.cos()), pt(t0_true.sin())),
+                trig1: None,
                 env: pt(0.0),
             };
-            let enclosure = harmonic_edge_integral(&e, 65_536, pt(1.0));
-            // Dense Kahan-summed midpoint oracle of the TRUE integral.
-            let truth = kahan_dense_oracle(&u, &v, t0_true, t1_true, 400_000);
+            let enclosure = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
+            // Dense Kahan-summed midpoint oracle of the TRUE integral,
+            // `∫ −v·u' dt`.
+            let minus_v = chan(-2.0, -0.7, -0.4, -0.3);
+            let truth = kahan_dense_oracle(&minus_v, &u, t0_true, t1_true, 400_000);
             assert!(
                 enclosure.lo() <= truth && truth <= enclosure.hi(),
                 "placement ({d0}, {d1}): truth {truth} escapes {enclosure:?} — the \
@@ -6269,8 +6929,8 @@ mod tests {
         }
     }
 
-    /// Dense midpoint oracle with Kahan (compensated) summation — the
-    /// reviewer's independent-integration shape.
+    /// Dense midpoint oracle of `∫ u·v' dt` with Kahan (compensated)
+    /// summation — the reviewer's independent-integration shape.
     fn kahan_dense_oracle(u: &HarmChan, v: &HarmChan, a: f64, b: f64, n: u32) -> f64 {
         let (mut sum, mut c) = (0.0f64, 0.0f64);
         let h = (b - a) / f64::from(n);
@@ -6302,6 +6962,7 @@ mod tests {
             t1: pt(v_hi),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let rim = |forward: bool| TrimEdgeQ {
@@ -6311,6 +6972,7 @@ mod tests {
             t1: pt(tau),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         // (a) near-pinching band: v(u) = 1 + 0.999·sin u (dips to 1e-3).
@@ -6321,6 +6983,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_a = vec![
@@ -6337,6 +7000,7 @@ mod tests {
             t1: pt(tau),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let sliver_top = TrimEdgeQ {
@@ -6353,6 +7017,7 @@ mod tests {
             t1: pt(1.0),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_b = vec![
@@ -6370,6 +7035,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_c = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
@@ -6379,6 +7045,7 @@ mod tests {
             t1: pt(v_hi),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_c = vec![
@@ -6388,7 +7055,9 @@ mod tests {
             seam_c(0.0, 3.4, false),
         ];
         for (label, edges) in [("pinch", face_a), ("sliver", face_b), ("skew", face_c)] {
-            // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed.
+            // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed — the
+            // other Green form, equal to the lane's on a loop closed on
+            // the chart.
             let mut truth = 0.0;
             for e in &edges {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);

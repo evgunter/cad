@@ -835,11 +835,7 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 /// so one node under one id — an insert mints its id from its node,
 /// the members' order included (N1) — which is what a row comparing
 /// member orders compares.
-pub fn union_over(
-    doc: ProfileDoc,
-    members: &[RecipeNodeId],
-    declare: Vec<editor_core::DeclaredPair>,
-) -> (ProfileDoc, RecipeNodeId) {
+pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
     let mut inserted = members.to_vec();
     inserted.sort();
     let (doc, union) = insert(
@@ -848,7 +844,6 @@ pub fn union_over(
             members: editor_core::Bodies::Spelled(
                 inserted.clone().into_iter().map(Into::into).collect(),
             ),
-            declare,
         },
     );
     if inserted == members {
@@ -864,25 +859,6 @@ pub fn union_over(
         },
     );
     (doc, union)
-}
-
-/// **Every flush finding between each two of `members`, as declared
-/// pairs** — the list a caller following the detector writes, so a row
-/// can set an undeclared document beside its declared twin.
-pub fn findings_declared(
-    ev: &Evaluation<f64>,
-    doc: &ProfileDoc,
-    members: &[RecipeNodeId],
-) -> Vec<editor_core::DeclaredPair> {
-    let mut pairs = Vec::new();
-    for (i, &a) in members.iter().enumerate() {
-        for &b in &members[i + 1..] {
-            let found = editor_core::find_flush_candidates(ev, doc, a, b, tol())
-                .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
-            pairs.extend(editor_core::declared_pairs(&found));
-        }
-    }
-    pairs
 }
 
 /// The `Debug` of the one body `id` built — its bits, for setting two
@@ -1044,7 +1020,7 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
     };
     let (o, u, v) = (read(origin), read(u), read(v));
     profile::SketchPlane::from_frame(
-        geom_core::OrthoFrame::gram_schmidt(
+        geom_core::RigidMotion::gram_schmidt(
             geom_core::Point3::new(o.x, o.y, o.z),
             u,
             v,
@@ -1506,32 +1482,12 @@ pub fn die() -> Die {
         masters.push((ext, u, v, pips));
     }
 
-    // Interleaved Transform + declared Subtract pairs (M4 PR 5,
-    // F5): every pip's outer cap lies exactly ON its cube face — a
-    // coincidence the recipe DECLARES per subtract (name pairs
-    // resolved through the operands' tables at evaluation; the
-    // retired bit rung no longer infers it from values). The A-side
-    // face name wraps in `FromA` per boolean, tracked here.
-    let face_name = |node: RecipeNodeId, seg: RoleSeg| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![seg],
-    };
-    // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
-    // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
-    // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
-    let wall = |seg: u32| wall(&r.doc, cube, seg);
-    let mut cube_face_names: [StableName; 6] = [
-        face_name(cube, RoleSeg::Cap(CapEnd::Start)),
-        face_name(cube, wall(1)),
-        face_name(cube, wall(3)),
-        face_name(cube, wall(2)),
-        face_name(cube, wall(0)),
-        face_name(cube, RoleSeg::Cap(CapEnd::End)),
-    ];
+    // Interleaved Transform + Subtract pairs: every pip's outer cap
+    // lies exactly ON its cube face, a coincidence the subtract's
+    // margins decide and glue.
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
-    for (face_idx, &(ext, u, v, pips)) in masters.iter().enumerate() {
+    for &(ext, u, v, pips) in &masters {
         for &(a, b) in pips {
             let t = [
                 a * u[0] + b * v[0],
@@ -1546,34 +1502,12 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (against the normal), so
-            // its OUTER cap — the flush one — is Bottom (on the
-            // sketch plane, which IS the cube face's plane), and it
-            // faces out of the cube as that face does: a continuation.
-            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
-            let (acc_read, tr_read) = (out(&r.doc, acc), out(&r.doc, tr));
-            let decl = editor_core::declare_continuation(vec![(
-                SitedRef::new(acc_read, cube_face_names[face_idx].clone()),
-                SitedRef::new(tr_read, pip_cap),
-            )]);
             let sub = r.insert(Node::Subtract {
                 from: acc.into(),
                 tool: tr.into(),
-                declare: decl,
             });
             acc = sub;
             pz_transform = tr;
-            // Every A-side face name wraps once per boolean (N1
-            // derivation paths through the new subtract node).
-            for name in &mut cube_face_names {
-                *name = face_name(
-                    sub,
-                    RoleSeg::From {
-                        read: acc_read,
-                        of: name.clone().into(),
-                    },
-                );
-            }
         }
     }
 
@@ -1696,7 +1630,6 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: target.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -1997,8 +1930,8 @@ pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleS
 
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
-/// caps — in ONE place, so a suite that names them and a suite that
-/// declares them cannot disagree about which four they are.
+/// caps — in ONE place, so every suite that names them agrees about
+/// which four they are.
 pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
         wall(doc, ext, 0),
@@ -2008,10 +1941,10 @@ pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg;
     ]
 }
 
-/// **Those four families as a declared pair list**, each side SITED:
-/// `at` is the operand (or member) the entity is read at, and the
-/// name is the one the extrude `ext` minted, which a pass-through op
-/// carries verbatim (N1).
+/// **Those four families as name pairs**, each side SITED: `at` is
+/// the operand (or member) the entity is read at, and the name is the
+/// one the extrude `ext` minted, which a pass-through op carries
+/// verbatim (N1).
 pub fn flush_pairs(
     doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
@@ -2031,11 +1964,22 @@ pub fn flush_pairs(
 }
 
 /// **The read of `node`'s one output** — what an operand reading the
-/// node holds, and so what a declared pair is sited at and a carried
-/// name is keyed by (`RoleSeg::From`).
+/// node holds, and so what a sited name is read at and a carried name
+/// is keyed by (`RoleSeg::From`).
 pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
     doc.output(node, 0)
         .unwrap_or_else(|| panic!("{node} defines an output"))
+}
+
+/// The member a union-minted name came from, or `None` for a name that
+/// is not a carried (`From`) row. Read off the member's READ, which is
+/// the only thing that answers: the inner name's minting node is the
+/// PROTOTYPE's where a member is a placement of one.
+pub fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
+    match name.path.first() {
+        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
+        _ => None,
+    }
 }
 
 /// **One ENTITY of one member, in the UNION's own name space** — the
@@ -2067,38 +2011,6 @@ pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> Stable
     member_entity(union, member, of, EntityKind::Face)
 }
 
-/// The declared pairs joining the flush planes of two axis-aligned
-/// extruded blocks that share their y-range and z-range and differ
-/// along x only (the corpus's standard sliding-overlap shape): walls
-/// y0/y1 (segments 0/2, the `square`/`desc` corner order) plus both
-/// caps (M4 PR 5 — the recipe states the coincidence intent the
-/// retired bit rung used to infer from values).
-pub fn declare_x_offset_flush(
-    doc: &ProfileDoc,
-    a_ext: RecipeNodeId,
-    b_ext: RecipeNodeId,
-) -> Vec<editor_core::DeclaredPair> {
-    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
-}
-
-/// The same, when the consuming boolean's OPERAND is not the extrude
-/// that minted the names — a transform of it, which contributes no
-/// role segment (N1) and so carries the extrude's names verbatim.
-///
-/// The site is the operand, always: it is what says which side of the
-/// boolean the name is read on.
-pub fn declare_x_offset_flush_at(
-    doc: &ProfileDoc,
-    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
-    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> Vec<editor_core::DeclaredPair> {
-    // Each name is sited at the OPERAND whose table holds it, which
-    // is what says which side of the boolean it is read on.
-    // The four families face the same way on both blocks: one carrier,
-    // aligned senses — continuations.
-    editor_core::declare_continuation(flush_pairs(doc, (a_at, a_ext), (b_at, b_ext)))
-}
-
 /// **What every at-rest finding says about a declaration, in one
 /// vocabulary** — the mate it names and the relation it bears, for a
 /// row that wants to compare a whole finding list at once.
@@ -2111,24 +2023,39 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
     findings
         .iter()
         .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Carried {
+            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
+            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
+            Some(editor_core::Attribution::Carried {
                 declaration,
                 relation,
                 ..
-            } => (
+            }) => (
                 declaration.mate,
                 match relation {
                     editor_core::Relation::Refuted => "carried_refuted",
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => {
-                (RecipeNodeId::new(0, u64::MAX), "unattributed")
-            }
+            None => (RecipeNodeId::new(0, u64::MAX), "no declaration"),
         })
         .collect()
+}
+
+/// **The product's at-rest rows are all contacts between copies**, and
+/// there is at least one: a seat no mate speaks for is rows of the two
+/// copies it joins (D10), never a mate's.
+pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    let product =
+        editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
+    assert!(
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the seats are the copies' rows: {:?}",
+        product.coincidences
+    );
 }
 
 /// **No published merged face has a merged face among its
@@ -2223,7 +2150,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -2233,6 +2159,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             support: y,
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.as_ref()).collect(),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
@@ -2314,7 +2241,6 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }
@@ -2476,4 +2402,43 @@ pub fn continuous_vars(doc: &ProfileDoc) -> usize {
     doc.free_vars()
         .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
         .count()
+}
+
+/// `a`, `b` standing on `a`'s top raised by `lift` (0 glues `b`'s bottom
+/// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
+/// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
+/// `b`'s y = 0.25 bottom rim.
+pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    move |doc| {
+        let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
+        let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
+        (doc, vec![a, b, c])
+    }
+}
+
+/// An axis-aligned block on the xy plane at height `z0`, extruded `dz`:
+/// [`glued_rim`]'s members.
+fn glued_block(
+    doc: ProfileDoc,
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+            side: ExtrudeSide::Along,
+        },
+    )
 }

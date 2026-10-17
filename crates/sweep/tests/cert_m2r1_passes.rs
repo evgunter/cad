@@ -118,7 +118,7 @@ fn m2r1_passes_dual64() {
 /// `CensusLaneUnsupported`. The certified door examines the declared
 /// pair and certifies the seat (`Ok`); the `_structural` door holds no
 /// region door at any scalar, refuses the pair typed and leaves the two
-/// crossings the declaration backs as `UndeclaredContact`.
+/// crossings the declaration backs as `UnrecordedContact`.
 #[test]
 fn m2r1_declared_seat_f64() {
     let tol = Tol::witness();

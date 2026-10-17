@@ -1,29 +1,26 @@
 //! **Booleans glue on Zero** (D10, Booleans; INTENT stage 4 PR E, the
-//! spec's §11 rows 15, 16, 17 and 19), at the document door.
+//! spec's §11 rows 15, 16 and 19), at the document door.
 //!
 //! - **Row 15**: two blocks of separately typed sizes, flush, unioned
-//!   with no declaration, are one solid of the summed volume carrying
+//!   are one solid of the summed volume carrying
 //!   one `SameOpposite` row the coincidence door leaves unproven.
 //! - **Row 16**: the same blocks a sliver apart refuse in band.
-//! - **Row 17**: every declared corpus scene builds the same body, and
-//!   ships the same contact records, with its declarations removed.
 //! - **Row 19**: row 15's result passes tier 3′ with its contacts as
 //!   the census reads them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{self, body_of, failures};
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
+use crate::corpus::{body_of, failures};
 use crate::fixture::insert;
 use editor_core::{
-    BooleanValue, DocEdit, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload,
-    coincide,
+    BooleanValue, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload, coincide,
 };
 use geom_core::Tol;
 use topo::{DecisionSite, Relation};
 
 /// A block of `[0, 2]² × [0, 1]` and a plate of `[0.5, 1.5]² × [1 + gap,
-/// 1.5 + gap]` above it, each size typed separately, unioned with no
-/// declaration: `(doc, block, plate, union)`.
+/// 1.5 + gap]` above it, each size typed separately, unioned:
+/// `(doc, block, plate, union)`.
 fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("glue-on-zero", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
@@ -32,17 +29,16 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, base, plate, union)
 }
 
-/// **Row 15: an undeclared flush rest glues and records.** One solid,
+/// **Row 15: a flush rest glues and records.** One solid,
 /// the summed volume, and one `SameOpposite` row the plane ladder
 /// decided — unproven, since the two caps are two constructions.
 #[test]
-fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
+fn a_flush_rest_glues_and_records_one_unproven_row() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
     let ev = run(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -64,11 +60,17 @@ fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
                 &doc,
                 &[(union, &rows[..])],
                 Tol::witness(),
-                editor_core::SymbolicPass::Full
-            )[0][0],
-            Proof::Unproven { .. }
+                &editor_core::CancelToken::new()
+            )
+            .expect("an uncanceled door")[0][0],
+            Proof::Unproven {
+                recourse: coincide::Recourse::OneConstruction,
+                ..
+            }
         ),
-        "two constructions, no proof"
+        "two constructions, no proof; the offset's form freezes at the door's budget \
+         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
+         computed apart from the variables, so the recourse is to build one construction"
     );
 }
 
@@ -103,86 +105,5 @@ fn a_zero_glued_union_passes_tier_three_prime() {
         topo::validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(()),
         "tier 3′"
-    );
-}
-
-/// **Row 17: declared and undeclared are one body.** For every corpus
-/// document, every Union, Intersect and Subtract that declares contacts builds the
-/// same body, bit for bit, with its declarations removed.
-#[test]
-fn every_declared_corpus_scene_builds_the_same_body_undeclared() {
-    let mut scenes = 0;
-    for corpus_doc in corpus::documents() {
-        let doc = &corpus_doc.doc;
-        let declaring: Vec<RecipeNodeId> = doc
-            .ids()
-            .into_iter()
-            .filter(|&id| match doc.node(id) {
-                Some(
-                    Node::Union { declare, .. }
-                    | Node::Intersect { declare, .. }
-                    | Node::Subtract { declare, .. },
-                ) => !declare.is_empty(),
-                _ => false,
-            })
-            .collect();
-        if declaring.is_empty() {
-            continue;
-        }
-        let mut bare = doc.clone();
-        for &node in &declaring {
-            bare = editor_core::apply(
-                &bare,
-                &DocEdit::SetDeclare {
-                    node,
-                    pairs: Vec::new(),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .expect("clearing a declaration applies")
-            .doc;
-        }
-        let (declared, undeclared) = (run(doc), run(&bare));
-        assert!(failures(&declared).is_empty(), "{:?}", failures(&declared));
-        assert!(
-            failures(&undeclared).is_empty(),
-            "{}: {:?}",
-            corpus_doc.name,
-            failures(&undeclared)
-        );
-        let contacts = |ev: &editor_core::Evaluation<f64>, node| match &ev
-            .value(node)
-            .expect("the node evaluated")
-            .payload
-        {
-            ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => {
-                format!("{contacts:?}")
-            }
-            other => panic!("{}: node {node:?} is no body: {other:?}", corpus_doc.name),
-        };
-        for &node in &declaring {
-            scenes += 1;
-            assert_eq!(
-                format!("{:?}", body_of(&declared, node)),
-                format!("{:?}", body_of(&undeclared, node)),
-                "{}: node {node:?}",
-                corpus_doc.name
-            );
-            // `kiss_carry` declares a carried contact, a record no
-            // value decides: clearing the declaration drops it.
-            if corpus_doc.name != "kiss_carry" {
-                assert_eq!(
-                    contacts(&declared, node),
-                    contacts(&undeclared, node),
-                    "{}: node {node:?}, the contact records",
-                    corpus_doc.name
-                );
-            }
-        }
-    }
-    assert_eq!(
-        scenes, 29,
-        "the corpus's declaring scenes, every one compared"
     );
 }

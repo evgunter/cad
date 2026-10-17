@@ -88,7 +88,6 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     (fixture::place(doc, union).0, block)

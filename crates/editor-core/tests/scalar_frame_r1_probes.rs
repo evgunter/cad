@@ -14,7 +14,7 @@ use crate::fixture;
 
 use editor_core::{CancelToken, EvalOptions, PoseValue, ProfileDoc, ValuePayload, evaluate};
 use geom_core::linalg::frame::{path_start_frame, point_at};
-use geom_core::{Affine3, Band, Mat3, OrthoFrame, Point3, Tol, Vec3};
+use geom_core::{Affine3, Band, Mat3, Point3, RigidMotion, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Surface;
@@ -50,7 +50,7 @@ fn old_recipe(origin: Point3<f64>, aim: Vec3<f64>, reference: Vec3<f64>) -> Affi
 }
 
 /// **The two aiming doors return the retired recipe bit for bit.**
-/// Both are now `OrthoFrame::from_aim` plus `to_affine`, and the claim
+/// Both are now `RigidMotion::from_aim` plus `to_affine`, and the claim
 /// that costs nothing is that the twelve stored components did not
 /// move: the spelling changed, the arithmetic did not. Asserted from
 /// OUTSIDE `geom-core`, over a sweep of eyes, targets, references and
@@ -89,7 +89,7 @@ fn point_at_and_path_start_frame_are_the_retired_recipe_bit_for_bit() {
 /// out is the exact `(x̂, ŷ)` pair the geometry deserves.
 #[test]
 fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
-    let frame = OrthoFrame::from_axis_and_reference(
+    let frame = RigidMotion::from_axis_and_reference(
         Point3::origin(),
         Vec3::new(0.0, 2.0, 0.0),
         Vec3::new(3.0, 1.0, 0.0),
@@ -151,9 +151,9 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
 /// mint in `geom-core` and is not restated here.)
 #[test]
 fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
-    let exact = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(1.0, 2.0, 3.0)));
+    let exact = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(1.0, 2.0, 3.0)));
     assert_eq!(bits3(exact.normal()), bits3(Vec3::unit_y()));
-    let skewed = OrthoFrame::gram_schmidt(
+    let skewed = RigidMotion::gram_schmidt(
         Point3::origin(),
         Vec3::new(2.0, 0.0, 0.0),
         Vec3::new(1.0, 1.0, 0.0),

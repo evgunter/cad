@@ -25,7 +25,6 @@ use sweep::test_support::{ball_poled, brick, finished};
 #[test]
 fn a_thin_cap_measures_to_its_closed_form() {
     let tol = Tol::witness();
-    let none = topo::BooleanDeclarations::none();
     let pi = core::f64::consts::PI;
     let ball = finished(
         "the ball",
@@ -44,7 +43,7 @@ fn a_thin_cap_measures_to_its_closed_form() {
             brick((-2.0, 2.0), (-2.0, 2.0), (1.0 - h, 3.0), tol),
             tol,
         );
-        let body = topo::intersect_with(&slab, &ball, &none, tol)
+        let body = topo::intersect(&slab, &ball, tol)
             .expect("the slab meets the ball")
             .body()
             .expect("a body")

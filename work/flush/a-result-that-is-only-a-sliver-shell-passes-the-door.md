@@ -2,14 +2,14 @@
 id: a-result-that-is-only-a-sliver-shell-passes-the-door
 kind: issue
 title: A result that is only a sliver shell passes the door: check 7 exempts its in-band volume sign and check 10 never reads a one-shell solid
-status: closed
+status: parked
 opened: 2026-10-09
 priority: P0
 cost: M
 refs: [4415]
 branch: flush/sliver-only-result-refuses
 pr: 4636
-closed: 2026-10-11
+blocked_on: [boolean-door-runs-the-census-over-its-result]
 ---
 
 
@@ -134,3 +134,28 @@ certified wholly in band, `Escalated { ShellRole }`, through the same
 Both are red on main. The review's MINOR-2 is now its own row,
 `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` (design).
 The dual scalar, which runs no at-rest gate, reads no slivers.
+
+## Re-opened: the gate half, under pairs only (PR 4783, 2026-10-12)
+
+Ev's ruling on PR 4690 (fork log row 113) retired the fix above: a
+boolean judges how thin its result is by its pairs of cells alone, so
+PR 4783 removes the sole-shell `V/A` gate this row's PR built. A result
+that is only a sliver must now refuse on an in-band pair. The door
+refuses the pairs its own build decides, but not the pairs only the
+census reads, and it runs no census. So this row's residue is the door
+census: `work/reachhold/boolean-door-runs-the-census-over-its-result.md`,
+which it is parked on. It keeps P0 so the inversion stays visible:
+results this row's PR refused now ship holding an in-band pair.
+
+Evidence (the full list is on the REACHHOLD row):
+- **11** notch307 needles at ε 1e-9 now ship with `pm_census_ee_span`
+  in band (R2's `crates/topo/tests/review_4783_r2_probes.rs`,
+  `flush/thinness-by-pairs-review-r2` @ ef12bed5), among them this row's
+  own repro, the piece ∩ cube at d = 1e-8, in both orders;
+- **34** `rc_wide_battery` lines at ε 1e-6 move from `ShellRole` to
+  built (R1's `review-sliver-probe`, `flush/thinness-by-pairs-review` @
+  a79ba445).
+
+`topo/tests/sliver_shell_role.rs`
+`a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census`
+pins the repro's rows; it goes red when the door runs the census.

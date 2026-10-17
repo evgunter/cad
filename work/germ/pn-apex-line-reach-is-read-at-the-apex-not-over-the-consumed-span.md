@@ -2,8 +2,11 @@
 id: pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span
 kind: issue
 title: plane×cone bounds its apex line outcomes at the apex, so a consumer whose span stays clear of it is refused a line that is within band of its section there
-status: open
+status: closed
+branch: germ/pn-apex-reach-over-span
+pr: 4646
 opened: 2026-10-10
+closed: 2026-10-12
 priority: P1
 cost: M
 refs: [pn-apex-line-outcomes-stand-in-for-a-section-off-the-apex]
@@ -93,3 +96,5 @@ where its sibling takes a `Reach`, a special case that should be handled
 uniformly. The cost lands on a public verb that main answered right. It
 is not P0, because nothing wrong is served and every pose is
 near-coincident (an in-band offset, or a rounding gap through the apex).
+
+**2026-10-12, closed (PR 4646, SEQUENTIAL with a second review).** `plane_cone_section` takes a `Reach`, and the pair is bounded over the window the consumer consumes, `min(|δ|/D, Σ) + R`, with each nappe named only where the gap and the axis component clear their own rounding (the first review's MAJOR). The union of a frustum wedge with a flush half-space now builds at every ε. The remaining rounding assumption (an orthonormal cone frame) is filed separately.

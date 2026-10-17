@@ -79,8 +79,8 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
 }
 
 /// The symmetric U cutter subtracted from a block — the corpus's
-/// standard N2 TIE source (`m4_pr5_declare.rs`'s fixture, verbatim
-/// geometry). Returns the document and the subtract node.
+/// standard N2 TIE source. Returns the document and the subtract
+/// node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{DocEdit, apply};
     use fixture::on_frame;
@@ -144,7 +144,6 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: ua.into(),
             tool: ub.into(),
-            declare: Vec::new(),
         },
     );
     doc = d;
@@ -314,9 +313,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
 
 /// **Ambiguous + TieWitness**: a tie-marked name has two or more
 /// equally-admissible candidates, so a selection cannot pick one. The
-/// tie is the symmetric U cutter's N2 tie — the same fixture
-/// `m4_pr5_declare.rs` uses for the Declare side of this refusal, so
-/// the two sites are shown answering the same question the same way.
+/// tie is the symmetric U cutter's N2 tie.
 #[test]
 fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let (doc, us) = symmetric_u();

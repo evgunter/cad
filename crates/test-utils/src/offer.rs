@@ -44,9 +44,12 @@ pub const BELOW: f64 = 0.9;
 const LONGEST_CHAIN: usize = 12;
 
 /// The smallest tolerance [`execute`] descends to before it calls an
-/// operation one no tolerance gets past (F3): three decades below the
-/// smallest tolerance CI runs the suite at.
-pub const FLOOR_EPS: f64 = 1e-15;
+/// operation one no tolerance gets past (F3): the smallest a run admits,
+/// geom-core's `tolerance::EPS_MIN` (the 1 km session box times 2⁻⁵²,
+/// D4 ¶4), restated here because this crate depends on nothing;
+/// geom-core's `the_floor_is_the_f64_spacing_at_the_session_boxs_edge`
+/// pins the two equal.
+pub const FLOOR_EPS: f64 = 1e3 * f64::EPSILON;
 
 /// The factor [`execute`] descends by past a refusal that offers no
 /// value, looking for the tolerance that passes.
@@ -115,10 +118,15 @@ pub fn report(case: &str, outcome: &Outcome) {
 ///
 /// # Panics
 ///
-/// If the child cannot run, fails, or prints no report: a broken
-/// harness, never an outcome.
+/// If `eps` is below [`FLOOR_EPS`], which the child's run would refuse
+/// and replace with its default, or the child cannot run, fails, or
+/// prints no report: a broken harness, never an outcome.
 #[must_use]
 pub fn run(row: &str, eps: f64) -> Outcome {
+    assert!(
+        eps >= FLOOR_EPS,
+        "{row} at {eps:e}: below the smallest tolerance a run admits, {FLOOR_EPS:e}"
+    );
     let exe = std::env::current_exe().expect("a running test binary has a path");
     let out = std::process::Command::new(&exe)
         .args([
@@ -256,7 +264,8 @@ pub fn judge_laters(
 /// at [`BELOW`] × that offer must pass (T1) or refuse on a different
 /// decision (T2), past which the chain descends to a pass: at [`BELOW`]
 /// × each later refusal's own offer, or by a decade past one that offers
-/// none, never below [`FLOOR_EPS`]. `same` says which keys the host
+/// none, never below [`FLOOR_EPS`] (every re-run is clamped to it, and
+/// an offer always lies above it). `same` says which keys the host
 /// counts as one decision (a gate and the reading it meters, say).
 ///
 /// Returns the chain and its verdict, with each later refusal's story.
@@ -286,7 +295,7 @@ pub fn execute(
             ));
         }
     };
-    let eps = BELOW * offer;
+    let eps = (BELOW * offer).max(FLOOR_EPS);
     let mut current = run(row, eps);
     chain.push(Link {
         eps,
@@ -329,13 +338,13 @@ pub fn execute(
             return Err(tell("F2, a defect further along", &chain));
         }
         let offered = current.offer();
-        let next = offered.map_or(DESCENT * at, |v| BELOW * v);
-        if next < FLOOR_EPS {
+        if offered.is_none() && at <= FLOOR_EPS {
             return Err(tell(
                 &format!("F3, no tolerance down to {FLOOR_EPS:e} gets past {got}"),
                 &chain,
             ));
         }
+        let next = offered.map_or(DESCENT * at, |v| BELOW * v).max(FLOOR_EPS);
         let outcome = run(row, next);
         chain.push(Link {
             eps: next,

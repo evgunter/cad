@@ -6,15 +6,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, BooleanCoincidence, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey,
-    EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
-    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    SymbolicPass, ValuePayload, VarId, coincide, spoken_by,
+    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
+    Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
+    PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
+    spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -41,27 +41,29 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
 /// The rows `node` decided.
 fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
     ev.value(node)
-        .unwrap_or_else(|| panic!("{node:?} evaluated: {:?}", failure(ev, node)))
+        .unwrap_or_else(|| {
+            let root = match ev.nodes.get(&node) {
+                Some(editor_core::NodeResult::Poisoned { through }) => *through,
+                _ => node,
+            };
+            panic!("{node:?} evaluated: {root:?} {:?}", failure(ev, root))
+        })
         .coincidences
         .to_vec()
 }
 
 /// The door's proof of each of `node`'s `rows`, given in its decision
-/// order, at `pass`.
-fn proofs_at(
-    doc: &ProfileDoc,
-    node: RecipeNodeId,
-    rows: &[NamedCoincidence],
-    pass: SymbolicPass,
-) -> Vec<Proof> {
-    coincide::prove(doc, &[(node, rows)], Tol::witness(), pass)
-        .pop()
-        .expect("one node asked")
-}
-
-/// [`proofs_at`] the full pass.
+/// order.
 fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Vec<Proof> {
-    proofs_at(doc, node, rows, SymbolicPass::Full)
+    coincide::prove(
+        doc,
+        &[(node, rows)],
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .pop()
+    .expect("one node asked")
 }
 
 /// What each proof left the replay saying, `None` for a proven row.
@@ -71,6 +73,17 @@ fn replays(proofs: &[Proof]) -> Vec<Option<coincide::Unreplayed>> {
         .map(|p| match p {
             Proof::Structural(_) => None,
             Proof::Unproven { residual, .. } => Some(residual.replay),
+        })
+        .collect()
+}
+
+/// Each proof's recourse, `None` for a proven row.
+fn recourses(proofs: &[Proof]) -> Vec<Option<coincide::Recourse>> {
+    proofs
+        .iter()
+        .map(|p| match p {
+            Proof::Structural(_) => None,
+            Proof::Unproven { recourse, .. } => Some(*recourse),
         })
         .collect()
 }
@@ -93,36 +106,27 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
     }
 }
 
-/// **A declared glue is recorded** (§11 row 3). A plate resting flush
-/// on a block, unioned under a declared `Rest`: the union holds one
-/// `SameOpposite` row naming the block's top and the plate's bottom by
-/// their operands' own names, decided by the plane ladder's declared
-/// rung, and the check reports it unproven: the two caps are two
-/// constructions.
+/// **A glued rest is recorded** (§11 row 3). A plate resting flush on
+/// a block, unioned: the union holds one `SameOpposite` row naming the
+/// block's top and the plate's bottom by their operands' own names,
+/// decided by the plane ladder, and the check reports it unproven: the
+/// two caps are two constructions.
 #[test]
-fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
+fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
     let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
-    let (base_read, plate_read) = (out(&doc, base), out(&doc, plate));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
-            declare: vec![(
-                (
-                    SitedRef::new(base_read, top.clone()),
-                    SitedRef::new(plate_read, bottom.clone()),
-                ),
-                BooleanCoincidence::REST,
-            )],
         },
     );
     let ev = run(&doc);
     let got = rows(&ev, union);
-    assert_eq!(got.len(), 1, "one row for the one declared pair: {got:?}");
+    assert_eq!(got.len(), 1, "one row for the one rest: {got:?}");
     let row = &got[0];
     assert_eq!(
         row.cells,
@@ -139,10 +143,10 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     assert_eq!(
         row.margin.kind(),
         geom_core::MarginKind::Value,
-        "the declared reading's own margin, never a synthetic one"
+        "the reading's own margin, never a synthetic one"
     );
     let Proof::Unproven { residual, .. } = proof(&doc, union, row) else {
-        panic!("the same-construction rung proves a declared glue of two extrudes")
+        panic!("the same-construction rung proves a glue of two extrudes")
     };
     assert!(
         matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
@@ -306,8 +310,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 
 /// **A union's rows are its pairwise judgement's, in the author's
 /// order** (#4323: the list is the author's stated order). Two blocks
-/// overlapping in x, their caps and y-walls declared continuations,
-/// unioned as `[a, b]` and as `[b, a]`: the same decisions either way,
+/// overlapping in x, their caps and y-walls flush, unioned as `[a, b]`
+/// and as `[b, a]`: the same decisions either way,
 /// each row's first cell the listed-first member's face, named by that
 /// member's own table.
 #[test]
@@ -315,15 +319,13 @@ fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
-    let n = pairs.len();
+    let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
-        let (doc, union) =
-            crate::docm7_union_declare::declared_union(doc.clone(), &members, pairs.clone());
+        let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
-        assert_eq!(got.len(), n, "{members:?}: one row per declared pair");
+        assert_eq!(got.len(), n, "{members:?}: one row per flush family");
         for row in &got {
             assert_eq!(
                 (row.relation, row.site),
@@ -427,6 +429,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
 fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]) -> StableName {
     let body = match &ev.value(node).expect("the node evaluated").payload {
         ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -450,11 +453,11 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 
 /// **The mitre leaves the battery** (§11 row 5). A box with both rims
 /// filleted turns at its eight corners: the fillet holds eight
-/// `EqualAngles` rows, each naming the two rim edges that turn there
+/// `CommonFoot` rows, each naming the two rim edges that turn there
 /// by the box's own names, and each is unproven: the two edges are two
-/// constructions, and replayed with every variable a symbol the turn's
-/// angle term is the zero polynomial but the distance between its two
-/// bands' feet is not reduced to it
+/// constructions, and replayed with every variable a symbol neither of
+/// the turn's readings — the gap between its two bands' feet and the
+/// overrun chord — is reduced to the zero polynomial
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
 #[test]
 fn a_filleted_box_records_one_unproven_turn_per_corner() {
@@ -478,7 +481,7 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     for row in &got {
         assert_eq!(
             (row.relation, row.site),
-            (Relation::EqualAngles, DecisionSite::BatteryTurn)
+            (Relation::CommonFoot, DecisionSite::BatteryTurn)
         );
         for cell in &row.cells {
             let NamedCell::Entity { input, name } = cell else {
@@ -492,86 +495,89 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
             );
         }
     }
+    let proved = proofs(&doc, fillet, &got);
     assert_eq!(
-        replays(&proofs(&doc, fillet, &got)),
+        replays(&proved),
         [Some(coincide::Unreplayed::Numeric); 8],
-        "the full pass takes each turn, and its margin is not the zero polynomial \
+        "the door takes each turn, and its margin is not shown the zero polynomial \
          (work/sym/the-mitres-feet-distance-freezes-at-sym.md)"
     );
     assert_eq!(
-        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
-        [Some(coincide::Unreplayed::ResidentBudget); 8],
-        "the resident pass leaves each turn to the full pass"
+        recourses(&proved),
+        [Some(coincide::Recourse::OneConstruction); 8],
+        "the feet distance freezes on the door's budget, which is no value computed apart \
+         from the variables: no special recourse"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
 
-/// **The half of the mitre the algebra closes.** Replayed with every
-/// variable a symbol, a box mitre's margin
-/// `max(|cos₁ − cos₂|·arm, |y₂ − y₁|)` reduces to `max(0, …)`: the
-/// angle term is the zero polynomial, so the isosceles fact itself is
-/// an identity of the output definitions, and the distance between the
-/// two bands' feet is what freezes
+/// **A supplementary chamfer's turn reaches the door unproven.** The
+/// sheared box `{0 ≤ z ≤ 1, s z ≤ x ≤ 2 + s z, s z ≤ y ≤ 1.5 + s z}`,
+/// two sheared prisms intersected, has a top corner `(2 + s, s, 1)`
+/// whose two top edges make supplementary angles with its lateral edge:
+/// the chamfer's feet on that edge are one point, so its two top edges
+/// chamfered mitre and record one `CommonFoot` row, which the door takes
+/// and does not prove — the same freeze as the box's
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
 #[test]
-fn a_box_mitres_angle_term_is_the_zero_polynomial() {
-    let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
-    let ev = run(&doc);
-    let (doc, fillet) = insert(
+fn a_supplementary_chamfer_turn_is_recorded_unproven() {
+    let s = 0.3;
+    let (z0, z1) = (-0.5, 1.5);
+    let doc = ProfileDoc::empty_derived("coincide-supplementary", Tol::witness());
+    let (doc, along_y) = on_frame(
         doc,
-        Node::fillet(
-            the_box,
-            len(0.1),
-            vec![
-                edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-                edge_named(&ev, the_box, [2.0, 0.0, 1.0], [2.0, 1.5, 1.0]),
-            ],
-        ),
+        [0.0, 3.5, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]],
     );
-    let form = turn_form(&doc, fillet);
-    assert!(
-        form.starts_with("1·max(0, "),
-        "the angle term is identically zero, the feet distance is what freezes: {form}"
+    let (doc, along_x) = on_frame(
+        doc,
+        [3.5, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![
+            (-1.5 - s * z0, z0),
+            (-s * z0, z0),
+            (-s * z1, z1),
+            (-1.5 - s * z1, z1),
+        ]],
     );
-}
-
-/// `node`'s first row's deciding margin, replayed with every variable
-/// a symbol and rendered with the tier's rules applied per node, at
-/// the drive's budget.
-fn turn_form(doc: &ProfileDoc, node: RecipeNodeId) -> String {
-    use geom_core::sym::deferred;
-    use geom_core::{Sym, SymBudget, SymRules};
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
-        ..editor_core::EvalOptions::default()
+    let extrude = |profile: RecipeNodeId| Node::Extrude {
+        profile: profile.into(),
+        distance: len(5.0),
+        side: editor_core::ExtrudeSide::Along,
     };
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
-    deferred::with_deferred_session(
-        budget,
-        SymRules::shipped(),
-        geom_core::SymRetry::none(),
-        || {
-            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &opts,
-                Tol::witness(),
-            );
-            ev.value(node)
-                .expect("the node replays")
-                .coincidences
-                .iter()
-                .flat_map(|r| deferred::render(r.margin))
-                .collect()
+    let (doc, y) = insert(doc, extrude(along_y));
+    let (doc, x) = insert(doc, extrude(along_x));
+    let (doc, sheared) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![y.into(), x.into()]),
         },
-    )
-    .0
+    );
+    let ev = run(&doc);
+    let w = [2.0 + s, s, 1.0];
+    let edges = vec![
+        edge_named(&ev, sheared, w, [s, s, 1.0]),
+        edge_named(&ev, sheared, w, [2.0 + s, 1.5 + s, 1.0]),
+    ];
+    let (doc, chamfer) = insert(doc, Node::chamfer(sheared, len(0.1), edges));
+    let ev = run(&doc);
+    let got = rows(&ev, chamfer);
+    let [row] = &got[..] else {
+        panic!("one turn, one row: {got:?}")
+    };
+    assert_eq!(
+        (row.relation, row.site),
+        (Relation::CommonFoot, DecisionSite::BatteryTurn)
+    );
+    let proved = proofs(&doc, chamfer, &got);
+    assert!(
+        matches!(proved[..], [Proof::Unproven { .. }]),
+        "the door takes the supplementary turn and does not prove it: {proved:?}"
+    );
+    assert_eq!(unproven(&doc, &ev).len(), 1);
 }
 
 /// `profile` extruded one unit and split by the plane `y = at`.
@@ -671,7 +677,7 @@ fn the_check_off_is_visibly_skipped() {
 
 /// **A split's section faces are its tool's plane read twice** (§11
 /// row 4, on the spec's own scene). A box split in two and the halves
-/// unioned again, the section caps declared `Rest`: the union records
+/// unioned again, the section caps resting on each other: the union records
 /// one `SameOpposite` row over the two caps, and the door proves it,
 /// since both lie on the one tool plane the split read. The whole
 /// check run over the document is quiet: the lint's silent half, end
@@ -705,7 +711,6 @@ fn a_reunited_splits_section_caps_are_one_construction() {
             && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace { .. }]),
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
-    let wall = |half, z| half_face_on(&ev, split, half, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
     let (above_read, below_read) = (
         port(&doc, split, SplitHalf::Above),
         port(&doc, split, SplitHalf::Below),
@@ -714,22 +719,6 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![above_read.into(), below_read.into()]),
-            declare: vec![
-                (
-                    (
-                        SitedRef::new(above_read, above_cap.clone()),
-                        SitedRef::new(below_read, below_cap.clone()),
-                    ),
-                    BooleanCoincidence::REST,
-                ),
-                (
-                    (
-                        SitedRef::new(above_read, wall(SplitHalf::Above, 0.75)),
-                        SitedRef::new(below_read, wall(SplitHalf::Below, 0.25)),
-                    ),
-                    BooleanCoincidence::Continuation,
-                ),
-            ],
         },
     );
     let ev = run(&doc);
@@ -782,52 +771,41 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
 }
 
-/// Two unit blocks `gap` apart along x, their flush caps and y-walls
-/// declared continuations, joined by `op`: the boolean's own rows and
-/// its node.
-fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
+/// Two unit blocks apart along x, their caps and y-walls on one
+/// carrier each, joined by `op`: the boolean's own rows and its node.
+fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
-    let n = pairs.len();
-    let declare = pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::Continuation))
-        .collect();
     let boolean = if subtract {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         }
     } else {
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         }
     };
     let (doc, node) = insert(doc, boolean);
     let ev = run(&doc);
     assert!(failure(&ev, node).is_none(), "{:?}", failure(&ev, node));
-    (doc, ev, node, n)
+    (doc, ev, node)
 }
 
-/// **A declared pair whose faces never meet records no row, through
-/// the containment fallback too.** Two blocks apart, their flush faces
-/// declared: the union's boundaries never cross, so it is the
-/// fallback's assembly, and the subtraction's is operand A whole (the
-/// single-operand finish). The declaration door verified each pair one
-/// carrier, but no face of one block meets a face of the other, so the
-/// glue took no effect and the result records no row (D1).
+/// **Faces on one carrier that never meet record no row, through the
+/// containment fallback too.** Two blocks apart, their caps and y-walls
+/// on one carrier each: the union's boundaries never cross, so it is
+/// the fallback's assembly, and the subtraction's is operand A whole
+/// (the single-operand finish). No face of one block meets a face of
+/// the other, so the result records no row (D1).
 #[test]
 fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     for (op, subtract, id) in [
         ("union", false, "coincide-apart-union"),
         ("subtract", true, "coincide-apart-subtract"),
     ] {
-        let (doc, ev, node, n) = apart(subtract, id);
-        assert!(n > 0, "the premise: flush faces to declare");
+        let (doc, ev, node) = apart(subtract, id);
         let got = rows(&ev, node);
         assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
         assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
@@ -921,10 +899,16 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
     let findings = unproven(&doc, &ev);
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].subject, FindingSubject::Node(p));
-    let CheckEvidence::UnprovenCoincidence { row, .. } = &findings[0].evidence else {
+    let CheckEvidence::UnprovenCoincidence { row, recourse, .. } = &findings[0].evidence else {
         panic!("{:?}", findings[0].evidence)
     };
     assert_eq!(**row, got[0]);
+    assert_eq!(
+        *recourse,
+        coincide::Recourse::OneConstruction,
+        "the junction's margin keeps no opaque atom: drawing the two pieces as one \
+         construction would make it hold"
+    );
     let said = spoken_by(&findings[0], &doc);
     assert!(
         said.contains("continues tangent into")
@@ -1074,7 +1058,7 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     let proved = proofs(&doc, fillet, &got);
     assert_eq!(
         proved[..2],
-        [const { Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero)) }; 2],
+        [const { Proof::Structural(Rung::MarginIdentity) }; 2],
         "each support's departure from the shared axis is the zero polynomial"
     );
     for proof in &proved[2..] {
@@ -1085,15 +1069,16 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
         );
     }
     assert_eq!(
-        replays(&proofs_at(&doc, fillet, &got, SymbolicPass::Resident)),
-        [Some(coincide::Unreplayed::ResidentBudget); 4],
-        "the resident pass discharges none of the four, and leaves each to the full pass"
+        recourses(&proved[2..]),
+        [Some(coincide::Recourse::OneConstruction); 2],
+        "a joint's form freezes on the door's budget: no special recourse"
     );
     let findings = unproven(&doc, &ev);
     assert_eq!(
         findings.len(),
-        4,
-        "the default report is the resident's: {findings:?}"
+        2,
+        "the report carries the door's verdict: the supports proven, the joints left: \
+         {findings:?}"
     );
     let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
     assert!(
@@ -1116,9 +1101,9 @@ fn a_union_records_a_vertex_touch_once() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, pair) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    let (doc, pair) = crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
-    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[far, a, b], Vec::new());
+    let (doc, union) = crate::fixture::union_over(doc, &[far, a, b]);
     let ev = run(&doc);
     let mut all = Vec::new();
     for (what, node) in [("pair", pair), ("union", union)] {
@@ -1203,7 +1188,7 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
                     t.elapsed(),
                     deferred::dag_size(r.margin)
                 );
-                if d.is_none() {
+                if !d {
                     for f in deferred::render(r.margin) {
                         eprintln!("  FORM {f}");
                     }
@@ -1296,7 +1281,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
         let decided = (value(&metres[0]) - value(&metres[1]))
             .sign_within(band)
             .expect("a difference of nothing decides");
-        (decided.sign, decided.margin.theorem())
+        (decided.sign, decided.margin.proven())
     };
     let budget = SymBudget {
         max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
@@ -1310,16 +1295,13 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     });
     assert_eq!(
         analysis,
-        (
-            geom_core::Sign::Zero,
-            Some(geom_core::Theorem::SymbolicZero)
-        ),
+        (geom_core::Sign::Zero, true),
         "the analysis lane reads two constants 1 and their difference is the zero polynomial"
     );
     assert_eq!(
         door,
-        (geom_core::Sign::Zero, None),
-        "the door reads two symbols: Zero at the values, no theorem"
+        (geom_core::Sign::Zero, false),
+        "the door reads two symbols: Zero at the values, no proof"
     );
 }
 
@@ -1345,15 +1327,16 @@ fn a_ratio_evaluates_exactly_at_sym() {
                     .expect("in range")
                     .eval::<Sym<f64>>()
                 - whole.eval::<Sym<f64>>();
-            back.sign_within(band).expect("decides").margin.theorem()
+            back.sign_within(band).expect("decides").margin.proven()
         })
     });
-    assert_eq!(theorems, [Some(geom_core::Theorem::SymbolicZero); 3]);
+    assert_eq!(theorems, [true; 3]);
 }
 
 /// **What the door proves on the corpus**: every document's rows, by
-/// the rung that proved each or why none did, and the door's time. A
-/// census for the PR that changes a rung, not a gate.
+/// the rung that proved each or why none did, and what the door costs:
+/// the replay at `Sym` alone, and the whole door, whose difference is
+/// the discharge. A census for the PR that changes a rung, not a gate.
 #[test]
 #[ignore = "a census: run in release with --nocapture"]
 fn census_the_door_over_the_corpus() {
@@ -1366,23 +1349,58 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
-        let pass = if std::env::var_os("RESIDENT").is_some() {
-            SymbolicPass::Resident
-        } else {
-            SymbolicPass::Full
-        };
-        let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
+        // The replay alone, as `coincide/replay.rs` runs it: its budget
+        // and options spelled again here, kept in step with it by hand.
+        let replay = (!nodes.is_empty()).then(|| {
+            geom_core::sym::deferred::with_deferred_session(
+                geom_core::SymBudget {
+                    max_terms: 256,
+                    max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+                },
+                geom_core::SymRules::shipped(),
+                editor_core::drive::DEFAULT_SYM_RETRY,
+                || {
+                    let opts = editor_core::EvalOptions {
+                        symbols: true,
+                        profile_lift: editor_core::ProfileLift::Guided,
+                        ..editor_core::EvalOptions::default()
+                    };
+                    let _: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
+                        &cd.doc,
+                        None,
+                        &editor_core::CancelToken::new(),
+                        &opts,
+                        Tol::witness(),
+                    );
+                },
+            );
+            t.elapsed()
+        });
+        let t = std::time::Instant::now();
+        let proofs = coincide::prove(
+            &cd.doc,
+            &nodes,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        let door = t.elapsed();
         let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
         for ((_, rows), proofs) in nodes.iter().zip(&proofs) {
             for (row, proof) in rows.iter().zip(proofs) {
                 let how = match proof {
                     Proof::Structural(rung) => format!("{rung:?}"),
-                    Proof::Unproven { residual, .. } => format!("unproven/{:?}", residual.replay),
+                    Proof::Unproven { residual, recourse } => {
+                        format!("unproven/{:?}/{recourse:?}", residual.replay)
+                    }
                 };
                 *tally.entry(format!("{:?} {how}", row.site)).or_default() += 1;
             }
         }
-        eprintln!("CENSUS {} {:?} {tally:?}", cd.name, t.elapsed());
+        eprintln!(
+            "CENSUS {} door {door:?} replay {replay:?} {tally:?}",
+            cd.name
+        );
     }
 }
 
@@ -1403,24 +1421,17 @@ fn measure_a_corpus_document_at_sym() {
     }
 }
 
-/// **The door's three words for a row it did not prove**, each its own:
-/// the full pass found no identity, the resident pass left the row to
-/// the full one, and the row was not replayed at all.
+/// **The door's words for a row it did not prove**, each its own: the
+/// replay found no identity, the row was not replayed at all, or it
+/// stands on a part.
 #[test]
-fn an_unproven_row_says_which_pass_left_it() {
+fn an_unproven_row_says_why_the_replay_left_it() {
     use coincide::Unreplayed as U;
     assert_eq!(
-        [
-            U::Numeric,
-            U::ResidentBudget,
-            U::NotReplayed,
-            U::ThroughAPart
-        ]
-        .map(|u| u.to_string()),
+        [U::Numeric, U::NotReplayed, U::ThroughAPart].map(|u| u.to_string()),
         [
             "with every variable a symbol, neither the carriers' verdict nor the deciding \
-             margin is shown identically zero within the full pass's budget",
-            "unproven at the resident budget; the full symbolic pass decides",
+             margin is shown identically zero within the door's budget",
             "the row is not replayed with every variable a symbol",
             "the row stands on a part, and the replay with every variable a symbol resolves no \
              part",
@@ -1428,13 +1439,12 @@ fn an_unproven_row_says_which_pass_left_it() {
     );
 }
 
-/// **What the full pass proves on the tour's composed dies**: the blend
+/// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
 /// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven by the full pass; every one is
-/// left to the full pass by the resident one.
+/// theorems, and the rest stay unproven.
 #[test]
-fn the_full_pass_proves_half_the_composed_dies_joints() {
+fn the_door_proves_half_the_composed_dies_joints() {
     for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
         let cd = crate::corpus::documents()
             .into_iter()
@@ -1447,40 +1457,28 @@ fn the_full_pass_proves_half_the_composed_dies_joints() {
             .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
-        let count = |pass| {
-            let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
-            let all: Vec<Proof> = proofs.into_iter().flatten().collect();
-            let theorems = all
-                .iter()
-                .filter(|p| {
-                    matches!(
-                        p,
-                        Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero))
-                    )
-                })
-                .count();
-            (theorems, replays(&all))
-        };
-        let (full, replayed) = count(SymbolicPass::Full);
-        assert_eq!(
-            (full, replayed.len()),
-            (proved, rows),
-            "{name}: the full pass"
-        );
+        let all: Vec<Proof> = coincide::prove(
+            &cd.doc,
+            &nodes,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door")
+        .into_iter()
+        .flatten()
+        .collect();
+        let theorems = all
+            .iter()
+            .filter(|p| matches!(p, Proof::Structural(Rung::MarginIdentity)))
+            .count();
+        let replayed = replays(&all);
+        assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");
         assert!(
             replayed
                 .iter()
                 .flatten()
                 .all(|u| *u == coincide::Unreplayed::Numeric),
-            "{name}: the rest are unproven by the full pass: {replayed:?}"
-        );
-        let (resident, replayed) = count(SymbolicPass::Resident);
-        assert_eq!(resident, 0, "{name}: the resident pass replays nothing");
-        assert!(
-            replayed
-                .iter()
-                .all(|u| *u == Some(coincide::Unreplayed::ResidentBudget)),
-            "{name}: {replayed:?}"
+            "{name}: the rest are unproven: {replayed:?}"
         );
     }
 }
@@ -1576,4 +1574,236 @@ fn a_symbolic_run_with_a_resolver_refuses_every_node() {
             ev.result(*id)
         );
     }
+}
+
+/// **Two copies of one body are two constructions placed apart, never
+/// one** (D10, `Placed::World`). A unit block placed at the identity
+/// and again turned half a turn about z and moved 2 along x and 1
+/// along y: the copies meet at x = 1, each by the image of the block's
+/// own +x wall, so every row between them names the same face, edge or
+/// vertex of the one construction in each cell. The door walks each
+/// cell through its copy's placement, so none of those rows is proven
+/// `SameConstruction`, and the check reports every one.
+///
+/// Red if the walk drops the placement: same-cell rows between copies
+/// then read as one construction and go silent.
+#[test]
+fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = crate::fixture::place(doc, the_box);
+    let turned: editor_core::Placement<Formula> = editor_core::Step::Rigid {
+        translation: [len(2.0), len(1.0), len(0.0)],
+        axis: [scl(0.0), scl(0.0), scl(1.0)],
+        angle: ang(std::f64::consts::PI),
+    }
+    .into();
+    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
+    q.expect("the placement inserts");
+    let ev = run(&doc);
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    let rows = product.coincidences.len();
+    assert!(
+        rows > 0
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the copies' touch is their rows: {:?}",
+        product.coincidences
+    );
+    let reported = unproven(&doc, &ev)
+        .into_iter()
+        .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
+        .count();
+    assert_eq!(reported, rows, "every row between the copies is unproven");
+}
+
+/// **The door enters a report one way.** On a filleted corpus document,
+/// the registry split at rest reads the door pending and holds none of
+/// its findings; its job, run and settled, gives back the synchronous
+/// report exactly, findings in the same places. An expectation about a
+/// subject the document lacks is a connectedness finding, which the
+/// registry runs before the door: it stays first in both reports. Reds
+/// if the door's findings go anywhere but after the residents before it.
+#[test]
+fn a_report_settled_at_rest_is_the_synchronous_report() {
+    let cd = crate::corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == "reshaped_rod")
+        .expect("a corpus document");
+    let ev = run(&cd.doc);
+    let tol = Tol::witness();
+    let mut cfg = ChecksConfig::default();
+    cfg.expected_components.insert((ev.order[0], 99), 1);
+    let gathered = editor_core::product_recorded(&cd.doc, &ev, tol).expect("the product gathers");
+    let sync = editor_core::run_checks_on(
+        &cd.doc,
+        &ev,
+        editor_core::Subject::Product(&gathered),
+        &cfg,
+        tol,
+    )
+    .expect("the checks run");
+    assert!(
+        sync.pending.is_empty(),
+        "a synchronous report pends on nothing"
+    );
+    assert_eq!(
+        sync.findings.iter().map(|f| f.check).collect::<Vec<_>>()[..2],
+        [CheckId::Connectedness, CheckId::UnprovenCoincidence],
+        "the stale expectation, then the rod's support row: {sync}"
+    );
+    let (mut at_rest, job) = editor_core::run_checks_at_rest_on(
+        &cd.doc,
+        &ev,
+        editor_core::Subject::Product(&gathered),
+        &cfg,
+        tol,
+    )
+    .expect("the checks run");
+    assert_eq!(at_rest.pending, [CheckId::UnprovenCoincidence]);
+    assert!(
+        at_rest
+            .findings
+            .iter()
+            .all(|f| f.check != CheckId::UnprovenCoincidence),
+        "pending is not a finding: {at_rest}"
+    );
+    let job = job.expect("a row asks for the door");
+    at_rest.settle(
+        job.run(&cd.doc, &editor_core::CancelToken::new())
+            .expect("an uncanceled door"),
+    );
+    assert_eq!(at_rest, sync);
+}
+
+/// The pinch of `union_pinch_member_order`: a plate and two blocks
+/// whose edges touch along the line x = 1.5, y = 1, the second block
+/// moved `dx` along x; the plate, the blocks and their union.
+fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("coincide-ring", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+    let (doc, p2) = block(doc, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, blocks) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
+        },
+    );
+    (doc, plate, blocks)
+}
+
+/// The x offset of `ring_pinch`'s second block for a fusion: 1e-13,
+/// or ε/100 where that is smaller, so the blocks' union reads the gap
+/// inside its zero band at every ε. The union's sector test reads it
+/// about 17 times over (1.7e-12 for 1e-13), which at ε 1e-12 is in the
+/// escalate band, and the union refuses.
+fn pierce_gap() -> f64 {
+    (Tol::witness().eps() / 100.0).min(1e-13)
+}
+
+/// The `VertexFusion` rows among `node`'s.
+fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
+    rows(ev, node)
+        .into_iter()
+        .filter(|r| r.site == DecisionSite::VertexFusion)
+        .collect()
+}
+
+/// **Two pierces one ring serves are an unproven vertex fusion.** The
+/// blocks' touching edges pierce the plate's top at (1.5, 1, 1), the
+/// second block's [`pierce_gap`] off the first's along x: two vertices of the
+/// blocks' union on two point keys, one point by `bool_contact_vertex`
+/// and not bit for bit. The plate's top mints one ring for both
+/// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
+/// as two vertices. It records the decision: one `VertexFusion`
+/// `OnCarrier` row, its two cells the two blocks' edges as the union
+/// names them, its margin the gap. The door leaves it unproven
+/// with the one-construction recourse, and the check reports it. Red if
+/// the ring glues the two by a shared point key alone, which records
+/// nothing.
+///
+/// **Two pierces already on one point key record nothing.** That
+/// intersection keeps the pierces on one key: the ring's copies, the
+/// plate's side. A slab whose face runs through (1.5, 1, 1) obliquely,
+/// intersected with it, meets the two vertices there as two pierces of
+/// one face on one key. They share the key as copies of one ring, which
+/// is structure, so the slab's intersection records no fusion of them,
+/// and the check reports nothing of the kind there.
+#[test]
+fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
+    let (doc, plate, blocks) = ring_pinch(pierce_gap());
+    let (doc, common) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), blocks.into()]),
+        },
+    );
+    // The slab: the quadrilateral (0.5, 0), (2.5, 2), (4, 2), (4, 0) in
+    // x, z, whose edge from (0.5, 0) to (2.5, 2) runs through (1.5, 1),
+    // extruded across the blocks' y range.
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 4.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.5, 0.0), (4.0, 0.0), (4.0, 2.0), (2.5, 2.0)]],
+    );
+    let (doc, slab) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(6.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![common.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let fused = fusions(&ev, common);
+    assert_eq!(fused.len(), 1, "one recorded fusion: {fused:?}");
+    let row = &fused[0];
+    assert_eq!(row.relation, Relation::OnCarrier);
+    let gap = format!("{:?}", row.margin);
+    assert!(
+        row.margin.kind() == geom_core::MarginKind::Value
+            && !gap.starts_with("MarginDiag(Value(0.0"),
+        "the margin is the pierces' gap, not bit for bit zero: {gap}"
+    );
+    assert!(
+        row.cells
+            .iter()
+            .all(|c| matches!(c, NamedCell::Entity { input, .. } if *input == out(&doc, blocks))),
+        "both cells are the blocks' union's: {:?}",
+        row.cells
+    );
+    assert_eq!(
+        recourses(&proofs(&doc, common, &fused)),
+        vec![Some(coincide::Recourse::OneConstruction)],
+        "unproven, with the one-construction recourse"
+    );
+    let reported: Vec<_> = unproven(&doc, &ev)
+        .into_iter()
+        .filter(|f| {
+            matches!(&f.evidence, CheckEvidence::UnprovenCoincidence { row: r, .. } if **r == *row)
+        })
+        .collect();
+    assert_eq!(reported.len(), 1, "the check reports the fusion");
+    assert_eq!(reported[0].subject, FindingSubject::Node(common));
+    assert!(
+        failure(&ev, cut).is_none(),
+        "the slab's intersection builds: {:?}",
+        failure(&ev, cut)
+    );
+    assert_eq!(
+        fusions(&ev, cut),
+        vec![],
+        "two pierces on one key record nothing"
+    );
 }

@@ -158,3 +158,301 @@ the new census. The track's load is 31/32, back under budget.
 - **Still held on F (PR 4641):** the pinch cluster, the wedge residue
   and the E tail. Corner-ruling PR 4650 is merging 4598's conflict.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the thin-hollow fork goes to Ev; PR 4650 gets its dual review
+
+- **The thin-hollow fork** (DESIGN-FORK-LOG row 113) went three rounds:
+  - round 2 crossed, so a third round ran;
+  - round 3 converged on judging a result's thinness by its pairs alone.
+
+  That changes D10's Booleans clause, so it waits on Ev in `[ev]` PR
+  4690. The two follow-up rows went in through PR 4689:
+  - CLEAVE's missed-ray side, P1;
+  - FLUSH's check-10 cavity role, P2 with `design: true`.
+- **Corner ruling (PR 4650).**
+  - **Tier:** dual review. The fix resolves a split face's record by
+    containment among the face's own pieces, which touches D10's
+    record naming, and a subtract shipped silently on main.
+  - **Arm:** M, drawn at dispatch; urandom byte 48, mod 3 = 0 gives
+    HOLDOUT, a concurrent pair.
+  - **Frozen head:** `5b6b4a0c`.
+  - **Reviews:** both say APPROVE-WITH-FIXES with no MAJOR.
+  - **Fix pass (with the lane):** taken from the adjudicated union.
+    - The unread-piece fallback refuses typed instead of silently
+      keeping or dropping a record.
+    - The containment ask gets one home and lineage gets one walker.
+    - The arms get rows that can go red.
+    - The battery count is corrected to 16380.
+    - FUSE's row is rewritten around the real blind spot (`cell_rows`
+      chasing a face by its key).
+    - The sphere cut-in blind spot is filed.
+- **Class finding** (adjudication, both reviewers): this fix, which
+  closes a lineage defect, minted a second lineage walker and a third
+  copy of the containment ask. That is the style-lane trap again, and
+  the fix pass removes both.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — F merged: wave 3 (the wedge residue, the E tail); the pinch cluster waits for 4650
+
+- **INTENT F (PR 4641) merged.**
+  - It closed `the-reflex-probes-run-b-minus-a-…` itself.
+  - The declared surface is gone, so the common brief now says so.
+- **Curved pinch (PR 4698).**
+  - **Tier:** the orchestrator's read. The PR is a pin suite, an ignored
+    battery and tracker evidence, with no kernel code.
+  - **Finding:** the bodies are right. What fails is three lanes
+    outside the boolean, each already a row there, now with replay
+    evidence:
+    - RESTREAD's at-infinity probe, 1 023 lines;
+    - RESTREAD's cross-solid census, 542 lines;
+    - TESS's thin arc face, 37 lines.
+
+    A JoinDesync residue is filed as a FLUSH P2.
+  - **Before merging:** the lane merges F and re-runs CI.
+- **Dispatched:**
+  - `flush/wedge-flush-reads-zero`. The undeclared carrier reading reads
+    over a span-lever ball rather than the faces. The lane stops before
+    building if the answer is a design fork. It reads INTENT's in-band
+    glue-verdict row, which may be the same cause.
+  - `flush/e-tail`: the six E rows in one lane, which may close any row
+    already moot.
+- **Held:** the pinch cluster (the pre-zip weld, H; seams; hole weld).
+  PR 4650 changes how records reach the pierce copies through the weld
+  rows, which is the ground the pre-zip weld row stands on, so it is
+  measured after 4650 merges.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — the curved shared pinch closes (PR 4698)
+
+- **Tier:** the orchestrator's read. The PR adds a pin suite, an ignored
+  battery and tracker evidence, with no kernel code.
+- **Merged over main's two slow-set reds** (the NURBS row; GERM's plates
+  row), after the lane merged F in. F moved none of the three pinned
+  answers.
+- **The pin flips pose by pose** as RESTREAD's at-infinity row,
+  RESTREAD's cross-solid census row and TESS's thin-arc row land.
+- **The `JoinDesync` residue** joins step 4 as a P2 row.
+## 2026-10-11 — the corner ruling merges (PR 4650)
+
+- **Dual review recorded** (`docs/dual-review-log/rows/PR-4650.md`): holdout pair, M, 0 tallied, no M-tier miss. The fix pass took all twelve adjudicated items.
+- **The three rows closed:** the box ∩ cylinder corner ruling, the corner pair, the L-prism.
+- **The P0 residue** `an-apex-edge-in-the-partners-face-plane-…` heads the slate.
+- **Residues filed on their owners' slates:** FUSE's edge-or-face-record row (rewritten), FUSE's line-edge-in-a-curved-face row (parked on RESTREAD's curve-touch lane), and ORBIT's sphere cut-in row.
+- **Merged over main's inherited red:** `mass_props_are_thread_count_invariant`, the NURBS row. The plates red no longer fires on this head.
+- **Next:** the pinch cluster, which waited for this merge, is dispatched.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — wave 4: the apex-edge P0 and the pinch cluster
+
+- **Dispatched:**
+  - `flush/apex-edge-in-face-plane`: the P0 residue of the corner pair. A planar apex edge lies in the partner's face, and nothing records it.
+  - `flush/pinch-cluster`: the pre-zip weld (H), the seams and the hole weld. The lane prices the curved-notch `JoinDesync` row and takes it only if it is the same ground.
+- **Why the pinch cluster waited:** PR 4650 carries the welds' fragments in `Descendants`, which is the ground the H row's records stand on.
+- **Wedge (PR 4709):** the lane finds the refusal is D10's: the glue door reads the pair in the sliver band over its consumed extent.
+  - Building these poses would change C2/D10. D10 already settles that a pair in band refuses, so this is not a new fork, and the orchestrator does not open one.
+  - **Alternative not taken:** reading the pair over the moving face alone, which would make these poses build.
+  - **Review:** single FULL. The PR closes a P1 as a correct refusal, so its claims must be re-measured.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — the wedge closes as D10's refusal (PR 4709)
+
+- **Tier:** single FULL. The PR closes a P1 as a correct refusal, so its claims had to be re-measured.
+- **The review:** APPROVE-WITH-FIXES with three MINORs, all taken.
+  - The refusal site is `vtxfac`'s coplanar lump, not `recl`. F's earlier seam note named the wrong site, and the correction is on INTENT's log.
+  - The sweep's blind spot was misstated; it is now restated.
+  - The row conflicted with main.
+- **Not a fork:** D10 Booleans ("refuses what falls in the sliver band") and the D1 thesis ("fail loudly rather than guess") settle it.
+- **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
+- **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)
+
+## 2026-10-11 — the E tail merges (PR 4714)
+
+- **Review:** single FULL. The PR claims refactors with no behaviour change, adds a new closed-form oracle, and moves about 3000 battery lines. Verdict APPROVE-WITH-FIXES, with three MINORs.
+- **The MINORs, all taken:**
+  - The shared judge's volume test got easier as the certificate degraded. Now the closed form must lie within 1e-7 of the certified enclosure, and the pad itself is held to a budget.
+  - The D-shape poses had a closed form; they are now judged (3592 UNJUDGED lines → SOUND).
+  - A sixth inline spelling of the join escalation was left behind; it now goes through `join_escalate`.
+- **`Turn::facing`** is the one decision now, with no re-decide.
+- **Closed:** five rows.
+- **Re-priced:** `two-pinch-poses-…` is now an M proof task, not a design fork. Pose 1 asks whether a cross-germ tie between pairs that share no germ can change the greedy matching.
+- **Merged over:** main's `mass_props` red (NURBS's row).
+- **An ε 1e-6 `near_tangent` red** the lane saw on main is CLEAVE's pin. Main fixed it in `5753a24` after the lane's base.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — the pre-zip weld retires (PR 4728)
+
+- **The dual review.** H, concurrent pair, blinding byte 186; row `docs/dual-review-log/rows/PR-4728.md`. Both reviewers raised one MAJOR: the ring's shared point key came from a value decision that nothing recorded, and the census read it as structural. Because both raised it, the tally is 0.
+- **The lane stopped with three final states.** I ruled B:
+  - **A (not taken):** distinct keys plus a record. It would revise PR 4057.
+  - **B (taken):** one key per pinch (PR 4057), with the value decision recorded at the door as a `VertexFusion` row and reported by the lint. This is what D10's coincidence paragraph asks for.
+  - **C (not taken):** structural grouping only. It contradicts "glues it all the same" and refuses about 2120 lines.
+
+  No ratified text changes, so this was not an `[ev]` fork.
+- **Confirmation round.** Both reviewers confirmed the fix pass, with nits; the nits were taken.
+- **Rows.** Closed: the pre-zip weld, and the hole weld (dissolved with `Joint::Hole`). The seams row is reopened: its vertex-vertex pinches have no pierce. New P2: the 36 `ZipCorrespondence` lines.
+- **Filed on INTENT** (no fix here): a value glue into one vertex records no row (761 of 791 ties). That rule predates this PR.
+- **Class.** The carry fixes in `boolean/ops.rs` keep minting copies of the census's own reads:
+  - PR 4650: a second lineage walker and a third containment ask;
+  - PR 4737: third copies of the edge-edge parallel, crossing and span-end reads.
+
+  Each fix pass removed its copies. A carry lane is now briefed: the census's read is the one home; call it.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — wave 5 dispatched
+
+- **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
+- **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4690 ratified: thinness is judged by pairs alone
+
+- **Ev ruled** on PR 4690 ("sounds good!"), and the PR merged.
+  - A boolean's result is too thin only when a pair of its cells is in band.
+  - An in-band shell is a shell, in a solid of several shells, whose role is certified in band.
+  - Check 7 is an orientation probe, not a thinness gate, at every door.
+  - Fork log row 113 is filled in: designer A's first recommendation matched.
+- **Implementation dispatched** on `flush/thinness-by-pairs`:
+  - retire PR 4636's sole-shell gate;
+  - flip the slab and sliver tests to build in [Kε, 2Kε), and add pair refusals below Kε;
+  - re-measure the gate half of `a-result-that-is-only-a-sliver-shell-passes-the-door` under pairs.
+- **Follows this unit:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (`brick ∖ slab`, design).
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4737 merged: a line edge in a plane face records its span
+
+- **Closed:** `an-apex-edge-in-the-partners-face-plane-…` (P0). Its premise, an `EdgeFaceOverlap`, did not reproduce on main. The real gap was D1's: the span of an edge lying in the partner's plane face went unrecorded. `record_spans` now records it, as edge-face rows only.
+- **Shape.** CONTACTHOLD's PR 4740 merged during the fix pass. It owns the edge-along-edge record and the `ee_lineage` fixes, so this PR took main's version, and each record has one producer. The census exports `segments_parallel` and `segment_cross_point` for its callers.
+- **Review:** sequential (byte 130). One review, APPROVE-WITH-FIXES with 0 MAJOR and 2 MINOR; no second review ran. All ten items were taken or overtaken by 4740.
+- **Reconciled with PR 4728** as the second to merge. The pinch pins pass, and the arc, corner, pinch and `dbl` batteries move 0 lines. The span battery moves 18 lines, each `e-f` 0 → 1 with tier 3′ still ok.
+- **Merged over** main's open INTENT P0 loft test at 1e-12.
+- **Class** (the third time): fixes at `boolean/ops.rs`'s carry keep minting copies of the census's reads. The common brief now says the census's read is the one home.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4777 merged: the pinch residue
+
+- **Closed:** `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-…`.
+  - **The 36 `dbl` lines.** A split swaps corners' loop successors, so the section faces no longer pair one to one. They now zip by edge pairs (`glue`, and `zip_split` for a split seam). `glue` reproduces the old loopglue on every face-pair seam both reviewers measured.
+  - **The 15 curved lines.** The discard picks a null-edge copy by its mirrored place in the twin's cycle, loop by loop, not by its two end vertices.
+- **Review:** concurrent pair (three M rows treated as H). Both APPROVE-WITH-FIXES with 0 MAJOR. One fix pass, and R2's delta check confirmed it.
+- **Filed:**
+  - REFS `a-discard-names-a-bordered-stretch-by-its-two-end-vertices`. Same defect class one layer down, but it needs a naming-shape choice.
+  - FLUSH `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` (P3).
+- **The third row** (two parts' touching vertices on two keys) stopped at a design question.
+  - The designer pair agreed on their first reports: one point key wherever an op decided one point, across an assembly's solids too.
+  - **Ruled A** (fork-log row 133, renumbered from 121 at merge). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
+  - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
+- **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
+— (FLUSH orchestrator)
+- 2026-10-12 — Note from NURBS: FLUSH's slate has four rows for one failure, editor-core `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven` at ε 1e-12:
+  - `a-ring-serving-two-pierces-is-red-at-1e-12-on-main`, filed by NURBS;
+  - `…-does-not-evaluate-at-1e-12-on-main`;
+  - `…-fails-to-evaluate-at-1e-12-on-main`;
+  - `…-row-fails-at-eps-1e-12-on-main`.
+
+  The lanes that each met it as a base red filed separately. Consolidating them is FLUSH's call. The red still reproduces on main `d98d9a4865` (NURBS build B, fresh target), and it stays the one red every NURBS merge currently accepts. (NURBS orchestrator)
+
+## 2026-10-12 — PR 4769 merged: a cross-germ tie among mutual pairs cannot move the matching
+
+- **Closed:** `two-pinch-poses-escalate-at-eps-1e-6`.
+  - **The rule.** When every germ's nearest is mutual, every germ is straight and K > 2, `join::first_pair` keeps scan order on an in-band reading instead of escalating, because the rounds then commit one matching or escalate. Pose 1 builds at ε 1e-6.
+  - **The argument.** A shortened scan keeps its winner, since every earlier candidate is at least (K−1)·zero beyond it, which K > 2 puts past a tie.
+- **Review:** sequential (byte 163).
+  - R1 found a MAJOR: the proof needs K > 2, and `Tolerance` accepts any K > 1. At K = 1.1 the PR picked one of two matchings where main escalated.
+  - That MAJOR triggered R2, which found the same gap and graded it MINOR.
+  - One fix pass followed, and R2's delta check confirmed it, with one rename.
+- **Filed:** `conic-germs-pair-order-is-unargued` (conic germs still escalate as on main), plus the ellipse-span issue on `geom-brep`.
+- **Battery moves:** every one is an escalation that now builds.
+  - At 1e-6, 4 `four_pairs` lines go to OK BAD. They are on the seams row's list, which `flush/touch-key` is fixing.
+- **Class:** a proof about a banded comparator missed the non-transitivity of Zero ties (K ≤ 2). A lane proving order-independence under the trilean should state K as a premise.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4783 merged: thinness is judged by pairs alone
+
+- **Closed:** `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`. PR 4636's sole-shell V/A gate retires (Ev's ruling, PR 4690).
+  - The slab, the hollow and the fin refuse on a pair below Kε, and build census-clean above it.
+  - 1 mm cube ∪ 1.5e-8 plate builds.
+- **Review:** sequential (byte 82). R1 found a MAJOR, R2 ran, and R2 graded the same finding MAJOR.
+  - **The finding.** Retiring the gate lets results ship with an in-band edge-edge pair: 11 of a 512-op needle family at ε 1e-9, and 34 `rc_wide` lines at 1e-6. The same family already ships 44 such results on main.
+  - **The remedies diverged.** R1 proposed a census on sliver-flagged results; R2 found no narrow pair-reading stop-gap.
+  - **Ruled: land and record.** A census selected by V/A would refuse a needle and ship a fat body with the same pair, which is the V/A ruler Ev retired. The gap is REACHHOLD's door census.
+- **Parked:** `a-result-that-is-only-a-sliver-shell-passes-the-door` is re-opened at P0, waiting on `boolean-door-runs-the-census-over-its-result` (REACHHOLD, P1). That is a priority inversion, kept visible on purpose.
+- **Filed:**
+  - CLEAVE `a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face`;
+  - FLUSH `an-inside-out-sliver-result-passes-its-own-door`.
+- **Follows:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (design), the other in-band-shell reader.
+— (FLUSH orchestrator)
+- 2026-10-12 — Note from ENCL: `a-ring-serving-two-pierces-fails-to-evaluate-at-1e-12-on-main` (P1, open since about 04:40) reds every PR whose diff seeds the eps rows. It now holds two reviewed, otherwise-green ENCL PRs (4766 sweep slice, 4872 subnormal weights), and other programs' PRs hit it too. ENCL did not take it, because it sits on coincidence-record/fusion ground under the D10 hold. Could it be prioritised, or rescaled to the run's ε per its own 'Owed' line if the fixture is the defect? (ENCL orchestrator)
+- 2026-10-13 — **Shell-role fork** (`check-10-reads-a-cavitys-role-from-its-volume-sign`, fork-log row 138, renumbered from 134 at merge, `[ev]` PR on `flush/ev-shell-role`).
+  - **Process.** Two designers and three rounds; round 2 crossed on reading the volume first. A probe ran on main (`flush/probe-shell-role-ray` a135ca214). Reports and probe are on `analysis/flush-shell-role-reports` (6b0bd1d317).
+  - **Converged.**
+    - A shell's role is read by a ray aimed from beyond the shell at one of its faces. The certified volume sign is read only where no face offers an aim (splines; curved faces until their aims land).
+    - D10's in-band-shell clause is deleted. A solid's only shell is outer by arity.
+    - Check 7 moves onto the same reader. That restates D1, so it is Ev's choice and a separate commit.
+  - **Probe** (ε 1e-9 and 1e-6, t 10–20ε):
+    - V/A refuses every case; in thickness its band is twice the pair band.
+    - The operand gate's far-point rays (about 60°) decide every case.
+    - A normal ray started about 3 m out reads in band at exactly t = Kε, from f64 rounding in its two advances, while the census reads the same pair definite.
+    - The public booleans refuse `ShellRole` at every case.
+  - **Left to the implementer.** The aim: a fixed ~60° incidence (A) or along the normal with advances measured from the aim point (B). Pin it with an x = y slab and at t = Kε, using 10.5ε for the build pins.
+  - **Implementation notes from the designers.** One function serves check 10, the pieces sort, `shell`'s cavity read, the census's `gate_role`, `classify_shells`/`classify_shells_of`, `solid_contain`'s missed-ray side, and check 7 if chosen. `Crossings::closest` hands back both hits, so a refusal names the pair. Doc drift: `shell_winding_errors` (it says "silent", yet pushes `ShellRoleUndecided`) and `pieces_of`'s quiet return.
+  - **Rows it moves:**
+    - EXPORT `step-export-reclassifies-shell-roles-with-its-own-planar-flux`: closes by routing through `classify_shells_of`.
+    - TALLY `the-shell-role-refusal-locates-no-piece`: closes once the refusal carries the aim point.
+    - TALLY `…quotes-the-walks-f64-margin…`: narrows to the volume fallback.
+    - CLEAVE planar-aims row: becomes this design's second step.
+    - Under the check-7 choice, RESTFRONT `an-inside-out-slab-thin-enough…` and FLUSH `an-inside-out-sliver-result-passes-its-own-door` close.
+- 2026-10-13 — Usage returned after an overnight stall; every lane had been idle.
+  - **Ev on `[ev]` PR 4793** asked whether splitting, moving the pieces and gluing them back a different way is safe under ruling A. It is:
+    - a split gives two bodies, and each moves whole;
+    - a re-glue decides afresh, because the boolean grafts its second operand under fresh keys;
+    - a stale record refuses (`CarryRefusal::Stale`) rather than ship.
+    - Two limits were named on the PR: one side's pieces move together, and `BooleanInputs.given` is unenforced.
+    - Main was merged in. Main had taken row 121, so the touch-key fork row became 133.
+  - **Shell-role fork:** `[ev]` PR 4990 (entry above).
+  - **Dispatched two rows** onto the slate:
+    - `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` (E, `flush/given-gate`);
+    - `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (M, `flush/corner-names-glue`). Its brief carries FLUSH's evidence that the row's own remedy would quote a false offer.
+— (FLUSH orchestrator)
+- 2026-10-14 — Merges and reviews since the 2026-10-13 entry:
+  - **PR 4793 [ev] merged** (`c436fb30`). Ev: "this looks good!" (2026-10-14 01:08). The restated tier-3′ structural-sharing sentence is in DESIGN; fork-log row 133 is filled; its needs-Ev row is closed.
+  - **PR 5002 merged** (`d4c5b7a4`; `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` closed).
+    - **What changed:** a given pair is minted only through `GlueVerdict::given_at`, from a verdict a boolean decided. The pair type is `GluedPair` with crate-private fields, and a source-census pin guards it.
+    - **What was narrowed:** Owed narrowed to "only a boolean mints". Reusing or re-keying a verdict is the residue row `a-glue-verdict-is-not-bound-to-the-bodies-it-judged` (P2): 648 forged runs gave no wrong body, but the record was lost.
+    - **Review:** sequential arm, byte 113, single review, no MAJOR.
+    - **Filed:** CLEAVE P0 `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`.
+  - **PR 5008** (`an-in-band-glue-verdict-…`).
+    - **Review:** sequential arm, byte 179. The single review came back APPROVE: every quoted offer executed true. The small fix pass is in CI.
+    - **Evidence:** a glued pose's `ResultVolumeImplausible` (1.5e-15 relative) is evidence on the CLEAVE P0.
+  - **PR 4823** (touch-key, ruling A).
+    - **Review:** sequential arm, byte 245. R1 MAJOR: the offset doors grouped corners by point key, so a corner-kiss union refused every offset. R2 found the same and graded it MINOR. Adjudicated MAJOR in substance (blinding byte 38).
+    - **Fix pass:** splits a group per solid when a joint solve refuses definitely. A forged carried record refuses `Stale`. RESTREAD's MixedTouch row is raised to P1 (214 poses).
+    - **Delta check (R2):** CONFIRMED. One more push makes escalations propagate instead of splitting, and restates the withheld-record pins as ratified on 4793.
+  - **Main reds met by the lanes, filed by their owners' slates:**
+    - `saddle_wall_offset_fit` → `nurbs/main-reds-…-since-4984`;
+    - `mass_props_are_thread_count_invariant` at four threads → `flux/main-red-…-since-4938`.
+— (FLUSH orchestrator)
+- 2026-10-14 — **PR 5008 merged** (`92a791b5`; `an-in-band-glue-verdict-…` closed). The refusal quotes the sector's bounds where an admitted tolerance decides them, else the glue door's in-band reading, else the corner's own. One admission function serves every `Sectors` refusal. Review: sequential arm, byte 179, single review, APPROVE. The glued-tilt volume refusals go to CLEAVE's P0 as evidence. Filed `a-door-refusal-with-no-offer-hides-the-looser-tolerance-that-glues` (P3).
+- 2026-10-14 — **PR 4990 [ev] merged** (`8b29c750`). Ev: "the recommendation sounds good", and asked why check 7 was only a lean ("three readers of one fact become one" is "an extremely good reason"). The answer was procedural: it restates a second ratified clause (D1), and neither designer had an argument against it on the merits. All three decisions land: the aimed-ray reader with a volume fallback, D10's in-band-shell clause deleted, and check 7 on the same reader. Main took rows 134–137, so the fork is row 138. Dispatched the implementation lane on `flush/shell-role-reader`.
+— (FLUSH orchestrator)
+- 2026-10-14 — **PR 4823 merged** (`048b296d`; `a-pinch-the-seams-do-not-link-…` closed). Ruling A is in the code: a boolean that decides from values that operand vertices coincide puts them on one point key, across solids too; `PinchConesOnSeparateKeys` is retired. The offset doors part a cross-solid group per solid only on a definite refusal of its joint solve, and an escalation propagates. A carried vertex-vertex record is confirmed by its landings, so a forged one refuses `Stale`. Review: sequential arm, byte 245 (R1 MAJOR, R2 MINOR on the same substance; adjudicated MAJOR), one fix pass, R2's delta check CONFIRMED. The lane and both reviewers are archived. FLUSH's one open lane is `flush/shell-role-reader`.
+— (FLUSH orchestrator)
+- 2026-10-14 — **PR 5119 (the shell-role reader) reviewed; its needle class goes to Ev.**
+  - **Review:** dual tier, letter H, concurrent pair on frozen `e672e97a`. The tier was fixed before the lane reported, not at dispatch as the protocol asks; the row will say so. Coded blind (byte 220; A = R2, B = R1): fair; tally B +1 (the coverage red, found by one review only). Both reviewers got one identical brief correction (that red is this PR's, not main's: I had mislabelled it by its name).
+  - **Bilateral MAJOR, the needle class:** bodies thin in two directions whose pairs are all definite refuse at rest and at the door, because no face offers an aim more than Kε from its edges and the volume fallback holds V/A against the band. That contradicts D1's "not a thinness gate" and D10's "judged by its pairs alone".
+  - **Fork (row 142, byte 178):** two designers split in round 1 (fix the ray vs fix the volume), each measured in round 2, and converged on both: a watertight ray (each edge decided once, the role off a signed count of crossings) and the volume's sign by its enclosure alone. The DESIGN edits and the question are on PR 5119 (`c35fcc99`), now `[ev]`.
+  - **Fix pass (11 items) with the lane:** a pre-filter for rays doomed by spline faces (the coverage red; the guard and digest unchanged, batteries line-identical); an in-band undecided reading at the door is `Escalated`, not `ResultInvalid`; a corner is never a pair; the fin account corrected (the −1 region is in the crown at rest; its catch depends on face order); pins that can go red; one home for the volume's sign; the reader in its own module.
+  - **Filed:** TALLY `the-corner-fan-volume-of-an-oblique-needle-cancels-the-bodys-extent-cubed`; CLEAVE `point-in-solid-sets-a-ray-aside-near-a-narrow-faces-edge`.
+— (FLUSH orchestrator)

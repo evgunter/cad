@@ -84,3 +84,37 @@ pub(crate) fn arena2<T: Real>(
     let k2 = map.insert(s2);
     (k1, k2, map)
 }
+
+/// The reach the plane×cone arm reads a whole `cone` over: `lever`
+/// either way along its axis from its apex, levered at `lever`. Its
+/// window holds the apex, so the arm bounds an apex outcome there.
+pub(crate) fn at_apex<T: Real>(cone: &Surface<T>, lever: T) -> geom_brep::Reach<T> {
+    let Surface::Cone { apex, .. } = *cone else {
+        unreachable!("the plane×cone arm's reach is read at a cone's apex")
+    };
+    geom_brep::Reach::Measured { at: apex, lever }
+}
+
+/// The worst distance of `carrier`'s points from the double cone
+/// `cone` (both nappes), `|ρ·cos α − |h|·sin α|` over 4096 samples of a
+/// whole turn, `ρ` and `h` the point's radius and height about the
+/// apex.
+pub(crate) fn off_cone(carrier: &geom::Curve3<f64>, cone: &Surface<f64>) -> f64 {
+    let &Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        unreachable!("off_cone measures against a cone chart")
+    };
+    (0..4096)
+        .map(|i| {
+            let w = carrier.eval(core::f64::consts::TAU * f64::from(i) / 4096.0) - apex;
+            let h = w.dot(axis);
+            let rho = (w - axis * h).norm();
+            (rho * half_angle.cos() - h.abs() * half_angle.sin()).abs()
+        })
+        .fold(0.0, f64::max)
+}

@@ -2,10 +2,11 @@
 id: the-full-symbolic-pass-runs-off-the-hot-path
 kind: issue
 title: The coincidence door's full symbolic pass runs asynchronously after an evaluation and updates the same report in place, so the resident pass's words are transient
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
+closed: 2026-10-11
 ---
 
 INTENT stage 4 C+D (`carriers-compare-in-canonical-form`) gives the
@@ -28,3 +29,13 @@ cancelable by the next one, and replace the resident's rows in the
 same report when it lands. Then the resident wording is transient.
 Done when the viewer's report reaches the full pass's verdicts without
 an evaluation waiting on them.
+
+## Closed
+
+Closed by `the-symbolic-door-proves-at-one-strength-at-rest` (Ev's
+ruling on PR 4644): the resident pass and its words are gone. The
+viewer splits the door off its landed report
+(`run_checks_at_rest_on`), runs it on its own worker
+(`viewer::ThreadProver`), cancelled by the next request, and settles
+its findings into the same report (`ChecksReport::settle`); until
+then the report reads the check *pending*.

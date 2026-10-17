@@ -2,10 +2,12 @@
 id: tangent-offset-and-tilt-are-two-epsilon-checks-where-rest-is-one-displacement
 kind: issue
 title: Should C4/C7's Tangent decide its locus offsets and its tilt as one displacement, as Rest does, rather than as separate ε checks that together admit about 2ε?
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+pr: 4640
+closed: 2026-10-11
 ---
 
 
@@ -59,3 +61,7 @@ which is this row:
   and 15ε apart (contradicts as separation); a witness 11ε off one
   surface of a touching pair (contradicts as a bad witness, no Fit
   steer); the contact-door paths unchanged.
+
+## Closed 2026-10-11 (PR 4640)
+
+Both deciders read the touch as its own row (`contact_tangent_gap` / `CertCheck::TangentGap`), with a span line charging `gap_sag`. Residue: `tangent-parallelism-between-samples-is-certified-by-no-row`.

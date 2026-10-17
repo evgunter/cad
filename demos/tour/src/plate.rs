@@ -35,10 +35,8 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
-use pncad::prelude::PlaneRelation;
 use pncad::select::{
-    BooleanCoincidence, EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet,
-    declared_pairs, find_flush_candidates, select_where,
+    EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet, select_where,
 };
 
 /// The nominal hole spacing, in metres (3.1 mm).
@@ -271,30 +269,17 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let hole_b = hole(&mut doc, param("half_spacing"), "hole_b_r", tol);
 
     // The holes run the plate's full depth, so each hole's caps lie
-    // flush on the blank's: a cut declares those continuations, as the
-    // coincidence discipline asks of any flush pair.
+    // flush on the blank's: the cut glues those continuations on their
+    // decided zero (D10).
     let eval_here = |doc: &ProfileDoc| -> Evaluation<f64> {
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
     };
     let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
-        let found = find_flush_candidates(&eval_here(doc), doc, a, b, tol)
-            .expect("the hole's caps are definite flush pairs");
-        // The inspection: the hole's two caps, each continuing the
-        // blank's cap it lies in.
-        assert_eq!(found.len(), 2, "one continuation per cap: {found:#?}");
-        assert!(
-            found
-                .iter()
-                .all(|f| f.class == BooleanCoincidence::Continuation
-                    && f.evidence.relation == PlaneRelation::SameOriented),
-            "each hole cap continues the blank's: {found:#?}"
-        );
         insert(
             doc,
             Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: declared_pairs(&found),
             },
             tol,
         )

@@ -289,7 +289,6 @@ pub fn document() -> CorpusDoc {
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
-        declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip
     // rim's two arcs; the cavity meridians are NOT in the set (see

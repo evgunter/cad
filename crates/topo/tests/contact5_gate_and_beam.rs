@@ -72,7 +72,7 @@ fn crosses(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeEdgeCross { .. },
                     ..
                 }
@@ -87,7 +87,7 @@ fn pierces(errors: &[ValidationError]) -> usize {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { .. },
                     ..
                 }
@@ -339,7 +339,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         assert_eq!(
             errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
             meets,
             "{errors:?}"
         );
@@ -348,7 +348,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         let records = topo::test_support::records(
             &body,
             errors.iter().filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::VertexOnFace { vertex, face },
                     ..
                 } => Some((topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))),
@@ -376,7 +376,7 @@ fn a_declared_rest_with_a_dipping_point_is_probed() {
     let records = topo::test_support::records(
         &body,
         errors_of(&body).iter().filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { vertex, face },
                 ..
             } => Some((topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))),
@@ -480,7 +480,9 @@ fn a_declared_seat_with_a_keel_is_probed() {
 #[test]
 fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75)).revert();
+    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
+        .revert()
+        .unwrap();
     topo::graft_disjoint(&mut body, &cavity).unwrap();
     let mut body = body.with_solids_merged_for_tests();
     topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();

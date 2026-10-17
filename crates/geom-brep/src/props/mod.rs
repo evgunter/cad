@@ -99,31 +99,31 @@
 //! was re-derived per consumer to three different strengths, and the
 //! rim-group span-sum rule that stood in for it admitted a
 //! cross-shaped domain and certified a 19%-low volume with
-//! `pad = 0.0` (#649). Its consumers:
+//! `pad = 0.0` (#649). Its one consumer is **[`require_iso_rectangle`]**,
+//! the predicate's own public door for a lane that rests on the premise
+//! without wanting a volume (`mesh`'s swept-rectangle walk), on every
+//! curved kind, with its sense-free companion: every rim encodes the
+//! SAME side (`curved::unanimous_rim_side`).
 //!
-//! * the **cone** flux lane, on a rim-and-generator outer loop
-//!   (`curved::cone_face_closed_form`);
-//! * **[`require_iso_rectangle`]**, the predicate's own public door
-//!   for a consumer whose lane rests on the premise without wanting a
-//!   volume (`mesh`'s swept-rectangle walk), on every curved kind,
-//!   with its sense-free companion: every rim encodes the SAME side
-//!   (`curved::unanimous_rim_side`).
-//!
-//! No side reading and no other flux lane rests on it. The cylinder and
-//! the torus integrate the region their loops bound by their chart
-//! Green forms, and the sphere reads any loops of circles by
-//! Gauss–Bonnet, so a notched or ringed face measures and encodes its
-//! side as a rectangle does. [`boundary_material_sign_loops`] reads
+//! No side reading and no flux lane rests on it. The cylinder and the
+//! torus integrate the region their loops bound by their chart Green
+//! forms, the cone reads its boundary's vector area, and the sphere
+//! reads any loops of circles by Gauss–Bonnet, so a notched or ringed
+//! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: the cylinder's and torus's Green forms check it on the
-//! traversed endpoints (`props_loop_closed`, and
-//! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
-//! the sphere's Gauss–Bonnet on every junction
-//! (`props_loop_closed`), and a ringed cone face's loops
-//! (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! Closure: every lane on a cylinder or torus chart decides it one way
+//! (`closure`): each junction's chart gap, less whole periods, against a
+//! stated slack, then whole-number windings held to a face boundary's
+//! integer facts. The windings are read two ways by what the lane holds:
+//! an interval lane sums the whole periods its junctions are nearest, a
+//! closed form reads its loop's total angle at half-turn thresholds. The
+//! sphere's Gauss–Bonnet and the cone's vector area decide every junction
+//! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
+mod bracket;
+mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
@@ -138,6 +138,7 @@ use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsize
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
+    sphere_region_material_sign,
 };
 pub use loop_area::loop_vector_area;
 
@@ -349,6 +350,23 @@ pub enum PropsError {
         /// Which premise failed (the predicate's name).
         what: &'static str,
     },
+    /// A cone face (`curved::cone_face_closed_form`) fails a premise of
+    /// its vector-area closed form: a loop that does not close, that
+    /// winds the axis twice or sweeps past a turn through the apex, that
+    /// meets itself at a vertex, or a ring that winds the axis or
+    /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
+    /// the deciding predicate's name.
+    ConeLoop {
+        /// Which premise failed (the predicate's name).
+        what: &'static str,
+    },
+    /// **A face's holes cover more than its region**: every ring is
+    /// wound against the outer loop (`props_ring_winding` against
+    /// `props_cone_outer_side`), but their areas sum past the outer
+    /// loop's — the face's side (`props_cone_area_side`) is not the
+    /// outer loop's — so the face's area would come out
+    /// negative. Holes that overlap each other or leave the region.
+    HolesExceedFace,
     /// A one-loop sphere face's sense bit contradicts the side its
     /// boundary encodes (`curved::sphere_loop_side`), so its radial
     /// flux term — read off the bit — would measure the complement of
@@ -369,13 +387,23 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A loop's stored chart images are a period apart at a junction**
-    /// (`props_quad_junction_period`): one edge's image starts a whole
-    /// turn of the azimuth from where the edge before it ends, so the
-    /// loop closes in space but not on the chart, and no Green form over
-    /// the chart reads it. Stored data that is wrong: a boundary's images
-    /// on one face are minted in one branch of its chart.
-    ChartPeriodJump,
+    /// **A loop does not close on its periodic chart**
+    /// (`props_chart_junction_open`): at one junction the edge after
+    /// starts definitely farther from where the edge before ends than
+    /// the junction's stated slack allows, once whole periods are taken
+    /// off. Stored data that is wrong: consecutive edges of a loop meet
+    /// at their shared vertex. Every lane on a cylinder or torus chart
+    /// decides it the one way (`closure::require_junction_closed`).
+    ChartLoopOpen,
+    /// **A face's loops wind its periodic chart as no face's boundary
+    /// does**: with every junction decided closed, one loop winds the
+    /// chart more than once about one of its directions, or the face's
+    /// loops wind it a nonzero number of times together, so they bound
+    /// no region of it. Stored data that is wrong: a face's boundary is
+    /// simple closed curves that bound it. A band's two rims, once each
+    /// and opposite ways, are not this; a lane whose closed form cannot
+    /// fold such a band refuses it as its inventory.
+    LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -562,7 +590,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The one recourse a spent quadrature budget names** (D4 ¶1 (i)'s
@@ -643,6 +671,17 @@ impl core::fmt::Display for PropsError {
                  Recourse: state its edges as circles ON the sphere, meeting end to end with \
                  no cusp, around an area short of the whole sphere"
             ),
+            Self::ConeLoop { what } => write!(
+                f,
+                "a cone face's boundary does not bound a region of its cone once ({what}). \
+                 Recourse: state each loop as edges ON one nappe, meeting end to end, \
+                 going round the axis at most once and meeting itself nowhere"
+            ),
+            Self::HolesExceedFace => write!(
+                f,
+                "a face's holes cover more area than its outer boundary encloses, so they \
+                 overlap one another or leave the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
             Self::SenseContradicted => write!(
                 f,
                 "a sphere face's orientation sense contradicts the side its boundary encodes: \
@@ -662,11 +701,16 @@ impl core::fmt::Display for PropsError {
                  its area would be added to the face's rather than taken from it. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
-            Self::ChartPeriodJump => write!(
+            Self::ChartLoopOpen => write!(
                 f,
-                "a face's stored boundary images on its surface's chart do not meet: one \
-                 edge's image starts a whole turn around the surface from where the edge \
-                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a face's stored boundary does not close on its surface: one edge starts away \
+                 from where the edge before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::LoopsWindChart => write!(
+                f,
+                "a face's stored boundary loops wind around its surface as no face's boundary \
+                 does: one winds more than once, or together they do not wind to zero, so they \
+                 bound no region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -965,10 +1009,15 @@ mod tests {
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",
             },
+            PropsError::ConeLoop {
+                what: "props_cone_loop_vertex",
+            },
+            PropsError::HolesExceedFace,
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
-            PropsError::ChartPeriodJump,
+            PropsError::ChartLoopOpen,
+            PropsError::LoopsWindChart,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -993,7 +1042,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 14, "an arm was added without a row here");
+        assert_eq!(arms.len(), 17, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

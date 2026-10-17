@@ -2,9 +2,8 @@
 id: carrier-escalation-drops-its-plane-rung-at-the-contact-doors
 kind: issue
 title: contact: the Rest verify and the flush detector drop CarrierEqError::Escalated's plane rung, so an orientation refusal reads as a coincidence
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [declared-pairs-retire]
 priority: P3
 cost: E
 ---
@@ -58,3 +57,7 @@ the one contact_verify.rs hunk that both E and B2 rewrite
 (`rest_pair_verdict` → `rest_pair_reading`), so it stays parked; at F,
 close the flush half and re-state this row as the Rest half alone.
 (CONTACTHOLD orchestrator)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

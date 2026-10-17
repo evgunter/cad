@@ -108,7 +108,7 @@ fn the_lens_cap_is_read_as_a_region() {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: topo::CensusContact::VertexOnFace { .. },
                     ..
                 }

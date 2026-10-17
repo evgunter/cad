@@ -33,7 +33,6 @@ from pncad import (
     VarName,
     PartSelect,
     PatternKind,
-    PlaneRelation,
     evaluate,
     m,
     rad,
@@ -171,26 +170,15 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         nothing was moved, re-stamped or lost on the way through, so
         unioning the two back together is the box again.
 
-        The two halves REST on each other across the section, which is
-        a declared contact — detected through `find_flush_candidates`
-        and declared on the union, the same protocol any touching union
-        goes through. That the detector finds the pair AT ALL across
-        the two halves is itself the pass-through claim: the faces it
-        matches are the split's, carried verbatim.
-
-        The inventory says the same thing a second way. Five findings:
-        ONE `SameOpposite` — the section, where the halves face each
-        other — and four `SameOriented`, the box's four walls, each cut
-        into two coplanar pieces facing the same way out. Only the
-        first is a rest contact to declare.
+        The two halves REST on each other across the section, and the
+        box's four walls are each cut into two coplanar pieces facing
+        the same way out. The union glues all five pairs, as it glues
+        any touching members: that it decides them AT ALL across the
+        two halves is itself the pass-through claim — the faces it matches
+        are the split's, carried verbatim.
         """
         doc, _, above, below = self.build()
-        ev = evaluate(doc)
-        findings = ev.find_flush_candidates(above, below)
-        self.assertEqual(len(findings), 5)
-        section = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
-        self.assertEqual(len(section), 1, "the one section face pair")
-        whole = doc.insert(Node.union([above, below], declare=section))
+        whole = doc.insert(Node.union([above, below]))
         mass = mass_of(evaluate(doc), whole)
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)

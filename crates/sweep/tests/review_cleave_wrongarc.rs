@@ -146,7 +146,7 @@ fn plane_at(o: [f64; 3], t: f64, phi: f64, flip: bool) -> SplitPlane<f64> {
 
 fn turned(body: &Body<f64>, turn: f64) -> Body<f64> {
     let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn);
-    topo::transform_rigid(body, &map, tol()).unwrap()
+    topo::transform_rigid(body, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap()
 }
 
 /// Tally of one sweep.

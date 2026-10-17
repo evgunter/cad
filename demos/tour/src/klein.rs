@@ -598,8 +598,9 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
 /// `section` swept along `spine` as ONE body (the loft's stacking
 /// statement is per-slab, issue 368), drawn in the plane normal to the
 /// spine's start tangent, which the kernel hands out
-/// (`path_start_frame`). The section and the spine are `f64` because
-/// `sweep_body` takes them so; the body comes out at `S`.
+/// (`path_start_frame`). The section and the frame are built in `f64`,
+/// so they enter `S` as the computed values they are; the spine is
+/// `f64` because `sweep_body` takes it so; the body comes out at `S`.
 ///
 /// GAP (library finding,
 /// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
@@ -622,7 +623,16 @@ fn sweep_loop<S: Scalar>(
     let (start, tangent) = spine.ders1(t0);
     let place =
         path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
-    sweep_body::<S>(section, place, spine, STATIONS, V_DEGREE, tol).map(|l| l.body)
+    let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
+    sweep_body::<S>(
+        &section,
+        place.map(S::from_computed),
+        spine,
+        STATIONS,
+        V_DEGREE,
+        tol,
+    )
+    .map(|l| l.body)
 }
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
@@ -1430,19 +1440,11 @@ mod verbs_gate_r1_probes {
     //! `wall3_pinned` and `wall4_pinned`, so the two cannot drift.
     //!
     //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
-    //! The gate does not refuse a pair the caller's declarations speak
-    //! for — but "the caller's declarations" is the
-    //! `BooleanDeclarations` value handed to the op, and both walls
-    //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
-    //! the doors that take none. (Wall 3 refuses earlier still, on the
-    //! loop's NURBS edges, which no declaration speaks for.)
-    //!
-    //! Wall 4 is doubly out of reach and the second reason is the more
-    //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at, on the loop's NURBS wall, has no covered rung at all. A
-    //! declaration supplies the verdict a germ arm would have; it
-    //! cannot supply a seam lane to revert through, so declaring the
-    //! wall's pairs would not move wall 4.
+    //! It is a SUBTRACT, and the revert roster it refuses at, on the
+    //! loop's NURBS wall, has no covered rung at all: a decided
+    //! coincidence supplies the verdict a germ arm would have, and it
+    //! cannot supply a seam lane to revert through. (Wall 3 refuses
+    //! earlier still, on the loop's NURBS edges.)
 
     use super::*;
 

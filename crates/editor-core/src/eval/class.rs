@@ -73,6 +73,8 @@ pub enum NodeErrorClass {
     Boolean,
     /// [`NodeErrorKind::Transform`].
     Transform,
+    /// [`NodeErrorKind::Motion`].
+    Motion,
     /// [`NodeErrorKind::Skin`].
     Skin,
     /// [`NodeErrorKind::Loft`].
@@ -93,8 +95,6 @@ pub enum NodeErrorClass {
     ParamBox,
     /// [`NodeErrorKind::Seed`].
     Seed,
-    /// [`NodeErrorKind::SeedPinnedSection`].
-    SeedPinnedSection,
     /// [`NodeErrorKind::WrongOperand`].
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
@@ -158,14 +158,6 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::DeclareResolve`].
-    DeclareResolve,
-    /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
-    DeclareSiteNotAnOperand,
-    /// [`NodeErrorKind::DeclareUnsupportedPair`].
-    DeclareUnsupportedPair,
-    /// [`NodeErrorKind::DeclaredContactUnbacked`].
-    DeclaredContactUnbacked,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
@@ -180,8 +172,6 @@ pub enum NodeErrorClass {
     FaceFrameNotPlanar,
     /// [`NodeErrorKind::FaceFrameReadback`].
     FaceFrameReadback,
-    /// [`NodeErrorKind::DerivedFrameSection`].
-    DerivedFrameSection,
     /// [`NodeErrorKind::FrameDirection`] carrying
     /// [`geom_core::UnitVec3Error::Degenerate`].
     FrameDirectionDegenerate,
@@ -307,6 +297,7 @@ impl NodeErrorKind {
             Self::Blend { verb, .. } => by_verb(*verb, C::Fillet, C::Chamfer),
             Self::Boolean(_) => C::Boolean,
             Self::Transform(_) => C::Transform,
+            Self::Motion(_) => C::Motion,
             Self::Skin(_) => C::Skin,
             Self::Loft(_) => C::Loft,
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
@@ -317,7 +308,6 @@ impl NodeErrorKind {
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
-            Self::SeedPinnedSection { .. } => C::SeedPinnedSection,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
@@ -330,7 +320,10 @@ impl NodeErrorKind {
             Self::Band(_) => C::Band,
             Self::MissingSlot { .. } => C::MissingSlot,
             Self::VerbArity { .. } => C::VerbArity,
-            Self::Escalated { .. } => C::Escalated,
+            Self::Escalated { .. }
+            | Self::MeasureEscalated { .. }
+            | Self::PlacementAxisEscalated { .. }
+            | Self::PoseDirectionEscalated { .. } => C::Escalated,
             Self::PoseRead { .. } => C::PoseRead,
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,
@@ -343,10 +336,6 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::DeclareResolve { .. } => C::DeclareResolve,
-            Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
-            Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::DeclaredContactUnbacked { .. } => C::DeclaredContactUnbacked,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
@@ -355,7 +344,6 @@ impl NodeErrorKind {
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
-            Self::DerivedFrameSection { .. } => C::DerivedFrameSection,
             Self::FrameDirection { refusal, .. } => {
                 let raised = refusal.node_error().class();
                 FRAME_DIRECTION
@@ -523,6 +511,7 @@ mod tests {
         Chamfer,
         Boolean,
         Transform,
+        Motion,
         Skin,
         Loft,
         CurvedSolidFrontier,
@@ -533,7 +522,6 @@ mod tests {
         ToleranceConflict,
         ParamBox,
         Seed,
-        SeedPinnedSection,
         WrongOperand,
         EmptyOperand,
         ProductOperand,
@@ -563,10 +551,6 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        DeclareResolve,
-        DeclareSiteNotAnOperand,
-        DeclareUnsupportedPair,
-        DeclaredContactUnbacked,
         UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
@@ -574,7 +558,6 @@ mod tests {
         ShellLaneUnsupported,
         FaceFrameNotPlanar,
         FaceFrameReadback,
-        DerivedFrameSection,
         FrameDirectionDegenerate,
         FrameDirectionNonFiniteLength,
         FrameDirectionUnderflowedLength,
@@ -750,6 +733,9 @@ mod tests {
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
+            C::Motion => K::Motion(geom_core::RigidMotionError::NonFinite(
+                geom_core::MotionPart::Angle,
+            )),
             C::Skin => K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
             C::Loft => K::Loft(sweep::LoftError::Band(band_error())),
             C::CurvedSolidFrontier => K::CurvedSolidFrontier {
@@ -786,10 +772,6 @@ mod tests {
                 source: crate::SeedError::UnknownVar {
                     var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
-            },
-            C::SeedPinnedSection => K::SeedPinnedSection {
-                section: n(3),
-                param: crate::VarId::new(0, 1),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
@@ -893,21 +875,6 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::DeclareResolve => K::DeclareResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand {
-                at: crate::VarId::new(3, 3),
-            },
-            C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
-                kinds: (EntityKind::Edge, EntityKind::Vertex),
-                cross_operand: true,
-            },
-            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
-                reference: 0,
-                at_union_step: false,
-            },
             C::UnionFoldStep => K::UnionFoldStep {
                 member: 2,
                 read: crate::VarId::new(2, 2),
@@ -926,10 +893,6 @@ mod tests {
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
-            },
-            C::DerivedFrameSection => K::DerivedFrameSection {
-                profile: n(3),
-                frame: Some(n(2)),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
