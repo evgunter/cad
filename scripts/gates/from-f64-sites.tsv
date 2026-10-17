@@ -53,7 +53,7 @@ crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(i)	an incidence sample
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
 crates/geom-brep/src/pcurve_cache.rs	2	constant	k as f64	a chart-hat span index, and an arc rim's sub-arc index
 crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
-crates/geom-brep/src/pcurve_cache.rs	3	constant	f64::from(k)	a decided whole-period count, and a stored winding read as its rate (`Period::rate`)
+crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(k)	a whole-period count as a length (`Period::times`, through which a stored winding's rate reads too, `Period::rate`), and check 4's decided branch
 crates/geom-brep/src/pcurve_cache.rs	1	constant	p as f64	the Greville average's count
 crates/geom-brep/src/pcurve_cache.rs	3	constant	spans as f64	a span count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
