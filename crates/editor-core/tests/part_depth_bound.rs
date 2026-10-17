@@ -94,15 +94,31 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The cap `end` of a [`leaf_labelled`] part's `block`, as the part's
-/// product names it: under its one placement's copy (A10).
+/// product names it: the union carries it from its member read of the
+/// block, under its one placement's copy (A10).
 fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core::FaceName {
     let [copy] = leaf.placements()[..] else {
         panic!("a leaf places its union once");
     };
+    let Some(Node::Place { shapes, .. }) = leaf.node(copy) else {
+        panic!("the leaf's placement is a `Place`");
+    };
+    let union = leaf
+        .operation_of(shapes[0].read)
+        .expect("the placement reads the union");
+    let read = leaf.output(block, 0).expect("the block defines its output");
     let cap = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
-        node: block,
-        path: vec![editor_core::RoleSeg::Cap(end)],
+        node: union,
+        path: vec![editor_core::RoleSeg::From {
+            read,
+            of: editor_core::StableName {
+                kind: editor_core::EntityKind::Face,
+                node: block,
+                path: vec![editor_core::RoleSeg::Cap(end)],
+            }
+            .into(),
+        }],
     };
     editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
 }
@@ -110,8 +126,9 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
 /// A document whose one instance, of `below`, it places in its world.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(below));
-    (fixture::place(doc, instance).0, instance)
+    // An instance is its own placement, pinned to the world: a `Place`
+    // over it would copy the whole part a second time at every level.
+    insert(doc, Node::instantiate_part(below))
 }
 
 /// A store holding the leaf and `levels` documents above it, each
@@ -296,7 +313,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
         doc = d;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
 }
 
 /// A refusal as a surface draws it: its own sentence, then each
@@ -427,8 +444,9 @@ fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
 }
 
 /// A document instantiating `first` and `second` — each a reference
-/// with the block its caps are named on — with a mate between them,
-/// admitted at the insert door over `authoring`'s reach.
+/// with the block its caps are named on — `first` pinned to the world
+/// and `second` placed by a mate onto it, admitted at the constraint
+/// door over `authoring`'s reach.
 /// A stored leaf: its reference, and its document with its block.
 type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
 
@@ -438,20 +456,57 @@ fn mated(
     (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, ids) = instantiating_all(label, &[first, second]);
-    let mate = Node::Mate {
-        a: (fixture::head(
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    let mate = fixture::mate(
+        fixture::head(
             leaf_cap(&first_doc, first_block, CapEnd::End)
                 .in_part(ids[0])
                 .into_name(),
-        ))
-        .into(),
-        b: (fixture::head(
+        ),
+        fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
                 .in_part(ids[1])
                 .into_name(),
-        ))
-        .into(),
+        ),
+        ContactClass::Rest,
+        Alignment {
+            a: frame([0.0, 0.0, 1.0]),
+            b: frame([0.0; 3]),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: Some(0.0),
+        },
+    );
+    let reach = mate_reach::<f64>(authoring, Tol::witness());
+    let (doc, _) = at_the_door(&doc, &reach, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+    (doc, ids)
+}
+
+/// A document instantiating `first` — a reference with the block its
+/// caps are named on — pinned to the world, and `second` placed by one
+/// constraint from `first`'s top cap to `second`'s own copy, admitted at
+/// the constraint door over `authoring`'s reach.
+fn placed_on_copy(
+    label: &str,
+    (first, (first_doc, first_block)): Stored,
+    second: DocRef,
+    authoring: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    let mate = editor_core::Mate {
+        a: editor_core::SideRead::Face(
+            fixture::head(
+                leaf_cap(&first_doc, first_block, CapEnd::End)
+                    .in_part(ids[0])
+                    .into_name(),
+            )
+            .into(),
+        ),
+        b: editor_core::SideRead::Copy,
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0]),
@@ -462,7 +517,8 @@ fn mated(
         },
     };
     let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) = at_the_door(&doc, &reach, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+    let (doc, _) =
+        fixture::at_the_door_of(&doc, &reach, placed, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
     (doc, ids)
 }
 
@@ -491,7 +547,8 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
     for id in &ids {
         assert!(
             matches!(own.result(*id), Some(NodeResult::Ok(_))),
-            "the mated instances place at the top"
+            "the mated instances place at the top: {:?}",
+            own.node_error(*id)
         );
     }
     let ev = run(&top, &opts);
@@ -515,25 +572,27 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 }
 
 /// **A part no instance asks for is evaluated, and its failure reaches
-/// nothing.** Below the top, `holder`'s mate is over a part the store
-/// cannot resolve, so the mate faults and neither instance's placement
-/// asks for its part. The descent evaluates the resolvable one anyway,
-/// with the two documents under it. Whether that subtree is healthy or
-/// ends in a missing document, the top's refusal is drawn the same, and
-/// it is the one `holder`'s own evaluation, which asks for nothing,
-/// draws.
+/// nothing.** Below the top, `holder` pins an instance of a part the
+/// store cannot resolve to the world, and places a second instance, of
+/// `asked`, by a constraint from a face of the first to its own copy. A
+/// copy side reads no face, so the solve forms no lever for `asked`,
+/// and the face side's part refuses: the constraint faults and nothing
+/// at the top asks for `asked`. The descent evaluates it anyway, with
+/// the two documents under it. Whether that subtree is healthy or ends
+/// in a missing document, the top's refusal is drawn the same, and it is
+/// the one `holder`'s own evaluation, which evaluates no part, draws.
 #[test]
 fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let mut authoring = PartStore::new();
     let asked = stored(&mut authoring, leaf_labelled("part-descent-asked"));
     let lost = stored(&mut authoring, leaf_labelled("part-descent-lost"));
     let asked_ref = asked.0;
-    // `lost` is the mate's second operand, so its group roots the pair
-    // and the solve asks for its part first.
-    let (holder, ids) = mated(
+    // `lost` is pinned to the world, `asked` the copy the constraint
+    // places.
+    let (holder, ids) = placed_on_copy(
         "part-descent-holder",
-        asked,
         lost,
+        asked.0,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");
@@ -562,7 +621,7 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         let own = run(&holder, &opts);
         assert_eq!(
             own.part_evaluations, 0,
-            "at the top the holder asks for no part: the mate faults first"
+            "at the top the holder evaluates no part: the constraint faults first"
         );
         let ev = run(&top, &opts);
         assert_eq!(

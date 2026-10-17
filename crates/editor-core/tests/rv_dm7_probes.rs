@@ -135,7 +135,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    // `ia`'s bundle is empty: the mate places it.
+    let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
     // A placed copy of `ib`: the mate reads `ib`'s face AT the
     // transform, so the operand is a node the name does not name.
@@ -151,21 +152,24 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         ),
     );
     let head_b = instance_face(ib, part_body);
-    let (doc, mate) = insert(
-        doc,
-        Node::Mate {
-            a: crate::fixture::head(instance_face(ia, part_body)).into(),
-            b: crate::fixture::head_at(placed, head_b).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
+    let (doc, mate) = crate::fixture::at_the_door_of(
+        &doc,
+        &reach,
+        ia,
+        crate::fixture::mate(
+            crate::fixture::head(instance_face(ia, part_body)),
+            crate::fixture::head_at(placed, head_b),
+            ContactClass::Rest,
+            Alignment {
                 a: mate_frame(),
                 b: mate_frame(),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: Some(0.0),
             },
-        },
-    );
+        ),
+    )
+    .unwrap_or_else(|(at, fault)| panic!("the mate is admitted, got {at:?}: {fault}"));
 
     let applied = apply(
         &doc,
@@ -183,7 +187,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         crate::fixture::without_anonymous(&applied.maintenance)
     );
     let fault = solve_document(&applied.doc, &reach, Tol::witness())
-        .fault(mate)
+        .fault(mate.placement)
         .expect("the solve refuses the mate whose operand left")
         .clone();
     assert!(

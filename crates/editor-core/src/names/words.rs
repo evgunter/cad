@@ -524,7 +524,7 @@ fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
                 let join = Join { at: at.node, read };
                 (!join_words(join, by).is_empty()).then_some(Step::Join(join))
             }
-            // A world placement's copy is the same entity, placed.
+            // A placement's copy is the same entity, placed.
             CarriedAs::Placed => None,
             CarriedAs::Split => Some(Step::Wrap(Wrap::Split)),
             CarriedAs::ToolCopy => Some(Step::Wrap(Wrap::ToolCopy)),

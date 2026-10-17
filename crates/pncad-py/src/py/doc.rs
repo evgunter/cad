@@ -49,7 +49,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 25] {
+) -> [(&'static str, Py<PyAny>); 26] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -115,6 +115,12 @@ fn edit_fields(
             num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
         ),
         ("side", word(payload.side)),
+        (
+            "mate",
+            opt(payload.node.zip(payload.constraint).map(|(placement, id)| {
+                Py::new(py, super::mate::MateRef(d::MateRef::new(placement, id))).map(Py::into_any)
+            })),
+        ),
         (
             "path",
             opt(payload.path.map(|p| {
@@ -915,6 +921,26 @@ impl BodyArg {
     }
 }
 
+/// **A placement's shapes as Python writes them**: one body argument,
+/// or a sequence of them.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum ShapesArg {
+    /// One shape: the copy has its kind.
+    One(BodyArg),
+    /// Several, in the order written: a keyed enumeration of copies.
+    Many(Vec<BodyArg>),
+}
+
+impl ShapesArg {
+    /// The authored reads, in order.
+    pub(crate) fn reads(self) -> Vec<d::BodyRead<d::Formula>> {
+        match self {
+            Self::One(read) => vec![read.read()],
+            Self::Many(reads) => reads.into_iter().map(BodyArg::read).collect(),
+        }
+    }
+}
+
 /// **A union's or an intersect's members as Python writes them**: ONE
 /// operand, a family read whole (a pattern's output), or a sequence of
 /// reads, each on its own (an operand, or a member `op[i]`) — the
@@ -974,8 +1000,7 @@ impl NodeId {
 #[pyclass(module = "pncad")]
 pub(crate) struct Doc {
     pub(crate) inner: d::ProfileDoc,
-    /// What the LAST accepted edit reported: the offset a mate insert
-    /// cleared, and the names it stranded.
+    /// What the LAST accepted edit reported: the names it stranded.
     ///
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
@@ -1068,8 +1093,7 @@ impl Doc {
 
     /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
     /// action and answers its document and maintenance already paired
-    /// (`regauge_then_mate`'s outcome, a [`d::Recorded`]) rather than
-    /// one edit's [`d::Applied`].
+    /// (a [`d::Recorded`]) rather than one edit's [`d::Applied`].
     fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
         self.inner = doc;
         self.maintenance = maintenance;
@@ -1198,12 +1222,11 @@ impl Doc {
     /// raised.
     ///
     /// An accepted edit may also have performed **maintenance** — the
-    /// offset a mate insert cleared when it joined two groups, and the
-    /// payload names a delete stranded. That rides the edit rather than being a second
-    /// edit, so it is read off `last_maintenance` instead of returned
-    /// here: the common case is an empty list, and widening every
-    /// caller's return type for it would be paying for mates and
-    /// strands in documents that have neither.
+    /// payload names a delete stranded. That rides the edit rather than
+    /// being a second edit, so it is read off `last_maintenance`
+    /// instead of returned here: the common case is an empty list, and
+    /// widening every caller's return type for it would be paying for
+    /// strands in documents that have none.
     #[pyo3(signature = (edit, *, resolver=None))]
     fn apply(
         &mut self,
@@ -1219,45 +1242,12 @@ impl Doc {
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)) —
-    /// one action. `mate` is a `Node.mate`; every member of the group
-    /// its `a` side reads is put on the gauge its `b` side's instance
-    /// sits on, then the mate is inserted, which places: the first
-    /// operand's group is placed on the second's, and every offset the
-    /// first's group held is cleared (`last_maintenance` reports each
-    /// as `offset_cleared`). When the two sides already share a gauge
-    /// this is a plain insert.
-    ///
-    /// Atomic: a refusal at any step raises that step's `EditError` and
-    /// leaves the document untouched; the action refuses whole
-    /// (`would_start_placing`, naming the mate) when the re-gauge would
-    /// make a mate already in the document start placing. Returns the
-    /// mate's id.
-    /// `last_maintenance` reads the whole action's record afterwards.
-    #[pyo3(signature = (mate, *, resolver=None))]
-    fn regauge_then_mate(
-        &mut self,
-        py: Python<'_>,
-        mate: &Node,
-        resolver: Option<&super::store::Workspace>,
-    ) -> PyResult<NodeId> {
-        let tol = Tol::witness();
-        let seam = seam(resolver);
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let out = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
-            .map_err(|err| edit_err(py, &err))?;
-        self.take_up(out.doc, out.maintenance);
-        Ok(NodeId(out.mate))
-    }
-
     /// The maintenance the LAST accepted edit performed, in the order
-    /// it was performed: the offsets a mate insert cleared
-    /// (`offset_cleared`), and the payload names a delete or a
-    /// reshaping stranded — so a caller reads an entry's `variant`,
-    /// never its position.
+    /// it was performed: the payload names a delete or a reshaping
+    /// stranded — so a caller reads an entry's `variant`, never its
+    /// position.
     ///
-    /// Empty after any edit that joined no groups and stranded no
-    /// name, and empty on a fresh document — a document that has never applied an edit has
+    /// Empty after any edit that stranded no name, and empty on a fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
     ///
@@ -1266,11 +1256,8 @@ impl Doc {
     /// `InlineOutcome.doc` are values produced by applying a whole
     /// edit LIST, so each reports what ITS list did, net of what a
     /// later edit in the same list took back: the names a departing
-    /// node stranded and the remainder still carries. An offset a
-    /// carried mate's insert cleared is re-stated by a later edit in
-    /// the list, so it is not reported. The document and that record
-    /// cross
-    /// together, so a caller reading here after either door reads the
+    /// node stranded and the remainder still carries. The document and
+    /// that record cross together, so a caller reading here after either door reads the
     /// record the kernel has rather than an empty list.
     ///
     /// **The reading begins at the load boundary.** A `Doc` handed out
@@ -1282,8 +1269,7 @@ impl Doc {
     ///
     /// Undo is keeping the prior document value, which restores every
     /// one of these exactly; what the record adds is VISIBILITY — a
-    /// cleared offset is reported with the offset it held, where a
-    /// caller can read what was cleared.
+    /// stranded name is reported at the edit that stranded it.
     #[getter]
     fn last_maintenance(&self) -> Vec<super::mate::Maintenance> {
         self.maintenance
@@ -1387,62 +1373,100 @@ impl Doc {
             .collect()
     }
 
-    /// **The world placements**, in document order: the nodes whose
-    /// copies are the product — what `product` and `assemble` gather,
-    /// in this order.
+    /// **The placements**, in document order: every `Place` and
+    /// `InstantiatePart` node — the nodes whose copies a bundle of
+    /// constraints places. Those whose bundles pin them, transitively,
+    /// to the world are the product (`product` and `assemble` gather
+    /// them in this order); the rest are loose copies, each in a space
+    /// of its own (`Evaluation.loose`).
     ///
-    /// Written through `place` (or an inserted `Node.place_in_world`),
-    /// and through nothing else: no edit places or unplaces as a side
-    /// effect, so a body is in the product exactly when a placement
-    /// reads it.
+    /// Written through `place` and `Node.instantiate_part`, and through
+    /// nothing else: no edit places as a side effect.
     fn placements(&self) -> Vec<NodeId> {
         self.inner.placements().into_iter().map(NodeId).collect()
     }
 
-    /// An instance's **offset** in its gauge (A11 (2)), or `None` when
-    /// it carries none.
+    /// **The world**: the node every document holds from its creation,
+    /// which no edit deletes or writes. A constraint side that reads
+    /// the world (`Mate.world_pin`) pins its copy to it; it is not
+    /// counted among the document's nodes (`order`).
+    #[getter]
+    fn world(&self) -> NodeId {
+        NodeId(d::RecipeNodeId::WORLD)
+    }
+
+    /// **A placement's bundle**: each constraint by its address, with
+    /// its mate as written, in the bundle's order.
     ///
-    /// On its group's root the offset places the group; on any other
-    /// member it is a statement the solve checks (a disagreement faults
-    /// that instance, `mate_offset_disagrees`). An instance with no
-    /// offset sits where its mates put it; a group none of whose
-    /// members carries one is unplaced (`SolvedPoses.unplaced`).
-    ///
-    /// This is the AUTHORED offset, not the solved pose: an instance's
-    /// world pose is `SolvedPoses.placement`.
-    ///
-    /// Raises `ValueError` for a node that does not instantiate a part.
-    fn offset(&self, node: &NodeId) -> PyResult<Option<super::place::Placement>> {
-        match self.inner.node(node.0) {
-            Some(d::Node::InstantiatePart { offset, .. }) => Ok(offset
-                .as_ref()
-                .map(|p| super::place::Placement(p.authored()))),
-            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "{} does not instantiate a part, so it has no offset",
-                self.inner.spoken(node.0)
-            ))),
+    /// Raises `EditError` (`constraint_on_non_placement`) for a node
+    /// that holds no bundle, and (`unknown_node`) for one this
+    /// document does not hold.
+    fn bundle(
+        &self,
+        py: Python<'_>,
+        placement: &NodeId,
+    ) -> PyResult<Vec<(super::mate::MateRef, super::mate::Mate)>> {
+        let Some(node) = self.inner.node(placement.0) else {
+            return Err(edit_err(
+                py,
+                &d::EditError::UnknownNode {
+                    id: d::SpokenNode::absent(placement.0),
+                },
+            ));
+        };
+        match node.authored(&self.inner) {
+            d::Node::Place { constraints, .. } | d::Node::InstantiatePart { constraints, .. } => {
+                Ok(constraints
+                    .into_iter()
+                    .map(|c| {
+                        (
+                            super::mate::MateRef(d::MateRef::new(placement.0, c.id)),
+                            super::mate::Mate(c.mate),
+                        )
+                    })
+                    .collect())
+            }
+            _ => Err(edit_err(
+                py,
+                &d::EditError::ConstraintOnNonPlacement {
+                    node: self.inner.spoken(placement.0),
+                },
+            )),
         }
     }
 
-    /// The **gauge** an instance or a gauge sits on (A11 (2)), or
-    /// `None` for the world.
+    /// **Add `mate` to `placement`'s bundle**, and return the
+    /// constraint's address: the edit `DocEdit.add_constraint`. The
+    /// constraint's id is minted by the edit.
     ///
-    /// A reference to a deleted gauge is kept, dangling, and reads back
-    /// here as the id it names: the group it reaches is unplaced
-    /// (`dead_gauge`) until `DocEdit.set_gauge` names a live one.
-    ///
-    /// Raises `ValueError` for a node that is neither an instance nor
-    /// a gauge.
-    fn gauge(&self, node: &NodeId) -> PyResult<Option<NodeId>> {
-        match self.inner.node(node.0) {
-            Some(n @ (d::Node::InstantiatePart { .. } | d::Node::Gauge { .. })) => {
-                Ok(n.gauge_ref().map(NodeId))
-            }
-            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "{} neither instantiates a part nor is a gauge, so it sits on no gauge",
-                self.inner.spoken(node.0)
-            ))),
-        }
+    /// Refuses typed on `EditError`: `constraint_on_non_placement`,
+    /// `mate_refused` (the solve's own admission of the datum, with
+    /// the fault — `mate_overconstrained` where the bundle already
+    /// pins the copy), and the slot doors' refusals.
+    #[pyo3(signature = (placement, mate, *, resolver=None))]
+    fn constrain(
+        &mut self,
+        py: Python<'_>,
+        placement: &NodeId,
+        mate: &super::mate::Mate,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<super::mate::MateRef> {
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let edit = d::DocEdit::AddConstraint {
+            placement: placement.0,
+            mate: Box::new(mate.0.clone()),
+            fresh: Vec::new(),
+        };
+        let applied =
+            d::apply(&self.inner, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
+        let record = self.accept(applied);
+        let id = *record
+            .minted_constraints
+            .first()
+            .unwrap_or_else(|| unreachable!("an accepted constraint mints its id"));
+        Ok(super::mate::MateRef(d::MateRef::new(placement.0, id)))
     }
 
     /// The `(id, pin)` reference an instantiate node carries, or
@@ -1603,29 +1627,42 @@ impl Doc {
         self.insert(py, &node, label, None)
     }
 
-    /// **Place one copy of `body` in the world** at `pose`, the
-    /// identity when `None`, and return the placement's id.
+    /// **Place one copy of `shapes`**, placed by `constraints`, and
+    /// return the placement's id: the edit `DocEdit::place`, the
+    /// insert of `Node.place(shapes, constraints)`.
+    ///
+    /// `shapes` is one body argument or a sequence of them; over one
+    /// the copy is a body, over several a keyed enumeration of copies.
+    /// `constraints` is the bundle, a sequence of `Mate`s, each
+    /// constraint's id minted by the insert in order. `None` pins the
+    /// copy to the world at the identity (`[Mate.world_pin()]`); a copy
+    /// at a world pose is `[Mate.world_pin(pose)]`; `[]` is a loose
+    /// copy, in a space of its own until a constraint pins it.
     ///
     /// The one door that puts a body in the product: nothing places as
     /// a side effect, so a boolean of two placed bodies leaves both
-    /// placed and the boolean unplaced until it is placed here. The
-    /// edit is the Rust façade's `DocEdit::place`, the insert of
-    /// `Node.place_in_world(body, pose)`. A split's half is placed by
-    /// its output, `place(doc.output(split, 1))`.
+    /// placed and the boolean unplaced until it is placed here. A
+    /// split's half is placed by its output, `place(doc.output(split,
+    /// 1))`.
     ///
     /// Two placements of one body are two copies. `label=` labels the
     /// placement in the same call, as `insert`'s does.
-    #[pyo3(signature = (body, pose=None, *, label=None))]
+    #[pyo3(signature = (shapes, constraints=None, *, label=None))]
     fn place(
         &mut self,
         py: Python<'_>,
-        body: BodyArg,
-        pose: Option<super::place::Placement>,
+        shapes: ShapesArg,
+        constraints: Option<Vec<super::mate::Mate>>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        Node::place_in_world(py, body.clone(), pose.clone())?;
-        self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
+        let constraints = match constraints {
+            Some(mates) => mates.into_iter().map(|m| m.0).collect(),
+            None => vec![d::Mate::world_pin(d::Placement::IDENTITY)],
+        };
+        let reads = shapes.reads();
+        Node::placed(py, reads.clone(), constraints.clone())?;
+        self.insert_edit(d::DocEdit::place(reads, constraints), label)
             .map_err(|err| edit_err(py, &err))
     }
 
@@ -1663,9 +1700,15 @@ impl Doc {
     }
 
     /// The document's nodes in id order, which is the order they were
-    /// inserted in.
+    /// inserted in. The world (`Doc.world`) is no inserted node, so it
+    /// is not among them, as `node_count` does not count it.
     fn order(&self) -> Vec<NodeId> {
-        self.inner.ids().into_iter().map(NodeId).collect()
+        self.inner
+            .ids()
+            .into_iter()
+            .filter(|&id| id != d::RecipeNodeId::WORLD)
+            .map(NodeId)
+            .collect()
     }
 
     /// **The document's named free parameters**, by name, in
@@ -2264,7 +2307,7 @@ pub(crate) struct Node {
 impl Node {
     /// Each expression slot of `node` checked against the slot it
     /// lands in, so a refusal names that slot.
-    fn check_slots(py: Python<'_>, node: &d::AuthoredNode) -> PyResult<()> {
+    pub(crate) fn check_slots(py: Python<'_>, node: &d::AuthoredNode) -> PyResult<()> {
         for slot in node.slots() {
             if let Some(expr) = node.expr(slot) {
                 slot_expr(
@@ -2276,6 +2319,34 @@ impl Node {
         }
         Ok(())
     }
+
+    /// A `Place` over `shapes` holding `constraints`, each rigid step
+    /// of each constraint's frame offsets checked against its slot.
+    /// The ids are placeholders the insert door mints.
+    pub(crate) fn placed(
+        py: Python<'_>,
+        shapes: Vec<d::BodyRead<d::Formula>>,
+        constraints: Vec<d::Mate<d::Formula>>,
+    ) -> PyResult<Self> {
+        let inner = d::Node::Place {
+            shapes,
+            constraints: bundle(constraints),
+        };
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+}
+
+/// `mates` as a bundle, each id a placeholder the insert door mints.
+fn bundle(mates: Vec<d::Mate<d::Formula>>) -> Vec<d::Constraint<d::Formula>> {
+    let placeholder = d::ConstraintId(d::MintId::new(0, 0));
+    mates
+        .into_iter()
+        .map(|mate| d::Constraint {
+            id: placeholder,
+            mate,
+        })
+        .collect()
 }
 
 #[pymethods]
@@ -3021,26 +3092,30 @@ impl Node {
         Ok(Self { inner })
     }
 
-    /// **One copy of `body` in the world** at `pose`, the identity when
-    /// `None`: the operation whose output is a product copy. Inserting
-    /// it is `Doc.place`.
+    /// **One copy of `shapes`, placed by `constraints`**: the operation
+    /// whose output is a copy. Inserting it is `Doc.place`.
     ///
-    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
-    /// rigid step's components are checked against the slot they land
-    /// in, as there.
+    /// `shapes` is one body argument or a sequence of them: over one,
+    /// the copy has that shape's kind (a body over a body); over
+    /// several, its output is a keyed enumeration of copies.
+    /// `constraints` is the bundle, a sequence of `Mate`s; empty, the
+    /// copy is loose, in a space of its own until a constraint pins it.
+    ///
+    /// Each rigid step of each constraint's frame offsets is checked
+    /// against the slot it lands in, as `Node.transform_by` checks
+    /// them.
     #[staticmethod]
-    #[pyo3(signature = (body, pose=None))]
-    fn place_in_world(
+    #[pyo3(signature = (shapes, constraints=Vec::new()))]
+    fn place(
         py: Python<'_>,
-        body: BodyArg,
-        pose: Option<super::place::Placement>,
+        shapes: ShapesArg,
+        constraints: Vec<super::mate::Mate>,
     ) -> PyResult<Self> {
-        let inner = d::Node::place_in_world(
-            body.read(),
-            pose.map_or(d::Placement::IDENTITY, |pose| pose.0),
-        );
-        Self::check_slots(py, &inner)?;
-        Ok(Self { inner })
+        Self::placed(
+            py,
+            shapes.reads(),
+            constraints.into_iter().map(|m| m.0).collect(),
+        )
     }
 
     /// **The union**: the material in ANY member, folded into ONE
@@ -3255,11 +3330,11 @@ impl Node {
     /// its own recorded edit (`DocEdit.update_reference`, or
     /// `update_references` for every site at once).
     ///
-    /// **Placed at the world origin.** The instance sits on the world
-    /// at the empty offset (A11 (2)); `DocEdit.set_offset` moves it,
-    /// `DocEdit.set_gauge` puts it on a gauge, and a mate places it on
-    /// another instance's group — the first operand's group on the
-    /// second's, clearing every offset the first's group held.
+    /// **Placed by `constraints`.** An instance IS a placement: its
+    /// part's world, moved by its bundle. `None` pins it to the world
+    /// at the identity, where its part's world stands; a sequence of
+    /// `Mate`s is that bundle, and `[]` a loose copy, in a space of its
+    /// own until a constraint (`Doc.constrain`) pins it.
     ///
     /// The instance also carries no interface record: an AUTHORED
     /// instance crosses nothing, and a non-empty record is mintable
@@ -3271,118 +3346,24 @@ impl Node {
     /// (`EvaluationError`, `kind == "part_no_resolver"`) rather than
     /// pretending the part is empty.
     #[staticmethod]
-    fn instantiate_part(reference: &super::store::DocRef) -> Self {
-        Self {
-            inner: d::Node::instantiate_part(reference.0),
-        }
-    }
-
-    /// A **gauge**: a frame other placements stand on (A11 (2)). It
-    /// holds a `Placement` — rigid steps a document parameter can
-    /// drive, literal frames, or both — and denotes no body, so
-    /// nothing can place it.
-    ///
-    /// `parent` is the gauge it sits on, `None` for the world; its
-    /// frame is the parent's composed with `placement`. Instances name
-    /// a gauge through `DocEdit.set_gauge`, and every instance on it
-    /// moves with it.
-    ///
-    /// Every rigid step's components are checked against the slot they
-    /// land in, as `Node.transform_by` checks them.
-    #[staticmethod]
-    #[pyo3(signature = (placement, parent=None))]
-    fn gauge(
+    #[pyo3(signature = (reference, constraints=None))]
+    fn instantiate_part(
         py: Python<'_>,
-        placement: &super::place::Placement,
-        parent: Option<&NodeId>,
+        reference: &super::store::DocRef,
+        constraints: Option<Vec<super::mate::Mate>>,
     ) -> PyResult<Self> {
-        let inner = d::Node::gauge(parent.map(|p| p.0), placement.0.clone());
-        for slot in inner.slots() {
-            if let Some(expr) = inner.expr(slot) {
-                slot_expr(
-                    py,
-                    slot,
-                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
-                )?;
-            }
-        }
+        let inner = match constraints {
+            None => d::Node::instantiate_part(reference.0),
+            Some(mates) => d::Node::InstantiatePart {
+                doc_ref: reference.0,
+                interface: d::InterfaceRecord::default(),
+                constraints: bundle(mates.into_iter().map(|m| m.0).collect()),
+            },
+        };
+        Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
 
-    /// A **mate** between two instances: ONE node carrying both the
-    /// placement constraint and the contact declaration, so there is
-    /// no second vocabulary to keep synced.
-    ///
-    /// Each side is TWO things, mirroring the kernel type: `a_at` /
-    /// `b_at` is the node the reference is read at — the OPERAND, the
-    /// node whose geometry the mate speaks about — and `a` / `b` is
-    /// the instance-qualified name text of an entity of that node's
-    /// product. They coincide for a mate authored directly on an
-    /// instance; they diverge the moment a `Transform` places it, and
-    /// the operand is the only thing that says which, because a
-    /// transform mints no name of its own. There is no default: pass
-    /// the instance's own node when that is what you mean.
-    ///
-    /// Neither half is a recipe edge: inserting a mate transfers no
-    /// root, and under consuming edges a mate is an ordinary non-body
-    /// root, denoting no body and ignored by the gather.
-    ///
-    /// A mate PLACES when its two instances sit on one gauge, and
-    /// declares otherwise. A placing mate that joins two groups places
-    /// the first operand's group on the second's: "mate `a` to `b`"
-    /// moves `a`, and the insert clears every offset `a`'s group held
-    /// (`Doc.last_maintenance`, `offset_cleared`). Which side moves is
-    /// independent of which side's frame states the datum.
-    /// `Doc.regauge_then_mate` copies `b`'s gauge to `a`'s group first.
-    ///
-    /// `class_` is the declared contact class (trailing underscore:
-    /// `class` is a Python keyword). How far each class gets is
-    /// `class_admission` — ask it BEFORE authoring, because a class
-    /// the solve folds may still mint nothing at the at-rest gate.
-    ///
-    /// `alignment` is the datum: which frames coincide, at which axis
-    /// sense, with which clocking. A side is either a face of its part
-    /// (`MateFrame.from_face`), resolved from the part's own product
-    /// at every evaluation, or three AUTHORED vectors. A face frame is
-    /// its face, so it follows a part edit; authored vectors are not
-    /// geometry read back — nothing checks them against the faces `a`
-    /// and `b` name, so a mate authored so can solve cleanly and still
-    /// be refuted at the gate.
-    ///
-    /// **A head must name a FACE, and that is refused here.** A mate
-    /// declares a face-pair contact; the kernel says so in the type of
-    /// a head, and this door calls that type's constructor, so
-    /// `a`/`b` naming an edge raises `EditError` with
-    /// `variant == "mate_head_not_a_face"` at this call rather than
-    /// reaching a document.
-    ///
-    /// A dangling reference is not refused here: the solve refuses
-    /// typed naming its head (`MateFault`, `mate_dangling_head`), or
-    /// the side's read when it is no face of a live body
-    /// (`mate_side_unresolved`), which is the ratified
-    /// dangling-reference semantics — or, where
-    /// the head resolves and a pattern or transform placing it could
-    /// not derive a pose, naming that placer and carrying the
-    /// evaluation's own cause (`mate_placer_refused`).
-    #[staticmethod]
-    fn mate(
-        py: Python<'_>,
-        a_at: &NodeId,
-        a: &str,
-        b_at: &NodeId,
-        b: &str,
-        class_: super::contact::ContactClass,
-        alignment: &super::mate::Alignment,
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Mate {
-                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?).into(),
-                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?).into(),
-                class: class_.to_kernel(py)?,
-                alignment: alignment.0.clone(),
-            },
-        })
-    }
     /// **One measurement** (ERROR-DESIGN E3): a `Measure` node holds
     /// one closed-form primitive and defines one observed scalar, its
     /// output (`Doc.output(node)`), which only an assertion reads,
@@ -3397,8 +3378,7 @@ impl Node {
     /// gives the placed number; naming the minting node gives the
     /// authored one. Both are legal, and they are different questions.
     ///
-    /// **The references ARE dag edges**, unlike a `Node.mate`'s
-    /// names: each is a selection of the named
+    /// **The references ARE dag edges**: each is a selection of the named
     /// node's body (or, for a whole body, a read of it), so the
     /// referenced nodes are its data dependencies, and deleting one is
     /// accepted and reported on the measure (`stranded_read` and
@@ -4051,8 +4031,7 @@ impl FreeValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
-/// `set_offset`, `set_gauge`, `promote`, `fold`,
-/// `update_reference`, `rebind`, and
+/// `add_constraint`, `remove_constraint`, `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
 /// parameter reference.
@@ -4568,85 +4547,37 @@ impl DocEdit {
         }
     }
 
-    /// Set an instance's **offset** in its gauge (A11 (2)), or clear
-    /// it with `None`.
+    /// **Add `mate` to `placement`'s bundle**: the constraint's id is
+    /// minted by the edit (`Doc.constrain` answers its address).
     ///
-    /// On its group's root the offset places the group; on any other
-    /// member it is a statement the solve checks. Clearing the root's
-    /// offset unplaces the group unless another member carries one.
-    ///
-    /// Refuses typed on `EditError`: `offset_on_non_instance`, and the
-    /// placement's own refusals (`non_finite_placement`,
-    /// `improper_placement`, `non_rigid_placement`, `placement_axis`)
-    /// naming the step.
+    /// Refuses typed on `EditError`: `constraint_on_non_placement`
+    /// (the node holds no bundle), and `mate_refused` with the solve's
+    /// fault where the solve refuses the datum — `mate_overconstrained`
+    /// where the rest of the bundle already pins the copy.
     #[staticmethod]
-    #[pyo3(signature = (instance, offset))]
-    fn set_offset(instance: &NodeId, offset: Option<&super::place::Placement>) -> Self {
+    fn add_constraint(placement: &NodeId, mate: &super::mate::Mate) -> Self {
         Self {
-            inner: d::DocEdit::SetOffset {
-                instance: instance.0,
-                offset: offset.map(|p| p.0.clone()),
+            inner: d::DocEdit::AddConstraint {
+                placement: placement.0,
+                mate: Box::new(mate.0.clone()),
                 fresh: Vec::new(),
             },
         }
     }
 
-    /// Set the **gauge** a node sits on (A11 (2)): an instance's gauge,
-    /// or a gauge's parent, `None` for the world.
+    /// **Remove the constraint `mate` addresses** from its placement's
+    /// bundle. What it pinned is recomputed from what remains: a copy
+    /// its bundle no longer pins is a loose copy, never a refusal.
     ///
-    /// A mate places only between instances on one gauge; across
-    /// gauges it declares. `Doc.regauge_then_mate` is the one door
-    /// that copies a gauge and mates in one action.
-    ///
-    /// Refuses typed on `EditError`: `gauge_on_non_placed` (the node is
-    /// neither an instance nor a gauge), `gauge_not_live`,
-    /// `not_a_gauge`, and `gauge_cycle` (a gauge would sit on itself).
+    /// Refuses typed on `EditError`: `constraint_on_non_placement` and
+    /// `unknown_constraint` (the bundle holds no such id).
     #[staticmethod]
-    #[pyo3(signature = (node, gauge))]
-    fn set_gauge(node: &NodeId, gauge: Option<&NodeId>) -> Self {
+    fn remove_constraint(mate: &super::mate::MateRef) -> Self {
         Self {
-            inner: d::DocEdit::SetGauge {
-                node: node.0,
-                gauge: gauge.map(|g| g.0),
+            inner: d::DocEdit::RemoveConstraint {
+                placement: mate.0.placement,
+                constraint: mate.0.id,
             },
-        }
-    }
-
-    /// **Promote** an instance's offset to a gauge (A4): a new gauge
-    /// under the instance's gauge holds the offset, and the instance
-    /// sits on it at the empty chain, with the other members of its
-    /// group. `DocEdit.fold` is the inverse; promoting, then splitting
-    /// the group out with the new gauge left behind, makes a part at
-    /// that frame.
-    ///
-    /// Refuses typed on `EditError`: `promote_on_non_instance`,
-    /// `promote_without_offset`, `promote_non_root` (the offset is a
-    /// check; `input` is the group's root), and `promote_member_offset`
-    /// (`input` is a member carrying an offset).
-    #[staticmethod]
-    #[pyo3(signature = (instance))]
-    fn promote(instance: &NodeId) -> Self {
-        Self {
-            inner: d::DocEdit::Promote {
-                instance: instance.0,
-            },
-        }
-    }
-
-    /// **Fold** a gauge away (A4): every node on it hangs from its
-    /// parent, each one's own chain with the gauge's steps in front.
-    /// An instance with no offset keeps none; a lone unlabelled
-    /// dependent takes the gauge's label, and otherwise the label goes,
-    /// reported as `label_dropped` maintenance.
-    ///
-    /// Refuses typed on `EditError`: `fold_on_non_gauge` and
-    /// `fold_would_start_placing` (`input` is the mate that would start
-    /// placing).
-    #[staticmethod]
-    #[pyo3(signature = (gauge))]
-    fn fold(gauge: &NodeId) -> Self {
-        Self {
-            inner: d::DocEdit::Fold { gauge: gauge.0 },
         }
     }
 

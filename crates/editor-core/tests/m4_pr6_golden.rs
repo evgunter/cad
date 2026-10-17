@@ -448,7 +448,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         })
         .collect();
     for body in placed {
-        doc = push(&doc, &DocEdit::place(body, None));
+        doc = push(&doc, &DocEdit::place_in_world(body, None));
     }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4

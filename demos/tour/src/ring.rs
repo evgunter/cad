@@ -183,7 +183,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, revolved) = document(tol);
     apply(
         &doc,
-        &DocEdit::place(Operand::output(revolved, 0), None),
+        &DocEdit::place_in_world(Operand::output(revolved, 0), None),
         tol,
         &RefusingReach,
     )

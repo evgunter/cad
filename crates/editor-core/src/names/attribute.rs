@@ -98,8 +98,8 @@ pub(crate) enum CarriedAs {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
-    /// Copied into the product's world by a world placement, the same
-    /// entity at another pose.
+    /// Copied by a placement ([`crate::Node::Place`]), the same entity
+    /// at another pose.
     Placed,
     /// Shortened to the part of it a split's half holds.
     Split,

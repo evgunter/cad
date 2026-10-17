@@ -1641,8 +1641,8 @@ pub fn pick_face<T: Decide>(
     // One space: a ray is in one set of coordinates (A9, A11 (2)).
     if let Some(first) = targets.first() {
         for target in targets {
-            if let Some((group, cause)) = eval.across_spaces(first.node, target.node) {
-                return Err(HitTestError::AcrossSpaces { group, cause });
+            if let Some((a, b)) = eval.across_spaces(first.node, target.node) {
+                return Err(HitTestError::AcrossSpaces { a, b });
             }
         }
     }

@@ -4112,18 +4112,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # holds a `Placement` chain, and `transform` is its one-rigid-step
         # sugar. The positive form is `tests/test_placement.py`.
         #
-        # `gauge` JOINED it at EDIT-PLACEMENT P2: the node a group's
-        # placement lives on (A11 (2)). The positive form is
-        # `tests/test_gauges.py`.
+        # `place` holds a placement's shapes and its bundle of
+        # constraints, and `mate` is no node: a mate is the `Mate` value
+        # a bundle holds (INTENT stage 3). The positive form is
+        # `tests/test_world_pins.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assertion", "chamfer", "datum_axis",
                 "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point",
-                "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
-                "intersect", "loft", "mate", "measure", "part", "pattern",
-                "place_in_world", "placed_union", "placed_union_at",
+                "extrude", "fillet", "hollow_tube", "instantiate_part",
+                "intersect", "loft", "measure", "part", "pattern",
+                "place", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "subtract", "transform", "transform_by", "tube", "union",
             ],
@@ -4143,12 +4144,12 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "bind_count_param", "bind_instance_param",
+                "add_constraint", "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
-                "delete_node", "delete_var", "fold",
-                "insert_node", "promote", "rebind", "rename_var",
+                "delete_node", "delete_var",
+                "insert_node", "rebind", "remove_constraint", "rename_var",
                 "set_extrude_side",
-                "set_gauge", "set_label", "set_members", "set_offset",
+                "set_label", "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",
@@ -4221,8 +4222,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `Workspace.update_to_store` are all bound, and the
             # positive form is `tests/test_assembly_author.py`, which
             # authors the tour's two bench documents from nothing
-            # (the stand on the world, short of the tour's turntable
-            # gauge and crate) — two part documents into a store,
+            # (the stand pinned to the world, short of the tour's
+            # turntable and crate) — two part documents into a store,
             # instances of them, the mates that seat one on the other,
             # the solve, the gather and the A5 gate. `update_to_store` is a Workspace METHOD
             # rather than a module door, which is why it is not tested
@@ -4341,9 +4342,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # to leave — it never existed to be absent — which is why the
         # positive row above names both.
         #
-        # `instantiate_part` and `mate` LEFT this list at LIB-G18b.
-        # Placement was never a `Node`: it lives on a gauge and an
-        # instance's offset (`Node.gauge`, `DocEdit.set_offset`).
+        # `instantiate_part` LEFT this list at LIB-G18b. A mate is no
+        # `Node`: it is a constraint of a placement's bundle (`Mate`,
+        # `Doc.constrain`).
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
         # `Node.shell` binds it, with the open faces as ORDERED names

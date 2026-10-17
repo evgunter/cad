@@ -1486,10 +1486,7 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
 /// A node with no inputs and no evaluated body, for a doc whose
 /// evaluation is hand-built.
 fn leaf() -> AuthoredNode {
-    Node::gauge(
-        None,
-        editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
-    )
+    fixture::xy_frame()
 }
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie

@@ -245,12 +245,20 @@ fn both_blends_evaluate_in_one_document() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x30a3_6d39_2cea_720au64),
-        ("die_chamfer", 0xe357_7e62_ae47_31f6),
+        ("die_fillet", 0x0361_6dfa_2dcb_a50au64),
+        ("die_chamfer", 0x8aab_4985_692e_cebe),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -406,13 +414,21 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// than as a seam, and one floor corner moved from a touch to a
 /// crossing of the two rims. The digest feeds the name table. No body
 /// moved.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x76e1_5578_6bed_7a15u64),
-        ("heat_sink", 0x077d_7601_580e_739f),
-        ("kiss_carry", 0x54e4_b675_6a8d_48ae),
+        ("crossing_slots", 0x413e_8402_6156_81adu64),
+        ("heat_sink", 0x4321_7ed9_e465_c4b2),
+        ("kiss_carry", 0xa393_83fb_2793_3986),
     ] {
         let doc = corpus::documents()
             .into_iter()

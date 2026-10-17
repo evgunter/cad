@@ -1571,9 +1571,9 @@ pub enum RoleSeg {
         of: NameRef,
     },
 
-    // ---- World placement ----
-    /// The copy a world placement defines of its body's entity `of`
-    /// (D10, A10). The placement's identity rides in the enclosing
+    // ---- Placement ----
+    /// The copy a [`crate::Node::Place`] defines of its shape's entity
+    /// `of` (D10, A10). The placement's identity rides in the enclosing
     /// [`StableName::node`], so two placements of one body name their
     /// copies apart, as [`RoleSeg::Instance`] names a pattern's.
     Placed {
@@ -1811,11 +1811,10 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Pattern { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
-        | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -2287,7 +2286,7 @@ impl RoleSeg {
 }
 
 impl StableName {
-    /// **This entity as world placement `placement`'s copy names it**
+    /// **This entity as placement `placement`'s copy names it**
     /// (D10, A10): the body's own name, worn inside the one
     /// [`RoleSeg::Placed`] qualifier the placement puts round every
     /// name of the body it places, headed at the placement. What the

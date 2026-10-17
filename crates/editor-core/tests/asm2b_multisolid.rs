@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Mate, Node,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -47,33 +47,50 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each placed in the world
-/// at the identity, the i-th
-/// displaced `spacing * i` along +x so the solids stay disjoint.
+/// An assembly instantiating `refs` in order, each pinned to the world,
+/// the i-th displaced `spacing * i` along +x so the solids stay
+/// disjoint.
 fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
-        doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = spacing * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
+        if i == 0 {
+            let (next, id) = insert(doc, Node::instantiate_part(*r));
             doc = next;
+            ids.push(id);
+            continue;
         }
+        #[allow(clippy::cast_precision_loss)]
+        let dx = spacing * i as f64;
+        let (next, id) = insert(doc, fixture::mated_instance(*r));
+        doc = fixture::constrain_at(next, id, pin_at([dx, 0.0, 0.0])).0;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
+}
+
+/// A world pin at a translation.
+fn pin_at(translation: [f64; 3]) -> Mate<editor_core::Formula> {
+    Mate::world_pin(editor_core::Placement::literal(&Frame::translation(
+        translation,
+    )))
+}
+
+/// `placement`'s bundle replaced by one world pin at `translation`.
+fn repinned(doc: ProfileDoc, placement: RecipeNodeId, translation: [f64; 3]) -> ProfileDoc {
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::constrain_at(doc, placement, pin_at(translation)).0
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -138,8 +155,14 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     // The instance value itself is the multi-solid body — the lift's
     // whole content: one rigid map over N solids, not N maps.
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b.solids().count(),
-        other => panic!("an instance's value is a body, got {other:?}"),
+        Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
+            [b] => b.solids().count(),
+            other => panic!(
+                "an instance's copies are one product body, got {}",
+                other.len()
+            ),
+        },
+        other => panic!("an instance's value is its copies, got {other:?}"),
     };
     assert_eq!(solids_of(a_ids[0]), 2, "each instance carries both solids");
     assert_eq!(solids_of(a_ids[1]), 2);
@@ -165,8 +188,9 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
 // ---- Row 3: names across all N solids, doubly wrapped ----
 
 /// Row 3 — every name of a doubly-nested instance is
-/// `InPart(Placed(InPart(Placed(part-local))))` minted at the OUTER
-/// instantiate node, each level's copy named under its placement (A10);
+/// `InPart(InPart(Placed(part-local)))` minted at the OUTER
+/// instantiate node, each instance its own placement and the part's
+/// body named under the part's placement of it (A10);
 /// the four copies' name sets are pairwise disjoint; and each name
 /// resolves to its own copy (the cross-wiring probe).
 #[test]
@@ -184,8 +208,9 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     }
 
     // Shape: the body name is the instance's own output; every other
-    // name wraps the sub-assembly's copy of a name that itself wraps a
-    // part-local one — the sub-assembly's placements mint its copies.
+    // name wraps the sub-assembly's name for it, which an inner
+    // instance — one of the sub-assembly's placements — minted over the
+    // part's own placed name.
     let mut inner_nodes = std::collections::BTreeSet::new();
     for (names, node) in [(&a, a_ids[0]), (&b, a_ids[1])] {
         for name in names {
@@ -193,8 +218,7 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
             match &name.path[..] {
                 [RoleSeg::InPart { of }] => {
                     assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                    let (_, copied) = of.copy_of().expect("the sub-assembly's copy");
-                    match &copied.path[..] {
+                    match &of.path[..] {
                         [RoleSeg::InPart { of: inner }] => {
                             assert_eq!(inner.kind, name.kind);
                             assert!(inner.copy_of().is_some(), "the part's copy: {inner:?}");
@@ -225,9 +249,8 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
         (**of).clone()
     };
     let part_local = |inner: &StableName| -> StableName {
-        let (_, copied) = inner.copy_of().expect("a copy");
-        let [RoleSeg::InPart { of }] = &copied.path[..] else {
-            panic!("wrapped: {copied:?}");
+        let [RoleSeg::InPart { of }] = &inner.path[..] else {
+            panic!("wrapped: {inner:?}");
         };
         (**of).clone()
     };
@@ -310,8 +333,8 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
-/// solids rigidly (every vertex x by exactly the translation, volume
+/// Row 4 — pinning a multi-solid instance to the world at another pose
+/// moves ALL of its solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.
 #[test]
@@ -327,16 +350,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
-    let (moved, _) = step(
-        doc,
-        DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                7.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
-    );
+    let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0]);
     assert_ne!(
         content_pin(&moved, Tol::witness()).expect("pins"),
         pin0,
@@ -414,8 +428,12 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// holding variable ids — and only it. INTENT stage 2 C moved it again
 /// (the world placements are nodes of their own, and a part's names
 /// reach an instance under its placement's copy) with the volume bits
-/// and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_284_647_170_726_297_371;
+/// and the solid count held. INTENT stage 3 B moved it once more — an
+/// instance is its own placement, so a part's names reach it with no
+/// copy wrapper of the assembly's, and the world is scheduled nowhere,
+/// so every node's position in the order is one earlier — again
+/// holding both.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 18_438_575_778_868_179_147;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

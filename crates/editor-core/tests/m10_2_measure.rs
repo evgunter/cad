@@ -1412,13 +1412,17 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             tool: tool.into(),
         },
     );
-    let (doc, _) = mint(
+    let doc = apply(
         &doc,
-        Node::place_in_world(
+        &DocEdit::place_in_world(
             editor_core::Operand::output(split, SplitHalf::Above.port()),
-            editor_core::Placement::IDENTITY,
+            None,
         ),
-    );
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("edit refused: {e}"))
+    .doc;
     let ev = eval(&doc);
     assert!(
         matches!(ev.result(split), Some(NodeResult::Ok(_))),

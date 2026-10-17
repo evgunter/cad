@@ -28,10 +28,10 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Frame, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError, content_pin,
-    evaluate, load, mixed_pins, product, save, update_references,
+    Frame, Mate, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError,
+    content_pin, evaluate, load, mixed_pins, product, save, update_references,
 };
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 
 // ---- The versioned stub store ----
@@ -117,33 +117,32 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each placed in the world
-/// at the identity, the i-th
-/// displaced 10·i along +x so the solids stay disjoint.
+/// An assembly instantiating `refs` in order, each pinned to the world,
+/// the i-th displaced 10·i along +x so the solids stay disjoint.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
-        doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = 10.0 * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
+        if i == 0 {
+            let (next, id) = insert(doc, Node::instantiate_part(*r));
             doc = next;
+            ids.push(id);
+            continue;
         }
+        #[allow(clippy::cast_precision_loss)]
+        let dx = 10.0 * i as f64;
+        let (next, id) = insert(doc, fixture::mated_instance(*r));
+        doc = fixture::constrain_at(
+            next,
+            id,
+            Mate::world_pin(editor_core::Placement::literal(&Frame::translation([
+                dx, 0.0, 0.0,
+            ]))),
+        )
+        .0;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
 }
 
 /// The reference a node carries — the value every row reads back.
@@ -620,7 +619,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
 
 /// An assembly under an EXPLICIT id (the nested row needs two contents
 /// sharing one identity, which the label-derived helper cannot give),
-/// each instance placed in the world.
+/// each instance pinned to the world at the identity.
 fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(id, Tol::witness());
     let mut ids = Vec::new();
@@ -629,7 +628,7 @@ fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNod
         doc = next;
         ids.push(node);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
 }
 
 /// Row 5c — the WARM channel, which is where "the old content is not
@@ -795,12 +794,9 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::SetOffset {
-        instance: ids[0],
-        offset: Some(editor_core::Placement::literal(&Frame::translation([
-            1.0, 2.0, 3.0,
-        ]))),
-        fresh: Vec::new(),
+    let unrelated = DocEdit::RemoveConstraint {
+        placement: ids[0],
+        constraint: fixture::bundle(&before, ids[0])[0].id,
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],

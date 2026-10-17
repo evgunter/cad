@@ -134,11 +134,10 @@ use pncad::document::{
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
     Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
-    NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
-    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, Unplaced,
-    UpdateError,
+    NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault,
+    PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
+    RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
@@ -565,7 +564,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
-        S::Side(_) => "side",
+        S::Side { .. } => "side",
+        S::Shape(_) => "shape",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::From => "from",
@@ -614,7 +614,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::OperandUnresolved { .. } => "operand_unresolved",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
-        EditError::ReadsWorldCopy { .. } => "reads_world_copy",
+        EditError::CopyReadOffBodySeat { .. } => "copy_read_off_body_seat",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -678,21 +678,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::MetaNonFinite { .. } => "meta_non_finite",
         EditError::MetaNotSet { .. } => "meta_not_set",
         EditError::RebindMetadataCollision { .. } => "rebind_metadata_collision",
-        // The product-root invariants tag per FAULT,
-        // not per wrapper: which invariant broke is what a caller
-        // branches on.
-        EditError::OffsetOnNonInstance { .. } => "offset_on_non_instance",
-        EditError::GaugeOnNonPlaced { .. } => "gauge_on_non_placed",
-        EditError::GaugeNotLive { .. } => "gauge_not_live",
-        EditError::NotAGauge { .. } => "not_a_gauge",
-        EditError::GaugeCycle { .. } => "gauge_cycle",
-        EditError::WouldStartPlacing { .. } => "would_start_placing",
-        EditError::PromoteOnNonInstance { .. } => "promote_on_non_instance",
-        EditError::PromoteWithoutOffset { .. } => "promote_without_offset",
-        EditError::PromoteNonRoot { .. } => "promote_non_root",
-        EditError::PromoteMemberOffset { .. } => "promote_member_offset",
-        EditError::FoldOnNonGauge { .. } => "fold_on_non_gauge",
-        EditError::FoldWouldStartPlacing { .. } => "fold_would_start_placing",
+        // The world and the bundle doors: the world no edit deletes or
+        // writes, a constraint edit aimed at a node that holds no
+        // bundle, and a constraint id the bundle does not hold.
+        EditError::WorldIsUndeletable { .. } => "world_is_undeletable",
+        EditError::ConstraintOnNonPlacement { .. } => "constraint_on_non_placement",
+        EditError::UnknownConstraint { .. } => "unknown_constraint",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -979,6 +970,12 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // name a continuous parameter), not the box's.
         C::Seed => "seed",
         C::WrongOperand => "wrong_operand",
+        // A read of one copy of a placement's copies: a key naming no
+        // copy, an index at the copy's other shape, and two copies of
+        // one `Place` keyed alike.
+        C::NoSuchCopy => "no_such_copy",
+        C::CopyShape => "copy_shape",
+        C::CopiesShareAKey => "copies_share_a_key",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
@@ -1054,7 +1051,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — UNDER, CONTRADICTORY and a
+        // the root invariants do — OVERCONSTRAINED, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
@@ -1065,23 +1062,22 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePoseOutOfRange => "mate_pose_out_of_range",
         C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
-        C::MateUnder => "mate_under",
+        C::MateOverconstrained => "mate_overconstrained",
+        C::MateTargetsDiffer => "mate_targets_differ",
+        C::MateNotOnTheCopy => "mate_not_on_the_copy",
+        C::MateSideBase => "mate_side_base",
         C::MateSideUnresolved => "mate_side_unresolved",
         C::MateDanglingHead => "mate_dangling_head",
         C::MatePlacerRefused => "mate_placer_refused",
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         C::MateSelf => "mate_self",
         C::MateUnleverable => "mate_unleverable",
-        // A checked offset's two faults: the statement refuted, or
-        // not decidable — different recourses.
-        C::MateOffsetDisagrees => "mate_offset_disagrees",
-        C::MateOffsetUnchecked => "mate_offset_unchecked",
         C::MateFaceUnresolved => "mate_face_unresolved",
         C::MateFrameUnevaluated => "mate_frame_unevaluated",
         C::CrossingUnverified => "crossing_unverified",
-        // A node reading an unplaced group's space beside another.
-        C::Unplaced => "unplaced",
-        C::PlacementRefused => "placement_refused",
+        // A node reading two spaces: a loose copy's beside the world's,
+        // or two loose copies'.
+        C::SpaceMismatch => "space_mismatch",
     }
 }
 
@@ -1154,6 +1150,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
         NodeErrorKind::WrongOperand { .. } => None,
+        NodeErrorKind::NoSuchCopy { .. } => None,
+        NodeErrorKind::CopyShape { .. } => None,
+        NodeErrorKind::CopiesShareAKey { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::SelectKind { .. } => None,
@@ -1204,10 +1203,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Part { .. } => None,
         NodeErrorKind::Mate(_) => None,
         NodeErrorKind::CrossingUnverified { .. } => None,
-        NodeErrorKind::Unplaced { .. } => None,
-        // The placement's own refusal is a whole `NodeErrorKind`: its
-        // word is the arm, as for `PlacementAxis`.
-        NodeErrorKind::PlacementRefused { error, .. } => Some(node_error_tag(error.kind().class())),
+        // The two spaces are values, the payload question.
+        NodeErrorKind::SpaceMismatch { .. } => None,
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Some(interrogate_error_tag(error)),
         NodeErrorKind::MeasureNonFinite { source } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureNotParallel { .. } => None,
@@ -1260,7 +1257,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
-        EditError::ReadsWorldCopy { .. } => None,
+        EditError::CopyReadOffBodySeat { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1319,18 +1316,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::MetaNonFinite { .. } => None,
         EditError::MetaNotSet { .. } => None,
         EditError::RebindMetadataCollision { .. } => None,
-        EditError::OffsetOnNonInstance { .. } => None,
-        EditError::GaugeOnNonPlaced { .. } => None,
-        EditError::GaugeNotLive { .. } => None,
-        EditError::NotAGauge { .. } => None,
-        EditError::GaugeCycle { .. } => None,
-        EditError::WouldStartPlacing { .. } => None,
-        EditError::PromoteOnNonInstance { .. } => None,
-        EditError::PromoteWithoutOffset { .. } => None,
-        EditError::PromoteNonRoot { .. } => None,
-        EditError::PromoteMemberOffset { .. } => None,
-        EditError::FoldOnNonGauge { .. } => None,
-        EditError::FoldWouldStartPlacing { .. } => None,
+        EditError::WorldIsUndeletable { .. } => None,
+        EditError::ConstraintOnNonPlacement { .. } => None,
+        EditError::UnknownConstraint { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -1938,34 +1926,6 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for why a group is unplaced (A11 (2)): no member
-/// carries an offset, or its gauge chain names a deleted gauge. The
-/// words are the kernel's own ([`Unplaced::word`], which the clearance
-/// goldening form prints); they are spelled here as literals because
-/// the tag inventory reads this file, and a test holds the two equal.
-pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
-    match cause {
-        Unplaced::NoOffset => "no_offset",
-        Unplaced::DeadGauge { .. } => "dead_gauge",
-    }
-}
-
-/// The stable tag for why a checked offset could not be checked — the
-/// inner arm of [`mate_fault_tag`]'s `mate_offset_unchecked`: a
-/// placement the check reads did not evaluate, the member's part reach
-/// is not in hand, the check landed in the ambiguity band, a refused
-/// mate leaves the member with no pose, or the member and its pose are
-/// further apart than a distance can be measured.
-pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
-    match cause {
-        OffsetCheck::Placement { .. } => "placement_refused",
-        OffsetCheck::Unleverable(_) => "unleverable",
-        OffsetCheck::Indeterminate(_) => "indeterminate",
-        OffsetCheck::Unreached { .. } => "unreached",
-        OffsetCheck::OutOfRange => "unmeasurable",
-    }
-}
-
 /// The stable tag for a document-seam resolution failure — the
 /// vocabulary EVERY door that crosses the seam speaks.
 ///
@@ -2014,7 +1974,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
-        SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
         SnapshotError::SelectionShape { .. } => "selection_shape",
         SnapshotError::SelectionBody { .. } => "selection_body",
         SnapshotError::PoseShape { .. } => "pose_shape",
@@ -2037,10 +1996,9 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
         SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
-        // A gauge reference naming a live non-gauge, or a gauge that
-        // would sit on itself — the edit door's two words for it.
-        SnapshotError::NotAGauge { .. } => "not_a_gauge",
-        SnapshotError::GaugeCycle { .. } => "gauge_cycle",
+        // A constraint whose id the mint log never minted, the
+        // constraint's word for `node_not_minted`.
+        SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
         SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
@@ -2248,8 +2206,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
-        E::Unplaced { .. } => "unplaced",
-        E::UnplacedBelow { .. } => "unplaced_below",
+        E::Loose { .. } => "loose",
     }
 }
 
@@ -2264,7 +2221,6 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootPoisoned => "root_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedPlacement => "stranded_placement",
-        K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2586,15 +2542,8 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
-        SplitError::TornGroup { .. } => "torn_group",
-        SplitError::SeveredGauge { .. } => "severed_gauge",
-        SplitError::TwoAnchors { .. } => "two_anchors",
-        SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
+        SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
-        SplitError::UnplaceableRoot { .. } => "unplaceable_root",
-        SplitError::UnplacedAlone { .. } => "unplaced_alone",
-        SplitError::WouldStartPlacing { .. } => "would_start_placing",
-        SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
@@ -2622,7 +2571,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
     match err {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
-        InlineError::PlacementPoseCrosses { .. } => "placement_pose_crosses",
+        InlineError::UnplaceablePart { .. } => "unplaceable_part",
         InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
@@ -2630,13 +2579,10 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
-        InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
-        InlineError::MatePlaced { .. } => "mate_placed",
-        InlineError::Unplaced { .. } => "unplaced",
-        InlineError::MovedMemberOffset { .. } => "moved_member_offset",
-        InlineError::PartDeadGauge { .. } => "part_dead_gauge",
+        InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
+        InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        InlineError::MatePairSplits { .. } => "mate_pair_splits",
+        InlineError::SideLeavesAnInstance { .. } => "side_leaves_an_instance",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -3437,24 +3383,19 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 }
 
 /// The stable tag for one act of maintenance an accepted edit
-/// performed — the offset the mate door cleared, or a reference the
-/// edit stranded.
+/// performed — a reference the edit stranded, or an anonymous variable
+/// it removed.
 ///
-/// The word decides which payload attributes carry: an
-/// `offset_cleared` names the instance whose offset the mate door
-/// cleared — a member of the mate's first operand's group, now placed
-/// on the second's — and carries that offset, a `strand` the
+/// The word decides which payload attributes carry: a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
 /// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
-        Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
-        Maintenance::LabelDropped { .. } => "label_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }
@@ -3520,6 +3461,7 @@ pub fn pose_fault_tag(fault: &pncad::document::pose::PoseFault) -> &'static str 
         F::ScalarKind { .. } => "scalar_kind",
         F::Kind { .. } => "kind",
         F::Cycle => "cycle",
+        F::NotACopy { .. } => "not_a_copy",
     }
 }
 

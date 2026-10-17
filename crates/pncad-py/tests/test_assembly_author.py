@@ -11,14 +11,14 @@ THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
 -----------------------------------------------------------------
 `demos/tour/src/assembly.rs` is the scene these documents ARE, and its
 own assertions are the oracle: the layout's three disjoint solids of
-`PATTERN_COUNT x post + shelf`, the stand's group of three instances
-with the earliest as root, the far post's solved translation, the
-identity rotation two aligned frame-coincidence mates compose to, two
-minted declarations, and a gate that certifies. Every number below is
-that scene's, re-derived from the same base dimensions rather than
-copied as a total. The tour's bench also stands on a turntable gauge
-and carries a crate, whose declaration is a third; this scene
-authors neither (`bench_scene.py`'s header).
+`PATTERN_COUNT x post + shelf`, the stand's near post pinned to the
+world and each other instance placed by the one mate its bundle holds,
+the far post's solved translation, the identity rotation two aligned
+frame-coincidence mates compose to, two minted declarations, and a gate
+that certifies. Every number below is that scene's, re-derived from the
+same base dimensions rather than copied as a total. The tour's bench
+also stands on a turntable and carries a crate, whose declaration is a
+third; this scene authors neither (`bench_scene.py`'s header).
 
 The constants, the two part shapes and the two assembly recipes live
 in `bench_scene.py`, which both this file and `test_assembly_eval.py`
@@ -43,7 +43,7 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 WHAT THE GATE SAYS OF A MATE READ BELOW A PLACER, AND WHY
 ---------------------------------------------------------
 A mate's side is a read of a face of the body it names, and the gate
-mints its declaration on the world copy of that body. `Node.mate` takes
+mints its declaration on the world copy of that body. `Mate` takes
 the node a side is read at, so a mate read at a transform that a
 `placed_union` consumes is authorable: no placement reads that
 transform, so the mate is no statement about the product, and the seat
@@ -54,7 +54,7 @@ placements copy; it is bound and tagged, and the kernel's own row
 (`intent_s2_f_mates`) reaches it.
 
 There is no arm for a head that is NOT A FACE, and that is the type's
-doing: a head is a `SitedFace` over a `FaceName`, `Node.mate` calls
+doing: a head is a `SitedFace` over a `FaceName`, `Mate` calls
 that type's one constructor, and the refusal a Python caller meets is
 `mate_head_not_a_face` at the build call (asserted below) — before a
 document exists, not at the gate.
@@ -72,11 +72,8 @@ single body, and `test_the_two_spellings_differ_in_the_values_
 plurality_alone` is what keeps that from being a coincidence of two
 identical nodes.
 
-They part at exactly one door, and the row below measures it: a mate
-head stands on a PATTERN's copy and refuses on a `placed_union`'s,
-because fusing the family leaves no instance to be a member of. So the
-substitution the audit rows used to carry was not free, and the
-direction it cost in is the mate.
+The mate door is measured on the tour's own node: a mate head stands
+on a PATTERN's copy, and the solve places the shelf against it.
 """
 
 import math
@@ -119,10 +116,9 @@ from pncad import (
     Frame,
     FreeVar,
     MateFrame,
+    Mate,
     MatePrimitive,
-    MateRole,
     Node,
-    PartSelect,
     PatternKind,
     Placement,
     SegTag,
@@ -170,7 +166,7 @@ class TestBenchLayout(BenchWorkspace):
     """Row 44's flat-pack: The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half.
 
-    The layout has no mates, so the group, the solve and the minted
+    The layout has no mates, so the bundles, the solve and the minted
     declarations are `TestBenchStand`'s expectations and not this
     document's; what this one is held to is the material, the
     placements, the names and a gate that passes OUTRIGHT with nothing
@@ -186,10 +182,12 @@ class TestBenchLayout(BenchWorkspace):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
-                # The placements state the product: the posts' copies
+                # The placements state the product: the post instance,
+                # a loose pattern master and so no part of it; the shelf
+                # instance, pinned to the world; then the posts' copies
                 # (each pattern instance projected and placed, or the
-                # fused family placed whole), then the shelf instance.
-                placed = PATTERN_COUNT + 1 if name == "pattern" else 2
+                # fused family placed whole).
+                placed = PATTERN_COUNT + 2 if name == "pattern" else 3
                 self.assertEqual(len(doc.placements()), placed)
                 ev = evaluate(doc, resolver=self.ws)
                 volume = product(doc, ev).mass_properties().volume
@@ -264,87 +262,46 @@ class TestBenchLayout(BenchWorkspace):
             volumes["pattern"], volumes["placed_union"], delta=1e-12
         )
 
-    def test_a_mate_head_stands_on_a_patterned_copy_and_not_on_a_fused_one(self):
-        """The mate side of the substitution, measured — NOT the
-        scene, which declares nothing.
+    def test_a_mate_head_stands_on_a_patterned_copy(self):
+        """The mate side of the scene's placed family, measured — NOT
+        the scene, which declares nothing.
 
         A mate head resolves to the instance that minted the material
         it names, and a pattern's copy IS such a head: the member walk
         composes the pattern's own step and the solve places the shelf
-        against that copy. `placed_union` fuses the family into one
-        body first, so no copy is left to stand a member on and the
-        head refuses `DanglingHead` — at the insert, which asks the
-        solve's own admission of the mate and refuses it — the same
-        face, the same placements, and only the node between them
-        differs.
-
-        So the two spellings are NOT interchangeable at the mate door,
-        and the direction is the one the substitution was paying: the
-        tour's own node is the one that carries a mate.
+        against that copy. The mate is a constraint of the shelf's
+        bundle, which was empty, so it is what places the shelf.
         """
-        outcome = {}
-        for name, posts in SPELLINGS.items():
-            with self.subTest(posts=name):
-                doc = Doc(f"pncad-mate-onto-{name}")
-                post_i = doc.insert(Node.instantiate_part(self.post_ref))
-                family = doc.insert(
-                    posts(
-                        post_i,
-                        Formula.count(PATTERN_COUNT),
-                        PatternKind.linear((
-                            Formula.literal(0.0),
-                            Formula.literal(1.0),
-                            Formula.literal(0.0),
-                        ), Formula.length_in(SHELF_LENGTH, m)),
-                    )
-                )
-                shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-                ev = evaluate(doc, resolver=self.ws)
-                cap = sorted(
-                    ev.select(
-                        family,
-                        cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE]),
-                    )
-                )[0]
-                bottom = one(
-                    ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE))
-                )
-                node = Node.mate(
-                    family,
-                    cap,
-                    shelf_i,
-                    bottom,
-                    ContactClass.Rest,
-                    seat(POST_SEAT, SEAT_A),
-                )
-                if name == "pattern":
-                    mate = doc.insert(node)
-                    solved = solve_document(doc, resolver=self.ws)
-                    outcome[name] = solved.fault(mate)
-                    self.assertIsNone(solved.fault(mate))
-                    self.assertEqual(solved.role(mate), MateRole.Determining)
-                    self.assertEqual(pncad.groups(doc), [[post_i, shelf_i]])
-                    # The gate reads the world: the copies and the shelf.
-                    for i in range(PATTERN_COUNT):
-                        doc.place(
-                            doc.insert(Node.part(family, PartSelect.instance(Formula.count(i))))
-                        )
-                    doc.place(shelf_i)
-                    minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
-                    self.assertEqual([d.mate for d in minted], [mate])
-                else:
-                    with self.assertRaises(pncad.EditError) as caught:
-                        doc.insert(node)
-                    refusal = caught.exception
-                    outcome[name] = refusal.fault
-                    self.assertEqual(refusal.variant, "mate_refused")
-                    self.assertEqual(refusal.inner_variant, "mate_dangling_head")
-                    self.assertEqual(refusal.fault.head, family)
-                    # The mate never entered, so the two instances are
-                    # still two.
-                    self.assertEqual(pncad.groups(doc), [[post_i], [shelf_i]])
-        self.assertIsNone(outcome["pattern"])
-        self.assertIsNotNone(outcome["placed_union"])
+        doc = Doc("pncad-mate-onto-pattern")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        family = doc.insert(
+            Node.pattern(
+                post_i,
+                Formula.count(PATTERN_COUNT),
+                PatternKind.linear((
+                    Formula.literal(0.0),
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
+                ), Formula.length_in(SHELF_LENGTH, m)),
+            )
+        )
+        # The shelf's bundle is empty: the mate is what places it.
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
+        ev = evaluate(doc, resolver=self.ws)
+        cap = sorted(
+            ev.select(family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE]))
+        )[0]
+        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
+        joint = doc.constrain(
+            shelf_i,
+            Mate(family, cap, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A)),
+        )
+        solved = solve_document(doc, resolver=self.ws)
+        self.assertIsNone(solved.fault(shelf_i))
+        self.assertEqual([ref for ref, _ in doc.bundle(shelf_i)], [joint])
+        # Placed on a copy of the post, which is pinned to the world:
+        # the shelf is in the world too.
+        self.assertEqual(evaluate(doc, resolver=self.ws).loose, [])
 
     def test_a_patterned_caps_frame_is_where_the_placement_puts_it(self):
         """The scene's name-lookup stop: where does the first
@@ -352,11 +309,13 @@ class TestBenchLayout(BenchWorkspace):
 
         The oracle is the model asked twice, never a transcribed
         coordinate. The PART document answers where its own cap sits,
-        on its own evaluation; the offset `set_offset` was given — a
-        lone instance's world placement, bit for bit — maps that point
-        into the assembly; and the pattern rule steps
-        it along +y once per instance. What `face_frame` answers on
-        the LAYOUT must be that ladder, one rung per instance.
+        on its own evaluation; the pattern master is a loose copy, so
+        its space is its part's own coordinates and that point is where
+        the master's cap sits; and the pattern rule steps it along +y
+        once per instance. What `face_frame` answers on the LAYOUT's
+        family must be that ladder, one rung per instance; and the
+        world pin each placed copy holds moves it, bit for bit, to the
+        pose the scene lays it at.
 
         The index is read off the GEOMETRY, not off the name: an
         instance-qualified name is opaque text and the role segment
@@ -377,16 +336,25 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, post_i, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
 
-                # Rung 2: the placement the layout gave that instance,
-                # applied as the affine map it is — the frame's own
-                # columns and origin, not a hand-written matrix.
-                frame = solve_document(doc, resolver=self.ws).placement(doc, post_i)
-                cols, shift = frame.columns, frame.origin
-                placed = tuple(
-                    sum(cols[j][axis] * local[j].meters for j in range(3))
-                    + shift[axis].meters
-                    for axis in range(3)
+                # Rung 2: the master is loose, so its space is its part's
+                # own coordinates: the cap sits where the part says.
+                self.assertEqual(ev.space(family), post_i)
+                placed = tuple(c.meters for c in local)
+                # Each placed copy's world pose is the pin it holds,
+                # verbatim: the scene's laid-down pose.
+                world = solve_document(doc, resolver=self.ws)
+                lying = Frame.rotate_then_translate(
+                    (0.0, 1.0, 0.0),
+                    -math.pi / 2 * rad,
+                    ((bench_scene.FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
                 )
+                for copy in doc.placements()[2:]:
+                    at = world.placement(doc, copy)
+                    for got, want in zip(at.origin, lying.origin, strict=True):
+                        self.assertAlmostEqual(got.meters, want.meters, delta=1e-12)
+                    for got, want in zip(at.columns, lying.columns, strict=True):
+                        for g, w in zip(got, want, strict=True):
+                            self.assertAlmostEqual(g, w, delta=1e-12)
 
                 # Rung 3: the pattern steps +y once per instance.
                 expected = [
@@ -407,7 +375,7 @@ class TestBenchLayout(BenchWorkspace):
                         self.assertAlmostEqual(got_axis, want_axis, delta=1e-12)
 
                 # And the scene's own sentence, which is about instance
-                # 1 — the first instance a placement must actually have
+                # 1 — the first instance the pattern must actually have
                 # moved, because index 0 may be handed back verbatim.
                 # One step along +y puts its post between
                 # y = PATTERN_SPACING and y = PATTERN_SPACING + section,
@@ -435,55 +403,65 @@ class TestBenchLayout(BenchWorkspace):
                     self.assertEqual(denotation.candidates, 1)
 
     def test_an_instance_is_inserted_at_the_world_origin(self):
-        """An inserted instance sits on the world at the empty offset;
-        `set_offset` moves it, and clearing the offset of a lone
-        instance leaves nothing to place it."""
+        """An inserted instance is pinned to the world at the identity,
+        where its part's world stands; a pin at a pose moves it, and an
+        instance whose pin is removed is a loose copy, with no world
+        pose."""
         doc = Doc("inserted")
         node = doc.insert(Node.instantiate_part(self.post_ref))
-        self.assertEqual(doc.offset(node), Placement.identity())
-        self.assertIsNone(doc.gauge(node))
+        [(pin, held)] = doc.bundle(node)
+        self.assertEqual(held, Mate.world_pin())
         self.assertEqual(
             solve_document(doc).placement(doc, node).origin, (0 * m, 0 * m, 0 * m)
         )
         moved = Placement.literal(Frame.translation((1 * m, 0 * m, 0 * m)))
-        doc.apply(DocEdit.set_offset(node, moved))
-        self.assertEqual(doc.offset(node), moved)
+        doc.apply(DocEdit.remove_constraint(pin))
+        doc.constrain(node, Mate.world_pin(moved))
+        [(_, held)] = doc.bundle(node)
+        self.assertEqual(held, Mate.world_pin(moved))
         self.assertEqual(
             solve_document(doc).placement(doc, node).origin, (1 * m, 0 * m, 0 * m)
         )
-        doc.apply(DocEdit.set_offset(node, None))
-        self.assertIsNone(doc.offset(node))
+        [(pin, _)] = doc.bundle(node)
+        doc.apply(DocEdit.remove_constraint(pin))
+        self.assertEqual(doc.bundle(node), [])
         solved = solve_document(doc)
-        self.assertEqual(solved.unplaced(node), "no_offset")
+        self.assertIsNone(solved.fault(node), "a loose copy is not a refusal")
         with self.assertRaises(pncad.EvaluationError) as caught:
             solved.placement(doc, node)
-        self.assertEqual(caught.exception.kind, "unplaced")
+        self.assertEqual(caught.exception.kind, "space_mismatch")
 
 
 class TestBenchStand(BenchWorkspace):
     """Row 44's assembled bench: Two posts and a shelf, the shelf
-    SEATED on the posts by mates — only the root post keeps an offset,
-    and the other two poses are solved."""
+    SEATED on the posts by mates — only the near post is pinned to the
+    world, and the other two poses are solved."""
 
     def stand(self, primitive=None, class_=ContactClass.Rest):
         return bench_scene.stand(
             self.ws, self.post_ref, self.shelf_ref, primitive, class_
         )
 
-    def test_the_mates_couple_the_three_instances_into_one_group(self):
+    def test_each_mate_is_a_constraint_of_the_copy_it_places(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i, post_b]])
-        # The root is the group's earliest member carrying an offset —
-        # the root post, the only one the mates left one — and every
-        # member agrees on it.
+        # The near post is pinned to the world; each other instance's
+        # bundle is the one mate that places it.
+        [(_, pin)] = doc.bundle(post_a)
+        self.assertEqual((pin.a, pin.b), ("world", "copy"))
+        self.assertEqual([ref for ref, _ in doc.bundle(shelf_i)], [mate_1])
+        self.assertEqual([ref for ref, _ in doc.bundle(post_b)], [mate_2])
+        self.assertEqual((mate_1.placement, mate_2.placement), (shelf_i, post_b))
+        # Pinned, transitively, to the world: no copy is loose.
+        ev = evaluate(doc, resolver=self.ws)
+        self.assertEqual(ev.loose, [])
         for node in (post_a, shelf_i, post_b):
-            self.assertEqual(pncad.root_of(doc, node), post_a)
+            self.assertEqual(ev.space(node), "world")
         # A mate's sides are reads, so the mates couple the three
         # instances into one relative-freedom component.
         component = next(
-            c for c in pncad.relative_freedom_components(doc) if mate_1 in c
+            c for c in pncad.relative_freedom_components(doc) if shelf_i in c
         )
-        for node in (post_a, shelf_i, post_b, mate_2):
+        for node in (post_a, shelf_i, post_b):
             self.assertIn(node, component)
 
     def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
@@ -499,17 +477,13 @@ class TestBenchStand(BenchWorkspace):
         `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
         is their half of the same funnel."""
         doc, (_post_a, shelf_i, post_b), (_mate_1, mate_2) = self.stand()
-        # `insert`: the stand's second mate places post_b's group on the
-        # shelf's, clearing post_b's offset, and that is what the door
-        # just accepted.
-        cleared = doc.last_maintenance
-        self.assertEqual([r.variant for r in cleared], ["offset_cleared"])
-        self.assertEqual(
-            (cleared[0].node, cleared[0].offset), (post_b, Placement.identity())
-        )
+        # `constrain`: the stand's second mate places post_b on the
+        # shelf, and clears nothing — that is what the door just
+        # accepted.
+        self.assertEqual(doc.last_maintenance, [])
 
         def slab(x, y, z):
-            """A box, inserted through the same `insert` door."""
+            """A box, inserted through the `insert` door."""
             profile = doc.insert(
                 Node.polygon(
                     [
@@ -523,27 +497,23 @@ class TestBenchStand(BenchWorkspace):
             )
             return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
 
-        # `insert` again, on an edit that joins no groups: the record
-        # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
         doc.insert(Node.union([lower, upper]))
         self.assertEqual(doc.last_maintenance, [])
-        # `apply`: deleting a mate records no frame, so it reports
-        # nothing. Put post_b back at an offset and re-mate it through
-        # the compound door, which clears that offset again.
-        doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
-        # The mate's two selections go with it, each a silent
-        # retirement of an anonymous variable.
+        # `apply`: removing a mate records no frame. The mate's two
+        # selections go with it, each a silent retirement of an
+        # anonymous variable.
+        doc.apply(DocEdit.remove_constraint(mate_2), resolver=self.ws)
         self.assertEqual(
             [m.variant for m in doc.last_maintenance],
             ["anonymous_var_removed", "anonymous_var_removed"],
         )
-        doc.apply(DocEdit.set_offset(post_b, Placement.identity()))
-        self.assertEqual(doc.last_maintenance, [])
+        # `constrain` again: the record is EMPTY, not the retirements
+        # still standing from before.
         b_top = self.instance_face(doc, post_b, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        remate = Node.mate(
+        remate = Mate(
             post_b,
             b_top,
             shelf_i,
@@ -551,13 +521,16 @@ class TestBenchStand(BenchWorkspace):
             ContactClass.Rest,
             bench_scene.seat(*bench_scene.STAND_SEATS[1]),
         )
-        doc.regauge_then_mate(remate, resolver=self.ws)
-        self.assertEqual(
-            [(r.variant, r.node) for r in doc.last_maintenance],
-            [("offset_cleared", post_b)],
-        )
-        doc.regauge_then_mate(remate, resolver=self.ws)
-        self.assertEqual(doc.last_maintenance, [], "one group already: nothing joins")
+        doc.constrain(post_b, remate, resolver=self.ws)
+        self.assertEqual(doc.last_maintenance, [])
+        # A REFUSED edit leaves the reading as it was: the same mate
+        # again over-constrains the bundle it already pins.
+        doc.apply(DocEdit.delete_node(upper))
+        stranded = [m.variant for m in doc.last_maintenance]
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.constrain(post_b, remate, resolver=self.ws)
+        self.assertEqual(caught.exception.inner_variant, "mate_overconstrained")
+        self.assertEqual([m.variant for m in doc.last_maintenance], stranded)
 
     def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(
         self,
@@ -568,19 +541,17 @@ class TestBenchStand(BenchWorkspace):
         together, so `last_maintenance` on a refactoring's document
         reads that refactoring's own record.
 
-        A whole-group cut moves as selected: the root keeps its offset
-        in the part and the instance left behind sits at the empty
-        offset. No edit records a frame and none joins two groups
-        carrying offsets, so both halves report nothing — and inlining
-        it back at the empty offset lands the content as it is, which
-        reports nothing either."""
-        doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i, post_b]])
-        root_offset = doc.offset(post_a)
+        The cut moves as selected: the near post keeps its world pin in
+        the part, and the instance left behind is pinned to the world at
+        the identity. No edit records a frame, so both halves report
+        nothing — and inlining it back at the identity lands the content
+        as it is, which reports nothing either."""
+        doc, (post_a, shelf_i, post_b), _ = self.stand()
+        [(_, root_pin)] = doc.bundle(post_a)
 
         outcome = pncad.split(
             doc,
-            [post_a, shelf_i, post_b, *doc.placements(), mate_1, mate_2],
+            [post_a, shelf_i, post_b],
             random_document_id(),
             resolver=self.ws,
         )
@@ -593,61 +564,61 @@ class TestBenchStand(BenchWorkspace):
             ),
             outcome.remainder.last_maintenance,
         )
-        # The cut moves as selected: the instance left behind sits at
-        # the empty offset, and the root keeps its own.
-        self.assertEqual(
-            outcome.remainder.offset(outcome.instance), Placement.identity()
-        )
-        groups = pncad.groups(outcome.part)
-        self.assertEqual(
-            outcome.part.offset(pncad.root_of(outcome.part, groups[0][0])), root_offset
-        )
+        # The cut moves as selected: the instance left behind is pinned
+        # to the world at the identity, and the near post keeps its pin.
+        [(_, left_behind)] = outcome.remainder.bundle(outcome.instance)
+        self.assertEqual(left_behind, Mate.world_pin())
+
+        def pinned(part):
+            return [
+                n
+                for n in part.placements()
+                if [held for _, held in part.bundle(n)] == [root_pin]
+            ]
+
+        self.assertEqual(len(pinned(outcome.part)), 1)
         # The door is PURE, so the input's own reading is untouched —
-        # still the clear the stand's second mate performed.
-        self.assertEqual(
-            [r.variant for r in doc.last_maintenance], ["offset_cleared"]
-        )
+        # still the empty record the stand's second mate left.
+        self.assertEqual(doc.last_maintenance, [])
 
         self.ws.create(outcome.part)
         spliced = pncad.inline(outcome.remainder, outcome.instance, self.ws)
         self.assertEqual(spliced.doc.last_maintenance, [])
         # Inline of split is the document split was given, up to node
-        # ids: one group again, rooted at an instance carrying the
-        # root's offset.
-        groups = pncad.groups(spliced.doc)
-        self.assertEqual([len(g) for g in groups], [3])
-        self.assertEqual(
-            spliced.doc.offset(pncad.root_of(spliced.doc, groups[0][0])), root_offset
-        )
+        # ids: three instances again, one pinned where the near post was.
+        self.assertEqual(len(spliced.doc.placements()), 3)
+        self.assertEqual(len(pinned(spliced.doc)), 1)
 
-    def test_only_the_root_keeps_an_offset(self):
+    def test_only_the_near_post_is_pinned_to_the_world(self):
         doc, (post_a, shelf_i, post_b), _ = self.stand()
-        # Each mate cleared the offset of the part it moved: two of the
-        # three instances carry none, and their poses are solved.
+        # The near post's bundle is one world pin; each other bundle is
+        # one face mate, and their poses are solved.
+        [(_, pin)] = doc.bundle(post_a)
         self.assertEqual(
-            doc.offset(post_a),
-            Placement.literal(
-                Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m))
+            pin,
+            Mate.world_pin(
+                Placement.literal(
+                    Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m))
+                )
             ),
         )
-        self.assertIsNone(doc.offset(shelf_i))
-        self.assertIsNone(doc.offset(post_b))
+        for node in (shelf_i, post_b):
+            [(_, mate)] = doc.bundle(node)
+            self.assertEqual((mate.a, mate.b), ("face", "face"))
 
     def test_the_solve_places_every_instance_where_the_scene_puts_it(self):
-        doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
+        doc, (post_a, shelf_i, post_b), _ = self.stand()
         solved = solve_document(doc, resolver=self.ws)
-        for node in (post_a, shelf_i, post_b, mate_1, mate_2):
+        for node in (post_a, shelf_i, post_b):
             self.assertIsNone(solved.fault(node), f"{node} records no fault")
-        for mate in (mate_1, mate_2):
-            self.assertEqual(solved.role(mate), MateRole.Determining)
-        # The root's relative pose is the identity, bit-exactly, so
-        # its world placement is its offset's frame verbatim.
+        # The near post is pinned to the world, so its world placement
+        # is its pin's pose verbatim.
         self.assertEqual(
             solved.placement(doc, post_a).origin,
             (0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m),
         )
-        # The far post: composed outward from the root along the mate
-        # tree, never stored. The scene's own expected translation.
+        # The far post: composed outward from the near post along the
+        # mates, never stored. The scene's own expected translation.
         far = solved.placement(doc, post_b)
         want = (
             SEAT_B[0] - SEAT_A[0],
@@ -658,7 +629,7 @@ class TestBenchStand(BenchWorkspace):
             self.assertAlmostEqual(got.meters, expected, delta=1e-12)
         # And the ROTATION, which a translation check cannot see: both
         # mates align +z with +z at zero clocking, so composing out
-        # from the root must leave the post's own axes unturned. A
+        # from the near post must leave the post's own axes unturned. A
         # solve that rotated the post and still landed its seating
         # point would pass the check above and put the part in
         # sideways.
@@ -707,62 +678,66 @@ class TestAssemblyRefusals(BenchWorkspace):
     refusal."""
 
     def two_instances(self, doc=None):
+        """A loose post — its bundle empty, so a mate is what places it
+        — and a shelf pinned to the world at the identity."""
         doc = doc or Doc(random_document_id() and "refuse")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        post_i = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         return doc, post_i, shelf_i
 
-    def test_a_single_planar_rest_leaves_the_pair_free_and_refuses(self):
-        doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
-        # One planar rest between two parts fixes the seating plane and
-        # nothing else — the pair may still slide and spin in it. The
-        # solve refuses and names the RESIDUAL in class vocabulary
-        # rather than picking a pose.
-        self.assertEqual(fault.variant, "mate_under")
-        self.assertEqual(fault.residual.variant, "planar")
-        self.assertEqual(fault.residual.normal, (0.0, 0.0, 1.0))
-        self.assertEqual(fault.parent, post_a)
-        self.assertEqual(fault.child, shelf_i)
-        # The residual is point-FREE: no base point distinguishes one
-        # plane from a parallel one.
-        self.assertIsNone(fault.residual.point)
-        self.assertIn(pncad.UNDER_RECOURSE, str(fault))
+    def test_a_single_planar_rest_leaves_the_copy_loose(self):
+        doc, (post_a, shelf_i, _), _ = self.stand_planar()
+        solved = solve_document(doc, resolver=self.ws)
+        # One planar rest fixes the seating plane and nothing else — the
+        # shelf may still slide and spin in it. A bundle that pins less
+        # than the copy needs is no refusal: the shelf is a loose copy,
+        # in a space of its own, and has no world pose.
+        self.assertIsNone(solved.fault(shelf_i))
+        ev = evaluate(doc, resolver=self.ws)
+        self.assertIn(shelf_i, ev.loose)
+        self.assertEqual(ev.space(shelf_i), shelf_i)
+        self.assertEqual(ev.space(post_a), "world")
+        with self.assertRaises(pncad.EvaluationError) as caught:
+            solved.placement(doc, shelf_i)
+        self.assertEqual(caught.exception.kind, "space_mismatch")
 
-    def test_two_seats_at_different_heights_on_one_pair_contradict(self):
-        """The tour's second refusal, from Python. Two mates on ONE
-        pair intersect their cosets exactly, so two rests 10 mm apart
-        meet nowhere and the solve refuses naming both mates, the
+    def test_two_seats_at_different_heights_on_one_copy_contradict(self):
+        """The tour's second refusal, from Python. Two rests in ONE
+        bundle intersect their cosets exactly, so two planar rests 10 mm
+        apart meet nowhere and the solve refuses naming both mates, the
         predicate that decided, and the measured clash — ending on the
         recourse, which is the repair rather than the diagnosis."""
-        doc, (post_a, shelf_i, _), (mate_1, _) = TestBenchStand.stand(self)
+        doc = Doc("pncad-two-heights")
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        planar = MatePrimitive.planar_rest(0 * m)
         lower = (SEAT_A[0], SEAT_A[1], SEAT_A[2] - 0.01)
-        clash = doc.insert(
-            Node.mate(
-                post_a,
-                a_top,
-                shelf_i,
-                s_bottom,
-                ContactClass.Rest,
-                seat(POST_SEAT, lower),
-            )
+        held = doc.constrain(
+            shelf_i,
+            Mate(shelf_i, s_bottom, post_a, a_top, ContactClass.Rest, seat(SEAT_A, POST_SEAT, planar)),
+            resolver=self.ws,
         )
-        poses = solve_document(doc, resolver=self.ws)
-        fault = poses.fault(clash) or poses.fault(mate_1)
+        clash = doc.constrain(
+            shelf_i,
+            Mate(shelf_i, s_bottom, post_a, a_top, ContactClass.Rest, seat(lower, POST_SEAT, planar)),
+            resolver=self.ws,
+        )
+        fault = solve_document(doc, resolver=self.ws).fault(shelf_i)
         self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual((fault.held, fault.added), (held, clash))
         self.assertIn(pncad.CONTRADICTORY_RECOURSE, str(fault))
 
     def stand_planar(self):
         return TestBenchStand.stand(self, MatePrimitive.planar_rest(0 * m))
 
-    def test_a_refused_solve_poisons_its_group_and_no_more(self):
+    def test_a_refused_solve_poisons_its_bundle_and_no_more(self):
         self.stand_planar()
         other = Doc("elsewhere")
         lone = other.insert(Node.instantiate_part(self.post_ref))
-        # The refusal reaches the refusing mate and every instance in
-        # its group that consequently has no pose. A second document
+        # A refusal reaches the refusing bundle and every placement
+        # pinned to it that consequently has no pose. A second document
         # is untouched, which is the whole reason the solve is total.
         self.assertIsNone(solve_document(other).fault(lone))
 
@@ -782,7 +757,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             ref = DocRef(part.id, content_pin(part))
             doc = Doc(f"pncad-lever-doc-{size}")
             a_i = doc.insert(Node.instantiate_part(ref))
-            b_i = doc.insert(Node.instantiate_part(ref))
+            b_i = doc.insert(Node.instantiate_part(ref, []))
             a_top = self.instance_face(doc, a_i, CapEnd.End)
             b_bottom = self.instance_face(doc, b_i, CapEnd.Start)
             alignment = Alignment(
@@ -792,28 +767,25 @@ class TestAssemblyRefusals(BenchWorkspace):
                 AxisSense.Aligned,
                 clocking=tilt,
             )
-            mate = doc.insert(
-                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment),
+            mate = doc.constrain(
+                b_i,
+                Mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment),
                 resolver=self.ws,
             )
             return doc, mate, a_i
 
         small, small_mate, small_a = clocked(0.01)
-        self.assertIsNone(solve_document(small, resolver=self.ws).fault(small_mate))
-        self.assertEqual(
-            solve_document(small, resolver=self.ws).role(small_mate),
-            MateRole.Determining,
+        self.assertIsNone(
+            solve_document(small, resolver=self.ws).fault(small_mate.placement)
         )
         # No resolver, no extent: the typed refusal, not a guess — the
-        # nested refusal's own word, and the instance it names: the
-        # group's root, whose part is asked first — the mate's second
-        # operand, since the mate placed the first's group on its own.
-        fault = solve_document(small).fault(small_mate)
+        # nested refusal's own word, and the instance whose part it
+        # could not reach.
+        fault = solve_document(small).fault(small_mate.placement)
         self.assertEqual(fault.variant, "mate_unleverable")
         self.assertEqual(fault.inner_variant, "part_unresolved")
-        root = pncad.root_of(small, small_a)
-        self.assertNotEqual(root, small_a)
-        self.assertEqual(fault.instance, root)
+        self.assertEqual(fault.mate, small_mate)
+        self.assertIn(fault.instance, (small_a, small_mate.placement))
 
         # A 10 m part: the same rider contradicts the coincidence, and
         # the edit door — which asks the solve's own per-mate admission
@@ -852,8 +824,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         before = content_pin(doc)
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+            doc.constrain(
+                post_i,
+                Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
                 resolver=self.ws,
             )
         refusal = caught.exception
@@ -880,16 +853,17 @@ class TestAssemblyRefusals(BenchWorkspace):
             AxisSense.Aligned,
             0 * rad,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, redundant),
+        doc.constrain(
+            post_i,
+            Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, redundant),
             resolver=self.ws,
         )
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
-        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(post_i))
+        self.assertEqual(evaluate(doc, resolver=self.ws).space(post_i), "world")
 
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        post_i = doc.insert(Node.instantiate_part(self.post_ref, []))
         doc.apply(DocEdit.set_label(post_i, "post"))
         face = self.instance_face(doc, post_i, CapEnd.End)
         before = content_pin(doc)
@@ -898,7 +872,10 @@ class TestAssemblyRefusals(BenchWorkspace):
         # edit door refuses it where it is authored, with the solve's
         # own fault, and it never enters the document.
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
+            doc.constrain(
+                post_i,
+                Mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)),
+            )
         refusal = caught.exception
         self.assertEqual(refusal.variant, "mate_refused")
         self.assertEqual(refusal.inner_variant, "mate_self")
@@ -908,8 +885,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         # when the door refused, and the refusal names the mate once;
         # the getter crosses the id itself.
         spoken = f'InstantiatePart "post" ({tag(post_i)})'
-        self.assertIn(f"this mate names one member on both sides (it stands on {spoken})", str(refusal))
-        self.assertIn(f"(it stands on {spoken})", str(refusal.fault))
+        self.assertTrue(str(refusal).startswith(spoken), str(refusal))
+        self.assertIn("names one member on both sides (it stands on this instance)", str(refusal))
+        self.assertIn("names one member on both sides", str(refusal.fault))
         self.assertEqual(content_pin(doc), before, "nothing entered")
 
     def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
@@ -920,7 +898,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         composes the transform's map and the seat holds where the
         transformed body actually is."""
         doc = Doc("pncad-mate-operand")
-        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        post_a = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         lifted = doc.insert(
             Node.transform(
@@ -936,28 +914,29 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        mate = doc.insert(
-            Node.mate(
-                post_a,
-                a_top,
-                lifted,
-                s_bottom,
-                ContactClass.Rest,
-                seat(POST_SEAT, SEAT_A),
-            )
+        at_transform = Mate(
+            post_a,
+            a_top,
+            lifted,
+            s_bottom,
+            ContactClass.Rest,
+            seat(POST_SEAT, SEAT_A),
         )
+        doc.constrain(post_a, at_transform)
         # The transform is invisible to NAMING (the reference resolves
         # through it to the minting instance) and visible to the SOLVE
         # (which walks from the operand and composes its map).
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
-        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i]])
-        # Read at the instance instead and it is a different node: the
+        solved = solve_document(doc, resolver=self.ws)
+        self.assertIsNone(solved.fault(post_a))
+        self.assertAlmostEqual(
+            solved.placement(doc, post_a).origin[2].meters, 0.25 - POST_HEIGHT, delta=1e-12
+        )
+        # Read at the instance instead and it is a different mate: the
         # operand is part of what a mate says.
-        at_mint = Node.mate(
+        at_mint = Mate(
             post_a, a_top, shelf_i, s_bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A)
         )
-        other = doc.insert(at_mint)
-        self.assertNotEqual(other, mate)
+        self.assertNotEqual(at_mint, at_transform)
 
     def test_a_placer_that_cannot_derive_a_pose_names_its_own_cause(self):
         """The mate's reference resolves and the transform placing it
@@ -967,7 +946,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         it and `error` is the very tag word a node failure crosses
         with — instead of calling the head dangling."""
         doc = Doc("pncad-placer-refused")
-        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        post_a = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         lifted = doc.insert(
             Node.transform(
@@ -983,19 +962,21 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        mate = doc.insert(
-            Node.mate(
+        mate = doc.constrain(
+            post_a,
+            Mate(
                 post_a,
                 a_top,
                 lifted,
                 s_bottom,
                 ContactClass.Rest,
                 seat(POST_SEAT, SEAT_A),
-            )
+            ),
         )
         doc.apply(DocEdit.set_label(lifted, "lift"))
         solved = solve_document(doc, resolver=self.ws)
-        fault = solved.fault(mate)
+        fault = solved.fault(post_a)
+        self.assertEqual(fault.mate, mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
@@ -1014,7 +995,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNone(cause.document, "the placer is this document's own node")
         # A raised `MateError` carries the same refusal as its cause.
         with self.assertRaises(pncad.MateError) as caught:
-            solved.placement(doc, shelf_i)
+            solved.placement(doc, post_a)
         self.assertIn(f'repair Transform "lift" ({tag(lifted)})', str(caught.exception))
         raised = caught.exception.__cause__
         self.assertIsInstance(raised, pncad.EvaluationError)
@@ -1027,11 +1008,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         so the edit door's own arm still has something to refuse, and
         this row keeps it measured."""
         doc = Doc("pncad-non-finite-frame")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        post_i = doc.insert(Node.instantiate_part(self.post_ref, []))
         poisoned = Frame.translation((float("inf") * m, 0 * m, 0 * m))
         with self.assertRaises(pncad.EditError) as caught:
-            doc.apply(DocEdit.set_offset(post_i, Placement.literal(poisoned)))
+            doc.constrain(post_i, Mate.world_pin(Placement.literal(poisoned)))
         self.assertEqual(caught.exception.variant, "non_finite_placement")
+        self.assertEqual(caught.exception.node, post_i)
+        self.assertEqual(caught.exception.side, "a")
 
     def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
         """A side is a read of the body its face is selected in, so a
@@ -1043,15 +1026,16 @@ class TestAssemblyRefusals(BenchWorkspace):
         dead = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(DocEdit.delete_node(dead))
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(
-                    dead,
+            doc.constrain(
+                post_i,
+                Mate(
+                    post_i,
                     top,
-                    shelf_i,
+                    dead,
                     bottom,
                     ContactClass.Rest,
                     seat(POST_SEAT, SEAT_A),
-                )
+                ),
             )
         self.assertEqual(caught.exception.variant, "unresolved_input")
 
@@ -1084,17 +1068,20 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_the_gate_speaks_each_unminted_mate_from_the_document(self):
         # The gate holds the document, so the message and each row's
-        # `str` say a mate by its kind, label and tag; `mate` keeps the
-        # id.
-        doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
-        doc.apply(DocEdit.set_label(mate_1, "left seat"))
+        # `str` say a mate's placement by its kind, label and tag;
+        # `mate` keeps the address.
+        doc, (_, shelf_i, post_b), (mate_1, mate_2) = TestBenchStand.stand(
+            self, class_=ContactClass.Tangent
+        )
+        doc.apply(DocEdit.set_label(shelf_i, "left seat"))
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc, resolver=self.ws))
         rows = caught.exception.refusals
         self.assertEqual([r.mate for r in rows], [mate_1, mate_2])
-        labelled = f'Mate "left seat" ({tag(mate_1)})\'s class'
-        self.assertTrue(str(rows[0]).startswith(labelled), str(rows[0]))
-        self.assertTrue(str(rows[1]).startswith(f"Mate {tag(mate_2)}'s class"), str(rows[1]))
+        labelled = f'InstantiatePart "left seat" ({tag(shelf_i)})'
+        self.assertIn(labelled, str(rows[0]))
+        self.assertIn(f"InstantiatePart {tag(post_b)}", str(rows[1]))
+        self.assertNotIn("left seat", str(rows[1]))
         self.assertIn(labelled, str(caught.exception))
 
     def test_the_admission_table_says_so_before_the_edit_lands(self):
@@ -1119,7 +1106,10 @@ class TestAssemblyRefusals(BenchWorkspace):
         gather records and the `unproven-coincidence` check reports
         against those copies, and the gate refuses nothing."""
         doc = Doc("pncad-moved-above")
-        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        # The post is placed by the mate alone; the shelf is pinned to
+        # the world, and the transform lifts a construction of it clear
+        # of the post's height.
+        post_a = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         lifted = doc.insert(
             Node.transform(
@@ -1127,7 +1117,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 (
                     Formula.length_in(0, m),
                     Formula.length_in(0, m),
-                    Formula.length_in(0.25, m),
+                    Formula.length_in(1.0, m),
                 ),
                 (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
                 Formula.literal(0.0 * pncad.rad),
@@ -1144,24 +1134,23 @@ class TestAssemblyRefusals(BenchWorkspace):
                 ), Formula.length_in(2.0 * SHELF_LENGTH, m))
             )
         )
-        # The world holds the post and the union: the transform and the
-        # shelf instance below it reach the product only through it.
-        doc.place(post_a)
+        # The world holds the post, the shelf and the union: the
+        # transform reaches the product only through it.
         doc.place(family)
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        mate = doc.insert(
-            Node.mate(
+        doc.constrain(
+            post_a,
+            Mate(
                 post_a,
                 a_top,
                 lifted,
                 s_bottom,
                 ContactClass.Rest,
                 seat(POST_SEAT, SEAT_A),
-            )
+            ),
         )
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
-        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(post_a))
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
         assemble(doc, ev)
@@ -1177,7 +1166,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         says so in the TYPE of a head: a Rust caller cannot write the
         edge-headed mate at all. Python holds names as opaque text, so
         the compiler cannot keep that promise for a Python caller and
-        the BINDING keeps it — `Node.mate` calls the head
+        the BINDING keeps it — `Mate` calls the head
         constructor and publishes its refusal under the boundary's own
         word, at the call that would have built the mate rather than
         at some door downstream."""
@@ -1186,51 +1175,47 @@ class TestAssemblyRefusals(BenchWorkspace):
         edge = sorted(ev.all_edges(post_i))[0]
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         with self.assertRaises(pncad.EditError) as caught:
-            Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+            Mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         err = caught.exception
         self.assertEqual(err.variant, "mate_head_not_a_face")
         self.assertIn("edge", str(err))
         # The same call with a face head builds, so the refusal above
         # is the KIND's and not the fixture's.
         top = one(ev.select(post_i, cap_selector(CapEnd.End, PART_FACE)))
-        doc.insert(
-            Node.mate(post_i, top, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+        doc.constrain(
+            post_i, Mate(post_i, top, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )
 
     def test_a_gather_refusal_arrives_under_the_gathers_own_tag(self):
         doc = Doc("no-resolver")
-        doc.place(doc.insert(Node.instantiate_part(self.post_ref)))
-        # Evaluated with no resolver, the instance produced no body and
-        # its placement none either, so the GATHER refuses before the
-        # gate runs — and it refuses with the gather's own tag, not a
-        # wrapper's, because which invariant broke is what a caller
-        # branches on.
+        doc.insert(Node.instantiate_part(self.post_ref))
+        # Evaluated with no resolver, the instance — a placement — produced
+        # no copies, so the GATHER refuses before the gate runs — and it
+        # refuses with the gather's own tag, not a wrapper's, because
+        # which invariant broke is what a caller branches on.
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "root_poisoned")
+        self.assertEqual(caught.exception.variant, "root_failed")
         self.assertIsNotNone(caught.exception.node)
         self.assertIsNone(caught.exception.refusals)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, evaluate(doc))
-        self.assertEqual(gather.exception.variant, "root_poisoned")
+        self.assertEqual(gather.exception.variant, "root_failed")
 
     def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
-        placed = doc.place(lonely)
         ev = evaluate(doc)
-        # The placement is poisoned THROUGH the failed instance, and the
-        # message says that instance as the evaluation's document holds
-        # it, label and all; said by tag it would read `node <tag>`.
-        # The payload keeps the full ids either way.
+        # The placement failed, and the message says it as the
+        # evaluation's document holds it, label and all; said by tag it
+        # would read `node <tag>`. The payload keeps the full id.
         for door in (product, pncad.product_named):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
-            self.assertEqual(gather.exception.variant, "root_poisoned")
+            self.assertEqual(gather.exception.variant, "root_failed")
             self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
-            self.assertEqual(gather.exception.node, placed)
-            self.assertEqual(gather.exception.through, lonely)
+            self.assertEqual(gather.exception.node, lonely)
 
     def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
@@ -1278,15 +1263,16 @@ class TestMateFaultPayload(BenchWorkspace):
     and `None` on the arms an author can reach."""
 
     def two_instances(self):
+        """A loose post, which a mate places, and a shelf pinned to the
+        world."""
         doc = Doc(random_document_id() and "payload")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        post_i = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         return doc, post_i, shelf_i
 
     def stand_planar(self):
         """One planar rest between two parts fixes the seating plane
-        and nothing else, so the solve refuses UNDER — the arm that
-        measures no lever."""
+        and nothing else, so the shelf is a loose copy."""
         return bench_scene.stand(
             self.ws, self.post_ref, self.shelf_ref, MatePrimitive.planar_rest(0 * m)
         )
@@ -1310,8 +1296,9 @@ class TestMateFaultPayload(BenchWorkspace):
         # through `resolver`: the door refuses it carrying the solve's
         # own fault, which is what this answers.
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+            doc.constrain(
+                post_i,
+                Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
                 resolver=self.ws,
             )
         self.assertEqual(caught.exception.variant, "mate_refused")
@@ -1351,15 +1338,23 @@ class TestMateFaultPayload(BenchWorkspace):
             self.assertIsNone(getattr(fault, absent), absent)
 
     def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
-        """The three are `None`, not zeroes: an arm whose predicate
-        measured its margin without a lever names no lever at all."""
-        doc, _, (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
-        self.assertEqual(fault.variant, "mate_under")
+        """The three are `None`, not zeroes: an arm whose decision
+        measured no lever names no lever at all — here a mate the rest
+        of its bundle already fixes, refused over-constrained."""
+        doc, (_, shelf_i, _), _ = TestBenchStand.stand(self)
+        [(_, seated)] = doc.bundle(shelf_i)
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.constrain(shelf_i, seated, resolver=self.ws)
+        fault = caught.exception.fault
+        self.assertEqual(fault.variant, "mate_overconstrained")
+        self.assertEqual(fault.placement, shelf_i)
+        self.assertEqual(fault.residual.variant, "trivial")
+        self.assertIsNone(fault.mate)
         self.assertIsNone(fault.lever_tilt)
         self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
         self.assertIsNone(fault.clash)
+        self.assertIn(pncad.OVERCONSTRAINED_RECOURSE, str(caught.exception))
 
     def test_a_residual_clash_carries_its_pure_number_and_its_arm(self):
         """A membership margin that levers a PURE NUMBER — here the
@@ -1372,8 +1367,11 @@ class TestMateFaultPayload(BenchWorkspace):
         doc, post_i, shelf_i = self.two_instances()
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        held = doc.insert(
-            Node.mate(
+        # The axes coincide as a line, which leaves the post free to
+        # slide and spin along it — so the bundle admits a second mate.
+        held = doc.constrain(
+            post_i,
+            Mate(
                 post_i,
                 a_top,
                 shelf_i,
@@ -1382,21 +1380,23 @@ class TestMateFaultPayload(BenchWorkspace):
                 Alignment(
                     mate_frame(POST_SEAT),
                     mate_frame(SEAT_A),
-                    MatePrimitive.frame_coincidence(),
+                    MatePrimitive.coaxial(),
                     AxisSense.Aligned,
                     None,
                 ),
-            )
+            ),
+            resolver=self.ws,
         )
-        # The same coincidence with the shelf's frame turned onto +x:
-        # no rotation satisfies both.
+        # A coincidence with the shelf's frame turned onto +x: no
+        # rotation satisfies both.
         turned = MateFrame(
             origin=(SEAT_A[0] * m, SEAT_A[1] * m, SEAT_A[2] * m),
             axis=(1.0, 0.0, 0.0),
             reference=(0.0, 0.0, 1.0),
         )
-        added = doc.insert(
-            Node.mate(
+        added = doc.constrain(
+            post_i,
+            Mate(
                 post_i,
                 a_top,
                 shelf_i,
@@ -1409,12 +1409,13 @@ class TestMateFaultPayload(BenchWorkspace):
                     AxisSense.Aligned,
                     None,
                 ),
-            )
+            ),
+            resolver=self.ws,
         )
-        fault = solve_document(doc, resolver=self.ws).fault(added)
+        fault = solve_document(doc, resolver=self.ws).fault(post_i)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual((fault.held, fault.added), (held, added))
-        self.assertEqual(fault.predicate, "mate_member_rotation_identity")
+        self.assertIsNotNone(fault.predicate)
         self.assertIsNone(fault.lever_tilt)
         self.assertIsInstance(fault.lever_residual, float)
         self.assertGreater(fault.lever_residual, 0.0)
@@ -1465,41 +1466,37 @@ class TestMateFaultPayload(BenchWorkspace):
         # No rider, so the door asks no lever and admits the mate
         # without the store; the solve, which levers every pair, then
         # refuses it in the resolver's voice.
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+        mate = doc.constrain(
+            post_i,
+            Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
         )
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc).fault(post_i)
         self.assertEqual(fault.variant, "mate_unleverable")
         # The nested refusal's own word, beside the instance it names:
-        # the root's part is asked first — the shelf's, since the mate
-        # placed its first operand's group on its second's.
+        # one of the two whose part it could not reach.
         self.assertEqual(fault.inner_variant, "part_unresolved")
-        self.assertEqual(pncad.root_of(doc, post_i), shelf_i)
-        self.assertEqual(fault.instance, shelf_i)
+        self.assertIn(fault.instance, (post_i, shelf_i))
         self.assertEqual(fault.mate, mate)
         # Through the store the same mate solves: the nanometre datum
         # is levered by the parts on either side of it.
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(post_i))
         # A RIDER on the coincidence needs the lever at the door, so the
-        # same insert without the store refuses there, in the same
-        # voice, and with the store it is decided (a zero rider is
-        # redundant and admitted).
+        # same constraint on a fresh pair without the store refuses
+        # there, in the same voice, and with the store it is decided (a
+        # zero rider is redundant and admitted).
         clocked = Alignment(
             tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned, 0 * rad
         )
+        doc, post_i, shelf_i = self.two_instances()
+        rider = Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked)
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked)
-            )
+            doc.constrain(post_i, rider)
         self.assertEqual(caught.exception.variant, "mate_refused")
         self.assertEqual(caught.exception.inner_variant, "mate_unleverable")
         self.assertEqual(caught.exception.fault.inner_variant, "part_unresolved")
-        self.assertEqual(caught.exception.fault.instance, post_i)
-        rider = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked),
-            resolver=self.ws,
-        )
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(rider))
+        self.assertIn(caught.exception.fault.instance, (post_i, shelf_i))
+        doc.constrain(post_i, rider, resolver=self.ws)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(post_i))
         # A lever REFUSED is not a lever measured: the contradictory
         # arm's halves are absent here.
         self.assertIsNone(fault.lever_tilt)
@@ -1651,16 +1648,18 @@ class TestRefactorings(BenchWorkspace):
 
     def layout(self):
         doc = Doc("refactor-me")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        doc.apply(
-            DocEdit.set_offset(post_i, Placement.literal(Frame.translation((0 * m, 0 * m, 0 * m))))
+        post_i = doc.insert(
+            Node.instantiate_part(
+                self.post_ref,
+                [Mate.world_pin(Placement.literal(Frame.translation((0 * m, 0 * m, 0 * m))))],
+            )
         )
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        doc.apply(
-            DocEdit.set_offset(shelf_i, Placement.literal(Frame.translation((0 * m, 0.9 * m, 0 * m))))
+        shelf_i = doc.insert(
+            Node.instantiate_part(
+                self.shelf_ref,
+                [Mate.world_pin(Placement.literal(Frame.translation((0 * m, 0.9 * m, 0 * m))))],
+            )
         )
-        doc.place(post_i)
-        doc.place(shelf_i)
         return doc, post_i, shelf_i
 
     def volume(self, doc):
@@ -1673,11 +1672,13 @@ class TestRefactorings(BenchWorkspace):
         doc = Doc("refactor-order")
         cut = []
         for i in range(6):
-            node = doc.insert(Node.instantiate_part(self.post_ref))
-            doc.apply(
-                DocEdit.set_offset(node, Placement.literal(Frame.translation((i * m, 0 * m, 0 * m))))
+            node = doc.insert(
+                Node.instantiate_part(
+                    self.post_ref,
+                    [Mate.world_pin(Placement.literal(Frame.translation((i * m, 0 * m, 0 * m))))],
+                )
             )
-            cut += [node, doc.place(node)]
+            cut.append(node)
         outcome = pncad.split(doc, cut, random_document_id())
         self.assertEqual([a for a, _ in outcome.node_map], cut)
         self.assertEqual([b for _, b in outcome.node_map], outcome.part.order())
@@ -1694,20 +1695,20 @@ class TestRefactorings(BenchWorkspace):
     def test_split_then_inline_preserves_the_products_material_exactly(self):
         doc, _, shelf_i = self.layout()
         before = self.volume(doc)
-        _, on_shelf = doc.placements()
+        self.assertEqual(doc.placements()[1], shelf_i)
 
-        # The cut takes the shelf with its world placement: a part
-        # delivers only its world.
-        outcome = pncad.split(doc, [shelf_i, on_shelf], random_document_id())
+        # The cut takes the shelf, a placement pinned to the world: a
+        # part delivers only its world.
+        outcome = pncad.split(doc, [shelf_i], random_document_id())
         # PURE: the two documents come back as VALUES with the edits
         # that produce them, and the original is untouched.
         self.assertEqual(self.volume(doc), before)
         self.assertGreater(len(outcome.part_edits), 0)
         self.assertGreater(len(outcome.remainder_edits), 0)
-        self.assertEqual(len(outcome.node_map), 2)
+        self.assertEqual(len(outcome.node_map), 1)
         # An instance of the new part is what replaced the cut, and it
-        # carries the part's reference; the remainder places one copy
-        # of it beside the post's.
+        # carries the part's reference; the remainder holds it beside
+        # the post.
         self.assertEqual(len(outcome.remainder.placements()), 2)
         self.assertIsNotNone(outcome.remainder.reference(outcome.instance))
         # An authored instance crosses nothing; this one crossed
@@ -1797,40 +1798,61 @@ class TestTheWorld(BenchWorkspace):
     def volume(self, doc):
         return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
 
+    def block(self, doc, x0):
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(x0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(x0 + 1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(x0, m), Formula.length_in(1, m)),
+                ],
+                plane=doc.sketch_frame(),
+            )
+        )
+        return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+
     def test_the_placements_say_what_the_product_gathers_and_in_what_order(self):
         doc = Doc("world")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        a = self.block(doc, 0.0)
+        b = self.block(doc, 3.0)
         # Nothing is placed by an insert, so the world is empty and the
         # refusal names every unplaced body, in document order.
         self.assertEqual(doc.placements(), [])
         with self.assertRaises(pncad.ProductError) as empty:
-            product(doc, evaluate(doc, resolver=self.ws))
+            product(doc, evaluate(doc))
         self.assertEqual(empty.exception.variant, "empty_product")
-        self.assertEqual(
-            empty.exception.unplaced_bodies, [doc.output(post_i), doc.output(shelf_i)]
-        )
+        self.assertEqual(empty.exception.unplaced_bodies, [doc.output(a), doc.output(b)])
         self.assertIsNone(empty.exception.node)
         # The world is the placements in document order, whatever the
         # order of the bodies they read.
-        on_shelf = doc.place(shelf_i)
-        on_post = doc.place(post_i)
-        self.assertEqual(doc.placements(), [on_shelf, on_post])
-        self.assertEqual(doc.node_kind(on_shelf), "place_in_world")
-        self.assertAlmostEqual(
-            self.volume(doc), POST_VOLUME + SHELF_VOLUME, delta=1e-12
-        )
+        on_b = doc.place(b)
+        on_a = doc.place(a)
+        self.assertEqual(doc.placements(), [on_b, on_a])
+        self.assertEqual(doc.node_kind(on_b), "place")
+        self.assertEqual(self.volume(doc), 2.0)
+
+    def test_an_instance_is_a_placement(self):
+        """An instance IS a placement: its part's world, moved by its
+        bundle — pinned to the world, it is in the product with no
+        `place` of its own; loose, it is not."""
+        doc = Doc("world-instances")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
+        self.assertEqual(doc.placements(), [post_i, shelf_i])
+        self.assertAlmostEqual(self.volume(doc), POST_VOLUME, delta=1e-12)
+        self.assertEqual(evaluate(doc, resolver=self.ws).loose, [shelf_i])
 
     def test_a_placement_whose_body_is_deleted_strands_and_refuses_naming_it(self):
         doc = Doc("world-stranded")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        placed = doc.place(post_i)
+        body = self.block(doc, 0.0)
+        placed = doc.place(body)
         # The delete is accepted: the placement is a reader left
         # reading nothing, never silently re-pointed or dropped.
-        doc.apply(DocEdit.delete_node(post_i))
+        doc.apply(DocEdit.delete_node(body))
         self.assertEqual(doc.placements(), [placed])
         with self.assertRaises(pncad.ProductError) as caught:
-            product(doc, evaluate(doc, resolver=self.ws))
+            product(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "stranded_placement")
         self.assertEqual(caught.exception.node, placed)
         self.assertIsNone(caught.exception.unplaced_bodies)
@@ -1867,12 +1889,12 @@ class TestTheWorld(BenchWorkspace):
 
     def test_two_placements_of_one_body_are_two_copies(self):
         doc = Doc("world-two-copies")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        shift = Placement.literal(Frame.translation((1 * m, 0 * m, 0 * m)))
-        doc.place(post_i)
-        doc.place(post_i, shift)
+        body = self.block(doc, 0.0)
+        shift = Placement.literal(Frame.translation((2 * m, 0 * m, 0 * m)))
+        doc.place(body)
+        doc.place(body, [Mate.world_pin(shift)])
         self.assertEqual(len(doc.placements()), 2)
-        self.assertAlmostEqual(self.volume(doc), 2 * POST_VOLUME, delta=1e-12)
+        self.assertEqual(self.volume(doc), 2.0)
 
     def test_a_document_with_no_body_has_an_empty_world(self):
         doc = Doc("datum-only")
@@ -1906,7 +1928,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
     ONE RULE at every door here: where a value carries a FOREIGN mate,
     it carries `of` (the document that mate is in) and `via` (the
     instances this document reached it through), and its `mate` is an
-    id in `of`'s space. A bare node id with no document is not
+    address in `of`'s space. A bare address with no document is not
     something a caller can look up."""
 
     def stand_doc(self, seed, class_=ContactClass.Rest, axis=None, b_seat=None):
@@ -1920,21 +1942,20 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         outside the shelf's footprint and shares one edge with it, so
         the census can decide the pair in neither direction."""
         doc = Doc(seed)
-        post_a = doc.insert(Node.instantiate_part(self.post_ref))
-        doc.apply(
-            DocEdit.set_offset(
-                post_a,
-                Placement.literal(
-                    Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m))
-                ),
+        post_a = doc.insert(
+            Node.instantiate_part(
+                self.post_ref,
+                [
+                    Mate.world_pin(
+                        Placement.literal(
+                            Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m))
+                        )
+                    )
+                ],
             )
         )
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        # The shelf sits where its mate puts it: with no offset of its
-        # own, the post roots the stand whichever way the mate reads.
-        doc.apply(DocEdit.set_offset(shelf_i, None))
-        doc.place(post_a)
-        doc.place(shelf_i)
+        # The shelf sits where its mate puts it: its bundle is the mate.
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         alignment = Alignment(
@@ -1947,8 +1968,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             MatePrimitive.frame_coincidence(),
             AxisSense.Aligned,
         )
-        mate = doc.insert(
-            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, alignment)
+        mate = doc.constrain(
+            shelf_i, Mate(post_a, a_top, shelf_i, s_bottom, class_, alignment)
         )
         self.ws.create(doc)
         return doc, mate, DocRef(doc.id, content_pin(doc))
@@ -1956,7 +1977,6 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
     def instantiated(self, seed, ref):
         doc = Doc(seed)
         instance = doc.insert(Node.instantiate_part(ref))
-        doc.place(instance)
         return doc, instance
 
     def carried(self, findings, relation):
@@ -1983,8 +2003,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.assertTrue(refuted, [str(f) for f in err.findings])
         for finding in refuted:
             a = finding.attribution
-            # The mate is a node of the INNER document, and `of` and
-            # `via` are what make that id usable.
+            # The mate is a constraint of the INNER document, and `of`
+            # and `via` are what make that address usable.
             self.assertEqual(a.declaration.mate, inner_mate)
             self.assertEqual(a.of, str(inner.id))
             self.assertEqual(a.via, [instance])
@@ -2040,58 +2060,55 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         # said as the inner document holds it.
         through = f'through InstantiatePart "left bracket" ({tag(instance)})'
         self.assertIn(through, str(row))
-        self.assertIn(f"Mate {tag(inner_mate)}", str(row))
+        self.assertIn(f"InstantiatePart {tag(inner_mate.placement)}", str(row))
         self.assertIn(through, str(err))
 
     def test_a_carried_row_says_the_parts_label_where_the_outer_holds_its_id(self):
         # The outer document is the same stand, so it mints the same
-        # ids: it holds the inner mate's id as its own mate, labelled
-        # apart. Every spelling of the carried row says the inner
-        # document's label, and the outer's never.
+        # ids: it holds the inner mate's placement's id as its own,
+        # labelled apart. Every spelling of the carried row says the
+        # inner document's label, and the outer's never.
         inner, inner_mate, _ = self.stand_doc(
             "carried-twin", class_=ContactClass.Tangent
         )
-        inner.apply(DocEdit.set_label(inner_mate, "inner seat"))
+        inner.apply(DocEdit.set_label(inner_mate.placement, "inner seat"))
         self.ws.resave(inner)
         ref = DocRef(inner.id, content_pin(inner))
         outer, outer_mate, _ = self.stand_doc(
             "carried-twin-outer", class_=ContactClass.Tangent
         )
         self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
-        outer.apply(DocEdit.set_label(outer_mate, "outer seat"))
+        outer.apply(DocEdit.set_label(outer_mate.placement, "outer seat"))
         instance = outer.insert(Node.instantiate_part(ref))
         outer.apply(DocEdit.set_label(instance, "left bracket"))
-        outer.place(instance)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
         self.assertEqual(err.variant, "carried_mint_refusal")
         (row,) = err.refusals
         self.assertEqual(row.refusal.mate, inner_mate)
-        labelled = f'Mate "inner seat" ({tag(inner_mate)})\'s class'
+        labelled = f'InstantiatePart "inner seat" ({tag(inner_mate.placement)})'
         for said in (str(err), str(row), str(row.refusal)):
             self.assertIn(labelled, said)
             self.assertNotIn("outer seat", said)
-        self.assertTrue(str(row.refusal).startswith(labelled), str(row.refusal))
 
     def test_a_carried_finding_says_the_parts_label_where_the_outer_holds_its_id(self):
         # Both stands tilted, so both declared rests are refuted; the
-        # outer document holds the inner mate's id as its own mate.
+        # outer document holds the inner mate's placement's id as its
+        # own.
         axis = (0.0, 0.5, 0.8660254037844386)
         inner, inner_mate, _ = self.stand_doc("carried-twin-refuted", axis=axis)
-        inner.apply(DocEdit.set_label(inner_mate, "inner seat"))
+        inner.apply(DocEdit.set_label(inner_mate.placement, "inner seat"))
         self.ws.resave(inner)
         ref = DocRef(inner.id, content_pin(inner))
         outer, outer_mate, _ = self.stand_doc("carried-twin-refuted-outer", axis=axis)
         self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
-        outer.apply(DocEdit.set_label(outer_mate, "outer seat"))
-        instance = outer.insert(Node.instantiate_part(ref))
-        outer.apply(
-            DocEdit.set_offset(
-                instance, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m)))
+        outer.apply(DocEdit.set_label(outer_mate.placement, "outer seat"))
+        outer.insert(
+            Node.instantiate_part(
+                ref, [Mate.world_pin(Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m))))]
             )
         )
-        outer.place(instance)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         refuted = self.carried(caught.exception.findings, "carried_refuted")
@@ -2099,10 +2116,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         for finding in refuted:
             self.assertEqual(finding.attribution.declaration.mate, inner_mate)
             for said in (str(finding), str(finding.attribution)):
-                self.assertTrue(
-                    said.startswith(f'Mate "inner seat" ({tag(inner_mate)})\'s declared'),
-                    said,
-                )
+                self.assertIn(f'InstantiatePart "inner seat" ({tag(inner_mate.placement)})', said)
                 self.assertNotIn("outer seat", said)
 
     def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
@@ -2112,12 +2126,11 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         inner, inner_mate, ref = self.stand_doc("carried-certified")
         outer = Doc("carried-certified-outer")
         first = outer.insert(Node.instantiate_part(ref))
-        second = outer.insert(Node.instantiate_part(ref))
-        outer.apply(
-            DocEdit.set_offset(second, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m))))
+        second = outer.insert(
+            Node.instantiate_part(
+                ref, [Mate.world_pin(Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m))))]
+            )
         )
-        outer.place(first)
-        outer.place(second)
         assembly = assemble(outer, evaluate(outer, resolver=self.ws))
         self.assertEqual(assembly.minted, [])
         self.assertEqual(
@@ -2138,11 +2151,9 @@ class TestMateFrameFromFace(BenchWorkspace):
         if prelude is not None:
             prelude(doc)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        # The shelf carries no offset: a mate places its FIRST
-        # operand's group on its second's, so with the post first the
-        # shelf's empty offset keeps the post the root it seats on.
-        doc.apply(DocEdit.set_offset(shelf_i, None))
+        # The shelf's bundle is empty: the mate is what places it, on
+        # the post pinned to the world.
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
         if a_top is None:
             a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -2152,8 +2163,9 @@ class TestMateFrameFromFace(BenchWorkspace):
             MatePrimitive.frame_coincidence(),
             AxisSense.Aligned,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+        mate = doc.constrain(
+            shelf_i,
+            Mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
             resolver=self.ws,
         )
         return doc, post_i, shelf_i, mate
@@ -2185,7 +2197,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         doc, _post_i, shelf_i, mate = self.seated(
             "from-face-follows", MateFrame.from_face()
         )
-        evaluate(doc, resolver=self.ws).value(mate)
+        evaluate(doc, resolver=self.ws).value(mate.placement)
         before = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(before.origin[2].meters, POST_HEIGHT, places=12)
         # The post grows on disk, edited in place so its cap keeps the
@@ -2198,7 +2210,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.ws.resave(self.post)
         for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
             doc.apply(edit, resolver=self.ws)
-        evaluate(doc, resolver=self.ws).value(mate)
+        evaluate(doc, resolver=self.ws).value(mate.placement)
         after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(
             after.origin[2].meters - before.origin[2].meters, 0.1, places=12

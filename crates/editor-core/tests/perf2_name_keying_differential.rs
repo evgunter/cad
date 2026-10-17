@@ -192,6 +192,15 @@ fn sans_epsilon(t: &str) -> String {
 /// two rims, as the other three such corners are named. Every
 /// other document held its word, and the persisted text did not move.
 ///
+/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
+/// mates), every row, the persisted text with it (it spells `Place` and
+/// its constraint): a placement is a `Place` holding a world pin where
+/// it was a `PlaceInWorld`, so its stored node, and with it its mint
+/// preimage, moved, and every id the mint chain draws after it. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
 /// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
 /// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
 /// the three documents holding a split. A split's two halves are two
@@ -212,20 +221,20 @@ fn sans_epsilon(t: &str) -> String {
 /// main's re-bless and this unit's each moved these rows, so the merged
 /// rows are neither tree's value; the id-masked geometry fence held.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
-    ("corner_table", 0x9ea78d8780a1cd68, 0xcc1c35defda29f84),
-    ("heat_sink", 0x28a1b80da248137b, 0xf4af7c24a597adea),
-    ("crossing_slots", 0xccc745d1803ea419, 0xfd8f77c1f5dd4008),
-    ("nested_islands_105", 0x909dbef37a66ff00, 0xfbb23451ffa46126),
+    ("die", 0x9f0d34d7a07b5474, 0x9f03cc351319921e),
+    ("corner_table", 0x366cfaeb1b511dd4, 0x1df2baaa0b4cfe02),
+    ("heat_sink", 0xaf8df354a89b9b7e, 0x30b1df72ae4fae7d),
+    ("crossing_slots", 0x892956236a7342ad, 0x0e714c597bb9a2ab),
+    ("nested_islands_105", 0x040165b6681f1e32, 0x031a21c37ea524aa),
     (
         "nested_islands_106_depth1",
-        0x31a05d43c63ec0e0,
-        0xa9f1d8928f8afff8,
+        0xc61b4696df6c3fa7,
+        0xffc1f6d8c480cab6,
     ),
     (
         "nested_islands_106_depth2",
-        0xfb94a02ed6d329e7,
-        0xfb5a08f4fe601def,
+        0xa2cd273b9315a2c9,
+        0xa529e5f0b9bc012b,
     ),
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
     ("kitchen_sink", 0xd8e3571111038d97, 0xd81725b2bace1143),

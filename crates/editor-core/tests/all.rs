@@ -518,8 +518,6 @@ mod p2_gauge_offsets_and_spaces;
 mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
-#[path = "p2_promote_fold.rs"]
-mod p2_promote_fold;
 #[path = "p2_split.rs"]
 mod p2_split;
 #[path = "parallel_node_map_interval.rs"]
@@ -792,6 +790,8 @@ mod intent_s2_e_select;
 mod intent_s2_f_mates;
 #[path = "intent_s3_a_poses.rs"]
 mod intent_s3_a_poses;
+#[path = "intent_s3_b_placements.rs"]
+mod intent_s3_b_placements;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]

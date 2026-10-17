@@ -68,6 +68,8 @@ from pncad import (
     AxisSense,
     ContactClass,
     MateFrame,
+    Mate,
+    Placement,
     MatePrimitive,
     assemble,
     circle,
@@ -314,20 +316,20 @@ evaluate(doc, resolver=evaluate(doc))  # ty: error
 # semantics live in.
 Node.instantiate_part(doc.id)  # ty: error
 
-# An offset is a PLACEMENT, not a coordinate triple: an improper or
-# non-rigid map is refused at the edit door, and there is no
-# translation-only shortcut that would hide it.
-DocEdit.set_offset(solid, (0 * m, 0 * m, 1 * m))  # ty: error
+# A world pin's pose is a PLACEMENT, not a coordinate triple: an
+# improper or non-rigid map is refused at the edit door, and there is
+# no translation-only shortcut that would hide it.
+Mate.world_pin((0 * m, 0 * m, 1 * m))  # ty: error
 
-# A placement's pose is a `Placement`, not a translation tuple.
-doc.place(solid, (0 * m, 0 * m, 1 * m))  # ty: error
+# A placement's bundle is a sequence of `Mate`s, not a pose.
+doc.place(solid, Placement.identity())  # ty: error
 
 # A mate's reference is a node AND a name: the node it is read at, then
 # the stable NAME TEXT `Evaluation.select` answers in. A node id where
 # the name goes names a recipe step and not an entity of its product.
 seat = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
 meeting = Alignment(seat, seat, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
-Node.mate(solid, solid, solid, solid, ContactClass.Rest, meeting)  # ty: error
+Mate(solid, solid, solid, solid, ContactClass.Rest, meeting)  # ty: error
 
 # A mate frame's origin is three LENGTHS and its axis three plain
 # numbers: a direction carries no dimension, and swapping the two is

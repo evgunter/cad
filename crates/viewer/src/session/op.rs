@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
-    Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    MateRef, Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -60,6 +60,15 @@ pub enum SessionOp {
     DeleteNode {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
+    },
+    /// Remove one constraint from its placement's bundle — exactly one
+    /// `DocEdit::RemoveConstraint`. A constraint is no node, so it has
+    /// no cone to delete: the copy it pinned is recomputed from what
+    /// remains, and a bundle that no longer pins its copy leaves a loose
+    /// copy, never a refusal.
+    RemoveConstraint {
+        /// The constraint: its placement and minted id.
+        mate: MateRef,
     },
     /// Write a value into a node's slot. Refused if the slot is
     /// driven by an expression.
@@ -446,8 +455,12 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Commit **exactly one** `DocEdit` adding a mate node — the mate
-    /// tool's single committed edit. Everything before it (the two
+    /// Commit **exactly one** `DocEdit` adding a mate to the bundle of
+    /// the copy it places (`DocEdit::AddConstraint`, the placement
+    /// `session::mate_placement` names) — the mate tool's single
+    /// committed edit. A mate the bundle already fixes refuses at the
+    /// edit door (`MateFault::Overconstrained`, or `TargetsDiffer` beside
+    /// a world pin) and is never dropped. Everything before it (the two
     /// picks, the class choice, the derived frames) is tool state; the
     /// document transition is this op alone, entering at the same
     /// commit door as every other edit: one apply, one history state,
@@ -857,13 +870,12 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// **A creation, so its bodies are placed** (A10): the instance
-    /// and one identity world placement of each body it defines — one
-    /// per world placement of its part — as one action. No gauge pose
-    /// is authored: A11 puts placement on the group, so the inserted
-    /// node is complete with its reference and an empty interface
-    /// record (an authored instance crosses no split seam). Hiding, the
-    /// free-move probe and the mate tool take it from there.
+    /// **A creation, so its copies are placed** (A10): an instance is a
+    /// placement, inserted standing on the world at the identity (one
+    /// world pin in its bundle), with its reference and an empty
+    /// interface record (an authored instance crosses no split seam).
+    /// Hiding, the free-move probe and the mate tool take it from
+    /// there.
     AddInstance {
         /// Which document in the open document's own directory.
         id: DocumentId,
@@ -1082,8 +1094,7 @@ impl SessionOp {
     #[must_use]
     pub fn creates_a_node(&self) -> bool {
         match self {
-            Self::AddMate { .. }
-            | Self::AddDatum { .. }
+            Self::AddDatum { .. }
             | Self::AddProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1097,9 +1108,12 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
-            Self::Select(_)
+            // A mate is a constraint in a placement's bundle, no node.
+            Self::AddMate { .. }
+            | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1172,6 +1186,7 @@ impl SessionOp {
             | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1233,7 +1248,7 @@ impl SessionOp {
     ///
     /// **This section is scoped to the tree as it stands.** DI5
     /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one `DocEdit::SetOffset` and that
+    /// a free-move gesture emits one document edit and that
     /// `DisplayState::moves` empties, because a committed frame
     /// becomes document data. When that lands,
     /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
@@ -1389,6 +1404,7 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
@@ -1512,6 +1528,7 @@ impl SessionOp {
             | Self::CommitFreeMove { .. }
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }

@@ -172,7 +172,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let trimmed = trimmed_and_broken(&doc, body, tol);
     apply(
         &trimmed.doc,
-        &DocEdit::place(trimmed.chamfer, None),
+        &DocEdit::place_in_world(trimmed.chamfer, None),
         tol,
         &RefusingReach,
     )

@@ -703,7 +703,7 @@ fn a_split_carries_a_held_slits_band() {
     // The lid is the document's product; a cut carries what it places.
     doc = apply(
         &doc,
-        &DocEdit::place(holder, None),
+        &DocEdit::place_in_world(holder, None),
         tol,
         &pncad::document::RefusingReach,
     )
