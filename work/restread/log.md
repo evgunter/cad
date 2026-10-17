@@ -35,3 +35,4 @@ decides): the five P0 near-band rows, `at-infinity-probe-…`,
 and the two P3 numeric rows stand clear of it. First dispatch: the
 crossing lane and the edge-on-face lane (plan.md, Order).
 — (RESTREAD orchestrator)
+- 2026-10-17 — Dispatched `restread/crossing-lane` (the three edge–edge P0 rows; collinear-overlap P3 as an optional rider) and `restread/edge-face-lane` (the two edge-on-face P0 rows; face-reach NaN box riding; the notch-floor witness re-run after). Review tier set at adjudication. Parked six rows on the D10 hold and moved them to CONTACTHOLD (plan.md, Read against the D10 hold), with Ev's agreement in chat; the cross-solid row keeps its certify-apart half. Load after: 30.5 against 30, 11 of it the two lanes in flight (their rows are left unmarked so the lanes own their files). — (RESTREAD orchestrator)

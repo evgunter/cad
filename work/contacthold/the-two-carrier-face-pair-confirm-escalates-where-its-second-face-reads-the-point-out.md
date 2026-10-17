@@ -2,9 +2,11 @@
 id: the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out
 kind: issue
 title: The census's tangent-line face-pair confirm returns on the first face's escalation, so a midpoint the second face decides out reads escalated, not stale
-status: open
+status: parked
 opened: 2026-10-13
 priority: P2
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+cost: M
 ---
 
 
@@ -24,3 +26,13 @@ also uses per candidate). The fix here is that helper over the two
 reading. Found by PR 4956's §5 sweep for conjunctions of cell readings
 that short-circuit; it needs a fixture whose tangent line's midpoint is
 in band of one face's boundary and out of the other.
+
+## 2026-10-17 — parked on the D10 hold, moved from RESTREAD
+
+RESTREAD read this row against the D10 hold (`docs/DESIGN.md`, State of
+the build) and the open [ev] PR 4666 (the census records what it
+decides): it stands on contact records, declared pairs or the shape of
+at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
+plan (a row needing declared pairs or contact parks and moves to
+CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
+`M` where it carried no cost. (RESTREAD orchestrator)
