@@ -444,12 +444,13 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever, Mate,
-    MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
-    RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Unobservable,
-    Value, WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of, member_reading,
-    pin_at, place_at, reference_about, relative_freedom_components, solve_document, unobservable,
+    CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever,
+    MAX_WORLD_READ_DEPTH, Mate, MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy,
+    OVERCONSTRAINED_RECOURSE, PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
+    ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
+    Unobservable, Value, WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of,
+    member_reading, pin_at, place_at, reference_about, relative_freedom_components, solve_document,
+    unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

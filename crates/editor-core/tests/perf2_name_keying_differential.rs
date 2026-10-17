@@ -234,7 +234,9 @@ fn sans_epsilon(t: &str) -> String {
 /// the placement holding its world pin, so the placement's id and every
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
+/// held. The gesture's numbers are written with no sign on a zero
+/// (a `-0.0` spin read back by `atan2` is written `0.0`), which moved
+/// the persisted text of the documents that had one.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x8460e9578c470e60, 0x4e18006fb5d83459),
     ("corner_table", 0xfe4524cd4290cd89, 0xfdb6c7d7b74dd6dc),
@@ -244,7 +246,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     (
         "nested_islands_106_depth1",
         0x354881c4d3dfe7e4,
-        0xe9432122c345b977,
+        0x2ac55170f36099f3,
     ),
     (
         "nested_islands_106_depth2",

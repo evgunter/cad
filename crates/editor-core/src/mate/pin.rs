@@ -283,8 +283,12 @@ pub(crate) fn moved_by(
         ((-r(1, 2)).atan2(r(1, 1)), 0.0)
     };
     let mut world = world;
+    // A number read back from a pose is written without a sign on its
+    // zero: `-0.0` and `0.0` are one value, and a held variable binds
+    // them alike, so the written literal is the one both read.
     let constant = |value: f64, dim| {
-        Formula::literal(value, dim).unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
+        Formula::literal(value + 0.0, dim)
+            .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
     };
     for (role, angle) in [
         (PoseRole::X, alpha),
@@ -420,8 +424,12 @@ pub fn place_at(
         super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
             .map_err(|_| PinRefusal::NoFrame { node })?
             .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
+    // A number read back from a pose is written without a sign on its
+    // zero: `-0.0` and `0.0` are one value, and a held variable binds
+    // them alike, so the written literal is the one both read.
     let constant = |value: f64, dim| {
-        Formula::literal(value, dim).unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
+        Formula::literal(value + 0.0, dim)
+            .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
     };
     let values = vec![
         (
