@@ -249,7 +249,10 @@ fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
                 ),
             }),
             point: read(editor_core::pose::PoseDef::Point {
-                of: editor_core::Operand::select(copy, vec![named(editor_core::EntityKind::Vertex)]),
+                of: editor_core::Operand::select(
+                    copy,
+                    vec![named(editor_core::EntityKind::Vertex)],
+                ),
             }),
         })),
         to: editor_core::Target::World(editor_core::WorldRead::Frame),
@@ -354,12 +357,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let opts = with_resolver(store);
 
     let (doc, ids) = placed_assembly("asm2a-r1-asm", &[doc_ref, doc_ref], &opts);
-    let doc = repinned(
-        doc,
-        ids[1],
-        &Frame::translation([5.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[1], &Frame::translation([5.0, 0.0, 0.0]), &opts);
 
     let ev = run(&doc, &opts);
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
@@ -402,12 +400,7 @@ fn row2_one_part_two_instances_one_evaluation() {
     let doc_ref = store.insert(part("asm2a-r2-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = placed_assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref], &opts);
-    let doc = repinned(
-        doc,
-        ids[2],
-        &Frame::translation([9.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[2], &Frame::translation([9.0, 0.0, 0.0]), &opts);
 
     let ev = run(&doc, &opts);
     assert_eq!(
@@ -430,12 +423,7 @@ fn row2_one_part_two_instances_one_evaluation() {
     let b = store.insert(part("asm2a-r2-b", 0.0, 2.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = placed_assembly("asm2a-r2-two", &[a, b], &opts);
-    let doc = repinned(
-        doc,
-        ids[1],
-        &Frame::translation([20.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[1], &Frame::translation([20.0, 0.0, 0.0]), &opts);
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
 }
 
@@ -465,18 +453,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // Both instances pinned off the identity, so both ops do the same
     // work on the part they share: an identity placement is applied by
     // doing nothing, and an op that does nothing decides nothing.
-    let doc = repinned(
-        doc,
-        ids[0],
-        &Frame::translation([0.0, 9.0, 0.0]),
-        &opts,
-    );
-    let doc = repinned(
-        doc,
-        ids[1],
-        &Frame::translation([9.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([9.0, 0.0, 0.0]), &opts);
     let ev = run(&doc, &opts);
     assert_eq!(ev.part_evaluations, 1, "the second instance is a cache hit");
     let log = |id: RecipeNodeId| {
@@ -543,12 +521,7 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let doc_ref = store.insert(part("asm2a-r3-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = placed_assembly("asm2a-r3-asm", &[doc_ref, doc_ref], &opts);
-    let doc = repinned(
-        doc,
-        ids[1],
-        &Frame::translation([5.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[1], &Frame::translation([5.0, 0.0, 0.0]), &opts);
     let ev = run(&doc, &opts);
 
     let a = instance_names(&ev, ids[0]);
@@ -873,12 +846,7 @@ fn row6_placement_is_part_of_the_content_key() {
     let (doc, ids) = placed_assembly("asm2a-r6k-asm", &[doc_ref], &opts);
     let first = run(&doc, &opts);
 
-    let moved = repinned(
-        doc,
-        ids[0],
-        &Frame::translation([4.0, 0.0, 0.0]),
-        &opts,
-    );
+    let moved = repinned(doc, ids[0], &Frame::translation([4.0, 0.0, 0.0]), &opts);
     let second = evaluate::<f64>(
         &moved,
         Some(&first),
@@ -1587,12 +1555,7 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = placed_assembly("asm2a-door-asm", &[doc_ref, doc_ref], &opts);
-    let doc = repinned(
-        doc,
-        ids[1],
-        &Frame::translation([1.0, 0.0, 0.0]),
-        &opts,
-    );
+    let doc = repinned(doc, ids[1], &Frame::translation([1.0, 0.0, 0.0]), &opts);
     let (doc, union) = insert(
         doc,
         Node::Union {

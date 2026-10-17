@@ -419,15 +419,3 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
-
-#[test]
-fn zz_c4_probe() {
-    let (doc, forward, back) = forward_selection();
-    let body = crate::fixture::body_selecting(&doc, &forward);
-    let (doc, _) = crate::fixture::step(doc, DocEdit::Rebind { body, from: forward, to: back });
-    let ev = crate::fixture::run(&doc, &editor_core::EvalOptions::default());
-    for (id, r) in &ev.nodes { if let Some(e) = r.error() { eprintln!("PROBE err {id:?} {e:?}"); } }
-    let poses = crate::fixture::solve(&doc, &editor_core::EvalOptions::default(), Tol::witness());
-    for p in doc.placements() { eprintln!("PROBE placement {p:?} space={:?} fault={:?}", poses.space(p), poses.fault(p)); }
-    panic!("probe");
-}

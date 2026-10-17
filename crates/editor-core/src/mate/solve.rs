@@ -96,6 +96,13 @@ pub trait SolveScalar: Decide {
     /// identity without losing what the run reads ([`at_rest`]). A
     /// value lane's and a box lane's answer `true`.
     fn carries_no_variation(map: &Affine3<Self>) -> bool;
+
+    /// **The identity carrying `map`'s variation**, for a map decided at
+    /// the identity that carries some ([`Self::carries_no_variation`]):
+    /// the value channel the identity, as the value lane's snap makes
+    /// it, and the run's variation `map`'s own. `None` where the lane
+    /// cannot part the two, and the map is kept whole.
+    fn identity_varying_as(map: &Affine3<Self>) -> Option<Affine3<Self>>;
 }
 
 impl SolveScalar for f64 {
@@ -117,6 +124,10 @@ impl SolveScalar for f64 {
 
     fn carries_no_variation(_map: &Affine3<f64>) -> bool {
         true
+    }
+
+    fn identity_varying_as(_map: &Affine3<f64>) -> Option<Affine3<f64>> {
+        None
     }
 }
 
@@ -142,6 +153,10 @@ impl SolveScalar for geom_core::Probe {
 
     fn carries_no_variation(_map: &Affine3<Self>) -> bool {
         true
+    }
+
+    fn identity_varying_as(_map: &Affine3<Self>) -> Option<Affine3<Self>> {
+        None
     }
 }
 
@@ -436,10 +451,16 @@ where
 /// one decided apart from the identity. The one predicate the fold's
 /// snap and [`SolvedPoses::at_identity`] both read.
 pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
+    T::carries_no_variation(map) && rests_in_value(map, reach, band)
+}
+
+/// **Whether a solved map's value stands at the identity**, its
+/// variation aside: [`at_rest`]'s decision, which a seed run's value
+/// channel makes as the value lane makes it, so a map the value lane
+/// snaps has the value lane's bits in a seed run too, its tangent kept
+/// ([`SolveScalar::identity_varying_as`]).
+pub(crate) fn rests_in_value<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
     use geom_core::linalg::Vec3;
-    if !T::carries_no_variation(map) {
-        return false;
-    }
     // Sums of magnitudes bound the lengths from above — the turn's
     // departure ‖Q − I‖ and the translation's length — with no square
     // root, which a box lane's enclosure of a near-zero length would

@@ -31,6 +31,7 @@ from pncad import (
     EditError,
     Frame,
     Mate,
+    MateRef,
     Node,
     PoseDef,
     Workspace,
@@ -136,6 +137,44 @@ class WorldPins(unittest.TestCase):
             (caught.exception.variant, caught.exception.node, caught.exception.mate),
             ("unknown_constraint", post, placed.mate),
         )
+
+    def test_remove_mate_takes_the_mate_and_the_values_naming_it_as_one_action(self):
+        doc = Doc("py-remove-mate")
+        post = self.pinned(doc, self.post_ref, lifted(1.0))
+        shelf = doc.insert(self.loose(self.shelf_ref))
+        seat, values = self.seat(doc, post, shelf)
+        pin = doc.bundle(post)[0][0]
+        # The door answers the values it took, in bundle order, and
+        # leaves the copy loose: the mate went with them.
+        self.assertEqual(doc.remove_mate(seat), values)
+        self.assertEqual(doc.bundle(shelf), [])
+        self.assertEqual(evaluate(doc, resolver=self.ws).loose, [shelf])
+        # The other copy's bundle is untouched.
+        self.assertEqual([ref for ref, _ in doc.bundle(post)][0], pin)
+        # A mate no value names goes alone.
+        bare = doc.constrain(
+            shelf,
+            Mate(
+                PoseDef.plane(shelf, self.face(doc, shelf, CapEnd.Start)),
+                PoseDef.flip(PoseDef.plane(post, self.face(doc, post, CapEnd.End))),
+                ContactClass.Rest,
+            ),
+            resolver=self.ws,
+        )
+        self.assertEqual(doc.remove_mate(bare), [])
+        self.assertEqual(doc.bundle(shelf), [])
+        # A value's id is no mate's, and an id the bundle no longer
+        # holds is refused the same way; neither touches the document.
+        held = doc.bundle(post)
+        for wrong in (held[1][0], bare):
+            with self.assertRaises(EditError) as caught:
+                doc.remove_mate(wrong)
+            self.assertEqual(caught.exception.variant, "unknown_constraint")
+            self.assertEqual(doc.bundle(post), held)
+        # The world is no placement.
+        with self.assertRaises(EditError) as caught:
+            doc.remove_mate(MateRef(doc.world, pin.constraint))
+        self.assertEqual(caught.exception.variant, "constraint_on_non_placement")
 
     def test_a_mate_places_the_copy_whose_bundle_holds_it(self):
         doc = Doc("py-pin-mate")

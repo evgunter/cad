@@ -468,8 +468,8 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         [1.0, 1.0],
     );
     let applied = seat.iter().fold(doc.clone(), |doc, edit| {
-        let applied = apply(&doc, edit, Tol::witness(), &RefusingReach)
-            .expect("a constraint asks no store");
+        let applied =
+            apply(&doc, edit, Tol::witness(), &RefusingReach).expect("a constraint asks no store");
         assert_eq!(
             applied.maintenance,
             Vec::<Maintenance>::new(),

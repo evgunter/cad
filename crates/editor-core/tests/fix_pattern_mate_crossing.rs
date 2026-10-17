@@ -205,8 +205,12 @@ pub(crate) fn place_copies(
                 select: editor_core::PartSelect::Instance(Formula::count(i)),
             },
         );
-        fixture::insert_pinned(doc, Node::place(vec![editor_core::BodyRead::plain(copy)]), o)
-            .0
+        fixture::insert_pinned(
+            doc,
+            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            o,
+        )
+        .0
     })
 }
 
@@ -554,4 +558,3 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         "the stranded target resolves to no member; only the top's side does"
     );
 }
-

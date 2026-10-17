@@ -16,8 +16,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fix_pattern_mate_crossing::{block_ref, blocks_reach, pinned_block, place_copies, seat};
 use crate::fixture;
-use crate::fix_pattern_mate_crossing::{blocks_reach, block_ref, pinned_block, place_copies, seat};
 
 use std::collections::BTreeSet;
 
@@ -33,9 +33,9 @@ use geom_core::Tol;
 /// placed through a `Part` per copy, each pinned at the identity. The
 /// instances are placements of their own.
 fn world(doc: ProfileDoc, patterns: &[(RecipeNodeId, i64)], o: &EvalOptions) -> ProfileDoc {
-    patterns
-        .iter()
-        .fold(doc, |doc, &(pattern, count)| place_copies(doc, pattern, count, o))
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        place_copies(doc, pattern, count, o)
+    })
 }
 
 /// Whether `id` is one of [`world`]'s nodes: a `Place`, or a `Part`

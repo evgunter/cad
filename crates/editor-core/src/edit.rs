@@ -7572,32 +7572,55 @@ fn selection_readers<P: crate::ProfilePayload>(
     doc.ids()
         .into_iter()
         .filter(|&id| {
-            doc.node(id)
-                .is_some_and(|node| node.operand_rows().iter().any(|&(_, read)| read == var))
+            doc.node(id).is_some_and(|node| {
+                node.operand_rows()
+                    .iter()
+                    .any(|&(_, read)| seat_reads(doc, read).contains(&var))
+            })
         })
         .map(|id| before.spoken(id))
         .collect()
 }
 
 /// **The selections of `doc` that go with the edit** (VR7): unnamed,
-/// with no reader left. A name one holds is stranded by nothing.
+/// with no reader left once the unread poses reading them go too. A
+/// name one holds is stranded by nothing.
 fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections::BTreeSet<VarId> {
-    let readers = doc.reader_counts();
-    doc.vars()
-        .iter()
-        .filter(|(id, var)| {
-            var.def().select().is_some()
-                && doc.var_name(**id).is_none()
-                && readers.get(id).copied().unwrap_or(0) == 0
-        })
-        .map(|(&id, _)| id)
+    doc.unread_anonymous_vars()
+        .into_iter()
+        .filter(|id| doc.selection(*id).is_some())
         .collect()
 }
 
-/// **Every operand of `doc` reading one of `removed`**, directly or as
-/// a selection's body, in document order and within a node in field
-/// order, as the strand rows a removal reports, spoken from `before`,
-/// which still holds them.
+/// **What a read at a seat reaches**: the read itself, a selection's
+/// body, and through a pose written in place (an anonymous definition)
+/// every read inside it, in read order. A named pose is a read of its
+/// own and is not walked.
+fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
+    fn walk<P>(doc: &Doc<P>, var: VarId, out: &mut Vec<VarId>) {
+        if out.contains(&var) {
+            return;
+        }
+        out.push(var);
+        match doc.var(var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body, out),
+            Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
+                for (_, &read, _, _) in def.reads() {
+                    walk(doc, read, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(doc, var, &mut out);
+    out
+}
+
+/// **Every operand of `doc` reading one of `removed`**, directly, as a
+/// selection's body or through a pose written in place ([`seat_reads`]),
+/// in document order and within a node in field order, as the strand
+/// rows a removal reports, spoken from `before`, which still holds them.
 fn stranded_reads<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -7606,15 +7629,16 @@ fn stranded_reads<P: crate::ProfilePayload>(
     doc.nodes
         .iter()
         .flat_map(|(&node, n)| {
-            n.operand_rows()
-                .into_iter()
-                .map(|(slot, read)| (slot, doc.selection(read).map_or(read, |s| s.body)))
-                .filter(|(_, read)| removed.contains(read))
-                .map(move |(slot, var)| Maintenance::StrandedRead {
-                    node: before.spoken(node),
-                    slot,
-                    var: before.spoken_var(var),
-                })
+            n.operand_rows().into_iter().flat_map(move |(slot, read)| {
+                seat_reads(doc, read)
+                    .into_iter()
+                    .filter(|var| removed.contains(var))
+                    .map(move |var| Maintenance::StrandedRead {
+                        node: before.spoken(node),
+                        slot,
+                        var: before.spoken_var(var),
+                    })
+            })
         })
         .collect()
 }

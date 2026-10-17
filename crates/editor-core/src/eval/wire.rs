@@ -732,6 +732,15 @@ where
         crate::mate::solve::Folded::Pinned(rep) if crate::mate::solve::at_rest(&rep, reach, b) => {
             Ok((None, target_space.unwrap_or(Space::World)))
         }
+        crate::mate::solve::Folded::Pinned(rep)
+            if crate::mate::solve::rests_in_value(&rep, reach, b)
+                && let Some(snapped) = T::identity_varying_as(&rep) =>
+        {
+            Ok((
+                crate::mate::solve::marked(snapped).rigid(b)?,
+                target_space.unwrap_or(Space::World),
+            ))
+        }
         crate::mate::solve::Folded::Pinned(rep) => Ok((
             crate::mate::solve::marked(rep).rigid(b)?,
             target_space.unwrap_or(Space::World),

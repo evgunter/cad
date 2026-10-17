@@ -22,8 +22,8 @@ use crate::p2_gauges::{Parts, block, cut, parts};
 use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
-    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
+    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide,
+    Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -121,7 +121,11 @@ fn target_world(
 /// Two [`target_world`]s agree bit for bit: an instance a split leaves
 /// pinned at the identity moves nothing.
 fn same_world(a: [f64; 9], b: [f64; 9], what: &str) {
-    assert_eq!(a.map(f64::to_bits), b.map(f64::to_bits), "{what}: {a:?} vs {b:?}");
+    assert_eq!(
+        a.map(f64::to_bits),
+        b.map(f64::to_bits),
+        "{what}: {a:?} vs {b:?}"
+    );
 }
 
 fn split(
@@ -177,7 +181,11 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let (doc, m) = fixture::constrain_at(
         doc,
         k,
-        fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top)), ContactClass::Rest),
+        fixture::rest(
+            head(p.top_cap(k)),
+            head(p.top_upper_cap(top)),
+            ContactClass::Rest,
+        ),
     );
     (p, doc, [base, top, k], m)
 }
@@ -357,7 +365,8 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
 
     // The same two as a part, and a host mate reading the loose top.
     let part_doc = ProfileDoc::empty(DocumentId::derive(&format!("{label}-sub")), Tol::witness());
-    let (part_doc, _sub_base) = fixture::insert_pinned(part_doc, Node::instantiate_part(p.base), &o);
+    let (part_doc, _sub_base) =
+        fixture::insert_pinned(part_doc, Node::instantiate_part(p.base), &o);
     let (part_doc, sub_loose) = insert(part_doc, fixture::mated_instance(p.top));
     let mut store = p.store.clone();
     let sub = store.insert(part_doc, Tol::witness());
@@ -374,7 +383,10 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
     assert!(
         matches!(
             poses.fault(k),
-            Some(MateFault::SideUnevaluated { side: MateSide::To, .. })
+            Some(MateFault::SideUnevaluated {
+                side: MateSide::To,
+                ..
+            })
         ),
         "{:?}",
         poses.fault(k)
@@ -387,9 +399,11 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
 /// by the copy map.** A leg patterned three times two apart along x,
 /// and a base seated on copy 2's upper cap: the head is `Instance(2)`
 /// round the leg instance's name, the strip takes off that one
-/// qualifier and then the instance's `InPart`, and the base lands on
-/// the cap of the copy four along x — its bottom on the master's cap
-/// plane, its origin over the copy's.
+/// qualifier and then the instance's `InPart`, and the base's bottom
+/// lands on the master's cap plane. A value on a target read off a
+/// pattern's copy is charted on the space's frame
+/// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
+/// so the seat's slide of 4 along x stands the base over copy 2.
 ///
 /// *Breaks if* the strip reads another face, or the copy map is not
 /// applied.
@@ -414,11 +428,12 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
     let doc = crate::fix_pattern_mate_crossing::place_copies(doc, pattern, 3, &o);
     let copy_cap = in_copy(pattern, 2, p.top_upper_cap(leg));
-    let (doc, m) = face_mate(
+    let (doc, m) = seat_at(
         doc,
         mover,
         head(in_part(mover, p.base_body, CapEnd::Start)),
         head(copy_cap),
+        [4.0, 0.0],
     );
     let ev = run(&doc, &o);
     assert!(
@@ -483,11 +498,19 @@ fn a_head_naming_no_part_face_does_not_evaluate() {
         panic!("the target does not evaluate");
     };
     assert!(
-        matches!(fault, MateFault::SideUnevaluated { side: MateSide::To, .. }),
+        matches!(
+            fault,
+            MateFault::SideUnevaluated {
+                side: MateSide::To,
+                ..
+            }
+        ),
         "{fault:?}"
     );
     assert!(
-        fault.to_string().contains("Recourse: repair the pose's definition"),
+        fault
+            .to_string()
+            .contains("Recourse: repair the pose's definition"),
         "the refusal states its recourse: {fault}"
     );
 }
@@ -574,7 +597,10 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         head(in_part(top, top_body, CapEnd::Start)),
         head(old_head.clone()),
     );
-    assert!((origin_of(&doc, &o, top)[2] - 1.0).abs() <= 1e-12, "on the cap");
+    assert!(
+        (origin_of(&doc, &o, top)[2] - 1.0).abs() <= 1e-12,
+        "on the cap"
+    );
 
     let (rebuilt, new_body) = renamed(&base_doc, base_body, 1.5);
     assert_ne!(new_body, base_body, "the cap is renamed");
@@ -596,7 +622,10 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     assert!(
         matches!(
             poses.fault(m.placement),
-            Some(MateFault::SideUnevaluated { side: MateSide::To, .. })
+            Some(MateFault::SideUnevaluated {
+                side: MateSide::To,
+                ..
+            })
         ),
         "the stranded head faults: {:?}",
         poses.fault(m.placement)
@@ -655,7 +684,10 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
         head(in_part(low, low_body, CapEnd::End)),
     );
     let on_low = origin_of(&doc, &o, top);
-    assert!((on_low[2] - 1.0).abs() <= 1e-12, "on the low cap: {on_low:?}");
+    assert!(
+        (on_low[2] - 1.0).abs() <= 1e-12,
+        "on the low cap: {on_low:?}"
+    );
 
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(

@@ -11,7 +11,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::resolver::{PartStore, copy_key, placement_of, with_resolver};
-use crate::fixture::{self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step};
+use crate::fixture::{
+    self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
+};
 use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
@@ -140,8 +142,14 @@ fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, R
 /// as far as the mate allows.
 fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
     [
-        (editor_core::Coord::Slide(editor_core::SlideAxis::X), len(0.0)),
-        (editor_core::Coord::Slide(editor_core::SlideAxis::Y), len(0.0)),
+        (
+            editor_core::Coord::Slide(editor_core::SlideAxis::X),
+            len(0.0),
+        ),
+        (
+            editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+            len(0.0),
+        ),
         (editor_core::Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -319,7 +327,12 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("the subtract names a face");
     let (doc, p) = insert(doc, Node::place(vec![c.into()]));
-    let doc = pin_on(doc, p, c, Operand::select(Operand::output(s, 0), vec![face]));
+    let doc = pin_on(
+        doc,
+        p,
+        c,
+        Operand::select(Operand::output(s, 0), vec![face]),
+    );
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(p), Some(NodeResult::Ok(_))),
@@ -729,7 +742,10 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     // the instance at the quarter turn and the reader where it reads.
     let at_turn = editor_core::pin_at(
         &top,
-        &Operand::Var(top.output(outer, 0).expect("an instance defines its copies")),
+        &Operand::Var(
+            top.output(outer, 0)
+                .expect("an instance defines its copies"),
+        ),
         &quarter_turn,
         &with_resolver(store.clone()),
         Tol::witness(),

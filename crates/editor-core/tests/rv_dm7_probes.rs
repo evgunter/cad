@@ -20,7 +20,7 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
     ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateSide, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, apply, solve_document,
+    RecipeNodeId, RoleSeg, StableName, apply,
 };
 use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
@@ -109,7 +109,8 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
 use editor_core::CapEnd;
 
 /// **Deleting a mate's OPERAND alone reports no strand, and the
-/// placement refuses it typed where it evaluates.** DM7's carve-out for
+/// placement refuses it typed where it evaluates**: its target's read
+/// is unresolved at the mate's `to` seat. DM7's carve-out for
 /// `payload_read_sites` says the loss is the solve's to refuse; this is
 /// that claim end to end, for an operand that is not also the head's
 /// minting node.
@@ -167,22 +168,19 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         "the operand is a read site, not a name: {:?}",
         crate::fixture::without_anonymous(&applied.maintenance)
     );
-    {
-        let ev = fixture::run(&applied.doc, &opts);
-        eprintln!("PROBE result={:?}", ev.result(mate.placement));
-        eprintln!("PROBE bundle={:?}", fixture::bundle(&applied.doc, mate.placement));
-    }
-    let fault = solve_document(&applied.doc, &opts, Tol::witness())
-        .fault(mate.placement)
-        .expect("the placement refuses the mate whose operand left")
-        .clone();
+    let ev = fixture::run(&applied.doc, &opts);
+    let failure = ev
+        .node_error(mate.placement)
+        .expect("the placement refuses the mate whose operand left");
     assert!(
         matches!(
-            &fault,
-            editor_core::MateFault::SideUnevaluated { mate: m, side: MateSide::To, .. }
-                if *m == mate
+            failure.kind,
+            editor_core::NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Side { constraint, side: MateSide::To },
+                ..
+            } if constraint == mate.id
         ),
-        "typed, naming the stranded side, not silence: {fault:?}"
+        "typed, naming the stranded side, not silence: {failure:?}"
     );
 }
 

@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError,
-    PinRefusal, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName,
-    SpokenNode, StableName, StepId, Uncarried, VarName,
+    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError, PinRefusal,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
+    StableName, StepId, Uncarried, VarName,
 };
 use test_utils::refusal::Admission;
 

@@ -284,7 +284,10 @@ fn pin_lifted(
     then: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let copy = Operand::Var(doc.output(placement, 0).expect("an instance defines its copies"));
+    let copy = Operand::Var(
+        doc.output(placement, 0)
+            .expect("an instance defines its copies"),
+    );
     let mut pin = editor_core::pin_at(&doc, &copy, then, o, Tol::witness())
         .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
     let Target::World(world) = pin.to else {
@@ -332,14 +335,7 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         Frame::rotate_then_translate([1.0, 0.0, 0.0], 0.4, [5.0, 0.0, 0.0], band()).unwrap();
     let off_frame =
         Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [1.0, 2.0, 0.0], band()).unwrap();
-    let (doc, base) = pinned_lifted(
-        doc,
-        p.base,
-        2,
-        0.25,
-        &gin_frame.compose(&off_frame),
-        &o,
-    );
+    let (doc, base) = pinned_lifted(doc, p.base, 2, 0.25, &gin_frame.compose(&off_frame), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     // A transform over the pinned base, reading its world copy.
     let (doc, tp) = insert(doc, xform(base, [0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5));
@@ -850,8 +846,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub, Tol::witness());
     let o = with_resolver(store.clone());
-    let pose =
-        Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();
+    let pose = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();
     let doc = ProfileDoc::empty(DocumentId::derive("minted-vs-hand"), Tol::witness());
     let (doc, h) = pinned(doc, sub_ref, pose, &o);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);

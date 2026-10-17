@@ -89,8 +89,11 @@ fn pair(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], PartStore, RecipeNodeId)
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(cube_part(&format!("{label}-part")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) =
-        fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &with_resolver(store.clone()));
+    let (doc, a) = fixture::insert_pinned(
+        doc,
+        Node::instantiate_part(doc_ref),
+        &with_resolver(store.clone()),
+    );
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     (doc, [a, b], store, body)
 }

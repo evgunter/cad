@@ -161,7 +161,10 @@ fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (Profile
 /// the world's by its recipe.
 fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let (doc, instance) = insert(doc, Node::instantiate_part(part));
-    let copy = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+    let copy = Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
     let named = |kind| StableName {
         kind,
         node: instance,
@@ -592,8 +595,13 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
 #[test]
 fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, _, inner_mate, _) =
-        stand(&mut store, "docm6-decline-stand", ContactClass::Rest, 0.0, 1.0);
+    let (inner_ref, inner_id, _, inner_mate, _) = stand(
+        &mut store,
+        "docm6-decline-stand",
+        ContactClass::Rest,
+        0.0,
+        1.0,
+    );
     let inner = store.doc(inner_id);
     let inner_result = assemble(
         &inner,
@@ -647,8 +655,14 @@ fn no_attribution_is_only_a_finding_no_declaration_answers_for() {
     let fixtures = [
         // The penetrating seat: the declared pair is refuted AND the
         // interpenetration itself is a crowd of unrecorded contacts.
-        (row_of(&store, "docm6-a3-pen-row", penetrating, 1, 4.0), true),
-        (row_of(&store, "docm6-a3-pen-pair", penetrating, 2, 4.0), true),
+        (
+            row_of(&store, "docm6-a3-pen-row", penetrating, 1, 4.0),
+            true,
+        ),
+        (
+            row_of(&store, "docm6-a3-pen-pair", penetrating, 2, 4.0),
+            true,
+        ),
         // The gapped seat touches nothing: its ONE finding is the
         // refuted carried declaration, and nothing is unattributed.
         (row_of(&store, "docm6-a3-gap-row", gapped, 1, 4.0), false),
@@ -1192,7 +1206,13 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
             Tol::witness(),
         );
         let (doc, instance) = pinned_instance(doc, &store, inner_ref);
-        refuses_as_product(&store, &doc, instance, cube, &format!("{label}: the instance"));
+        refuses_as_product(
+            &store,
+            &doc,
+            instance,
+            cube,
+            &format!("{label}: the instance"),
+        );
     }
 }
 
@@ -1430,8 +1450,7 @@ fn outer_over_twin(
     let cube = store.insert_part(cube_part("speak-cube"), Tol::witness());
     let (inner, mate) = stand_over(&store, cube, "speak-inner", class, shift, "inner seat");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
-    let (outer, outer_mate) =
-        stand_over(&store, cube, "speak-outer", class, shift, "outer seat");
+    let (outer, outer_mate) = stand_over(&store, cube, "speak-outer", class, shift, "outer seat");
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, &store, instance, [10.0, 0.0, 0.0]);
@@ -1459,8 +1478,7 @@ fn left_bracket(instance: RecipeNodeId) -> String {
 /// its route's first instance is spoken from the outer document.
 #[test]
 fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
-    let (store, inner, outer, mate, instance) =
-        outer_over_twin(ContactClass::Tangent, 0.0);
+    let (store, inner, outer, mate, instance) = outer_over_twin(ContactClass::Tangent, 0.0);
     let t = test_utils::refusal::tag(mate.placement.0.digest());
     let c = mate.id;
 

@@ -851,4 +851,3 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
         "dropping the update restores the prior version"
     );
 }
-

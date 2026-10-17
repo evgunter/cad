@@ -135,7 +135,12 @@ impl Scene {
 /// `block`, a face of the block read wherever the row says, in the
 /// slab's bundle, its corner under the block's
 /// ([`crate::p2_split::seat_at`]).
-fn seat(doc: ProfileDoc, slab: RecipeNodeId, cap: SitedFace, block: SitedFace) -> (ProfileDoc, MateRef) {
+fn seat(
+    doc: ProfileDoc,
+    slab: RecipeNodeId,
+    cap: SitedFace,
+    block: SitedFace,
+) -> (ProfileDoc, MateRef) {
     crate::p2_split::seat_at(doc, slab, cap, block, [0.0, 0.0])
 }
 
@@ -250,12 +255,7 @@ fn a1b_a_transform_above_the_operand_mints_nothing() {
     );
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, _) = place(doc, t3, &s.opts);
-    let (doc, mate) = seat(
-        doc,
-        s.base1,
-        s.base_cap(s.base1),
-        head_at(t1, s.top_cap()),
-    );
+    let (doc, mate) = seat(doc, s.base1, s.base_cap(s.base1), head_at(t1, s.top_cap()));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate.placement).is_none(),
@@ -294,14 +294,15 @@ fn a1c_a_reference_read_at_the_union_is_a_member_and_gates() {
 
 // ---- A2: two spellings of one placement ----
 
-/// **Where the first slab seated through `spelling` solves**: `doc`
-/// with the slab's seat added, and the slab's solved pose.
+/// **Where the first slab seated through `spelling` at `at` solves**:
+/// `doc` with the slab's seat added, and the slab's solved pose.
 fn seated_through(
     s: &Scene,
     doc: ProfileDoc,
     spelling: SitedFace,
+    at: [f64; 2],
 ) -> (ProfileDoc, editor_core::Frame) {
-    let (doc, mate) = seat(doc, s.base1, s.base_cap(s.base1), spelling);
+    let (doc, mate) = crate::p2_split::seat_at(doc, s.base1, s.base_cap(s.base1), spelling, at);
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate.placement).is_none(),
@@ -323,10 +324,9 @@ fn near(a: &editor_core::Frame, b: &editor_core::Frame) -> bool {
     let cols = |m: &geom_core::linalg::Affine3<f64>| {
         [m.linear.c0, m.linear.c1, m.linear.c2, m.translation]
     };
-    cols(&a)
-        .iter()
-        .zip(cols(&b))
-        .all(|(p, q)| (p.x - q.x).abs() <= 1e-9 && (p.y - q.y).abs() <= 1e-9 && (p.z - q.z).abs() <= 1e-9)
+    cols(&a).iter().zip(cols(&b)).all(|(p, q)| {
+        (p.x - q.x).abs() <= 1e-9 && (p.y - q.y).abs() <= 1e-9 && (p.z - q.z).abs() <= 1e-9
+    })
 }
 
 /// **One placement spelled two ways is one member.** The block's cap
@@ -357,8 +357,8 @@ fn a2_two_spellings_through_a_union_are_one_member() {
     let at_u = member_of(&doc, &through_union);
     assert!(at_t1.is_some(), "the t1 spelling is a member");
     assert_eq!(at_t1, at_u, "A2: one placement, one member");
-    let (_, by_t1) = seated_through(&s, doc.clone(), head_at(t1, s.top_cap()));
-    let (by_union_doc, by_union) = seated_through(&s, doc, through_union);
+    let (_, by_t1) = seated_through(&s, doc.clone(), head_at(t1, s.top_cap()), [0.0, 0.0]);
+    let (by_union_doc, by_union) = seated_through(&s, doc, through_union, [0.0, 0.0]);
     assert!(
         near(&by_t1, &by_union),
         "A2: the two spellings seat the slab alike: {by_t1:?} vs {by_union:?}"
@@ -372,7 +372,12 @@ fn a2_two_spellings_through_a_union_are_one_member() {
 /// block's copy-1 cap read at the `Part`, and read at the pattern
 /// naming copy 1: one member, so a slab seated through either stands at
 /// the same pose, and the gate holds — the pattern's row lifts through
-/// the `Part` verbatim.
+/// the `Part` verbatim. A value on a target read off a pattern's copy is
+/// charted on the space's frame
+/// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
+/// so the seat's slide of 5 along the swung y (the world's −y, the
+/// slab's frame turned over onto the downward normal) stands the slab
+/// under copy 1.
 #[test]
 fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
     let s = scene_with("msolve13-a2-part", false);
@@ -401,8 +406,9 @@ fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
         member_of(&doc, &head_at(pattern, copy1.clone())),
         "A2: one placement, one member"
     );
-    let (_, by_part) = seated_through(&s, doc.clone(), head_at(part, copy1.clone()));
-    let (by_pattern_doc, by_pattern) = seated_through(&s, doc, head_at(pattern, copy1));
+    let (_, by_part) = seated_through(&s, doc.clone(), head_at(part, copy1.clone()), [0.0, -5.0]);
+    let (by_pattern_doc, by_pattern) =
+        seated_through(&s, doc, head_at(pattern, copy1), [0.0, -5.0]);
     assert!(
         near(&by_part, &by_pattern),
         "A2: the two spellings seat the slab alike: {by_part:?} vs {by_pattern:?}"
@@ -444,12 +450,7 @@ fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, MateRef) {
         s.doc.clone(),
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
-    let (doc, mate) = seat(
-        doc,
-        s.base1,
-        s.base_cap(s.base1),
-        head_at(t1, s.top_cap()),
-    );
+    let (doc, mate) = seat(doc, s.base1, s.base_cap(s.base1), head_at(t1, s.top_cap()));
     (doc, t1, mate)
 }
 
@@ -593,12 +594,7 @@ fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
         },
     );
     let (doc, _) = place(doc, union, &s.opts);
-    let (doc, _) = seat(
-        doc,
-        s.base1,
-        s.base_cap(s.base1),
-        head_at(t1, s.top_cap()),
-    );
+    let (doc, _) = seat(doc, s.base1, s.base_cap(s.base1), head_at(t1, s.top_cap()));
     let err = split_of(&s, &doc, &[s.base1, s.top, t1, t2], "msolve13-a3b-part")
         .expect_err("the kept union reads the cut transforms");
     assert!(

@@ -342,12 +342,15 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     );
     let relative = poses.relative(ids[1]).expect("a solved pose");
     assert!(
-        near(relative, Frame::translation([0.0, 0.0, 2.0]), 1e-12),
+        relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
         "the child sits at the seating height plus the standoff: {relative:?}"
     );
     assert!(
-        poses.at_identity(ids[0], band()),
-        "the instance pinned to the world at the identity stands there"
+        poses
+            .relative(ids[0])
+            .expect("the world-pinned instance")
+            .is_identity_bits(),
+        "the world-pinned instance's own pose is the bit-exact identity"
     );
 
     let ev = run(&doc, &o);
@@ -619,7 +622,10 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
         "a lone instance stands where its world pin puts it"
     );
     assert!(
-        poses.at_identity(ids[0], band()),
+        poses
+            .placement(&doc, ids[0])
+            .expect("placed")
+            .is_identity_bits(),
         "an instance pinned to the world at the identity sits at the identity"
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");

@@ -425,8 +425,9 @@ fn a1_a_translated_target_seats_in_the_product() {
     let t = solve(&test.doc, &test.opts, Tol::witness())
         .relative(test.top)
         .expect("the test solves");
-    assert!(
-        (t.translation[2] - c.translation[2] - 10.0).abs() <= 1e-12,
+    assert_eq!(
+        (t.translation[2] - c.translation[2]).to_bits(),
+        10.0_f64.to_bits(),
         "the seat followed exactly the transform's +10 lift \
          (control {:?} vs test {:?})",
         c.translation,

@@ -183,7 +183,10 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let top = placed(top, &top_ids, &opts);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
-    assert_eq!(seq[0], 922, "the outer op's own log over a two-solid part, and its pin's");
+    assert_eq!(
+        seq[0], 922,
+        "the outer op's own log over a two-solid part, and its pin's"
+    );
     let par = logs(
         &run(
             &top,

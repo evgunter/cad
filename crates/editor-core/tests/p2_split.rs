@@ -28,9 +28,9 @@ use crate::p2_gauges::{Parts, body_of, cut, min_corner, parts, placed_pair, poin
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Frame, InlineError,
-    InlineOutcome, Label, MateFault, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId,
-    SitedFace, SplitError, SplitOutcome, StableName, Target, Uncarried, VarId, WorldRead, product,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Frame, InlineError, InlineOutcome,
+    Label, MateFault, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
+    SplitOutcome, StableName, Target, Uncarried, VarId, WorldRead, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};

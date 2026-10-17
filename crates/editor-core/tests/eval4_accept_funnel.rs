@@ -89,7 +89,9 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r2-cell"),
         Tol::witness(),
-        Some(&(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>)),
+        Some(
+            &(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>),
+        ),
     )
     .expect("a whole group and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
@@ -141,7 +143,9 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
-        Some(&(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>)),
+        Some(
+            &(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>),
+        ),
     )
     .expect("cuts");
     let mut parts = store;
@@ -163,14 +167,7 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
 /// offset, the second stacked by a mate and its values onto the first:
 /// the document, its part store, `[a, b]` and `a`'s world read as
 /// written.
-fn placed_pair(
-    label: &str,
-) -> (
-    ProfileDoc,
-    PartStore,
-    [RecipeNodeId; 2],
-    WorldRead<Formula>,
-) {
+fn placed_pair(label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2], WorldRead<Formula>) {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let opts = with_resolver(store.clone());
@@ -187,4 +184,3 @@ fn placed_pair(
     let offset = offset_of(&doc, a).expect("a is pinned by one world read");
     (doc, store, [a, b], offset)
 }
-

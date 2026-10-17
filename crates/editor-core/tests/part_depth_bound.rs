@@ -193,7 +193,10 @@ impl Pin {
 
     /// The mate pinning `instance`'s copy, its names read in `doc`.
     fn mate(&self, doc: &ProfileDoc, instance: RecipeNodeId) -> Mate<Formula> {
-        let copy = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+        let copy = Operand::Var(
+            doc.output(instance, 0)
+                .expect("an instance defines its copies"),
+        );
         let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
         Mate {
             on: Operand::Pose(Box::new(PoseDef::Through {
@@ -239,7 +242,10 @@ fn chain(levels: usize) -> (PartStore, Vec<DocRef>, Vec<Pin>) {
         let written = |doc: &ProfileDoc, instance| {
             editor_core::pin_at(
                 doc,
-                &Operand::Var(doc.output(instance, 0).expect("an instance defines its copies")),
+                &Operand::Var(
+                    doc.output(instance, 0)
+                        .expect("an instance defines its copies"),
+                ),
                 &editor_core::Frame::IDENTITY,
                 &resolving(store.clone()),
                 Tol::witness(),

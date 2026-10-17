@@ -3489,6 +3489,10 @@ impl crate::mate::SolveScalar for geom_core::Interval {
     fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
         true
     }
+
+    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        None
+    }
 }
 
 /// The seed lane's solve: a refusal quotes the value channel — the
@@ -3529,6 +3533,26 @@ where
                 .all(|e| e.deriv.quoted() == 0.0 && e.deriv.upper() == 0.0)
         })
     }
+
+    /// The value channel the identity's, every tangent `map`'s.
+    fn identity_varying_as(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        use geom_core::linalg::Vec3;
+        let entry = |at: Self, one: bool| Self {
+            value: if one { T::one() } else { T::zero() },
+            deriv: at.deriv,
+        };
+        let column = |c: Vec3<Self>, i: usize| {
+            Vec3::new(entry(c.x, i == 0), entry(c.y, i == 1), entry(c.z, i == 2))
+        };
+        let q = map.linear;
+        let t = map.translation;
+        let mut out = *map;
+        out.linear.c0 = column(q.c0, 0);
+        out.linear.c1 = column(q.c1, 1);
+        out.linear.c2 = column(q.c2, 2);
+        out.translation = column(t, 3);
+        Some(out)
+    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3561,6 +3585,10 @@ where
     /// lose: it never settles.
     fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
         false
+    }
+
+    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        None
     }
 }
 

@@ -180,12 +180,7 @@ fn place_at(
     let read = crate::fixture::body_read(&doc, body.into());
     let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
     (
-        crate::fixture::pin(
-            doc,
-            placement,
-            pose,
-            &editor_core::EvalOptions::default(),
-        ),
+        crate::fixture::pin(doc, placement, pose, &editor_core::EvalOptions::default()),
         placement,
     )
 }
@@ -832,7 +827,8 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
         other => panic!("a posed cut world refuses its remainder reader: {other:?}"),
     }
 
-    let (doc, cut, reader, _) = cut_with_a_reader("intent-c-split-two", &editor_core::Frame::IDENTITY, true);
+    let (doc, cut, reader, _) =
+        cut_with_a_reader("intent-c-split-two", &editor_core::Frame::IDENTITY, true);
     match editor_core::split(
         &doc,
         &cut,

@@ -2767,8 +2767,19 @@ pub fn split(
         resolver: resolver.cloned(),
         ..crate::eval::EvalOptions::default()
     };
-    let poses = crate::mate::solve_document(doc, &opts, tol);
-    let world = |placement: RecipeNodeId| poses.space(placement) == Some(crate::mate::Space::World);
+    // A placement's space is the evaluation's: its value's where it
+    // built, its recipe's where it did not (D10: kinds are decided from
+    // the recipe, never from a value), so a world pin the solve cannot
+    // reach still places its copy in the world.
+    let evaluation =
+        crate::eval::evaluate::<f64>(doc, None, &crate::CancelToken::new(), &opts, tol);
+    let poses = crate::mate::SolvedPoses::of(doc, &evaluation);
+    let world = |placement: RecipeNodeId| {
+        doc.node(placement)
+            .and_then(crate::mate::solve::bundle_of)
+            .is_some()
+            && evaluation.space(placement) == crate::mate::Space::World
+    };
     // Whether a copy stands where its body did: its placement solved to
     // the identity of the world's coordinates, decided at the band.
     let band = geom_core::predicate::Band::linear(tol).ok();
