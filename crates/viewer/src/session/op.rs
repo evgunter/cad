@@ -618,9 +618,9 @@ pub enum SessionOp {
         profile: RecipeNodeId,
         /// A point on the axis, in the profile's 2-D coordinates
         /// (`Length`).
-        axis_origin: [Formula; 2],
-        /// The axis direction in the same coordinates (`Scalar`).
-        axis_direction: [Formula; 2],
+        axis_through: [Formula; 2],
+        /// The axis's heading from the profile's x axis (`Angle`).
+        axis_heading: Formula,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
         angle: Formula,

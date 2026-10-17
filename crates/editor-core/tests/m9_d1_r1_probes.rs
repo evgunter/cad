@@ -48,7 +48,7 @@ fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, R
     );
     insert(
         doc,
-        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)),
+        fixture::revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
     )
 }
 

@@ -452,7 +452,7 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );
@@ -479,7 +479,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );
@@ -645,7 +645,18 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "the CHART axis, sense left out"
     );
     let z = |f: &Frame| f.columns[2];
-    assert_eq!(z(&aligned), pose.axis.to_array());
+    // The axis's heading is a quarter turn, whose cosine rounds to
+    // 6.1e-17 rather than 0. Each read rounds that unit vector's
+    // components once more, by at most half an ulp of 1, so the two
+    // agree to within an ulp of 1, `f64::EPSILON`.
+    let close =
+        |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= f64::EPSILON);
+    assert!(
+        close(z(&aligned), pose.axis.to_array()),
+        "{:?} against {:?}",
+        z(&aligned),
+        pose.axis
+    );
     let opposed = resolve_through_the_solve(
         "msolve9-a2-sense-opposed",
         part,
@@ -654,9 +665,8 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         AxisSense::Opposed,
     )
     .expect("resolves");
-    assert_eq!(
-        z(&opposed),
-        [-pose.axis.x, -pose.axis.y, -pose.axis.z],
+    assert!(
+        close(z(&opposed), [-pose.axis.x, -pose.axis.y, -pose.axis.z]),
         "the mate's own sense turns the pair round"
     );
 }

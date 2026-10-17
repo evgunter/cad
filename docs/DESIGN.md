@@ -30,9 +30,12 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
 
 - **Built:** variables (stage 1); operations that read and define
   variables, selections as definitions, the product as a list
-  (stage 2); a placement as the bundle of its mates, the world a
-  node and spaces as kinds, with gauges, offsets and the mates'
-  spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
+  (stage 2); poses as defined variables, read off geometry, read
+  through their roles and moved by lengths and angles, a revolve's
+  axis a point and a heading, and a lone `0` the constant zero
+  (stage 3 A and A′); a placement as the bundle of its mates, the
+  world a node and spaces as kinds, with gauges, offsets and the
+  mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
   and the boolean declare surface retired (stage 4 E and F).
 - **Not built:** the rest of placement (stage 3 — `Transform` and
   `Datum` still exist in the tree, and a constraint is still a mate's

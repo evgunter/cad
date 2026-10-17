@@ -400,7 +400,7 @@ def revolved(x0, angle):
     )
     axis = (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
     node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), *axis, Formula.literal(angle)))
     try:

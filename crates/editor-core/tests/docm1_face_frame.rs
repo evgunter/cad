@@ -80,7 +80,7 @@ fn washer_doc() -> (ProfileDoc, RecipeNodeId) {
         fixture::revolve_about(
             p,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     )
@@ -107,7 +107,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         fixture::revolve_about(
             p,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     )
@@ -772,7 +772,12 @@ fn a7_a_derived_frame_serves_a_revolved_profile_by_value() {
     );
     let (doc, ring) = fixture::insert(
         doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = eval(&doc);
     assert!(

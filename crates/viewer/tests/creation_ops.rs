@@ -29,7 +29,7 @@ use pncad::document::AuthoredNode;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, len, len2, len3, near, scl, scl2, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len2, len3, near, scl, scl3, session_insert, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
@@ -103,8 +103,8 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
             profile,
             // The revolve's axis, in the sketch it turns: the frame's
             // v is world +Y, so this is its own +y through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     );
@@ -465,8 +465,8 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::AddRevolve {
             profile,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     ] {
@@ -717,8 +717,8 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         },
         SessionOp::AddRevolve {
             profile: plane,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     ] {
@@ -776,8 +776,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
     for wrong in [extrude, plane] {
         let refused = session.perform(SessionOp::AddRevolve {
             profile: wrong,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         });
         assert!(
@@ -798,8 +798,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
             profile,
             // The frame's v is world +Y, so this is its own +y
             // through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     );
@@ -812,7 +812,11 @@ fn extrude_and_revolve_require_their_node_kinds() {
 /// The revolve tool's axis, as the chrome's default writes it: the
 /// profile frame's own +y through (0, 0).
 fn tool_op(tool: &RevolveTool) -> Result<SessionOp, SeatError> {
-    tool.op(len2([0.0, 0.0]), scl2([0.0, 1.0]), ang(TAU))
+    tool.op(
+        len2([0.0, 0.0]),
+        Formula::turn_over(4).expect("a quarter turn"),
+        ang(TAU),
+    )
 }
 
 #[test]
@@ -1043,8 +1047,8 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
             profile,
             // The circle is drawn on `plane`, so the revolve's axis is
             // written there too — its +y through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,
                 mm.angle,

@@ -1174,6 +1174,15 @@ fn need_vec2<T: Decide>(
     slots::vec2(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+/// **A revolve's axis direction in its profile's plane**: the unit
+/// vector at its heading from the profile's x axis, `(cos h, sin h)`.
+/// Unit by construction, up to the rounding of the sine and cosine;
+/// its readers decide it as they decide any authored direction.
+fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Result<Vec2<T>, NodeErrorKind> {
+    let (sin, cos) = need_scalar(vals, SlotId::AxisHeading)?.sin_cos();
+    Ok(Vec2::new(cos, sin))
+}
+
 fn need_point2<T: Decide>(
     vals: &SlotValues<T>,
     f: fn(Axis3) -> SlotId,
@@ -1435,7 +1444,14 @@ fn frame_pose<T: Decide>(
     env: &crate::expr::VarEnv<T>,
     tol: Tol,
 ) -> Result<RigidMotion<T>, NodeErrorKind> {
-    match pose::eval_pose(doc, results, crate::OperandSlot::Frame, frame, env, tol)? {
+    match pose::eval_pose(
+        doc,
+        results,
+        crate::OperandSlot::Frame,
+        frame.into(),
+        env,
+        tol,
+    )? {
         PoseValue::Frame(f) => Ok(f),
         other => unreachable!(
             "the door admits a frame alone at a frame seat: {}",
@@ -1858,7 +1874,7 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // the profile's own 2-D coordinates, so the wiring is the identity.
     let axis2 = RevolveAxis {
         origin: need_point2(vals, SlotId::Origin)?,
-        dir: need_vec2(vals, SlotId::Direction)?,
+        dir: axis_heading(vals)?,
     };
     let b = band(tol)?;
     // Kernel contract: exactly-full must SAY Full. Anything else wires
@@ -2569,7 +2585,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     (target_read, target): (crate::VarId, RecipeNodeId),
-    (tool, tool_read): (&PoseValue<T>, crate::VarId),
+    (tool, tool_read): (&PoseValue<T>, crate::pose::RoleRead<crate::VarId>),
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {

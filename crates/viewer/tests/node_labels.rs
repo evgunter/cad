@@ -311,8 +311,8 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         SessionOp::AddRevolve {
             profile,
             // An axis written in the profile's own frame.
-            axis_origin: common::len2([0.03, 0.0]),
-            axis_direction: common::scl2([0.0, 1.0]),
+            axis_through: common::len2([0.03, 0.0]),
+            axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(core::f64::consts::PI),
         },
         "turned",

@@ -42,12 +42,11 @@ Profile(ProfileProgram { frame: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#
 Extrude { profile: @0, distance: #0, side: Along }
   #0 Distance
   @0 Operand(Profile)
-Revolve { profile: @0, axis_origin: [#0, #1], axis_direction: [#2, #3], angle: #4 }
+Revolve { profile: @0, axis_through: [#0, #1], axis_heading: #2, angle: #3 }
   #0 Origin(X)
   #1 Origin(Y)
-  #2 Direction(X)
-  #3 Direction(Y)
-  #4 RevolveAngle
+  #2 AxisHeading
+  #3 RevolveAngle
   @0 Operand(Profile)
 Tube { frame: @0, major_radius: #0, window: Full, minor_radius: #1 }
   #0 TubeMajorRadius

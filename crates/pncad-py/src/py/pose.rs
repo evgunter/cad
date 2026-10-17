@@ -3,8 +3,8 @@
 //!
 //! No pose is free and none is defined from nothing: each constructor
 //! reads geometry (a face as a plane, a carrier's axis or centre, a
-//! vertex's point), writes coordinates in a frame the definition reads,
-//! or constructs from other poses. A `PoseDef` is passed where an
+//! vertex's point), moves another pose by a slide or a spin, or
+//! constructs from other poses. A `PoseDef` is passed where an
 //! operand is read; the edit door mints the pose variable there, as it
 //! mints a selection authored at a seat. A pose defined at two seats is
 //! two variables, each defined the same way.
@@ -12,7 +12,7 @@
 use pyo3::prelude::*;
 
 use pncad::document as d;
-use pncad::document::pose::{PoseCoords, PoseDef as Def, PoseSlot};
+use pncad::document::pose::{PoseDef as Def, PoseRole, PoseSlot, RoleRead as Read};
 
 use super::doc::{OperandArg, name_from_text};
 use super::expr::SlotArg;
@@ -26,11 +26,105 @@ pub(crate) struct PoseDef {
     pub(crate) inner: d::Operand,
 }
 
+/// **A finer pose read through a role** at a seat of a coarser kind
+/// (D10): a frame's `"x"`, `"y"` or `"z"` axis, its `"origin"`, or its
+/// `"xy"`, `"yz"` or `"zx"` plane; a plane's `"normal"`; an axis's
+/// `"direction"`. The role is part of the read, so a frame read as its
+/// z axis is the frame's one variable, read once.
+#[pyclass(module = "pncad", frozen, from_py_object)]
+#[derive(Clone)]
+pub(crate) struct RoleRead {
+    read: d::Operand,
+    role: PoseRole,
+}
+
+/// The role words a read names.
+fn role_of(word: &str) -> PyResult<PoseRole> {
+    Ok(match word {
+        "x" => PoseRole::X,
+        "y" => PoseRole::Y,
+        "z" => PoseRole::Z,
+        "origin" => PoseRole::Origin,
+        "xy" => PoseRole::Xy,
+        "yz" => PoseRole::Yz,
+        "zx" => PoseRole::Zx,
+        "normal" => PoseRole::Normal,
+        "direction" => PoseRole::Direction,
+        other => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "not a pose role: {other:?} — one of \"x\", \"y\", \"z\", \"origin\", \"xy\", \
+                 \"yz\", \"zx\" (a frame's), \"normal\" (a plane's) or \"direction\" (an axis's)"
+            )));
+        }
+    })
+}
+
+/// The word a role is named by in Python ([`role_of`]'s inverse).
+fn role_word(role: PoseRole) -> &'static str {
+    match role {
+        PoseRole::X => "x",
+        PoseRole::Y => "y",
+        PoseRole::Z => "z",
+        PoseRole::Origin => "origin",
+        PoseRole::Xy => "xy",
+        PoseRole::Yz => "yz",
+        PoseRole::Zx => "zx",
+        PoseRole::Normal => "normal",
+        PoseRole::Direction => "direction",
+    }
+}
+
+#[pymethods]
+impl RoleRead {
+    /// `of` read through `role`.
+    #[new]
+    fn new(of: OperandArg, role: &str) -> PyResult<Self> {
+        Ok(Self {
+            read: of.read(),
+            role: role_of(role)?,
+        })
+    }
+
+    /// The role, as its word.
+    #[getter]
+    fn role(&self) -> &'static str {
+        role_word(self.role)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RoleRead({}, {:?})", self.read, role_word(self.role))
+    }
+}
+
+/// **What a pose seat reads**: an operand read plainly, or one read
+/// through a role.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum PoseArg {
+    /// Through a role.
+    Role(RoleRead),
+    /// Plainly.
+    Plain(OperandArg),
+}
+
+impl PoseArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> Read<d::Operand> {
+        match self {
+            Self::Role(role) => Read::through(role.read, role.role),
+            Self::Plain(plain) => Read::plain(plain.read()),
+        }
+    }
+}
+
 fn scalar(py: Python<'_>, slot: PoseSlot, arg: &SlotArg) -> PyResult<d::Formula> {
     let expected = slot.dimension();
     let formula = arg.formula(py, expected)?;
     if formula.dim() == expected {
         return Ok(formula);
+    }
+    // A lone `0` is the constant zero of the slot's dimension (VR6).
+    if formula.is_zero() {
+        return Ok(d::Formula::zero(expected));
     }
     Err(pyo3::exceptions::PyValueError::new_err(format!(
         "the pose's {} reads a {}, not a {}",
@@ -38,18 +132,6 @@ fn scalar(py: Python<'_>, slot: PoseSlot, arg: &SlotArg) -> PyResult<d::Formula>
         expected,
         formula.dim()
     )))
-}
-
-fn triple(
-    py: Python<'_>,
-    at: fn(d::Axis3) -> PoseSlot,
-    xs: &(SlotArg, SlotArg, SlotArg),
-) -> PyResult<[d::Formula; 3]> {
-    Ok([
-        scalar(py, at(d::Axis3::X), &xs.0)?,
-        scalar(py, at(d::Axis3::Y), &xs.1)?,
-        scalar(py, at(d::Axis3::Z), &xs.2)?,
-    ])
 }
 
 fn select(at: OperandArg, name: &str) -> PyResult<d::Operand> {
@@ -60,23 +142,6 @@ fn def(inner: Def<d::Operand, d::Formula>) -> PoseDef {
     PoseDef {
         inner: d::Operand::Pose(Box::new(inner)),
     }
-}
-
-/// The kind words a projection names.
-fn kind_of(word: &str) -> PyResult<d::VarKind> {
-    Ok(match word {
-        "point" => d::VarKind::Point,
-        "direction" => d::VarKind::Direction,
-        "axis" => d::VarKind::Axis,
-        "plane" => d::VarKind::Plane,
-        "frame" => d::VarKind::Frame,
-        other => {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "not a pose kind: {other:?} — one of \"point\", \"direction\", \"axis\", \
-                 \"plane\", \"frame\""
-            )));
-        }
-    })
 }
 
 #[pymethods]
@@ -111,62 +176,53 @@ impl PoseDef {
         }))
     }
 
-    /// **A pose written by coordinates in a frame** the definition
-    /// reads. The keywords given decide the kind: `origin` alone a
-    /// point, `direction` alone a direction, `origin` and `direction`
-    /// an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
-    /// frame. Positions are lengths, directions dimensionless and
-    /// normalized at evaluation.
+    /// **A pose slid** along a direction by the length `by`: a point,
+    /// an axis, a plane or a frame moved, its kind kept. `along` is a
+    /// direction, or an axis read for its direction (a frame's
+    /// `RoleRead(frame, "x")`, a plane's `RoleRead(plane, "normal")`).
     #[staticmethod]
-    #[pyo3(signature = (frame, *, origin=None, direction=None, normal=None, u=None, v=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn in_frame(
+    fn slide(py: Python<'_>, pose: PoseArg, along: PoseArg, by: SlotArg) -> PyResult<Self> {
+        Ok(def(Def::Slide {
+            pose: pose.read(),
+            along: along.read(),
+            by: scalar(py, PoseSlot::Slide, &by)?,
+        }))
+    }
+
+    /// **A pose spun** about an axis by the angle `by`, right-handed:
+    /// any pose turned about the line, its kind kept.
+    #[staticmethod]
+    fn spin(py: Python<'_>, pose: PoseArg, about: PoseArg, by: SlotArg) -> PyResult<Self> {
+        Ok(def(Def::Spin {
+            pose: pose.read(),
+            about: about.read(),
+            by: scalar(py, PoseSlot::Spin, &by)?,
+        }))
+    }
+
+    /// **The point at `(x, y, z)` in `frame`**: the frame's origin slid
+    /// along its x, its y and its z axis, each by its length.
+    #[staticmethod]
+    fn point_in(
         py: Python<'_>,
         frame: OperandArg,
-        origin: Option<(SlotArg, SlotArg, SlotArg)>,
-        direction: Option<(SlotArg, SlotArg, SlotArg)>,
-        normal: Option<(SlotArg, SlotArg, SlotArg)>,
-        u: Option<(SlotArg, SlotArg, SlotArg)>,
-        v: Option<(SlotArg, SlotArg, SlotArg)>,
+        x: SlotArg,
+        y: SlotArg,
+        z: SlotArg,
     ) -> PyResult<Self> {
-        let o = |xs: &(SlotArg, SlotArg, SlotArg)| triple(py, PoseSlot::Origin, xs);
-        let coords = match (&origin, &direction, &normal, &u, &v) {
-            (Some(p), None, None, None, None) => PoseCoords::Point { position: o(p)? },
-            (None, Some(dir), None, None, None) => PoseCoords::Direction {
-                direction: triple(py, PoseSlot::Direction, dir)?,
-            },
-            (Some(p), Some(dir), None, None, None) => PoseCoords::Axis {
-                origin: o(p)?,
-                direction: triple(py, PoseSlot::Direction, dir)?,
-            },
-            (Some(p), None, Some(n), None, None) => PoseCoords::Plane {
-                origin: o(p)?,
-                normal: triple(py, PoseSlot::Normal, n)?,
-            },
-            (Some(p), None, None, Some(x), Some(y)) => PoseCoords::Frame {
-                origin: o(p)?,
-                u: triple(py, PoseSlot::U, x)?,
-                v: triple(py, PoseSlot::V, y)?,
-            },
-            _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "a pose in a frame is `origin` (a point), `direction` (a direction), \
-                     `origin` and `direction` (an axis), `origin` and `normal` (a plane), or \
-                     `origin`, `u` and `v` (a frame)",
-                ));
-            }
-        };
-        Ok(def(Def::InFrame {
-            frame: frame.read(),
-            coords,
-        }))
+        let at = [
+            scalar(py, PoseSlot::Slide, &x)?,
+            scalar(py, PoseSlot::Slide, &y)?,
+            scalar(py, PoseSlot::Slide, &z)?,
+        ];
+        Ok(def(Def::point_in(&frame.read(), at)))
     }
 
     /// **The frame through an axis and a point**: origin the foot of
     /// the point on the axis, `z` the axis, `x` towards the point. A
     /// point on the axis refuses `pose_degenerate` at `evaluate`.
     #[staticmethod]
-    fn through(axis: OperandArg, point: OperandArg) -> Self {
+    fn through(axis: PoseArg, point: PoseArg) -> Self {
         def(Def::Through {
             axis: axis.read(),
             point: point.read(),
@@ -176,7 +232,7 @@ impl PoseDef {
     /// **The axis two planes meet in**, along `a`'s normal crossed with
     /// `b`'s. Parallel planes refuse `pose_degenerate` at `evaluate`.
     #[staticmethod]
-    fn meet(a: OperandArg, b: OperandArg) -> Self {
+    fn meet(a: PoseArg, b: PoseArg) -> Self {
         def(Def::Meet {
             a: a.read(),
             b: b.read(),
@@ -187,27 +243,8 @@ impl PoseDef {
     /// frame. A flip of a flip is the pose it flips: the edit door
     /// normalises it there, and a point, which has no sense, refuses.
     #[staticmethod]
-    fn flip(pose: OperandArg) -> Self {
+    fn flip(pose: PoseArg) -> Self {
         def(Def::Flip { pose: pose.read() })
-    }
-
-    /// **A plane moved along its own normal** by the length `by`.
-    #[staticmethod]
-    fn standoff(py: Python<'_>, plane: OperandArg, by: SlotArg) -> PyResult<Self> {
-        Ok(def(Def::Standoff {
-            plane: plane.read(),
-            by: scalar(py, PoseSlot::By, &by)?,
-        }))
-    }
-
-    /// **A coarser pose of a finer one**: a frame's `"plane"`, `"axis"`
-    /// or `"point"`, or a plane's or an axis's `"direction"`.
-    #[staticmethod]
-    fn project(of: OperandArg, to: &str) -> PyResult<Self> {
-        Ok(def(Def::Project {
-            of: of.read(),
-            to: kind_of(to)?,
-        }))
     }
 
     fn __repr__(&self) -> String {
@@ -217,5 +254,6 @@ impl PoseDef {
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PoseDef>()?;
+    m.add_class::<RoleRead>()?;
     Ok(())
 }
