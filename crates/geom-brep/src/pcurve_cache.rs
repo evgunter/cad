@@ -925,12 +925,16 @@ fn harmonic_span_box<T: Real>(
     }
 }
 
+/// A harmonic image's four coefficient vectors `(p0, pa, pb, pl)`, of
+/// `p0 + pa·cos t + pb·sin t + pl·t` ([`Pcurve::harmonic_form`]).
+pub type HarmonicForm<T> = (Point2<T>, Vec2<T>, Vec2<T>, Vec2<T>);
+
 impl<T: Real> Pcurve<T> {
     /// A harmonic image read as its four coefficient vectors
     /// `(p0, pa, pb, pl)` of `p0 + pa·cos t + pb·sin t + pl·t`, channel
     /// by channel ([`Channel::coefficients`]); `None` for every other
     /// variant.
-    pub fn harmonic_form(&self) -> Option<(Point2<T>, Vec2<T>, Vec2<T>, Vec2<T>)> {
+    pub fn harmonic_form(&self) -> Option<HarmonicForm<T>> {
         let Pcurve::Harmonic { u, v } = *self else {
             return None;
         };

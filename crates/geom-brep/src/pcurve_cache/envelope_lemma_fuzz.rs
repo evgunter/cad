@@ -828,9 +828,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     .ok()?;
     // An ellipse a move left on a cone images as a cone section, which
     // its own lane certifies.
-    if derived.harmonic_form().is_none() {
-        return None;
-    }
+    derived.harmonic_form()?;
     let drift = if matches!(mode, 1 | 2) {
         magnitude(s)
     } else {

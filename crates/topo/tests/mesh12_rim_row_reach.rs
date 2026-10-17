@@ -216,9 +216,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
         .half_edges()
         .find_map(|(he, h)| {
             let row = body.pcurve(he)?;
-            if row.pcurve().harmonic_form().is_none() {
-                return None;
-            }
+            row.pcurve().harmonic_form()?;
             let edge = body.get_edge(h.edge)?;
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;

@@ -598,7 +598,9 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     let Ok((image, Derivation::CylinderMeridian)) = &derived else {
         panic!("f64: the sub-band rim takes the meridian: {derived:?}")
     };
-    let (at_f64, ..) = image.harmonic_form().expect("a harmonic image");
+    let Some((at_f64, ..)) = image.harmonic_form() else {
+        panic!("f64: the meridian's image is harmonic: {image:?}")
+    };
     assert_eq!(
         at_f64.x - TAU * (at_f64.x / TAU).round(),
         0.0,

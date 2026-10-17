@@ -1135,9 +1135,7 @@ pub(crate) fn harmonic_travel<T: Real>(
     t1: T,
     forward: bool,
 ) -> Option<(T, T)> {
-    let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
-        return None;
-    };
+    let (p0, pa, pb, pl) = pcurve.harmonic_form()?;
     let at = |t: T| {
         let (s, c) = t.sin_cos();
         (

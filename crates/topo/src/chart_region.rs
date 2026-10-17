@@ -4559,7 +4559,7 @@ mod tests {
         };
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
-        let Some((_, pa, _, _)) = (&pcurve).harmonic_form() else {
+        let Some((_, pa, _, _)) = pcurve.harmonic_form() else {
             panic!("the tilted section charts to a Harmonic");
         };
         assert!(
