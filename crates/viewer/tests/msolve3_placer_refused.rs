@@ -18,8 +18,8 @@ use pncad::document::ExtrudeSide;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
     Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, evaluate,
+    Mate, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SideRead, SlotId, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -43,9 +43,8 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **The finding's document, through the tree the chrome draws.**
-/// The mate's row must state the direction refusal; the pattern's row
-/// is `Poisoned` through the mate, which is exactly why the row that
-/// names the cause has to be this one.
+/// The row of the placement the mate places must state the direction
+/// refusal and link to the pattern, whose own row fails beside it.
 #[test]
 fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let tol = Tol::witness();
@@ -67,35 +66,43 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         },
         tol,
     );
-    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
+    let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
     let frame = |origin: [f64; 3], axis: [f64; 3]| {
         MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
             .expect("a definite frame")
     };
-    let (doc, mate) = common::inserted(
+    let (doc, _) = common::edited(
         &doc,
-        Node::Mate {
-            a: (common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, leg_body, CapEnd::End).into(),
-                }],
-            }))
-            .into(),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(Mate {
+                a: SideRead::Face(
+                    (common::head(StableName {
+                        kind: EntityKind::Face,
+                        node: pattern,
+                        path: vec![RoleSeg::Instance {
+                            i: 1,
+                            of: in_part(legs, leg_body, CapEnd::End).into(),
+                        }],
+                    }))
+                    .into(),
+                ),
+                b: SideRead::Face(common::head(in_part(cap, top_body, CapEnd::Start)).into()),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
         },
         tol,
     );
+    // The mate's row is the row of the placement it places.
+    let mate = cap;
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
@@ -118,9 +125,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "Mate {} failed: the mate solve refused: this mate's a reference has no \
-             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
-             Pattern {p}",
+            "InstantiatePart {} failed: the mate solve refused: constraint 1 of this \
+             node's a reference has no derived pose: Pattern {p}, on its derivation, \
+             refuses. Recourse: repair Pattern {p}",
             test_utils::refusal::tag(mate.0.digest()),
             p = test_utils::refusal::tag(pattern.0.digest()),
         ),
@@ -143,19 +150,19 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         "the row carries the cause the evaluation typed, as its own line, in this document"
     );
 
-    // The compensation the old design rested on, measured: the
-    // pattern's own row cannot state the cause, because the mate
-    // fault poisoned it.
+    // The pattern's own row states its own cause too: the placement's
+    // fault reads the pattern, and a bundle's reads poison nothing
+    // upstream of them.
     let placer = common::row_of(&rows, pattern);
     assert!(
-        matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
-        "the pattern is poisoned through the mate: {:?}",
+        matches!(placer.status, RowStatus::Failed { .. }),
+        "the pattern fails on its own: {:?}",
         placer.status
     );
 
-    // So the mate's row LINKS to the pattern its words name: the node
-    // an author goes and fixes is one click from the words, and it is
-    // the only link any row draws beside a `Poisoned` pointer.
+    // And the placement's row LINKS to the pattern its words name: the
+    // node an author goes and fixes is one click from the words, and it
+    // is the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
         row.repair_at.as_ref().map(|at| at.id()),
         Some(pattern),
@@ -222,7 +229,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         }
         None => (doc, None),
     };
-    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
+    let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
     let named = StableName {
         kind: EntityKind::Face,
         node: pattern,
@@ -242,22 +249,28 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
-    let (doc, mate) = common::inserted(
+    let (doc, _) = common::edited(
         &doc,
-        Node::Mate {
-            a: a.into(),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(Mate {
+                a: SideRead::Face(a.into()),
+                b: SideRead::Face(common::head(in_part(cap, top_body, CapEnd::Start)).into()),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
         },
         tol,
     );
+    // The mate's row is the row of the placement it places.
+    let mate = cap;
     Copies {
         doc,
         opts: with_resolver(store),

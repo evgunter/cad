@@ -154,11 +154,12 @@ fn a_rotated_frame_loft_certifies_under_a_box_elsewhere() {
     assert_certified_in_one_leaf("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
 }
 
-/// What each row's loft does, one evaluation at `Interval` with no box:
-/// under the guided lift (the drive's) the arc section and the rotated
-/// plane are a few ulps wide. The arc's weight is no point and refuses
+/// What each row's loft does, one evaluation at `Interval` at the
+/// nominal: under the guided lift (an analysis's, here over an empty
+/// box) the arc section and the rotated plane are a few ulps wide. The arc's weight is no point and refuses
 /// by name; the rotated plane lofts in `T`. Under the pinned lift both
-/// are the `f64` form lifted, and loft.
+/// are the `f64` form lifted, and loft: an `Interval` evaluation with
+/// no box is the build.
 #[test]
 fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane() {
     use editor_core::{NodeErrorKind, ProfileLift};
@@ -169,10 +170,7 @@ fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane(
             doc,
             None,
             &editor_core::CancelToken::new(),
-            &editor_core::EvalOptions {
-                profile_lift: lift,
-                ..editor_core::EvalOptions::default()
-            },
+            &crate::corpus::options_under(doc, lift).expect("the loft has a continuous variable"),
             Tol::witness(),
         )
     };

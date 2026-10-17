@@ -95,6 +95,8 @@ macro_rules! wire_tree {
             Integer(i64),
             /// One full rotation.
             Turn,
+            /// Zero, at any dimension but a count's.
+            Zero(Dimension),
             /// A reader of a variable, by id, with the kind it caches.
             Var {
                 /// The variable read.
@@ -142,6 +144,7 @@ macro_rules! wire_tree {
                     },
                     ExprKind::Integer(v) => $wire::Integer(*v),
                     ExprKind::Turn => $wire::Turn,
+                    ExprKind::Zero => $wire::Zero(e.dim()),
                     ExprKind::Var(var) => $wire::Var {
                         var: *var,
                         dim: e.dim(),
@@ -178,6 +181,7 @@ macro_rules! wire_tree {
                     }
                     $wire::Integer(v) => Ok(<$form>::integer_leaf(*v)),
                     $wire::Turn => Ok(<$form>::turn_leaf()),
+                    $wire::Zero(dim) => Ok(<$form>::zero_leaf(*dim)),
                     $wire::Var { var, dim } => Ok(<$form>::var(*var, *dim)),
                     $($rebuild)*
                     $wire::Add(x, y) => <$form>::add(b(x)?, b(y)?),
@@ -386,16 +390,4 @@ foreign_tag! {
     /// `profile::ArcSide` on the wire: which side of the tangent the
     /// carrier's centre sits on.
     arc_side => profile::ArcSide { Left, Right }
-}
-
-/// **An `Option` field that must be PRESENT on the wire**, `null` for
-/// `None`: one `Option::deserialize`, with no fallback. A derived
-/// `Deserialize` reads an absent `Option` field as `None`, which for an
-/// instance's `gauge` and `offset` would load a file written before
-/// gauges as an unplaced instance; routed through here, the absent key
-/// is serde's own "missing field" refusal, which names it.
-pub(crate) fn present<'de, D: Deserializer<'de>, T: serde::Deserialize<'de>>(
-    de: D,
-) -> Result<Option<T>, D::Error> {
-    Option::deserialize(de)
 }

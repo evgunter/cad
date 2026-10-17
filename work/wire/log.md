@@ -5744,3 +5744,79 @@ is already on WIRE's two rows.
 - 2026-10-10 — Seam note from CONTACTHOLD: evidence for `a-boolean-drops-its-operands-own-contact-records`. In topo, an operand's records re-enter a boolean only as `BooleanDeclarations::carried_a`/`carried_b` (author declarations), and `ContactRecords::carried()` drops face-granularity records outright. INTENT's F deletes `CarriedContacts` with no replacement named (note left on INTENT's log). The at-rest record fork (`[ev]` PR 4547) would make the carry one function over one list. (CONTACTHOLD orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
 - 2026-10-12 — Seam note from SYM: SYM-17 Phase 2 (Ev's answer on PR 4902; `docs/SYM-17-SPEC.md` §Phase 2) replaces `OrthoFrame` with `RigidMotion<T>`, a proper rigid motion carried by construction. `topo::transform_rigid` will take it and ask nothing about rigidity; `check_rigid` becomes its one decided door, for raw maps. The type acts on `UnitVec3`, and pose inverses become transposes. Branch `sym/17-rotation-readout`. Touches linalg, `transform.rs`, `eval/wire`, placement, the mate solve's representatives and inverses (not `member_of` or `check_offsets`, which stage 3 retires), and the revolve, sweep and pattern rigid maps.
+
+## 2026-10-17 — an orchestrator picks up the track
+
+WIRE had no orchestrator since 2026-09-20 and nothing in flight (no open
+`wire/` PR, no `wire/` branch on the remote). Status `active`.
+
+The slate is **101/30** and was last read against the tree a month ago,
+before INTENT built D10 stages 2, 4 B/E/F (the declare surface is gone)
+and stage 3 A/A′. Nobody parked WIRE's rows under the D10 hold. So the
+first work is a triage, not a dispatch: each live row read against the
+tree as STALE (close), HELD (park on the most specific INTENT row that
+fires it, and move to a held successor so this track does not wait on
+its slowest blocker), or LIVE; then the live slate is cut to budget on
+its priority seam. Three read-only lanes are doing the per-row reads.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-17 — the triage, and the cut it produced
+
+Three read-only lanes read every live row against `fd218851f9`; I
+spot-checked the stale verdicts (the declare symbols match nothing in
+`crates/*/src`; `topo/src/source.rs` is gone). Of 50 live rows:
+
+- **12 closed as overtaken**, each with a dated `## Closed` section.
+  INTENT stage 4 F deleted the declare surface, which took
+  `route-declarations-…`, `a-declared-pairs-kinds-…`,
+  `select-pair-in-band-…` and `refusal-menu-stamps-…`; D10 retired
+  the axis channel and N6's stamps (`axis-shaped-identity-channel`);
+  Ev's DM4 fold-order ruling (PR 4323) answered
+  `the-pair-verbs-declared-merge-…`; the anchor rewrite went with
+  `ProfilePieces` (three rows); `fused_partners` already walks the
+  whole chain; SEAT and `crates/verbs/README.md` §5 already record
+  `two-verb-seats-…`; the seam-vertex residue row had found no
+  witness of its own.
+- **11 parked on the D10 hold and moved to WIREHOLD** (opens
+  `blocked`), each on the most specific INTENT row: six on
+  `transform-retires-into-a-placement`, two on
+  `patterns-are-index-variables`, one each on `a-mate-relates-two-poses`,
+  `mates-declare-no-contact` and `the-at-rest-census-is-a-check`. The
+  P0 `guided-lift-…` is among them: its refusal reads the authored
+  frame stage 3 D deletes.
+- **1 re-homed**: `a-boolean-drops-its-operands-curve-and-patch-records`
+  to CONTACTHOLD, parked on the stage 5 census. Its title is overtaken
+  and what is left is topo's carry.
+- **26 live, 48 points.** Cut on the priority seam: WIRE keeps P0–P2
+  and the four E rows that ride with its first bundle (30/30), and the
+  P3/P4 tail goes to WIRETAIL (18/30). Unpriced rows were priced and
+  legacy `D` re-priced; four rows were narrowed in place.
+
+Bands: WIREHOLD 13200–13299 and WIRETAIL 13300–13399, recorded in
+`docs/MODEL-AB-LOG.md`. Review posture answered in `plan.md`.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-17 — wave 1 dispatched
+
+- **`wire-chord`** (`wire/merged-chord-rule`):
+  `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`,
+  P0 H. Review tier: FULL single review (a confident wrong name is the
+  failure mode). Told to stop on a naming fork or on held ground
+  (`PlacedUnion` witness excluded).
+- **`wire-endings`** (`wire/refusal-endings`): `need-count-…`,
+  `eval-kernel-bug-…`, `wire-profile-spells-…`, `lane-profile-…`, plus
+  S40's stale `M6` citations and the dead declare-door prose the triage
+  found. Review tier: STYLE single review (refusal text and two
+  internal-break refusals; readable and believable). The variant it
+  picks is the one VGEOM's parked count-cast row raises.
+- **Designer pairs**, blinding bytes on `analysis/design-fork/wire-2026-10-17`:
+  FORK-PINCHNAME (the two pinch-naming rows) and FORK-ENTITYDOOR (the
+  entity door pair). Neither is yet known to be Ev's; a converged,
+  non-ratified-text answer is built without an `[ev]` PR.
+
+`a-union-fold-publishes-no-pinch-row` waits for a lane slot (4-core
+box, two builders live); it may also bear on FORK-PINCHNAME.
+
+Signed (WIRE orchestrator).

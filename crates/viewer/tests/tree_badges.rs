@@ -19,7 +19,6 @@
 use crate::common;
 use pncad::document::Bodies;
 use pncad::document::ExtrudeSide;
-use viewer::session::BooleanSpec;
 
 use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -203,67 +202,39 @@ fn the_tree_marks_the_bodies_the_world_places() {
     );
 }
 
-/// **A refused mate solve badges the MATE as the cause and everything
-/// else it reached as downstream.**
+/// **A refused bundle badges its PLACEMENT as the cause and every
+/// placement chained to it as downstream.**
 ///
-/// The kernel records one group refusal against every instance in
-/// the group and every mate holding it together, each as that node's
-/// own `Failed` — mates and instances are DAG leaves, so the placement
-/// solve poisons across a graph the result DAG has no edges for. The
-/// tree must not read that verbatim: the fault names the mate it is
-/// about, so that mate's row is the cause and every other row it
-/// reached — including instances the mate does not touch, and the
-/// other mate in the group — reads as downstream of it.
+/// The kernel records one bundle refusal against the placement whose
+/// bundle refused and against every placement chained to it, each as
+/// that node's own `Failed` — a constraint's reads are where a copy
+/// stands, not a DAG input, so the solve poisons across a graph the
+/// result DAG has no edges for. The tree must not read that verbatim:
+/// the fault names the constraints it is about, so their placement's
+/// row is the cause and every other row it reached reads as downstream
+/// of it.
 #[test]
-fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
+fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-refusal", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-
-    // Two seat mates joining all three instances into ONE group:
-    // post_a under the shelf's middle, post_b under its quarter point.
-    // The second is a planar rest alone, which leaves its pair free
-    // to slide and spin, so the solve refuses UNDER naming that mate
-    // — a verdict about the pair, which the edit door admits (a mate
-    // the table refuses on its own datum is refused at the insert).
-    let sound = common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
-        ),
-    );
-    let offender = common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        ),
-    );
-    // ONE evaluation over both mates. Pumping between them would give
-    // the same rows: a mate's key carries the solve's answer, so the
-    // sound mate re-runs when the group breaks around it. What this
-    // row pins is the attribution, not that.
-    session.pump();
+    common::asm::refuse_shelf(&mut session, &bench);
 
     let rows = session.tree_rows();
-    assert!(tree::has_faults(&rows), "the group refused: {rows:?}");
+    assert!(tree::has_faults(&rows), "the shelf refused: {rows:?}");
     let status_of = |id| common::status_of(&rows, id);
 
-    // The offending mate is the cause, and the only row that is.
-    let RowStatus::Failed { message, .. } = status_of(offender) else {
+    // The shelf, whose bundle holds the pair, is the cause, and the only
+    // row that is.
+    let RowStatus::Failed { message, .. } = status_of(bench.shelf_i) else {
         panic!(
-            "the offending mate carries the cause: {:?}",
-            status_of(offender)
+            "the refused placement carries the cause: {:?}",
+            status_of(bench.shelf_i)
         );
     };
     assert!(
-        message.contains(pncad::document::UNDER_RECOURSE),
-        "the kernel's own words on the mate's row: {message}"
+        message.contains(pncad::document::CONTRADICTORY_RECOURSE),
+        "the kernel's own words on the placement's row: {message}"
     );
     let causes: Vec<_> = rows
         .iter()
@@ -272,136 +243,86 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
         .collect();
     assert_eq!(
         causes,
-        vec![offender],
-        "exactly one actionable row, and it is the mate the fault names"
+        vec![bench.shelf_i],
+        "exactly one actionable row, and it is the placement the fault names"
     );
 
-    // Every other row the refusal reached reads as downstream of it —
-    // the two posts, the shelf, and the sound mate. `post_a` is the
-    // row the issue is about: the offending mate does not touch it.
-    // What each of them says is the POINTER, not a fourth copy of the
-    // refusal prose the offending mate's row already carries.
-    for (id, what) in [
-        (
-            bench.post_a,
-            "an instance the offending mate does not touch",
-        ),
-        (bench.post_b, "an instance the offending mate does touch"),
-        (bench.shelf_i, "the shelf the group hangs from"),
-        (sound, "the sound mate in the refused group"),
-    ] {
-        match status_of(id) {
-            RowStatus::Poisoned { through, message } => {
-                assert_eq!(through, offender, "{what} points at the offending mate");
-                assert_eq!(
-                    message,
-                    Some(downstream_at_mate(offender)),
-                    "{what} points at the cause's row"
-                );
-                assert!(
-                    !message
-                        .unwrap_or_default()
-                        .contains(pncad::document::UNDER_RECOURSE),
-                    "{what} must not recite the refusal a user reads once, on the mate"
-                );
-            }
-            other => panic!("{what} must read as downstream, got {other:?}"),
+    // post_b, placed against the shelf, reads as downstream of it: the
+    // POINTER, not a second copy of the refusal prose the shelf's row
+    // already carries.
+    match status_of(bench.post_b) {
+        RowStatus::Poisoned { through, message } => {
+            assert_eq!(through, bench.shelf_i, "post_b points at the shelf");
+            assert_eq!(
+                message,
+                Some(downstream_at(bench.shelf_i)),
+                "post_b points at the cause's row"
+            );
+            assert!(
+                !message
+                    .unwrap_or_default()
+                    .contains(pncad::document::CONTRADICTORY_RECOURSE),
+                "post_b must not recite the refusal a user reads once, on the shelf"
+            );
         }
-        assert_eq!(status_of(id).badge(), "POISONED", "{what}");
+        other => panic!("post_b must read as downstream, got {other:?}"),
     }
+    assert_eq!(status_of(bench.post_b).badge(), "POISONED");
+    // post_a is only read by the shelf's constraints: it keeps its pose.
+    assert_eq!(status_of(bench.post_a), RowStatus::Ok);
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
-/// **A contradiction between two mates blames both, both carry the
-/// cause, and the rows it reaches point at one of them.**
+/// **A contradiction inside one bundle blames its placement, whichever
+/// constraint evaluated first.**
 ///
-/// Two mates on ONE pair at incompatible alignments: the fold names
-/// `held` and `added` together, because neither is the wrong one on
-/// the fault's own telling. The first of them EVALUATED before the
-/// second broke the pair, and its row still reports the refusal: a
-/// mate's content key carries the solve's answer, so the memo cannot
-/// serve last evaluation's `Ok` into the run whose fault names it.
+/// Two rests on ONE bundle at incompatible offsets: the fold names
+/// `held` and `added` together, because neither is the wrong one on the
+/// fault's own telling, and both are the shelf's. `held` EVALUATED
+/// before `added` broke the bundle, and the shelf's row still reports
+/// the refusal: a placement's content key carries the solve's answer,
+/// so the memo cannot serve last evaluation's `Ok` into the run whose
+/// fault names it.
 #[test]
-fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
+fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.shelf_i);
 
-    // The first mate lands and EVALUATES — the memo now holds an `Ok`
-    // for it — and only then does the second one contradict it.
+    // The first rest lands and EVALUATES — the memo now holds an `Ok`
+    // for the shelf — and only then does the second one contradict it.
     let held = common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
-        ),
+        common::asm::shelf_rest_op(&bench, bench.post_a, 0.0),
+    );
+    assert_eq!(
+        common::status_of(&session.tree_rows(), bench.shelf_i),
+        RowStatus::Ok,
+        "the premise: one rest leaves the shelf loose, which is no refusal"
     );
     let added = common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::contradicting_seat_alignment(),
-        ),
+        common::asm::shelf_rest_op(&bench, bench.post_a, 0.01),
     );
+    assert_eq!(held.placement, added.placement, "one bundle holds the pair");
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
-    // THE PREMISE THIS ROW RESTS ON, asserted rather than assumed: the
-    // mate that evaluated FIRST reports the refusal too. What made
-    // this row distinct from the one above was once a memo hazard —
-    // `held` reading `Ok` in the run that blames it — and what makes
-    // it distinct now is the kernel's own consistency: a fault naming
-    // TWO mates leaves both of them actionable.
     let failing: Vec<_> = rows
         .iter()
         .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
         .map(|row| row.id)
         .collect();
-    assert!(
-        failing.contains(&held),
-        "the mate that evaluated before the pair broke is a cause too: {rows:?}"
+    assert_eq!(
+        failing,
+        vec![bench.shelf_i],
+        "the placement holding the pair is the one cause: {rows:?}"
     );
-    assert!(
-        failing.contains(&added),
-        "the mate that broke the pair is a cause: {rows:?}"
-    );
-    assert!(
-        !failing.contains(&bench.post_a) && !failing.contains(&bench.shelf_i),
-        "the mated instances are not causes: {rows:?}"
-    );
-    // Both mates are blamed, and WHICH one the instances point at is
-    // decided, not a coin flip: `blamed_mates` yields the fault's own
-    // `held` then `added`, and the tree takes the first — with no
-    // corroboration step left to skip it, because the kernel now
-    // reports both as failing. So the pointer is `held`, every run.
-    for instance in [bench.post_a, bench.shelf_i] {
-        match status_of(instance) {
-            RowStatus::Poisoned { through, message } => {
-                assert_eq!(
-                    through, held,
-                    "the instance points at the first mate the fault names"
-                );
-                assert!(
-                    matches!(status_of(through), RowStatus::Failed { .. }),
-                    "and that mate's own row reports the failure: {:?}",
-                    status_of(through)
-                );
-                assert_eq!(
-                    message,
-                    Some(downstream_at_mate(through)),
-                    "the message points at that mate's row"
-                );
-            }
-            other => panic!("a mated instance must read as downstream, got {other:?}"),
-        }
-    }
-    // post_b is in no group with them: an independent subgraph
-    // completes, exactly as GQ2 says.
+    // The posts are in no chain from the shelf: independent subgraphs
+    // complete, exactly as GQ2 says.
+    assert_eq!(status_of(bench.post_a), RowStatus::Ok);
     assert_eq!(status_of(bench.post_b), RowStatus::Ok);
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
@@ -410,73 +331,46 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
 /// **A row poisoned through a row that is ITSELF downstream points at
 /// the terminal cause, not at a POISONED row.**
 ///
-/// The reachable document: a boolean over two instances of a group
-/// that then refuses. The kernel poisons the boolean through its first
-/// blocking input — an instance — and reports that instance as its own
-/// `Failed`; the tree redraws the instance as downstream of the mate.
-/// Read verbatim the boolean would point at a row drawn POISONED and
-/// weak, so the user's walk would be two hops through a row with
+/// The reachable document: a union of two instances' copies, one of
+/// which is then chained to a refused bundle. The kernel poisons the
+/// union through its first blocking input — post_b — and reports post_b
+/// as its own `Failed`; the tree redraws post_b as downstream of the
+/// shelf. Read verbatim the union would point at a row drawn POISONED
+/// and weak, so the user's walk would be two hops through a row with
 /// nothing to act on.
 #[test]
-fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
+fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-two-hop", tol);
+    let boolean = common::asm::store_union(&bench, &[bench.post_b, bench.shelf_i], tol);
     let mut session = common::asm::open_bench(&bench, tol);
-
-    // The boolean lands first, over two instances that are both `Ok`:
-    // the operand seat admits an instance (`combine::denotes_body`).
-    let boolean = common::session_insert(
-        &mut session,
-        SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
-        },
-    );
-    session.pump();
     assert_eq!(
         common::status_of(&session.tree_rows(), boolean),
         RowStatus::Ok,
-        "the boolean builds before the group refuses"
+        "the union builds before the shelf refuses"
     );
 
-    common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
-        ),
-    );
-    let offender = common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        ),
-    );
-    session.pump();
+    common::asm::refuse_shelf(&mut session, &bench);
 
-    // The kernel's own reading: poisoned through the INSTANCE, which
-    // is what makes the hop a real one rather than a hypothetical.
+    // The kernel's own reading: poisoned through post_b, which is what
+    // makes the hop a real one rather than a hypothetical.
     let (_, ev) = session.landed_pair().expect("landed");
     assert_eq!(
         ev.result(boolean).and_then(NodeResult::poisoned_through),
-        Some(bench.post_a),
-        "the evaluation poisons the boolean through its first blocking input"
+        Some(bench.post_b),
+        "the evaluation poisons the union through its first blocking input"
     );
 
     let rows = session.tree_rows();
     match common::status_of(&rows, boolean) {
         RowStatus::Poisoned { through, message } => {
             assert_eq!(
-                through, offender,
-                "the boolean points past the instance at the mate that refused"
+                through, bench.shelf_i,
+                "the union points past post_b at the placement that refused"
             );
-            assert_eq!(message, Some(downstream_at_mate(offender)));
+            assert_eq!(message, Some(downstream_at(bench.shelf_i)));
         }
-        other => panic!("the boolean reads as downstream, got {other:?}"),
+        other => panic!("the union reads as downstream, got {other:?}"),
     }
 
     // The invariant that makes the pointer worth following, over the
@@ -497,19 +391,19 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
 }
 
 /// **Every surface that says why a node has no value names the row the
-/// tree names** — over one group refusal, the node the kernel reports
-/// as its own `Failed` and the node it poisons through it.
+/// tree names** — over one bundle refusal, the chained node the kernel
+/// reports as its own `Failed` and the node it poisons through it.
 ///
-/// The kernel's standing for `post_a` is `Failed` and for the boolean
-/// is poisoned through `post_a`; the tree draws both downstream of the
-/// offending mate. The properties panel's verdict on a picked face, the
+/// The kernel's standing for `post_a` is `Failed` and for the union is
+/// poisoned through `post_a`; the tree draws both downstream of the
+/// refused shelf. The properties panel's verdict on a picked face, the
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
 /// door and the blend loader each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
 /// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
-fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
+fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
@@ -519,14 +413,8 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
+    let boolean = common::asm::store_union(&bench, &[bench.post_a, bench.shelf_i], tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let boolean = common::session_insert(
-        &mut session,
-        SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
-        },
-    );
-    session.pump();
 
     // A face of post_a, selected and held while it still resolves.
     let face = FaceSelection {
@@ -538,32 +426,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         session.standing().live(),
-        "the premise: the picked face resolves before the group refuses: {:?}",
+        "the premise: the picked face resolves before the shelf refuses: {:?}",
         session.standing()
     );
     let mut mate_tool = MateTool::new();
     mate_tool.pick(session.doc(), face.clone());
     let index = common::asm::index_of(&session);
 
-    common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
-        ),
-    );
-    let offender = common::session_insert(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        ),
-    );
-    session.pump();
+    common::asm::refuse_shelf_chaining(&mut session, &bench, bench.post_a, bench.post_b);
+    let offender = bench.shelf_i;
 
     let rows = session.tree_rows();
     let (doc, ev) = session.landed_pair().expect("landed");
@@ -572,7 +443,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     assert_eq!(
         ev.usable(bench.post_a).err(),
         Some(NodeStanding::Failed { node: bench.post_a }),
-        "the kernel reports the group-refused instance as its own failure"
+        "the kernel reports the chained instance as its own failure"
     );
     assert_eq!(
         ev.usable(boolean).err(),
@@ -594,7 +465,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
             node: bench.post_a,
             through: offender
         },
-        "the tree points post_a at the offending mate"
+        "the tree points post_a at the refused shelf"
     );
     let two_hop = drawn(boolean);
     assert_eq!(
@@ -703,11 +574,11 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
             "failure at {}",
             session.landed_pair().expect("landed").0.spoken(offender)
         )) && !detail.contains("ancestor"),
-        "the pick index's tooltip names the offending mate: {detail}"
+        "the pick index's tooltip names the refused shelf: {detail}"
     );
 
     // The product gather: its value is the kernel's, the tree draws the
-    // refused copy downstream of the mate, and the at-rest badge says
+    // refused copy downstream of the refused shelf, and the at-rest badge says
     // nothing about it.
     let refused = match session.product_fault() {
         Some(ProductError::Root(
@@ -717,7 +588,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     };
     assert!(
         matches!(common::status_of(&rows, refused), RowStatus::Poisoned { through, .. } if through == offender),
-        "the refused copy is drawn downstream of the offending mate"
+        "the refused copy is drawn downstream of the refused shelf"
     );
     assert_eq!(
         session.at_rest(),
@@ -973,8 +844,8 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 #[test]
 fn child_band_refusal_rows() {
     use pncad::document::{
-        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, Node,
-        NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
+        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, NodeErrorKind,
+        ProfileDoc, RecipeNodeId, apply, content_pin,
     };
     use pncad::geom_core::Band;
     use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -1011,13 +882,14 @@ fn child_band_refusal_rows() {
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    // A third instance, which no mate could touch: every instance is
-    // its own singleton group here, and the row that decides whether
-    // this refusal is a group's or the run's is that ALL of them
-    // refuse.
-    let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    // Each instance's bundle empty: even its world pin is a constraint,
+    // which the door refuses where no band exists (DOOR 2a).
+    let a = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
+    let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
+    // A third instance, which no mate could touch: the row that decides
+    // whether this refusal is one placement's or the run's is that ALL
+    // of them refuse.
+    let lone = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
     let face_of = |instance| {
         common::head(StableName {
             kind: EntityKind::Face,
@@ -1035,10 +907,11 @@ fn child_band_refusal_rows() {
     // instance below.
     let refused = apply(
         &asm,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: face_of(a).into(),
-                b: face_of(b).into(),
+        &DocEdit::AddConstraint {
+            placement: b,
+            mate: Box::new(pncad::document::Mate {
+                a: pncad::document::SideRead::Face(face_of(a).into()),
+                b: pncad::document::SideRead::Face(face_of(b).into()),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame.clone(),
@@ -1096,8 +969,8 @@ fn child_band_refusal_rows() {
     assert_eq!(
         reached,
         vec![a, b, lone],
-        "the band refusal reaches every instance, each a group of its own — it is the \
-         RUN's refusal, not one group's"
+        "the band refusal reaches every instance, each placement's bundle on its own — \
+         it is the RUN's refusal, not one placement's"
     );
 
     // Every reached row draws its own FAILED, carrying the payload's
@@ -1210,6 +1083,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         repair_at: None,
         readout: None,
         version_offer: None,
+        constraints: Vec::new(),
     };
     let rows = [
         row(1, RowStatus::Ok),
@@ -1600,83 +1474,75 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     }
 }
 
-/// **A mate's row says whether it placed its child or only declares**,
-/// carrying the solve's own role for that mate.
-///
-/// A second shelf seated on the bench's two posts exactly where the
-/// first one is — coincident with it, which is what keeps the loop
-/// consistent. The bench shelf is the group's root, the posts hang off
-/// it, and the second shelf hangs off one post, so its seat on the
-/// other post closes the loop and the solve reads that seat as a
-/// declaration. The row of every mate reads the role the solve
-/// recorded for it; both roles are on the rows.
-///
-/// The fixture is NOT at rest: the two shelves interfere, so it is no
-/// fixture for an at-rest row.
+/// **A placement's row carries its constraints as children**, in bundle
+/// order, each by its address; the world, which every document holds
+/// and nothing deletes, has no row; and removing a constraint through
+/// its child row's op takes it off the row.
 #[test]
-fn a_mate_row_reads_whether_it_placed_its_child() {
-    use pncad::document::{Alignment, MateRole};
-    use viewer::tree::Readout;
+fn a_placement_row_carries_its_constraints_as_children() {
+    use viewer::tree::ConstraintRow;
 
     let tol = Tol::witness();
-    let bench = common::asm::bench("auth16-role", tol);
+    let bench = common::asm::bench("auth16-children", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let middle = common::asm::middle_seat_alignment;
-    let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
-    let seat =
-        |session: &mut DocSession, post, shelf, alignment: Alignment<pncad::document::Formula>| {
-            common::commit_mate(
-                session,
-                common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
-            )
-        };
-    let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
-    let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
-    // The second shelf is the mate's FIRST operand, so the door clears
-    // the offset its insert authored and the bench shelf stays the root.
-    let upper = common::instance_in(&mut session, bench.shelf.id);
-    let upper_on_a = common::commit_mate(
+    common::asm::unpin(&mut session, bench.post_b);
+    let seat = common::commit_mate(
         &mut session,
-        common::asm::shelf_on_post_op(&bench, upper, bench.post_a, ContactClass::Rest, middle()),
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    let b_under_upper = seat(&mut session, bench.post_b, upper, quarter());
 
-    let doc = session.committed_doc().clone();
-    let poses = common::solve(&session, &doc, tol);
     let rows = session.tree_rows();
-    let mut roles = Vec::new();
-    for mate in [a_under_shelf, b_under_shelf, upper_on_a, b_under_upper] {
-        let role: MateRole = poses
-            .role(mate)
-            .unwrap_or_else(|| panic!("the premise: the solve gave {mate:?} a role"));
-        let row = common::row_of(&rows, mate);
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "{mate:?}: the loop is consistent"
-        );
-        assert_eq!(
-            row.readout,
-            Some(Readout::Role(role)),
-            "{mate:?}: the row reads the role the solve recorded"
-        );
-        roles.push(role);
-    }
-    let count = |want: MateRole| roles.iter().filter(|&&role| role == want).count();
+    assert!(
+        rows.iter()
+            .all(|row| row.id != pncad::document::RecipeNodeId::WORLD),
+        "the world has no row"
+    );
     assert_eq!(
-        (count(MateRole::Determining), count(MateRole::Declaring)),
-        (3, 1),
-        "the premise: three seats place a child and one closes the loop: {roles:?}"
+        common::row_of(&rows, bench.post_b).constraints,
+        vec![ConstraintRow {
+            mate: seat,
+            said: "constraint 1: Rest mate".to_owned(),
+        }],
+        "post_b's row carries the seat that places it"
+    );
+    let pin = common::asm::world_pin_of(session.committed_doc(), bench.shelf_i);
+    assert_eq!(
+        common::row_of(&rows, bench.shelf_i).constraints,
+        vec![ConstraintRow {
+            mate: pin,
+            said: "constraint 1: world pin".to_owned(),
+        }],
+        "the shelf's row carries the pin it stands on"
+    );
+
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate: seat });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::row_of(&rows, bench.post_b).constraints,
+        Vec::new(),
+        "the removed constraint leaves the row"
+    );
+    assert_eq!(
+        common::status_of(&rows, bench.post_b),
+        RowStatus::Ok,
+        "a copy no constraint pins is loose, which is no refusal"
     );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// What a row downstream of a refused mate says, spelled from the
-/// mate's id alone: the mate as the document speaks it.
-fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
+/// What a row downstream of a refused placement says, spelled from the
+/// instance's id alone: the instance as the document speaks it.
+fn downstream_at(instance: pncad::document::RecipeNodeId) -> String {
     format!(
-        "upstream failure at Mate {} — that row carries the cause",
-        test_utils::refusal::tag(mate.0.digest())
+        "upstream failure at InstantiatePart {} — that row carries the cause",
+        test_utils::refusal::tag(instance.0.digest())
     )
 }
 
@@ -1712,8 +1578,8 @@ const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
 fn snapshot_mate(
     a: pncad::document::RecipeNodeId,
     b: pncad::document::RecipeNodeId,
-) -> pncad::document::AuthoredNode {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
+) -> pncad::document::Mate<pncad::document::Formula> {
+    use pncad::document::{Alignment, AxisSense, Mate, MateFrame, MatePrimitive, SideRead};
     use pncad::prelude::StableName;
     use pncad::select::EntityKind;
     let face_of = |instance| {
@@ -1727,9 +1593,9 @@ fn snapshot_mate(
     // asks no direction of the band (an authored frame's literal is
     // unit-length, and its re-minted axis does not clear a band of 16).
     let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
-    Node::Mate {
-        a: face_of(a).into(),
-        b: face_of(b).into(),
+    Mate {
+        a: SideRead::Face(face_of(a).into()),
+        b: SideRead::Face(face_of(b).into()),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame.clone(),
@@ -1747,7 +1613,7 @@ fn snapshot_mate(
 /// and printed between the brackets.
 #[test]
 fn child_band_snapshot_author() {
-    use pncad::document::{DocRef, Node, ProfileDoc, content_pin, save};
+    use pncad::document::{DocEdit, DocRef, Node, ProfileDoc, content_pin, save};
     use pncad::geom_core::Band;
 
     if std::env::var(SNAPSHOT_AUTHOR).is_err() {
@@ -1762,8 +1628,16 @@ fn child_band_snapshot_author() {
     };
     let mut asm = ProfileDoc::empty_derived("band-snapshot-asm", tol);
     let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    common::insert_into(&mut asm, snapshot_mate(a, b), tol);
+    let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
+    common::edit_into(
+        &mut asm,
+        DocEdit::AddConstraint {
+            placement: b,
+            mate: Box::new(snapshot_mate(a, b)),
+            fresh: Vec::new(),
+        },
+        tol,
+    );
     let text = save(&asm, &[], tol).expect("the document saves");
     println!("{SNAPSHOT_BEGIN}\n{text}{SNAPSHOT_END}");
 }
@@ -1771,16 +1645,17 @@ fn child_band_snapshot_author() {
 /// CHILD MODE, the loader. No-op unless [`SNAPSHOT_TEXT`] is set.
 ///
 /// **A mate's band refusal, reached the way a state reaches it.** The
-/// insert door refuses a mate where no band exists
+/// constraint door refuses a mate where no band exists
 /// ([`child_band_refusal_rows`]' DOOR 2a), so no edit and no replay
 /// lands one there; a SNAPSHOT is a state, and one authored where its
-/// ε had a band loads in a process whose K leaves it none. The mate's
-/// own value is then the solve's `Band`, and the tree draws its row
-/// FAILED in the payload's own words with nothing pointed at it: the
-/// fault names no mate, so `blamed_mates` answers empty for it.
+/// ε had a band loads in a process whose K leaves it none. The value of
+/// the placement holding the mate is then the solve's `Band`, and the
+/// tree draws its row FAILED in the payload's own words with nothing
+/// pointed at it: the fault names no constraint, so `blamed_mates`
+/// answers empty for it.
 #[test]
 fn child_band_snapshot_load() {
-    use pncad::document::{MateFault, Node, NodeErrorKind, RecipeNodeId, load};
+    use pncad::document::{MateFault, NodeErrorKind, RecipeNodeId, SideRead, load};
     use pncad::geom_core::Band;
 
     let Ok(text) = std::env::var(SNAPSHOT_TEXT) else {
@@ -1791,13 +1666,17 @@ fn child_band_snapshot_load() {
     let loaded = load(&text, tol).expect("a state loads where an edit could not land");
     let doc = loaded.doc;
     let mates: Vec<RecipeNodeId> = doc
-        .ids()
-        .iter()
-        .copied()
-        .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+        .placements()
+        .into_iter()
+        .filter(|&id| {
+            crate::fixture::bundle(&doc, id).iter().any(|constraint| {
+                matches!(constraint.mate.a, SideRead::Face(_))
+                    && matches!(constraint.mate.b, SideRead::Face(_))
+            })
+        })
         .collect();
     let [mate] = mates[..] else {
-        panic!("the snapshot holds one mate: {mates:?}");
+        panic!("the snapshot holds one placement placed by a mate: {mates:?}");
     };
 
     let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(

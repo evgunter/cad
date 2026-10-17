@@ -134,8 +134,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// whose ends cite it. The longer sentences are the right names, not a
 /// regression. The percentiles, the maxima and the scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 122, 196, 411_652]),
+    ("scoped faces", [16, 43, 57, 55_615]),
+    ("full", [19, 122, 196, 411_134]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -211,7 +211,20 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// crossing of two rims rather than a touch, and the pieces ending at
 /// that corner say other words (`lib_g16_corpus_name_digests` moved
 /// that row alone).
-const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
+///
+/// FORK-DM4 unit 2 (a name is scoped by the variable holding its body)
+/// moved it with [`NAME_WORDS`], in `cut_cylinder`, `kitchen_sink` and
+/// `part_select` alone, each holding a split: a split's names say no
+/// half, and `part_select`'s union, which declares the rest between the
+/// halves by the half-free section face, took a new tag. Both totals
+/// shrank. Re-taken merged over main at `8612ce48e8`, and again over
+/// INTENT stage 3 B (#5232), whose placement kind word moved: the merged
+/// digest and the full total are neither tree's.
+///
+/// INTENT stage 3 A′ (a pose is moved by lengths and angles) moved it in
+/// `kitchen_sink` alone, by ids: a revolve holds one slot fewer and a
+/// lone `0` is the constant, so the mint chain re-draws. No total moved.
+const SAID_DIGEST: u64 = 0x9d2e_ab73_95e9_894f;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -219,8 +232,8 @@ const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
 struct Gone;
 
 impl NameTables for Gone {
-    fn table(&self, _: RecipeNodeId) -> Option<&NameTable> {
-        None
+    fn tables(&self, _: RecipeNodeId) -> Vec<&NameTable> {
+        Vec::new()
     }
 }
 
@@ -254,10 +267,15 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let full = Speaker::of(doc);
     let scoped = full.within(ev);
     let mut out = Census::default();
-    for id in doc.ids() {
-        let Some(value) = ev.value(id) else { continue };
+    // Each output's table on its own (NAMES N1: a split's halves are two
+    // tables, a name in both said once in each).
+    for (id, table) in doc.ids().into_iter().flat_map(|id| {
+        crate::fixture::tables(ev, id)
+            .into_iter()
+            .map(move |t| (id, t))
+    }) {
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
-        for (name, _) in value.name_table.iter() {
+        for (name, _) in table.iter() {
             let said = full.name(name).to_string();
             let by_tag = name.to_string();
             *groups[0].entry(said.clone()).or_default() += 1;
@@ -773,9 +791,8 @@ fn documents_outside_the_corpus_read_apart_too() {
         let third = boolean(&mut r, op, second, copies[2]);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
         let rim: Vec<StableName> = ev
-            .value(third)
+            .table_at(third)
             .unwrap_or_else(|| panic!("the round pins evaluate: {:?}", corpus::failures(&ev)))
-            .name_table
             .iter()
             .map(|(name, _)| name)
             .filter(|name| {
@@ -832,10 +849,7 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let full = Speaker::of(&doc);
     let within = full.within(&ev);
-    let runs: Vec<StableName> = ev
-        .value(u)
-        .expect("the glued rim evaluates")
-        .name_table
+    let runs: Vec<StableName> = fixture::table(&ev, u)
         .iter()
         .map(|(name, _)| name)
         .filter(|name| {
@@ -969,10 +983,9 @@ fn each_boolean_join_says_its_operation() {
         let (block, pin) = block_and_pin(&mut r);
         let at = boolean(&mut r, op, block, pin);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
-        let table = &ev
-            .value(at)
-            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
-            .name_table;
+        let table = ev
+            .table_at(at)
+            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)));
         let by = Speaker::of(&r.doc);
         let pin_read = fixture::out(&r.doc, pin);
         // A member's join also says the read it came in through; a
@@ -1065,15 +1078,14 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())
-                .max_by_key(|&id| ev.value(id).map_or(0, |v| v.name_table.iter().count()))?;
+                .max_by_key(|&id| ev.table_at(id).map_or(0, |t| t.iter().count()))?;
             Some((doc, ev, node))
         })
-        .max_by_key(|(_, ev, node)| ev.value(*node).map_or(0, |v| v.name_table.iter().count()))
+        .max_by_key(|(_, ev, node)| ev.table_at(*node).map_or(0, |t| t.iter().count()))
         .expect("the corpus evaluates");
     let faces: Vec<StableName> = ev
-        .value(node)
+        .table_at(node)
         .expect("the largest table's node")
-        .name_table
         .iter()
         .map(|(name, _)| name.clone())
         .filter(|name| name.node == node && name.kind == EntityKind::Face)
@@ -1102,7 +1114,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
     let again = again.elapsed() / FRAMES;
     println!(
         "{} names in the largest table: the first saying {first:?}, each later one {again:?}",
-        ev.value(node).map_or(0, |v| v.name_table.iter().count())
+        ev.table_at(node).map_or(0, |t| t.iter().count())
     );
     assert!(
         again * 4 < first,

@@ -2,10 +2,11 @@
 id: select-pair-in-band-tells-poison-as-an-ambiguity-band-margin
 kind: issue
 title: wire: SelectRefusal::PairInBand tells a pair whose datum is not finite as a margin left inside the ambiguity band
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
+closed: 2026-10-17
 ---
 
 
@@ -31,3 +32,9 @@ Match `PairUndecided::Unreadable` in `names/flush.rs` and give it its own
 `SelectRefusal` arm (or a field on `PairInBand`), told as a datum that is
 not finite, as the body seat's `PairUnreadable` is. Pin the text with a
 row. The pncad-py tag inventory moves with a new arm.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `names/flush.rs`, `topo::flush::pair_finding` and `SelectRefusal::PairInBand` are gone with the flush detectors (INTENT stage 4 F). The dead `OVER_BUDGET` entry in `tests/name_words_corpus.rs` and two doc mentions in `pncad-py/src/tests.rs` are cut by the next WIRE unit that touches them.
+
+Signed (WIRE orchestrator).

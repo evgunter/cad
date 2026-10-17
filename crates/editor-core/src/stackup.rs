@@ -136,7 +136,7 @@ use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
-    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeResult, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
@@ -524,12 +524,16 @@ fn driver(
     // the parameter-independent subgraph is evaluated once — DL2's
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
-    // sequential one does.
+    // sequential one does. It runs over a box spanning `[0, 0]` on
+    // every toleranced variable: its values are the nominal's, but the
+    // box makes its profile lift the passes' (guided,
+    // `EvalOptions::profile_lift`), so a profile outside a pass's cone
+    // keys the same in both and is served.
     let base: Evaluation<Dual64> = evaluate(
         doc,
         None,
         &CancelToken::new(),
-        &pass_opts(None, resolver),
+        &base_opts(&names, resolver),
         tol,
     );
 
@@ -571,9 +575,10 @@ fn driver(
     })
 }
 
-/// The pass options: the profile lift GUIDED (a seed on a profile
-/// dimension must move profile geometry — the exact silent zero
-/// `ProfileLift`'s docs warn about), sequential inside (the driver's
+/// The pass options: the seed makes the profile lift GUIDED
+/// ([`EvalOptions::profile_lift`]; a seed on a profile dimension must
+/// move profile geometry — the exact silent zero `ProfileLift`'s docs
+/// warn about), sequential inside (the driver's
 /// parallelism is per pass), the seed and the parts' resolver as
 /// given.
 fn pass_opts(
@@ -581,10 +586,29 @@ fn pass_opts(
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
 ) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         seed,
         resolver: resolver.cloned(),
         ..EvalOptions::default()
+    }
+}
+
+/// The unseeded base's options: [`pass_opts`] with no seed, over a box
+/// spanning `[0, 0]` on every toleranced variable (`names`). Its values
+/// are the nominal's, but the box varies its axes, so its profile lift is
+/// the passes' (guided, `EvalOptions::profile_lift`) and a node outside a
+/// pass's seeded cone keys alike in base and pass — the reuse the passes
+/// are threaded from it for.
+fn base_opts(
+    names: &[VarId],
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+) -> EvalOptions {
+    let at_nominal = names
+        .iter()
+        .map(|&n| (n, BoxAxis::Varying { lo: 0.0, hi: 0.0 }))
+        .collect();
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::from_axes_in(at_nominal, names))),
+        ..pass_opts(None, resolver)
     }
 }
 
@@ -593,7 +617,6 @@ fn pass_opts(
 /// parts' resolver.
 fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         param_box: Some(Arc::new(box_)),
         resolver: resolver.cloned(),
         ..EvalOptions::default()
@@ -956,9 +979,16 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::Mate(_) => d.u64(21),
-        ValuePayload::Gauge => d.u64(26),
+        // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        // The material the table indexes; its copies are the same
+        // material read copy by copy.
+        ValuePayload::Copies(copies) => {
+            d.u64(29);
+            d.u64(copies.bodies.len() as u64);
+            for b in &copies.bodies {
+                d.body(b);
+            }
+        }
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -993,7 +1023,8 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
+    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
 
 // ------------------------------------------------- the verdict's tie
 
@@ -1921,15 +1952,10 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes_in(
-        verdict
-            .root()
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-        verdict.root().order(),
-    );
+    // The root collapsed to the nominal (`ParamBox::at_nominal`): it
+    // varies the leaves' axes, so its profile lift is theirs (guided) and
+    // a node outside every axis's cone keys alike in prior and leaf.
+    let nominal_box = verdict.root().at_nominal();
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
     // symbolic tier certified may carry a node a numeric-only replay
@@ -1993,6 +2019,27 @@ fn worst_case(
 mod tests {
     use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
     use crate::VarName;
+
+    /// **The base reads under its passes' lift.** The sensitivity passes
+    /// are threaded from the unseeded base, and a profile node outside a
+    /// pass's cone is served from it only when both key the same, which
+    /// they do only under one lift. A base without its `[0, 0]` box would
+    /// be the pinned build, and every seed-independent profile node would
+    /// recompute in every pass.
+    #[test]
+    fn the_unseeded_base_reads_under_its_passes_lift() {
+        let names = [crate::VarId::new(0, 1), crate::VarId::new(1, 2)];
+        let base = super::base_opts(&names, None);
+        for &n in &names {
+            assert_eq!(
+                base.profile_lift(),
+                super::pass_opts(Some(n), None).profile_lift(),
+                "base and pass take one lift"
+            );
+        }
+        assert_eq!(base.profile_lift(), crate::ProfileLift::Guided);
+        assert!(base.seed.is_none(), "the base is unseeded");
+    }
 
     /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
     /// A source census, for the reason `node_kind_vocabulary_is_injective`

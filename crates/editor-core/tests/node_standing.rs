@@ -22,7 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, insert, len, minted, on_frame, scl, step};
+use crate::fixture::{self, insert, len, minted, on_frame, step};
 use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
@@ -33,7 +33,7 @@ use editor_core::{
     GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
     NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
     RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, resolve, run_checks, select_where,
+    body_name, denotation, evaluate, run_checks, select_where,
 };
 use geom_core::Tol;
 
@@ -278,7 +278,7 @@ fn every_standing_renders_one_way_through_every_door() {
         (&s.canceled, unevaluated),
     ] {
         let name = minted(EntityKind::Body, standing.node(), RoleSeg::OutputBody);
-        let verdict = resolve(RunCtx { doc: &s.doc, eval }, &name);
+        let verdict = crate::fixture::resolve_at_mint(RunCtx { doc: &s.doc, eval }, &name);
         let Resolution::Indeterminate(cause) = verdict else {
             panic!("{standing:?}: the reference is indeterminate, got {verdict:?}");
         };
@@ -338,38 +338,15 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
         "{refusal}"
     );
 
-    // A failed placement, of a body that builds: its pose's rotation
-    // axis has no direction.
-    let (doc, profile) = on_frame(
+    // A failed placement: an instance, its own placement, whose part
+    // this evaluation has no resolver to fetch.
+    let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::instantiate_part(editor_core::DocRef {
+            id: editor_core::DocumentId::derive("node_standing_checks_part"),
+            pin: editor_core::ContentPin([7; 32]),
+        }),
     );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let (doc, placement) = step(
-        doc,
-        DocEdit::place(
-            body,
-            Some(
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(0.0)],
-                    angle: ang(1.0),
-                }
-                .into(),
-            ),
-        ),
-    );
-    let placement = placement.expect("a placement mints its node");
     let ev = run(&doc, &CancelToken::new());
     let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
@@ -561,15 +538,18 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        25,
-        "the home: the evaluator writes every result, and `usable_in` is the one ladder",
+        24,
+        "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
+         test-support hand-built evaluation takes its result map whole",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        7,
+        8,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
-         a read of a split's port copies the standing entries and writes the half it projects \
-         (`split_ports_projected`), every read still through `value_of`",
+         a read of a split's port or a family's member copies the standing entries and writes \
+         the value it resolves to (`reads_projected`), every read still through `value_of`; a \
+         placement's solve fault reads whether its placer FAILED, a standing and not a value \
+         (`placement_fault`)",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

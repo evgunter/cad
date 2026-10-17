@@ -1596,8 +1596,8 @@ rigid-motion check on an unmated instance) and different side effects
 (a scratch `Doc` and an evaluation request against a display revision).
 What is shared is the transitions, and a generic over the rest would be
 a type nobody has a use for. DI5 changes what a probe's commit LANDS
-(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetOffset` rather
-than a `moves` entry) and changes none of the three rules, which is why
+(`crates/editor-core/IDENTITY.md`: a document edit rather than a
+`moves` entry) and changes none of the three rules, which is why
 holding them once did not wait for it — after DI5 the landing step that
 moves is the caller's, and the machine it must not break is one
 function rather than two.
@@ -1918,6 +1918,41 @@ glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
 the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
+
+### The mate tool commits into a placement's bundle
+
+A copy is made by a placement — a `Node::Place`, or an instance, which
+is a placement of its part's world — and a placement's constraints are
+its mates. So the mate tool's one committed edit is
+`DocEdit::AddConstraint` on the placement the mate places
+(`session::mate_placement`): of the two picked sides' placements, the
+one whose bundle is still empty; else the one not standing on the
+world; else side `b`'s. Across two unrelated spaces that places one
+copy relative to the other. A side's placement is the node its face
+is read at when that node is a placement, and the instance its member
+walk ends on otherwise.
+
+**A mate beyond the pin refuses, typed.** An instance enters standing
+on one world pin, so a mate between two pinned copies joins a bundle
+the pin already fixes, and the edit door refuses it (as
+`Refusal::Edit`) — `MateFault::Overconstrained`, or `TargetsDiffer`
+while a bundle relates its copy to one target and its pin reads the
+world — committing nothing; the mate is never dropped. Taking a pin off is
+`SessionOp::RemoveConstraint`, one `DocEdit::RemoveConstraint`; a copy
+its bundle no longer pins is a loose copy in its own space, which is
+no refusal.
+
+**The rule reads the document alone.** The mate reads poses off
+geometry and the numbers in its alignment are values the user
+supplies; the viewer's display state — a hidden instance, a free-move
+probe, where a copy is drawn — never enters a bundle.
+
+**The tree shows a placement's constraints as its children**
+(`tree::ConstraintRow`, on `TreeRow::constraints`): one line per
+constraint under its placement's row, in bundle order, each with the
+button that removes it. A constraint is no node, so it has no row in
+the order of its own. The world, which every document holds and no
+edit deletes, has no row.
 
 ### Closed vocabularies are declared once
 

@@ -53,8 +53,14 @@ impl PartStore {
         (doc, body): (ProfileDoc, RecipeNodeId),
         tol: Tol,
     ) -> (DocRef, RecipeNodeId) {
+        let shape = super::body_read(&doc, body.into());
         let (doc, placement) = super::place(doc, body);
-        record_placement(body, placement);
+        let read = match shape {
+            editor_core::Operand::Output { node, port } => doc.output(node, port),
+            _ => doc.output(body, 0),
+        }
+        .expect("the placed body defines its output");
+        record_placement(body, placement, read);
         (self.insert(doc, tol), body)
     }
 
@@ -120,14 +126,14 @@ pub fn with_resolver(store: PartStore) -> EvalOptions {
 /// the body. A node id is the digest of the mint chain it was minted
 /// at, and the placement is inserted right after its body, so one body
 /// id names one placement id in every document that holds it.
-static PLACED: std::sync::Mutex<BTreeMap<RecipeNodeId, RecipeNodeId>> =
+static PLACED: std::sync::Mutex<BTreeMap<RecipeNodeId, (RecipeNodeId, editor_core::VarId)>> =
     std::sync::Mutex::new(BTreeMap::new());
 
-fn record_placement(body: RecipeNodeId, placement: RecipeNodeId) {
+fn record_placement(body: RecipeNodeId, placement: RecipeNodeId, read: editor_core::VarId) {
     PLACED
         .lock()
         .expect("the placement record")
-        .insert(body, placement);
+        .insert(body, (placement, read));
 }
 
 /// **The world placement [`PartStore::insert_part`] placed `body`
@@ -137,11 +143,25 @@ fn record_placement(body: RecipeNodeId, placement: RecipeNodeId) {
 ///
 /// If no part stored through [`PartStore::insert_part`] holds `body`.
 pub fn placement_of(body: RecipeNodeId) -> RecipeNodeId {
+    placed(body).0
+}
+
+/// The world placement and the read [`PartStore::insert_part`] placed
+/// `body` with.
+fn placed(body: RecipeNodeId) -> (RecipeNodeId, editor_core::VarId) {
     *PLACED
         .lock()
         .expect("the placement record")
         .get(&body)
         .unwrap_or_else(|| panic!("{body:?} is no body a part stored with `insert_part` placed"))
+}
+
+/// **The key of `body`'s copy in its part** (FORK-DM4): the part's
+/// placement of it, and the read it copies `body` through — what an
+/// instance of the part delivers that copy under.
+pub fn copy_key(body: RecipeNodeId) -> editor_core::CopyKey {
+    let (placement, read) = placed(body);
+    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read))
 }
 
 /// **A cap face of `instance`'s part product**, in the wrapper the

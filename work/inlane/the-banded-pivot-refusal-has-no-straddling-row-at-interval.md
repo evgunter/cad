@@ -2,11 +2,12 @@
 id: the-banded-pivot-refusal-has-no-straddling-row-at-interval
 kind: issue
 title: No row drives the banded collocation solve's pivot refusal with a pivot whose bracket straddles zero, so a regression of structure_nonzero at Interval stays green
-status: open
+status: closed
 opened: 2026-10-16
 priority: P4
 cost: E
 refs: [the-skin-at-interval-encloses-the-nominal-skin]
+closed: 2026-10-17
 ---
 
 
@@ -26,3 +27,13 @@ totally positive, so a straddling pivot is hard to build through
 `sweep`. A row at `geom`'s `interpolate_columns_in` over hand-made wide
 parameters close enough to collide would do it, and should refuse
 `FitError::Lsq(LsqDegenerate)`.
+
+## Closed
+
+There is now a row at `banded::factor` itself, `a_pivot_straddling_zero_refuses_at_interval`:
+- a 2×2 system whose second pivot is `[-1, 1]` refuses at pivot 1, with a NaN payload;
+- the same system with the pivot `[0.5, 2]` factors.
+
+Reading the pivot as `value_channel() == 0` would let the straddling one through.
+
+Through `interpolate_columns_in` the arm is not reached. `check_ordered` refuses colliding parameters first, and a Bézier span's collocation pivots stay certainly positive.

@@ -5,7 +5,7 @@ title: a selection resolves a name before asking what it denotes, so a tied name
 status: open
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: E
 ---
 
 
@@ -97,3 +97,7 @@ the two rows agree in direction; what a taker owes is deciding whether
 `Found`'s guarantee becomes "a door minted this" rather than "a
 resolved key produced this", and saying so where the token is defined.
 Both doors then state one rule instead of two.
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+Narrowed: the measure half is gone (`MeasureSelectionKind` no longer exists; `wire_measure` goes through `select`, and the seat's kind is enforced at edit). What is left is `resolve_selection` calling `ladder::resolve_in`, whose `Landing::Tied` refuses `Ambiguous`, before `entity_door` asks the kind. The mate-member `resolve_in` call is stage 3 ground and stays as it is. Re-priced `E`; it shares `entity_door::Found` with `the-entity-doors-key-comes-from-its-caller`, so the two go as one unit.

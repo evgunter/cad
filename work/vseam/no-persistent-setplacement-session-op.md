@@ -53,3 +53,22 @@ So the sequencing the G1 item states holds and now sits on one slate:
 this row first, then the two gesture machines' shared rules.
 
 Not dispatched in this wave.
+
+## The edit DI5 names is retired (INTENT stage 3 B, 2026-10-17)
+
+INTENT stage 3 B retires `DocEdit::SetOffset` and the gauge it set an
+offset in. A placement is now a bundle of constraints. DI5
+(`crates/editor-core/IDENTITY.md`) still says a free-move release emits
+one `SetOffset`, and that cannot be built as written.
+
+Re-wording it as "a world pin on the instance at the released frame" is
+not a mechanical rename. `docs/INTENT-STAGE3-SPEC.md` §3 (Viewer) says
+a gesture may author a mate, "but the mate reads poses off geometry and
+the numbers are values the user supplies; the viewer's display location
+is never read". A release that pins the dragged frame reads exactly
+that.
+
+So DI5's commit is a design question again, and it waits for Ev: either
+retire DI5's persisted release, or restate it against the spec's
+gesture rule (`offer/viewer-free-move-and-place-where-shown-over-a-whole-group`).
+Stage 3 B leaves DI5's text alone and builds nothing on it.

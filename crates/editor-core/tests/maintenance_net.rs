@@ -135,6 +135,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     let doc = applied(
         &doc,
         DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -144,6 +145,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
             name: doc.spoken_name(&painted),
             took: editor_core::Took::Node
         }]
@@ -153,6 +155,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &painted),
                 name: painted,
                 kind: AttrKind::Color,
             },

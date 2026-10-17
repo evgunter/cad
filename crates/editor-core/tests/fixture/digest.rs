@@ -61,7 +61,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
     for id in &ev.order {
         feed(format!("#{id:?}").as_bytes());
         let Some(value) = ev.value(*id) else { continue };
-        for (name, entry) in value.name_table.iter() {
+        for (name, entry) in super::tables(ev, *id).into_iter().flat_map(|t| t.iter()) {
             feed(format!("{name:?}={entry:?}").as_bytes());
         }
         feed(value.payload.kind_name().as_bytes());
@@ -73,6 +73,13 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
         // that is.
         match &value.payload {
             ValuePayload::Body(body) => feed_body(&mut feed, body),
+            // An instance's copies are its part product, one body, as
+            // an instance's value was before it was a placement.
+            ValuePayload::Copies(copies) => {
+                for body in &copies.bodies {
+                    feed_body(&mut feed, body);
+                }
+            }
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body {
                     body,
@@ -96,8 +103,6 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             ValuePayload::Datum(_)
             | ValuePayload::Profile(_)
             | ValuePayload::Instances(_)
-            | ValuePayload::Mate(_)
-            | ValuePayload::Gauge
             | ValuePayload::Measure { .. }
             | ValuePayload::MeasureUnavailable { .. }
             | ValuePayload::Assertion(_) => {}

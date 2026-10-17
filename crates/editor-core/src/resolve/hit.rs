@@ -24,7 +24,7 @@
 use geom_core::Decide;
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-use crate::eval::{Evaluation, NodeStanding, NodeValue};
+use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 
@@ -136,16 +136,15 @@ pub enum HitTestError {
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — the lookup's own refusal, carried whole.
     Unnamed(UnnamedEntity),
-    /// **The targets live in different spaces** (A9, A11 (2)): one is
-    /// in an unplaced group's own space, so no ray in one set of
-    /// coordinates meets both, and nothing outside the group is
-    /// ordered against it. A caller that draws each space somewhere
-    /// picks each space by itself.
+    /// **The targets live in different spaces** (D10, Spaces): no ray
+    /// in one set of coordinates meets both, and nothing in one space is
+    /// ordered against another. A caller that draws each space
+    /// somewhere picks each space by itself.
     AcrossSpaces {
-        /// The unplaced group, by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
+        /// One target's space.
+        a: crate::mate::Space,
+        /// Another's.
+        b: crate::mate::Space,
     },
 }
 
@@ -236,15 +235,20 @@ impl crate::spoken::Say for HitTestError {
             Self::Unnamed(unnamed) => {
                 write!(f, "hit test: {}", crate::spoken::Said(unnamed, by))
             }
-            Self::AcrossSpaces { group, cause } => write!(
-                f,
-                "hit test: the targets live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {}, and nothing outside an \
-                 unplaced group is ordered against it. {}",
-                by.node(*group),
-                crate::spoken::Said(cause, by),
-                crate::sentence::Recourse("pick each space by itself, or place the group")
-            ),
+            Self::AcrossSpaces { a, b } => {
+                let space = |s: &crate::mate::Space| match s.loose() {
+                    None => "the world's space".to_owned(),
+                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
+                };
+                write!(
+                    f,
+                    "hit test: the targets live in different spaces, {} and {}, and nothing in \
+                     one is ordered against the other. {}",
+                    space(a),
+                    space(b),
+                    crate::sentence::Recourse("pick each space by itself")
+                )
+            }
         }
     }
 }
@@ -281,13 +285,12 @@ impl core::error::Error for HitTestError {}
 ///
 /// [`UnnamedEntity`], the lookup's one refusal.
 pub(super) fn lookup<T: Decide>(
-    value: &NodeValue<T>,
+    eval: &Evaluation<T>,
     node: RecipeNodeId,
     entity: EntityRef,
 ) -> Result<&StableName, UnnamedEntity> {
-    value
-        .name_table
-        .name_of(&entity)
+    eval.entity_read(node, entity)
+        .and_then(|(var, ent)| eval.table(var)?.name_of(&ent))
         .ok_or(UnnamedEntity { node, entity })
 }
 
@@ -305,7 +308,8 @@ pub fn entity_name<T: Decide>(
     node: RecipeNodeId,
     entity: EntityRef,
 ) -> Result<&StableName, HitTestError> {
-    Ok(lookup(eval.usable(node)?, node, entity)?)
+    eval.usable(node)?;
+    Ok(lookup(eval, node, entity)?)
 }
 
 /// [`entity_name`] for a face patch's back-reference.

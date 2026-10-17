@@ -257,8 +257,14 @@ where
                             body_deep(&mut d, b);
                         }
                     }
-                    ValuePayload::Mate(_) => d.u64(20),
-                    ValuePayload::Gauge => d.u64(25),
+                    // 20 and 25 were a mate's and a gauge's, retired.
+                    ValuePayload::Copies(copies) => {
+                        d.u64(28);
+                        d.u64(copies.bodies.len() as u64);
+                        for b in &copies.bodies {
+                            body_deep(&mut d, b);
+                        }
+                    }
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.

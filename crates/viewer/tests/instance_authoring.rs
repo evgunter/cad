@@ -51,17 +51,11 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance stands on the world at the empty offset — the
+/// Whether the instance's bundle is one world pin at the identity — the
 /// insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    matches!(
-        session.doc().node(node),
-        Some(Node::InstantiatePart {
-            gauge: None,
-            offset: Some(offset),
-            ..
-        }) if offset.bit_eq(&pncad::document::Placement::IDENTITY)
-    )
+    crate::fixture::offset_of(session.doc(), node)
+        .is_some_and(|pose| pose.bit_eq(&pncad::document::Placement::IDENTITY))
 }
 
 // --- the acceptance ------------------------------------------------
@@ -77,8 +71,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and the empty offset on the world — A11 (2)'s
-    // insert at the origin.
+    // split seam), and one world pin at the identity — A11 (2)'s insert
+    // at the origin.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,
@@ -88,28 +82,17 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let (shelf_ref, shelf_interface) = instance_of(&session, shelf_i);
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
-    // And each is placed in the world by the same action (A10): one
-    // identity placement per body the instance defines.
+    // And each is in the world by the same action (A10): an instance
+    // is a placement of its own, and nothing else copies it.
     let doc = session.committed_doc();
     assert_eq!(
-        common::world(doc),
+        doc.placements(),
         [post_i, shelf_i],
-        "both instances are drawn"
+        "both instances are drawn, each its own placement"
     );
-    for instance in [post_i, shelf_i] {
-        let copy = common::copy_of(doc, instance);
-        assert!(
-            matches!(
-                doc.node(copy),
-                Some(Node::PlaceInWorld { body, pose })
-                    if Some(body.read) == doc.output(instance, 0) && pose.steps.is_empty()
-            ),
-            "the instance's identity placement"
-        );
-    }
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance authors the empty offset on the world"
+        "AddInstance authors one world pin at the identity"
     );
 
     // The instances evaluate: the references resolve through the
@@ -134,8 +117,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance is completely unconstrained
-    // until a mate lands on it, so the probe opens and commits.
+    // Free-move: an authored instance stands on its world pin alone
+    // until a mate names it, so the probe opens and commits.
     for op in [
         SessionOp::BeginFreeMove { instance: shelf_i },
         SessionOp::PreviewFreeMove {
@@ -149,14 +132,42 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     }
     assert!(session.display().free_move_of(shelf_i).is_some());
 
-    // The shipped mate tool's op takes them from here.
-    let outcome = session.perform(asm::seat_op_under(
-        &bench,
-        post_i,
-        shelf_i,
-        ContactClass::Rest,
-        asm::middle_seat_alignment(),
-    ));
+    // The shipped mate tool's op takes them from here. Both instances
+    // stand pinned, so the mate joins the shelf's bundle, which its pin
+    // already fixes: the door refuses it typed — overconstrained, or,
+    // while a bundle relates its copy to one target, as a second target
+    // beside the world — and commits nothing. A mate beyond the pin is
+    // never dropped silently.
+    let seat = || {
+        asm::seat_op_under(
+            &bench,
+            post_i,
+            shelf_i,
+            ContactClass::Rest,
+            asm::middle_seat_alignment(),
+        )
+    };
+    let refused = session.perform(seat());
+    assert!(refused.committed.is_empty(), "nothing was committed");
+    match &refused.refusal {
+        Some(Refusal::Edit(error)) => assert!(
+            matches!(
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, .. }
+                        | pncad::document::MateFault::TargetsDiffer { placement, .. }
+                            if *placement == shelf_i
+                    )
+            ),
+            "the shelf's bundle refuses the mate beyond its pin: {error}"
+        ),
+        other => panic!("a mate beyond the pin refuses, got {other:?}"),
+    }
+    // With the shelf's world pin taken off, the same mate places it.
+    asm::unpin(&mut session, shelf_i);
+    let outcome = session.perform(seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {

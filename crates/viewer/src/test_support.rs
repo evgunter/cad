@@ -216,6 +216,15 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
     .0
 }
 
+/// **`doc`'s node ids without the world** ([`Doc::ids`] less
+/// `RecipeNodeId::WORLD`): the nodes an author made, in id order.
+pub fn authored_ids(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| id != RecipeNodeId::WORLD)
+        .collect()
+}
+
 /// **`doc` with `body` placed in the world** at the identity (A10),
 /// answering the document and the placement.
 pub fn placed(
@@ -223,7 +232,12 @@ pub fn placed(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    inserted(doc, Node::place_in_world(body, Placement::IDENTITY), tol)
+    let DocEdit::InsertNode { node, .. } =
+        DocEdit::<ProfileProgram>::place_in_world(body, Some(Placement::IDENTITY))
+    else {
+        unreachable!("`DocEdit::place_in_world` is an insert")
+    };
+    inserted(doc, *node, tol)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and

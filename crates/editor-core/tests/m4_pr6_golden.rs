@@ -272,6 +272,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(10, 20, 30)),
         },
@@ -287,6 +288,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::map(m).expect("a shallow value"),
@@ -446,7 +448,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         })
         .collect();
     for body in placed {
-        doc = push(&doc, &DocEdit::place(body, None));
+        doc = push(&doc, &DocEdit::place_in_world(body, None));
     }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4

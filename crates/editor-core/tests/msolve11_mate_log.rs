@@ -1,30 +1,30 @@
-//! **The mate solve's decisions, on the log of the mate whose answer
-//! each decided.**
+//! **The mate solve's decisions, on the log of the placement whose
+//! bundle each decided.**
 //!
 //! The solve runs once per evaluation, before any node's frame opens,
-//! and keeps every decision it makes for exactly one mate: a decision
-//! about a mate's own datum is that mate's, a decision the fold makes
-//! adding a mate to its pair's intersection is the added mate's, and a
-//! decision about the pair once folded is the pair's first mate's.
-//! Each mate's node splices what was kept for it into its own frame.
-//! That every decision is on exactly one mate's log is checked for
-//! every mate document a suite evaluates through `fixture::run`
-//! (`fixture::solve_decisions_have_one_home`); the rows here pin WHICH
-//! mate, the memo, and the lever and `Part`-index rows beside them.
+//! and keeps every decision it makes for exactly one placement: a
+//! decision about a constraint's own datum, a decision the fold makes
+//! adding a constraint to its bundle's intersection, and a decision
+//! about the bundle once folded are all that bundle's placement's.
+//! Each placement's node splices what was kept for it into its own
+//! frame. That every decision is on exactly one placement's log is
+//! checked for every mate document a suite evaluates through
+//! `fixture::run` (`fixture::solve_decisions_have_one_home`); the rows
+//! here pin WHICH placement, the memo, and the lever and `Part`-index
+//! rows beside them.
 //!
 //! Every row goes through ordinary doors — `DocEdit::InsertNode`,
-//! `DocEdit::DeleteNode`, `evaluate` with or without a prior.
+//! `DocEdit::AddConstraint`, `evaluate` with or without a prior.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, evaluate,
+    Evaluation, Formula, Mate, MateFrame, MatePrimitive, MateRef, Node, NodeResult, PatternKind,
+    ProfileDoc, RecipeNodeId, SitedFace, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -57,8 +57,10 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A base slab and two blocks, instantiated, with a linear pattern of
-/// the first block standing between it and the mates read at it.
+/// A base slab and a block, each pinned to the world, a linear pattern
+/// of the block, and two blocks with empty bundles for the constraints
+/// to place: `cap`, seated on the pattern's copy 1, and `other`, seated
+/// on the base.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -66,6 +68,8 @@ struct Scene {
     base_body: RecipeNodeId,
     block: RecipeNodeId,
     other: RecipeNodeId,
+    cap: RecipeNodeId,
+    cap_body: RecipeNodeId,
     block_body: RecipeNodeId,
     pattern: RecipeNodeId,
 }
@@ -84,7 +88,8 @@ fn scene(label: &str) -> Scene {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, block) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, other) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, other) = insert(doc, fixture::mated_instance(block_ref));
+    let (doc, cap) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -103,6 +108,8 @@ fn scene(label: &str) -> Scene {
         base_body,
         block,
         other,
+        cap,
+        cap_body: block_body,
         block_body,
         pattern,
     }
@@ -114,16 +121,21 @@ impl Scene {
         fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End))
     }
 
-    /// Copy 1 of the patterned block's bottom cap, read at the pattern.
-    fn copy_bottom(&self) -> SitedFace {
+    /// Copy 1 of the patterned block's top cap, read at the pattern.
+    fn copy_top(&self) -> SitedFace {
         fixture::head_at(
             self.pattern,
             in_copy(
                 self.pattern,
                 1,
-                in_part(self.block, self.block_body, CapEnd::Start),
+                in_part(self.block, self.block_body, CapEnd::End),
             ),
         )
+    }
+
+    /// The cap block's bottom cap, read at the cap.
+    fn cap_bottom(&self) -> SitedFace {
+        fixture::head_at(self.cap, in_part(self.cap, self.cap_body, CapEnd::Start))
     }
 
     /// The other block's bottom cap, read at that block.
@@ -135,7 +147,7 @@ impl Scene {
     }
 
     /// Inserts `node` through the door, levered by the scene's parts.
-    fn add(&mut self, node: AuthoredNode) -> RecipeNodeId {
+    fn insert(&mut self, node: editor_core::AuthoredNode) -> RecipeNodeId {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
         let (doc, id) = fixture::step_with(
             self.doc.clone(),
@@ -149,35 +161,37 @@ impl Scene {
         id.unwrap()
     }
 
-    /// Deletes `id` through the door, levered by the scene's parts.
-    fn delete(&mut self, id: RecipeNodeId) {
+    /// Adds `mate` to the bundle of the copy it places, through the
+    /// door, levered by the scene's parts.
+    fn add(&mut self, mate: Mate<Formula>) -> MateRef {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
-        let (doc, _) = fixture::step_with(self.doc.clone(), DocEdit::DeleteNode { id }, &reach);
+        let (doc, id) = fixture::constrain_with(self.doc.clone(), &reach, mate);
         self.doc = doc;
+        id
     }
 
-    /// A rest of copy 1's bottom cap on the base's top cap.
-    fn rest(&mut self) -> RecipeNodeId {
-        let node = seat(
-            self.base_top(),
-            self.copy_bottom(),
-            (2.0, 2.0),
+    /// A rest of the cap's bottom cap on copy 1's top cap.
+    fn rest(&mut self) -> MateRef {
+        let mate = seat(
+            self.copy_top(),
+            self.cap_bottom(),
+            (0.5, 0.5, BLOCK_HEIGHT),
             MatePrimitive::PlanarRest { offset: 0.0 },
             None,
         );
-        self.add(node)
+        self.add(mate)
     }
 
-    /// A clocked coaxial pin of copy 1 on the base, on the rest's axis.
-    fn pin(&mut self) -> RecipeNodeId {
-        let node = seat(
-            self.base_top(),
-            self.copy_bottom(),
-            (2.0, 2.0),
+    /// A clocked coaxial pin of the cap on copy 1, on the rest's axis.
+    fn pin(&mut self) -> MateRef {
+        let mate = seat(
+            self.copy_top(),
+            self.cap_bottom(),
+            (0.5, 0.5, BLOCK_HEIGHT),
             MatePrimitive::Coaxial,
             Some(0.0),
         );
-        self.add(node)
+        self.add(mate)
     }
 
     fn eval(&self, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -191,21 +205,21 @@ impl Scene {
     }
 }
 
-/// A seat of `b`'s bottom cap on `a`'s top cap at `(x, y)`.
+/// A seat of `b`'s bottom cap on `a`'s top cap at `(x, y, z)`.
 fn seat(
     a: SitedFace,
     b: SitedFace,
-    (x, y): (f64, f64),
+    (x, y, z): (f64, f64, f64),
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+) -> Mate<Formula> {
+    fixture::mate(
+        a,
+        b,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
-                [x, y, BASE_HEIGHT],
+                [x, y, z],
                 [0.0, 0.0, 1.0],
                 [1.0, 0.0, 0.0],
                 geom_core::Tol::witness(),
@@ -222,22 +236,28 @@ fn seat(
             sense: AxisSense::Opposed,
             clocking,
         },
-    }
+    )
 }
 
-/// The verdict log a mate's row carries, as `(predicate, sign)` pairs.
-fn log(ev: &Evaluation<f64>, mate: RecipeNodeId) -> Vec<geom_core::k_stats::Verdict> {
-    match ev.result(mate) {
+/// A seat on the base's top cap at `(x, y)`.
+fn on_base(xy: (f64, f64)) -> (f64, f64, f64) {
+    (xy.0, xy.1, BASE_HEIGHT)
+}
+
+/// The verdict log a placement's row carries, as `(predicate, sign)`
+/// pairs.
+fn log(ev: &Evaluation<f64>, placement: RecipeNodeId) -> Vec<geom_core::k_stats::Verdict> {
+    match ev.result(placement) {
         Some(NodeResult::Ok(v)) => v.verdicts.to_vec(),
-        other => panic!("mate {} did not evaluate: {other:?}", mate.0),
+        other => panic!("placement {} did not evaluate: {other:?}", placement.0),
     }
 }
 
-/// The decisions over one mate's two authored sides — each a part base
+/// The decisions over one constraint's two authored sides — each a part base
 /// with one literal step, admitted at the decided rigidity door (seven
 /// margins; the translation's finiteness is not a decision) before the
 /// solve re-mints the composed axis — the first thing the solve decides
-/// about a mate's own datum.
+/// about a constraint's own datum.
 const OWN_FRAMES: [&str; 16] = [
     "transform_rigid_col0_unit",
     "transform_rigid_col1_unit",
@@ -259,43 +279,40 @@ const OWN_FRAMES: [&str; 16] = [
 
 // ---- one home per decision ----
 
-/// **Each decision is on the mate whose answer it decided.** Three
-/// mates: a rest and a clocked pin on ONE pair (the base and copy 1 of
-/// a pattern, so the pair has a static left factor to derive), and a
-/// clocked coincidence on another pair.
+/// **Each decision is on the placement whose bundle it decided.**
+/// Two placements: the cap, held by a rest and a clocked pin against
+/// copy 1 of a pattern (so the bundle has a static left factor to
+/// derive), and the other block, held by a clocked coincidence
+/// against the base.
 ///
-/// - Each mate's log opens with its own two frames.
-/// - The fold's intersection is decided while the PIN is added to what
+/// - Each placement's log opens with its first constraint's two frames.
+/// - The fold's intersection is decided while the pin is added to what
 ///   the rest left (`mate_axis_normal_perpendicular`, then the
-///   membership checks), so it is the pin's and not the rest's.
-/// - The pair's left factor — the pattern's direction and the sign of
-///   its spacing, derived for the pair once its mates are folded
-///   (`eval_direction_norm`, `pattern_spacing`) — is the pair's first
-///   mate's: the rest's, the mate an UNDER on this pair would name,
-///   and not the pin's.
-/// - The rider on the coincidence (`mate_clocking_redundant`) is its
-///   own mate's.
+///   membership checks): the cap's, and on no other log.
+/// - The bundle's left factor — the pattern's direction and the sign
+///   of its spacing, derived once the bundle is folded
+///   (`eval_direction_norm`, `pattern_spacing`) — follows the fold on
+///   the cap's log and is on no other.
+/// - The rider on the coincidence (`mate_clocking_redundant`) is the
+///   other block's.
 #[test]
-fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
+fn each_decision_is_on_the_log_of_the_placement_whose_bundle_it_decided() {
     let mut s = scene("msolve11-home");
-    let rest = s.rest();
-    let pin = s.pin();
-    let coincidence = s.add(seat(
+    s.rest();
+    s.pin();
+    s.add(seat(
         s.base_top(),
         s.other_bottom(),
-        (6.0, 6.0),
+        on_base((6.0, 6.0)),
         MatePrimitive::FrameCoincidence,
         Some(0.0),
     ));
     let ev = fixture::run(&s.doc, &s.opts);
-    let names =
-        |mate| -> Vec<&'static str> { log(&ev, mate).iter().map(|v| v.predicate).collect() };
-    let (rest_log, pin_log, coincidence_log) = (names(rest), names(pin), names(coincidence));
-    for (what, got) in [
-        ("rest", &rest_log),
-        ("pin", &pin_log),
-        ("coincidence", &coincidence_log),
-    ] {
+    let names = |placement| -> Vec<&'static str> {
+        log(&ev, placement).iter().map(|v| v.predicate).collect()
+    };
+    let (cap_log, other_log) = (names(s.cap), names(s.other));
+    for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
             got.starts_with(&OWN_FRAMES),
             "the {what}'s log opens with its own frames: {got:?}"
@@ -303,86 +320,99 @@ fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
     }
     let on = |got: &[&str], p: &str| got.contains(&p);
     assert!(
-        on(&pin_log, "mate_axis_normal_perpendicular") && on(&pin_log, "mate_member_axis_fixed"),
-        "the intersection is the added mate's: {pin_log:?}"
+        on(&cap_log, "mate_axis_normal_perpendicular") && on(&cap_log, "mate_member_axis_fixed"),
+        "the intersection is the cap's: {cap_log:?}"
     );
     assert!(
-        !rest_log
+        !other_log
             .iter()
             .any(|p| p.starts_with("mate_member_") || p.starts_with("mate_axis")),
-        "the first mate's log holds no intersection: {rest_log:?}"
+        "the other block's log holds no intersection: {other_log:?}"
     );
     const LEFT_FACTOR: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
+    let after_fold = cap_log
+        .iter()
+        .rposition(|p| p.starts_with("mate_member_"))
+        .expect("the fold decided on the cap's log");
     assert!(
-        rest_log.ends_with(&LEFT_FACTOR),
-        "the pair's left factor is the first mate's, decided after the fold: {rest_log:?}"
+        cap_log[after_fold..]
+            .windows(LEFT_FACTOR.len())
+            .any(|w| w == LEFT_FACTOR),
+        "the bundle's left factor is the cap's, decided after the fold: {cap_log:?}"
     );
     for p in LEFT_FACTOR {
         assert!(
-            !on(&pin_log, p) && !on(&coincidence_log, p),
-            "the left factor's {p} is on no other mate's log: {pin_log:?} {coincidence_log:?}"
+            !on(&other_log, p),
+            "the left factor's {p} is on no other placement's log: {other_log:?}"
         );
     }
+    // The placement's own evaluation follows the solve's decisions on
+    // its log; the rider is the first decision after its frames.
     assert_eq!(
-        coincidence_log[OWN_FRAMES.len()..],
-        ["mate_clocking_redundant"],
-        "the rider is its own mate's"
+        other_log.get(OWN_FRAMES.len()).copied(),
+        Some("mate_clocking_redundant"),
+        "the rider is its own placement's"
     );
 }
 
 // ---- the memo ----
 
 /// **Whether `later` served `id` from `earlier`** rather than running
-/// its op again: a memo hit returns the prior value's name table, the
-/// same allocation, and every op that runs mints a fresh one.
+/// its op again: a memo hit returns the prior value's contact records,
+/// the same allocation, and every op that runs mints a fresh one (a
+/// reused mate's verdict log is this run's, so it cannot say).
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.name_table, &b.name_table),
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.contacts, &b.contacts),
         _ => false,
     }
 }
 
-/// **A reused mate carries the log a fresh evaluation of it carries.**
-/// The pin is the pair's SECOND mate, so its log holds the fold's
-/// intersection with the rest. Deleting the rest and adding it back
-/// makes the pin the pair's first mate: its answer — a determining
-/// mate, unfaulted — and its key are what they were, so the memo
-/// serves it, while what the solve decides about it is now its own
-/// frames and the pair's left factor. The served row carries that,
-/// exactly as the row of an evaluation with no prior does.
+/// **A reused placement carries the log a fresh evaluation of it
+/// carries.** The cap's bundle folds a rest and a pin against a pattern
+/// copy, so its log holds frames, the fold's intersection and the
+/// bundle's left factor. A constraint added to ANOTHER placement leaves
+/// the cap's answer and key as they were, so the memo serves it; what
+/// the solve decides about it is re-decided this run, and the served
+/// row carries that, exactly as the row of an evaluation with no prior
+/// does.
 #[test]
-fn a_reused_mate_carries_the_log_a_fresh_one_does() {
+fn a_reused_placement_carries_the_log_a_fresh_one_does() {
     let mut s = scene("msolve11-memo");
-    let rest = s.rest();
-    let pin = s.pin();
+    s.rest();
+    s.pin();
     let first = s.eval(None);
-    s.delete(rest);
-    let _rest = s.rest();
+    s.add(seat(
+        s.base_top(),
+        s.other_bottom(),
+        on_base((6.0, 6.0)),
+        MatePrimitive::FrameCoincidence,
+        Some(0.0),
+    ));
     let later = s.eval(Some(&first));
     let fresh = s.eval(None);
     assert!(
-        reused_value(&first, &later, pin),
-        "the pin's answer and key did not move, so the memo serves it"
+        reused_value(&first, &later, s.cap),
+        "the cap's answer and key did not move, so the memo serves it"
     );
-    assert_ne!(
-        log(&first, pin),
-        log(&fresh, pin),
-        "the solve decides something else about the pin now"
+    assert!(
+        !log(&fresh, s.cap).is_empty(),
+        "the solve decides something about the cap"
     );
     assert_eq!(
-        log(&later, pin),
-        log(&fresh, pin),
-        "the served pin carries this run's decisions about it"
+        log(&later, s.cap),
+        log(&fresh, s.cap),
+        "the served cap carries this run's decisions about it"
     );
     // The escalation channel travels with the verdicts through the same
-    // splice and the same mate arm, but it cannot be pinned here: an
-    // escalation in the solve refuses its mate, and only an `Ok` mate is
-    // ever served from the memo.
+    // splice and the same placement arm, but it cannot be pinned here:
+    // an escalation in the solve refuses its placement, and only an
+    // `Ok` placement is ever served from the memo.
 }
 
 // ---- the lever ----
 
-/// The `Unleverable` refusal a mate carries, panicking on any other.
+/// The `Unleverable` refusal a placement carries, panicking on any other.
 fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
     match fault {
         editor_core::MateFault::Unleverable { refusal, .. } => refusal,
@@ -392,39 +422,46 @@ fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
 
 /// **A lever out of the format's range refuses at its one door,
 /// through the solve.** A rest authored at an offset of `1e300` m is
-/// a finite datum whose lever is finite too, and a pin beside it on
-/// the same pair would have the fold decide the pair's angular splits
-/// over that lever: a sine levered by `1e300` is a vector whose
-/// squared length overflows unless the sine is exactly zero. The fold forms each mate's lever through
-/// `Arm::of`, which refuses it typed — the rest, the first mate whose
-/// lever is formed, carrying both halves and the range recourse — so
-/// no predicate is handed it, and no escalation names the parallelism
-/// predicate.
+/// a finite datum whose lever is finite too, and a pin beside it in
+/// the same bundle would have the fold decide the bundle's angular
+/// splits over that lever: a sine levered by `1e300` is a vector whose
+/// squared length overflows unless the sine is exactly zero. The fold
+/// forms each constraint's lever through `Arm::of`, which refuses it
+/// typed — at the rest, the constraint whose lever leaves the range,
+/// carrying both halves and the range recourse — so no predicate is
+/// handed it, and no escalation names the parallelism predicate.
 #[test]
 fn a_lever_out_of_range_refuses_typed_through_the_solve() {
     let mut s = scene("msolve11-range-solve");
-    let rest = s.add(seat(
+    // The pin first: the door folds the bundle as it stands without
+    // the constraint being added, so the rest is admitted, and the
+    // lever out of range is met where the solve folds the two.
+    s.add(seat(
         s.base_top(),
         s.other_bottom(),
-        (2.0, 2.0),
-        MatePrimitive::PlanarRest { offset: 1e300 },
-        None,
-    ));
-    let pin = s.add(seat(
-        s.base_top(),
-        s.other_bottom(),
-        (2.0, 2.0),
+        on_base((2.0, 2.0)),
         MatePrimitive::Coaxial,
         Some(0.0),
     ));
+    let rest = s.add(seat(
+        s.base_top(),
+        s.other_bottom(),
+        on_base((2.0, 2.0)),
+        MatePrimitive::PlanarRest { offset: 1e300 },
+        None,
+    ));
     let ev = fixture::run(&s.doc, &s.opts);
-    let fault = match ev.result(rest) {
+    let fault = match ev.result(s.other) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
             other => panic!("expected a mate refusal, got {other:?}"),
         },
-        other => panic!("expected the rest to fail, got {other:?}"),
+        other => panic!("expected the placement to fail, got {other:?}"),
     };
+    assert!(
+        matches!(fault, editor_core::MateFault::Unleverable { mate, .. } if mate == rest),
+        "the rest is the constraint whose lever leaves the range: {fault:?}"
+    );
     let editor_core::LeverRefusal::OutOfRange { parts, datum } = *unleverable(&fault) else {
         panic!("expected the range refusal, got {fault:?}");
     };
@@ -438,33 +475,31 @@ fn a_lever_out_of_range_refuses_typed_through_the_solve() {
     );
     let said = fault.to_string();
     assert!(said.contains(geom_core::RANGE_RECOURSE), "{said}");
-    for id in [rest, pin] {
-        let escalations = match ev.result(id) {
-            Some(NodeResult::Ok(v)) => v.escalations.to_vec(),
-            Some(NodeResult::Failed(e)) => e.escalations.to_vec(),
-            _ => Vec::new(),
-        };
-        assert!(
-            escalations.is_empty(),
-            "mate {}: no predicate decided over the lever: {escalations:?}",
-            id.0
-        );
-    }
+    let escalations = match ev.result(s.other) {
+        Some(NodeResult::Ok(v)) => v.escalations.to_vec(),
+        Some(NodeResult::Failed(e)) => e.escalations.to_vec(),
+        _ => Vec::new(),
+    };
+    assert!(
+        escalations.is_empty(),
+        "no predicate decided over the lever: {escalations:?}"
+    );
 }
 
 /// **The same door, through the edit door.** A coincidence's rider is
-/// the one row of the table that levers a decision of a mate alone, so
-/// the insert door forms that mate's lever — through the same door —
-/// and refuses one whose datum is a frame `1e200` m from its part's
-/// origin, a distance whose own square overflows.
+/// the one row of the table that levers a decision of a constraint
+/// alone, so the constraint door forms that constraint's lever —
+/// through the same door — and refuses one whose datum is a frame
+/// `1e200` m from its part's origin, a distance whose own square
+/// overflows.
 #[test]
 fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
     let s = scene("msolve11-range-door");
-    let node = Node::Mate {
-        a: s.base_top().into(),
-        b: s.other_bottom().into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+    let mate = fixture::mate(
+        s.base_top(),
+        s.other_bottom(),
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 [1e200, 0.0, BASE_HEIGHT],
                 [0.0, 0.0, 1.0],
@@ -483,22 +518,11 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
             sense: AxisSense::Opposed,
             clocking: Some(0.0),
         },
-    };
+    );
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
-    let err = s
-        .doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &reach,
-        )
-        .expect_err("the door refuses the lever");
-    let editor_core::EditError::MateRefused { fault, .. } = err else {
-        panic!("expected MateRefused, got {err:?}");
-    };
+    let (at, fault) =
+        fixture::at_the_door(&s.doc, &reach, mate).expect_err("the door refuses the lever");
+    assert_eq!(at, s.other, "the door names the placement");
     assert!(
         matches!(
             unleverable(&fault),
@@ -517,7 +541,7 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
 /// **A `Part`'s index that does not evaluate is refused at the
 /// `Part`**, the node the evaluation fails, and not at the healthy
 /// pattern below it. The index `k · i64::MAX + 1` selects copy 1 at
-/// `k = 0`, where the mate is inserted, and overflows the count's
+/// `k = 0`, where the constraint is added, and overflows the count's
 /// range at `k = 1`.
 #[test]
 fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
@@ -541,26 +565,26 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
         Formula::count(1),
     )
     .unwrap();
-    let part = s.add(Node::Part {
+    let part = s.insert(Node::Part {
         of: s.pattern.into(),
         select: PartSelect::Instance(index),
     });
     let read_at_part = fixture::head_at(
         part,
-        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
     );
-    let mate = s.add(seat(
-        s.base_top(),
+    s.add(seat(
         read_at_part,
-        (2.0, 2.0),
+        s.cap_bottom(),
+        (0.5, 0.5, BLOCK_HEIGHT),
         MatePrimitive::FrameCoincidence,
         None,
     ));
     let ev = fixture::run(&s.doc, &s.opts);
     assert!(
-        matches!(ev.result(mate), Some(NodeResult::Ok(_))),
+        matches!(ev.result(s.cap), Some(NodeResult::Ok(_))),
         "the index selects the named copy at k = 0: {:?}",
-        ev.result(mate)
+        ev.result(s.cap)
     );
 
     let (doc, _) = fixture::step(
@@ -572,12 +596,12 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
     );
     s.doc = doc;
     let ev = fixture::run(&s.doc, &s.opts);
-    let fault = match ev.result(mate) {
+    let fault = match ev.result(s.cap) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
             other => panic!("expected a mate refusal, got {other:?}"),
         },
-        other => panic!("expected the mate to fail, got {other:?}"),
+        other => panic!("expected the placement to fail, got {other:?}"),
     };
     let editor_core::MateFault::PlacerRefused {
         placer, placer_row, ..
@@ -605,7 +629,7 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
     assert_eq!(
         placer_row,
         editor_core::PlacerRow::States,
-        "the `Part`'s own row states the refusal, so the mate points there"
+        "the `Part`'s own row states the refusal, so the placement points there"
     );
 }
 
@@ -629,9 +653,9 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
             spacing: len(3.0),
         },
     };
-    let inner = s.add(wide(s.other.into()));
-    let outer = s.add(wide(inner.into()));
-    let part = s.add(Node::Part {
+    let inner = s.insert(wide(s.block.into()));
+    let outer = s.insert(wide(inner.into()));
+    let part = s.insert(Node::Part {
         of: outer.into(),
         select: PartSelect::Instance(Formula::count(0)),
     });
@@ -640,15 +664,15 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
         in_copy(
             outer,
             69_999,
-            in_copy(inner, 69_999, in_part(s.other, s.block_body, CapEnd::Start)),
+            in_copy(inner, 69_999, in_part(s.block, s.block_body, CapEnd::End)),
         ),
     );
     let fault = fixture::door_refusal(
         &s.doc,
         seat(
-            s.base_top(),
             b,
-            (2.0, 2.0),
+            s.cap_bottom(),
+            (0.5, 0.5, BLOCK_HEIGHT),
             MatePrimitive::FrameCoincidence,
             None,
         ),
@@ -662,51 +686,30 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
     );
 }
 
-// ---- the role, in words ----
-
-/// **A mate's role reads in words**: whether it placed its child,
-/// placed nothing and only declares a contact, or was refused.
-#[test]
-fn a_mate_role_reads_in_words() {
-    use editor_core::MateRole;
-    assert_eq!(
-        MateRole::Determining.to_string(),
-        "places its child: the solve determined the pair through it"
-    );
-    assert_eq!(
-        MateRole::Declaring.to_string(),
-        "places nothing: it declares a contact, which the at-rest gate verifies"
-    );
-    assert_eq!(
-        MateRole::Refused.to_string(),
-        "places nothing: the solve refused it"
-    );
-}
-
 /// **A `Part`'s index outside its value is refused as the evaluation
 /// refuses it, at the `Part`.** The index 5 over a two-copy pattern
 /// selects no copy: the evaluation fails the `Part` with
-/// `InstanceOutOfRange`, and the mate's check is the same refusal at
+/// `InstanceOutOfRange`, and the constraint's check is the same refusal at
 /// the same node, stated on the `Part`'s own row, rather than a
 /// disagreement whose recourse names a copy that does not exist.
 #[test]
 fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
     use editor_core::{NodeErrorKind, PartSelect};
     let mut s = scene("msolve11-part-out-of-range");
-    let part = s.add(Node::Part {
+    let part = s.insert(Node::Part {
         of: s.pattern.into(),
         select: PartSelect::Instance(Formula::count(5)),
     });
     let b = fixture::head_at(
         part,
-        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
     );
     let fault = fixture::door_refusal(
         &s.doc,
         seat(
-            s.base_top(),
             b,
-            (2.0, 2.0),
+            s.cap_bottom(),
+            (0.5, 0.5, BLOCK_HEIGHT),
             MatePrimitive::FrameCoincidence,
             None,
         ),
@@ -741,7 +744,7 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
     assert_eq!(
         format!("{:?}", error.kind()),
         format!("{:?}", failed.kind),
-        "the mate carries the refusal the `Part`'s own row states"
+        "the constraint carries the refusal the `Part`'s own row states"
     );
     assert!(
         !fault.to_string().contains("copy 5"),
@@ -749,14 +752,14 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
     );
 }
 
-/// **Today's behaviour, pinned for the fix to flip**: a `Part` whose
-/// index refuses while the pattern below it is poisoned by an instance
-/// whose part does not resolve. The mate names the `Part` and says its
-/// row states the refusal (`PlacerRow::States`), but the `Part`'s row
-/// reads poisoned, so the cause is stated nowhere.
-/// `work/msolve/a-placer-row-states-what-a-poisoned-row-cannot.md`.
+/// **A `Part` whose index refuses while the pattern below it is
+/// poisoned is carried by the fault**: the pattern's instance has a
+/// part that does not resolve, so the `Part`'s row reads poisoned and
+/// cannot state the refusal. The placement's fault names the `Part`,
+/// says its row is silent (`PlacerRow::Silent`), and carries the
+/// `Part`'s own refusal, so the cause is stated where it is read.
 #[test]
-fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
+fn a_part_index_refusal_behind_a_poisoned_pattern_is_carried_by_the_fault() {
     use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
     let mut store = PartStore::new();
     let (base_ref, base_body) = store.insert_part(
@@ -773,7 +776,8 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     let doc = ProfileDoc::empty(DocumentId::derive("msolve11-poisoned"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, block) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, other) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, other) = insert(doc, fixture::mated_instance(base_ref));
+    let (doc, cap) = insert(doc, fixture::mated_instance(base_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -792,6 +796,8 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         base_body,
         block,
         other,
+        cap,
+        cap_body: base_body,
         block_body,
         pattern,
     };
@@ -813,18 +819,18 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         Formula::count(1),
     )
     .unwrap();
-    let part = s.add(Node::Part {
+    let part = s.insert(Node::Part {
         of: s.pattern.into(),
         select: PartSelect::Instance(index),
     });
     let read_at_part = fixture::head_at(
         part,
-        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
     );
-    let mate = s.add(seat(
-        s.base_top(),
+    s.add(seat(
         read_at_part,
-        (2.0, 2.0),
+        s.cap_bottom(),
+        (0.5, 0.5, BLOCK_HEIGHT),
         MatePrimitive::FrameCoincidence,
         None,
     ));
@@ -837,23 +843,38 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     );
     s.doc = doc;
     let ev = fixture::run(&s.doc, &s.opts);
-    let fault = match ev.result(mate) {
+    let fault = match ev.result(s.cap) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
             other => panic!("expected a mate refusal, got {other:?}"),
         },
-        other => panic!("expected the mate to fail, got {other:?}"),
+        other => panic!("expected the placement to fail, got {other:?}"),
     };
+    let editor_core::MateFault::PlacerRefused {
+        placer,
+        error,
+        placer_row,
+        ..
+    } = &fault
+    else {
+        panic!("expected PlacerRefused, got {fault:?}");
+    };
+    assert_eq!(*placer, part, "the refusal names the `Part`");
+    assert_eq!(
+        *placer_row,
+        editor_core::PlacerRow::Silent,
+        "the `Part`'s row cannot state the refusal, so the fault carries it"
+    );
     assert!(
         matches!(
-            fault,
-            editor_core::MateFault::PlacerRefused {
-                placer,
-                placer_row: editor_core::PlacerRow::States,
+            error.kind(),
+            editor_core::NodeErrorKind::Expr {
+                slot: editor_core::SlotId::Instance,
                 ..
-            } if placer == part
+            }
         ),
-        "{fault:?}"
+        "the fault carries the `Part`'s own refusal, on its index: {:?}",
+        error.kind()
     );
     assert!(
         matches!(ev.result(part), Some(NodeResult::Poisoned { .. })),
@@ -891,8 +912,14 @@ fn every_refuted_predicate_reads_in_words() {
     for refuted in Refuted::ALL {
         assert_eq!(Refuted::of(refuted.name()), Some(refuted));
         let said = editor_core::MateFault::Contradictory {
-            held: RecipeNodeId::new(0, 3),
-            added: RecipeNodeId::new(0, 5),
+            held: MateRef::new(
+                RecipeNodeId::new(0, 3),
+                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
+            ),
+            added: MateRef::new(
+                RecipeNodeId::new(0, 3),
+                editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
+            ),
             predicate: refuted.name(),
             clash: editor_core::Clash::Length { metres: 0.5 },
         }
@@ -907,15 +934,15 @@ fn every_refuted_predicate_reads_in_words() {
 
 // ---- the box driver ----
 
-/// **What a box run meets on a document whose mate escalates, as the
-/// driver stands today.** The mate's escalation is on its own log now,
-/// so `drive::classify_replay` would meet it at read (2), the log,
-/// where before it fell to read (3)'s `_ => Bisect`. The driver never
-/// gets there: its evaluations carry no resolver (`drive::lane_opts`),
-/// so at the nominal witness every mated part is out of hand, the mate
+/// **What a box run meets on a document whose bundle escalates, as the
+/// driver stands today.** The escalation is on its placement's log, so
+/// `drive::classify_replay` would meet it at read (2), the log, rather
+/// than at read (3)'s `_ => Bisect`. The driver never gets there: its
+/// evaluations carry no resolver (`drive::lane_opts`), so at the
+/// nominal witness every mated part is out of hand, the placement
 /// refuses `Unleverable` before the fold decides anything, and the run
 /// refuses up front with `WitnessDoesNotBuild`. The same document under
-/// a resolver escalates, on the added mate's log. Measured for
+/// a resolver escalates, on the placement's log. Measured for
 /// `work/msolve/a-box-independent-mate-fault-bisects-the-whole-leaf-budget.md`.
 #[test]
 fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
@@ -927,13 +954,12 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     let eps = Tol::witness().get().eps;
     // A tilt whose levered sine lands in the band over this pair's arm.
     let tilt = 3.0 * eps / 18.216_635_077_586_883;
-    let mut mates = Vec::new();
     for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
-        let node = Node::Mate {
-            a: s.base_top().into(),
-            b: s.other_bottom().into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
+        let mate = fixture::mate(
+            s.base_top(),
+            s.other_bottom(),
+            ContactClass::Rest,
+            Alignment {
                 a: MateFrame::authored(
                     [2.0, 2.0, BASE_HEIGHT],
                     axis,
@@ -952,8 +978,8 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
                 sense: AxisSense::Opposed,
                 clocking: None,
             },
-        };
-        mates.push(s.add(node));
+        );
+        s.add(mate);
     }
     let w = VarName::from_static("w");
     let (doc, _) = fixture::step(
@@ -971,8 +997,8 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     )
     .expect("the parameter boxes");
     let ev = fixture::run(&derived.doc, &s.opts);
-    let Some(NodeResult::Failed(added)) = ev.result(mates[1]) else {
-        panic!("the added mate refuses: {:?}", ev.result(mates[1]));
+    let Some(NodeResult::Failed(added)) = ev.result(s.other) else {
+        panic!("the placement refuses: {:?}", ev.result(s.other));
     };
     assert!(
         matches!(
@@ -980,7 +1006,7 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
             editor_core::NodeErrorKind::Mate(fault)
                 if matches!(**fault, editor_core::MateFault::Indeterminate { .. })
         ) && !added.escalations.is_empty(),
-        "under a resolver the mate escalates, on its own log: {:?}",
+        "under a resolver the bundle escalates, on its placement's log: {:?}",
         added.kind
     );
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
@@ -996,6 +1022,6 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     };
     assert!(
         cause.contains("no part resolver"),
-        "the driver's evaluation has no resolver, so the mate cannot lever: {cause}"
+        "the driver's evaluation has no resolver, so the bundle cannot lever: {cause}"
     );
 }

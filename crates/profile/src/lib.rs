@@ -906,7 +906,7 @@ impl PartialEq for SketchPlane<f64> {
 #[derive(Clone, Debug)]
 pub struct Profile<T: Real> {
     /// The plane the profile lives on (passed through validation
-    /// untouched — validation is 2-D).
+    /// untouched once it is finite — validation is 2-D).
     pub plane: SketchPlane<T>,
     /// The loops, in any order and either winding (winding is
     /// invisible; nesting is derived by validation).
