@@ -2,9 +2,10 @@
 id: a-placement-cannot-turn-about-a-point-or-an-axis
 kind: issue
 title: a Placement step turns only about an axis through the origin: turning about a pivot is a three-step chain, and no step reads a Datum::Axis
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -40,3 +41,9 @@ Two related gaps sit at the same step:
 A rigid step with an axis ORIGIN (or a step reading a `Datum::Axis`
 node), plus a rotation-only constructor. Keep the bits of today's
 one-step `Rigid` unchanged (P1's exactness rule).
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `placement::Step` is unchanged, but stage 3 retires `Step::Literal`, `Node::Transform` and `Node::Datum`, and poses move by lengths and angles through mates; re-check the turntable after D. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

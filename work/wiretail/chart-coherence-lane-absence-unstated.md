@@ -56,3 +56,9 @@ the absence the same treatment LANE-0 gave the offset fit: one door
 value (`geom_brep::OffsetFitLane`'s shape), `Some` from the `f64`
 seam, `None` everywhere else, and the `Sym`/`Dual` gap closed by an
 arm that says what it means rather than by a missing impl.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).

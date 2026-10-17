@@ -5,7 +5,7 @@ title: NodeErrorKind carries payloads and has no fieldless projection, so three 
 status: open
 opened: 2026-09-11
 priority: P4
-cost: E
+cost: M
 ---
 
 
@@ -113,3 +113,9 @@ remaining half of this row: `NodeRefusal` (already `Clone + Eq`, the
 refusal itself) or `NodeErrorClass` plus the message (the
 `PartFault::PartProduct` shape, where the class is what a consumer
 branches on and the sentence is what a reader reads).
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).

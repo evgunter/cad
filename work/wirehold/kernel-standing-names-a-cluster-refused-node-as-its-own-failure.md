@@ -2,11 +2,12 @@
 id: kernel-standing-names-a-cluster-refused-node-as-its-own-failure
 kind: issue
 title: NodeStanding reports a cluster-refused node as its own failure, so every kernel refusal carrying one sends an API reader to the wrong node
-status: open
+status: parked
 opened: 2026-09-29
 priority: P3
 cost: M
 design: true
+blocked_on: [a-mate-relates-two-poses]
 ---
 
 
@@ -72,3 +73,9 @@ live in the kernel, and the viewer's `blamed_mates` /
 `downstream_of_mate` would become a read of it. That would retire
 `standing_as_drawn` and its wrappers in `viewer::tree`, and the
 `frame::index_refusal_as_drawn` wrapper.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Mate-cluster blame is stage 3 C's ground. Read together with INTENT's `a-mate-is-poisoned-through-a-member-its-own-solve-faulted`, the same standing-versus-mate-blame question from the mate side. Parked on `a-mate-relates-two-poses`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

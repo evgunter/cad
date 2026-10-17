@@ -2,11 +2,12 @@
 id: guided-lift-refuses-a-nominal-degeneracy-it-never-reads
 kind: issue
 title: Under ProfileLift::Guided the profile is placed by frame_plane_lane and never reads the nominal, yet a nominal direction degeneracy still refuses it; a DERIVED frame in the same position builds
-status: open
+status: parked
 opened: 2026-09-12
 refs: [2435]
 priority: P0
 cost: H
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -63,3 +64,9 @@ carries the delta's finding that the three `WrongOperand { expected:
 "datum frame" }` sites have now **stopped being one door** — two test
 the payload and one tests `placement`. A taker of either row is touching
 the same three sites.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `profile_plane_f64` still runs under every lift and raises `FrameDirection` on `FramePlacement::Unreadable`. Stage 3 D makes a profile 2-D and retires `Node::Datum`, so the authored frame this refusal reads goes; probably moot. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

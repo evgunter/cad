@@ -53,3 +53,9 @@ design fork: it is weighed first by one Opus and one Fable designer
 `memories/orchestration-model.md`) until the recommendations are
 clear, and goes to Ev only if it is Ev's fork — a change to the
 ratified GS-Q2 decision is.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).

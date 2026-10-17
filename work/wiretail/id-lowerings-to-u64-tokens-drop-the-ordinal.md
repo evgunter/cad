@@ -1,7 +1,7 @@
 ---
 id: id-lowerings-to-u64-tokens-drop-the-ordinal
 kind: issue
-title: GeomSource and ParamSymbol lower a node or variable id to its 64-bit digest, which no longer refuses an in-document collision
+title: ParamSymbol lowers a variable id to its 64-bit digest, which no longer refuses an in-document collision
 status: open
 opened: 2026-10-07
 priority: P3
@@ -57,3 +57,13 @@ instance's id, not the part's node ids, tells them apart.
 - Keep the digest lowering and refuse the collision where it is
   lowered, loud rather than silent.
 - Accept the 2^-64 per pair, said where the lowering is.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+Narrowed and retitled: the `GeomSource` half retired with N6 (D10; `source.rs` is deleted). What is left is `ParamSymbol::new(var.0.digest())` in `analysis.rs` `AxisScalar::axis_of`, a `u64` slot in `SymNode`.

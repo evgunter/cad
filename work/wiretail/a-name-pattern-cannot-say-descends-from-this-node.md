@@ -32,3 +32,9 @@ and `path: None` frees the segments of one level, not the depth.
 What a user means is lineage: "faces whose name descends from a name
 `hole_a` minted". Unmeasured whether a descendant-of atom keeps the
 selector's equivariance arguments (SELECT-DESIGN) intact.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).

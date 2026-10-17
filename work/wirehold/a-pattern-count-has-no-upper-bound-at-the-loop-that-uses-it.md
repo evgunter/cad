@@ -2,11 +2,12 @@
 id: a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it
 kind: issue
 title: wire_pattern guards n < 1 and then loops 1..n, and the cancel token is checked between nodes
-status: open
+status: parked
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [need-count-spells-every-failure-as-a-pattern-count]
+blocked_on: [patterns-are-index-variables]
 ---
 
 
@@ -96,3 +97,9 @@ Nothing here was driven end to end.
 `crates/editor-core/src/eval/wire.rs` and `eval/mod.rs` — WIRE's, by
 `scripts/work.py territory --files -`. Filed, not fixed: a numeric door
 the viewer consumes is a hand-off and never a diff from VGEOM.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `wire_pattern` still loops `1..n` with no ceiling and no cancel check. `Node::Pattern` and `PlacedUnion` retire into `index(N)`; the bound and cancel question carry over to `N`, so re-read it there rather than closing it. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

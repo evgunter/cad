@@ -2,10 +2,11 @@
 id: a-boolean-drops-its-operands-curve-and-patch-records
 kind: issue
 title: A boolean drops its operands' curve and patch records: only vertex and edge granularity carries
-status: open
+status: parked
 opened: 2026-10-11
 priority: P2
 cost: M
+blocked_on: [the-at-rest-census-is-a-check]
 ---
 
 ## What
@@ -99,3 +100,9 @@ pair of a divided face's pieces and chords that the census's record
 confirm reads as meeting. Do not chase their face by key through
 `Descendants::live`: a division keeps the key on one piece, whichever
 it is.
+
+## Re-homed to CONTACTHOLD and parked (2026-10-17, WIRE triage)
+
+The title is overtaken: `ContactRecords::carried` now files all six `ContactKind`s, `OperandRecords::ef`/`ff` included. What remains is (a) the records implied at a cut's new ends from a landed span, and the `review_4737` lines refusing tier-3′ `UnrecordedContact`, and (b) the three-member witness, which waits on CONTACTHOLD's `a-union-fold-step-mints-no-face-face-row-for-a-given-tangency`. Every file it touches is topo's (`boolean/records.rs`, `ops.rs`), so it moves to the program holding the carry rows. Stage 5 makes the at-rest census a check, so (a)'s refusals become findings; parked on `the-at-rest-census-is-a-check`. Nothing else here was decided for the receiver.
+
+Signed (WIRE orchestrator).
