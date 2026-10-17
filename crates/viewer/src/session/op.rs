@@ -1244,23 +1244,18 @@ impl SessionOp {
     /// this returns `true` for is permitted mid-value-gesture and
     /// nothing more.
     ///
-    /// # Why the two drags may overlap, and until when
+    /// # Why the two drags may overlap
     ///
-    /// **This section is scoped to the tree as it stands.** DI5
-    /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one document edit and that
-    /// `DisplayState::moves` empties, because a committed frame
-    /// becomes document data. When that lands,
-    /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
-    /// that commits to the history while a value gesture is open, and
-    /// a commit applies against the history's document while the value
-    /// gesture previews against its own snapshot — so **that row has
-    /// to be re-decided then**, and the argument below does not carry
-    /// over to it. The other three `*FreeMove` rows are unaffected: a
-    /// begin, a preview and a cancel stay display-only under DI5. The
-    /// build is CHROME's (`no-persistent-setplacement-session-op`).
+    /// DI5 (`crates/editor-core/IDENTITY.md`) keeps all four
+    /// `*FreeMove` rows display-only: releasing a free-move writes
+    /// nothing to the document, and the frame stays display state keyed
+    /// by the loose space it was drawn for. So
+    /// [`SessionOp::CommitFreeMove`] commits nothing to the history, and
+    /// the argument below covers it as it covers the other three. (The
+    /// admission still reads "an instance no mate names" rather than a
+    /// loose space; `work/intent/free-move-admits-a-loose-space.md`.)
     ///
-    /// Today the two drags own disjoint state. A value gesture owns a
+    /// The two drags own disjoint state. A value gesture owns a
     /// `Doc` snapshot and writes a scratch `Doc`; the free-move
     /// gesture's previews and its committed frames enter no `Doc`, so
     /// a probe committed or discarded mid-drag cannot reach what a
