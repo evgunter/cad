@@ -68,7 +68,18 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when a revolve's point-axis carriers came to be anchored
+/// Last moved when every corpus placement came to be written as mates
+/// (INTENT stage 3 C: the `place_at` gesture's plane mate and values,
+/// or a pin over the copy's own geometry): from
+/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; 49 more are
+/// answered at the aimed vertex, and 552 fewer candidates over 6 fewer
+/// rays refuse at the determinant. The gallery ring's bumped landing is
+/// re-placed after the bump, whose partial revolve drops the seam its
+/// pin read (`common::repin_stranded`).
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when a revolve's point-axis carriers came to be anchored
 /// on the axis (PR 4518): from `(441198, 141249, 14088, 7230)`. The
 /// rays and the refusals are unchanged; 12 more rays are answered at
 /// the aimed vertex.
@@ -115,7 +126,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_261, 14_088, 7_230);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_310, 13_536, 7_224);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

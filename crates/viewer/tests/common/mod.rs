@@ -775,3 +775,64 @@ pub fn inline_without_door(
 ) -> viewer::session::DocSession {
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
 }
+
+/// **Re-place every copy an edit stranded** — what an author does
+/// after an edit removes the geometry a pin reads (a full revolve's
+/// seam goes when the revolve stops short of a turn): each `Place`
+/// whose mate no longer evaluates (`SideUnevaluated`) is pinned again,
+/// over its copy's geometry as the edit left it, at the pose it held in
+/// `before`, through the session's own doors (`RemoveConstraint`, then
+/// the mate tool's `AddMate`). A copy `before` did not pose stays as
+/// it is.
+pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc, tol: Tol) {
+    use editor_core::{EvalOptions, MateFault, MateRef, Node, NodeErrorKind, Operand};
+    let opts = EvalOptions::default();
+    let poses = solve_document(before, &opts, tol);
+    let (doc, eval) = session.landed_pair().expect("a landed pair");
+    let doc = doc.clone();
+    let stranded: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| {
+            eval.node_error(id).is_some_and(|e| {
+                matches!(&e.kind, NodeErrorKind::Mate(f)
+                    if matches!(**f, MateFault::SideUnevaluated { .. }))
+            })
+        })
+        .filter_map(|id| match doc.node(id) {
+            Some(Node::Place {
+                shapes,
+                constraints,
+            }) => Some((
+                id,
+                Operand::Var(shapes.first().expect("a placement copies a shape").read),
+                constraints
+                    .iter()
+                    .filter(|c| c.mate().is_some())
+                    .map(|c| c.id)
+                    .collect::<Vec<_>>(),
+            )),
+            _ => None,
+        })
+        .collect();
+    for (placement, copy, mates) in stranded {
+        let Ok(frame) = poses.placement(before, placement) else {
+            continue;
+        };
+        let pin = editor_core::pin_at(session.committed_doc(), &copy, &frame, &opts, tol)
+            .expect("the copy as the edit left it has a frame to pin");
+        for id in mates {
+            let outcome = session.perform(SessionOp::RemoveConstraint {
+                mate: MateRef::new(placement, id),
+            });
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        }
+        let outcome = session.perform(SessionOp::AddMate {
+            placement,
+            mate: Box::new(pin),
+            values: Vec::new(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+    }
+}
