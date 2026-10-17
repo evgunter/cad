@@ -29,11 +29,10 @@ use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
-    Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node,
-    NodeErrorKind, NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram,
-    REGENERATE_RECOURSE, RecipeNodeId, RefusingReach, RoleSeg, SlideAxis, SlotId, StableName,
-    Target, Value, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load, mate_reach,
-    save,
+    Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
+    NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
+    RecipeNodeId, RefusingReach, RoleSeg, SlideAxis, SlotId, StableName, Target, Value, VarDef,
+    VarKind, all_faces, face_carrier_kind, face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step, step_with};

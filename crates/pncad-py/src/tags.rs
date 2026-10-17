@@ -132,12 +132,12 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass,
-    NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy,
-    PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
-    RefusedRef, Relation, ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError, WorldReadFault,
+    EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
+    NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
+    ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,

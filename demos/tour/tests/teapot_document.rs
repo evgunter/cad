@@ -737,9 +737,10 @@ fn a_split_carries_a_held_slits_band() {
         Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
         tol,
     );
-    // The lid is the document's product; a cut carries what it places.
-    eprintln!("PROBE {:?}", eval(&doc, tol).node_error(holder));
-    place_in_world(&mut doc, holder, tol);
+    // The rolled lid is the document's product; a cut carries what it
+    // places. The holder only holds the selection: its blend refuses
+    // (the slit is tangential), so it has no geometry to place by.
+    place_in_world(&mut doc, rolled, tol);
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
         doc.ids().iter().copied().filter(|&n| n != lead).collect();

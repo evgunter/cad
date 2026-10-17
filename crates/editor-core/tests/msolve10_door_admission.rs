@@ -32,10 +32,10 @@ use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions,
-    MateFault, MateReach, MateRef, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
-    ReachRefusal, RecipeNodeId, RefusingReach, SlideAxis, SnapshotError, Target, VarKind,
-    WorldRead, WorldReadFault, load, mate_reach, save,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateReach,
+    MateRef, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
+    RefusingReach, SlideAxis, SnapshotError, Target, VarKind, WorldRead, WorldReadFault, load,
+    mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, at_the_door, at_the_door_of, insert, insert_pinned, len, on_frame, step};

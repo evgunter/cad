@@ -3926,6 +3926,21 @@ pub fn inline(
     if let Some(key) = part.metadata().keys().next() {
         return Err(InlineError::PartCarriesMetadata { key: key.clone() });
     }
+    // A spliced reader of a variable the part no longer holds has
+    // nothing to be re-pointed at, and refuses here, at this door, before
+    // anything asks the part's evaluation, which it leaves without one.
+    for id in part.ids() {
+        let Some(node) = part.node(id) else { continue };
+        if let Some(var) = node_var_reads(&part, node)
+            .into_iter()
+            .find(|&var| part.var(var).is_none())
+        {
+            return Err(InlineError::UnresolvedVarCrossesCut {
+                var: part.spoken_var(var),
+                node: part.spoken(id),
+            });
+        }
+    }
     // The part's world copies: what the instance's copies are.
     let opts = crate::eval::EvalOptions {
         resolver: Some(std::sync::Arc::clone(resolver)),
@@ -4207,20 +4222,6 @@ pub fn inline(
     let step = |current: &mut Recording<'_, ProfileProgram>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
-    // A spliced reader of a variable the part no longer holds has
-    // nothing to be re-pointed at, and refuses here, at this door.
-    for id in part.ids() {
-        let Some(node) = part.node(id) else { continue };
-        if let Some(var) = node_var_reads(&part, node)
-            .into_iter()
-            .find(|&var| part.var(var).is_none())
-        {
-            return Err(InlineError::UnresolvedVarCrossesCut {
-                var: part.spoken_var(var),
-                node: part.spoken(id),
-            });
-        }
-    }
     // Every part variable crosses as an id the host mints, never one
     // it holds: a named one declared here, refusing a name the host
     // holds whatever either's value; an anonymous one with the first

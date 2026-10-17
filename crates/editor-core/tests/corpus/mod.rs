@@ -101,58 +101,103 @@ impl PlacePart for Recorder {
             Some(Node::Place { shapes, .. }) => shapes[0].read,
             _ => unreachable!("a placement was just inserted"),
         };
-        let placed = match editor_core::place_at(
-            &self.doc,
-            &editor_core::Operand::Var(shape),
-            &editor_core::Frame::IDENTITY,
-            &EvalOptions::default(),
-            Tol::witness(),
-        ) {
-            Ok(placed) => placed,
-            // A copy that does not evaluate has no geometry to place
-            // over: the fixture's pin places it on the world's floor.
-            Err(
-                editor_core::PinRefusal::Unevaluated { .. }
-                | editor_core::PinRefusal::NotABody { .. },
-            ) => editor_core::Placed {
-                mate: super::fixture::pin_mate(
-                    &self.doc,
-                    placement,
-                    &editor_core::Frame::IDENTITY,
-                    &EvalOptions::default(),
-                ),
-                values: Vec::new(),
-                by: editor_core::PlacedBy::Pin,
-            },
-            Err(refusal) => panic!("the copy is placed over its geometry: {refusal}"),
-        };
-        let applied = apply(
-            &self.doc,
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(placed.mate.clone()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the gesture's mate is admitted");
-        let mate = applied.record.minted_constraints[0];
-        self.edits.push(DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        });
-        self.doc = applied.doc;
-        for (coord, by) in placed.values {
-            self.push(DocEdit::AddValue {
-                placement,
-                value: Box::new(editor_core::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            });
-        }
+        gesture(self, placement, shape);
         placement
     }
+}
+
+/// The gesture's constraints written on `placement`, whose shape reads
+/// `shape`: the mate, then each value naming it.
+fn gesture(r: &mut Recorder, placement: RecipeNodeId, shape: editor_core::VarId) {
+    let placed = match editor_core::place_at(
+        &r.doc,
+        &editor_core::Operand::Var(shape),
+        &editor_core::Frame::IDENTITY,
+        &EvalOptions::default(),
+        Tol::witness(),
+    ) {
+        Ok(placed) => placed,
+        // A copy that does not evaluate has no geometry to place
+        // over: the fixture's pin places it on the world's floor.
+        Err(
+            editor_core::PinRefusal::Unevaluated { .. } | editor_core::PinRefusal::NotABody { .. },
+        ) => editor_core::Placed {
+            mate: super::fixture::pin_mate(
+                &r.doc,
+                placement,
+                &editor_core::Frame::IDENTITY,
+                &EvalOptions::default(),
+            ),
+            values: Vec::new(),
+            by: editor_core::PlacedBy::Pin,
+        },
+        Err(refusal) => panic!("the copy is placed over its geometry: {refusal}"),
+    };
+    let applied = apply(
+        &r.doc,
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate.clone()),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the gesture's mate is admitted");
+    let mate = applied.record.minted_constraints[0];
+    r.edits.push(DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(placed.mate),
+        fresh: Vec::new(),
+    });
+    r.doc = applied.doc;
+    for (coord, by) in placed.values {
+        r.push(DocEdit::AddValue {
+            placement,
+            value: Box::new(editor_core::Value { mate, coord, by }),
+            fresh: Vec::new(),
+        });
+    }
+}
+
+/// **`doc` with every `Place` re-placed where its copy now stands**: its
+/// bundle removed (the values first, since a value names its mate) and
+/// the "place part" gesture written afresh. The gesture reads the
+/// copy's first planar face by name, so an edit that re-designates
+/// faces of the copied body leaves the placement reading a face the
+/// body no longer has; this is the author's re-placement after it.
+pub fn replaced(doc: ProfileDoc) -> ProfileDoc {
+    let mut doc = doc;
+    let placements: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { .. })))
+        .collect();
+    for placement in placements {
+        let mut bundle = super::fixture::bundle(&doc, placement);
+        bundle.sort_by_key(|c| c.mate().is_some());
+        for c in bundle {
+            doc = super::fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0;
+        }
+        let mut r = Recorder {
+            doc,
+            edits: Vec::new(),
+        };
+        let shape = match r.doc.node(placement) {
+            Some(Node::Place { shapes, .. }) => shapes[0].read,
+            _ => unreachable!("a placement"),
+        };
+        gesture(&mut r, placement, shape);
+        doc = r.doc;
+    }
+    doc
 }
 
 /// **Each of a pattern's `count` copies placed in the world**, in

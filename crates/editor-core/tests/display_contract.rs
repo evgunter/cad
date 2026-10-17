@@ -1422,6 +1422,16 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            SnapshotError::PlacementNonFinite {
+                node: held(5, "PlacedUnion"),
+                at: editor_core::FrameSite::Listed { index: 0 },
+            },
+            vec![
+                "placement 0 of PlacedUnion 000000000005",
+                "non-finite coordinate",
+            ],
+        ),
+        (
             SnapshotError::PlacementImproper {
                 node: held(5, "Transform"),
                 at: editor_core::FrameSite::Step { index: 1 },
