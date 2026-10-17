@@ -1,10 +1,9 @@
-# Variables — D10 stage 1 (VARIABLES-DESIGN VR1–VR9)
+# Variables (VARIABLES-DESIGN VR1–VR9)
 
-The scalar half of D10's "every slot holds a variable". Weighed by a
-designer pair on `work/intent/variables-are-identities-with-labels`;
-the two converged, and this page states the merged design. It extends
-to the typed variables of later stages without moving anything stated
-here: only the payload shapes are per kind.
+How a document variable is represented and stored. What a variable is
+— its kinds, free and defined, poses, the constants a formula may hold
+— is DESIGN `[variables]`; this page is the representation beneath it,
+and every kind there shares it: only the payload shapes are per kind.
 
 **VR1 — Identity is minted.** A variable is a `VarId`, minted from the
 document's mint chain beside `RecipeNodeId` and `StepId` (a `var` tag
@@ -26,21 +25,17 @@ definition, and reads as its value and that reader ("5 mm, the depth of
 Extrude "base plate""), and as a hex tag in diagnostics, as a node does.
 An output reads as its operation and port, a name optional.
 
-**VR3 — Kind and definition.** `Var { kind, def }`. Stage 1's kinds are
-`Length`, `Angle`, `Scalar` and `Count`, fixed at minting: a new kind is
-a new variable. `def` is `Free { value, unit, distribution }` (a
+**VR3 — Kind and definition.** `Var { kind, def }`. The kind is one of
+DESIGN `[variables.kinds]`'s (`VarKind`), fixed at minting: a new kind
+is a new variable. `def` is `Free { value, unit, distribution }` (a
 `Count` holds an exact integer and nothing else) or `Defined(Expr)`. A
 definition may not reach its own variable (refused at the edit door and
 at load). Distributions live only on free variables; a defined
-variable's uncertainty is the pushforward of its inputs'. Later stages
-add kinds (`Point` … `Frame`, the discrete kinds, `Face`, `Edge`,
-`Vertex`, their sets `Faces` and `Edges`, `Body`) and the
-`Output { node, port }` and `Select { body, names }` definitions as arms
-of the same enums. A `Count` may be defined as an index, `index(N)` or
-`index(N) within j`, ranging over `0..N`, and `Count` arithmetic is
-exact and includes `mod`. Every kind has a family, keyed by index
-tuples, which no free variable holds: only a definition or output whose
-reads reach an index defines one (D10, Repetition).
+variable's uncertainty is the pushforward of its inputs'. The
+`Output { node, port }` and `Select { body, names }` definitions are
+arms of the same enum. A `Count` may be defined as an index,
+`index(N)` or `index(N) within j`, and every kind has a family keyed by
+index tuples, which no free variable holds (DESIGN `[repetition]`).
 
 **VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, an
 index's count, a member read's index, a profile step's argument, a
@@ -49,7 +44,8 @@ variable id, or a list of reads (a union's or intersect's `Bodies`
 spelled as its members, a placement's shapes: REFERENCES DM4), and
 nothing else; a read of a family carries one `Count` expression per
 index, each such a slot (REFERENCES DM3), and a read of a finer pose
-at a coarser slot carries the role it is read through (D10). A slot showing `w * 2` holds
+at a coarser slot carries the role it is read through (DESIGN
+`[variables.poses]`). A slot showing `w * 2` holds
 an anonymous defined variable; a slot showing `5 mm` an anonymous free
 one. Formulas have one home: definitions, arithmetic over measured
 values included.
@@ -84,7 +80,7 @@ goes when that reader is deleted or stops reading it; an edit that would
 give it a second reader, or clear the name of a variable two readers
 share, refuses until it is named. Deleting a named
 variable leaves its readers unresolved and typed, never re-pointed, and
-evaluation refuses at each reader (D10's deletion rule; the mint log
+evaluation refuses at each reader (DESIGN `[operations]`; the mint log
 keeps the id from being reused). The doors: declare, set value / unit
 / distribution, define (free ↔ defined, same identity), rename, delete,
 and set a slot from a `Formula`. Create-or-replace by name goes.
