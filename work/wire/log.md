@@ -5820,3 +5820,87 @@ Signed (WIRE orchestrator).
 box, two builders live); it may also bear on FORK-PINCHNAME.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — FORK-ENTITYDOOR converged in round 1; dispatched
+
+Both designers (A and B) independently rejected the framing (which comes
+first at evaluation, the kind or the tie; what key the door takes) and
+recommended one final state: the kind is authored data on the name, so
+it is the edit and load doors' to refuse, and evaluation reads typed
+keys with no entity door. Both found the same off-question defect, the
+blend and shell arms' silent `filter_map` kind drops. No ratified page
+is contradicted (`Select::fault`'s doc and the stage 2 spec are agent
+text), so this is not an `[ev]` fork and draws no fork-log row. The
+decision is on both rows; seam note on INTENT's log.
+
+Dispatched as `wire-kind` (`wire/selection-kind-at-the-door`), both rows
+in one unit. Review tier: FULL single review — it deletes a door and
+moves refusals across layers, but is reversible (one predicate arm).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-17 — FORK-PINCHNAME converged; the rule goes to Ev as PR 5258
+
+Both designers converged in round 1, measuring rather than arguing:
+- **The union half is stale.** PR 4881's vertex-run rule and TANG's PR
+  5178 made the pinch name order-free: one 99-row table in all six
+  member orders. `a-pinch-vertexs-name-depends-on-the-unions-member-order`
+  is re-priced `E`; it closes with a pinning test.
+- **The split half is a gap in N2.** Both propose that a corner one
+  Split half holds as several vertices is `OnToolVertex{of} +
+  Fragment(Keeps)` over the corner's own edges each copy ends. That
+  extends a ratified N2 sentence and binds future naming, so it is
+  Ev's: `[ev]` PR 5258 edits N2 and carries both `For Ev` sections as
+  A and B; design-fork log row 156. `needs_ev` is set on the row there.
+
+Acted on from the `For the orchestrator` sections:
+- filed `a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex`
+  (WIRE, rides with the split row: the runs-below mirror refuses
+  `Emission` before the naming question is reached);
+- filed `on-tool-vertex-may-be-a-segment-n1-already-makes-redundant`
+  (WIRETAIL, a design question on N1);
+- `work/issues/a-split-touching-at-a-notch-apex-mints-a-vertex-twice`
+  was the same naming defect on a smaller fixture: its naming half is
+  cited on the split row (on PR 5258's branch, so the two edits don't
+  collide), and the file moved to BIND retitled to its pncad-py half
+  (the prose gate panics on a `Debug`-rendered refusal).
+
+WIRE reads 31/30 until the union pin closes its row.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5262 (refusal endings): style review, mergeable; fix pass sent
+
+The review found no MAJOR. Taken into the fix pass:
+- **C2 MINOR, the sharpest:** `CountOutOfRange.admits` stated the
+  integer cast's range, not the slot's domain, so a stations count of
+  −3 told the author "it admits at least 0", and 0 still refuses
+  (Stations ≥ 2). A test pinned the false domain. The fix: each caller
+  passes its slot's own domain. One variant, one meaning.
+- **C5 half-fix:** `witness.rs` carries the same stale `M6` premise one
+  file from the stubs the PR re-cited.
+- **C6:** the declare-door prose sweep missed the phrase "declare door"
+  and every non-`src` file. The repeat lesson is the discipline's §5:
+  name what the pattern cannot match, then search that gap.
+- **S1:** `ProfileAnchor { loop_: 0 }` is the fake-coordinate shape the
+  PR removed from `wire_profile`, left in an arm it edited.
+
+Class, filed by the fix pass rather than fixed: eval/ handles internal
+breaks three ways a few lines apart (`unreachable!`, typed refusal,
+silent default), and `run_op` carries node-kind facts as loose Options.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5262 MERGED (`90a7974563`): four rows closed
+
+`need-count-…`, `eval-kernel-bug-…`, `wire-profile-spells-…` and
+`lane-profile-…` closed. Merged over two slow-set reds that are main's
+(FUSE's `boss_union` Interval census, #5227; CLEAVE's `review_pick_r2`
+tally), commented on the PR per Ev's standing ruling. VGEOM's count-cast
+row unparked (its trigger fired); its word is not `CountOutOfRange`.
+Residue filed by the unit: `wire-rs-defaults-two-missed-records-to-empty`,
+`eval-handles-internal-breaks-three-ways-…`, DOCTAIL's
+`hit-test-unnamed-entity-ends-in-a-kernel-bug-tag`, and (from its fix
+pass, filed here) `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`.
+
+Signed (WIRE orchestrator).

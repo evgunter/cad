@@ -21,7 +21,7 @@ says so.
 | P1 | `a-pinch-vertexs-name-depends-on-the-unions-member-order` | M +design | measure first (one name table across the six orders) |
 | P1 | `a-split-circles-phase-edit-re-aims-its-piece-names-silently` | M +design | an N1 reading; ratified text, so a fork goes to Ev |
 | P1 | `the-designation-road-resolves-before-it-asks-the-kind` | E | one unit with the next row (`entity_door::Found`) |
-| P1 | `the-entity-doors-key-comes-from-its-caller` | M +design | |
+| P1 | `the-entity-doors-key-comes-from-its-caller` | M | FORK-ENTITYDOOR converged: the kind moves to the edit and load doors |
 | P1 | `part-cache-lock-held-across-a-nested-rayon-join` | M +design | latent while `opts.parallel` defaults off |
 | P1 | `need-count-spells-every-failure-as-a-pattern-count` | E | unparks VGEOM's count-cast row |
 | P2 | `a-union-fold-publishes-no-pinch-row` | M | |
