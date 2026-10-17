@@ -5,7 +5,7 @@ title: step-import's outerness unwrap reads a whole-period integer off a value b
 status: open
 opened: 2026-10-17
 priority: P3
-cost: S
+cost: E
 ---
 
 Found by PCERT unit B2b's sweep of the places that turn `k` periods into
