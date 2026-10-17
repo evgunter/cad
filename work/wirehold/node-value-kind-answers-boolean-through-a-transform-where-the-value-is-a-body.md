@@ -2,10 +2,11 @@
 id: node-value-kind-answers-boolean-through-a-transform-where-the-value-is-a-body
 kind: issue
 title: node_value_kind answers the boolean family for a transform over a boolean, where the transform's value is a body
-status: open
+status: parked
 opened: 2026-09-19
 priority: P0
 cost: D
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -31,3 +32,9 @@ transforms over a `BOOLEAN` source answers `BODY`, because that is the
 shape the placer's map yields; a row beside `msolve3_placer_refused`'s
 transform-of-pattern row would pin it against the twin's own refusal.
 `eval/mod.rs` is this program's, hence the slate.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Still true (`node_value_kind` maps a placed `Subtract` to the boolean family). Its one consumer is a circular pattern's axis (`mate/member.rs` `axis_datum`), and `Transform`, `Datum` and `Pattern` all retire in stage 3; probably moot. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

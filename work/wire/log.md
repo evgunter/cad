@@ -5760,3 +5760,40 @@ its slowest blocker), or LIVE; then the live slate is cut to budget on
 its priority seam. Three read-only lanes are doing the per-row reads.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — the triage, and the cut it produced
+
+Three read-only lanes read every live row against `fd218851f9`; I
+spot-checked the stale verdicts (the declare symbols match nothing in
+`crates/*/src`; `topo/src/source.rs` is gone). Of 50 live rows:
+
+- **12 closed as overtaken**, each with a dated `## Closed` section.
+  INTENT stage 4 F deleted the declare surface, which took
+  `route-declarations-…`, `a-declared-pairs-kinds-…`,
+  `select-pair-in-band-…` and `refusal-menu-stamps-…`; D10 retired
+  the axis channel and N6's stamps (`axis-shaped-identity-channel`);
+  Ev's DM4 fold-order ruling (PR 4323) answered
+  `the-pair-verbs-declared-merge-…`; the anchor rewrite went with
+  `ProfilePieces` (three rows); `fused_partners` already walks the
+  whole chain; SEAT and `crates/verbs/README.md` §5 already record
+  `two-verb-seats-…`; the seam-vertex residue row had found no
+  witness of its own.
+- **11 parked on the D10 hold and moved to WIREHOLD** (opens
+  `blocked`), each on the most specific INTENT row: six on
+  `transform-retires-into-a-placement`, two on
+  `patterns-are-index-variables`, one each on `a-mate-relates-two-poses`,
+  `mates-declare-no-contact` and `the-at-rest-census-is-a-check`. The
+  P0 `guided-lift-…` is among them: its refusal reads the authored
+  frame stage 3 D deletes.
+- **1 re-homed**: `a-boolean-drops-its-operands-curve-and-patch-records`
+  to CONTACTHOLD, parked on the stage 5 census. Its title is overtaken
+  and what is left is topo's carry.
+- **26 live, 48 points.** Cut on the priority seam: WIRE keeps P0–P2
+  and the four E rows that ride with its first bundle (30/30), and the
+  P3/P4 tail goes to WIRETAIL (18/30). Unpriced rows were priced and
+  legacy `D` re-priced; four rows were narrowed in place.
+
+Bands: WIREHOLD 13200–13299 and WIRETAIL 13300–13399, recorded in
+`docs/MODEL-AB-LOG.md`. Review posture answered in `plan.md`.
+
+Signed (WIRE orchestrator).

@@ -25,3 +25,13 @@ The gate admits these six by row (`UNMARKED_RECOURSE`) and fails once one of the
 **The fix.** Write each recourse as one `Recourse:` clause, and write one for the two rows that state none. Then empty `UNMARKED_RECOURSE`.
 
 Ground: `eval/mod.rs` and `names/geompred.rs` are WIRE's. `resolve/hit.rs` is DOCTAIL's, and `resolve/mod.rs` is RECIPE's. All six rows are one change, filed here with the majority.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+Shrunk: `UNMARKED_RECOURSE` now lists four rows (`ResolveError::Vanished`, `SelectRefusal::TiedDisagrees`, `SelectRefusal::Unreadable`, `NodeErrorKind::CrossingUnverified`); `NodeGone` and `HitTestError::Ambiguous` are already fixed.

@@ -2,8 +2,9 @@
 id: a-transform-drops-the-contact-records-a-placement-carries
 kind: issue
 title: Transform drops its input's contact records while PlaceInWorld carries them verbatim, though both are rigid motions that keep arena keys
-status: open
+status: parked
 opened: 2026-10-08
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 Found by the review of INTENT stage 2 C (PR #4359, NOTE-3).
@@ -21,3 +22,9 @@ decides.
 body), so the cheapest settlement may be to let it retire; until then
 a `Transform` of a boolean silently loses the records a placement of
 the same boolean would keep.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Still true (`wire_transform` returns `OpOut::plain`). `Transform` retires into a placement, which already carries records; very likely moot. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

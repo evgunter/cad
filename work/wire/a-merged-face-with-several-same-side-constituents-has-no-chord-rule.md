@@ -5,6 +5,7 @@ title: A seam chord bordering a merged face that holds several faces of one oper
 status: open
 opened: 2026-09-28
 priority: P0
+cost: H
 ---
 
 

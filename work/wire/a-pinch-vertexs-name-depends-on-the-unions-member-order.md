@@ -4,6 +4,9 @@ kind: issue
 title: A pinch vertex's name depends on the union's member order: it is named by whichever block's corner reached it last
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
+design: true
 ---
 
 

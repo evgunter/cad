@@ -101,3 +101,9 @@ argument stands but its second bullet does not.
 ## Re-homed at TQUERY's close (2026-10-02)
 
 Moved from `work/tquery/` by `git mv`, id and body unchanged, when TQUERY closed (`docs/doc-ledger/tquery-leaves-the-tracker.md`). The kernel read it needs has landed: `topo::readback::edge_sides` (PR 3803), so "the two sides rest on different surface keys" is `edge_sides(..).is_ok_and(|s| s.plus.surface != s.minus.surface)`. What remains is the selection atom (`GeomPred`, `crates/editor-core/src/names/geompred.rs`) and the vocabulary in `docs/SELECT-DESIGN.md` GS-Q2, both WIRE's ground.
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).

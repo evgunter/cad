@@ -2,10 +2,11 @@
 id: opout-contacts-body-zero-invariant-is-held-by-prose
 kind: issue
 title: OpOut's 'a multi-output op never fills contacts' is held by a doc comment, not by the type
-status: open
+status: parked
 opened: 2026-09-28
 priority: P4
 cost: E
+blocked_on: [mates-declare-no-contact]
 ---
 
 Found by the GATHER editorial pass over `eval/wire.rs`
@@ -33,3 +34,9 @@ Make the pairing a type: e.g. a constructor (or a payload-side field)
 that only a single-body payload can carry contacts through, so a
 multi-output op with records is a compile error rather than a
 convention. Then the invariant paragraph can go.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. The doc is already wrong (it says only `wire_instantiate_part` fills `contacts`; `wire_place` does too, when `bodies.len() == 1`). Stage 4 I rebuilds that channel and stage 3's index variables reshape the multi-output case; re-read after both. Parked on `mates-declare-no-contact`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

@@ -2,11 +2,12 @@
 id: section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made
 kind: issue
 title: NodeValue does not carry the profile node's ProfilePre structure record, so profile_edges_of has no caller that can hand it one (wire::section_of, which re-derived it whole, left in PR 4741)
-status: open
+status: parked
 opened: 2026-09-12
 refs: [2435]
 priority: P1
 cost: H
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -103,3 +104,9 @@ remains is the subject the 2026-09-16 edit added: `ProfilePre`'s
 structure is still not on `NodeValue`, and `profile_edges_of` and
 its two waiting consumers still need it. The PP1/PP2 question is
 unchanged.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `section_of` is gone (PR 4741) but `ProfileValue` still carries no structure record and `profile_edges_of` has no production caller. Stage 3 D makes a profile 2-D with no plane, which reshapes `ProfilePre`; the carry question survives on the 2-D record. Its waiting consumer is LIB's `python-has-no-step-to-profile-edge-door`. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

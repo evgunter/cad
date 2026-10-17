@@ -2,11 +2,12 @@
 id: transform-and-pattern-drop-a-values-contact-records
 kind: issue
 title: Transform and Pattern nodes drop a value's contact records, so a touching boolean result refuses at rest one node downstream with no change to it
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
+blocked_on: [patterns-are-index-variables]
 ---
 
 
@@ -26,3 +27,9 @@ takes an op's `topo::Lineage`) and each surgery verb's `carry_contacts`.
 grafts copies, so it re-keys each copy's records through its graft keys,
 as `product.rs::carry_contacts` does. The editor-core nodes still
 default to `OpOut::plain`'s empty records.
+
+## Parked on the D10 hold (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Both `wire_transform` and `wire_pattern` still return `OpOut::plain`. The Transform half is `a-transform-drops-the-contact-records-a-placement-carries` and retires with stage 3 D; the Pattern half is owed again in index-variable copies, so this row waits on the pattern unit. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
+
+Signed (WIRE orchestrator).

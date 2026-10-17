@@ -4,6 +4,8 @@ kind: issue
 title: SplitHalf/PlaneSide side words are spelled at three sites (topo, editor-core eval, viewer tree)
 status: open
 opened: 2026-10-02
+priority: P4
+cost: E
 ---
 
 Found by the review of PR 3797 (TQUERY). The words for a split's two
@@ -18,3 +20,9 @@ sides are written out at three sites:
 The two `SplitHalf` sites could share one `SplitHalf` word in
 editor-core. Whether they also read through `PlaneSide::word` depends
 on whether `SplitHalf` maps onto `PlaneSide` (it has no `On`).
+
+## Moved to WIRETAIL (2026-10-17)
+
+WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).
