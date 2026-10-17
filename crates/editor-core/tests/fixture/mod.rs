@@ -66,7 +66,7 @@ use editor_core::{
     AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
     ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, mate_reach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -78,34 +78,35 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// is what every suite here wants and what none of them should spell
 /// for itself.
 ///
-/// A document with a mate is also checked for where the mate solve's
-/// decisions land ([`solve_decisions_have_one_home`]), so every mate
-/// document a suite evaluates here is that check's corpus. What the
-/// evaluation recorded outside its nodes still reaches the caller's
-/// frame.
+/// A document with a mate between copies is also checked for where the
+/// mate solve's decisions land: the fold runs inside its placement's
+/// op, so the evaluation records none outside its nodes. What it
+/// recorded there still reaches the caller's frame.
 pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     let (ev, outside) = geom_core::k_stats::detached(|| {
         evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
     });
     if !constrained(doc).is_empty() {
-        solve_decisions_have_one_home(doc, o, &ev, outside.recorded());
+        let recorded = outside.recorded();
+        assert!(
+            recorded.escalations.is_empty() && recorded.verdicts.is_empty(),
+            "document {}: the evaluation recorded outside its nodes: {recorded:?}",
+            doc.id()
+        );
     }
     geom_core::k_stats::splice(outside);
     ev
 }
 
-/// **Every placement whose bundle holds a constraint reading a face**,
-/// in document order: the placements the mate solve decides about. A
-/// bundle of world pins alone decides nothing.
+/// **Every placement whose bundle holds a mate to a pose of its
+/// space**, in document order: the placements mated to other copies.
 pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
         .filter(|&p| {
             bundle(doc, p).iter().any(|c| {
-                c.mate
-                    .sides()
-                    .iter()
-                    .any(|(_, read)| matches!(read, editor_core::SideRead::Face(_)))
+                c.mate()
+                    .is_some_and(|m| matches!(m.to, editor_core::Target::Pose(_)))
             })
         })
         .collect()
@@ -126,24 +127,61 @@ pub fn constraint(doc: &ProfileDoc, mate: editor_core::MateRef) -> editor_core::
     bundle(doc, mate.placement)
         .into_iter()
         .find(|c| c.id == mate.id)
-        .unwrap_or_else(|| panic!("{mate:?} is no constraint of its placement"))
-        .mate
+        .and_then(|c| c.mate().cloned())
+        .unwrap_or_else(|| panic!("{mate:?} is no mate of its placement"))
 }
 
-/// **A mate between two faces**, as a constraint authors it: `a` and
-/// `b` each a face read ([`head`], a selection), today's alignment datum
-/// between them. Which placement holds it is [`constrain`]'s.
-pub fn mate(
-    a: impl Into<editor_core::Operand>,
-    b: impl Into<editor_core::Operand>,
+/// **A face read as its plane** (DM1a: its carrier's plane, with the
+/// face's outward normal), as a pose a mate equates.
+pub fn plane(face: impl Into<editor_core::Operand>) -> editor_core::Operand {
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Plane { face: face.into() }))
+}
+
+/// **An axis read off a face or an edge** (a carrier's axis, an edge's
+/// line).
+pub fn axis(of: impl Into<editor_core::Operand>) -> editor_core::Operand {
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Axis { of: of.into() }))
+}
+
+/// **A point read off a face, an edge or a vertex** (a carrier's centre,
+/// a vertex's point).
+pub fn point_of(of: impl Into<editor_core::Operand>) -> editor_core::Operand {
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Point { of: of.into() }))
+}
+
+/// **A pose's opposite sense** ([`editor_core::pose::PoseDef::Flip`]).
+pub fn flip(pose: editor_core::Operand) -> editor_core::Operand {
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+        pose: editor_core::pose::RoleRead::plain(pose),
+    }))
+}
+
+/// **A rest of face `on` against face `to`** (A5, FORK-S3M): `on`'s
+/// plane equated with `to`'s flipped, so the two faces face each other
+/// — a plain plane mate equates outward normals, and stacking carries a
+/// flip. `on` reads the copy the mate places.
+pub fn rest(
+    on: impl Into<editor_core::Operand>,
+    to: impl Into<editor_core::Operand>,
     class: editor_core::ContactClass,
-    alignment: editor_core::Alignment<Formula>,
 ) -> editor_core::Mate<Formula> {
     editor_core::Mate {
-        a: editor_core::SideRead::Face(a.into()),
-        b: editor_core::SideRead::Face(b.into()),
+        on: plane(on),
+        to: editor_core::Target::Pose(flip(plane(to))),
         class,
-        alignment,
+    }
+}
+
+/// **A mate equating two poses** as written, `on` reading the copy.
+pub fn mate(
+    on: editor_core::Operand,
+    to: editor_core::Operand,
+    class: editor_core::ContactClass,
+) -> editor_core::Mate<Formula> {
+    editor_core::Mate {
+        on,
+        to: editor_core::Target::Pose(to),
+        class,
     }
 }
 
@@ -169,34 +207,61 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
 /// Whether `placement`'s bundle reads the world.
 pub fn on_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
     bundle(doc, placement).iter().any(|c| {
-        c.mate
-            .sides()
-            .iter()
-            .any(|(_, read)| matches!(read, editor_core::SideRead::World))
+        c.mate()
+            .is_some_and(|m| matches!(m.to, editor_core::Target::World(_)))
     })
 }
 
-/// **The placement a mate between two copies places** — the one the
-/// migration puts a tree mate in (`docs/INTENT-STAGE3-SPEC.md` §3): of
-/// the two sides' placements, the one whose bundle is still empty;
-/// else the one not on the world; else `b`'s.
-pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeNodeId {
-    let side = |read: &editor_core::SideRead<editor_core::Operand>| match read {
-        editor_core::SideRead::Face(op) => side_placement(doc, op),
-        _ => None,
-    };
-    let (a, b) = (side(&mate.a), side(&mate.b));
-    let empty = |p: &Option<RecipeNodeId>| p.is_some_and(|p| bundle(doc, p).is_empty());
-    let free = |p: &Option<RecipeNodeId>| p.is_some_and(|p| !on_world(doc, p));
-    match (a, b) {
-        (_, Some(b)) if empty(&Some(b)) => b,
-        (Some(a), _) if empty(&Some(a)) => a,
-        (_, Some(b)) if free(&Some(b)) => b,
-        (Some(a), _) if free(&Some(a)) => a,
-        (_, Some(b)) => b,
-        (Some(a), None) => a,
-        (None, None) => panic!("a mate reads at least one placement's copy: {mate:?}"),
+/// **The selections an authored pose reads**, in read order: each
+/// `Select` inside it, through every pose construction.
+pub fn selections_in(pose: &editor_core::Operand) -> Vec<&editor_core::Operand> {
+    fn walk<'a>(op: &'a editor_core::Operand, out: &mut Vec<&'a editor_core::Operand>) {
+        match op {
+            editor_core::Operand::Select { .. } => out.push(op),
+            editor_core::Operand::Pose(def) => {
+                for (_, read, _, _) in def.reads() {
+                    walk(read, out);
+                }
+            }
+            _ => {}
+        }
     }
+    let mut out = Vec::new();
+    walk(pose, &mut out);
+    out
+}
+
+/// **The placement a mate places**: the one whose copy its `on` reads —
+/// an instance whose output a selection in it reads, else the one
+/// placement copying the body it reads.
+pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeNodeId {
+    for select in selections_in(&mate.on) {
+        if let Some(at) = side_placement(doc, select) {
+            return at;
+        }
+        let editor_core::Operand::Select { body, .. } = select else {
+            continue;
+        };
+        let read = match body.as_ref() {
+            editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => {
+                Some(*at)
+            }
+            editor_core::Operand::Var(var) => doc.operation_of(*var),
+            _ => None,
+        };
+        let copying: Vec<RecipeNodeId> = doc
+            .placements()
+            .into_iter()
+            .filter(|&p| {
+                matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                    if shapes.iter().any(|s| doc.operation_of(s.read) == read))
+            })
+            .collect();
+        if let [one] = copying.as_slice() {
+            return *one;
+        }
+    }
+    panic!("name the placement a mate places (`constrain_at`): {mate:?}")
 }
 
 /// **`mate` added to the bundle of the copy it places** ([`placed_by`]),
@@ -243,77 +308,6 @@ pub fn constrain_with(
     }
 }
 
-/// **Every decision the mate solve makes is on exactly one placement's
-/// log, opening it, and on no frame outside the evaluation's nodes.**
-///
-/// The reference is the same solve with each placement's decisions kept
-/// apart ([`editor_core::solve_document_by_placement`]), levered as
-/// [`solve`] levers it. Against it, over the evaluation `ev` of `doc`
-/// and what it recorded outside its nodes (`outside`):
-///
-/// - `outside` holds nothing;
-/// - every placement the solve decided anything about has a log that
-///   OPENS with its share: the escalations whether it evaluates `Ok`
-///   or fails, the verdicts when it is `Ok` (a failed node carries no
-///   verdict log), and nothing when it was poisoned through a body it
-///   reads, which leaves it no log;
-/// - the solve decided nothing about a placement it kept no share for,
-///   so such a placement's log holds its op's decisions alone.
-///
-/// Entries compare by their `Debug` spelling, which a margin that is
-/// no number compares equal under.
-pub fn solve_decisions_have_one_home(
-    doc: &editor_core::ProfileDoc,
-    o: &EvalOptions,
-    ev: &Evaluation<f64>,
-    outside: &geom_core::k_stats::Recorded,
-) {
-    let label = doc.id();
-    let reach = mate_reach::<f64>(o, Tol::witness());
-    let (_, shares) = editor_core::solve_document_by_placement(doc, &reach, Tol::witness());
-    assert!(
-        outside.escalations.is_empty() && outside.verdicts.is_empty(),
-        "document {label}: the evaluation recorded outside its nodes: {outside:?}"
-    );
-    fn spell<X: std::fmt::Debug>(xs: &[X]) -> Vec<String> {
-        xs.iter().map(|x| format!("{x:?}")).collect()
-    }
-    let opens = |what: &str, id: RecipeNodeId, log: Vec<String>, share: Vec<String>| {
-        assert!(
-            log.starts_with(&share),
-            "document {label}: placement {}'s {what} log does not open with the solve's \
-             share: {log:?} against {share:?}",
-            id.0
-        );
-    };
-    for (id, share) in &shares {
-        match ev.result(*id) {
-            Some(editor_core::NodeResult::Ok(v)) => {
-                opens(
-                    "escalation",
-                    *id,
-                    spell(&v.escalations),
-                    spell(&share.escalations),
-                );
-                opens("verdict", *id, spell(&v.verdicts), spell(&share.verdicts));
-            }
-            Some(editor_core::NodeResult::Failed(e)) => {
-                opens(
-                    "escalation",
-                    *id,
-                    spell(&e.escalations),
-                    spell(&share.escalations),
-                );
-            }
-            Some(editor_core::NodeResult::Poisoned { .. }) => {}
-            other => panic!(
-                "document {label}: placement {} the solve decided about has no log: {other:?}",
-                id.0
-            ),
-        }
-    }
-}
-
 /// **The mate solve, through the ordinary door** — levered by the
 /// parts `o`'s resolver reaches, built through the evaluation's own
 /// public door (`mate_reach`) at `f64` and the witness tolerance. A
@@ -321,8 +315,7 @@ pub fn solve_decisions_have_one_home(
 /// every mate on a part faults in the resolver's voice, which is the
 /// kernel's answer and not a fixture default.
 pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
-    let reach = mate_reach::<f64>(o, tol);
-    solve_document(doc, &reach, tol)
+    solve_document(doc, o, tol)
 }
 
 /// **Every mate-placed copy pinned to the world where its mates solve
@@ -350,14 +343,52 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
             )
             .0;
         }
-        doc = constrain_at(
-            doc,
-            placement,
-            editor_core::Mate::world_pin(editor_core::Placement::literal(&frame)),
-        )
-        .0;
+        doc = pin(doc, placement, &frame, o);
     }
     doc
+}
+
+/// **The copy `placement` defines, pinned to the world at `pose`**
+/// through the one migration helper ([`editor_core::pin_at`]): a frame
+/// read off the copy's geometry equated with the world's frame moved to
+/// where that frame sits at `pose`. A `Place` is read through its first
+/// shape, an instance through its own copies; `o` evaluates them.
+pub fn pin(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    pose: &editor_core::Frame,
+    o: &EvalOptions,
+) -> ProfileDoc {
+    let copy = match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => editor_core::Operand::Var(
+            shapes.first().expect("a placement copies a shape").read,
+        ),
+        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
+            doc.output(placement, 0)
+                .expect("an instance defines its copies"),
+        ),
+        other => panic!("node {} is a placement, got {other:?}", placement.0),
+    };
+    let mate = editor_core::pin_at(&doc, &copy, pose, o, Tol::witness())
+        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+    constrain_at(doc, placement, mate).0
+}
+
+/// [`pin`] at the identity.
+pub fn pinned(doc: ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> ProfileDoc {
+    pin(doc, placement, &editor_core::Frame::IDENTITY, o)
+}
+
+/// **`node` inserted and pinned to the world at the identity**
+/// ([`pinned`]): an instance or a placement that stands where its
+/// shapes do, in the product.
+pub fn insert_pinned(
+    doc: ProfileDoc,
+    node: AuthoredNode,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, node);
+    (pinned(doc, id, o), id)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -469,11 +500,10 @@ pub fn mate_members(doc: &ProfileDoc) -> Vec<(editor_core::MateRef, RecipeNodeId
     let mut out = Vec::new();
     for placement in doc.placements() {
         for c in bundle(doc, placement) {
-            for (_, side) in c.mate.sides() {
-                let editor_core::SideRead::Face(side) = side else {
-                    continue;
-                };
-                if let Some(m) = editor_core::head_of(doc, *side)
+            let Some(mate) = c.mate() else { continue };
+            let sides = std::iter::once(mate.on).chain(mate.to.pose().copied());
+            for side in sides.flat_map(|side| face_reads(doc, side)) {
+                if let Some(m) = editor_core::head_of(doc, side)
                     .and_then(|head| editor_core::member_of(doc, &head))
                 {
                     out.push((editor_core::MateRef::new(placement, c.id), m.instance));
@@ -484,55 +514,28 @@ pub fn mate_members(doc: &ProfileDoc) -> Vec<(editor_core::MateRef, RecipeNodeId
     out
 }
 
+/// **The selections a pose variable's definition reads**, through every
+/// construction, in read order.
+pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
+    fn walk(doc: &ProfileDoc, var: VarId, out: &mut Vec<VarId>) {
+        if doc.selection(var).is_some() {
+            out.push(var);
+            return;
+        }
+        if let Some(editor_core::VarDef::Pose(def)) = doc.var(var).map(editor_core::Var::def) {
+            for (_, &read, _, _) in def.reads() {
+                walk(doc, read, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(doc, pose, &mut out);
+    out
+}
+
 /// A fixture's name as an `editor_core::FaceName`.
 pub fn face(name: StableName) -> editor_core::FaceName {
     editor_core::FaceName::new(name).expect("the fixture names a face")
-}
-
-/// **A part-based frame of one literal step, as the solve reads it**:
-/// the step's map is the frame's placement, and its third column,
-/// re-minted under the band as the solve re-mints it, the axis.
-pub struct Authored(geom_core::Affine3<f64>);
-
-impl Authored {
-    /// The frame's placement: the literal step's map.
-    pub fn placement(&self) -> geom_core::Affine3<f64> {
-        self.0
-    }
-
-    /// The frame's axis: its third column, re-minted.
-    pub fn axis(&self, tol: Tol) -> Result<geom_core::UnitVec3<f64>, geom_core::UnitVec3Error> {
-        let band = geom_core::Band::linear(tol).expect("the witnessed band");
-        geom_core::UnitVec3::new(self.0.linear.c2, FIXTURE_MATE_AXIS, band)
-    }
-
-    /// The frame's origin.
-    pub fn origin(&self) -> [f64; 3] {
-        self.0.translation.to_array()
-    }
-}
-
-/// **The frame a row authored as vectors** — the projection every row
-/// that forms a lever or reads a witness by hand takes, for a part
-/// base holding the one literal step [`editor_core::MateFrame::authored`]
-/// builds.
-pub fn authored(frame: &editor_core::MateFrame<Formula>) -> Authored {
-    match (frame.base, frame.offset.steps.as_slice()) {
-        (editor_core::FrameBase::Part, [editor_core::Step::Literal(f)]) => {
-            Authored(f.affine::<f64>())
-        }
-        _ => panic!("the row authored this frame's vectors"),
-    }
-}
-
-/// **The datum's own lever term** for an alignment whose two sides are
-/// authored vectors: `Alignment::lever_arm` over the frames the solve
-/// would resolve them to, which for an authored side are its own.
-pub fn datum_lever(alignment: &editor_core::Alignment<Formula>) -> f64 {
-    alignment.lever_arm(
-        authored(&alignment.a).origin(),
-        authored(&alignment.b).origin(),
-    )
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
@@ -594,14 +597,10 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
-/// Whether two placements are pinned to the world at the same pose,
-/// bit for bit (or neither is one world pin).
+/// Whether two placements are pinned to the world by the same world
+/// read, bit for bit as written (or neither is one world pin).
 pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeNodeId) -> bool {
-    match (offset_of(a, ai), offset_of(b, bi)) {
-        (None, None) => true,
-        (Some(x), Some(y)) => x.bit_eq(&y),
-        _ => false,
-    }
+    offset_of(a, ai) == offset_of(b, bi)
 }
 
 /// **An instance that sits where its mates put it**: its bundle empty,
@@ -610,10 +609,13 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
     Node::instantiate_part_with(doc_ref, editor_core::InterfaceRecord::default())
 }
 
-/// **The pose a placement is pinned to the world at**, where its bundle
-/// is one world pin ([`editor_core::Mate::world_pin`]); `None` for any
-/// other bundle. Panics on a node that is no placement.
-pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Placement> {
+/// **The world read a placement is pinned at**, as written, where its
+/// bundle is one mate to the world ([`pin`]); `None` for any other
+/// bundle. Panics on a node that is no placement.
+pub fn offset_of(
+    doc: &ProfileDoc,
+    id: RecipeNodeId,
+) -> Option<editor_core::WorldRead<Formula>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
@@ -623,8 +625,22 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Plac
     let [only] = constraints.as_slice() else {
         return None;
     };
-    let m = &only.mate;
-    m.is_world_pin().then(|| m.alignment.a.offset.clone())
+    let editor_core::Target::World(world) = &only.mate()?.to else {
+        return None;
+    };
+    let dims: Vec<(bool, Dimension)> = world
+        .scalars()
+        .into_iter()
+        .map(|(spin, _)| (spin, if spin { Dimension::Angle } else { Dimension::Length }))
+        .collect();
+    let mut k = 0;
+    world
+        .try_map(&mut |&var| {
+            let dim = dims[k].1;
+            k += 1;
+            Ok::<_, core::convert::Infallible>(doc.written(&editor_core::Expr::var(var, dim)))
+        })
+        .ok()
 }
 
 /// Applies an edit, returning the new doc and any minted id, through
@@ -799,8 +815,8 @@ pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core
 /// document's product is the copies its placements define.
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
-    let (doc, minted) = step(doc, DocEdit::place_in_world(read, None));
-    (doc, minted.unwrap())
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    (pinned(doc, placement, &EvalOptions::default()), placement)
 }
 
 /// **A read of the copy of `body` an instance delivers** — `instance`'s
@@ -1054,89 +1070,6 @@ pub fn door_refusal(
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
     }
-}
-
-/// **A constraint one of whose heads resolves to NO member**, authored
-/// the way such a head arises. The constraint door asks the solve's own
-/// per-constraint admission, so a head that resolves to no member when
-/// added is refused there (`EditError::MateRefused`); a head can stop
-/// resolving only through a LATER edit (N5) — a rebind, a shrunk
-/// pattern (`SetStructuralParam` on its count), a re-pointed `Part`,
-/// a deleted operand — and this is the shortest road to a head on
-/// LIVE geometry. The constraint enters with that side on copy 1 of a
-/// scratch pattern over `anchor`, an instance OTHER than the one its
-/// other side stands on (a pattern of the placement's own copy is that
-/// copy, and refuses `SelfMate`) — then the side's slot door
-/// (`SetParam` at `OperandSlot::Side`, which re-points a read and asks
-/// no admission) writes the side `mate` spells, and the scratch pattern
-/// is deleted. Nothing solves, so the refusing reach suffices.
-///
-/// `side` is the side that resolves to nothing, spelled in `mate` as it
-/// is meant to read; the constraint goes to the placement the other
-/// side reads. `anchor_body` is the body node of `anchor`'s part
-/// document.
-pub fn insert_mate_with_stranded_head(
-    doc: ProfileDoc,
-    mate: editor_core::Mate<Formula>,
-    side: editor_core::MateSide,
-    anchor: RecipeNodeId,
-    anchor_body: RecipeNodeId,
-) -> (ProfileDoc, editor_core::MateRef) {
-    let editor_core::Mate {
-        a,
-        b,
-        class,
-        alignment,
-    } = mate;
-    let (doc, scratch) = insert(
-        doc,
-        Node::Pattern {
-            input: anchor.into(),
-            count: Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(1.0),
-            },
-        },
-    );
-    let stand_in = editor_core::SideRead::Face(
-        head(in_copy(
-            scratch,
-            1,
-            resolver::in_part(anchor, anchor_body, CapEnd::End),
-        ))
-        .into(),
-    );
-    let (stranded, a, b) = match side {
-        editor_core::MateSide::A => (a, stand_in, b),
-        editor_core::MateSide::B => (b, a, stand_in),
-    };
-    let editor_core::SideRead::Face(stranded) = stranded else {
-        panic!("the stranded side is a face read")
-    };
-    let (doc, mate) = constrain(
-        doc,
-        editor_core::Mate {
-            a,
-            b,
-            class,
-            alignment,
-        },
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetParam {
-            node: mate.placement,
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
-                constraint: mate.id,
-                side,
-            }),
-            value: editor_core::SlotValue::Read(stranded),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
-    (doc, mate)
 }
 
 /// **The `SketchPlane` a frame NODE denotes**, read out of a document.
@@ -1495,8 +1428,30 @@ impl Recorder {
     /// returning the placement.
     pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
-        self.push(DocEdit::place_in_world(read, None))
-            .expect("a placement mints its node")
+        let placement = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+                fresh: Vec::new(),
+            })
+            .expect("a placement mints its node");
+        let shape = match self.doc.node(placement) {
+            Some(Node::Place { shapes, .. }) => shapes[0].read,
+            _ => unreachable!("a placement was just inserted"),
+        };
+        let mate = editor_core::pin_at(
+            &self.doc,
+            &editor_core::Operand::Var(shape),
+            &editor_core::Frame::IDENTITY,
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+        self.push(DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        });
+        placement
     }
 
     /// **A frame and a profile drawn on it**, returning the PROFILE's
