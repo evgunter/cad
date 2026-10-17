@@ -300,7 +300,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
 /// its placed image.
 #[test]
 fn a_tampered_branch_is_refused_at_rest() {
-    let (mut above, _) = tilted_cut();
+    let (above, _) = tilted_cut();
     // Shift ONE half-edge's cache by a whole period: the pcurve is
     // still a chart image of the same locus (periodic chart!), but it is
     // not the row's placed image, which is what a row is (C4).

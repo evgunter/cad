@@ -357,13 +357,6 @@ fn is_a_lifted_copy(row: &Result<PcurveCache<f64>, geom_brep::PcurveCertifyError
     )
 }
 
-fn discontinuous(e: &PcurveMintError) -> bool {
-    matches!(
-        e,
-        PcurveMintError::LoopDiscontinuity { .. } | PcurveMintError::LoopNotClosed { .. }
-    )
-}
-
 /// **A single row restated a whole period over is refused.** On the
 /// minted cylinder wall of a three-arc boss, each arc row is restated
 /// one period over, its interval shifted with its image, so its ends
