@@ -27,11 +27,10 @@ prisms here are drawn from literal quantities and declare no
 parameters. The bodies are the same; the recipes are not.
 
 A second difference is a job rather than a choice: the tour stands
-its stand on a TURNTABLE gauge whose swing is a document parameter,
-mates through `regauge_then_mate`, and sets a crate on the shelf
-through a gauge nested on the turntable. `stand` here stands the
-stand on the world, which is where the turntable puts it at the
-tour's authored swing of zero, and authors no crate
+its stand on a TURNTABLE — the near post's world pin turns by a
+document parameter's swing — and sets a crate on the shelf. `stand`
+here pins the near post to the world where the turntable puts it at
+the tour's authored swing of zero, and authors no crate
 (`work/lib/the-turntable-bench-has-no-python-row.md`).
 
 The layout's placed family is NOT such a difference: `layout` spells
@@ -59,11 +58,11 @@ from pncad import (
     CapEnd,
     ContactClass,
     Doc,
-    DocEdit,
     DocRef,
     EntityKind,
     Formula,
     Frame,
+    Mate,
     MateFrame,
     MatePrimitive,
     NamePat,
@@ -100,18 +99,19 @@ POST_VOLUME = POST_SECTION * POST_SECTION * POST_HEIGHT
 SHELF_VOLUME = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 
 #: The flat-pack's declared PLACEMENTS, which no volume can see: the
-#: post is laid on its side (rotated -pi/2 about +y, so POST_HEIGHT
-#: runs along x and POST_SECTION along y and z), set FLAT_PACK_GAP
-#: along +x so the flat-pack sits beside the assembled bench, and
-#: patterned PATTERN_COUNT ways along +y at PATTERN_SPACING.
+#: post is patterned PATTERN_COUNT ways along +y at PATTERN_SPACING,
+#: and each copy laid on its side (rotated -pi/2 about +y, so
+#: POST_HEIGHT runs along x and POST_SECTION along y and z), set
+#: FLAT_PACK_GAP along +x so the flat-pack sits beside the assembled
+#: bench.
 FLAT_PACK_GAP = 1.4
 PATTERN_COUNT = 2
 PATTERN_SPACING = 0.2
 #: Where the flat-packed shelf sits, relative to the same gap.
 FLAT_PACK_SHELF_Y = 0.9
 
-#: The stand's root post: the one instance carrying an authored frame,
-#: inset in y so the bench top overhangs front and back.
+#: The stand's near post: the one instance pinned to the world, inset
+#: in y so the bench top overhangs front and back.
 ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
 POST_SEED = "pncad-demo-post"
@@ -240,9 +240,9 @@ def seat(a_frame, b_frame, primitive=None):
 OWN_FACE = "the side's own head face"
 
 #: The stand's two mates, as (a seat, b seat) in document order, each
-#: naming the part it moves first — a placing mate places its first
-#: operand's group on its second's: the shelf's underside to the root
-#: post's top, then the far post's top to the shelf's underside. The
+#: naming the part it places first — the mate is a constraint in that
+#: part's bundle: the shelf's underside to the near post's top, then
+#: the far post's top to the shelf's underside. The
 #: post sides are the cap face, the shelf sides authored points (the
 #: shelf's own datum, not a face of it).
 STAND_SEATS = ((SEAT_A, OWN_FACE), (OWN_FACE, SEAT_B))
@@ -251,14 +251,33 @@ STAND_SEATS = ((SEAT_A, OWN_FACE), (OWN_FACE, SEAT_B))
 # ---- The assembly documents ----
 
 
+def lying():
+    """The pose each flat-packed post copy is pinned to the world at:
+    laid on its SIDE — a rotation, which is why the frame stores a
+    general linear part and not a translation — and set beside the
+    bench."""
+    return Placement.literal(
+        Frame.rotate_then_translate(
+            (0.0, 1.0, 0.0),
+            -math.pi / 2 * pncad.rad,
+            ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
+        )
+    )
+
+
 def layout(post_ref, shelf_ref, posts=Node.pattern):
     """The flat-pack: one post instance patterned along +y, plus the
     shelf, nothing touching — A5's disjoint half.
 
-    Every placement carries FLAT_PACK_GAP along +x, which is how the
+    Every world pin carries FLAT_PACK_GAP along +x, which is how the
     flat-pack shares one montage cell with the assembled bench: a
     layout document's placements ARE its subject, so where the parts
     sit has to be something this document SAYS.
+
+    The post instance's bundle is empty: it is a loose copy, its part's
+    own coordinates and no part of the product, which is what a pattern
+    master is here. The pattern steps along +y, which the turn about +y
+    each copy is pinned at leaves where it was.
 
     `posts` is the node the placed family is said with, and the two it
     admits take the same `(input, count, kind)`: `Node.pattern`, the
@@ -269,26 +288,13 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
 
     The product is the posts' copies, then the shelf's: each pattern
     instance is projected out of the family by `Node.part` and placed,
-    and a fused `placed_union` family, one body, is placed whole.
+    and a fused `placed_union` family, one body, is placed whole; the
+    shelf instance is pinned to the world itself.
 
     Answers the document and its three nodes, in document order.
     """
     doc = Doc(LAYOUT_SEED)
-    post_i = doc.insert(Node.instantiate_part(post_ref))
-    # The post is laid on its SIDE: a rotation, which is why the frame
-    # stores a general linear part and not a translation.
-    doc.apply(
-        DocEdit.set_offset(
-            post_i,
-            Placement.literal(
-                Frame.rotate_then_translate(
-                    (0.0, 1.0, 0.0),
-                    -math.pi / 2 * pncad.rad,
-                    ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
-                )
-            ),
-        )
-    )
+    post_i = doc.insert(Node.instantiate_part(post_ref, []))
     family = doc.insert(
         posts(
             post_i,
@@ -296,21 +302,26 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
             PatternKind.linear((Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)), Formula.length_in(PATTERN_SPACING, m)),
         )
     )
-    shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
-    doc.apply(
-        DocEdit.set_offset(
-            shelf_i,
-            Placement.literal(
-                Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m))
-            ),
+    shelf_i = doc.insert(
+        Node.instantiate_part(
+            shelf_ref,
+            [
+                Mate.world_pin(
+                    Placement.literal(
+                        Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m))
+                    )
+                )
+            ],
         )
     )
     if posts is Node.pattern:
         for i in range(PATTERN_COUNT):
-            doc.place(doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))))
+            doc.place(
+                doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))),
+                [Mate.world_pin(lying())],
+            )
     else:
-        doc.place(family)
-    doc.place(shelf_i)
+        doc.place(family, [Mate.world_pin(lying())])
     return doc, post_i, family, shelf_i
 
 
@@ -318,49 +329,37 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the root post keeps an offset — each mate names the part it
-    moves first, and the mate door clears that part's offset. Each
-    instance is placed in the world, in instance order. Answers the
-    document, its three instances and its two mates, each in document
-    order.
+    Only the near post is pinned to the world; each other instance's
+    bundle is the one mate that places it — the shelf on the near post,
+    the far post under the shelf. Answers the document, its three
+    instances and its two mates' addresses, each in document order.
     """
     doc = Doc(STAND_SEED)
-    post_a = doc.insert(Node.instantiate_part(post_ref))
-    doc.apply(
-        DocEdit.set_offset(
-            post_a,
-            Placement.literal(Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))),
+    post_a = doc.insert(
+        Node.instantiate_part(
+            post_ref,
+            [
+                Mate.world_pin(
+                    Placement.literal(Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)))
+                )
+            ],
         )
     )
-    shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
-    post_b = doc.insert(Node.instantiate_part(post_ref))
-    for instance in (post_a, shelf_i, post_b):
-        doc.place(instance)
+    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, []))
+    post_b = doc.insert(Node.instantiate_part(post_ref, []))
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
-    # The post's seat is its head's face, and the insert resolves it
-    # through the store, since the face is the part's.
-    mate_1 = doc.insert(
-        Node.mate(
-            shelf_i,
-            s_bottom,
-            post_a,
-            a_top,
-            class_,
-            seat(*STAND_SEATS[0], primitive),
-        ),
+    # The post's seat is its head's face, and the constraint door
+    # resolves it through the store, since the face is the part's.
+    mate_1 = doc.constrain(
+        shelf_i,
+        Mate(shelf_i, s_bottom, post_a, a_top, class_, seat(*STAND_SEATS[0], primitive)),
         resolver=store,
     )
-    mate_2 = doc.insert(
-        Node.mate(
-            post_b,
-            b_top,
-            shelf_i,
-            s_bottom,
-            class_,
-            seat(*STAND_SEATS[1], primitive),
-        ),
+    mate_2 = doc.constrain(
+        post_b,
+        Mate(post_b, b_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[1], primitive)),
         resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)

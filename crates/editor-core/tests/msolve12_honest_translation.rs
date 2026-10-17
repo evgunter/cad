@@ -19,18 +19,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use std::collections::BTreeMap;
 
 use crate::fixture;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, ExtrudeSide, LeverRefusal,
-    MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, ExtrudeSide, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square};
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
 use geom_core::{RANGE_RECOURSE, Tol};
@@ -518,23 +517,23 @@ fn rest(
     ids: [RecipeNodeId; 2],
     origin: [f64; 3],
     axis: [f64; 3],
-) -> AuthoredNode {
+) -> editor_core::Mate<editor_core::Formula> {
     let side = |o| {
         MateFrame::authored(o, axis, [0.0, 1e152, 0.0], geom_core::Tol::witness())
             .expect("a definite frame")
     };
-    Node::Mate {
-        a: fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
-        b: fixture::head(in_part(ids[1], body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+    fixture::mate(
+        fixture::head(in_part(ids[0], body, CapEnd::Start)),
+        fixture::head(in_part(ids[1], body, CapEnd::Start)),
+        ContactClass::Rest,
+        Alignment {
             a: side(origin),
             b: side([0.0, 0.0, 0.0]),
             primitive: MatePrimitive::PlanarRest { offset: 0.0 },
             sense: AxisSense::Aligned,
             clocking: None,
         },
-    }
+    )
 }
 
 /// **Through the doors.** Two planar rests between one pair of
@@ -551,38 +550,28 @@ fn out_of_range_through_the_doors() {
     let (doc_ref, body) = store.insert_part(part("msolve12-range-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve12-range"), Tol::witness());
     let (doc, i0) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, i1) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, i1) = insert(doc, fixture::mated_instance(doc_ref));
     let o = with_resolver(store);
-    let add = |doc, node| {
-        let (doc, id) = step(
-            doc,
-            DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            },
-        );
-        (doc, id.expect("the insert minted an id"))
+    // The second instance sits where its mates put it: both rests are
+    // its bundle's, against the first, pinned to the world. The door
+    // levers each over the parts, so it reaches them through the store.
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let admit = |doc: &ProfileDoc, mate| {
+        fixture::at_the_door_of(doc, &reach, i1, mate)
+            .unwrap_or_else(|(at, fault)| panic!("the door admits the rest, got {at:?}: {fault}"))
     };
-    // The second instance sits where its mates put it, so the first
-    // roots the group and no offset is checked.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetOffset {
-            instance: i1,
-            offset: None,
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, first) = add(
-        doc,
+    let (doc, first) = admit(
+        &doc,
         rest(body, [i0, i1], [0.0, 0.0, 1e152], [0.0, 0.0, 1e152]),
     );
-    let (doc, second) = add(
-        doc,
+    let (doc, second) = admit(
+        &doc,
         rest(body, [i0, i1], [0.0, 0.0, 0.0], [100.0, 0.0, 1e152]),
     );
     let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(second).expect("the second mate refuses");
+    let fault = poses
+        .fault(i1)
+        .expect("the second instance's bundle refuses");
     assert_eq!(
         fault,
         &MateFault::PoseOutOfRange {

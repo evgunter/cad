@@ -98,8 +98,7 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
         let value = ev.value(out).expect("the subtract's value");
         let points: std::collections::BTreeMap<_, _> =
             body_of(&value.payload).vertex_points().collect();
-        let turned: Vec<_> = value
-            .name_table
+        let turned: Vec<_> = crate::fixture::table(&ev, out)
             .iter()
             .filter_map(|(n, e)| match (n.path.as_slice(), e) {
                 ([RoleSeg::From { of, .. }], Entry::Unique(r))

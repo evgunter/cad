@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-09
 priority: P1
 cost: M
-blocked_on: [a-placement-is-the-bundle-of-mates]
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -36,3 +36,7 @@ and would leave the GUI no way to make a moved body.
 ## Priced (2026-10-11)
 
 P1 M, parked on INTENT stage 3's `a-placement-is-the-bundle-of-mates`: moving a placed body edits its placement there, and no door edits a placement's pose in place until then.
+
+## Re-parked at INTENT stage 3 B's close (PR 5232, 2026-10-17)
+
+B built placements: `Place { shapes, constraints }`, with a world pin as the constraint that sets a pose. It left `Transform` an operand-maker, and the viewer's mate tool commits into a bundle, so the gesture this row asks for now waits on `Transform` retiring into a placement. That is stage 3's unit D, `transform-retires-into-a-placement`.

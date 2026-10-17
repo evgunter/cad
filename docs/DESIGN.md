@@ -30,11 +30,16 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
 
 - **Built:** variables (stage 1); operations that read and define
   variables, selections as definitions, the product as a list
-  (stage 2); booleans gluing on a Zero verdict and the boolean
-  declare surface retired (stage 4 E and F).
-- **Not built:** spaces and placement (stage 3 — `Transform`,
-  `Datum`, gauges, offsets and the mates' spanning tree still exist in
-  the tree); the rest of the coincidence door and its lint (stage 4);
+  (stage 2); poses as defined variables, read off geometry, read
+  through their roles and moved by lengths and angles, a revolve's
+  axis a point and a heading, and a lone `0` the constant zero
+  (stage 3 A and A′); a placement as the bundle of its mates, the
+  world a node and spaces as kinds, with gauges, offsets and the
+  mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
+  and the boolean declare surface retired (stage 4 E and F).
+- **Not built:** the rest of placement (stage 3 — `Transform` and
+  `Datum` still exist in the tree, and a constraint is still a mate's
+  payload); the rest of the coincidence door and its lint (stage 4);
   assertions and the at-rest lints (stage 5); tangency constructions
   (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
@@ -48,9 +53,8 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   DS2's identification grade; the axis declaration channel;
   `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
   `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's sink rule, A11 (2)'s
-  gauges and offsets, A11 (4)'s declaring mates and A12's reading
-  edges; and A5's at-rest gate (`assemble` and its refusal), whose
+  stored tangent-joint flags; ASSEMBLY A3, A10's sink rule and A12's
+  reading edges; and A5's at-rest gate (`assemble` and its refusal), whose
   census becomes a check, with DISCIPLINES DS6's product-separation
   resident (`Separation`).
 
@@ -2485,7 +2489,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: the evaluation seam, the pairing doors, pins and split/inline, mirror, the product, the constructive solve; the pre-refactor clauses (A3, A5, A9, A11 (2)–(4)) gathered until INTENT stages 3–5 retire them |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: the evaluation seam, the pairing doors, pins and split/inline, mirror, the product, the constructive solve; the pre-refactor clauses (A3, A5) gathered until INTENT stages 3–5 retire them |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a `Span` borrows the `KnotVector` it indexes, a `CurveWindow` its curve and a `SurfaceWindow` its surface, so every span-restricted door takes one structure and reads everything from it and the mismatch is unrepresentable; one level down a `SplineCoeffs` borrows the `KnotVector` its coefficients were fitted against and `hull`'s doors read through it, `InteriorKnot` the deliberate crate-private exception |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |

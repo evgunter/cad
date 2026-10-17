@@ -142,6 +142,13 @@
 //! moved too; `lib_g16_corpus_name_digests` moved that row and no
 //! other, and every point of the bodies that remain is where it was.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A PLACEMENT BECAME THE BUNDLE OF
+//! MATES** (INTENT stage 3 B), through every document: a placement is a
+//! `Place` holding a world pin where it was a `PlaceInWorld`, so its
+//! stored node, and with it its mint preimage, moved, and every id the
+//! mint chain draws after it. The id-masked geometry fence below did
+//! not move.
+//!
 //! **ALL FOUR NUMBERS MOVED WHEN A BOOLEAN'S RECORDED VERTEX PAIRS CAME
 //! TO SHARE ONE POINT KEY**, through `kiss_carry` alone: its union's
 //! two kissing corners now sit on one key (`ops::record_classes`), so
@@ -149,6 +156,18 @@
 //! outcome changed and no coordinate moved;
 //! `intent_s2_c_world::PRE_C` and `seat4_verb_lowering`'s document
 //! digests moved that row and no other.
+//!
+//! **THREE NUMBERS MOVED WHEN A NAME BECAME SCOPED BY ITS VARIABLE**
+//! (FORK-DM4 unit 2), through `part_select` alone: its union declares
+//! the rest between the split's halves by the section face name, which
+//! no longer spells the half, so the union's id moved, and every id
+//! minted after it in the document. The id-masked fence below did not
+//! move, and an id-masked digest per document, taken on this tree and on
+//! its base (`1c4f9960d9`), is equal for every document: no outcome
+//! flipped and no point moved.
+//! Re-taken merged over INTENT stage 3 PR A, which moved the same
+//! three numbers by `kitchen_sink`'s ids: the merged values are
+//! neither tree's, and the id-masked fence held across the merge.
 //!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
@@ -589,6 +608,16 @@
 //! which drops two `Part` outcomes of its own: the id-free digest with
 //! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
 //! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A′
+//! (a revolve's axis is a point and a heading).** A revolve holds one
+//! angle where it held two direction components, and a lone `0` is the
+//! constant zero, so ids re-mint; and the heading's `turn/4` has a
+//! cosine that rounds to 6e-17, not 0. Measured by a scratch dump of
+//! every node's outcome and every point's bits at `f64`, ids masked,
+//! the base tree against this one: every outcome identical; 8 points
+//! moved, all in `kitchen_sink`, by at most 2.2e-16 — the same 8 the
+//! turned-vertex change above moved.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -884,7 +913,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2ff6_31d1_b36e_b4be, 0xd151_b252_3bd1_a032),
+        (0xfb26_4516_2477_a6d6, 0xb707_a6ef_a969_870a),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -910,7 +939,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x0c6c_2f14_9ab8_e583, 0xe3ba_b4b8_e5db_99b7),
+        (0x76b8_b226_4a1a_3b03, 0xc354_ff1b_c858_1b47),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -934,7 +963,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2ff6_31d1_b36e_b4be, 0xd151_b252_3bd1_a032),
+        (0x677c_c7e4_46f7_3c3e, 0xb618_dc9c_4b28_76c2),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1012,7 +1041,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xbd6e_827f_fdee_3e17, 0x3468_7380_ea67_3df3),
+        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

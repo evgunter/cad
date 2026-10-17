@@ -684,8 +684,8 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     // box-edge blend.
     let rim_blend = match doc.placements().as_slice() {
         [placement] => match doc.node(*placement) {
-            Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(body.read)
+            Some(Node::Place { shapes, .. }) if shapes.len() == 1 => doc
+                .operation_of(shapes[0].read)
                 .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },
@@ -1048,7 +1048,7 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let ev = run(&bare);
     assert_eq!(failure(&ev, pair), None, "the pair spelling builds");
     assert_eq!(failure(&ev, u), None, "the fold builds through step 2");
-    let table = format!("{:?}", ev.value(u).expect("the union built").name_table);
+    let table = format!("{:?}", ev.table_at(u).expect("the union built"));
     assert!(
         !table.contains("FromA(") && !table.contains("FromB("),
         "the union publishes an uncollapsed fold row: {table}"

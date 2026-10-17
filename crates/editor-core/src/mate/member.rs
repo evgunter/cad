@@ -10,7 +10,7 @@
 //! pose.
 //!
 //! Structural throughout: no expression is evaluated in the walk, so
-//! the group partition never depends on a slot value. The offset —
+//! the member a side resolves to never depends on a slot value. The offset —
 //! which is arithmetic, not admission — does evaluate, in the solve's
 //! one environment at its scalar ([`super::solve::solve_document`]).
 
@@ -37,20 +37,18 @@ use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 /// A member is its instance and the PLACEMENT the walk passed on the
 /// way down: two references that reach one instance through different
 /// placings relate the same pair of instances through different static
-/// offsets, so they are different members, and a second such mate
-/// closes a LOOP (non-tree, declaring) instead of folding into the
-/// first mate's pair. Two references through ONE placement spelled two
+/// offsets, so they are different members, and a bundle holding a
+/// mate on each refuses ([`MateFault::TargetsDiffer`]) instead of
+/// folding them as one pair. Two references through ONE placement spelled two
 /// ways — read at a transform, and at a union above it naming that
 /// member; read at a `Part` selecting a copy, and at the pattern naming
 /// that copy — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
-    /// The group-graph vertex this member stands on: the head
-    /// instance itself, or — for a pattern-placed member — the
-    /// innermost pattern's INPUT instance, whose pose every copy at
-    /// every level is derived from. This is the edge end A9/A11's
-    /// partitions see, and why a mate to `Instance(i)` joins the other
-    /// member into the pattern's group.
+    /// The instance this member stands on: the head instance itself,
+    /// or — for a pattern-placed member — the innermost pattern's
+    /// INPUT instance, whose pose every copy at every level is derived
+    /// from.
     pub instance: RecipeNodeId,
     /// **The placing nodes the walk passed**, OUTERMOST first: each
     /// pattern with the copy the name says, and each transform. Empty
@@ -100,11 +98,10 @@ impl Member {
     }
 }
 
-/// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on, and its order, every node
-/// compared by id (which is document order: an id's mint ordinal leads
-/// it), is the order the spanning tree picks its edges by; so the ordering is stated rather than
-/// derived: `(instance, copy, chain)` — the instance, then the copy
+/// **The member key, written out.** Its order, every node compared by
+/// id (which is document order: an id's mint ordinal leads it), is
+/// stated rather than derived, so whatever orders members orders them
+/// by recipe structure: `(instance, copy, chain)` — the instance, then the copy
 /// chain (patterns only, outermost first), then the whole placing
 /// chain, each compared lexicographically. The copies lead so that a
 /// copy chain alone decides between two members whenever it differs.
@@ -210,8 +207,8 @@ impl Walk {
 /// the single traversal admission and the static offset share.
 ///
 /// Structural only: no expression is evaluated here (the vocabulary
-/// is decided on node kinds and name segments alone), so the group
-/// partition never depends on a slot value.
+/// is decided on node kinds and name segments alone), so the member a
+/// reference resolves to never depends on a slot value.
 ///
 /// # Errors
 ///
@@ -268,7 +265,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             continue;
         }
         match doc.node(at) {
-            Some(Node::InstantiatePart { .. }) => {
+            // A placement's copy, an instance's or a `Place`'s: the
+            // member the solve poses.
+            Some(Node::InstantiatePart { .. } | Node::Place { .. }) => {
                 return Ok(Walk {
                     member: Member {
                         instance: at,
@@ -311,6 +310,26 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 name = of;
                 at = doc.operation_of(*read).ok_or(at)?;
             }
+            // A construction of the document's one kind (the named
+            // interim of INTENT stage 3 B): the world's kind, at the
+            // identity, so a mate reads it as a body of the space its
+            // copy joins.
+            Some(node)
+                if !matches!(
+                    node,
+                    Node::World | Node::Measure { .. } | Node::Assertion { .. }
+                ) =>
+            {
+                return Ok(Walk {
+                    member: Member {
+                        instance: at,
+                        chain: chain.iter().copied().map(Placing::from).collect(),
+                    },
+                    chain,
+                    head: r.name.clone(),
+                    placed: name.clone(),
+                });
+            }
             _ => return Err(at),
         }
     }
@@ -337,8 +356,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// a member like any other; its identity carries the whole chain of
 /// placings ([`Member::chain`]).
 ///
-/// Structural only — no expression is evaluated here, so the group
-/// partition never depends on a slot value. That includes a `Part`'s
+/// Structural only — no expression is evaluated here, so the member
+/// never depends on a slot value. That includes a `Part`'s
 /// own index, which is an expression in a structural slot: admission
 /// reads the NAME, and the offset checks the node against it.
 ///
@@ -351,8 +370,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// live one-face selection ([`head_of`]).
 ///
 /// [`crate::refactor::split`]'s interface-crossing collector is one of
-/// those gates: a collector admitting a reference the group graph
-/// does not weld would mint a record for a mate that never solved,
+/// those gates: a collector admitting a reference the member walk
+/// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
 pub fn member_of<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<Member> {
@@ -415,34 +434,6 @@ pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::Sited
     ))
 }
 
-/// **[`member_of`] for a side as an author writes it** — before the edit
-/// door has lowered it: a selection authored at the side, read in the
-/// body its operand names, or an existing selection read by id or by
-/// name. `None` where [`member_of`] would answer `None` of the lowered
-/// side, and for a spelling that is no selection at all, which the
-/// door refuses on its own.
-pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<Member> {
-    use crate::Operand as O;
-    let operation = |body: &O| match body {
-        O::Node(node) | O::Output { node, .. } => Some(*node),
-        O::Var(var) => doc.operation_of(*var),
-        O::Name(name) => doc.operation_of(doc.var_named(name.as_str())?),
-        O::Select { .. } | O::Pose(_) => None,
-    };
-    let head = match side {
-        O::Select { body, names } => {
-            let [name] = names.as_slice() else {
-                return None;
-            };
-            crate::node::SitedFace::new(operation(body)?, crate::FaceName::new(name.clone()).ok()?)
-        }
-        O::Var(var) => head_of(doc, *var)?,
-        O::Name(name) => head_of(doc, doc.var_named(name.as_str())?)?,
-        O::Node(_) | O::Output { .. } | O::Pose(_) => return None,
-    };
-    member_of(doc, &head)
-}
-
 /// **[`member_of`] for a MATE's side**: the walk, with the mate and
 /// side that attribute its refusal (N5).
 ///
@@ -461,7 +452,7 @@ pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<
 /// refusal to a node that is often perfectly live and perfectly fine.
 pub(super) fn walk_of<P>(
     doc: &Doc<P>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     read: crate::VarId,
 ) -> Result<Walk, MateFault> {
@@ -472,8 +463,8 @@ pub(super) fn walk_of<P>(
 /// **The per-reference checks that need a number** — run once per
 /// reference of every live mate, at the site the solve walks it.
 ///
-/// The walk is structural and evaluates nothing, so the group
-/// partition never depends on a slot value. Two questions about a
+/// The walk is structural and evaluates nothing, so the member never
+/// depends on a slot value. Two questions about a
 /// reference are not structural, and both compare the NAME against an
 /// evaluated count:
 ///
@@ -493,11 +484,11 @@ pub(super) fn walk_of<P>(
 ///   `Part`, so the solve refuses rather than choosing.
 ///
 /// **They live here, per reference, and not in the offset.** The
-/// offset is derived only for a pair the spanning tree takes as an
-/// edge, and only for that pair's first mate — so a check sited there
-/// runs on some references and not others, and a DECLARING mate whose
-/// `Part` names another copy would be silently green with its body
-/// somewhere else. Every mate the solve reads gets both checks, and a
+/// offset is derived only from a bundle's first mate (every mate of a
+/// bundle relates one member pair) — so a check sited there runs on
+/// some references and not others, and a later mate of the bundle
+/// whose `Part` names another copy would be silently green with its
+/// body somewhere else. Every mate the solve reads gets both checks, and a
 /// reference that fails either refuses typed at that reading, exactly
 /// as a dangling head does.
 ///
@@ -530,7 +521,7 @@ pub(super) fn walk_of<P>(
 pub(super) fn check_reference<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
     env: &VarEnv<S>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     w: &Walk,
 ) -> Result<(), MateFault> {
@@ -709,8 +700,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
 /// named copy exists, are [`check_reference`]'s: they are facts about
-/// a REFERENCE, and this door sees only the references of the pairs
-/// the spanning tree took. Arithmetic here, admission and agreement
+/// a REFERENCE, and this door sees only the references of each
+/// bundle's first mate. Arithmetic here, admission and agreement
 /// there.
 ///
 /// Both are document-coordinate maps and both are LEFT-composed, for
@@ -771,7 +762,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     env: &VarEnv<T>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     w: &Walk,
     band: Band,
@@ -808,7 +799,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
 /// axis datum, a transform on the way to it) is its node's own, stated
 /// on that node's row.
 fn refuse(
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     on_chain: RecipeNodeId,
     (at, kind): (RecipeNodeId, NodeErrorKind),
@@ -877,7 +868,8 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
-            let axis = crate::eval::read_at(doc, crate::OperandSlot::Axis, *axis).map_err(here)?;
+            let axis =
+                crate::eval::read_at(doc, crate::OperandSlot::Axis, axis.read).map_err(here)?;
             let datum = axis_datum(doc, node, axis)?;
             let at_datum = |kind| Box::new((axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
@@ -1029,7 +1021,10 @@ mod tests {
     const T1: RecipeNodeId = RecipeNodeId::new(63, 12);
     const T2: RecipeNodeId = RecipeNodeId::new(64, 13);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(65, 14);
-    const MATE: RecipeNodeId = RecipeNodeId::new(66, 50);
+    const MATE: crate::mate::MateRef = crate::mate::MateRef::new(
+        RecipeNodeId::new(66, 50),
+        crate::node::ConstraintId(crate::MintId::new(67, 51)),
+    );
     const AXIS_OUT: crate::VarId = crate::VarId::new(67, 20);
     const FRAME2_OUT: crate::VarId = crate::VarId::new(68, 21);
     const T1_OUT: crate::VarId = crate::VarId::new(69, 22);
@@ -1149,7 +1144,7 @@ mod tests {
         .collect();
         doc.nodes.extend(stored);
         doc.mint = doc.mint.clone().logged(
-            [AXIS, FRAME2, T1, T2, PATTERN, MATE]
+            [AXIS, FRAME2, T1, T2, PATTERN, MATE.placement]
                 .map(crate::Minted::Node)
                 .into_iter()
                 .chain(

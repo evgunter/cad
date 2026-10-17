@@ -965,8 +965,8 @@ Flagged, NOT fixed here (dispositions):
   This row proposed levering the sine at the profile's radial extent,
   kernel-side. What happened instead is that the QUESTION was deleted.
   A revolve's axis is now written on the revolve itself, in its
-  profile's own two coordinates (`Revolve`'s `axis_origin` and
-  `axis_direction`), so it cannot have an out-of-plane component to
+  profile's own two coordinates (`Revolve`'s `axis_through` and
+  `axis_heading`), so it cannot have an out-of-plane component to
   classify and there is no second frame to compare: nothing is left to
   decide, with no band and no scale. Both in-plane
   predicates went with it, this one and the metre-valued

@@ -8,15 +8,15 @@ what checks an assembly at rest is DESIGN `[assertions]`. The census and
 contact vocabulary is `crates/topo/README.md`; the user-facing walk is
 `docs/guide/assembly.md`.
 
-**The intent refactor is in progress here.** Mates in the code still
-carry a contact class and mint a declaration, placement still lives on
-gauges and offsets, and the solve still roots a spanning tree whose
-non-tree mates declare. Those clauses (A3, A5, A9, A11 (2)–(4)) are
-gathered under [Until the intent refactor lands](#until-the-intent-refactor-lands)
-and describe the code as it stands. INTENT's stage units delete each one
-as they land (stage 3 the gauge, offset and spanning-tree clauses, stage
-4 a mate's contact class, stage 5 the at-rest gate); where they disagree
-with DESIGN, DESIGN is the design.
+**The intent refactor is in progress here.** A mate in the code still
+carries a contact class and mints a declaration, and still holds its
+numbers in its sides' offsets; the at-rest gate still refuses. Those
+clauses (A3 and A5) are gathered under
+[Until the intent refactor lands](#until-the-intent-refactor-lands) and
+describe the code as it stands. INTENT's stage units delete each part as
+they land (stage 3 C a mate's offsets, stage 4 its contact class, stage
+5 the at-rest gate); where they disagree with DESIGN, DESIGN is the
+design.
 
 ## Where in the code
 
@@ -24,16 +24,15 @@ with DESIGN, DESIGN is the design.
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
+| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `MateRef`, `SideRead`, `class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs`; `DocEdit::AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
-| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
+| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
-| A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
-| A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather and gate (`Product::spaces`, `own_spaces`, `gate_spaces`) in `src/product.rs` and `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an unplaced group below as `CarriedUnplaced` (`Evaluation::unplaced_below`) |
-| A11 (3) roots | `root_and_cause` in `src/mate/solve.rs` (a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so none is a root candidate) |
-| A10 the world and the gather | `Node::PlaceInWorld` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs` |
+| A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
+| A11 (2) bundles, spaces | `solve_placement`, `fold_bundle`, `redundant_constraints`, `Pose`, `Space`, `spaces_with` in `src/mate/solve.rs`; the per-space gather (`LooseSpace`, `loose_spaces`) in `src/product.rs` and the gate's (`AssemblyError::Space`) in `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
+| A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place`/`place_in_world` in `src/edit.rs` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
 ## Scope
@@ -149,7 +148,8 @@ name's minting instance, whatever the depth of the copy chain above it
 (`mate::member_of`). A side whose body is deleted leaves the mate
 unresolved and typed, and a name that stops resolving is the selection's
 refusal, repaired by `Rebind` addressed by the body. A mate places
-nothing in the world, so it is never in the product (A10).
+nothing by itself: it is a constraint of the placement that holds it,
+and only that placement's copy is in the product (A10).
 
 ## Identity, pins, split and inline
 
@@ -167,58 +167,48 @@ built at the workspace door (DI4).
 
 *Split.* `refactor::split` cuts a node set closed under the DAG in both
 directions into a new document with a caller-supplied id, leaving one
-`InstantiatePart` behind; a severed edge refuses, a kept instance or
-gauge hanging from a cut gauge included. The cut is a union of whole
-groups, so a placing mate never crosses it (else
-`SplitError::TornGroup`); every gauge reference leaving it lands on one
-anchor, a kept gauge or the world; and a declaring mate that would start
-placing once the instance sits on the anchor refuses. The cut moves as
-selected: every cut node, gauges included, has its image in the part; a
-cut gauge whose parent leaves the cut hangs from the part's world; a
-root keeps its offset; and the instance sits at the empty offset on the
-anchor. A cut group nothing places moves as it is, unless a dead
-reference unplaces it, and a cut of unplaced material alone refuses.
+`InstantiatePart` behind, pinned to the world at the identity; a severed
+edge refuses. A cut takes whole placements: a placement's constraints are
+its own, so a cut placement whose bundle reads a kept copy severs that
+read. The part's world is the cut's world placements, so the instance's
+copies stand where the cut's did. A remainder read of the cut crosses
+only where the instance carries what it reads: a selection each of whose
+names one cut world placement's copy holds, re-authored on the
+instance's copies; a read of one copy of a cut world placement, or of a
+body one cut world `Place` copies at the identity, re-pointed to that
+copy of the instance by its key in the part. A kept constraint reading a
+cut copy on that copy's own part frame crosses only where the copy is
+pinned to the world at the identity (`SplitError::MateFrameCrosses`).
 Remainder-side names re-anchor through the instance qualifier by
 recorded `Rebind`s. A variable moves with its readers: its side is the
 union of its readers' — a node slot, or another variable's definition —
 and one with no reader follows what it reads. One whose side is the
 cut's is declared in the part and deleted from the remainder.
 
-*Inline.* `refactor::inline` is the inverse: the instance's frame
-becomes a gauge under the instance's gauge holding its offset, and the
-part's gauges and instances hang from it; for the empty offset no gauge
-is minted and the content lands on the instance's gauge as it is. An
-instance its mates place is inlined only when its part is one group at
-the empty chain on its world, whose root takes the instance's place.
-Members the instance placed through mates move onto the new gauge with
-their mates, and one that carries a further offset refuses. A side
-framed on its head face crosses with its head. A side with authored
-vectors crosses only when its coordinates do not change (the instance it
-reads is its group's root, on the part's world, at the empty chain).
-Either way the placing mates of one pair still read one pair, and a side
-whose member lies in an own space refuses; a mate that fails these
-refuses, named.
+*Inline.* `refactor::inline` is the inverse. An instance pinned to the
+world at a pose splices its part's placements, each constraint on the
+part's world moved by that pose (at the identity, verbatim). An instance
+placed by other constraints is inlined only when the part's one
+placement on its world is an instance pinned there at the identity,
+which takes the instance's bundle in place of its pin
+(`InlineError::UnplaceablePart`). A host constraint side reading the
+instance crosses only where its coordinates do not change: a face frame
+rides its face, a part frame needs the copy it lands on to stand in the
+instance's coordinates, and the instance's own side lands on that root
+(`InlineError::MateFrameCrosses`).
 
 Split and inline compute no frame. Both are pure, returning values plus
 edit lists.
 
-*Promote and Fold.* A part at a frame of its own is two single-document
-edits around a split. `Promote` turns an instance's offset into a gauge
-under its gauge, with the instance on it at the empty chain; `Fold` is
-its inverse, dissolving a gauge by joining its placement's steps in
-front of each dependent's own. Cutting the content and leaving the
-gauge behind mounts the part on it.
-
 *Acceptance.* Split-then-evaluate equals unsplit evaluation at
 structural and name-resolution identity, not bit identity, up to the
 order of copies: the cut's world placements become the part's, and the
-remainder places one copy of the instance. Inline-of-split returns the
-document split was given, up to minted ids and order.
+remainder holds one instance of it. Inline-of-split returns the document
+split was given, up to minted ids and order.
 
-*Crossings.* A mate whose two `InstantiatePart` heads fall on opposite
+*Crossings.* A kept constraint whose two face reads fall on opposite
 sides of a cut is an `InterfaceCrossing::Mate` in the instance's
-`InterfaceRecord`, which feeds the content key; a declaring mate
-crossing a cut fills that record (AQ8). Evaluation refuses
+`InterfaceRecord`, which feeds the content key (AQ8). Evaluation refuses
 `NodeErrorKind::CrossingUnverified` when a crossing's part-side name no
 longer resolves in the pinned product.
 
@@ -236,8 +226,8 @@ re-evaluation, which re-verifies crossings (A4).
 **A6 — Mirror and improper frames.** `Frame` stores a general linear
 part so an improper frame (det = −1) is representable, and it is refused
 wherever a document admits a frame, by one predicate
-(`Frame::admission_fault`): a literal step of an instance's offset, a
-gauge's placement or a transform's chain refuse
+(`Frame::admission_fault`): a literal step of a constraint's frame
+offset or a transform's chain refuse
 `EditError::ImproperPlacement` for det ≤ 0, naming which frame, and the
 load validator refuses the same. A mirror is not a placement: a
 reflection is not a pose, so a mirrored body is the construction
@@ -261,21 +251,33 @@ import-as-assembly-document is not implemented. Export writes each
 positive shell as its own `MANIFOLD_SOLID_BREP`; assembly structure and
 declarations are not exported.
 
-## The product
+## Relative freedom and product roots
+
+**A9 — Relative freedom is component structure.** Two copies are
+relatively unconstrained exactly when they lie in different connected
+components of the recipe under its reads (`Doc::upstream`;
+`relative_freedom_components`); no solver, no geometry. Evaluation
+stays deterministic, and every copy pinned against the world has a world
+pose, so the world is one body. A loose copy lives in its own space (A11
+(2)): nothing outside it is compared with it, and it is not part of that
+body. The viewer's free-move probe is display state, never persisted
+(`crates/viewer/src/display.rs`).
 
 **A10 — The product is the world.** The product is the copies the
-document's world placements define, in the document order of those
-placements. A world placement (`PlaceInWorld`) is an operation reading
-one `Body` and defining its copy as an output, so two placements of one
-body are two copies. Its pose relates the copy to the world, and only
-the gather and export read it: it sets the coordinates export writes,
-and no construction, measure or check reads it. Nothing else places: no edit places or unplaces as
-a side effect, and nothing derives a placement from what reads what. An
-empty world is a valid document with an empty product; a door needing a
-product refuses `EmptyProduct`, naming the unplaced bodies. A placement
-whose body is deleted is a stranded reader (D10), and the gather refuses
-naming it. Split and inline move placements with their bodies (A4).
-`product::product` gathers the copies in placement order.
+document's placements define whose space reaches the world, in the
+document order of those placements. A placement (`Place`, or an
+instance) is an operation reading the shapes it copies and defining
+their copies as one output, so two placements of one body are two
+copies. Its constraints relate the copy to the world, directly or
+through the copies it is pinned against, and only the gather, export and
+a constraint read the world. Nothing else places: no edit places or
+unplaces as a side effect, and nothing derives a placement from what
+reads what. An empty world is a valid document with an empty product; a
+door needing a product refuses `EmptyProduct`, naming the bodies no
+placement copies and the loose copies. A placement whose body is deleted
+is a stranded reader (D10), and the gather refuses naming it. Split and
+inline move placements with their bodies (A4). `product::product`
+gathers the copies in placement order.
 
 ## The constructive-solve boundary
 
@@ -290,20 +292,73 @@ Empty}`, which grows a `Point`'s and a `Direction`'s when a reader needs
 them, and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`) to DETERMINED, UNDER or CONTRADICTORY, the last
 refusing with the added mate's measured clash. The edit door asks the
-same per-mate admission of a mate being inserted (the walk, the class,
-each frame, the table's row), so a mate the table refuses on its own is
-refused at the insert door (`EditError::MateRefused`, carrying the
-solve's fault). The doors decide edits and the solve decides states: a
+same per-constraint admission of a constraint being added (the walk, the
+class, each frame, the table's row, the bundle before it), so a mate the
+table refuses on its own is refused at the door
+(`EditError::MateRefused`, carrying the solve's fault). The doors decide edits and the solve decides states: a
 verdict about the pair, and a state a mate comes to hold after insert (a
 head a rebind or a shrunk pattern strands, a re-pointed `Part`, a
 loaded snapshot), stay the solve's.
 
+**(2) A placement is the bundle of its constraints.** Each placement's
+bundle is folded by itself, in the placements' schedule order, through
+`fold_pair`'s coset intersection, and its copy's pose is its target
+composed with the folded representative. A bundle's constraints all
+target one other copy, or all the world
+(`MateFault::TargetsDiffer` otherwise; the stage's named interim,
+`work/intent/a-bundle-folds-in-the-joined-space.md`). The solve reads a
+face only of an instance or a pattern copy of one: a face side, or a
+needed lever, on a `Place` copy or a raw construction refuses typed
+(`work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
+
+A placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a pose is a
+chain of steps, each either a rigid step of `Expr`s (the translation,
+rotation axis and rotation angle, the same type `Node::Transform` holds)
+or a literal proper matrix held to A6, so a document parameter can drive
+where a copy sits.
+
+A bundle that pins its copy puts it in its target's space; one pinned,
+transitively, against the world is of the world's. A bundle that pins
+less than its body needs makes a loose copy: a space of its own with
+everything pinned to it, solved among itself, read at a pose by nothing
+outside it, and not a refusal. Nothing outside a loose space is compared
+with it, so the at-rest gate checks it by itself (`loose_spaces`,
+`AssemblyError::Space`) and cross-space reads refuse
+(`NodeErrorKind::SpaceMismatch`), while everything inside it solves and
+checks as usual. STEP export writes the world and refuses a loose copy
+beside it. The viewer draws a loose copy where it was last shown, as
+display state that no logic reads.
+
+No edit records a frame: removing a constraint, deleting an instance or
+a body is never refused for the placement it removes, what is pinned is
+recomputed from what remains, and replay re-applies the edits alone,
+without solving.
+
+**(3) A constraint beyond the pin refuses** (FORK-S3O, #4326). At the
+door, a constraint added to a bundle whose fold is already `Trivial`
+refuses `MateFault::Overconstrained`. The solve, for a state the door
+did not see (a load, a rebind, a bundle each of whose prefixes pinned
+less), refuses naming every constraint whose removal leaves the fold's
+codimension unchanged, never "the later one": constraints have no order.
+
+**(4) The solve is total and per-placement.** No cycle is ever solved:
+a placement reading its own copy, but for an instance's copy side
+(which reads the part's face, a pose the instance's motion carries, not
+one it computes), is a read cycle the door refuses; an inconsistent
+bundle dies at its clashing constraint (`MateFault::Contradictory`,
+recourse `CONTRADICTORY_RECOURSE`). A refusing bundle faults its own
+placement (`SolvedPoses::fault`), nothing else. The solve states where
+each copy is and what each constraint decides, never that a product
+exists: whether the document has a product is the gather's question
+alone (A10), so a product refusal is not a mate fault, and a document
+can solve whole and still have no product.
+
 **(5) World poses, members, and what the solve reads.**
 
-*World pose.* A placed instance's world pose composes its gauge's frame
-and its root's offset onto the solved relative pose; a lone instance
-returns its placement's frame bit for bit. An unplaced instance has no
-world pose, only its pose in its group's own frame.
+*World pose.* A copy pinned against the world has a world pose, its
+targets' composed onto its solved relative pose; a copy pinned to the
+world at a pose returns that pose's frame bit for bit. A loose copy has
+no world pose, only its pose in its own space.
 `SolvedPoses::placement` is one of A2a's pairing doors: the document it is handed must be the one
 solved, else `MateFault::PosesOfAnotherDocument` before any frame is
 read.
@@ -364,13 +419,13 @@ resolver's own voice, carrying the part fault unaltered:
 `MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
 `FaceRefusal::Reach`) where a face-based side stands on it, since a
 side's frame is read before the lever, else `MateFault::Unleverable`.
-That fault poisons the group as any mate fault does.
+That fault faults its placement as any mate fault does.
 
 Two questions do need a number: a pattern's count and a `Part`'s index,
 which no box or seed binds, so they are read at the nominal in every
 run. They are asked once per reference, where the solve reads it, for
-every reference of every live mate, not only the ones a tree edge's
-offset derives. The named copy must exist (its index against the
+every reference of every live constraint, not only the ones a bundle's
+fold derives. The named copy must exist (its index against the
 pattern's evaluated count, else `MateFault::DanglingHead` at the
 pattern), and a `Part` directly above a pattern must select the copy the
 name names (else `MateFault::PartSelectsAnotherCopy`, which reports
@@ -379,43 +434,56 @@ both). The name is the authority; the `Part` is checked against it.
 A member's derived pose refuses in the placer's own voice: a pattern
 copy or a transform on the chain whose pose cannot be derived refuses
 `MateFault::PlacerRefused`, holding the evaluation layer's own typed
-cause unaltered. Where a group's fold derives the offset, the fault
+cause unaltered. Where a bundle's fold derives the offset, the fault
 reaches the instance under the placer, so the placer is poisoned and
 never states that cause itself: the fault carries it, drawn as its own
-line under the mate's. Where the solve reads one mate's references, the
+line under the constraint's. Where the solve reads one mate's references, the
 fault reaches that mate alone; the placer fails in its own right and
 states the cause on its own row, and the mate points there.
 
 ## Until the intent refactor lands
 
 These clauses describe the code as it stands, in the model DESIGN
-`[placement]` and `[assertions]` replace; each goes when the INTENT unit
-that retires it lands.
+`[placement]` and `[assertions]` replace; each part goes when the INTENT
+unit that retires it lands.
 
 **A3 — The node vocabulary; mates are declarations.**
-`Node::InstantiatePart { doc_ref, interface, gauge, offset }`
-instantiates a pinned document; it names its gauge and may carry an
-offset in it (A11 (2)). Repetition is an index variable (D10,
+`Node::InstantiatePart { doc_ref, interface, constraints }` instantiates
+a pinned document, and is a placement: its one output `copies` is the
+part's world copies, each keyed by its identity in the part
+(`CopyKey`), moved together by the motion its constraints pin. A reader
+of one copy reads it by its key (`BodyRead::key`); a selection names a
+face of it by the part-local name path, wrapped at the instance.
+`Node::Place { shapes, constraints }` copies the bodies it reads, one
+output of their shape. The world, `Node::World`, is minted with every
+document, defines no variable, and is read only by a placement's
+constraints and by export. Repetition is an index variable (D10,
 Repetition): a placement whose reads reach an index places one copy per
 value of it, and no node is a pattern.
 
-`Node::Mate { a, b, class, alignment }` is one contact declaration that
-also places:
+A placement's `constraints` are its bundle, each a `Constraint { id,
+mate }` addressed by its placement and the id minted with it
+(`MateRef`), never by its position. A `Mate { a, b, class, alignment }`
+is one contact declaration that also places:
 
-- `a`/`b` each read one `Face` variable (`OperandSlot::Side`): a
+- `a`/`b` are each a `SideRead`: a `Face` read (`OperandSlot::Side`, a
   selection of the body the side is read in by an instance-qualified
-  face name (D10). The authored spelling is a `SitedFace`, a
-  `names::FaceName` (whose one constructor is the only way a face name
-  is made) and the node whose body it is read in.
+  face name, D10; the authored spelling is a `SitedFace`), the copy
+  itself (`Copy`), or the world (`World`). One side is on the copy its
+  placement defines (else `MateFault::NotOnTheCopy`); the other is its
+  target.
 - `class` is the kernel `topo::ContactClass`.
 - `alignment` is an `Alignment`: two `MateFrame`s, a `MatePrimitive`,
   and an authored `AxisSense` (so no π-flip is inferred). Each
   `MateFrame` is a base composed with an offset, a `Placement` written
   in the base's frame (the empty chain by default); the base is the
-  side's part frame, or the face base (`FrameBase::Face`), which names
-  no face and is its side's own head face. The `MatePrimitive` names only the residual
+  side's part frame, the face base (`FrameBase::Face`), which names no
+  face and is its side's own head face, or the world's frame
+  (`FrameBase::World`). The `MatePrimitive` names only the residual
   subgroup and carries no number: `FrameCoincidence`,
-  `Coaxial { roll: Free | Pinned }`, `PlanarRest`.
+  `Coaxial { roll: Free | Pinned }`, `PlanarRest`. A copy pinned to the
+  world at a pose is one coincidence of the world's frame, moved by the
+  pose, with the copy's own (`Mate::world_pin`).
 
 Every number that says where the two sides meet lives in the sides'
 offsets: the roll about a shared axis is a rotation in an offset, and a
@@ -423,7 +491,8 @@ pinned coaxial's roll is the angle between the two sides' resolved
 references, so no primitive can be written that the table has no row
 for.
 
-Evaluation mints each mate's declaration into the product's
+Evaluation mints the declaration of each constraint whose two face
+sides read copies of the space being gathered into the product's
 `ContactRecords`, the same currency as the boolean wrapper's;
 declarations are verified, never trusted. `class_admission` is the one
 table both the solve and the mint door read: `Rest` solves and mints;
@@ -435,8 +504,7 @@ and unbuilt `Fit { gap }`, refuses at the solve door.
 
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
 (`product::product_recorded`), which mints every solved mate's
-declaration as a `MintedDeclaration` (declaring mates mint like
-determining ones) and runs the scalar's at-rest policy,
+declaration as a `MintedDeclaration` and runs the scalar's at-rest policy,
 `topo::validate_pseudomanifold`'s census, over body plus records, once,
 keeping its findings on the product (`Product::census`); the gate reads
 them and runs no census of its own. A mate places and never checks (D10):
@@ -550,75 +618,6 @@ typed error. The partition takes interference verdicts only: a press
 fit whose pin is flush with its plate also touches at the coplanar
 caps, which the gather records as rows of the two copies.
 
-**A9 — Relative freedom is component structure.** Two instances are
-relatively unconstrained exactly when they lie in different connected
-components of the recipe under its reads and its gauge references
-(`relative_freedom_components`); no solver, no geometry. Evaluation
-stays deterministic, and every placed group has a world pose, so the
-placed part of an assembly is one body. A group nothing places lives in
-its own space (A11 (2)): nothing outside it is compared with it, and it
-is not part of that body. The viewer's free-move probe is display state,
-never persisted (`crates/viewer/src/display.rs`).
-
-**A11 (2)–(4)** (the rest of A11 is under [The constructive-solve boundary](#the-constructive-solve-boundary)).
-
-**(2) Placement lives on a gauge.** A gauge is a document node that
-holds a placement and denotes no body. Each instance names its gauge,
-the world by default, and may carry an offset in it; its world pose is
-its gauge's frame composed with its offset. A gauge names its parent
-gauge in turn, the world by default, and its frame is its parent's frame
-composed with its placement, so gauges nest.
-
-A placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a chain of
-steps, each either a rigid step of `Expr`s (the translation, rotation
-axis and rotation angle, the same type `Node::Transform` holds) or a
-literal proper matrix held to A6, so a document parameter can drive
-where a group of parts sits.
-
-Mates place instances relative to one another only within one gauge;
-contact between groups on different gauges is declared and verified at
-the at-rest gate, never placed, and copying one part's gauge to another
-and mating them is one edit. A further statement of where a placed
-instance sits is verified against the solve, never trusted and never
-silently ignored.
-
-No edit records a frame: deleting a mate, an instance or a gauge is
-never refused for the placement it removes, what is placed is recomputed
-from what remains, and replay re-applies the edits alone, without
-solving.
-
-A group nothing places (its gauge, its placed member or its placing
-mate deleted) lives in its own space until it is placed again (Ev,
-`[ev]` #3441, 2026-09-29). It keeps its shape and is evaluated in its
-own frame, with its earliest instance at that frame's origin; nothing
-outside the group is compared with it, so the at-rest gate and
-cross-group measures do not ask, while everything inside it solves and
-checks as usual. STEP export writes the world; an empty world refuses,
-naming the unplaced bodies, and so does a world placement whose body is
-gone. The viewer draws such a group where it was last shown, as display
-state that no logic reads (G3's free-move probe, widened to a whole
-group); placing it where it is shown is one edit whose frame the user
-supplies.
-
-**(3) Roots.** A group's tree is rooted at its earliest member carrying
-an offset when its gauge chain is live, and at its earliest instance in
-document order otherwise, a convention that decides nothing a user
-placed.
-
-**(4) Tree mates determine; the rest declare.** `solve_document` takes
-the deterministic spanning tree rooted at the group's root. Tree mates
-DETERMINE and must fold to `Trivial` (an UNDER tree edge refuses naming
-the residual subgroup, recourse `UNDER_RECOURSE`); non-tree mates
-DECLARE and are only verified by the gate. No cycle is ever solved; an
-inconsistent loop dies at its closing mate's verification
-(`MateFault::Contradictory`, recourse `CONTRADICTORY_RECOURSE`). The
-solve is total and per-node: a refusing group faults its own mate and
-instances (`SolvedPoses::fault`), nothing else. The solve states where
-each instance is and what each mate decides, never that a product
-exists: whether the document has a product is the gather's question
-alone (A10), so a product refusal is not a mate fault, and a
-document can solve whole and still have no product.
-
 ## Open questions
 
 - **AQ1 — the document store.** Built: `pncad::Workspace`, a directory
@@ -633,9 +632,8 @@ document can solve whole and still have no product.
   contact class and C6's `Fit` (INTENT stage 4). Until then, answered in the kernel:
   the trilean verdict and the designed-clearance steer toward `Fit`
   (`fit_steer` in `crates/topo/src/boolean/contact_verify.rs`).
-- **AQ8 — the crossing record's reachability.** A placing mate welds
-  its ends into one group and never crosses a cut; a declaring mate
-  (its ends on different gauges) may, and populates `InterfaceRecord`,
+- **AQ8 — the crossing record's reachability.** A kept constraint whose
+  target is a cut copy crosses the cut, and populates `InterfaceRecord`,
   so no conversion door is needed. **Only a mate both of whose sides
   resolve to members can cross** (ruled: option (b), SKIP): a mate a
   side of which resolves to no member — a head outside A11's member vocabulary, or a
@@ -645,4 +643,4 @@ document can solve whole and still have no product.
   state, which this design forbids. The mate stays in the document and
   its names rebind like any other (N5); it says nothing about the seam.
   The split collector gates on `member_of` for both sides, the same
-  predicate A11's groups ask.
+  predicate the solve's member walk asks.

@@ -55,7 +55,7 @@ fn the_spike_document_becomes_a_drawable_scene() {
     let tol = Tol::witness();
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     assert_eq!(
-        doc.ids().len(),
+        doc.len(),
         4,
         "the sketch frame, one profile node, one extrude and its placement"
     );

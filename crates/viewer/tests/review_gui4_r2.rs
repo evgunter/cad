@@ -55,6 +55,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let bench = asm::bench("r2oracle", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world pin off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
@@ -140,6 +142,8 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let bench = asm::bench("r2seatgeom", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world pin off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
@@ -162,10 +166,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &up, &view)
         .expect("the pick answers")
         .expect("something hangs under the shelf");
-    assert_eq!(
-        under.node, bench.post_b_copy,
-        "the post seated under the shelf"
-    );
+    assert_eq!(under.node, bench.post_b, "the post seated under the shelf");
     assert!(
         (under.point.z - (-asm::POST_HEIGHT)).abs() < 1e-9,
         "its bottom cap sits one post-height below the shelf's \
@@ -178,7 +179,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
         .expect("the pick answers")
         .expect("the shelf is still there");
-    assert_eq!(over.node, bench.shelf_copy);
+    assert_eq!(over.node, bench.shelf_i);
     assert!(
         (over.point.z - asm::SHELF_THICKNESS).abs() < 1e-9,
         "the shelf's top face is untouched: z = {}",
@@ -233,7 +234,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         .pick_for(eval, &asm::down_at(0.11, 0.07), &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the drawn-position ray");
-    assert_eq!(hit.node, bench.post_b_copy);
+    assert_eq!(hit.node, bench.post_b);
     assert!(
         (hit.point.x - 0.11).abs() < 1e-9
             && (hit.point.y - 0.07).abs() < 1e-9
@@ -264,7 +265,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0, 0.025),
     );
-    assert_eq!(side.node, bench.post_b_copy, "the side ray hit post_b");
+    assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
     assert_ne!(side.name, top.name, "two different faces");
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
@@ -274,23 +275,25 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         matches!(
             tool.proposal(doc, eval, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
-                if head.id() == bench.post_b_copy
+                if head.id() == bench.post_b
         ),
         "a mate needs a PAIR of instances"
     );
 }
 
-/// **A second, contradictory mate on the same pair fails typed and is
-/// recoverable.** The document door accepts the edit (it is a legal
-/// recipe); evaluation refuses the pair's empty coset intersection
-/// with a typed fault on a mate row; undo restores the working
-/// document. No crash, no silent success.
+/// **A second mate on the same pair refuses typed and is recoverable.**
+/// The first mate pins post_b, so a second one, at a contradicting
+/// alignment, is a mate beyond the pin: the door refuses it
+/// `Overconstrained` and commits nothing; undo then takes the first
+/// one off. No crash, no silent success, no silent drop.
 #[test]
-fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
+fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
     let tol = Tol::witness();
     let bench = asm::bench("r2contra", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world pin off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
     tool.pick(session.doc(), b.clone());
@@ -332,28 +335,34 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
         class: ContactClass::Rest,
         alignment: shifted,
     });
-    assert!(
-        outcome.refusal.is_none(),
-        "the recipe accepts the edit; evaluation is where it fails: {:?}",
-        outcome.refusal
-    );
+    // post_b's bundle already pins it, so the second mate is a mate
+    // beyond the pin: the door refuses it typed and commits nothing.
+    assert!(outcome.committed.is_empty(), "nothing was committed");
+    match &outcome.refusal {
+        Some(Refusal::Edit(error)) => assert!(
+            matches!(
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, .. }
+                            if *placement == bench.post_b
+                    )
+            ),
+            "the second mate is overconstrained: {error}"
+        ),
+        other => panic!("a mate beyond the pin refuses, got {other:?}"),
+    }
     session.pump();
-    let rows = session.tree_rows();
-    let failed: Vec<_> = rows
-        .iter()
-        .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
-        .collect();
-    assert!(
-        !failed.is_empty(),
-        "a contradictory pair must fail SOME row typed; all rows: {rows:?}"
-    );
-    for row in &failed {
-        if let RowStatus::Failed { message, .. } = &row.status {
-            assert!(!message.is_empty(), "the fault carries a message");
-        }
+    for row in session.tree_rows() {
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "the refused mate left no trace: {row:?}"
+        );
     }
 
-    // Undo removes the contradiction; the assembly works again.
+    // Undo removes the first mate; the assembly works again.
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -373,6 +382,8 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     let bench = asm::bench("r2gesture", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world pin off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
@@ -419,6 +430,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let bench = asm::bench("r2hidemate", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world pin off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
@@ -496,7 +509,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     // upward ray finds the SHELF's underside, not the seated post.
     let under = asm::shelf_underside(&session);
     assert_eq!(
-        under.node, bench.shelf_copy,
+        under.node, bench.shelf_i,
         "the seated post stays hidden at its new placement"
     );
 }
@@ -564,7 +577,7 @@ fn the_threaded_seam_resolves_the_assembly_too() {
     }
     assert!(!session.busy(), "the threaded run lands");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 6, "three instances and their placements");
+    assert_eq!(rows.len(), 3, "three instances, each its own placement");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

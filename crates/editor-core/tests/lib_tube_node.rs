@@ -777,11 +777,10 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
         let ev = eval::<f64>(&d.doc);
         assert!(failures(&ev).is_empty(), "{what}: {:?}", failures(&ev));
         let id = d.result.expect("a result node");
-        let value = ev.value(id).expect("a value");
         let body = body_of(&ev, id);
         let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
         assert_eq!(
-            value.name_table.len(),
+            ev.table_at(id).expect("a table").len(),
             entities,
             "{what}: every face, edge and vertex plus the body itself is named — an \
              emitter that skipped one would leave a silent naming dead end"
@@ -868,6 +867,11 @@ fn both_kinds_round_trip_through_persistence() {
 /// mismatch (`ToleranceConflict`) — without the re-stamp this row
 /// would pass vacuously on every CI ε row but one, asserting the
 /// tolerance door rather than the vocabulary one.
+///
+/// An edit of the log that inserts a node of a retired kind
+/// (`PlaceInWorld`, `Gauge`, `Mate`) is taken out before the load: a
+/// document holding retired vocabulary does not load at all, and this
+/// row is about the vocabulary growing, not about the one shrinking.
 #[test]
 fn a_document_written_before_the_tube_vocabulary_still_loads() {
     const OLDER: &str = include_str!("corpus/tour/die_composed_tour.pncad");
@@ -904,6 +908,17 @@ fn a_document_written_before_the_tube_vocabulary_still_loads() {
         })
         .collect::<Vec<String>>()
         .join("\n");
+    let text = crate::wire::doctored(&text, |wire| {
+        wire["edits"]
+            .as_array_mut()
+            .expect("the log is a list")
+            .retain(|edit| {
+                let node = &edit["InsertNode"]["node"];
+                ["PlaceInWorld", "Gauge", "Mate"]
+                    .iter()
+                    .all(|kind| node.get(kind).is_none())
+            });
+    });
     let loaded = load(&text, Tol::witness()).expect("an older document loads");
     assert!(
         !loaded.doc.ids().is_empty() || !loaded.edits.is_empty(),

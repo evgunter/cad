@@ -505,7 +505,7 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
     let quarter = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(core::f64::consts::FRAC_PI_2),
     ));
     // The block: x ∈ [-2.5, -2.1], y ∈ [0, 1], z ∈ [-0.2, 0.2], placed
@@ -594,7 +594,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let quarter = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(core::f64::consts::FRAC_PI_2),
     ));
     // The block: x ∈ [-2.5, -2.1], y ∈ [-0.2, 0.2] (placed), z ∈ [0, 1].

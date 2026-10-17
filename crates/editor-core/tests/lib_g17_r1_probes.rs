@@ -148,7 +148,7 @@ fn designating_a_side_wall_opens_the_cup_on_its_side() {
     match ev.nodes.get(&n) {
         Some(NodeResult::Ok(_)) => {
             let b = body_of(&ev, n);
-            let table = &ev.value(n).unwrap().name_table;
+            let table = ev.table_at(n).unwrap();
             let rims: Vec<_> = table
                 .iter()
                 .filter(|(nm, _)| matches!(nm.path.first(), Some(RoleSeg::Rim(_))))
@@ -196,7 +196,7 @@ fn the_rim_follows_a_rebound_designation() {
     .doc;
     let ev = eval::<f64>(&out);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let table = &ev.value(shell).unwrap().name_table;
+    let table = ev.table_at(shell).unwrap();
     let rim = StableName {
         kind: EntityKind::Face,
         node: shell,

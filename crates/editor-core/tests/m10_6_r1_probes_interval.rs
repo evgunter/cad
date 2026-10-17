@@ -61,8 +61,8 @@ use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason, UnitSym,
-    ValuePayload, VarName, evaluate,
+    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason, UnitSym, ValuePayload,
+    VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -96,7 +96,6 @@ fn eval_over<T: editor_core::EvalScalar>(
 ) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())

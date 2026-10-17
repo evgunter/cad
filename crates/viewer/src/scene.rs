@@ -863,11 +863,12 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         tol,
     )?;
     // The plate is the product because it is placed (A10).
-    let (doc, _) = insert(
-        doc,
-        Node::place_in_world(extrude, pncad::document::Placement::IDENTITY),
-        tol,
-    )?;
+    let DocEdit::InsertNode { node: placed, .. } =
+        DocEdit::<ProfileProgram>::place_in_world(extrude, None)
+    else {
+        unreachable!("`DocEdit::place_in_world` is an insert")
+    };
+    let (doc, _) = insert(doc, *placed, tol)?;
     Ok((doc, extrude))
 }
 
@@ -1536,9 +1537,9 @@ fn insert(
     node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    // The scene's document has no instance and no mate, so no edit
-    // here asks a mate's admission: the refusing reach is never
-    // asked.
+    // The scene's document has no instance, and its one constraint
+    // pins the plate to the world, which reads no part: the refusing
+    // reach is never asked.
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {

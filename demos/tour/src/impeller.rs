@@ -152,9 +152,14 @@ fn blade_polygon() -> LoopProgram<Formula> {
 /// `blades` is the scene's whole edit.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
-        .expect("the impeller places")
-        .doc
+    apply(
+        &r.doc,
+        &DocEdit::place_in_world(r.solid, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the impeller places")
+    .doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {
@@ -287,9 +292,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let mut evs: Vec<(i64, Evaluation<f64>, String)> = Vec::new();
     let first = evaluate::<f64>(&doc, None, &cancel, &opts, tol);
     let names_at_first = first
-        .value(r.group)
+        .table_at(r.group)
         .expect("the blade group evaluates")
-        .name_table
         .len();
     evs.push((
         COUNTS[0],
@@ -330,9 +334,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let names: Vec<usize> = evs
         .iter()
         .map(|(_, ev, _)| {
-            ev.value(r.group)
+            ev.table_at(r.group)
                 .expect("the blade group evaluates")
-                .name_table
                 .len()
         })
         .collect();

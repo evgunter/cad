@@ -21,12 +21,12 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
+    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Mate, Node, NodeResult,
+    ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
     product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::source::{ItemBody, blanked, code_only, item_body, required_matches};
@@ -142,6 +142,12 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
     };
     match &mut value.payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        // An instance's copies: the part product as the one body the
+        // gather grafts.
+        ValuePayload::Copies(copies) => match Arc::make_mut(copies).bodies.as_mut_slice() {
+            [body] => body,
+            other => panic!("node {node:?} holds {} bodies, not one", other.len()),
+        },
         other => panic!("node {node:?} is not a body: {other:?}"),
     }
 }
@@ -223,25 +229,21 @@ fn a_lone_multi_solid_source_is_named() {
     let p = store.insert(part("per-part-3-p"), Tol::witness());
     let mut sub = ProfileDoc::empty(DocumentId::derive("per-part-3-b"), Tol::witness());
     for dx in [0.0, 3.0] {
-        let (next, id) = insert(sub, Node::instantiate_part(p));
-        let (next, _) = step(
+        let (next, id) = insert(sub, fixture::mated_instance(p));
+        sub = fixture::constrain_at(
             next,
-            DocEdit::SetOffset {
-                instance: id,
-                offset: Some(editor_core::Placement::literal(&Frame::translation([
-                    dx, 0.0, 0.0,
-                ]))),
-                fresh: Vec::new(),
-            },
-        );
-        sub = fixture::place(next, id).0;
+            id,
+            Mate::world_pin(editor_core::Placement::literal(&Frame::translation([
+                dx, 0.0, 0.0,
+            ]))),
+        )
+        .0;
     }
     let b = store.insert(sub, Tol::witness());
-    let (doc, instance) = insert(
+    let (doc, source) = insert(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
         Node::instantiate_part(b),
     );
-    let (doc, source) = fixture::place(doc, instance);
     let mut ev = fixture::run(&doc, &with_resolver(store));
     assert_eq!(
         flip_one_face(&mut ev, source),

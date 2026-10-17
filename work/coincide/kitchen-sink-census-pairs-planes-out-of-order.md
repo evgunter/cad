@@ -6,13 +6,22 @@ status: open
 opened: 2026-10-10
 priority: P3
 cost: M
-refs: [the-from-f64-gate-reads-every-generic-crate]
+refs: [the-from-f64-gate-reads-every-generic-crate, under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move]
 ---
 
 
 `crates/editor-core/tests/revalue_corpus.rs`'s `revalue_census`, with
 `REVALUE_TIER=off REVALUE_DOC=kitchen_sink` in release, reads `laundered
-{bool_plane_parallel}` at decisions #2989–#2993. The mismatches are
+{bool_plane_parallel}` at decisions #2989–#2993.
+
+(EDIT, 2026-10-17, PR 5247.) `REVALUE_TIER` is gone. Every census build
+now runs in the coincidence door's replay session
+(`editor_core::coincide::with_replay_session`: deferring, 256 terms,
+guided lift), so `REVALUE_DOC=kitchen_sink` replays a different session,
+and the decision indices above may not reproduce as given. Re-read them
+there before working this. The same class, an order swap read as a
+laundering, turned up on boss_union under the guided lift:
+`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`. The mismatches are
 about 1e-7 relative.
 
 - The re-valued #2992 equals the `p1` build's #2989 bit for bit

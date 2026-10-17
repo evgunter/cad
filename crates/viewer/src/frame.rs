@@ -757,6 +757,7 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Hover(_) => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -867,6 +868,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Hover(_)
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1516,9 +1518,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // A fold's dropped label is said nowhere else: the gauge is
-        // gone, and nothing evaluates a label.
-        Maintenance::LabelDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1528,10 +1527,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
-        // The mate door's offset clear is what inserting the mate
-        // means — the joined group stands on the one it joined — and
-        // the mate the person just placed is its notice.
-        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -2394,7 +2389,7 @@ fn coincidence_cells(
                 };
                 Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => {
+            NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
                 Some((by.node(node).to_string(), Selection::Node(node)))
             }
@@ -2552,7 +2547,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
-        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -3465,6 +3459,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3506,7 +3501,6 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3563,7 +3557,6 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedPlacement,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3622,6 +3615,21 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
+    /// A constraint numbered `n`, held by placement `n + 100`, as a
+    /// [`AdmissionFault::MateConstrained`] lists it.
+    fn constraint_of(n: u64) -> (pncad::document::SpokenNode, pncad::document::ConstraintId) {
+        (
+            crate::test_support::spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(n + 100)),
+                Some("Place"),
+            ),
+            pncad::document::ConstraintId(pncad::document::MintId::new(
+                0,
+                test_utils::refusal::tagged(n),
+            )),
+        )
+    }
+
     /// A withdrawal on `instance`, mate-constrained by `mates` — the
     /// commonest arm, and the one whose `Display` carries a remedy.
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
@@ -3632,15 +3640,7 @@ mod tests {
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                mates: mates
-                    .iter()
-                    .map(|&mate| {
-                        crate::test_support::spoken(
-                            RecipeNodeId::new(0, test_utils::refusal::tagged(mate)),
-                            Some("Mate"),
-                        )
-                    })
-                    .collect(),
+                mates: mates.iter().map(|&mate| constraint_of(mate)).collect(),
             },
         }
     }
@@ -3696,10 +3696,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
-            mates: vec![crate::test_support::spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
-                Some("Mate"),
-            )],
+            mates: vec![constraint_of(5)],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -3854,12 +3851,15 @@ mod tests {
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
         let one = superseded_text(&[constrained(3, &[5])]).expect("one supersession is news");
+        let (placement, _) = constraint_of(5);
         assert_eq!(
             one,
-            "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
-             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended"
+            format!(
+                "free move: a committed placement was discarded — \
+                 InstantiatePart 000000000003 is mate-constrained (a constraint of \
+                 {placement}): its pose is mate-derived, so the free-move probe refuses — \
+                 delete the mate(s) if free relative motion is intended"
+            )
         );
 
         let two = [constrained(3, &[5]), constrained(11, &[5])];
@@ -4042,6 +4042,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into(),
             },

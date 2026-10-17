@@ -570,13 +570,12 @@ test_utils::f6_variants! {
         Union,
         Intersect,
         Transform,
-        PlaceInWorld,
+        Place,
+        World,
         Pattern,
         Part,
         PlacedUnion,
         InstantiatePart,
-        Gauge,
-        Mate,
         Measure,
         Assertion,
     ];
@@ -594,6 +593,14 @@ type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
     RecipeNodeId::new(0, n)
+}
+
+/// A constraint holding `mate` under the id minted at `n`.
+fn constraint(n: u64, mate: editor_core::Mate<Formula>) -> editor_core::Constraint<Formula> {
+    editor_core::Constraint {
+        id: editor_core::ConstraintId(editor_core::MintId::new(0, n)),
+        mate,
+    }
 }
 
 fn datum_shapes() -> Vec<Datum<Formula>> {
@@ -644,8 +651,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(1.0), scl(0.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::zero(Dimension::Angle),
             angle: ang(1.0),
         },
         Node::Tube {
@@ -736,22 +743,31 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             input: nid(1).into(),
             placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
-        // A world placement at the identity: its pose is an empty chain.
-        Node::PlaceInWorld {
-            body: nid(1).into(),
-            pose: Placement::IDENTITY,
+        // A world placement at the identity: its pin's pose is an empty
+        // chain.
+        Node::Place {
+            shapes: vec![nid(1).into()],
+            constraints: vec![constraint(
+                1,
+                editor_core::Mate::world_pin(Placement::IDENTITY),
+            )],
         },
         // A world placement at a pose of its own: one rigid step.
-        Node::PlaceInWorld {
-            body: nid(1).into(),
-            pose: Placement {
-                steps: vec![Step::Rigid {
-                    translation: [len(2.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.25),
-                }],
-            },
+        Node::Place {
+            shapes: vec![nid(1).into()],
+            constraints: vec![constraint(
+                1,
+                editor_core::Mate::world_pin(Placement {
+                    steps: vec![Step::Rigid {
+                        translation: [len(2.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.25),
+                    }],
+                }),
+            )],
         },
+        // The world: no slot at all.
+        Node::World,
     ]);
     for kind in [
         PatternKind::Linear {
@@ -793,50 +809,62 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
-            gauge: None,
-            offset: Some(Placement::from(Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            })),
+            constraints: vec![constraint(
+                1,
+                editor_core::Mate::world_pin(Placement::from(Step::Rigid {
+                    translation: [len(1.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                })),
+            )],
         },
-        Node::gauge(
-            None,
-            Step::Rigid {
-                translation: [len(0.0), len(2.0), len(0.0)],
-                axis: [scl(1.0), scl(0.0), scl(0.0)],
-                angle: ang(0.25),
-            },
-        ),
-        Node::Mate {
-            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))).into(),
-            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: MateFrame::authored(
-                    [0.0; 3],
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 0.0],
-                    geom_core::Tol::witness(),
-                )
-                .expect("a definite frame"),
-                // A face base whose offset is a literal then a rigid
-                // step: the rigid step's slots carry the side and the
-                // step's own index.
-                b: MateFrame::on_face(
-                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
-                        &Step::Rigid {
-                            translation: [len(0.5), len(0.0), len(0.0)],
-                            axis: [scl(0.0), scl(0.0), scl(1.0)],
-                            angle: ang(0.5),
-                        }
-                        .into(),
+        // A placement whose bundle is a world pin and a mate onto a
+        // face: each constraint's slots carry its own id.
+        Node::Place {
+            shapes: vec![nid(2).into()],
+            constraints: vec![
+                constraint(
+                    1,
+                    editor_core::Mate::world_pin(Placement::from(Step::Rigid {
+                        translation: [len(0.0), len(2.0), len(0.0)],
+                        axis: [scl(1.0), scl(0.0), scl(0.0)],
+                        angle: ang(0.25),
+                    })),
+                ),
+                constraint(
+                    2,
+                    fixture::mate(
+                        crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
+                        crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+                        ContactClass::Rest,
+                        Alignment {
+                            a: MateFrame::authored(
+                                [0.0; 3],
+                                [0.0, 0.0, 1.0],
+                                [1.0, 0.0, 0.0],
+                                geom_core::Tol::witness(),
+                            )
+                            .expect("a definite frame"),
+                            // A face base whose offset is a literal then a
+                            // rigid step: the rigid step's slots carry the
+                            // constraint, the side and the step's own index.
+                            b: MateFrame::on_face(
+                                Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                                    &Step::Rigid {
+                                        translation: [len(0.5), len(0.0), len(0.0)],
+                                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                                        angle: ang(0.5),
+                                    }
+                                    .into(),
+                                ),
+                            ),
+                            primitive: MatePrimitive::Coaxial,
+                            sense: AxisSense::Aligned,
+                            clocking: None,
+                        },
                     ),
                 ),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
+            ],
         },
         Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {

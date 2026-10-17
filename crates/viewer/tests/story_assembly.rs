@@ -43,7 +43,7 @@ use common::asm;
 use common::{body_volume, near};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Resolution, RunCtx, face_frame, resolve};
+use pncad::select::{Resolution, RunCtx, face_frame};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
@@ -240,8 +240,8 @@ fn the_windmill_story() {
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     assert_eq!(
         session.doc().ids().len(),
-        2,
-        "the slip is off the path: the tower and its placement"
+        1,
+        "the slip is off the path: the tower, its own placement"
     );
     let abandoned = session
         .history()
@@ -265,14 +265,14 @@ fn the_windmill_story() {
         "the slip's branch is still a child"
     );
     assert_eq!(
-        history.entry(abandoned).doc().ids().len(),
-        4,
-        "the abandoned two-tower document is intact, each tower placed"
+        history.entry(abandoned).doc().len(),
+        2,
+        "the abandoned two-tower document is intact, each tower its own placement"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 2);
+    assert_eq!(session.doc().ids().len(), 1);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -396,7 +396,7 @@ fn the_windmill_story() {
     );
     assert!(
         matches!(
-            resolve(RunCtx { doc, eval }, &hit.name),
+            crate::fixture::resolve_at_mint(RunCtx { doc, eval }, &hit.name),
             Resolution::Resolved(_)
         ),
         "a just-picked name resolves in the run it was picked from"
@@ -465,6 +465,8 @@ fn the_windmill_story() {
         tool.proposal(doc, eval, asm::seat_choice())
             .expect("the seat proposes")
     };
+    // The hub's world pin off, so the seat places the hub.
+    asm::unpin(&mut session, hub_i);
     let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
@@ -491,9 +493,7 @@ fn the_windmill_story() {
     );
     assert!(session.display().free_move_of(hub_i).is_none());
     session.pump();
-    let seat_mate = *session
-        .committed_doc()
-        .ids()
+    let seat_mate = *common::mates_in(session.committed_doc())
         .last()
         .expect("the mate landed");
 
@@ -520,11 +520,11 @@ fn the_windmill_story() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session
-            .tree_rows()
+        common::row_of(&session.tree_rows(), hub_i)
+            .constraints
             .iter()
-            .any(|row| row.spoken.kind() == Some("Mate")),
-        "the mate has a row"
+            .any(|child| child.mate == seat_mate),
+        "the mate is a child of the hub's row"
     );
     assert_eq!(
         session.at_rest(),
@@ -546,7 +546,10 @@ fn the_windmill_story() {
         }))) => {
             assert_eq!(instance.id(), hub_i);
             assert!(
-                mates.iter().any(|mate| mate.id() == seat_mate),
+                mates
+                    .iter()
+                    .any(|(placement, id)| (placement.id(), *id)
+                        == (seat_mate.placement, seat_mate.id)),
                 "the refusal names the mate"
             );
         }
@@ -558,18 +561,14 @@ fn the_windmill_story() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(
-        session.doc().node(seat_mate).is_none(),
+        !common::mates_in(session.doc()).contains(&seat_mate),
         "undo removes the mate"
     );
-    assert_eq!(
-        session.tree_rows().len(),
-        4,
-        "two instances and their placements again"
-    );
+    assert_eq!(session.tree_rows().len(), 2, "the two instances again");
     session.perform(SessionOp::Redo);
     session.pump();
     assert!(
-        session.doc().node(seat_mate).is_some(),
+        common::mates_in(session.doc()).contains(&seat_mate),
         "redo restores the mate"
     );
     for row in session.tree_rows() {
@@ -642,6 +641,8 @@ fn the_windmill_story() {
         tool.proposal(doc, eval, asm::seat_choice())
             .expect("the first sail proposes")
     };
+    // The first sail's world pin off, so its mate places it.
+    asm::unpin(&mut session, sail_a);
     let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
@@ -721,6 +722,8 @@ fn the_windmill_story() {
         chosen.alignment.b = asm::authored_from_world(&hub_placed, &wall, candidate);
         chosen
     };
+    // The second sail's world pin off, so its mate places it.
+    asm::unpin(&mut session, sail_b);
     let outcome = session.perform(SessionOp::AddMate {
         a: sail_b_proposal.a.clone(),
         b: sail_b_proposal.b.clone(),
@@ -764,8 +767,8 @@ fn the_windmill_story() {
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
-        11,
-        "four instances, their four placements and three mates"
+        4,
+        "four instances, each its own placement, the mates their children"
     );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -860,9 +863,9 @@ fn the_windmill_story() {
         clocked.committed
     );
     assert_eq!(
-        session.doc().ids().len(),
-        11,
-        "the history holds the four placed instances and three mates it held before"
+        session.doc().len(),
+        4,
+        "the history holds the four placed instances it held before, their mates in their bundles"
     );
     session.pump();
     for row in session.tree_rows() {
@@ -883,7 +886,7 @@ fn the_windmill_story() {
         "save → reopen is bit-identity on the document"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 11, "the whole recipe came back");
+    assert_eq!(rows.len(), 4, "the whole recipe came back");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

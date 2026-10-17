@@ -950,6 +950,11 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
                 Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
+            // An instance's copies as one body — its part's world — carry
+            // the declarations that part's product minted.
+            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
+                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
+            }
             _ => Body::plain(Arc::clone(body)),
         }
     }
@@ -967,8 +972,9 @@ impl Value {
 
     /// The single body this value denotes.
     ///
-    /// Accepts `Body` and a non-empty `Boolean`; raises for every
-    /// other kind, and for an empty Boolean.
+    /// Accepts `Body`, a non-empty `Boolean`, and `copies` that are one
+    /// body (an instance whose part's world is one body); raises for
+    /// every other kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
             d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
@@ -981,6 +987,9 @@ impl Value {
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
+            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
+                Ok(self.recorded_body(&copies.bodies[0]))
+            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
@@ -991,7 +1000,8 @@ impl Value {
     }
 
     /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances`, both sides for a `Split`.
+    /// whole list for `Instances` and for `copies`, both sides for a
+    /// `Split`.
     fn bodies(&self) -> Vec<Body> {
         let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
@@ -1002,6 +1012,7 @@ impl Value {
             d::ValuePayload::Body(body) => vec![wrap(body)],
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => vec![wrap(body)],
             d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
+            d::ValuePayload::Copies(copies) => copies.bodies.iter().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
@@ -1372,7 +1383,8 @@ impl Evaluation {
         self.inner.value(node.0).is_some()
     }
 
-    /// The evaluation order.
+    /// The evaluation order: every node the evaluation ran or would
+    /// run, the world (`Doc.world`) among them.
     fn order(&self) -> Vec<NodeId> {
         self.inner.order.iter().copied().map(NodeId).collect()
     }
@@ -1396,25 +1408,27 @@ impl Evaluation {
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
-    fn all_edges(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_edges(&self.inner, node.0))
+    fn all_edges(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_edges(&self.inner, node.at()))
     }
 
     /// Every FACE name of `node`'s output, [`Self::all_edges`]'s
     /// sibling — same contract, same alphabet.
-    fn all_faces(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_faces(&self.inner, node.0))
+    fn all_faces(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_faces(&self.inner, node.at()))
     }
 
     /// Every VERTEX name of `node`'s output, same contract.
-    fn all_vertices(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_vertices(&self.inner, node.0))
+    fn all_vertices(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_vertices(&self.inner, node.at()))
     }
 
     /// Every BODY name `node`'s evaluation carries, same contract.
-    /// Usually one row; a split's two halves are the plural case.
-    fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_bodies(&self.inner, node.0))
+    /// Usually one row; a family's members are the plural case. A
+    /// split's halves are two reads (`Doc.output(split, 0 | 1)`) with a
+    /// row each.
+    fn all_bodies(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_bodies(&self.inner, node.at()))
     }
 
     /// **Materialize a STRUCTURAL selection**: every name of `node`'s
@@ -1432,10 +1446,13 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(py, pncad::select::select(&self.inner, node.0, &selector.0))
+        names(
+            py,
+            pncad::select::select(&self.inner, node.at(), &selector.0),
+        )
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1464,7 +1481,7 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
@@ -1472,7 +1489,7 @@ impl Evaluation {
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
         match pncad::select::select_where(
             &self.inner,
-            node.0,
+            node.at(),
             &selector.0,
             &atoms,
             &self.params,
@@ -1510,11 +1527,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.0, &name)
+        pncad::select::face_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1532,11 +1549,11 @@ impl Evaluation {
     fn edge_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::edge_frame(&self.inner, node.0, &name)
+        pncad::select::edge_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1549,11 +1566,11 @@ impl Evaluation {
     fn vertex_position(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<(Length, Length, Length)> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::vertex_position(&self.inner, node.0, &name)
+        pncad::select::vertex_position(&self.inner, node.at(), &name)
             .map(lengths)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1579,11 +1596,11 @@ impl Evaluation {
     fn face_carrier_kind(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::select::SurfaceKind> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_carrier_kind(&self.inner, node.0, &name)
+        pncad::select::face_carrier_kind(&self.inner, node.at(), &name)
             .map(super::select::surface_kind)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1602,11 +1619,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.0, &name)
+        pncad::select::denotation(&self.inner, node.at(), &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1615,8 +1632,8 @@ impl Evaluation {
     /// the question every consumer that keeps names must ask on every
     /// run, and the one Python's whole store-then-reuse story runs on.
     ///
-    /// Answers a `Resolution`, never a raise: "this name is gone" is
-    /// a verdict, not an error, and the three states are kept three
+    /// Answers a `Resolution`: "this name is gone" is a verdict, not
+    /// an error, and the three states are kept three
     /// because their repairs differ. `resolved` carries `node`, `body`
     /// and `kind`; `failed` means rebind (with `offers` as the
     /// kernel's suggestions, never its substitutions); `indeterminate`
@@ -1624,29 +1641,71 @@ impl Evaluation {
     /// failed, was poisoned or never evaluated, so the repair is
     /// upstream and the name resolves again when that node does.
     ///
-    /// **Evaluation-wide**, where `denotation` is node-scoped: this
-    /// searches every table in evaluation order and answers WHICH node
-    /// carries the name, so it resolves for a name `denotation` would
-    /// refuse `no_such_name` for at the node you happened to ask.
+    /// **In one read**, as every name door is (NAMES N1: a name tells
+    /// apart only what its variable holds): `at` is a `Var` — an
+    /// output, `Doc.output(split, port)` for a split's half — or a node,
+    /// read at its one body output. A `Var` the document no longer
+    /// holds answers `failed` / `read_gone`: re-site the reference. A
+    /// node the document no longer holds answers `node_gone` for a
+    /// name it minted, and otherwise raises `SelectRefusal`
+    /// `node_not_held`: the node took its read with it, and a node
+    /// handle cannot say which read that was. A `Var` that is no body
+    /// output (a scalar, a selection, a datum's) raises `SelectRefusal`
+    /// `read_not_an_output`: there is no table to ask. A node with
+    /// several body outputs is a `ValueError`, since which one is meant
+    /// is the caller's to say.
     ///
-    /// The only raise here is the boundary one every name-taking door
+    /// The other raise is the boundary one every name-taking door
     /// shares: text that is not a name at all is a `ValueError`. A
     /// well-formed name that denotes nothing is the `failed` verdict,
     /// which is the whole point of the door.
-    fn resolve(&self, py: Python<'_>, name: &str) -> PyResult<super::resolve::Resolution> {
+    fn resolve(
+        &self,
+        py: Python<'_>,
+        at: super::doc::AtArg,
+        name: &str,
+    ) -> PyResult<super::resolve::Resolution> {
         let name = super::doc::name_from_text(name)?;
-        super::resolve::resolution(
-            py,
-            &pncad::select::resolve(
-                pncad::select::RunCtx {
-                    doc: &self.doc,
-                    eval: &self.inner,
-                },
-                &name,
-            ),
-            &self.doc,
-            &self.inner,
+        let read = match at {
+            super::doc::AtArg::Var(var) => var.0,
+            // A node named alone is its one named output, as in every
+            // name door (`Evaluation::at_var`): a revolve's body beside
+            // its axis; a split's two halves are no one read. A node with
+            // no value this run is read at its one output, if it has one,
+            // and answers its standing.
+            super::doc::AtArg::Node(node) => match self
+                .inner
+                .at_var(node.0)
+                .or_else(|| self.doc.read_of_node(node.0))
+            {
+                Some(read) => read,
+                None => {
+                    match pncad::select::stranded_at(&self.doc, node.0, &name) {
+                        Some(Ok(gone)) => {
+                            return super::resolve::resolution(py, &gone, &self.doc, &self.inner);
+                        }
+                        Some(Err(refusal)) => {
+                            return Err(super::select::resolve_refusal(py, &refusal, &self.doc));
+                        }
+                        None => {}
+                    }
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "{} defines several outputs; resolve in one of them, by `Doc.output`",
+                        self.doc.spoken(node.0)
+                    )));
+                }
+            },
+        };
+        let resolution = pncad::select::resolve(
+            pncad::select::RunCtx {
+                doc: &self.doc,
+                eval: &self.inner,
+            },
+            read,
+            &name,
         )
+        .map_err(|refusal| super::select::resolve_refusal(py, &refusal, &self.doc))?;
+        super::resolve::resolution(py, &resolution, &self.doc, &self.inner)
     }
 
     /// **What is under this ray?** — the nearest face hit across
@@ -1779,17 +1838,24 @@ impl Evaluation {
             .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
-    /// Whether `node`'s value lives in an **unplaced group's own
-    /// space** (A11 (2)): `(root, cause)` — the group, by its root, and
-    /// `no_offset` or `dead_gauge` — or `None` for a node in the world.
-    /// An unplaced group evaluates in its own frame; the product gathers
-    /// only the world, and nothing outside the group is compared with
-    /// it.
-    fn unplaced(&self, node: &NodeId) -> Option<(NodeId, &'static str)> {
-        self.inner
-            .unplaced
-            .get(&node.0)
-            .map(|(root, cause)| (NodeId(*root), crate::tags::unplaced_tag(cause)))
+    /// **Every loose copy**, by its placement, in id order: a
+    /// placement whose bundle pins less than its copy needs, so it
+    /// lives in a space of its own. The product gathers only the
+    /// world's space, and nothing in one space is compared with
+    /// another's.
+    #[getter]
+    fn loose(&self) -> Vec<NodeId> {
+        self.inner.loose_roots().into_iter().map(NodeId).collect()
+    }
+
+    /// **The space `node`'s value lives in**: `"world"`, or the loose
+    /// copy whose space it is, by its placement. A node that denotes no
+    /// geometry answers `"world"`.
+    fn space(&self, py: Python<'_>, node: &NodeId) -> PyResult<Py<PyAny>> {
+        match self.inner.space(node.0) {
+            d::Space::World => Ok(PyString::new(py, "world").unbind().into_any()),
+            d::Space::Loose { root } => Ok(Py::new(py, NodeId(root))?.into_any()),
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -1799,11 +1865,9 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through`, a wrong-kind value adds `kind`, and an unplaced export
-/// adds `parts` — each unplaced part as `(node, root, cause)`, the
-/// cause [`crate::tags::unplaced_tag`]'s word, and a group in a part
-/// below as `(instance, root, cause)`, the instance it arrived through
-/// and its root in the part's own ids. The message is the door's own
+/// `through`, a wrong-kind value adds `kind`, and a loose export adds
+/// `copies` — every loose copy the export would have to write, by its
+/// placement. The message is the door's own
 /// sentence, its nodes spoken from the evaluated document.
 fn export_err(
     py: Python<'_>,
@@ -1826,7 +1890,7 @@ fn export_err(
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
-        ("parts", py.None().into_any()),
+        ("copies", py.None().into_any()),
     ];
     match err {
         E::Standing(standing) => {
@@ -1841,38 +1905,10 @@ fn export_err(
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
-        // A group below: the instance it arrived through, its root in
-        // the part's own id space, and its cause; the whole route is in
-        // the message.
-        E::UnplacedBelow { groups } => {
-            let listed: Vec<(NodeId, NodeId, &'static str)> = groups
-                .iter()
-                .map(|row| {
-                    (
-                        NodeId(row.route.through),
-                        NodeId(row.group),
-                        crate::tags::unplaced_tag(&row.cause),
-                    )
-                })
-                .collect();
+        E::Loose { copies } => {
+            let listed: Vec<NodeId> = copies.iter().copied().map(NodeId).collect();
             match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
-                Err(failed) => return failed,
-            }
-        }
-        E::Unplaced { parts } => {
-            let listed: Vec<(NodeId, NodeId, &'static str)> = parts
-                .iter()
-                .map(|(part, root, cause)| {
-                    (
-                        NodeId(*part),
-                        NodeId(*root),
-                        crate::tags::unplaced_tag(cause),
-                    )
-                })
-                .collect();
-            match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
+                Ok(bound) => fields[4] = ("copies", bound.unbind().into_any()),
                 Err(failed) => return failed,
             }
         }
@@ -2526,7 +2562,6 @@ pub(crate) fn evaluate(
         resolver: resolver
             .map(super::store::Workspace::resolver)
             .or(defaults.resolver),
-        profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
         symbols: defaults.symbols,
@@ -2584,7 +2619,7 @@ impl Coincidence {
                     Cell::Read(Var::of(doc, *input)),
                     Some(super::doc::name_text(py, name)?),
                 )),
-                d::NamedCell::Tool { input } => Ok((Cell::Read(Var::of(doc, *input)), None)),
+                d::NamedCell::Tool { input, .. } => Ok((Cell::Read(Var::of(doc, *input)), None)),
                 d::NamedCell::Piece { profile, piece } => Ok((
                     Cell::Node(NodeId(*profile)),
                     Some(super::doc::piece_text(piece)?),

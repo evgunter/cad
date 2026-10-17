@@ -1,6 +1,6 @@
 //! **The finding's two observed sequences, through the session doors
 //! a user actually drives** — and the invariant they were reported
-//! against: for EVERY node, the solve's blame and the evaluation's
+//! against: for EVERY placement, the solve's blame and the evaluation's
 //! row say the same thing.
 //!
 //! `msolve4_mate_memo` (editor-core) pins the kernel one document at
@@ -20,8 +20,7 @@ use crate::common;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, Evaluation, MateFault, MateRole, Node, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId, ValuePayload,
+    Doc, Evaluation, MateFault, MateRef, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -29,9 +28,8 @@ use viewer::session::{DocSession, SessionOp};
 use viewer::tree::RowStatus;
 
 /// Every disagreement between the solve's blame and the evaluation's
-/// rows, over every live node: a faulted node must be `Failed` with
-/// that exact fault; an unfaulted mate must be `Ok` with the solve's
-/// role.
+/// rows, over every placement: a faulted placement must be `Failed`
+/// with that exact fault; an unfaulted one must be `Ok`.
 fn disagreements(
     session: &DocSession,
     doc: &Doc<ProfileProgram>,
@@ -40,8 +38,7 @@ fn disagreements(
 ) -> Vec<String> {
     let poses = common::solve(session, doc, tol);
     let mut out = Vec::new();
-    for id in doc.ids() {
-        let is_mate = matches!(doc.node(id), Some(Node::Mate { .. }));
+    for id in doc.placements() {
         match (poses.fault(id), ev.result(id)) {
             (Some(fault), Some(NodeResult::Failed(err))) => match &err.kind {
                 NodeErrorKind::Mate(row) if **row == *fault => {}
@@ -52,23 +49,14 @@ fn disagreements(
             (Some(fault), other) => {
                 out.push(format!("{id:?}: solve faults {fault:?}, row is {other:?}"))
             }
-            (None, Some(NodeResult::Ok(v))) if is_mate => match &v.payload {
-                ValuePayload::Mate(role) if Some(*role) == poses.role(id) => {}
-                other => out.push(format!(
-                    "{id:?}: solve role {:?}, row payload {other:?}",
-                    poses.role(id)
-                )),
-            },
-            (None, other) if is_mate => {
-                out.push(format!("{id:?}: unfaulted mate, row is {other:?}"))
-            }
-            (None, _) => {}
+            (None, Some(NodeResult::Ok(_))) => {}
+            (None, other) => out.push(format!("{id:?}: unfaulted placement, row is {other:?}")),
         }
     }
     out
 }
 
-fn mate_row_fault(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateFault {
+fn placement_fault(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateFault {
     match ev.result(id) {
         Some(NodeResult::Failed(err)) => match &err.kind {
             NodeErrorKind::Mate(f) => (**f).clone(),
@@ -78,40 +66,25 @@ fn mate_row_fault(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateFault {
     }
 }
 
-fn mate_row_role(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateRole {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Mate(role) => *role,
-            other => panic!("{id:?}: expected a mate payload, got {other:?}"),
-        },
-        other => panic!("{id:?}: expected Ok, got {other:?}"),
-    }
+fn placement_ok(ev: &Evaluation<f64>, id: RecipeNodeId) {
+    assert!(
+        matches!(ev.result(id), Some(NodeResult::Ok(_))),
+        "{id:?}: expected Ok, got {:?}",
+        ev.result(id)
+    );
 }
 
-/// **The offender the group rows break a group with**: a planar
-/// rest alone on `post`, which leaves its pair free to slide and spin,
-/// so the solve refuses UNDER naming that one mate. A verdict about
-/// the PAIR, which the edit door admits — a mate the coset table
-/// refuses on its own datum is refused at the insert, so no row here
-/// can build a refused group out of one through the session.
-fn add_rest(
+fn rest_shelf_on(
     session: &mut DocSession,
     bench: &common::asm::Bench,
     post: RecipeNodeId,
-) -> RecipeNodeId {
-    common::commit_mate(
-        session,
-        common::asm::seat_op(
-            bench,
-            post,
-            ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        ),
-    )
+    offset: f64,
+) -> MateRef {
+    common::commit_mate(session, common::asm::shelf_rest_op(bench, post, offset))
 }
 
-fn delete(session: &mut DocSession, node: RecipeNodeId) {
-    let outcome = session.perform(SessionOp::DeleteNode { node });
+fn remove(session: &mut DocSession, mate: MateRef) {
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
@@ -132,152 +105,123 @@ fn check(
     (doc, ev)
 }
 
-/// **The finding's first shape, pumped between the edits**: a sound
-/// mate evaluates, a second mate then breaks the group around it,
-/// and the sound mate's row reports the refusal rather than the `Ok`
-/// its memo entry still held. The reverse closes the row — delete the
-/// offender and every row returns to `Ok` off the faulted prior.
+/// **A refusal reaches the placement chained to the one that refused,
+/// pumped between the edits**: post_b's sound mate evaluates, a
+/// contradiction then breaks the shelf's bundle it is placed against,
+/// and post_b's row reports the refusal rather than the `Ok` its memo
+/// entry still held. The reverse closes the row — remove one of the
+/// pair and every row returns to `Ok` off the faulted prior.
 #[test]
-fn a_group_refusal_reaches_the_mate_that_evaluated_before_it() {
+fn a_bundle_refusal_reaches_the_placement_that_evaluated_before_it() {
     let tol = Tol::witness();
     let bench = common::asm::bench("rev4-cluster", tol);
     let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.post_b);
 
     let sound = common::commit_mate(
         &mut session,
         common::asm::seat_op(
             &bench,
-            bench.post_a,
+            bench.post_b,
             ContactClass::Rest,
             common::asm::middle_seat_alignment(),
         ),
     );
+    assert_eq!(sound.placement, bench.post_b);
     let (_, first) = check(&session, tol, "sound alone");
-    assert_eq!(mate_row_role(&first, sound), MateRole::Determining);
+    placement_ok(&first, bench.post_b);
 
-    let offender = add_rest(&mut session, &bench, bench.post_b);
+    common::asm::unpin(&mut session, bench.shelf_i);
+    let held = rest_shelf_on(&mut session, &bench, bench.post_a, 0.0);
+    let offender = rest_shelf_on(&mut session, &bench, bench.post_a, 0.01);
+    assert_eq!(offender.placement, bench.shelf_i);
     let (doc, second) = check(&session, tol, "after the offender");
-    let carried = mate_row_fault(&second, sound);
+    let carried = placement_fault(&second, bench.post_b);
     assert_eq!(
         Some(&carried),
-        common::solve(&session, &doc, tol).fault(sound)
+        common::solve(&session, &doc, tol).fault(bench.post_b)
     );
-    assert!(second.recomputed >= 1, "the sound mate must have re-run");
+    assert!(second.recomputed >= 1, "post_b must have re-run");
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
-    assert!(matches!(status_of(offender), RowStatus::Failed { .. }));
-    for id in [sound, bench.post_a, bench.post_b, bench.shelf_i] {
-        match status_of(id) {
-            RowStatus::Poisoned { through, .. } => assert_eq!(through, offender, "{id:?}"),
-            other => panic!("{id:?}: expected Poisoned through the offender, got {other:?}"),
-        }
+    assert!(matches!(status_of(bench.shelf_i), RowStatus::Failed { .. }));
+    match status_of(bench.post_b) {
+        RowStatus::Poisoned { through, .. } => assert_eq!(through, bench.shelf_i),
+        other => panic!("post_b: expected Poisoned through the shelf, got {other:?}"),
     }
-    // The row pointed at is one the tree badges FAILED.
-    assert!(matches!(status_of(offender), RowStatus::Failed { .. }));
 
-    // Reverse: delete the offender; the sound mate returns to Ok on
-    // the faulted evaluation as prior.
-    delete(&mut session, offender);
+    // Reverse: remove the offender; post_b returns to Ok on the faulted
+    // evaluation as prior.
+    remove(&mut session, offender);
     session.pump();
-    let (_, third) = check(&session, tol, "offender deleted");
-    assert_eq!(mate_row_role(&third, sound), MateRole::Determining);
+    let (_, third) = check(&session, tol, "offender removed");
+    placement_ok(&third, bench.post_b);
     let rows = session.tree_rows();
-    for id in [sound, bench.post_a, bench.post_b, bench.shelf_i] {
+    for id in [bench.post_a, bench.post_b, bench.shelf_i] {
         assert_eq!(common::status_of(&rows, id), RowStatus::Ok, "{id:?}");
     }
+    let _ = held;
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// **The finding's second shape, and then two DIFFERENT faults in
-/// succession on one unedited mate.**
+/// **Two DIFFERENT faults in succession on one unedited constraint's
+/// placement never serve a stale one.**
 ///
-/// The succession is the part no single edit reaches: a mate faulted
-/// by a pair contradiction, then faulted again by a group refusal
-/// once the contradiction is removed. The memo serves only `Ok`
-/// priors, so a stale fault can never be served — this row is what
-/// says so on a document rather than on the reuse rule, and it ends
-/// on the full repair with the faulted run as prior.
+/// The shelf's bundle is faulted by a pair contradiction, then by a
+/// different pair once the first offender is removed and another added.
+/// The memo serves only `Ok` priors, so a stale fault can never be
+/// served — this row is what says so on a document rather than on the
+/// reuse rule, and it ends on the full repair with the faulted run as
+/// prior.
 #[test]
-fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
+fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
     let tol = Tol::witness();
     let bench = common::asm::bench("rev4-contra", tol);
     let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.shelf_i);
 
-    let held = common::commit_mate(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
-        ),
-    );
+    let held = rest_shelf_on(&mut session, &bench, bench.post_a, 0.0);
     check(&session, tol, "held alone");
 
-    let added = common::commit_mate(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::contradicting_seat_alignment(),
-        ),
-    );
+    let added = rest_shelf_on(&mut session, &bench, bench.post_a, 0.01);
     let (_, ev) = check(&session, tol, "contradiction");
-    let f1 = mate_row_fault(&ev, held);
+    let f1 = placement_fault(&ev, bench.shelf_i);
     assert!(
-        matches!(f1, MateFault::Contradictory { held: h, added: a, .. } if h == held && a == added),
+        matches!(&f1, MateFault::Contradictory { held: h, added: a, .. }
+            if [*h, *a].contains(&held) && [*h, *a].contains(&added)),
         "{f1:?}"
     );
     let rows = session.tree_rows();
-    let status_of = |id| common::status_of(&rows, id);
-    assert!(matches!(status_of(held), RowStatus::Failed { .. }));
-    assert!(matches!(status_of(added), RowStatus::Failed { .. }));
-    for id in [bench.post_a, bench.shelf_i] {
-        match status_of(id) {
-            RowStatus::Poisoned { through, .. } => {
-                assert_eq!(through, held, "first named in the fault's order");
-                assert!(matches!(status_of(through), RowStatus::Failed { .. }));
-            }
-            other => panic!("{id:?}: {other:?}"),
-        }
-    }
+    assert!(matches!(
+        common::status_of(&rows, bench.shelf_i),
+        RowStatus::Failed { .. }
+    ));
 
-    // A second, different fault on `held` without repairing the first:
-    // the group now also refuses through post_b's under-determined
-    // rest.
-    let offender = add_rest(&mut session, &bench, bench.post_b);
-    let (_, ev) = check(&session, tol, "contradiction + offender");
-    // Faulted under both at once; which fault wins is the solve's
-    // business, and the row's job is only to carry the one it recorded
-    // (`check` above asserted exactly that, for every node).
-    let _ = mate_row_fault(&ev, held);
-
-    // Remove the contradiction: held's fault must now be the group
-    // refusal (a different fault), never the stale contradiction.
-    delete(&mut session, added);
-    session.pump();
-    let (_, ev) = check(&session, tol, "offender only");
-    let f3 = mate_row_fault(&ev, held);
-    // The offender's fault is the group's UNDER, naming the offender
-    // alone; what must not survive is the PAIR contradiction naming
-    // held and added.
+    // A second, different fault: the first offender removed, another
+    // at a third offset added.
+    remove(&mut session, added);
+    let again = rest_shelf_on(&mut session, &bench, bench.post_a, 0.02);
+    let (_, ev) = check(&session, tol, "a second contradiction");
+    let f2 = placement_fault(&ev, bench.shelf_i);
     assert!(
-        !matches!(f3, MateFault::Contradictory { held: h, added: a, .. } if h == held && a == added),
-        "stale pair contradiction carried: {f3:?}"
+        !matches!(&f2, MateFault::Contradictory { held: h, added: a, .. }
+            if [*h, *a].contains(&added)),
+        "stale pair contradiction carried: {f2:?}"
     );
     assert_ne!(
-        f3, f1,
+        f2, f1,
         "a second, different fault — not the first served again"
     );
 
-    // Repair fully: Ok again with the same role as before any fault,
-    // evaluated with the faulted run as prior.
-    delete(&mut session, offender);
+    // Repair fully: Ok again, evaluated with the faulted run as prior.
+    remove(&mut session, again);
     session.pump();
     let (_, ev) = check(&session, tol, "repaired");
-    assert_eq!(mate_row_role(&ev, held), MateRole::Determining);
-    assert!(ev.recomputed >= 1, "prior was Failed, so the mate re-ran");
+    placement_ok(&ev, bench.shelf_i);
+    assert!(
+        ev.recomputed >= 1,
+        "prior was Failed, so the placement re-ran"
+    );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }

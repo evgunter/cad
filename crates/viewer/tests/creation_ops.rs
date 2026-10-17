@@ -29,7 +29,7 @@ use pncad::document::AuthoredNode;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, len, len2, len3, near, scl, scl2, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len2, len3, near, scl, scl3, session_insert, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
@@ -103,8 +103,8 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
             profile,
             // The revolve's axis, in the sketch it turns: the frame's
             // v is world +Y, so this is its own +y through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     );
@@ -177,8 +177,12 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     assert!(
         matches!(
             doc.node(placement),
-            Some(Node::PlaceInWorld { body, pose })
-                if Some(body.read) == doc.output(extrude, 0) && pose.steps.is_empty()
+            Some(Node::Place { shapes, constraints })
+                if matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0))
+                    && matches!(constraints.as_slice(), [pin]
+                        if pin.mate.bit_eq(&pncad::document::Mate::world_pin(
+                            pncad::document::Placement::IDENTITY,
+                        )))
         ),
         "the extrude's identity placement"
     );
@@ -285,7 +289,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
-    assert!(session.committed_doc().ids().is_empty(), "back to empty");
+    assert!(session.committed_doc().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(
         at_root.refusal,
@@ -374,7 +378,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
         DocumentId::derive("fresh-part"),
         "the id is authored at creation from the typed name"
     );
-    assert!(doc.ids().is_empty(), "an empty document");
+    assert!(doc.is_empty(), "an empty document");
     assert_eq!(session.selection(), &Selection::None);
     assert!(session.hover().is_none(), "hover cleared");
     assert!(session.path().is_none(), "no backing file until saved");
@@ -461,8 +465,8 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::AddRevolve {
             profile,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     ] {
@@ -713,8 +717,8 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         },
         SessionOp::AddRevolve {
             profile: plane,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     ] {
@@ -772,8 +776,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
     for wrong in [extrude, plane] {
         let refused = session.perform(SessionOp::AddRevolve {
             profile: wrong,
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         });
         assert!(
@@ -794,8 +798,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
             profile,
             // The frame's v is world +Y, so this is its own +y
             // through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
     );
@@ -808,7 +812,11 @@ fn extrude_and_revolve_require_their_node_kinds() {
 /// The revolve tool's axis, as the chrome's default writes it: the
 /// profile frame's own +y through (0, 0).
 fn tool_op(tool: &RevolveTool) -> Result<SessionOp, SeatError> {
-    tool.op(len2([0.0, 0.0]), scl2([0.0, 1.0]), ang(TAU))
+    tool.op(
+        len2([0.0, 0.0]),
+        Formula::turn_over(4).expect("a quarter turn"),
+        ang(TAU),
+    )
 }
 
 #[test]
@@ -1039,8 +1047,8 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
             profile,
             // The circle is drawn on `plane`, so the revolve's axis is
             // written there too — its +y through (0, 0).
-            axis_origin: len2([0.0, 0.0]),
-            axis_direction: scl2([0.0, 1.0]),
+            axis_through: len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,
                 mm.angle,
@@ -1193,7 +1201,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         "the frame and the profile are one action's two edits"
     );
     let doc = session.committed_doc();
-    let order = doc.ids().to_vec();
+    let order = common::authored_ids(doc);
     assert_eq!(order.len(), 2, "two nodes and no more");
     let (frame, profile) = (order[0], order[1]);
     assert!(
@@ -1215,7 +1223,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        session.committed_doc().ids().is_empty(),
+        session.committed_doc().is_empty(),
         "one undo took the whole gesture, frame included"
     );
 }
@@ -1242,7 +1250,7 @@ fn a_refused_new_xy_profile_leaves_the_document_untouched() {
         outcome.committed
     );
     assert!(
-        session.committed_doc().ids().is_empty(),
+        session.committed_doc().is_empty(),
         "and no frame was left behind for the refusal to strand"
     );
 }
@@ -1266,7 +1274,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
         })],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let frame = session.committed_doc().ids()[0];
+    let frame = common::authored_ids(session.committed_doc())[0];
     session.pump();
     let ev = session.evaluation().expect("the document evaluated");
     let landed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
@@ -1315,7 +1323,7 @@ fn a_new_xy_action_mints_the_frame_before_the_profile() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    let order = doc.ids().to_vec();
+    let order = common::authored_ids(doc);
     assert_eq!(
         outcome.minted, order,
         "both ids, in the order the action applied them: {:?}",

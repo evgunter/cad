@@ -1027,7 +1027,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         gauges, split/inline, the update door) --"
+         world pins, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);

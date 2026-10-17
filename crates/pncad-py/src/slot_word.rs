@@ -25,9 +25,11 @@
 //! address is completed by two integers and an argument role that the
 //! word does not carry; `placement_step` names one expression of a
 //! transform's placement past its first step, completed by a step
-//! index; `mate_frame_step` names one expression of a mate side's frame
-//! offset, completed by the side, a step index and a component; a
-//! loft's `section`, a union's `member` and a measure's `measured`
+//! index; `mate_frame_step` names one expression of a constraint
+//! side's frame offset, completed by the constraint, the side, a step
+//! index and a component; `side` names one side of a constraint,
+//! completed by the constraint and the side; a loft's `section`, a
+//! union's `member`, a placement's `shape` and a measure's `measured`
 //! name one entry of a list, completed by its position; `index` names
 //! one index of an indexed read, completed by the seat it reads at and
 //! the index's position. There is nothing to answer with, so each
@@ -76,6 +78,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "chamfer_distance" => SlotId::ChamferDistance,
         "shell_thickness" => SlotId::ShellThickness,
         "revolve_angle" => SlotId::RevolveAngle,
+        "axis_heading" => SlotId::AxisHeading,
         "spin" => SlotId::Spin,
         "tube_major_radius" => SlotId::TubeMajorRadius,
         "tube_minor_radius" => SlotId::TubeMinorRadius,

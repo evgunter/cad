@@ -1261,7 +1261,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     );
     let (doc, rev) = mint(
         &doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+        fixture::revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), ang(1.0)),
     );
     let body = gathers(&doc, rev);
     // The cusp joint (h, h) revolves about the sketch's y axis to the
@@ -1412,13 +1412,17 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             tool: tool.into(),
         },
     );
-    let (doc, _) = mint(
+    let doc = apply(
         &doc,
-        Node::place_in_world(
+        &DocEdit::place_in_world(
             editor_core::Operand::output(split, SplitHalf::Above.port()),
-            editor_core::Placement::IDENTITY,
+            None,
         ),
-    );
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("edit refused: {e}"))
+    .doc;
     let ev = eval(&doc);
     assert!(
         matches!(ev.result(split), Some(NodeResult::Ok(_))),

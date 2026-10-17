@@ -11,7 +11,7 @@ use std::time::Instant;
 use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
-use editor_core::analysis::{AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, AnalyzedBox, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
@@ -73,15 +73,13 @@ pub(crate) fn certifies_whole(doc: &editor_core::ProfileDoc, rules: SymRules, to
 }
 
 /// The degenerate box at the nominal: every axis of the analyzed box
-/// fixed at its nominal value.
+/// varying over `[0, 0]` ([`ParamBox::at_nominal`]).
 pub(crate) fn nominal_box(analyzed: &AnalyzedBox) -> ParamBox {
-    ParamBox::from_axes(
-        ParamBox::of(analyzed)
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-    )
+    // Every axis VARYING over `[0, 0]`: the nominal's values, each
+    // variable a parameter symbol at `Sym`, and so an analysis whose lift
+    // is guided. A `Fixed` axis holds its variable at the nominal as a
+    // constant, which is the build, not this measurement.
+    ParamBox::of(analyzed).at_nominal()
 }
 
 /// The widest whole-certifying scale of a document's study between `lo`

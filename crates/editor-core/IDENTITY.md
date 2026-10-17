@@ -29,8 +29,7 @@ symbol beside them; the symbol is the stable half.
   an input of an evaluation only where the evaluation crosses the seam.
 - **Free-move is display state** (G3): a display frame over an instance's
   placement, no solver, admitted only for an instance no mate names
-  (`display.rs`). `DocEdit::SetOffset` sets the instance's offset in its
-  gauge (A11 (2)).
+  (`display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
 
@@ -146,10 +145,11 @@ id.*
 
 ## DI5 — Releasing a free-move gesture is the placement edit
 
-*Until INTENT stage 3: this clause records the gesture as an instance's
-offset in its gauge, which stage 3 retires (DESIGN `[placement]`, and
-ASSEMBLY's [Until the intent refactor lands](ASSEMBLY.md#until-the-intent-refactor-lands)).
-What the release records then is that stage's to state.*
+*Stale since INTENT stage 3 B: the edit this clause names,
+`DocEdit::SetOffset`, and the gauge and offset it sets are gone (DESIGN
+`[placement]`), and nothing in the code commits a free-move (below).
+What a release records in the new model, a value of the copy's
+placement, is the stage-3 unit's that builds the commit to state.*
 
 The viewer records a free-moved placement persistently, under G1's
 preview-versus-commit rule: the gesture's previews stay display frames, and

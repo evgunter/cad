@@ -254,7 +254,7 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
                 }
                 if rivals == 0 {
                     seen.note("unambiguous winners, face identity compared");
-                    let resolved = editor_core::resolve(
+                    let resolved = crate::fixture::resolve_at_mint(
                         editor_core::RunCtx {
                             doc: &doc,
                             eval: &ev,

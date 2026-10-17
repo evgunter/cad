@@ -285,7 +285,7 @@ fn every_instance_is_one_instance_segment_deep() {
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
         .expect("the group node");
-    let table = &ev.value(tool).expect("the group evaluated").name_table;
+    let table = ev.table_at(tool).expect("the group evaluated");
     let mut per_instance = [0usize; 6];
     for (name, _) in table.iter() {
         match name.path.as_slice() {
@@ -729,8 +729,8 @@ fn the_wire_refuses_an_emptied_placement_list() {
 }
 
 /// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test `SetOffset` applies to an instance offset,
-/// and the same typed refusals (review MINOR-2). A non-finite frame no
+/// finite-and-proper test a literal constraint frame is held to, and
+/// the same typed refusals (review MINOR-2). A non-finite frame no
 /// longer reads as a separation failure; it says what it is.
 #[test]
 fn placement_frames_are_held_to_the_group_frame_bar() {

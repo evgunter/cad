@@ -494,7 +494,7 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(lost.node, copy, "the picks were on the box's copy");
     assert_eq!(
         node.kind(),
-        Some("PlaceInWorld"),
+        Some("Place"),
         "the lost copy is said as the document held it when it was picked: {node}"
     );
     assert_eq!(*edges, BOX_EDGES);
@@ -876,12 +876,18 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let doc_with_both = {
         let (with_first, first) = common::edited(
             &doc,
-            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 0), None),
+            pncad::document::DocEdit::place_in_world(
+                pncad::document::Operand::output(split, 0),
+                None,
+            ),
             tol,
         );
         let (with_both, second) = common::edited(
             &with_first,
-            pncad::document::DocEdit::place(pncad::document::Operand::output(split, 1), None),
+            pncad::document::DocEdit::place_in_world(
+                pncad::document::Operand::output(split, 1),
+                None,
+            ),
             tol,
         );
         (with_both, [first, second])
@@ -890,9 +896,18 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
 
-    // The node-wide door sees both halves at once; each drawn half has
-    // fewer edges than that.
-    let node_wide = all_edge_names(&session, split).len();
+    // The two halves' reads together hold every edge name of the split;
+    // each drawn half has fewer edges than that.
+    let node_wide: usize = (0..2)
+        .map(|port| {
+            let read = session
+                .committed_doc()
+                .output(split, port)
+                .expect("a split's half");
+            let eval = session.evaluation().expect("the inline seam landed");
+            pncad::select::all_edges(eval, read).len()
+        })
+        .sum();
     let index = plate_index(&session);
     let mut tools = Tools::new();
     for (half, copy) in copies.into_iter().enumerate() {
