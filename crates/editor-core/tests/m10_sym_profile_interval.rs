@@ -649,16 +649,16 @@ const PLATE_MAX_TERMS: usize = 28;
 /// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
 /// the decisions that read a winding off a slope are gone: the angle
 /// channel's two affine decisions, the winding walk and the harmonic
-/// lane's period gate, `Plain/Decision` 1032 → 984 calls and
+/// lane's period gate, `Plain/Decision` 987 → 939 calls and
 /// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
 /// 468 → 428; forms and digests move with them, and freezes and the
 /// largest form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 987 forms 15839 frozen 324 digest 04d4c1ba4b5642ca49c5cecc33637690\n\
-     Plain/Assertion calls 726 forms 6946 frozen 405 digest 2d3f8fc68253564d8245eefc0e944c13\n\
+     Plain/Decision calls 939 forms 15833 frozen 324 digest d7bf10b19c3eda6c659296e78197c5d8\n\
+     Plain/Assertion calls 686 forms 6926 frozen 405 digest 452e016459fe426dc99cbd2cfd74b7cc\n\
      Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
-     Early/Assertion calls 726 forms 8108 frozen 0 digest a92b467a762680ac8b830ceb654ac390\n\
-     Door/Decision calls 468 forms 9469 frozen 0 digest 344f68bc278f5fb158c048115eb1f4c2";
+     Early/Assertion calls 686 forms 8088 frozen 0 digest 79b94810d3ef70bcb6dbf1ae122ceeb3\n\
+     Door/Decision calls 428 forms 9439 frozen 0 digest d8cb26633aef34788aec4a825cb17f24";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

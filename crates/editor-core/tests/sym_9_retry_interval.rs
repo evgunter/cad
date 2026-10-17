@@ -577,10 +577,10 @@ fn sym_9_what_each_retry_recovers() {
 /// A harmonic row's windings are structure (PCERT B2a, `[ev]` PR 5113's
 /// first decision): the angle channels' affine decisions, the winding
 /// walk and the harmonic period gate decide nothing now, with the ladder
-/// and without it alike. The plate 1032/726 → 984/686, the annulus
-/// 550/471 → 502/431, the boss 537/428 → 501/398, the bracket 1428/1092
-/// → 1368/1042, the link 846/731 → 798/691, `retried` zero on all five;
-/// the pad's leaf 1348/1384 → 1276/1324 bare and 1352/1380 → 1280/1320
+/// and without it alike. The plate 987/726 → 939/686, the annulus
+/// 523/471 → 475/431, the boss 504/428 → 468/398, the bracket 1367/1092
+/// → 1307/1042, the link 811/731 → 763/691, `retried` zero on all five;
+/// the pad's leaf 1287/1384 → 1215/1324 bare and 1291/1380 → 1219/1320
 /// with the ladder, its four recovered decisions held. Every column
 /// falls because the decisions are gone, not because a retry took
 /// them.
@@ -594,11 +594,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [987, 726], [987, 726], 0),
-        ("r1_annulus", [523, 471], [523, 471], 0),
-        ("r1_segment_boss", [504, 428], [504, 428], 0),
-        ("r2_filleted_bracket", [1367, 1092], [1367, 1092], 0),
-        ("r2_link", [811, 731], [811, 731], 0),
+        ("two_hole_plate", [939, 686], [939, 686], 0),
+        ("r1_annulus", [475, 431], [475, 431], 0),
+        ("r1_segment_boss", [468, 398], [468, 398], 0),
+        ("r2_filleted_bracket", [1307, 1042], [1307, 1042], 0),
+        ("r2_link", [763, 691], [763, 691], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -713,7 +713,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1291, 1380, 4],
+        [1219, 1320, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -725,7 +725,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1287, 1384, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1215, 1324, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
