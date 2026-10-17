@@ -550,6 +550,18 @@ fn sym_9_what_each_retry_recovers() {
 /// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
 /// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
 ///
+/// The guided lift (every analysis's, `EvalOptions::profile_lift`)
+/// replays the nominal box with the profile a function of its
+/// variables, not the `f64` form's literals: identities proved over
+/// those constants are no longer asked, and the receipts fall with the
+/// ladder and without it alike — plate 1003/654 → 869/670, annulus
+/// 539/399 → 437/447, boss 516/376 → 437/406, bracket 1387/1004 →
+/// 1232/950, link 827/663 → 725/682 — while the link's
+/// `carrier_on_surface_2` loses rule G's trade, 100/8 → 108/0. The
+/// ladder retried nothing before and retries nothing now, so no row
+/// moved by a retry
+/// (`work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`).
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -559,11 +571,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1003, 654], [1003, 654], 0),
-        ("r1_annulus", [539, 399], [539, 399], 0),
-        ("r1_segment_boss", [516, 376], [516, 376], 0),
-        ("r2_filleted_bracket", [1387, 1004], [1387, 1004], 0),
-        ("r2_link", [827, 663], [827, 663], 0),
+        ("two_hole_plate", [869, 670], [869, 670], 0),
+        ("r1_annulus", [437, 447], [437, 447], 0),
+        ("r1_segment_boss", [437, 406], [437, 406], 0),
+        ("r2_filleted_bracket", [1232, 950], [1232, 950], 0),
+        ("r2_link", [725, 682], [725, 682], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -583,7 +595,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [100, 8]),
+                ("carrier_on_surface_2", [108, 0]),
                 ("witness_on_surface_2", [16, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
