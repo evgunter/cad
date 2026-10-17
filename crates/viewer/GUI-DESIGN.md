@@ -100,6 +100,12 @@ mated one.
   the cause (`crate::tree`).
 - Preview fidelity may degrade the chordal display tolerance, never ε,
   so preview cannot disagree with commit.
+- Typing a value mints a free variable (VARIABLES-DESIGN VR6) and
+  offers an existing variable of equal value that it is not already
+  the same as; declining the offer is what makes the two distinct. A
+  lone `0` is a constant, not a variable (DESIGN
+  `[variables.literals]`), so typing it draws no offer, and a default
+  `0` is never the one offered.
 
 ## Colour (G5)
 

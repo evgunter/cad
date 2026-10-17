@@ -1520,15 +1520,9 @@ literal stands nowhere, neither in a slot nor inside a formula. The
 only constants are dimensionless rationals, rational fractions of a
 turn, and a lone `0`, which carries no unit and so stands at any
 dimension as the omission it marks (`0 mm` is a dimensioned literal,
-so typing it mints a variable). Each is the shape of a formula rather
-than a dimension.
-
-**Typing a value.** Typing a value in the GUI mints a free variable
-and offers an existing variable of equal value that it is not already
-the same as (VR8); declining the offer is what makes the two distinct.
-A lone `0` is the one typed value that is a constant rather than a
-variable, so typing it draws no offer, and a default `0` is never the
-one offered.
+so writing it mints a variable, VR6). Each is the shape of a formula
+rather than a dimension. A lone `0` is the one written value that is a
+constant rather than a variable.
 
 **Names.** A variable without a name is read by exactly one slot or
 definition, which is how it is spoken; a variable two readers share
