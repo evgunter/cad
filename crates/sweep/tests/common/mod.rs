@@ -100,6 +100,9 @@
 //! - [`quadrature`] — the 7–15 Gauss–Kronrod panel the volume oracles
 //!   integrate with: a tool for deriving a truth without the kernel,
 //!   so beside [`oracles`];
+//! - [`enclosure`] — the box an `Interval` loft row lofts over, and
+//!   the check of the enclosing body against one member's `f64` loft:
+//!   a check of a body, so beside [`orient`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -282,6 +285,10 @@ pub mod touch_union;
 
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
+
+/// Whether a loft at `Interval` encloses one member of its family: a
+/// check of a body, so beside [`orient`].
+pub mod enclosure;
 
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the

@@ -35,7 +35,7 @@ wasm32. The `change filter` job's log prints what this run selected, and
 - **A red nightly is a red main, and the orchestrator owns it.** An
   implementer that notices one reports it to its orchestrator rather than
   fixing it; the orchestrator assigns the fix.
-- **A test that costs ≥ 1 s goes in the slow set** unless it has caught
+- **A test that costs ≥ 0.5 s goes in the slow set** unless it has caught
   something the fast set would miss. Add it to `.config/nextest.toml`'s `ci`
   filter in the PR that adds the test.
 

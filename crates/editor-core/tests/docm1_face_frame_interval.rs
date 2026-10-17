@@ -1,7 +1,7 @@
 //! **DOCM-1 under the Interval lane** — DM1c's rows: a profile on a
 //! derived frame is placed at the lane scalar under EVERY lift (its
 //! 2-D structure record still `f64`-pinned), a loft section on a
-//! derived frame refuses typed off `f64`, and a widened parameter the
+//! derived frame lofts and encloses the `f64` loft, and a widened parameter the
 //! frame's body reads recomputes the profile rather than serving the
 //! nominal memo entry.
 
@@ -88,37 +88,51 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     }
 }
 
-/// **A loft whose section is drawn on a derived frame refuses typed at
-/// `Interval`, never placing it on a point of the frame's bracket.**
-/// The section is its profile's value at this scalar, on the frame's
-/// landed value, and a derived frame's landed placement at `Interval`
-/// is an enclosure, wider than a point. The loft encloses the `f64`
-/// skin of its sections' value channel, which such a placement does not
-/// have, so it refuses `PlacementNotAPoint` naming the section, under
-/// both lifts. Lofting it waits on the enclosure skin
-/// (`work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`);
-/// the profile itself evaluates.
+/// **A loft whose section is drawn on a derived frame evaluates at
+/// `Interval`, under both lifts, and encloses the `f64` loft.** The
+/// section is its profile's value at this scalar, on the frame's landed
+/// value, which is an enclosure wider than a point; the loft skins it
+/// in `T`. Each vertex of the `f64` body lies in the enclosing body's
+/// vertex of the same index (one construction lists them in one order).
 #[test]
-fn a_section_on_a_derived_frame_refuses_a_wide_placement_at_interval() {
+fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
-    let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
-        panic!("the loft");
-    };
-    let section = doc
-        .operation_of(profiles[0])
-        .expect("the section read is live");
+    let nominal = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let nominal: Vec<[f64; 3]> = corpus::body_of(&nominal, loft)
+        .points()
+        .map(|(_, p)| [p.x, p.y, p.z])
+        .collect();
+    assert!(!nominal.is_empty(), "the f64 loft has vertices");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
         let ev = run(&doc, None, &lifted(lift));
-        match ev.node_error(loft).map(|e| &e.kind) {
-            Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::PlacementNotAPoint {
-                section: 0,
-            })) => {}
-            other => panic!("{lift:?}: the loft must refuse its wide placement, got {other:?}"),
-        }
         assert!(
-            ev.node_error(section).is_none(),
-            "{lift:?}: the profile evaluates"
+            ev.node_error(loft).is_none(),
+            "{lift:?}: the loft evaluates: {:?}",
+            ev.node_error(loft)
         );
+        let body = corpus::body_of(&ev, loft);
+        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
+        let brackets: Vec<[(f64, f64); 3]> = body
+            .points()
+            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
+            .collect();
+        assert_eq!(
+            brackets.len(),
+            nominal.len(),
+            "{lift:?}: the vertex counts agree"
+        );
+        for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
+            assert!(
+                b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
+                "{lift:?}: the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
+            );
+        }
     }
 }
 

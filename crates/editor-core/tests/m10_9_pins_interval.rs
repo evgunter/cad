@@ -90,6 +90,11 @@ pub(crate) struct Study {
 /// the pad holds). `registered` and the verdicts do not move, and an
 /// untoleranced variable binds as its nominal (VR8).
 ///
+/// `expr-non-finite-asks-value-times-zero`: the final non-finite check
+/// asks boundedness and decides nothing, so its theorems leave every
+/// `symbolic` count (plate −45, annulus −27, link −35, bracket −61,
+/// pad −61). Numeric, frozen, registered and the verdicts do not move.
+///
 /// PCERT unit B1 (C4: a row is its image placed over the edge's span in
 /// the chart's principal window) reads a cylinder's meridian azimuth only
 /// on a meridian, so a rim circle centred on the axis no longer takes the

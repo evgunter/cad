@@ -48,6 +48,6 @@ launders the way an extrude does. A `Dual` seed on a parameter a
 section reads gives a zero derivative where main refused typed
 (`SeedPinnedSection`, retired), and a box over a section lofts the
 nominal. Under the guided lift both are correct: the seed rides to the
-walls, and the box refuses `SectionNotAPoint`
+walls, and the box lofts the family it spans
 (`crates/editor-core/tests/eval10_section_reads_the_nominal.rs`).
 

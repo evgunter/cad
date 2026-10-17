@@ -89,6 +89,12 @@ use crate::m10_9_pins_interval::measured_studies;
 /// faces' boundary vertices. The plate, the annulus and the link hold;
 /// bracket 1969 → 2044, pad 2976 → 3522, whose fillets' edges bound
 /// more faces than a planar wall's.
+/// The final non-finite check asking boundedness, where it decided
+/// `value · 0` (`expr-non-finite-asks-value-times-zero`), takes its
+/// theorems out of `symbolic` and moves nothing else: plate 1048 → 1003,
+/// annulus 566 → 539, link 356 → 323, bracket 1453 → 1392, pad
+/// 1317 → 1260. A decision left; none moved, so the dispute column's
+/// zero stands on the same decisions.
 ///
 /// Placing each row over its edge's span in the chart's principal
 /// window (PCERT unit B1, C4) moves decisions, and each is attributed:
