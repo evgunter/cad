@@ -891,6 +891,10 @@ impl crate::spline::SpanLocate for Interval {
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
 
+    fn structure_positive(self) -> bool {
+        Bounds::lo(self) > 0.0 && !self.is_poison()
+    }
+
     fn plain_constant(self) -> Option<f64> {
         self.point_value()
     }

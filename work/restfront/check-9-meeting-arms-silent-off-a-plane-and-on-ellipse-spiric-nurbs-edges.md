@@ -64,3 +64,7 @@ one of these edges has decided vertices on both sides, and the reading
 takes the first, as main's anchor reading did whenever that vertex was
 decided. No public pose is known to reach it; closing this item closes
 it there too. (TANG implementer)
+
+## A second reading of two spans' meetings (stage (c) of the curve-pair reader)
+
+`validate.rs` `segments_meet` (check 9's arm 5) and `lines_meet` decide where two edges meet with their own closed forms. `geom_brep::curve_pair::meet` reads the same question through one `(CurveKind, CurveKind)` table (C5), and `carrier_cross` and the census read it there since `work/fuse/the-curve-pair-reader.md` stage (c). The arms this row finds silent are pairs `meet` reads: an ellipse by its closed forms, and a spiric or spline by its walk. Making check 9 a caller of `meet` would close both. Found by the review of PR 5154.

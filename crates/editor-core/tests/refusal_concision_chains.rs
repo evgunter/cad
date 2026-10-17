@@ -2115,9 +2115,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 5e-10 m",
         ),
         (
             "lever arm, enclosure",
@@ -2125,9 +2125,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 CertCheck::TransversalityArm,
                 MarginDiag::enclosure(2.0e-9, 5.0e-9),
             ),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 2e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -2138,9 +2138,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there; an edge of no length or a cone's point leaves no angle to measure; a radius \
-             below zero is a defect",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there; faces of no extent or a cone's point leave no angle to measure; \
+             a radius below zero is a defect",
         ),
         (
             "spline meter turns back",
@@ -2211,8 +2211,9 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
-                 angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
+                 surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
+                 tolerance below 5e-10 m"
             );
         }
         assert_eq!(
@@ -2504,6 +2505,12 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
+        ("ArcWeightNotAPoint", E::ArcWeightNotAPoint { section: 1 }),
+        (
+            "IncompatibleAtEnclosure",
+            E::IncompatibleAtEnclosure { section: 1 },
+        ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
@@ -2556,8 +2563,8 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
-        ("PlacementNotAPoint", E::PlacementNotAPoint { section: 1 }),
-        ("SectionNotAPoint", E::SectionNotAPoint { section: 1 }),
+        ("PlacementNotFinite", E::PlacementNotFinite { section: 1 }),
+        ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
@@ -2930,6 +2937,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
+        ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),

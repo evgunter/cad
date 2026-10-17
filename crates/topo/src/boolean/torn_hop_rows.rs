@@ -443,6 +443,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             &GluedPairs::default(),
             &ReductionContacts::default(),
             None,
+            None,
             band(),
         )
         .map(drop)

@@ -681,9 +681,9 @@ impl Coincide {
             Self::Rim => "whether a face of each solid ends on one circle",
             Self::Contact => "whether a declared contact holds along its witness",
             Self::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one another at \
-                 every point of both, which neither a bound over the faces nor a point on them \
-                 settles"
+                "whether two faces declared on one surface stay within the tolerance of one \
+                 another at every point of both, which neither a bound over the faces nor a point \
+                 on them settles"
             }
             Self::Carriers => "whether a face of each solid lies on one surface",
             Self::Section => "where the surfaces of a face of each solid meet",
@@ -1902,8 +1902,8 @@ pub(in crate::boolean) mod tests {
 
     const WALL_LEVER: &str =
         "Recourse: move the parts so the edge clearly crosses the wall or clearly misses it";
-    const PIERCE_LEVER: &str = "Recourse: make the edge leave the face more steeply, or make the face curve less sharply \
-         there";
+    const PIERCE_LEVER: &str = "Recourse: make the edge leave the face more steeply, or make the \
+         face curve less sharply there";
 
     /// The split door's own clause, a stage for a subject, filed with
     /// its owner: `work/hone/reach-refusals-short-of-the-shape-guard.md`.
@@ -2142,9 +2142,9 @@ pub(in crate::boolean) mod tests {
             Coincide::Rim => "whether a face of each solid ends on one circle",
             Coincide::Contact => "whether a declared contact holds along its witness",
             Coincide::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one another at \
-                 every point of both, which neither a bound over the faces nor a point on them \
-                 settles"
+                "whether two faces declared on one surface stay within the tolerance of one \
+                 another at every point of both, which neither a bound over the faces nor a point \
+                 on them settles"
             }
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
@@ -2309,11 +2309,11 @@ pub(in crate::boolean) mod tests {
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
-                "whether a seam edge is long enough, for how its faces curve, to measure their \
-                 angle",
+                "whether a seam edge is between faces wide enough, for how they curve, to measure \
+                 their angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                     tightly there",
+                    "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                     curves tightly there",
                     SizedPass::Positive,
                 ),
             ),

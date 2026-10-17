@@ -3276,12 +3276,29 @@ fn re_anchored<T: Decide>(
         kept.description = body
             .reask_on(
                 pair,
+                crate::edge_faces(body, edge),
                 &kept.carrier,
                 (kept.param_start, kept.param_end),
                 declared,
                 band,
             )
             .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
+    }
+    // An image is asked the same over the kept stretch, as every door
+    // that keeps one is. Every edge re-anchored here is a seam of the
+    // designated chart, with both faces on its one surface key, which
+    // the rule leaves alone, so no input reaches its demand here.
+    if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
+        && let Some(description) = body
+            .reask_chart_on(
+                edge,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?
+    {
+        kept.description = description;
     }
     Ok(kept)
 }
@@ -4787,14 +4804,14 @@ fn moved_walls<T: Decide>(
                             } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5317,7 +5334,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        geom_brep::carrier_speed::speed_range(carrier).1,
+                        geom::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,

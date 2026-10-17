@@ -369,10 +369,13 @@ fn is_top(body: &Body<f64>, key: SurfaceKey) -> bool {
     matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z.abs() == 1.0)
 }
 
-/// Where both of the edge's charts move, the edge slides within the
-/// side's chart too, and its image there is derived afresh.
+/// **Where both of the edge's charts move, the kept image is asked the
+/// rule** over the moved pair: the top edge, stated by hand as an image
+/// in the side's chart on the cube's corner, is restated as the section
+/// of the two moved planes, its declaration dropped, and the body is
+/// valid.
 #[test]
-fn the_planar_door_derives_the_image_afresh_when_both_charts_move() {
+fn the_planar_door_asks_the_rule_of_an_image_when_both_charts_move() {
     for declared in [false, true] {
         let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(declared);
         let side_face = body
@@ -399,15 +402,21 @@ fn the_planar_door_derives_the_image_afresh_when_both_charts_move() {
         let minted = body.get_face(side_face).unwrap().surface;
         let curve = description_of(&body, edge);
         assert!(
-            matches!(curve.description(), EdgeDescription::Chart(c) if c.surface == minted),
-            "declared {declared}: the edge is an image in the minted side's chart: {:?}",
+            matches!(
+                *curve.description(),
+                EdgeDescription::Intersection { pair, .. } if pair.keys().contains(&minted)
+            ),
+            "declared {declared}: the edge is the section of the moved planes: {:?}",
             curve.description()
+        );
+        assert!(
+            !curve.authority().is_declared(),
+            "declared {declared}: derived"
         );
         assert_eq!(
             validate_geometric(&body, Tol::witness()),
-            Err(vec![ValidationError::TransverseNotIntrinsic { edge }]),
-            "declared {declared}: tier 3 names the conventional form on a corner and \
-             nothing else"
+            Ok(()),
+            "declared {declared}"
         );
     }
 }
@@ -545,12 +554,13 @@ fn the_planar_door_keeps_a_seams_image_at_rest_and_with_its_plane_moving() {
     }
 }
 
-/// **An edge whose two planes both hold keeps its image**, while
-/// another chart of the body moves: the cube's top edge on `y = 0`
-/// described by a fitted image in the side's chart, the bottom moved
-/// by 1/64.
+/// **An edge whose two planes both hold is asked the rule too**, while
+/// another chart of the body moves: the cube's top edge on `y = 0`,
+/// stated by hand as a fitted image in the side's chart, the bottom
+/// moved by 1/64. The door keeps an image only where the rule reads
+/// its pair under-determined; on this corner it stores the section.
 #[test]
-fn the_planar_door_keeps_the_image_of_an_edge_whose_planes_both_hold() {
+fn the_planar_door_asks_the_rule_of_an_image_whose_planes_both_hold() {
     let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(false);
     let mut spec = description_of(&body, edge).restated_spec();
     let EdgeDescriptionSpec::Chart { image, .. } = &mut spec.description else {
@@ -588,20 +598,60 @@ fn the_planar_door_keeps_the_image_of_an_edge_whose_planes_both_hold() {
         .expect("the cube's bottom");
     let got = offset_planes_by(&mut body, |k| if k == bottom { 1.0 / 64.0 } else { 0.0 });
     assert!(got.is_ok(), "the bottom's offset: {got:?}");
-    let after = description_of(&body, edge);
-    let (EdgeDescription::Chart(was), EdgeDescription::Chart(now)) =
-        (before.description(), after.description())
-    else {
-        panic!("the edge stays a chart image: {after:?}")
-    };
     assert!(
-        matches!((&was.pcurve, &now.pcurve), (Pcurve::Fitted(a), Pcurve::Fitted(b)) if format!("{a:?}") == format!("{b:?}")),
-        "the edge keeps its stored image: {:?}",
-        now.pcurve
+        matches!(before.description(), EdgeDescription::Chart(c) if matches!(c.pcurve, Pcurve::Fitted(_))),
+        "the edge was the fitted image: {before:?}"
     );
-    assert_eq!(
-        validate_geometric(&body, Tol::witness()),
-        Err(vec![ValidationError::TransverseNotIntrinsic { edge }]),
-        "the kept image is a conventional form on a corner"
+    let after = description_of(&body, edge);
+    assert!(
+        matches!(
+            *after.description(),
+            EdgeDescription::Intersection { pair, .. }
+                if pair == {
+                    let (a, b) = edge_sides(&body, edge).unwrap().surfaces();
+                    SurfacePair::new(a, b)
+                }
+        ),
+        "the image on a corner is restated as the section of its two planes: {after:?}"
     );
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+}
+
+/// **A split asks the rule of each piece of an image.** The cube's top
+/// edge on `y = 0`, stated by hand as an image in the side's chart on
+/// the corner, split at its middle: each piece's pair is a corner over
+/// its own span, so each is stored as the section, declared or not.
+/// Tier 3 names only the vertex the split leaves, which a finisher
+/// joins.
+#[test]
+fn a_split_asks_the_rule_of_each_piece_of_an_image() {
+    for declared in [false, true] {
+        let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(declared);
+        let (t0, t1) = description_of(&body, edge).params();
+        let split = body
+            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap_or_else(|e| panic!("declared {declared}: the split builds: {e:?}"));
+        for piece in [edge, split.new_edge] {
+            let curve = description_of(&body, piece);
+            assert!(
+                matches!(
+                    *curve.description(),
+                    EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(top, side)
+                ),
+                "declared {declared}: {piece:?} is the section: {:?}",
+                curve.description()
+            );
+            assert!(
+                !curve.authority().is_declared(),
+                "declared {declared}: derived"
+            );
+        }
+        assert_eq!(
+            validate_geometric(&body, Tol::witness()),
+            Err(vec![ValidationError::JoinableVertexAtRest {
+                vertex: split.vertex
+            }]),
+            "declared {declared}: tier 3 names the split's own vertex and nothing else"
+        );
+    }
 }

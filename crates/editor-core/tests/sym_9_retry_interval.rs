@@ -538,12 +538,18 @@ fn sym_9_what_each_retry_recovers() {
 /// any more, so the half that shows the ladder RECOVERING something is
 /// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (`symbolic` 1372 → 1376, `retried` 4 against 0).
+/// numeric (`symbolic` 1311 → 1315, `retried` 4 against 0).
 ///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
 /// 451 → 455, the boss's 414 → 418, the bracket's 1050 → 1056 and the
 /// link's 679 → 683, with the ladder and without it alike.
+///
+/// The final non-finite check asks boundedness and decides nothing
+/// (`expr-non-finite-asks-value-times-zero`), so its theorems leave
+/// `symbolic` with the ladder and without it alike: plate 1048 → 1003,
+/// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
+/// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -554,11 +560,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1048, 654], [1048, 654], 0),
-        ("r1_annulus", [566, 399], [566, 399], 0),
-        ("r1_segment_boss", [549, 376], [549, 376], 0),
-        ("r2_filleted_bracket", [1448, 1004], [1448, 1004], 0),
-        ("r2_link", [862, 663], [862, 663], 0),
+        ("two_hole_plate", [1003, 654], [1003, 654], 0),
+        ("r1_annulus", [539, 399], [539, 399], 0),
+        ("r1_segment_boss", [516, 376], [516, 376], 0),
+        ("r2_filleted_bracket", [1387, 1004], [1387, 1004], 0),
+        ("r2_link", [827, 663], [827, 663], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -631,7 +637,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four move `symbolic` 1372 → 1376.
+/// ladder existed. The four move `symbolic` 1311 → 1315.
 ///
 /// The row read the filleted bracket, then the link. Since the
 /// constructions store the carriers they build, the first attempt
@@ -673,7 +679,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1376, 1280, 4],
+        [1315, 1280, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -685,7 +691,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1372, 1284, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1311, 1284, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

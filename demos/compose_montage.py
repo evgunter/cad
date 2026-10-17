@@ -28,6 +28,7 @@ from pathlib import Path
 
 import manifest
 import matplotlib
+from lane_cells import fail_path, frame_path, note_path
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -51,7 +52,7 @@ def trim(img, thresh=0.985, pad=6):
 
 def placeholder(ax, name, renderdir):
     """Labeled failure cell: name the failure, never leave a silent gap."""
-    fail = renderdir / f"{name}.fail.txt"
+    fail = fail_path(renderdir, name)
     reason = fail.read_text().strip() if fail.exists() else "no render produced"
     ax.add_patch(
         plt.Rectangle(
@@ -80,7 +81,7 @@ def note_stamp(ax, name, renderdir):
     something that went wrong, and a reader who cannot tell the two
     apart learns the wrong thing from the sheet.
     """
-    note = renderdir / f"{name}.note.txt"
+    note = note_path(renderdir, name)
     if not note.exists():
         return
     ax.text(
@@ -111,7 +112,7 @@ def main():
     fig = plt.figure(figsize=(3.4 * COLS, 3.1 * rows), dpi=120)
     for i, scene in enumerate(scenes, start=1):
         ax = fig.add_subplot(rows, COLS, i)
-        png = renderdir / f"{scene.name}.png"
+        png = frame_path(renderdir, scene.name)
         if png.exists():
             ax.imshow(trim(plt.imread(png)))
             note_stamp(ax, scene.name, renderdir)

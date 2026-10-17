@@ -43,7 +43,7 @@
 //! # The exact-order band
 //!
 //! Coordinate differences classify against profile's canonical-form
-//! band — `Band::new(f64::from_bits(1), f64::from_bits(2))`: the open
+//! band — `Band::least()`, `(f64::from_bits(1), f64::from_bits(2))`: the open
 //! interior (min-subnormal, 2·min-subnormal) contains no representable
 //! `f64`, so at `f64` the comparison (**`split_join_order_u`** /
 //! **`_v`**) is exact and total; a Zero means bit-level coincidence
@@ -104,7 +104,7 @@ use crate::validate::decide;
 /// [`BandError`] is structurally impossible for these constants; typed
 /// through all the same (no panic paths in operator code).
 pub(crate) fn exact_band() -> Result<Band, BandError> {
-    Band::new(f64::from_bits(1), f64::from_bits(2))
+    Ok(Band::least())
 }
 
 /// The deterministic in-plane frame `(u, v)` (module docs): on an axis

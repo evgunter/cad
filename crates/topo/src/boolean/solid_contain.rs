@@ -2596,15 +2596,14 @@ fn torus_chart_windows<T: Decide>(
 /// **One joint of a torus chart walk**: the side `(entry, exit)` moved
 /// onto the branch of `prev`, the exit before it, when the walk meets
 /// there. The branch is decided as structure, per channel
-/// ([`geom_brep::whole_periods`]): sign decisions at the half-period
+/// ([`geom_brep::Period::decide`]): sign decisions at the half-period
 /// marks, metered through the channel's rate as the closure is, so the
 /// shift is a whole number of periods `k·τ` with `k` a literal. Where a
 /// mark is undecided, the closure is asked on both branches astride it
 /// (`pcurves::branches_astride`): on neither, the walk does not meet.
 /// `None` where the walk does not meet: the gap sits on a mark (half a
-/// period from either branch), is out of the branch reach, meets on
-/// neither branch astride an undecided mark, or the shifted entry is not
-/// the exit.
+/// period from either branch), meets on neither branch astride an
+/// undecided mark, or the shifted entry is not the exit.
 ///
 /// # Errors
 ///
@@ -2621,10 +2620,14 @@ fn torus_chart_joint<T: Decide>(
     use geom_brep::BranchMiss;
     let tau = T::tau();
     let name = "bool_torus_chart_branch";
-    let whole = |k: i32| T::from_f64(f64::from(k)) * tau;
+    let period = geom_brep::Period::new(tau);
+    let whole = |k: i32| period.times(k);
     let shift = |gap: T, arm: SupSpeed<T>| {
         let meter = |g| Margin::metered_sup(g, arm);
-        match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+        match period
+            .decide(name, gap, meter, band)
+            .map_err(|stop| stop.miss)
+        {
             Ok(k) => Ok(Some(whole(k))),
             Err(BranchMiss::Undecided(diag)) => {
                 let meets_on = |k: i32| {
@@ -2640,7 +2643,7 @@ fn torus_chart_joint<T: Decide>(
                     _ => Err(PointInSolidError::Escalated { face, diag }),
                 }
             }
-            Err(BranchMiss::OnMark | BranchMiss::OutOfReach) => Ok(None),
+            Err(BranchMiss::OnMark) => Ok(None),
         }
     };
     let (Some(ku), Some(kv)) = (
@@ -6059,7 +6062,7 @@ mod joint_branch_rows {
     #[test]
     fn a_joint_whole_periods_out_meets_as_a_theorem_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let arms = (
@@ -6099,6 +6102,54 @@ mod joint_branch_rows {
             matches!(joint, Ok(None)),
             "the walk does not meet on either branch: {joint:?}"
         );
+    }
+
+    /// A torus wall whose bottom parallel's carrier runs 5 and 10
+    /// periods below the azimuth it covers walks to its principal twin's
+    /// windows: the walk reads each joint's element from the marks at
+    /// zero however far out the gap lies, so the point-in-solid windows
+    /// are the twin's, not a refusal.
+    #[test]
+    fn a_torus_wall_stated_periods_off_walks_to_its_twins_windows() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        type Window = (
+            ((f64, f64), (f64, f64)),
+            (Option<(f64, f64)>, Option<(f64, f64)>),
+        );
+        let windows = |periods: f64| -> Window {
+            let (body, face) = crate::boolean::boxes::tests::torus_wall_below(
+                periods,
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                (0.3, 1.9),
+                (-0.7, 0.8),
+            );
+            (
+                torus_chart_windows(&body, face, band).unwrap().unwrap(),
+                torus_face_windows(&body, face, 2.0, 0.5, band).unwrap(),
+            )
+        };
+        let flat = |((u, v), (fu, fv)): Window| {
+            let pair = |w: Option<(f64, f64)>| w.map_or([f64::NAN; 2], |(a, b)| [a, b]);
+            [
+                [u.0, u.1, v.0, v.1],
+                [pair(fu)[0], pair(fu)[1], pair(fv)[0], pair(fv)[1]],
+            ]
+        };
+        let twin = flat(windows(0.0));
+        for periods in [5.0, 10.0] {
+            let far = flat(windows(periods));
+            for (x, y) in far.iter().flatten().zip(twin.iter().flatten()) {
+                // A wrapped coordinate reads `None` on both, as NaN.
+                assert!(
+                    (x - y).abs() < 1e-12 || (x.is_nan() && y.is_nan()),
+                    "{periods} periods: {far:?} against {twin:?}"
+                );
+            }
+        }
     }
 }
 

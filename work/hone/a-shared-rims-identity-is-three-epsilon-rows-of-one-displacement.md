@@ -35,11 +35,12 @@ point stands >ε off.
 Filed on HONE (owner of `rim_wedge.rs` with CLEAVE) by CONTACTHOLD.
 (CONTACTHOLD orchestrator)
 
-**One displacement margin exists (CLEAVE, `cleave/carrier-cross-one-curve`).**
-`carrier_cross.rs` `one_curve_gap` bounds the Hausdorff distance
-between two conics, tilt included: `|c_e − c_f| + ‖L_e − L_f·Q‖`, with
+**One displacement margin exists.** `geom_brep::curve_pair::pose`'s
+one-curve reading (`one_curve`, row `curve_pair_pose_one_curve`) reads
+`one_curve_gap`, which bounds the Hausdorff distance between two conics,
+tilt included: `|c_e − c_f| + ‖L_e − L_f·Q‖`, with
 `L = Conic::semi_axis_vectors()` and `Q` the way-up flip and Procrustes
-rotation. Its circle sibling `parallel_circles` (three Zeros: tilt,
-plane offset, concentric) was moved onto it in that PR. `same_circle`
-is the third spelling of the question and can decide on the same
-margin.
+rotation (PR 5058, moved into geom-brep with stage (c) of
+`work/fuse/the-curve-pair-reader.md`). It decides one curve for every
+conic pair in one plane, circles included. `same_circle` is a second
+spelling of that question and can read the same reading.

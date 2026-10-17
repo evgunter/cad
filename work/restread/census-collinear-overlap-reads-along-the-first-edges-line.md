@@ -26,9 +26,11 @@ the tilt levers into the band. `topo` `three_solids_on_one_line`
 0.1ε"): a 0.03-long piece tilted by 1e-10 read against a piece
 starting 0.36 along the line gives 1.1e-9 and 1.19e-9 in a band of
 `[1e-9, 1e-8]`, while the same pair read along the long piece is
-within the zero. `on_edge_interior` has the same shape
+within the zero. `on_edge_interior` had the same shape
 (`pm_census_ve_line_gap` read along the extended line before the span):
-a point 1.2 past a 0.03 piece's end read 4.1e-9 there.
+a point 1.2 past a 0.03 piece's end read 4.1e-9 there. FUSE's stage c3
+(PR 5227) retired that row: the lane now reads `Span::contact`, the span
+first and the line's gap (`curve_carrier_gap`) only inside it.
 
 FLUSH's lineage now reads along the longer piece and skips pieces
 decided apart along the line (`boolean::ops::ee_lineage`). The census's

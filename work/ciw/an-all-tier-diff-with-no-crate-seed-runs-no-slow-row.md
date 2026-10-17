@@ -2,8 +2,13 @@
 id: an-all-tier-diff-with-no-crate-seed-runs-no-slow-row
 kind: issue
 title: An all-tier diff that changes no crate (ci.yml, Cargo.toml, the toolchain) runs every gate row except the slow set
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+priority: P3
+cost: E
+branch: ciw/readable-reds
+pr: 5206
 refs: [all-tier-blanks-seeds-so-a-slow-set-edit-runs-no-slow-row, 5104]
 ---
 
@@ -43,3 +48,23 @@ wall at default ε on this tree (local, 496 tests), so CIW should weigh
 the latency against how rare these diffs are.
 
 — build-time lane (NURBS), 2026-10-14
+
+## Closed
+
+ci.yml's slow-set step now runs when `seeds != ''` or `tier == 'all'`.
+With no seed, its package expression is `all()`, so the whole slow set
+runs, and the step prints which set it took. `scripts/ci-filter.py` is
+unchanged. An `all`-tier diff that does seed crates still runs only their
+slow tests, as before.
+
+## 2026-10-16: the whole-slow-set run is withdrawn
+
+Ev ruled on #5224: "cool. let's skip the slow tests then". No failure had
+motivated running the whole slow set on a seedless `all`-tier diff, and it
+was a costly rule. ci.yml's slow-set step now runs only when `seeds != ''`,
+over the slow tests of the seeded crates, on every tier. A workspace-level
+file adds no slow tests. When TIER=all seeds no crate, the `test` job writes
+one line to the step summary saying the slow set did not run and that the
+nightly runs it whole, so the PR does not read as fully gated. The
+failing-test reporting stays. Landed with
+`a-slow-set-edit-to-nextest-toml-runs-the-whole-suite`.

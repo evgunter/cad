@@ -2833,8 +2833,23 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     const MISMATCH: &str = "its stored description does not match its geometry";
     const BOUND: &str = bound_reason!("it strays from its faces");
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
+    const STRADDLES: &str =
+        "its faces are not certainly crossing along it, so they do not fix where it runs";
     // The lead is this window's own.
     let why = match e {
+        // An arc rim's refusal reads as its exact image's check where
+        // that names a limb, and as its fitted path's otherwise, as its
+        // decision does (`CertifyError::decision`).
+        CertifyError::OnPairArcRim { iso, limb, bound } => {
+            let limb = iso
+                .and_then(geom_brep::PcurveCheck::incidence_limb)
+                .unwrap_or(*limb);
+            classify_certify(&CertifyError::PlaneNurbs(P::Limb {
+                limb,
+                margin: *bound,
+            }))
+            .0
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -2851,6 +2866,26 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::ImageMiss,
+            ..
+        }) => {
+            "it is on its spline face where the check looked, but the check's own image of it \
+             there misses by more than the tolerance"
+        }
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::HullSupChart | geom_brep::SsiLimb::HullValueChart,
+            ..
+        }) => bound_reason!(
+            "it strays from its spline face, read through the check's own image of it on that \
+             face,"
+        ),
+        // No producer writes a `Limb` of limb 3: the tube refuses as
+        // `TubeStraddles` or `TubeNotOneArc`, whose reason this is.
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::Tube,
+            ..
+        }) => STRADDLES,
         CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
             if limb.check().bounds_a_miss() {
                 BOUND
@@ -2907,9 +2942,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
         CertifyError::PlaneNurbs(P::TubeStraddles { .. })
-        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => {
-            "its faces are not certainly crossing along it, so they do not fix where it runs"
-        }
+        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => STRADDLES,
         CertifyError::PlaneNurbs(P::TubeNotOneArc { .. })
         | CertifyError::AnalyticRung3(A::TubeNotOneArc { .. }) => {
             "its curve is not proved to span one arc of its faces' crossing"
@@ -2963,6 +2996,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
+            | CertifyError::OnPairArcRim { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -3341,8 +3375,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
-                | C::ChartWindingUnsupported
-                | C::BranchOutOfReach => (KIND, Some(NOT_YET_ENDING)),
+                | C::ChartWindingUnsupported => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     Some(crate::pcurves::PLACEHOLDER_RECOURSE),
@@ -3421,7 +3454,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 /// corners, read at rest. Where an end of the arc lies definitely off
 /// both corners on a body certified at this band, the kernel's two
 /// readings of one end disagree, which no move of the geometry repairs;
-/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// otherwise the band alone parted the two passes (`K < 2`), and the arc
 /// end's own lever is the way through.
 fn arc_end_clear_of_corners(
     gaps: &crate::boolean::ArcEndGaps,
@@ -4869,10 +4902,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::SliverDihedral`]; first failing sample
 ///    reported, one error per edge). Implicit-form gradients only —
 ///    chart normals are never sampled. The extent lever arm is the
-///    edge's honest spatial extent (`geom_brep::edge_extent`: the chord
-///    for open edges, the carrier diameter at closure for circle
-///    carriers — so self-loop/full-period edges classify through a
-///    real arm, never vacuously; M2 PR 3 fix pass). The same per-edge
+///    faces' extent (`crate::wedge_reach`: how far the farther face
+///    runs from the edge's middle, never the edge's own length). The
+///    same per-edge
 ///    classifications feed the **prefer-intrinsic enforcement** (D2;
 ///    ratified 2026-07-19, M2 PR 4 fix pass): an edge classifying
 ///    definitely Transverse at every interior sample must carry an
@@ -6833,6 +6865,12 @@ pub(crate) fn tier3_local_checks_marked<
         errors.extend(curve_datum_errors(edge_key, curve.carrier(), band));
     }
 
+    // One wedge reader for checks 2 and 4: each face's boundary is
+    // collected once, and each edge's reach is read once and shared by
+    // its re-certification and its dihedral check (`crate::WedgeReach`).
+    let wedges = crate::WedgeReach::new(body);
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, T> = slotmap::SecondaryMap::new();
+
     // ------------------------------------------------------------------
     // Tier 3, check 2: carrier re-certification + description adjacency
     // (edge-arena order). Tier 1 guarantees every key below resolves;
@@ -6876,14 +6914,33 @@ pub(crate) fn tier3_local_checks_marked<
         // and each says so at its own signature.
         //
         // Every other carrier class is re-certified the same way at
-        // both doors. Re-certification re-derives; it never trusts the
-        // stored certificate.
-        match curve.recertify_via(
+        // both doors. Re-certification re-derives, the wedge levered at
+        // the edge's two faces' reach; it never trusts the stored
+        // certificate. It meters the chart image the body stores where
+        // the op metered it (`Body::stated_pair_image`, an
+        // `OnPair` rim's wall image), so rest and op read one image.
+        let stated = match curve.description() {
+            geom_brep::EdgeDescription::OnPair { pair } => body.stated_pair_image(edge_key, *pair),
+            _ => None,
+        };
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let reach = wedges.reach(
+            [sides.plus.face, sides.minus.face],
+            curve.carrier(),
+            (t0, t1),
+        );
+        reaches.insert(edge_key, reach);
+        match curve.recertify_via_stated(
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
+            reach,
             band,
             nurbs_lane,
+            stated.as_ref(),
         ) {
             Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
             Err(error) => errors.push(ValidationError::EdgeCertification {
@@ -6891,9 +6948,6 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             }),
         }
-        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
-            continue;
-        };
         let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
@@ -6995,11 +7049,9 @@ pub(crate) fn tier3_local_checks_marked<
     // Tier 3, checks 4–5 (one edge sweep, samples shared):
     //
     // 4. Dihedral classification at interior samples (edge-arena order;
-    //    first failing sample, one error per edge), metered through the
-    //    edge's honest extent (`geom_brep::edge_extent` — the carrier
-    //    diameter for closed circle carriers, whose chord collapses; M2
-    //    PR 3 fix pass, B2 — self-loop edges no longer classify
-    //    vacuously Smooth). Exempt BY KIND: Nurbs-ADJACENT edges
+    //    first failing sample, one error per edge), levered at the
+    //    faces' extent (`crate::wedge_reach`). Exempt BY KIND:
+    //    Nurbs-ADJACENT edges
     //    (M6-3 flip B — see the in-loop note: implicit-form gradients
     //    are poison on NURBS, and the wall junction's contact class is
     //    fixed by the profile's corner structure, Q8/C11). A wrap edge
@@ -7041,9 +7093,9 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
             continue;
         };
-        let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
+        if edge_endpoints(body, edge.he_plus).is_none() {
             continue;
-        };
+        }
         let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
@@ -7054,9 +7106,13 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue;
         };
-        let chord = p_start.distance(p_end);
         let (t0, t1) = curve.params();
-        let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
+        // The wedge is levered at the farther face's extent, never the
+        // edge's own (`crate::wedge_reach`), read once by check 2 under
+        // the same three guards as this loop's.
+        let reach = reaches.get(edge_key).copied().unwrap_or_else(|| {
+            unreachable!("check 2 read {edge_key:?}'s reach under this loop's guards")
+        });
         // The interior schedule's stations, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5
         // and check 4's second-order walk.
@@ -7100,7 +7156,7 @@ pub(crate) fn tier3_local_checks_marked<
         let conventional = curve.description().is_conventional();
         if !nurbs_adjacent {
             for &(p, _) in &samples {
-                match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band) {
+                match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band) {
                     Ok(class) => readings.push(class == DihedralClass::Transverse),
                     Err(escalation) => {
                         errors.push(dihedral_finding(edge_key, escalation));
@@ -7214,7 +7270,7 @@ pub(crate) fn tier3_local_checks_marked<
                 s_plus,
                 s_minus,
                 samples.iter().copied(),
-                extent,
+                reach,
                 band,
                 &mut stations,
             );
@@ -11869,18 +11925,19 @@ mod tests {
             (
                 "wedge arm, in band",
                 sliver(WedgeCheck::Arm, in_band),
-                "whether an edge is long enough, for how its faces curve, to measure their \
-                 angle is undecided. Recourse: move the geometry so \
-                 that edge is clearly longer and no face curves tightly there, or, if this length \
-                 or the gap its faces open is intended, tighten the tolerance below 5e-10 m"
+                "whether an edge is between faces wide enough, for how they curve, to measure \
+                 their angle is undecided. Recourse: move the geometry so \
+                 that edge's faces clearly run farther and none curves tightly there, or, \
+                 if this length or the gap its faces open is intended, tighten the tolerance \
+                 below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
-                "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there, or, if this length or the gap its faces open is intended, \
-                 tighten the tolerance below 5e-11 m"
+                "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                 curves tightly there, or, if this length or the gap its faces open is \
+                 intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (
@@ -11892,10 +11949,10 @@ mod tests {
                         band,
                     }),
                 },
-                "an edge is not long enough, for how its faces curve, to measure their angle. \
-                 Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there, or, if this length or the gap its faces open is intended, \
-                 tighten the tolerance below 5e-11 m"
+                "an edge is not between faces wide enough, for how they curve, to measure their \
+                 angle. Recourse: move the geometry so that edge's faces clearly run farther \
+                 and none curves tightly there, or, if this length or the gap its faces \
+                 open is intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (
@@ -11907,8 +11964,8 @@ mod tests {
                         band,
                     }),
                 },
-                "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there; an edge of no length or a cone's point leaves no angle to \
+                "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                 curves tightly there; faces of no extent or a cone's point leave no angle to \
                  measure; a radius below zero is a defect"
                     .to_owned(),
             ),
@@ -11933,16 +11990,16 @@ mod tests {
                 "material pairing, in band",
                 sliver(WedgeCheck::MaterialPairing, in_band),
                 "which side of an edge the material of its two smoothly meeting faces lies on \
-                 is undecided. Recourse: move the geometry so that edge is clearly longer and no \
-                 face curves tightly there, or, if this length is intended, tighten the \
-                 tolerance below 5e-10 m"
+                 is undecided. Recourse: move the geometry so that edge's faces clearly run \
+                 farther and none curves tightly there, or, if this length is intended, \
+                 tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "material pairing, poisoned",
                 sliver(WedgeCheck::MaterialPairing, diag(MarginDiag::INVALID)),
                 format!(
-                    "Recourse: move the geometry so that edge is clearly longer and no face \
+                    "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there; {}",
                     geom_core::UNREADABLE_STORED_MARGIN_NOTE
                 ),
@@ -12089,7 +12146,7 @@ mod tests {
             (
                 "pcurve fitted hull sup, definite",
                 pcurve(PcurveCertifyError::FittedLimb {
-                    limb: geom_brep::SsiLimb::HullSup,
+                    limb: geom_brep::SsiLimb::HullSupChart,
                     margin: MarginDiag::value(5e-8),
                 }),
                 format!(
@@ -12166,7 +12223,7 @@ mod tests {
     /// through [`dihedral_finding`] as the edge loop takes them. An
     /// in-band arm is a sliver of the arm's decision; the cone apex's
     /// arm is decided zero, so it is the definite `NoDihedralArm`, never
-    /// "undecided"; both name the edge's length and bend, never
+    /// "undecided"; both name the faces' reach and bend, never
     /// an angle, and neither says the margin was unreadable. A
     /// near-tangent wedge keeps the angle.
     #[test]
@@ -12224,19 +12281,20 @@ mod tests {
                 other => panic!("{row}: {other:?}"),
             };
             assert_eq!(got, want, "{row}: {text}");
-            let reads_the_arm = text.contains("move the geometry so that edge is clearly longer")
+            let reads_the_arm = text
+                .contains("move the geometry so that edge's faces clearly run farther")
                 && !text.contains("angle is intended");
             assert_eq!(reads_the_arm, want != Reads::Angle, "{row}: {text}");
             assert!(!text.contains("unreadable"), "{row}: {text}");
             if want == Reads::ArmUndecided {
                 assert!(
-                    text.contains("whether an edge is long enough"),
+                    text.contains("whether an edge is between faces wide enough"),
                     "{row}: {text}"
                 );
             }
             if want == Reads::NoArm {
                 assert!(
-                    text.starts_with("an edge is not long enough")
+                    text.starts_with("an edge is not between faces wide enough")
                         && !text.contains("too close")
                         && text.ends_with("no angle to measure; a radius below zero is a defect"),
                     "{row}: {text}"
@@ -13503,8 +13561,9 @@ mod tests {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
         let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
-        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
-            .expect("the chord certifies");
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
+                .expect("the chord certifies");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -13530,8 +13589,9 @@ mod tests {
         };
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
-        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
-            .expect("the whole circle certifies against its one end point");
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
+                .expect("the whole circle certifies against its one end point");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14271,9 +14331,15 @@ mod tests {
             param_end: t1,
         };
         let surfaces = |key| body.surfaces.get(key).cloned();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, start, end, surfaces, Band::linear(tol).unwrap())
-                .expect("the ellipse arc certifies");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            surfaces,
+            1.0,
+            Band::linear(tol).unwrap(),
+        )
+        .expect("the ellipse arc certifies");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14488,12 +14554,12 @@ mod tests {
                     verdict,
                     RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
                 ),
-                // The walk's one point-level row on a circle — the radial
-                // gap — is the predicate that speaks, not a ray's.
+                // The walk's one point-level row on a circle — the gap at
+                // the point's foot, `geom`'s on-carrier reading — speaks, not a ray's.
                 _ => matches!(
                     verdict,
                     RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
-                        if d.predicate == Some("point_in_arc_loop_conic_on")
+                        if d.predicate == Some("curve_carrier_gap")
                 ),
             };
             assert!(ok, "{name}: wrong verdict");
@@ -14731,9 +14797,15 @@ mod tests {
             u_ref,
         };
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, start, end, |_| None, Band::linear(tol).unwrap())
-                .expect("the arc certifies against its own end points");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+        )
+        .expect("the arc certifies against its own end points");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -16769,6 +16841,9 @@ mod certify_escalation_rows {
                  tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
                  indicate a kernel bug worth reporting",
             ),
+            // Against the plane the bound is the carrier's own; against
+            // the spline face it reads the carrier through the check's
+            // image.
             (
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
@@ -16779,6 +16854,31 @@ mod certify_escalation_rows {
                 "the check's certified bound on how far it strays from its faces exceeds the \
                  tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
                  indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::HullSupChart,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its spline face, read \
+                 through the check's own image of it on that face, exceeds the tolerance. \
+                 Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting",
+            ),
+            // The lane's own image misses where the carrier is on the
+            // face: the certificate's limit, never the carrier's fault.
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
+                        margin: geom_core::MarginDiag::value(4.6e-4),
+                    },
+                )),
+                "it is on its spline face where the check looked, but the check's own image of \
+                 it there misses by more than the tolerance. Recourse: loosen the tolerance, as \
+                 a last resort; this refusal may indicate a kernel bug worth reporting",
             ),
             (
                 says(CertifyError::AnalyticRung3(

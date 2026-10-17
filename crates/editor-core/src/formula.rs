@@ -492,7 +492,7 @@ impl Formula {
     /// **The first leaf only a document's edit door resolves**, in
     /// pre-order — a name, or a fresh-table read — as it refuses where
     /// no name is held and no table is read; `None` for a formula that
-    /// evaluates as it stands ([`crate::eval`]).
+    /// evaluates as it stands ([`crate::eval`](fn@crate::eval)).
     #[must_use]
     pub fn unresolvable(&self) -> Option<LowerFault> {
         self.unresolved(&|_| None, &[])

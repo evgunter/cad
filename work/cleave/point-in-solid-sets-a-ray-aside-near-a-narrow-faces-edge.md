@@ -8,7 +8,7 @@ priority: P2
 cost: M
 ---
 
-Found by FLUSH's needle-class design fork (fork-log row 149, PR 5119;
+Found by FLUSH's needle-class design fork (fork-log row 153, PR 5119;
 the FLUSH row `the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite`).
 
 ## What

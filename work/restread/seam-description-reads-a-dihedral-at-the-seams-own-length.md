@@ -2,10 +2,11 @@
 id: seam-description-reads-a-dihedral-at-the-seams-own-length
 kind: issue
 title: The boolean's seam description reads a seam's dihedral at the seam's own length, so a short seam between faces that part far away is left a scaffold at rest
-status: open
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
+closed: 2026-10-15
 ---
 
 
@@ -41,3 +42,13 @@ When the lever lands, the three refusals turn back into answers, and
 the rows get back the assertions this change took out: the wedge's ∩
 corners and volume through `answers`, and the pierce row's
 `tool − block` corners, volume and the point above the top.
+
+## Closed (TANG U-lever, 2026-10-15)
+
+Every reader of an edge's wedge now levers it at the farther face's
+extent (`topo::wedge_reach`), the boolean's seam description among them
+(`boolean::ops`'s describe pass). The three refusals turned back into
+answers, and `contact9_side_codes` asserts them again: the tilted
+wedge's ∩ and − answer through `answers` (corners, volume, membership,
+tier 3), and the pierce row's `tool − block` holds the sliver's corners
+and volume and the point above the top.

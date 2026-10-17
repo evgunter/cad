@@ -105,6 +105,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
+        geom_core::Real::from_f64(1.0),
         band(),
         lane.then(NurbsLane::certified),
     )
@@ -261,7 +262,7 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
     ] {
         let surfaces = |k| arena.get(k).cloned();
         assert_eq!(
-            EdgeCurve::certify(spec.clone(), start, end, surfaces, band()).map(|_| ()),
+            EdgeCurve::certify(spec.clone(), start, end, surfaces, 1.0, band()).map(|_| ()),
             Err(CertifyError::NurbsLaneNotSupplied),
             "{defect}: lane-free"
         );
@@ -270,6 +271,7 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
             start,
             end,
             surfaces,
+            1.0,
             band(),
             Some(NurbsLane::certified()),
         )
@@ -311,31 +313,39 @@ fn lane_free_doors_refuse_an_analytic_rung3_edge() {
         start,
         end,
         surfaces,
+        1.0,
         band(),
         Some(NurbsLane::certified()),
     )
     .expect("the lane certifies the flat quarter");
     assert_eq!(
-        EdgeCurve::certify(spec, start, end, surfaces, band()).map(|_| ()),
+        EdgeCurve::certify(spec, start, end, surfaces, 1.0, band()).map(|_| ()),
         refused,
         "EdgeCurve::certify"
     );
     assert_eq!(
         certified
-            .recertify(start, end, surfaces, band())
+            .recertify(start, end, surfaces, 1.0, band())
             .map(|_| ()),
         refused,
         "EdgeCurve::recertify"
     );
     assert_eq!(
         certified
-            .recertify_via(start, end, surfaces, band(), None)
+            .recertify_via(start, end, surfaces, 1.0, band(), None)
             .map(|_| ()),
         refused,
         "recertify_via(None)"
     );
     certified
-        .recertify_via(start, end, surfaces, band(), Some(NurbsLane::certified()))
+        .recertify_via(
+            start,
+            end,
+            surfaces,
+            1.0,
+            band(),
+            Some(NurbsLane::certified()),
+        )
         .expect("recertify_via with the lane re-derives the certificate");
 
     // The dual: a scalar with no lane to hand.
@@ -360,6 +370,7 @@ fn lane_free_doors_refuse_an_analytic_rung3_edge() {
             dc.eval(Dual64::from_f64(0.0)),
             dc.eval(Dual64::from_f64(1.0)),
             |k| dual_arena.get(k).cloned(),
+            geom_core::Real::from_f64(1.0),
             band(),
         )
         .map(|_| ()),
@@ -481,6 +492,7 @@ fn certify_over(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
+        1.0,
         band(),
         Some(NurbsLane::certified()),
     )

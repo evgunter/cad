@@ -40,10 +40,10 @@
 //!   the descriptions with the radius-pricing `hyp` lever, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
 //!   whole number of periods decided per pair as structure
-//!   ([`geom_brep::whole_periods`]). A gap astride a half-period mark
-//!   is answered on both branches and kept where they agree; the
-//!   [`ChartRegionError::PeriodFold`] decline is two branches that
-//!   disagree, or a gap past the branch reach.
+//!   ([`geom_brep::Period::decide`]), however many periods apart. A gap
+//!   astride a half-period mark is answered on both branches and kept
+//!   where they agree; the [`ChartRegionError::PeriodFold`] decline is
+//!   two branches that disagree.
 //!
 //! For both arms the claim earned is *certified everywhere within ε*,
 //! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
@@ -265,9 +265,8 @@ pub enum ChartRegionError {
     /// The whole-period fold that carries one cylinder description's
     /// chart window onto the other's names no branch: the two windows'
     /// midpoints sit ON a half-period mark and the pair's answers on the
-    /// two branches astride it disagree, or they sit more than
-    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods apart. The tie
-    /// declines, never certifying a false overlap.
+    /// two branches astride it disagree. The tie declines, never
+    /// certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
     /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
@@ -397,7 +396,7 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: the cross-description angular fold could not be \
                  pinned to one whole period — the two windows sit a genuine \
                  half-period tie apart and the pair reads differently on the two \
-                 branches, or they sit more periods apart than the branch reach; \
+                 branches; \
                  the tie declines, it never certifies. Move one \
                  description's window off the half-period tie, or re-describe the \
                  pair on one cylinder rather than two"
@@ -1321,15 +1320,14 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// away from A's. ONE integer `k` is decided per pair, from the gap
 /// `mid_A − mid_B̃` between the two windows' azimuth midpoints, and
 /// applied to every transferred vertex. It is decided as structure
-/// ([`geom_brep::whole_periods`], `chart_region_period_fold`): sign
+/// ([`geom_brep::Period::decide`], `chart_region_period_fold`): sign
 /// decisions at the half-period marks, levered by the radius, so the
 /// shift is `k·τ` with `k` a literal at every scalar. A gap on or in
 /// the band of a mark (the windows a half-period tie apart) is a tie
 /// between the two branches astride it, each of which sees the mirror
 /// image of the other's overlap: the pair is answered on both and the
 /// answer kept where they agree. Two that disagree decline
-/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band; a
-/// gap past the branch reach declines [`ChartRegionError::PeriodFold`].
+/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band.
 ///
 /// # Decline posture (issue 1435's disclosure obligation)
 ///
@@ -1619,24 +1617,24 @@ enum Fold<T> {
 
 /// The fold for windows whose azimuth midpoints are `gap` apart, on a
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
-/// half-period marks ([`geom_brep::whole_periods`]) levered at the
+/// half-period marks ([`geom_brep::Period::decide`]) levered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
 /// two branches astride it (`pcurves::branches_astride`), each a literal.
 ///
 /// # Errors
 ///
-/// [`ChartRegionError::PeriodFold`] past the branch reach, or on a mark
-/// whose astride branches are not decided;
+/// [`ChartRegionError::PeriodFold`] on a mark whose astride branches
+/// are not decided;
 /// [`ChartRegionError::Escalated`] in band, likewise.
 fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let tau = T::tau();
     let name = "chart_region_period_fold";
     let meter = |g| Margin::levered(g, radius);
-    let shift = |k: i32| T::from_f64(f64::from(k)) * tau;
-    match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+    let period = geom_brep::Period::new(tau);
+    let shift = |k: i32| period.times(k);
+    match period.decide(name, gap, meter, band) {
         Ok(k) => Ok(Fold::One(shift(k))),
-        Err(geom_brep::BranchMiss::OutOfReach) => Err(ChartRegionError::PeriodFold),
-        Err(miss) => {
+        Err(geom_brep::WalkStop { miss, .. }) => {
             let decline = match miss {
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
@@ -3561,6 +3559,11 @@ fn polygon_relation<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #[path = "chart_region_r2_probes.rs"]
 mod r2_probes;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[path = "chart_region_far_fold_rows.rs"]
+mod far_fold_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -5868,7 +5871,7 @@ mod period_fold_rows {
     #[test]
     fn the_fold_is_its_whole_periods_as_a_theorem_over_a_box() {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()
