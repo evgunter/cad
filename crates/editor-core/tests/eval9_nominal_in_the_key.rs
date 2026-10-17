@@ -166,11 +166,11 @@ mod over_a_param_box {
         )
     }
 
-    /// The profile's placement, as BITS: the pinned lift embeds the f64
-    /// plane whole, so these twelve enclosures are what the pre-pass read.
-    /// Read through the public accessors and compared by bits, which is
-    /// stricter than `==` on an interval and is the comparison these rows
-    /// mean.
+    /// The profile's placement, as BITS: under a box the lift is guided
+    /// (`EvalOptions::profile_lift`), so these twelve enclosures are the
+    /// plane at the lane. Read through the public accessors and compared
+    /// by bits, which is stricter than `==` on an interval and is the
+    /// comparison these rows mean.
     fn plane_bits(doc: &ProfileDoc, ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
         let ValuePayload::Profile(pv) = &ev
             .value(profile(doc))
@@ -202,11 +202,13 @@ mod over_a_param_box {
     /// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
     /// the two boxes bind the SAME interval for `p`, so every bit the lane
     /// feed writes is equal, while the nominal — the value the pre-pass
-    /// resolves the plane at and the pinned lift embeds — moved from `0`
-    /// to `0.5`. The prior must not be served: the frame's key moves, the
-    /// profile's moves with it, the second run recomputes both, and the
-    /// plane it reports is the plane a cold run of the edited document
-    /// reports rather than the identity the prior held.
+    /// resolves at — moved from `0` to `0.5`. The prior must not be
+    /// served: the frame's key moves, the profile's moves with it, and the
+    /// second run recomputes both. (Under the pinned lift a box placed
+    /// the profile on the NOMINAL's plane, so a served prior was also
+    /// placed wrong; under the guided lift every boxed run places it at
+    /// the lane, the two runs report one plane by construction, and what
+    /// this row holds is the key.)
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
@@ -217,20 +219,18 @@ mod over_a_param_box {
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
-        // The plane really does move between the two nominals - `u` is
-        // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
-        // so the row below is not vacuous.
-        assert_ne!(
+        // A box makes the lift guided (`EvalOptions::profile_lift`), so
+        // each run places the profile on its LANE's plane, and the two
+        // boxes bind the same interval for `p`: the two runs report one
+        // plane. The pinned lift placed it on the nominal's plane under
+        // a box — `u` the x axis at `p = 0`, normalized (1, 0.5, 0) at
+        // `p = 0.5` — and served the prior's; that lift is no longer one
+        // a boxed evaluation can take, and the key below still carries
+        // the nominal.
+        assert_eq!(
             plane_bits(&first, &prior),
             plane_bits(&first, &cold),
-            "the two nominals are two planes"
-        );
-        // The harm: what the second evaluation reports as the
-        // profile's placement.
-        assert_eq!(
-            plane_bits(&first, &hit),
-            plane_bits(&first, &cold),
-            "the served profile is placed on the edited nominal's plane"
+            "both boxes bind one interval for p, so one plane"
         );
         // And the mechanism: the nominal is in the key, so nothing of the
         // edited document is served from the prior at all.

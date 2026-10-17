@@ -4,6 +4,8 @@ kind: issue
 title: editor-core: NodeErrorKind MissingSlot and VerbArity end in '(a kernel bug)', not the shared kernel-defect ending
 status: open
 opened: 2026-09-28
+priority: P4
+cost: E
 ---
 
 
