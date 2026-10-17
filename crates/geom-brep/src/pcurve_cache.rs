@@ -4937,27 +4937,32 @@ impl<T: Real> Azimuth<T> {
     }
 }
 
-impl<T: Decide> Azimuth<T> {
-    /// The principal angle: `atan2`'s, read on whichever of two frames
-    /// keeps its cut off the direction (the chart's frame read): a rounding
-    /// choice between two formulas equal modulo a turn, so the angle is
-    /// one of the direction's names: in `(−π/2, 3π/2]` where the frame
-    /// decides its side, and in `atan2`'s own `(−π, π]` where that
-    /// decision is in band (the direct formula, the tie-break), so in
-    /// `(−π, 3π/2]` in all. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
-    pub fn principal(self, band: Band) -> T {
+impl<T: Real> Azimuth<T> {
+    /// The direction's angle named about `centre`, in `(centre − π,
+    /// centre + π]`: `centre` plus `atan2` of the direction turned by
+    /// `−centre`, so `atan2`'s cut lies half a turn from `centre` and no
+    /// other cut is read. One expression at every scalar, with no
+    /// decision: a placement names its angle about its window's centre
+    /// ([`Placement::phase`]), so the cut is the window's own, and the
+    /// window's cut sits at a generic angle ([`ANGLE_WINDOW_START`]) where
+    /// no landmark direction's enclosure straddles it.
+    ///
+    /// A direction of no length (or, at `Interval`, one whose enclosure
+    /// reaches zero length: no bounded reciprocal) names no angle, and
+    /// every angle names its zero-length vector alike: it reads `0`, the
+    /// chart's `u_ref`, at every scalar, as `atan2(0, 0)` does at `f64`
+    /// (a pole's zero-radius parallel, a sub-band rim's centre on the
+    /// axis). At `Interval` the rule broadens the same way: an enclosure
+    /// of the length that straddles zero has no bounded reciprocal, so it
+    /// reads `0` too, although the direction it encloses may have length.
+    pub fn about(self, centre: T) -> T {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
         }
-        stable_azimuth(self.y, self.x, band)
+        let (s, c) = centre.sin_cos();
+        let x = self.x * c + self.y * s;
+        let y = self.y * c - self.x * s;
+        centre + y.atan2(x)
     }
 }
 
@@ -7713,7 +7718,7 @@ pub(crate) enum Window {
 
 impl Window {
     /// The window's centre, half a turn from its cut either way.
-    fn centre<T: Real>(self) -> T {
+    pub(crate) fn centre<T: Real>(self) -> T {
         match self {
             Window::Angle => T::pi() + T::from_f64(ANGLE_WINDOW_START),
             Window::Latitude => T::zero(),
@@ -7725,6 +7730,23 @@ impl<T: Real> Placement<T> {
     /// The span's midpoint.
     pub(crate) fn mid(self) -> T {
         self.mid
+    }
+
+    /// The window the `along` angle is named in.
+    pub(crate) fn window(self, along: Along) -> Window {
+        match along {
+            Along::Azimuth | Along::Tube => Window::Angle,
+            Along::Latitude => Window::Latitude,
+        }
+    }
+
+    /// The lever the `along` angle's marks are read at ([`Levers`]).
+    fn lever(self, along: Along) -> T {
+        match along {
+            Along::Azimuth => self.levers.azimuth,
+            Along::Tube => self.levers.tube,
+            Along::Latitude => self.levers.latitude,
+        }
     }
 }
 
@@ -7777,10 +7799,16 @@ impl<T: Decide> Placement<T> {
 
     /// The phase of the `along` channel whose direction at the image's
     /// origin is `dir` and which moves by `offset(t)` from there by
-    /// parameter `t`: `dir`'s principal angle ([`Azimuth::principal`]),
-    /// less the whole turns that put `phase + offset(mid)` in its window
-    /// ([`Placement::turns`]); none leaves the principal angle as it was
-    /// read.
+    /// parameter `t`, placed so that `phase + offset(mid)` lies in its
+    /// window. The whole turns `k` the offset carries to the midpoint are
+    /// decided through the marks ([`Placement::turns`], on the gap
+    /// `offset(mid)` alone); `dir`'s angle is then named about the
+    /// window's centre less the rest of the offset, `offset(mid) − k·τ`
+    /// ([`Azimuth::about`]), so the read at the midpoint has the window's
+    /// own cut and no other, and the phase is that read less the `k`
+    /// turns. With no offset this is `dir`'s angle named about the
+    /// window's centre. The read and the marks' gap are one expression
+    /// at every scalar: no frame is chosen on the way.
     pub(crate) fn phase(
         self,
         along: Along,
@@ -7788,12 +7816,14 @@ impl<T: Decide> Placement<T> {
         offset: impl FnOnce(T) -> T,
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        let read = dir.principal(band);
-        let turns = self.turns(along, read + offset(self.mid), band)?;
+        let centre = self.window(along).centre::<T>();
+        let off = offset(self.mid);
+        let turns = self.turns(along, centre + off, band)?;
         Ok(if turns == 0 {
-            read
+            dir.about(centre - off)
         } else {
-            read - Period::new(T::tau()).times(turns)
+            let whole = Period::new(T::tau()).times(turns);
+            dir.about(centre - (off - whole)) - whole
         })
     }
 
@@ -7818,11 +7848,7 @@ impl<T: Decide> Placement<T> {
             sample: 0,
             cause,
         };
-        let (window, lever) = match along {
-            Along::Azimuth => (Window::Angle, self.levers.azimuth),
-            Along::Tube => (Window::Angle, self.levers.tube),
-            Along::Latitude => (Window::Latitude, self.levers.latitude),
-        };
+        let (window, lever) = (self.window(along), self.lever(along));
         // A zero lever (or an enclosure reaching zero: no bounded
         // reciprocal, at every scalar alike) is an angle that moves
         // nothing, a pole's zero-radius parallel: every copy names the same
@@ -7872,22 +7898,6 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
             let (a, b) = net.domain();
             (T::from_f64(a), T::from_f64(b))
         }
-    }
-}
-
-/// Branch-stabilized azimuth (M5 S13, shared by every chart's
-/// derivation since M6-3): atan2's cut sits on the negative-x axis,
-/// and an interval y touching zero there (a seam meridian's angle-π
-/// copy, or a rim whose start sits ON the seam) explodes the
-/// enclosure to a full period even though every consumer reads
-/// azimuth mod τ. On a definitely-negative-x frame the same angle is
-/// `atan2(−y, −x) + π`. The frame trilean chooses between two
-/// formulas identical mod τ (the negative-`y` side differs by 2π);
-/// degenerate and in-band arms keep the direct one (tie-break, D9).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
 }
 
@@ -8176,7 +8186,7 @@ fn derive_class<T: Decide>(
             match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
                 // Zero — AND the in-band arm (Err): a sub-escalation
                 // radial amplitude takes the meridian form as a D9
-                // tie-break (the `stable_azimuth` posture): this is
+                // tie-break: this is
                 // STRUCTURE selection, not a topological decision —
                 // check 4's envelope is built from the true difference
                 // of forms, so the discarded drift lands in the
@@ -9179,7 +9189,12 @@ fn torus_oblique_circle<T: Decide>(
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
-    let t0 = stable_azimuth(d.dot(form.b), d.dot(form.a), band);
+    // `t0`, the carrier parameter where it passes `d`, is read about the
+    // parameter that names the tube angle at the span's midpoint at its
+    // window's centre (`vl·(mid − t0) = centre`), so the tube placement's
+    // gap below is one expression with no frame chosen on the way.
+    let t0 = Azimuth::of(d.dot(form.b), d.dot(form.a))
+        .about(place.mid() - vl * Window::Angle.centre::<T>());
     let cv = axis.cross(u_ref);
     // The tube angle, `vl·(t − t0)` from the carrier's own parameter, is
     // an angle of the chart like the azimuth: placed in the window at the

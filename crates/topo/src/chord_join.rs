@@ -2861,6 +2861,12 @@ fn between_edge_is_section<T: Decide>(
 /// τ with the cut on the benign axis. The frame trilean is a
 /// computation choice between two identical formulas; its degenerate
 /// and in-band arms keep the direct one (deterministic tie-break, D9).
+///
+/// This lane's own read, not a placement's: a ring vertex's azimuth is
+/// taken onto its run's window by `periodic_branch` below, and no
+/// margin is decided on it under a placement's name. A placement names
+/// its angle about its window's centre with no frame chosen
+/// (`geom_brep::Azimuth::about`).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     match decide("split_chart_azimuth_frame", Margin::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
