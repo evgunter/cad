@@ -205,7 +205,8 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub poses: &'a crate::mate::SolvedPoses<T>,
     /// The nodes whose reads lie in two spaces, each naming the two
     /// (`mate::solve::spaces_of`).
-    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (crate::mate::Space, crate::mate::Space)>,
+    pub across:
+        &'a std::collections::BTreeMap<RecipeNodeId, (crate::mate::Space, crate::mate::Space)>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -402,7 +403,11 @@ where
                 .iter()
                 .zip(&each)
                 .map(|(&(seat, read), projected)| {
-                    Ok((at(seat, read)?, read, projected.as_ref().unwrap_or(unprojected)))
+                    Ok((
+                        at(seat, read)?,
+                        read,
+                        projected.as_ref().unwrap_or(unprojected),
+                    ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             let map = placement_map(id, frame, env.poses, tol)?;
@@ -2719,7 +2724,14 @@ fn reads_projected<T: Decide + topo::AtRestPolicy>(
             && let Some(key) = &read.key
         {
             let placement = super::read_at(doc, seat, var)?;
-            replaced.push(copy_of(placement, key, read.is_indexed(), seat, (results, vals), tol)?);
+            replaced.push(copy_of(
+                placement,
+                key,
+                read.is_indexed(),
+                seat,
+                (results, vals),
+                tol,
+            )?);
             continue;
         }
         if node
@@ -3817,7 +3829,10 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
             }
             ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
             ValuePayload::Instances(bodies) => {
-                let bodies = bodies.iter().map(|b| placed(b)).collect::<Result<Vec<_>, _>>()?;
+                let bodies = bodies
+                    .iter()
+                    .map(|b| placed(b))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let table = name_family(id, &value.name_table, &bodies)?;
                 return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
                     .carrying(value.parts)
@@ -3920,8 +3935,10 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
             value.parts,
         ));
     }
-    let named: Vec<(&names::NameTable, &Body<T>)> =
-        flat.iter().map(|(table, body)| (table, body.as_ref())).collect();
+    let named: Vec<(&names::NameTable, &Body<T>)> = flat
+        .iter()
+        .map(|(table, body)| (table, body.as_ref()))
+        .collect();
     let table = names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)?;
     let members = keys
         .into_iter()
@@ -3971,8 +3988,11 @@ fn name_family<T: Decide>(
                 .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let named: Vec<(&names::NameTable, &Body<T>)> =
-        tables.iter().zip(bodies).map(|(t, b)| (t, b.as_ref())).collect();
+    let named: Vec<(&names::NameTable, &Body<T>)> = tables
+        .iter()
+        .zip(bodies)
+        .map(|(t, b)| (t, b.as_ref()))
+        .collect();
     names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)
 }
 

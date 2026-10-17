@@ -158,10 +158,10 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
     let (doc, mate) = constrain(
         doc,
         seat_mate(
-        in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0, 1.0],
-        AxisSense::Aligned,
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
         ),
     );
 
@@ -287,10 +287,10 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let (doc, mate) = constrain(
         doc,
         seat_mate(
-        in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0, 1.0],
-        AxisSense::Aligned,
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
         ),
     );
 
@@ -366,10 +366,10 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let (doc, mate) = constrain(
         doc,
         seat_mate(
-        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0, 1.0],
-        AxisSense::Aligned,
+            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
         ),
     );
     let o = with_resolver(store);
@@ -398,7 +398,10 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(bad, Err(editor_core::EditError::ConstraintOnNonPlacement { .. })),
+        matches!(
+            bad,
+            Err(editor_core::EditError::ConstraintOnNonPlacement { .. })
+        ),
         "a pattern node cannot carry a placement of its own: {:?}",
         bad.err()
     );
@@ -470,20 +473,20 @@ fn r1_pattern_free_solves_are_bit_identical() {
         let (doc, _m0) = constrain(
             doc,
             seat_mate(
-            in_part(a, a_body, CapEnd::End),
-            in_part(b, b_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            sense,
+                in_part(a, a_body, CapEnd::End),
+                in_part(b, b_body, CapEnd::Start),
+                [0.0, 0.0, 1.0],
+                sense,
             ),
         );
         let doc = if chain {
             let (doc, _m1) = constrain(
                 doc,
                 seat_mate(
-                in_part(b, b_body, CapEnd::End),
-                in_part(c, c_body, CapEnd::Start),
-                [0.25, 0.0, 1.0],
-                AxisSense::Aligned,
+                    in_part(b, b_body, CapEnd::End),
+                    in_part(c, c_body, CapEnd::Start),
+                    [0.25, 0.0, 1.0],
+                    AxisSense::Aligned,
                 ),
             );
             doc
@@ -639,10 +642,10 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let (doc2, m2) = constrain(
         doc2,
         seat_mate(
-        in_copy(pat, 1, in_part(li, leg2_body, CapEnd::End)),
-        in_part(ti, top2_body, CapEnd::Start),
-        [0.0, 0.0, 1.0],
-        AxisSense::Aligned,
+            in_copy(pat, 1, in_part(li, leg2_body, CapEnd::End)),
+            in_part(ti, top2_body, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
         ),
     );
     let o2 = with_resolver(store2);
@@ -801,10 +804,10 @@ fn r1_reproduce_the_quoted_red_first_fault() {
     let (doc, mate) = constrain(
         doc,
         seat_mate(
-        in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0, 1.0],
-        AxisSense::Opposed,
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Opposed,
         ),
     );
     let o = with_resolver(store);

@@ -737,9 +737,7 @@ impl NameTable {
         for (name, row) in &self.forward {
             let kept: Vec<(Candidate, EntityRef)> = row
                 .pairs()
-                .filter_map(|(c, e)| {
-                    onto(e.body).map(|body| (c, EntityRef { body, key: e.key }))
-                })
+                .filter_map(|(c, e)| onto(e.body).map(|body| (c, EntityRef { body, key: e.key })))
                 .collect();
             if !kept.is_empty() {
                 super::defer::narrow_into(&mut out, name.clone(), kept)?;

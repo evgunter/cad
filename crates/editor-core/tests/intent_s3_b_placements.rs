@@ -12,19 +12,18 @@
 
 use crate::fixture::resolver::{PartStore, copy_key, in_part, with_resolver};
 use crate::fixture::{
-    self, at_the_door_of, constrain, insert, len, mated_instance, on_frame, run,
-    square, step,
+    self, at_the_door_of, constrain, insert, len, mated_instance, on_frame, run, square, step,
 };
 use editor_core::eval::bound_pose;
+use editor_core::pose::PoseDef;
 use editor_core::{
     Alignment, AxisSense, BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError,
     EvalOptions, ExtrudeSide, Formula, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind,
-    NodeResult, Operand, OperandSlot, Placement, PoseValue, ProductError, ProfileDoc,
-    RecipeNodeId, RoleSeg, Space, StableName,
+    NodeResult, Operand, OperandSlot, Placement, PoseValue, ProductError, ProfileDoc, RecipeNodeId,
+    RoleSeg, Space, StableName,
 };
-use editor_core::pose::PoseDef;
-use geom_core::UnitVec3;
 use geom_core::Tol;
+use geom_core::UnitVec3;
 
 // ---- Substrate ----
 
@@ -151,11 +150,17 @@ fn two_placements_of_one_body_are_two_copies() {
         doc,
         DocEdit::place_in_world(
             Operand::Node(body),
-            Some(Placement::literal(&editor_core::Frame::translation([3.0, 0.0, 0.0]))),
+            Some(Placement::literal(&editor_core::Frame::translation([
+                3.0, 0.0, 0.0,
+            ]))),
         ),
     );
     let second = second.expect("a placement mints its node");
-    assert_ne!(doc.output(first, 0), doc.output(second, 0), "one output each");
+    assert_ne!(
+        doc.output(first, 0),
+        doc.output(second, 0),
+        "one output each"
+    );
     let ev = run(&doc, &EvalOptions::default());
     assert_eq!(product_solids(&doc, &ev), 2);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
@@ -247,10 +252,7 @@ fn an_under_pinned_copy_is_loose_not_refused() {
 #[test]
 fn the_world_is_undeletable_and_defines_nothing() {
     let doc = ProfileDoc::empty(DocumentId::derive("s3b-world"), Tol::witness());
-    assert!(matches!(
-        doc.node(RecipeNodeId::WORLD),
-        Some(Node::World)
-    ));
+    assert!(matches!(doc.node(RecipeNodeId::WORLD), Some(Node::World)));
     assert_eq!(doc.len(), 0, "the world is no node an author counts");
     let refused = editor_core::apply(
         &doc,
@@ -279,10 +281,7 @@ fn the_world_is_undeletable_and_defines_nothing() {
             ]),
         },
     );
-    assert!(
-        matches!(read, EditError::DefinesNothing { .. }),
-        "{read:?}"
-    );
+    assert!(matches!(read, EditError::DefinesNothing { .. }), "{read:?}");
 }
 
 // ---- B1: an instance's copy side reads its own copy ----
@@ -388,7 +387,13 @@ fn a_bundle_of_two_targets_refuses() {
     let o = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     match at_the_door_of(&doc, &reach, c, seated(body, b, c)) {
-        Err((at, MateFault::TargetsDiffer { placement, constraints })) => {
+        Err((
+            at,
+            MateFault::TargetsDiffer {
+                placement,
+                constraints,
+            },
+        )) => {
             assert_eq!((at, placement), (c, c));
             assert_eq!(constraints.first(), Some(&held.id));
         }
@@ -491,10 +496,7 @@ fn an_instances_copies_are_read_one_by_key() {
             ]),
         },
     );
-    assert!(
-        matches!(whole, EditError::SlotVarKind { .. }),
-        "{whole:?}"
-    );
+    assert!(matches!(whole, EditError::SlotVarKind { .. }), "{whole:?}");
     let missing = CopyKey::part(RecipeNodeId::new(0, 1), copy_key(part_body));
     let (doc, union) = insert(
         doc,
@@ -546,7 +548,11 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
         ),
     );
     let place = place.expect("a placement mints its node");
-    assert_eq!(doc.outputs(place).len(), 1, "one output, however many shapes");
+    assert_eq!(
+        doc.outputs(place).len(),
+        1,
+        "one output, however many shapes"
+    );
     let second_read = doc.output(second, 0).expect("the block's body");
     let (doc, union) = insert(
         doc,
@@ -609,7 +615,9 @@ fn a_carried_pose_moves_with_its_copy() {
         doc,
         DocEdit::place_in_world(
             Operand::Node(body),
-            Some(Placement::literal(&editor_core::Frame::translation([3.0, 0.0, 0.0]))),
+            Some(Placement::literal(&editor_core::Frame::translation([
+                3.0, 0.0, 0.0,
+            ]))),
         ),
     );
     let placement = placement.expect("a placement mints its node");

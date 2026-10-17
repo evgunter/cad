@@ -116,12 +116,7 @@ impl crate::spoken::Say for MintedDeclaration {
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{}'s {} contact",
-            by.mate(self.mate),
-            self.class.name()
-        )
+        write!(f, "{}'s {} contact", by.mate(self.mate), self.class.name())
     }
 }
 
@@ -1266,7 +1261,9 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         Some(evaluation.space(member.instance))
     };
     let bundles = doc.placements().into_iter().filter_map(|placement| {
-        let bundle = doc.node(placement).and_then(crate::mate::solve::bundle_of)?;
+        let bundle = doc
+            .node(placement)
+            .and_then(crate::mate::solve::bundle_of)?;
         Some((placement, bundle))
     });
     for (placement, constraint) in
@@ -1578,11 +1575,11 @@ fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bo
     doc.placements().into_iter().any(|p| {
         doc.operation_of(select.body) == Some(p)
             || matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|shape| shape.read == select.body
-                    || matches!(
-                        doc.operation_of(shape.read).and_then(|at| doc.node(at)),
-                        Some(Node::Part { of, .. }) if *of == select.body
-                    )))
+            if shapes.iter().any(|shape| shape.read == select.body
+                || matches!(
+                    doc.operation_of(shape.read).and_then(|at| doc.node(at)),
+                    Some(Node::Part { of, .. }) if *of == select.body
+                )))
     })
 }
 

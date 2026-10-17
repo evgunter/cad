@@ -747,7 +747,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // chain.
         Node::Place {
             shapes: vec![nid(1).into()],
-            constraints: vec![constraint(1, editor_core::Mate::world_pin(Placement::IDENTITY))],
+            constraints: vec![constraint(
+                1,
+                editor_core::Mate::world_pin(Placement::IDENTITY),
+            )],
         },
         // A world placement at a pose of its own: one rigid step.
         Node::Place {

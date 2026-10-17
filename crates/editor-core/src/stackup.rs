@@ -1000,7 +1000,8 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
+    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
 
 // ------------------------------------------------- the verdict's tie
 

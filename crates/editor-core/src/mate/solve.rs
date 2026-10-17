@@ -356,7 +356,9 @@ impl crate::spoken::Say for PoseRefusal {
                 write!(
                     f,
                     ". {}",
-                    crate::sentence::Recourse("pin the loose copy against the world, or against a copy that is")
+                    crate::sentence::Recourse(
+                        "pin the loose copy against the world, or against a copy that is"
+                    )
                 )
             }
         }
@@ -1468,8 +1470,28 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     check_references(doc, env, mate, &a, &b).map_err(Box::new)?;
     admit_class(mate, data.class)?;
     let alignment = &data.alignment;
-    let fa = resolve_side(doc, reach, env, band, tol, mate, MateSide::A, &a, &alignment.a)?;
-    let fb = resolve_side(doc, reach, env, band, tol, mate, MateSide::B, &b, &alignment.b)?;
+    let fa = resolve_side(
+        doc,
+        reach,
+        env,
+        band,
+        tol,
+        mate,
+        MateSide::A,
+        &a,
+        &alignment.a,
+    )?;
+    let fb = resolve_side(
+        doc,
+        reach,
+        env,
+        band,
+        tol,
+        mate,
+        MateSide::B,
+        &b,
+        &alignment.b,
+    )?;
     let (Some(reach), Some(fa), Some(fb)) = (reach, fa, fb) else {
         if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
             return Err(Box::new(MateFault::TableLacks { mate, what }));
@@ -1668,7 +1690,8 @@ fn fold_bundle<P: crate::ProfilePayload, T: SolveScalar>(
     // reaches are asked ONCE per bundle, lazily, at the first mate
     // that forms a lever.
     let mut arm: Option<Arm> = None;
-    let parts_reach: std::cell::OnceCell<Result<f64, super::LeverRefusal>> = std::cell::OnceCell::new();
+    let parts_reach: std::cell::OnceCell<Result<f64, super::LeverRefusal>> =
+        std::cell::OnceCell::new();
     for m in mates {
         let mate = m.mate;
         let alignment = &m.data.alignment;
@@ -1934,7 +1957,13 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload, T: SolveScalar>(
     reach: &dyn MateReach<T>,
     tol: Tol,
 ) -> SolvedPoses<T> {
-    solve(doc, env, reach, tol, Record::PerMate(RefCell::new(BTreeMap::new())))
+    solve(
+        doc,
+        env,
+        reach,
+        tol,
+        Record::PerMate(RefCell::new(BTreeMap::new())),
+    )
 }
 
 /// **The constraints a placement holds**, `None` for a node that is no
@@ -2087,9 +2116,7 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
             detached(|| only.data.alignment.a.offset.motion_at(s.env, s.band))
     {
         s.record.keep(placement, recording);
-        let factor = s
-            .record
-            .unit(placement, || pair_left_factor(s, only))?;
+        let factor = s.record.unit(placement, || pair_left_factor(s, only))?;
         return Ok(Solved::World(pose, factor));
     }
     let coset = fold_bundle(s, &mates)?;
@@ -2106,9 +2133,7 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
             }));
         }
     }
-    let factor = s
-        .record
-        .unit(placement, || pair_left_factor(s, first))?;
+    let factor = s.record.unit(placement, || pair_left_factor(s, first))?;
     if first.target_side().is_world() {
         return Ok(Solved::World(marked(coset.representative), factor));
     }

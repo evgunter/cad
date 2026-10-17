@@ -227,11 +227,9 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
-            Self::Target
-            | Self::From
-            | Self::Cut
-            | Self::Member(_)
-            | Self::Body => SlotKind::Is(VarKind::Body),
+            Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::Body => {
+                SlotKind::Is(VarKind::Body)
+            }
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
@@ -476,7 +474,9 @@ impl<S: crate::expr::Slot> ShapeRows<BodyRead<S>> for Vec<BodyRead<S>> {
 /// (DM4, so `Place[xs[0], xs[1]]` keys twice alike and refuses). An
 /// instance keys each copy by its identity in the part: the part's
 /// placement, and the copy's key there.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CopyKey {
     /// The copy a `Place` makes of the shape it reads through this

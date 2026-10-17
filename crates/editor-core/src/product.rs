@@ -1106,7 +1106,9 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             var: doc
                 .output(*node, u8::try_from(*ix).unwrap_or(0))
                 .or_else(|| doc.output(*node, 0))
-                .unwrap_or_else(|| unreachable!("{node:?} is a placement, which defines its copies")),
+                .unwrap_or_else(|| {
+                    unreachable!("{node:?} is a placement, which defines its copies")
+                }),
             output: *ix,
             body: Arc::clone(body),
             keys: Arc::clone(keys),

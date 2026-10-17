@@ -189,8 +189,8 @@ impl<T: Decide> Evaluation<T> {
     pub fn space(&self, node: RecipeNodeId) -> crate::mate::Space {
         self.loose
             .get(&node)
-            .map_or(crate::mate::Space::World, |&root| crate::mate::Space::Loose {
-                root,
+            .map_or(crate::mate::Space::World, |&root| {
+                crate::mate::Space::Loose { root }
             })
     }
 
@@ -4427,8 +4427,7 @@ fn placement_log_opens_with_the_solves(
         r.escalations.iter().map(|e| e.predicate()).collect()
     };
     assert!(
-        frame.verdicts.starts_with(&spliced.verdicts)
-            && named(frame).starts_with(&named(spliced)),
+        frame.verdicts.starts_with(&spliced.verdicts) && named(frame).starts_with(&named(spliced)),
         "placement {id}'s frame does not open with the solve's decisions about its bundle"
     );
 }
@@ -4933,7 +4932,9 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         // against (`mate::solve::part_of`), so the key and the solve
         // name one part for one side.
         let part_of = |read: &crate::mate::SideRead<crate::VarId>,
-                       frame: &crate::mate::MateFrame| match (read, frame.base) {
+                       frame: &crate::mate::MateFrame| match (
+            read, frame.base,
+        ) {
             (crate::mate::SideRead::Face(side), crate::mate::FrameBase::Face) => {
                 let member = crate::mate::member::member_of_side(doc, *side)?;
                 crate::mate::solve::part_of(doc, &member).ok()

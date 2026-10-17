@@ -18,12 +18,12 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateRef, MateSide, MeshPickError,
-    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
-    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
-    UnnamedEntity, VarName,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateRef, MateSide,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
+    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
+    StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -2077,7 +2077,9 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     });
     assert_f6(
         &unevaluated,
-        &["constraint #2 of node 000000000002 declares nothing about the product, since it has no value"],
+        &[
+            "constraint #2 of node 000000000002 declares nothing about the product, since it has no value",
+        ],
         &["Unevaluated", "Failed"],
     );
 

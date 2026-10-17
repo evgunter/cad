@@ -14,8 +14,8 @@ use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::Reader;
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, ExpansionFault, FreeValue, FreeVar,
-    NameCarrier, VarName, VarReadFault, WitnessSiteFault,
+    DisplayUnitRefusal, DistributionRefusal, Doc, ExpansionFault, FreeValue, FreeVar, NameCarrier,
+    VarName, VarReadFault, WitnessSiteFault,
 };
 use crate::expr::Unlowered;
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
@@ -1353,9 +1353,9 @@ fn mint_pose<P: crate::ProfilePayload>(
                 .map(Var::kind)
                 .unwrap_or_else(|| unreachable!("a lowered read is live"))
         }
-        other => other
-            .kind()
-            .unwrap_or_else(|| unreachable!("every arm but a flip and a carried pose states its kind")),
+        other => other.kind().unwrap_or_else(|| {
+            unreachable!("every arm but a flip and a carried pose states its kind")
+        }),
     };
     mint_anonymous(doc, WrittenDef::Pose(kind, stored))
 }
@@ -4057,7 +4057,10 @@ impl EditError {
             }
             Self::ConstraintOnNonPlacement { node } => {
                 write!(f, "{node} is no placement, so it holds no constraint")?;
-                tail.recourse(f, format_args!("aim the edit at a placement or an instance"))
+                tail.recourse(
+                    f,
+                    format_args!("aim the edit at a placement or an instance"),
+                )
             }
             Self::UnknownConstraint { node, constraint } => {
                 write!(f, "{node} holds no constraint {constraint}")?;
@@ -6257,7 +6260,6 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     Ok((id, fresh))
 }
 
-
 /// [`admit_written_constraint`] of a constraint a slot edit just
 /// rewrote, against the bundle ahead of it.
 fn admit_slot_edit<P: Clone + crate::ProfilePayload>(
@@ -6291,7 +6293,11 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<(), EditError> {
-    let Some(bundle) = new.nodes.get(&placement).and_then(crate::mate::solve::bundle_of) else {
+    let Some(bundle) = new
+        .nodes
+        .get(&placement)
+        .and_then(crate::mate::solve::bundle_of)
+    else {
         unreachable!("the edit wrote {} into the document", new.spoken(placement))
     };
     let Some(added) = bundle.iter().find(|c| c.id == constraint) else {
@@ -7134,8 +7140,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             mate,
             fresh,
         } => {
-            let (id, fresh) =
-                add_constraint(doc, new, *placement, mate, fresh, tol, reach)?;
+            let (id, fresh) = add_constraint(doc, new, *placement, mate, fresh, tol, reach)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
@@ -7150,9 +7155,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             constraint,
         } => {
             let bundle = match new.nodes.get_mut(placement) {
-                Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-                    constraints
-                }
+                Some(
+                    Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
+                ) => constraints,
                 Some(_) => {
                     return Err(EditError::ConstraintOnNonPlacement {
                         node: doc.spoken(*placement),
@@ -7329,8 +7334,6 @@ fn stranded_reads<P: crate::ProfilePayload>(
         })
         .collect()
 }
-
-
 
 /// A witness edit's site check: the store's key rule
 /// ([`crate::doc::witness_site_fault`], the same question the load

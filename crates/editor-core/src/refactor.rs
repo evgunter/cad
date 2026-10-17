@@ -442,7 +442,8 @@ fn carry<E>(
             .map(<[_]>::to_vec)
             .unwrap_or_default();
         let mut bare = node.clone();
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } = &mut bare
+        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
+            &mut bare
         {
             constraints.clear();
         }
@@ -1578,7 +1579,6 @@ impl core::fmt::Display for InlineError {
 
 impl core::error::Error for InlineError {}
 
-
 /// What an inline does about a name the referenced document stranded:
 /// the name is that document's, so the repair is made there.
 const STRANDED_IN_THE_PART: &str = "in the referenced document, rebind that name to a live entity \
@@ -2608,14 +2608,19 @@ fn world_pin_pose<P>(
     doc: &Doc<P>,
     placement: RecipeNodeId,
 ) -> Option<&crate::placement::Placement> {
-    let [only] = doc.node(placement).and_then(crate::mate::solve::bundle_of)? else {
+    let [only] = doc
+        .node(placement)
+        .and_then(crate::mate::solve::bundle_of)?
+    else {
         return None;
     };
     world_pin_of(&only.mate)
 }
 
 /// The pose a mate pins its copy to the world at, if it is a world pin.
-fn world_pin_of<S: crate::Slot>(mate: &crate::mate::Mate<S>) -> Option<&crate::placement::Placement<S>> {
+fn world_pin_of<S: crate::Slot>(
+    mate: &crate::mate::Mate<S>,
+) -> Option<&crate::placement::Placement<S>> {
     use crate::mate::{AxisSense, FrameBase, MatePrimitive, SideRead};
     let a = &mate.alignment;
     (matches!(mate.a, SideRead::World)
@@ -2790,7 +2795,9 @@ pub fn split(
                     (Some(key), _) => SourceKey::Keyed(key.clone()),
                     (None, Some(Node::Place { shapes, .. }))
                         if !read.is_indexed()
-                            && doc.var(var).is_some_and(|v| v.kind() == crate::VarKind::Body) =>
+                            && doc
+                                .var(var)
+                                .is_some_and(|v| v.kind() == crate::VarKind::Body) =>
                     {
                         let [shape] = shapes.as_slice() else {
                             return Ok(None);
@@ -2821,7 +2828,9 @@ pub fn split(
                     .collect();
                 match copies.as_slice() {
                     [] => Ok(None),
-                    [one] if places_at_identity(doc, *one) => Ok(Some((*one, SourceKey::Shape(var)))),
+                    [one] if places_at_identity(doc, *one) => {
+                        Ok(Some((*one, SourceKey::Shape(var))))
+                    }
                     [one] => Err(Uncarried::Posed {
                         placement: doc.spoken(*one),
                     }),
@@ -2946,7 +2955,9 @@ pub fn split(
                 // at it, through nothing that moves it (a union or a
                 // `Part` selection), pinned at the identity.
                 let survives = match crate::mate::member::member_of_side(doc, *var) {
-                    Some(member) => member.chain.is_empty() && places_at_identity(doc, member.instance),
+                    Some(member) => {
+                        member.chain.is_empty() && places_at_identity(doc, member.instance)
+                    }
                     None => {
                         !matches!(
                             doc.node(at),
@@ -3217,29 +3228,28 @@ pub fn split(
         error: Box::new(error),
     })?;
     // A cut name as the part's product spells it ([`home`] above).
-    let in_world = |name: &StableName,
-                    body: Option<RecipeNodeId>|
-     -> Result<StableName, SplitError> {
-        let of = remap_name(name, &node_map, &step_map, &read_map)
-            .map_err(|missing| SplitError::straddles(doc, name, missing))?;
-        let (placement, wrapped) =
-            home(name, body).ok_or_else(|| SplitError::NameOutsidePartWorld {
-                name: doc.spoken_name(name),
-            })?;
-        if !wrapped {
-            return Ok(of);
-        }
-        let Some(&placement) = node_map.get(&placement) else {
-            unreachable!("a cut placement is carried")
+    let in_world =
+        |name: &StableName, body: Option<RecipeNodeId>| -> Result<StableName, SplitError> {
+            let of = remap_name(name, &node_map, &step_map, &read_map)
+                .map_err(|missing| SplitError::straddles(doc, name, missing))?;
+            let (placement, wrapped) =
+                home(name, body).ok_or_else(|| SplitError::NameOutsidePartWorld {
+                    name: doc.spoken_name(name),
+                })?;
+            if !wrapped {
+                return Ok(of);
+            }
+            let Some(&placement) = node_map.get(&placement) else {
+                unreachable!("a cut placement is carried")
+            };
+            Ok(StableName {
+                kind: name.kind,
+                node: placement,
+                path: vec![RoleSeg::Placed {
+                    of: NameRef::new(of),
+                }],
+            })
         };
-        Ok(StableName {
-            kind: name.kind,
-            node: placement,
-            path: vec![RoleSeg::Placed {
-                of: NameRef::new(of),
-            }],
-        })
-    };
     // The key, in the part, of the copy a crossing whole read reads.
     let part_key = |placement: RecipeNodeId, key: &SourceKey| -> crate::CopyKey {
         let Some(&carried) = node_map.get(&placement) else {
@@ -3343,10 +3353,8 @@ pub fn split(
     };
     // The instance is a placement (D10), pinned to the world at the
     // identity, so the part's world copies stand where the cut's did.
-    let mut instance_node = Node::instantiate_part_with(
-        DocRef { id: part_id, pin },
-        InterfaceRecord { crossings },
-    );
+    let mut instance_node =
+        Node::instantiate_part_with(DocRef { id: part_id, pin }, InterfaceRecord { crossings });
     if let Node::InstantiatePart { constraints, .. } = &mut instance_node {
         constraints.push(crate::mate::Constraint {
             id: crate::node::ConstraintId(crate::MintId::new(0, 0)),
@@ -3663,9 +3671,7 @@ pub fn inline(
                 .collect();
             let Ok(pose) = pose.try_map_slots(&mut |var| {
                 let dim = dims.get(var).copied().unwrap_or(Dimension::Length);
-                Ok::<_, core::convert::Infallible>(
-                    doc.written(&crate::expr::Expr::var(*var, dim)),
-                )
+                Ok::<_, core::convert::Infallible>(doc.written(&crate::expr::Expr::var(*var, dim)))
             });
             Landing::Pinned(pose)
         }
@@ -3771,9 +3777,7 @@ pub fn inline(
                 continue;
             }
             if doc.selection(var).is_none()
-                && reader
-                    .body_read(slot)
-                    .is_none_or(|read| read.key.is_none())
+                && reader.body_read(slot).is_none_or(|read| read.key.is_none())
             {
                 return Err(InlineError::InstanceReadUncarried {
                     reader: doc.spoken(id),
@@ -3824,10 +3828,13 @@ pub fn inline(
     // instance's own copy side must land on the root.
     let landing_copy = |var: VarId| -> Option<RecipeNodeId> {
         let select = doc.selection(var)?;
-        let mut placements = select.names.iter().filter_map(|name| match name.path.as_slice() {
-            [RoleSeg::InPart { of }] if name.node == instance => Some(of.node),
-            _ => None,
-        });
+        let mut placements = select
+            .names
+            .iter()
+            .filter_map(|name| match name.path.as_slice() {
+                [RoleSeg::InPart { of }] if name.node == instance => Some(of.node),
+                _ => None,
+            });
         let first = placements.next()?;
         placements.all(|p| p == first).then_some(first)
     };
@@ -4028,28 +4035,27 @@ pub fn inline(
     // the key of the copy within it: the body it copies, landing
     // verbatim; a `Place`'s copies, whole over one shape, keyed by read
     // over several; an instance's copies, keyed as they were.
-    let host_copy = |host: &ProfileDoc,
-                     key: &crate::CopyKey|
-     -> Option<(VarId, Option<crate::CopyKey>)> {
-        let crate::CopyKey::Part { placement, within } = key else {
-            return None;
-        };
-        let carried = host.output(*node_map.get(placement)?, 0)?;
-        match (part.node(*placement)?, within.as_ref()) {
-            (Node::Place { shapes, .. }, crate::CopyKey::Read(var)) => {
-                let read = *read_map.get(var)?;
-                if raw(*placement) {
-                    Some((read, None))
-                } else if shapes.len() == 1 {
-                    Some((carried, None))
-                } else {
-                    Some((carried, Some(crate::CopyKey::Read(read))))
+    let host_copy =
+        |host: &ProfileDoc, key: &crate::CopyKey| -> Option<(VarId, Option<crate::CopyKey>)> {
+            let crate::CopyKey::Part { placement, within } = key else {
+                return None;
+            };
+            let carried = host.output(*node_map.get(placement)?, 0)?;
+            match (part.node(*placement)?, within.as_ref()) {
+                (Node::Place { shapes, .. }, crate::CopyKey::Read(var)) => {
+                    let read = *read_map.get(var)?;
+                    if raw(*placement) {
+                        Some((read, None))
+                    } else if shapes.len() == 1 {
+                        Some((carried, None))
+                    } else {
+                        Some((carried, Some(crate::CopyKey::Read(read))))
+                    }
                 }
+                (Node::InstantiatePart { .. }, within) => Some((carried, Some(within.clone()))),
+                _ => None,
             }
-            (Node::InstantiatePart { .. }, within) => Some((carried, Some(within.clone()))),
-            _ => None,
-        }
-    };
+        };
     // A selection's body once spliced: the copy its names land on, read
     // as [`host_copy`] reads it.
     let selection_body = |host: &ProfileDoc, var: VarId| -> Option<VarId> {
@@ -4305,10 +4311,9 @@ pub fn inline(
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
     if let Some((name, placement)) = heir_of_name {
         let heir = match part.node(placement) {
-            Some(Node::Place { shapes, .. }) if raw(placement) => shapes
-                .first()
-                .and_then(|s| read_map.get(&s.read))
-                .copied(),
+            Some(Node::Place { shapes, .. }) if raw(placement) => {
+                shapes.first().and_then(|s| read_map.get(&s.read)).copied()
+            }
             _ => node_map
                 .get(&placement)
                 .and_then(|&p| current.doc().output(p, 0)),

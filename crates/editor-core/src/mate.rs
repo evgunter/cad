@@ -647,7 +647,10 @@ impl<S: crate::Slot> Mate<S> {
 
     /// Each side's frame with its side, `a` first.
     pub fn frames(&self) -> [(MateSide, &MateFrame<S>); 2] {
-        [(MateSide::A, &self.alignment.a), (MateSide::B, &self.alignment.b)]
+        [
+            (MateSide::A, &self.alignment.a),
+            (MateSide::B, &self.alignment.b),
+        ]
     }
 
     /// The side `side`'s read.
@@ -711,7 +714,10 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
     fn rows(&self) -> Vec<(crate::SlotId, &S)> {
         let mut out = Vec::new();
         for c in self {
-            for (side, frame) in [(MateSide::A, &c.mate.alignment.a), (MateSide::B, &c.mate.alignment.b)] {
+            for (side, frame) in [
+                (MateSide::A, &c.mate.alignment.a),
+                (MateSide::B, &c.mate.alignment.b),
+            ] {
                 for (slot, e) in frame.offset.rows() {
                     let Some((step, arg)) = slot.rigid_arg() else {
                         unreachable!("a placement's rows are rigid-step slots")
@@ -736,7 +742,10 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
         for c in self {
             let id = c.id;
             let alignment = &mut c.mate.alignment;
-            for (side, frame) in [(MateSide::A, &mut alignment.a), (MateSide::B, &mut alignment.b)] {
+            for (side, frame) in [
+                (MateSide::A, &mut alignment.a),
+                (MateSide::B, &mut alignment.b),
+            ] {
                 for (slot, e) in frame.offset.rows_mut() {
                     let Some((step, arg)) = slot.rigid_arg() else {
                         unreachable!("a placement's rows are rigid-step slots")

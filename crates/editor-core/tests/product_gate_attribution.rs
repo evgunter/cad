@@ -21,8 +21,8 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Mate, Node,
-    NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
+    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Mate, Node, NodeResult,
+    ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
     product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};

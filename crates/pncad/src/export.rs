@@ -204,7 +204,11 @@ pub fn export_document_step(
     // without them; a world of loose copies alone is the gather's
     // `EmptyProduct`, which names them.
     let copies = evaluation.loose_roots();
-    if !copies.is_empty() && doc.placements().iter().any(|&p| evaluation.space(p).loose().is_none())
+    if !copies.is_empty()
+        && doc
+            .placements()
+            .iter()
+            .any(|&p| evaluation.space(p).loose().is_none())
     {
         return Err(ExportError::Loose { copies });
     }

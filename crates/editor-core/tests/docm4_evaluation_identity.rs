@@ -91,7 +91,6 @@ fn pinned_at(
     fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
 }
 
-
 fn run(
     doc: &editor_core::ProfileDoc,
     prior: Option<&Evaluation<f64>>,

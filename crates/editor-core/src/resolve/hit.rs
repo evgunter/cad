@@ -146,7 +146,6 @@ pub enum HitTestError {
         /// Another's.
         b: crate::mate::Space,
     },
-
 }
 
 /// The node's standing, at the door that needed its table.

@@ -16,9 +16,9 @@ use crate::fixture;
 use crate::wire::{doctored, wire_body};
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, Mate, MateFrame, MatePrimitive,
-    Node, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace, StableName, apply,
-    load, save,
+    EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, Mate, MateFrame, MatePrimitive, Node,
+    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace,
+    StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -102,7 +102,10 @@ fn doc_with_a_crossing() -> ProfileDoc {
         }],
     };
     // Pinned to the world at the identity, as a split's instance is.
-    let host = push(&host, Box::new(Node::instantiate_part_with(doc_ref, record)));
+    let host = push(
+        &host,
+        Box::new(Node::instantiate_part_with(doc_ref, record)),
+    );
     let instance = *host.ids().last().expect("the record's instance is live");
     fixture::constrain_at(host, instance, Mate::world_pin(Placement::IDENTITY)).0
 }

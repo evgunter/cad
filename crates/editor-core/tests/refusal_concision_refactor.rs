@@ -151,10 +151,14 @@ fn split_refusals() -> Vec<SplitError> {
             consumer_is_cut: true,
         },
     ];
-    out.extend(uncarried().into_iter().map(|why| SplitError::RemainderReadUncarried {
-        reader: s(6, "Union"),
-        why,
-    }));
+    out.extend(
+        uncarried()
+            .into_iter()
+            .map(|why| SplitError::RemainderReadUncarried {
+                reader: s(6, "Union"),
+                why,
+            }),
+    );
     out.extend([
         SplitError::NoMaterial {
             node: s(1, "Profile"),

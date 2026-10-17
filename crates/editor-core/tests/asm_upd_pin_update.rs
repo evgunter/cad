@@ -28,8 +28,8 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Frame, Mate, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError, content_pin,
-    evaluate, load, mixed_pins, product, save, update_references,
+    Frame, Mate, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError,
+    content_pin, evaluate, load, mixed_pins, product, save, update_references,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;

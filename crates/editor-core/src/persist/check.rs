@@ -36,9 +36,7 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{
-    DocParamField, ExpansionFault, FreeVar, VarName, VarReadFault, WitnessSiteFault,
-};
+use crate::doc::{DocParamField, ExpansionFault, FreeVar, VarName, VarReadFault, WitnessSiteFault};
 use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
@@ -740,13 +738,14 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         .and_then(|at| snapshot.node(at)),
                     Some(crate::Node::InstantiatePart { .. })
                 );
-                let expected = if !instance && snapshot.nodes.values().any(|node| {
-                    node.operand_rows().into_iter().any(|(slot, read)| {
-                        read == id
-                            && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
-                                == narrow
-                    })
-                }) {
+                let expected = if !instance
+                    && snapshot.nodes.values().any(|node| {
+                        node.operand_rows().into_iter().any(|(slot, read)| {
+                            read == id
+                                && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
+                                    == narrow
+                        })
+                    }) {
                     narrow
                 } else {
                     crate::SlotKind::Placeable
@@ -2782,12 +2781,15 @@ mod tests {
                     ));
                 }) as fn(&mut crate::mate::Alignment),
             ),
-            (crate::mate::MateSide::A, |a: &mut crate::mate::Alignment| {
-                a.a.offset = crate::placement::Placement::literal(&crate::placement::Frame {
-                    columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                    translation: [0.0; 3],
-                });
-            }),
+            (
+                crate::mate::MateSide::A,
+                |a: &mut crate::mate::Alignment| {
+                    a.a.offset = crate::placement::Placement::literal(&crate::placement::Frame {
+                        columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                        translation: [0.0; 3],
+                    });
+                },
+            ),
         ] {
             let (doc_frame, frame) = poked(poke);
             match frame {

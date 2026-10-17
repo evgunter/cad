@@ -4115,10 +4115,9 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Measure { .. }, O::Measured(_, i)) => {
                 Some(("measure", format!("reference {i}")))
             }
-            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { constraint, side }) => Some((
-                "constraint",
-                format!("{constraint} side {}", side.name()),
-            )),
+            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { constraint, side }) => {
+                Some(("constraint", format!("{constraint} side {}", side.name())))
+            }
             _ => None,
         }
     }
@@ -4149,7 +4148,10 @@ impl<P, S: Slot> Node<P, S> {
     /// split knows what crossed its cut, and the door of an instance
     /// its own constraints will place ([`crate::DocEdit::AddConstraint`]),
     /// a loose copy until they pin it.
-    pub fn instantiate_part_with(doc_ref: crate::ident::DocRef, interface: InterfaceRecord) -> Self {
+    pub fn instantiate_part_with(
+        doc_ref: crate::ident::DocRef,
+        interface: InterfaceRecord,
+    ) -> Self {
         Node::InstantiatePart {
             doc_ref,
             interface,
@@ -4371,18 +4373,8 @@ where
                 }
             }
             (
-                Node::Place {
-                    constraints: a, ..
-                }
-                | Node::InstantiatePart {
-                    constraints: a, ..
-                },
-                Node::Place {
-                    constraints: b, ..
-                }
-                | Node::InstantiatePart {
-                    constraints: b, ..
-                },
+                Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
+                Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
             ) => {
                 if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)) {
                     return false;
@@ -4440,7 +4432,13 @@ fn side_rows_mut(
         let crate::mate::Mate { a, b, .. } = &mut c.mate;
         for (side, read) in [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)] {
             if let Some(read) = read.face_mut() {
-                out.push((crate::OperandSlot::Side { constraint: id, side }, read));
+                out.push((
+                    crate::OperandSlot::Side {
+                        constraint: id,
+                        side,
+                    },
+                    read,
+                ));
             }
         }
     }
@@ -4461,7 +4459,15 @@ fn map_constraints<S: Slot, S2: Slot, E>(
             Ok(crate::mate::Constraint {
                 id,
                 mate: c.mate.try_map(
-                    |side, r| read(crate::OperandSlot::Side { constraint: id, side }, r),
+                    |side, r| {
+                        read(
+                            crate::OperandSlot::Side {
+                                constraint: id,
+                                side,
+                            },
+                            r,
+                        )
+                    },
                     f,
                 )?,
             })

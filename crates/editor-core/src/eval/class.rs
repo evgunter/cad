@@ -814,11 +814,17 @@ mod tests {
             },
             C::NoSuchCopy => K::NoSuchCopy {
                 input: n(3),
-                key: Box::new(crate::CopyKey::part(n(1), crate::CopyKey::Read(crate::VarId::new(2, 0)))),
+                key: Box::new(crate::CopyKey::part(
+                    n(1),
+                    crate::CopyKey::Read(crate::VarId::new(2, 0)),
+                )),
             },
             C::CopyShape => K::CopyShape {
                 input: n(3),
-                key: Box::new(crate::CopyKey::part(n(1), crate::CopyKey::Read(crate::VarId::new(2, 0)))),
+                key: Box::new(crate::CopyKey::part(
+                    n(1),
+                    crate::CopyKey::Read(crate::VarId::new(2, 0)),
+                )),
                 family: true,
             },
             C::CopiesShareAKey => K::CopiesShareAKey {

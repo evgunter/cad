@@ -13,9 +13,9 @@ use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::{ang, len, scl};
 use editor_core::{
-    Alignment, AuthoredNode, AxisSense, ContactClass, CountMismatch, Dimension, DocEdit,
-    DocRef, DocumentId, EditError, Formula, Frame, FreeVar, LoopProgram, MateFrame, MatePrimitive,
-    Node, PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, Step,
+    Alignment, AuthoredNode, AxisSense, ContactClass, CountMismatch, Dimension, DocEdit, DocRef,
+    DocumentId, EditError, Formula, Frame, FreeVar, LoopProgram, MateFrame, MatePrimitive, Node,
+    PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, Step,
     TubeWindow, VarDecl, VarName, apply, content_pin,
 };
 use geom_core::Tol;

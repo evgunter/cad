@@ -112,8 +112,7 @@ pub use editor_core::cascade_delete_order;
 pub use editor_core::{
     Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, Datum, ExtrudeSide, InputFault,
     ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow,
-    VectorSlot,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -510,9 +509,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
-    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
-    Unlocalized, assemble, assemble_gathered,
+    CarriedRefusal, CopyRef, FaceSite, InterferenceFinding, MintRefusal, MintedDeclaration,
+    NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route, Unlocalized, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class

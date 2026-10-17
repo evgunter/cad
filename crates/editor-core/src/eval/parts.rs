@@ -490,11 +490,9 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct
-        | K::StrandedPlacement
-        | K::Graft
-        | K::RootInvalid
-        | K::ProductInvalid => ProductRecourse::Carried,
+        K::EmptyProduct | K::StrandedPlacement | K::Graft | K::RootInvalid | K::ProductInvalid => {
+            ProductRecourse::Carried
+        }
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
@@ -831,8 +829,7 @@ pub(crate) fn keyed_copies<T: Decide>(
             })
         };
         match &value.payload {
-            ValuePayload::Body(body)
-            | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                 out.extend(one(vec![Arc::clone(body)], false));
             }
             ValuePayload::Instances(bodies) => out.extend(one(bodies.clone(), true)),

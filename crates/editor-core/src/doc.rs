@@ -1073,9 +1073,7 @@ impl<P> Doc<P> {
     pub fn placements(&self) -> Vec<RecipeNodeId> {
         self.nodes
             .iter()
-            .filter(|(_, node)| {
-                matches!(node, Node::Place { .. } | Node::InstantiatePart { .. })
-            })
+            .filter(|(_, node)| matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
             .map(|(&id, _)| id)
             .collect()
     }
@@ -1101,9 +1099,7 @@ impl<P> Doc<P> {
             .collect();
         self.nodes
             .iter()
-            .filter(|(_, node)| {
-                !matches!(node, Node::Place { .. } | Node::InstantiatePart { .. })
-            })
+            .filter(|(_, node)| !matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
             .flat_map(|(&id, _)| self.outputs(id))
             .filter(|var| {
                 self.vars.get(var).is_some_and(|v| {
@@ -2022,12 +2018,10 @@ impl<P> Doc<P> {
                         },
                         // One shape's shape: a member read is a body.
                         Node::Place { shapes, .. } => match shapes.as_slice() {
-                            [one] if !one.is_member() => {
-                                match self.vars.get(&one.read)?.kind() {
-                                    crate::VarKind::Bodies => crate::VarKind::Bodies,
-                                    _ => crate::VarKind::Body,
-                                }
-                            }
+                            [one] if !one.is_member() => match self.vars.get(&one.read)?.kind() {
+                                crate::VarKind::Bodies => crate::VarKind::Bodies,
+                                _ => crate::VarKind::Body,
+                            },
                             [_] => crate::VarKind::Body,
                             _ => crate::VarKind::Bodies,
                         },
@@ -2615,7 +2609,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
 // and its siblings); this one needs the document to resolve the id at
 // all.
 // ---------------------------------------------------------------
-
 
 /// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
 /// — one vocabulary for the witness edit doors and the load door's

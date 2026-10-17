@@ -289,11 +289,21 @@ pub fn solve_decisions_have_one_home(
     for (id, share) in &shares {
         match ev.result(*id) {
             Some(editor_core::NodeResult::Ok(v)) => {
-                opens("escalation", *id, spell(&v.escalations), spell(&share.escalations));
+                opens(
+                    "escalation",
+                    *id,
+                    spell(&v.escalations),
+                    spell(&share.escalations),
+                );
                 opens("verdict", *id, spell(&v.verdicts), spell(&share.verdicts));
             }
             Some(editor_core::NodeResult::Failed(e)) => {
-                opens("escalation", *id, spell(&e.escalations), spell(&share.escalations));
+                opens(
+                    "escalation",
+                    *id,
+                    spell(&e.escalations),
+                    spell(&share.escalations),
+                );
             }
             Some(editor_core::NodeResult::Poisoned { .. }) => {}
             other => panic!(
@@ -376,11 +386,7 @@ pub fn mate_mints(
 /// **Asserts the gather minted nothing for `mate`** — no declaration and
 /// no refusal: a mate side whose body no world placement reads has no
 /// world copy, so the mate states nothing about the product.
-pub fn assert_mints_nothing(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-    mate: editor_core::MateRef,
-) {
+pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: editor_core::MateRef) {
     let (minted, unminted) = mate_mints(doc, ev);
     assert!(
         minted.iter().all(|d| d.mate != mate) && unminted.iter().all(|r| r.mate() != mate),
@@ -806,7 +812,10 @@ pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) 
 /// ([`resolver::copy_key`]): what a seat reading one body of an instance
 /// reads.
 pub fn copy(instance: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
-    editor_core::BodyRead::keyed(editor_core::Operand::Node(instance), resolver::copy_key(body))
+    editor_core::BodyRead::keyed(
+        editor_core::Operand::Node(instance),
+        resolver::copy_key(body),
+    )
 }
 
 /// **The body read a placement of `body` names**: a revolve named

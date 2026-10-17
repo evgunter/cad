@@ -387,4 +387,3 @@ foreign_tag! {
     /// carrier's centre sits on.
     arc_side => profile::ArcSide { Left, Right }
 }
-

@@ -417,7 +417,11 @@ fn a_mates_side_strands_as_a_read() {
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
-    let (doc, mate) = fixture::constrain_with(doc, &reach, coaxial(head_a.clone(), instance_face(ib, part_body)));
+    let (doc, mate) = fixture::constrain_with(
+        doc,
+        &reach,
+        coaxial(head_a.clone(), instance_face(ib, part_body)),
+    );
 
     let applied = delete(&doc, ia);
     let rows = crate::fixture::without_anonymous(&applied.maintenance);

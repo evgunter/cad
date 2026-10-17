@@ -314,7 +314,12 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             // interim of INTENT stage 3 B): the world's kind, at the
             // identity, so a mate reads it as a body of the space its
             // copy joins.
-            Some(node) if !matches!(node, Node::World | Node::Measure { .. } | Node::Assertion { .. }) => {
+            Some(node)
+                if !matches!(
+                    node,
+                    Node::World | Node::Measure { .. } | Node::Assertion { .. }
+                ) =>
+            {
                 return Ok(Walk {
                     member: Member {
                         instance: at,
