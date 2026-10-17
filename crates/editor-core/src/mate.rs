@@ -385,6 +385,14 @@ impl<S: crate::Slot> Mate<S> {
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
         self == other
+            && match (&self.to, &other.to) {
+                (Target::World(a), Target::World(b)) => a
+                    .scalars()
+                    .iter()
+                    .zip(b.scalars())
+                    .all(|((_, x), (_, y))| x.bit_eq(y)),
+                _ => true,
+            }
     }
 
     /// **This mate in another slot form**: each pose read mapped by
@@ -594,7 +602,14 @@ impl<S: crate::Slot> Constraint<S> {
     /// Bit-semantic equality (D7).
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.kind == other.kind
+        self.id == other.id
+            && match (&self.kind, &other.kind) {
+                (ConstraintKind::Mate(a), ConstraintKind::Mate(b)) => a.bit_eq(b),
+                (ConstraintKind::Value(a), ConstraintKind::Value(b)) => {
+                    a.mate == b.mate && a.coord == b.coord && a.by.bit_eq(&b.by)
+                }
+                _ => false,
+            }
     }
 
     /// **This constraint in another slot form**: a mate's pose reads

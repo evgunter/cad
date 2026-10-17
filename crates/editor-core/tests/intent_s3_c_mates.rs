@@ -1012,3 +1012,49 @@ fn a_number_that_moves_nothing_is_reported() {
         "a slide along the normal moves the plane: {report:?}"
     );
 }
+
+/// **Inline refuses a moving landing for a value charted on the part's
+/// world** (C-4). A part whose one copy rests on its world floor by a
+/// mate and three values, instanced in a host and pinned off the
+/// identity: the part's world mates would move with the instance, but a
+/// value is charted on the world's own frame, which stays, so inline
+/// refuses `ValueOnAMovedWorld` naming the value. Pinned at the
+/// identity, the same instance inlines.
+///
+/// *Breaks if* the inline moves the mate's world read and leaves the
+/// value charted on the unmoved frame (the copy lands at its numbers in
+/// the host's world, not moved with the rest).
+#[test]
+fn inline_refuses_a_moved_landing_under_a_world_value() {
+    let (part, p) = box_on_the_floor([0.5, 0.0, 0.0], [0, 1, 2]);
+    let value = fixture::bundle(&part, p)
+        .iter()
+        .find(|c| c.value().is_some())
+        .expect("a value")
+        .id;
+    let mut store = fixture::resolver::PartStore::new();
+    let part_ref = store.insert(part, Tol::witness());
+    let o = fixture::resolver::with_resolver(store.clone());
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+    let host = ProfileDoc::empty_derived("s3c_inline_host", Tol::witness());
+    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let moved = fixture::pin(
+        host.clone(),
+        instance,
+        &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        &o,
+    );
+    match editor_core::inline(&moved, instance, &resolver, Tol::witness()) {
+        Err(editor_core::InlineError::ValueOnAMovedWorld {
+            placement,
+            value: named,
+        }) => {
+            assert_eq!(placement.id(), p, "the part placement is named");
+            assert_eq!(named, value, "the value is named");
+        }
+        other => panic!("a moving landing under a world value refuses: {other:?}"),
+    }
+    let still = fixture::pinned(host, instance, &o);
+    editor_core::inline(&still, instance, &resolver, Tol::witness())
+        .expect("at the identity the part's world is the host's");
+}

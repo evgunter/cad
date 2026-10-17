@@ -2930,8 +2930,10 @@ pub fn split(
         for input in doc.upstream_of(consumer, node) {
             if consumer_is_cut != cut.contains(&input) && !carried.contains(&input) {
                 let slot = node.operand_rows().into_iter().find_map(|(slot, var)| {
-                    let read = doc.selection(var).map_or(var, |select| select.body);
-                    (doc.operation_of(read) == Some(input)).then_some(slot)
+                    doc.read_ports(var)
+                        .iter()
+                        .any(|&(at, _)| at == input)
+                        .then_some(slot)
                 });
                 return Err(SplitError::SeveredEdge {
                     consumer: doc.spoken(consumer),
