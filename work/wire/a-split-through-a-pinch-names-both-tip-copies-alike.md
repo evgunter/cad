@@ -7,6 +7,7 @@ opened: 2026-10-08
 priority: P1
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -59,3 +60,20 @@ corner there (`crates/editor-core/src/names/README.md`, N2 *Vertices*),
 read by `borders::Obstacles::split_corner`. The Split's pieces are told
 apart by `Keeps`, not `Borders`, so the ruling does not settle this row,
 but it is the precedent a Split qualifier would be weighed against.
+
+## FORK-PINCHNAME (2026-10-17): converged, and the question is Ev's
+
+Two designers, briefed with the problem only, converged in round 1 on the
+same final state: where one half holds an operand corner as several
+vertices, each is `OnToolVertex { of } + Fragment(Keeps)`, the sorted set
+of the corner's own edges (cited by their lines) the copy is an end of a
+piece of in that half; a lone copy keeps its bare name; equal sets tie.
+That extends N2's corner sentence, which binds future naming, so it is an
+`[ev]` question; the PR edits `names/README.md` N2 and its body carries both
+reports. Both found the union half of the companion row stale (measured
+order-free on today's main). Both also found the next refusal behind this
+one: the on-plane edge copies, carried as one name twice, which `Ends`
+separates once the vertices are told apart; the unit that builds this
+covers both.
+
+Signed (WIRE orchestrator).
