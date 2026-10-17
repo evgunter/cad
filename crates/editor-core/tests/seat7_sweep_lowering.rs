@@ -176,7 +176,7 @@ fn both_sweeps() -> BothSweeps {
     let revolved = r.insert(revolve_about(
         rev_profile,
         (0.0, 0.0),
-        (1.0, 0.0),
+        crate::fixture::along_x(),
         ang(PI / 2.0),
     ));
     BothSweeps {
@@ -386,7 +386,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x0dab_8120_ac1a_23b9),
         ("cut_cylinder", 0x2346_bf6f_fea8_eda4),
         ("boss_union", 0xb1d9_d2ed_e8ae_2ffb),
-        ("kitchen_sink", 0xe1e2_ab7e_f873_c25f),
+        ("kitchen_sink", 0x210d_f516_2a4c_c228),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -503,7 +503,12 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     );
     let (doc, solid) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (1.0, 0.0), ang(2.0 * PI)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_x(),
+            ang(2.0 * PI),
+        ),
     );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);

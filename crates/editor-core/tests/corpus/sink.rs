@@ -203,7 +203,7 @@ pub fn document() -> CorpusDoc {
     let revolve = r.insert(revolve_about(
         rev_profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::FRAC_PI_2),
     ));
 

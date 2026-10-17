@@ -904,7 +904,12 @@ fn dm5_is_over_the_variables_read() {
     );
     let (doc, revolve) = insert(
         doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), fixture::ang(0.5)),
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            fixture::ang(0.5),
+        ),
     );
     insert(
         doc,
@@ -912,7 +917,7 @@ fn dm5_is_over_the_variables_read() {
             input: Operand::output(revolve, 0),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1),
+                axis: Operand::output(revolve, 1).into(),
                 step: fixture::ang(1.0),
             },
         },
@@ -971,7 +976,12 @@ pub(crate) fn families_document() -> ProfileDoc {
     );
     let (doc, revolve) = insert(
         doc,
-        fixture::revolve_about(low, (3.0, 0.0), (0.0, 1.0), fixture::ang(1.0)),
+        fixture::revolve_about(
+            low,
+            (3.0, 0.0),
+            crate::fixture::along_y(),
+            fixture::ang(1.0),
+        ),
     );
     let (doc, pattern) = insert(
         doc,
@@ -990,7 +1000,7 @@ pub(crate) fn families_document() -> ProfileDoc {
             input: Operand::output(revolve, 0),
             count: editor_core::Formula::count(2),
             kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1),
+                axis: Operand::output(revolve, 1).into(),
                 step: fixture::ang(1.0),
             },
         },

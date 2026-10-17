@@ -112,6 +112,7 @@ from pncad import (
     AuthoredStep,
     Piece,
     Role,
+    RoleRead,
     StepId,
     SurfaceKind,
     Workspace,
@@ -229,7 +230,7 @@ turned: NodeId = doc.insert(
     Node.revolve(
         doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
         Formula.angle_in(360, deg),
     )
 )
@@ -375,20 +376,22 @@ cutter: NodeId = doc.insert(Node.datum_plane((
 halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
 
 # A pose defined at the seat that reads it (D10): a face read as its
-# plane, moved along its outward normal, and a frame projected to its
-# plane. Every constructor answers a `PoseDef`, and an operand takes one.
+# plane, slid along its outward normal, and a frame slid along its own z
+# and read through its xy plane. Every constructor answers a `PoseDef`,
+# a pose seat takes one or a `RoleRead`, and an operand takes one.
 _plate_face: str = evaluate(doc).all_faces(plate)[0]
 face_plane: PoseDef = PoseDef.plane(plate, _plate_face)
-inset: PoseDef = PoseDef.standoff(face_plane, Formula.length_in(-0.01, m))
-flipped: PoseDef = PoseDef.flip(inset)
-framed: PoseDef = PoseDef.in_frame(
-    authored_frame,
-    origin=(0 * m, 0 * m, 0.5 * m),
-    u=(1.0, 0.0, 0.0),
-    v=(0.0, 1.0, 0.0),
+inset: PoseDef = PoseDef.slide(
+    face_plane, RoleRead(face_plane, "normal"), Formula.length_in(-0.01, m)
 )
-projected: PoseDef = PoseDef.project(framed, "plane")
+flipped: PoseDef = PoseDef.flip(inset)
+framed: PoseDef = PoseDef.slide(authored_frame, RoleRead(authored_frame, "z"), 0.5 * m)
+projected: RoleRead = RoleRead(framed, "xy")
 crossing: PoseDef = PoseDef.meet(face_plane, projected)
+turned: PoseDef = PoseDef.spin(face_plane, RoleRead(framed, "x"), 15 * deg)
+corner: PoseDef = PoseDef.point_in(authored_frame, 0 * m, 0.5 * m, 0 * m)
+quarter: Formula = Formula.turn_over(4)
+nothing: Formula = Formula.zero("length")
 through_edge: PoseDef = PoseDef.through(
     PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0]),
     PoseDef.point(plate, evaluate(doc).all_vertices(plate)[0]),
@@ -1059,7 +1062,7 @@ _revolved: NodeId = _names_doc.insert(
     Node.revolve(
         _names_profile,
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
         Formula.angle_in(360, deg),
     )
 )
@@ -1089,7 +1092,7 @@ _hollowed: NodeId = _names_doc.insert(
 # the slot's own dimension — written, or bare in its canonical unit.
 q9_solid: NodeId = plate
 Node.extrude(q9_solid, 1 * m)
-Node.revolve(q9_solid, (0 * m, 0 * m), (0.0, 1), 90 * deg)
+Node.revolve(q9_solid, (0 * m, 0 * m), Formula.turn_over(4), 90 * deg)
 Node.fillet(q9_solid, 1 * mm, [])
 Node.loft([], 2)
 DocEdit.set_param(q9_solid, "distance", 1 * m)

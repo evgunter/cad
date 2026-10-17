@@ -2089,8 +2089,8 @@ pub enum NodeErrorKind {
         /// The construction.
         construction: crate::pose::PoseConstruction,
     },
-    /// **A scalar a pose definition reads did not evaluate**: an
-    /// in-frame coordinate or a standoff's length.
+    /// **A scalar a pose definition reads did not evaluate**: a slide's
+    /// length or a spin's angle.
     PoseScalar {
         /// The scalar variable.
         var: crate::VarId,
@@ -3804,10 +3804,10 @@ pub fn bound_pose<T: EvalScalar>(
     doc: &crate::ProfileDoc,
     ev: &Evaluation<T>,
     slot: crate::OperandSlot,
-    var: crate::VarId,
+    read: impl Into<crate::pose::RoleRead<crate::VarId>>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_pose(doc, &ev.nodes, slot, var, &ev.env, tol)
+    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
@@ -4812,10 +4812,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v12: a blend, a shell, a face frame and a measure write
+            /// v13: a pose read writes the role it reads through, a
+            /// node's read of an output through one included. (v12: a
+            /// blend, a shell, a face frame and a measure write
             /// the names of the selections they read, the measure each
             /// reference's names (none for a whole body) where it wrote
-            /// its sites' places. (v11: a measure writes one primitive
+            /// its sites' places. v11: a measure writes one primitive
             /// and the place of each reference's site among its
             /// upstream keys; an assertion's payload is its value and
             /// its bound. v10:
@@ -4824,7 +4826,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 12,
+            VERSION = 13,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4844,13 +4846,13 @@ mod tag {
         /// **The words of the pose definitions a node reads** (D10),
         /// written after its payload expressions and only by a node
         /// reading one, so no other node's key moves. Per such operand:
-        /// `READ` and the operand's place among the node's reads, then
-        /// the read's tree — `OUTPUT` for an operation's output (whose
-        /// key and port the upstream list carries), `SELECTION` and its
-        /// names, or `DEFINITION`, the arm ([`pose_arm`]), the kind it
-        /// projects to or writes ([`pose_kind`]) where the arm states
-        /// one, each read's tree in field order, then each scalar's
-        /// value and its nominal under [`slot`]'s `NOMINAL`.
+        /// `READ` and the operand's place among the node's reads, the
+        /// role it reads through ([`pose_role`]), then the read's tree
+        /// — `OUTPUT` for an operation's output (whose key and port the
+        /// upstream list carries), `SELECTION` and its names, or
+        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
+        /// tree in field order, then each scalar's value and its
+        /// nominal under [`slot`]'s `NOMINAL`.
         pose {
             READ = 1,
             OUTPUT = 2,
@@ -4858,26 +4860,30 @@ mod tag {
             DEFINITION = 4,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
-        pose_arm {
+        pose_arm retires [4, 8, 9] {
             PLANE = 1,
             AXIS = 2,
             POINT = 3,
-            IN_FRAME = 4,
             THROUGH = 5,
             MEET = 6,
             FLIP = 7,
-            STANDOFF = 8,
-            PROJECT = 9,
             CARRIED = 10,
+            SLIDE = 11,
+            SPIN = 12,
         }
-        /// A pose kind, as a projection's target or in-frame
-        /// coordinates' shape.
-        pose_kind {
-            POINT = 1,
-            DIRECTION = 2,
-            AXIS = 3,
-            PLANE = 4,
-            FRAME = 5,
+        /// The role a pose read reads through
+        /// ([`crate::pose::PoseRole`]), a plain read's included.
+        pose_role {
+            PLAIN = 1,
+            X = 2,
+            Y = 3,
+            Z = 4,
+            ORIGIN = 5,
+            XY = 6,
+            YZ = 7,
+            ZX = 8,
+            NORMAL = 9,
+            DIRECTION = 10,
         }
         /// A union's or an intersect's argument form, read before its
         /// declared pairs: a family read whole, or reads spelled.
@@ -5910,8 +5916,8 @@ where
         )
         | Node::Revolve {
             profile: _,
-            axis_origin: _,
-            axis_direction: _,
+            axis_through: _,
+            axis_heading: _,
             angle: _,
         }
         | Node::Loft {

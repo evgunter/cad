@@ -19,7 +19,7 @@
 
 use crate::fixture::{self, insert, len, on_frame, scl};
 use editor_core::{
-    Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, ExtrudeSide, Node, ProfileDoc,
+    Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, ExtrudeSide, Formula, Node, ProfileDoc,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName,
     resolve, resolve_with_prior,
 };
@@ -489,8 +489,8 @@ fn a_node_named_alone_reads_its_one_named_output_in_a_name_door() {
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: fixture::ang(std::f64::consts::TAU),
         },
     );

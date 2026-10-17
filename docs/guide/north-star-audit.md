@@ -390,7 +390,7 @@ profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y
 # +y, so the world y axis IS its own +y through (0, 0).
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
-    (Formula.literal(0.0), Formula.literal(1.0)),
+    Formula.turn_over(4),
 )
 chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
