@@ -2,11 +2,12 @@
 id: the-pinned-profile-lift-launders-at-sym
 kind: issue
 title: The pinned profile lift enters profile geometry as constants at Sym, and the re-valuation rows run it, so profile's generic code never reaches them
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [the-from-f64-gate-reads-every-generic-crate]
+closed: 2026-10-17
 ---
 
 `ProfileLift::Pinned`, the `EvalOptions` default (`eval/mod.rs`), lifts the
@@ -51,3 +52,31 @@ nominal. Under the guided lift both are correct: the seed rides to the
 walls, and the box lofts the family it spans
 (`crates/editor-core/tests/eval10_section_reads_the_nominal.rs`).
 
+
+## Closed
+
+Closed by ruling A of the INLANE orchestrator: the evaluator derives the lift, and `ProfileLift` leaves `EvalOptions`.
+
+**The lift.** `EvalOptions::profile_lift()` reads it off the environment:
+- **Guided** when the evaluation's box varies an axis, it carries a seed, or it binds every variable a symbol: an ANALYSIS, whose variables are not their nominal values.
+- **Pinned** otherwise, at any scalar: the build.
+
+An empty or all-`Fixed` box holds every variable at its nominal, so it is the build, and an unused box seam changes no decision. The pinned lift can no longer be asked for in an analysis, and the guided lift is never wrongly taken in a build.
+
+**Where analyses meet the build:**
+- `ParamBox::at_nominal()` (every varying axis spanning `[0, 0]`) makes three evaluations read the document as their leaves do:
+  - the drive's witness;
+  - Monte Carlo's nominal build;
+  - stackup's unseeded base.
+- A part runs at its own nominal, so it is pinned under an analysis.
+- The coincidence door and the revalue instrument share one replay session (PR 5247), guided by construction.
+
+**What else changed with the field:**
+- PP6 (`crates/editor-core/README.md`) says the evaluator chooses.
+- The Python surface loses the field.
+- The two `from-f64-sites.tsv` sites that were `launders(...)` are `constant`: the build's `f64` elaboration, run only where every variable is bound at its nominal.
+
+**What the guided reading turned up** (each filed, each row naming its item):
+- The revalue rows' findings: PR 5247's three items.
+- `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
+- `work/inlane/under-the-guided-lift-the-symbolic-rules-measured-effects-vanish-on-the-m10-evidence-set.md`.
