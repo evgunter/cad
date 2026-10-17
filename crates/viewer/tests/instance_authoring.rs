@@ -51,11 +51,18 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance's bundle is one world pin at the identity — the
-/// insert door's own placement (A11 (2)).
+/// Whether the instance's bundle is the "place part" gesture's — one
+/// mate to the world and the three values naming it — and solves to
+/// the identity: the insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    crate::fixture::offset_of(session.doc(), node)
-        .is_some_and(|pose| pose.bit_eq(&pncad::document::Placement::IDENTITY))
+    let doc = session.doc();
+    let bundle = crate::fixture::bundle(doc, node);
+    let placed_by_gesture = matches!(bundle.as_slice(), [mate, values @ ..]
+        if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
+            && values.len() == 3
+            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
+    let band = pncad::geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node, band)
 }
 
 // --- the acceptance ------------------------------------------------
@@ -71,8 +78,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and one world pin at the identity — A11 (2)'s insert
-    // at the origin.
+    // split seam), and the place gesture's mate and values at the
+    // identity — A11 (2)'s insert at the origin.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,
@@ -92,7 +99,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     );
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance authors one world pin at the identity"
+        "AddInstance places each instance at the identity"
     );
 
     // The instances evaluate: the references resolve through the
