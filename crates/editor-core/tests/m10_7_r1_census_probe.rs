@@ -21,12 +21,11 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
-    Node, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
-    evaluate,
+    Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName, evaluate,
 };
 use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
@@ -90,13 +89,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
 
 fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    let nominal = ParamBox::from_axes(
-        ParamBox::of(&analyzed)
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-    );
+    let nominal = ParamBox::of(&analyzed).at_nominal();
     let opts = EvalOptions {
         param_box: Some(Arc::new(nominal)),
         ..EvalOptions::default()
@@ -171,7 +164,8 @@ fn r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity() {
 }
 
 /// EVIDENCE-ONLY: does a chain with PARAMETRIC `LineTo` points lift at
-/// `Interval` over a DEGENERATE box (every axis fixed)? If not, the
+/// `Interval` over a DEGENERATE box (every axis spanning `[0, 0]`, the
+/// nominal as an analysis — `ParamBox::at_nominal`)? If not, the
 /// refusal is not a width effect at all.
 #[test]
 #[ignore = "evidence-only: the parametric chain at a point box"]
@@ -179,24 +173,18 @@ fn r1_parametric_chain_at_a_point_box() {
     let tol = Tol::witness();
     let (doc, _, _) = crate::m10_7_r1_probes_interval::bracket_pub(0.5e-3, false, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    for fixed in [true, false] {
-        let box_ = if fixed {
-            ParamBox::from_axes(
-                ParamBox::of(&analyzed)
-                    .axes()
-                    .keys()
-                    .map(|n| (*n, BoxAxis::Fixed))
-                    .collect(),
-            )
+    for point in [true, false] {
+        let box_ = if point {
+            ParamBox::of(&analyzed).at_nominal()
         } else {
             ParamBox::of(&analyzed)
         };
         {
-            let lift = ProfileLift::Guided;
             let opts = EvalOptions {
                 param_box: Some(Arc::new(box_.clone())),
                 ..EvalOptions::default()
             };
+            let lift = opts.profile_lift();
             let ev: editor_core::Evaluation<geom_core::Interval> =
                 evaluate(&doc, None, &CancelToken::new(), &opts, tol);
             let errs: Vec<String> = ev
@@ -210,7 +198,7 @@ fn r1_parametric_chain_at_a_point_box() {
                 })
                 .collect();
             println!(
-                "fixed={fixed} lift={lift:?}: {} errors: {:?}",
+                "point={point} lift={lift:?}: {} errors: {:?}",
                 errs.len(),
                 errs.first()
             );
@@ -230,7 +218,7 @@ fn r1_parametric_chain_at_a_point_box() {
             .iter()
             .filter(|id| ev.node_error(**id).is_some())
             .count();
-        println!("fixed={fixed} at f64 guided: {n} errors");
+        println!("point={point} at f64 guided: {n} errors");
     }
 }
 

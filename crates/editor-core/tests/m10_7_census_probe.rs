@@ -35,7 +35,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, SymbolicDials};
 use editor_core::{CancelToken, EvalOptions, evaluate};
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
@@ -63,13 +63,7 @@ fn budget() -> SymBudget {
 /// is the driver's own rows' business.
 fn split(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    let nominal = ParamBox::from_axes(
-        ParamBox::of(&analyzed)
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-    );
+    let nominal = ParamBox::of(&analyzed).at_nominal();
     let opts = EvalOptions {
         param_box: Some(Arc::new(nominal)),
         ..EvalOptions::default()
