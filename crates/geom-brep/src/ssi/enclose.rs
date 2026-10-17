@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, Knots, ParamRange, RingRefinement, Span,
-    TensorNet, basis::basis_funs_in, cell_quotients, span_derivative_scale,
+    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, KnotVector, Knots, ParamRange,
+    RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -1156,31 +1156,24 @@ impl CellGrid {
     }
 }
 
-/// One span cell's control block in certification arithmetic, cut to
-/// a sub-rectangle or whole: the Cartesian points and weights,
-/// `(pu + 1) × (pv + 1)` row-major, and the block's first-order
-/// quotients `S_u = N_u/W²` and `S_v = N_v/W²`
-/// ([`geom_core::spline::cell_quotients`]), read in a frame `c` at its
-/// first point: off the points and weights for the surface's own cells,
-/// off the homogeneous channels `(w·(P − c), w)` for a grid's or a cut's.
-/// Every reading is a coefficient ratio of `N_u` or `N_v` over `W²`;
-/// `N_d` is translation-free (`A ↦ A + t·W` leaves `A_d·W − A·W_d`
-/// fixed) and carried by a rotation to its image, so a rigid map moves a
-/// reading by its rounding width alone.
+/// One span cell's first-order quotients `S_u = N_u/W²` and
+/// `S_v = N_v/W²` in certification arithmetic, over the cell or cut to a
+/// sub-rectangle of it ([`geom_core::spline::CellFirstQuotients`]),
+/// formed once from the cell's control block in a frame `c` at its first
+/// point: off the points and weights for the surface's own cells, off
+/// the homogeneous channels `(w·(P − c), w)` for a grid's. Every reading
+/// is a coefficient ratio of `N_u` or `N_v` over `W²`; `N_d` is
+/// translation-free (`A ↦ A + t·W` leaves `A_d·W − A·W_d` fixed) and
+/// carried by a rotation to its image, so a rigid map moves a reading by
+/// its rounding width alone.
 #[derive(Debug)]
 struct CellNet {
-    nv: usize,
-    pts: Vec<[Interval; 3]>,
-    wts: Vec<Interval>,
-    /// The block's homogeneous channels `(w·P, w)`, when it came from a
-    /// [`CellGrid`] that holds them: its points are their quotients, so
-    /// [`CellNet::cut`] forms `w·(P − c)` from them as `w·P − c·w`
-    /// rather than multiplying a quotient by `w` again, which widens.
-    /// `None` for the surface's own cells, whose points are exact.
-    hom: Option<Vec<[Interval; 4]>>,
+    /// The quotients over the whole cell, which a cut restricts; `None`
+    /// on a cut net, and where the statement refused.
+    raised: Option<CellFirstQuotients<Interval>>,
     /// `S_u` and `S_v` on each of the block's [`BLOCK_PIECE_SPLITS`]²
-    /// dyadic pieces, `None` where the statement refused (every reading
-    /// then refuses).
+    /// pieces, `None` where the statement refused (every reading then
+    /// refuses).
     quotients: Option<Vec<CellQuotients<Interval>>>,
 }
 
@@ -1232,119 +1225,52 @@ impl CellNet {
                 });
             }
         }
-        let mut net = Self {
-            nv: pv + 1,
-            pts,
-            wts: ws,
-            hom,
-            quotients: None,
-        };
-        let (c, h) = net.translated()?;
+        let (c, h) = translate(&pts, &ws, hom.as_deref())?;
         let (held_u, held_v) = (held(spu), held(spv));
         let axes = (CellAxis::Span(spu, &held_u), CellAxis::Span(spv, &held_v));
-        net.quotients = if net.hom.is_some() {
-            quotients_of(&h, axes)
+        let (a, w): (Vec<[Interval; 3]>, Vec<Interval>) =
+            h.iter().map(|c| ([c[0], c[1], c[2]], c[3])).unzip();
+        let raised = if hom.is_some() {
+            cell_first_quotients(axes, CellBlock::Homogeneous { a: &a, w: &w })
         } else {
             // Exact points: the pair form reads equal points with equal
             // weights as an exact zero, which differencing their
             // translated channels would not.
-            cell_quotients(
+            cell_first_quotients(
                 axes,
                 CellBlock::Points {
-                    points: &net.pts,
-                    weights: &net.wts,
+                    points: &pts,
+                    weights: &ws,
                     origin: c,
                 },
-                (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
-                false,
             )
         };
-        Some(net)
+        let quotients = raised
+            .as_ref()
+            .and_then(|r| r.pieces((BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS)));
+        Some(Self { raised, quotients })
     }
 
-    /// The block's homogeneous channels in the frame of its first
-    /// point's lower bracket end `c`: `(w·(P − c), w)`, from the
-    /// homogeneous channels where the block holds them, and `c`.
-    fn translated(&self) -> Option<([Interval; 3], Vec<[Interval; 4]>)> {
-        let c = self.pts.first()?.map(Interval::lo).map(Interval::point);
-        let h = match &self.hom {
-            Some(hom) => hom
-                .iter()
-                .map(|h| {
-                    let at = |k: usize| h[k] - c[k] * h[3];
-                    [at(0), at(1), at(2), h[3]]
-                })
-                .collect(),
-            None => self
-                .pts
-                .iter()
-                .zip(&self.wts)
-                .map(|(p, &w)| {
-                    let at = |k: usize| w * (p[k] - c[k]);
-                    [at(0), at(1), at(2), w]
-                })
-                .collect(),
-        };
-        Some((c, h))
-    }
-
-    /// This cell block cut to `wu × wv`: along each axis whose window
-    /// falls strictly inside the cell's span with positive width, the
-    /// block is replaced by the Bézier block of the same polynomial
-    /// piece over the window's part of the span, so its readings
-    /// enclose that part alone. `None` when no axis is cut (the window
-    /// covers the span whole, or meets it in at most a point), or when
-    /// a read leaves the window, which its invariants rule out: the
-    /// whole block is the caller's answer either way, and a sound one.
-    ///
-    /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`; an
-    /// axis left uncut stays the span's window.
-    ///
-    /// The cut block's readings are not always narrower than the whole
-    /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a window a few ulps wide the `degree / (b − a)` scale
-    /// amplifies every ulp the blossom adds. So the caller meets the two
-    /// ([`NurbsBoxes::deriv_box`]).
+    /// This cell's quotients cut to `wu × wv`: along each axis whose
+    /// window falls strictly inside the cell's span with positive width,
+    /// the whole cell's quotients restricted to the window's part of the
+    /// span ([`CellFirstQuotients::restrict`]), so its readings enclose
+    /// that part alone. `None` when no axis is cut (the window covers
+    /// the span whole, or meets it in at most a point), or on a net with
+    /// no whole-cell quotients: the whole cell is the caller's answer
+    /// either way, and a sound one.
     fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
         }
-        let nv = self.nv;
-        let nu = self.pts.len() / nv;
-        let mut h = self.translated()?.1;
-        if let Some(cut) = cut_u {
-            for j in 0..nv {
-                let line: Vec<[Interval; 4]> = (0..nu).map(|i| h[i * nv + j]).collect();
-                for (i, c) in bezier_on(&line, span_u, cut)?.into_iter().enumerate() {
-                    h[i * nv + j] = c;
-                }
-            }
-        }
-        if let Some(cut) = cut_v {
-            for i in 0..nu {
-                let line = &h[i * nv..(i + 1) * nv];
-                let cut_line = bezier_on(line, span_v, cut)?;
-                h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
-            }
-        }
-        let (held_u, held_v) = (held(span_u), held(span_v));
-        let quotients = quotients_of(
-            &h,
-            (
-                cut_axis(span_u, cut_u, &held_u),
-                cut_axis(span_v, cut_v, &held_v),
-            ),
-        );
+        let quotients = self
+            .raised
+            .as_ref()?
+            .restrict((cut_u, cut_v))
+            .pieces((BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS));
         Some(Self {
-            nv,
-            pts: h
-                .iter()
-                .map(|c| [c[0] / c[3], c[1] / c[3], c[2] / c[3]])
-                .collect(),
-            wts: h.iter().map(|c| c[3]).collect(),
-            hom: None,
+            raised: None,
             quotients,
         })
     }
@@ -1447,38 +1373,6 @@ impl CellNet {
 /// reading; the one-piece `5.3e-9` is this measurement's alone).
 const BLOCK_PIECE_SPLITS: usize = 2;
 
-/// The first-order quotients of a homogeneous block `h` along `axes`,
-/// on the block's pieces; `None` where the statement refuses.
-fn quotients_of(
-    h: &[[Interval; 4]],
-    axes: (CellAxis<'_, Interval>, CellAxis<'_, Interval>),
-) -> Option<Vec<CellQuotients<Interval>>> {
-    let a: Vec<[Interval; 3]> = h.iter().map(|c| [c[0], c[1], c[2]]).collect();
-    let w: Vec<Interval> = h.iter().map(|c| c[3]).collect();
-    cell_quotients(
-        axes,
-        CellBlock::Homogeneous { a: &a, w: &w },
-        (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
-        false,
-    )
-}
-
-/// The axis of a block cut to `cut` along `span`: a Bézier block of the
-/// span's degree over the cut, or the span's own window when uncut.
-fn cut_axis<'a>(
-    span: Span<'a>,
-    cut: Option<(f64, f64)>,
-    held: &'a [Interval],
-) -> CellAxis<'a, Interval> {
-    match cut {
-        Some((a, b)) => CellAxis::Bezier {
-            degree: span.degree(),
-            scale: span_derivative_scale(span.degree(), Interval::point(a), Interval::point(b)),
-        },
-        None => CellAxis::Span(span, held),
-    }
-}
-
 /// A span's knot vector held as points.
 fn held(span: Span<'_>) -> Vec<Interval> {
     span.knots()
@@ -1488,39 +1382,44 @@ fn held(span: Span<'_>) -> Vec<Interval> {
         .collect()
 }
 
-/// The part of `span`'s knot interval inside `w`, when it is a
-/// proper part of positive width; `None` when the window covers the
-/// span whole or meets it in at most a point.
-fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
+/// The part of `span`'s knot interval inside `w`, with the span's own
+/// interval, when it is a proper part of positive width; `None` when the
+/// window covers the span whole or meets it in at most a point.
+fn inside(span: Span<'_>, w: ParamRange) -> Option<AxisCut> {
     let (lo, hi) = (w.start(), w.end());
     let t = span.knots().knots();
     let (&ta, &tb) = t.get(span.index()).zip(t.get(span.index() + 1))?;
     let (a, b) = (lo.max(ta), hi.min(tb));
-    (a < b && (a > ta || b < tb)).then_some((a, b))
+    (a < b && (a > ta || b < tb)).then_some(((ta, tb), (a, b)))
 }
 
-/// The Bézier coefficients over `[a, b]` of the polynomial piece that
-/// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span, channel by channel: each channel's window restricted to
-/// `[a, b]` ([`geom_core::spline::SpanRow::restrict`]). `None` when the
-/// line is not one window long or the restriction refuses.
-fn bezier_on(
-    line: &[[Interval; 4]],
-    span: Span<'_>,
-    (a, b): (f64, f64),
-) -> Option<Vec<[Interval; 4]>> {
-    let mut out = vec![[Interval::refused(); 4]; line.len()];
-    for c in 0..4 {
-        let channel: Vec<Interval> = line.iter().map(|l| l[c]).collect();
-        let row = span
-            .with_window(&channel)?
-            .restrict((Interval::point(a), Interval::point(b)))
-            .ok()?;
-        for (k, v) in row.into_iter().enumerate() {
-            out[k][c] = v;
-        }
-    }
-    Some(out)
+/// A block's channels in the frame of its first point's lower bracket
+/// end `c`: `(w·(P − c), w)`, from the homogeneous channels `hom` where
+/// the block holds them, and `c`.
+fn translate(
+    pts: &[[Interval; 3]],
+    wts: &[Interval],
+    hom: Option<&[[Interval; 4]]>,
+) -> Option<([Interval; 3], Vec<[Interval; 4]>)> {
+    let c = pts.first()?.map(Interval::lo).map(Interval::point);
+    let h = match hom {
+        Some(hom) => hom
+            .iter()
+            .map(|h| {
+                let at = |k: usize| h[k] - c[k] * h[3];
+                [at(0), at(1), at(2), h[3]]
+            })
+            .collect(),
+        None => pts
+            .iter()
+            .zip(wts)
+            .map(|(p, &w)| {
+                let at = |k: usize| w * (p[k] - c[k]);
+                [at(0), at(1), at(2), w]
+            })
+            .collect(),
+    };
+    Some((c, h))
 }
 
 /// The box every reading over a window that names no region answers.
@@ -2157,7 +2056,12 @@ pub(super) mod tests {
                     0.5 * b + 0.1 * a * a,
                     0.2 * ((iu * 7 + iv * 3) % 5) as f64 - 0.3 * a,
                 ));
-                weights.push(1.0 + spread * (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0);
+                let step = (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0;
+                weights.push(if spread < 1.0 {
+                    1.0 + spread * step
+                } else {
+                    spread.powf(step)
+                });
             }
         }
         NurbsSurface::new(ku, kv, control, weights).expect("valid net")
@@ -2166,7 +2070,9 @@ pub(super) mod tests {
     /// The nets the dominance rows read beyond the rational wall and
     /// the two-span patch: polynomial and near-polynomial weights,
     /// non-uniform knots, and higher degree, where the quotient's own
-    /// slack is small.
+    /// slack is small. A `spread` below one reads the weights as
+    /// `1 ± spread`, at one and above as `spread^{±1}`
+    /// ([`wide_weight_nets`]).
     fn varied_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
         let cubic_nonuniform = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0];
         let quadratic_nonuniform = vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0];
@@ -2204,6 +2110,34 @@ pub(super) mod tests {
             (
                 "quartic × linear, weights 0.4 to 1.6",
                 varied_net(4, quartic, 1, linear, 0.6),
+            ),
+        ]
+    }
+
+    /// Nets with weights spread over decades, for the dominance rows: a
+    /// cut's restriction and halving run there on weight powers up to
+    /// eighteen orders apart (`W³` at `10^{±3}`).
+    fn wide_weight_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
+        vec![
+            (
+                "cubic × quadratic, non-uniform, weights 1e-3 to 1e3",
+                varied_net(
+                    3,
+                    vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0],
+                    2,
+                    vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0],
+                    1e3,
+                ),
+            ),
+            (
+                "quartic × linear, weights 1e-2 to 1e2",
+                varied_net(
+                    4,
+                    vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    1,
+                    vec![0.0, 0.0, 1.0, 1.0],
+                    1e2,
+                ),
             ),
         ]
     }
@@ -2251,6 +2185,7 @@ pub(super) mod tests {
     #[test]
     fn each_cells_derivative_box_holds_the_sampled_derivative() {
         let mut nets = varied_nets();
+        nets.extend(wide_weight_nets());
         nets.push(("rational wall", rational_wall(0.0)));
         nets.push(("two-span patch", multiplicity_2_patch()));
         let n = 16;
@@ -2334,7 +2269,7 @@ pub(super) mod tests {
                 t,
             ));
         }
-        for (name, net) in varied_nets() {
+        for (name, net) in varied_nets().into_iter().chain(wide_weight_nets()) {
             cases.push((name.to_string(), net.clone(), net, 0.0));
         }
         let n = 16;

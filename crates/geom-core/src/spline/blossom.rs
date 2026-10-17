@@ -230,15 +230,104 @@ pub fn restrict_segment(
     if row.len() == 1 || (a == s0 && b == s1) {
         return row.to_vec();
     }
-    super::KnotVector::bezier(row.len() - 1, (s0, s1))
-        .ok()
-        .and_then(|kv| {
-            kv.span_at(s0)?
-                .with_window(row)?
-                .restrict((Interval::point(a), Interval::point(b)))
-                .ok()
-        })
-        .unwrap_or_else(|| vec![Interval::refused(); row.len()])
+    // `KnotVector::bezier(p, (s0, s1))` refuses only a non-finite end
+    // here. On it every level ratio of the span is `(u − s0)/(s1 − s0)`
+    // (`slice_ratio`: `t_i = s0` and `t_{i+p+1−r} = s1` for every entry
+    // `j ≥ r` a level writes), so the ratio at each cut end is formed
+    // once, the same expression, and the pyramid runs on it.
+    if !(s0.is_finite() && s1.is_finite()) {
+        return vec![Interval::refused(); row.len()];
+    }
+    let p = row.len() - 1;
+    let (Ok(a), Ok(b)) = (
+        admit(Interval::point(a), 0, (s0, s1)),
+        admit(Interval::point(b), p - 1, (s0, s1)),
+    ) else {
+        return vec![Interval::refused(); row.len()];
+    };
+    let below = Interval::point(s0);
+    let width = Interval::point(s1) - below;
+    pyramid(row, ((a - below) / width, (b - below) / width), |_, _, u| u)
+}
+
+/// A split's weights `(t, 1 − t)` for the thin convex step
+/// `x·(1 − t) + y·t`, three outward interval operations per entry.
+/// [`Certification::between`]'s monotone and convex forms met are built
+/// for the blossom door's general ratios; a window's ratio is the
+/// enclosure of one point's, a few ulps wide. The plain step encloses
+/// the exact step for every `t` in that enclosure (`[0, 1]` after the
+/// clamp); what it costs in width is measured on the cut's meets.
+fn convex(t: Interval) -> (Interval, Interval) {
+    (t, Interval::point(1.0) - t)
+}
+
+/// The thin convex step `x·(1 − t) + y·t` at the weights `(t, 1 − t)`
+/// ([`convex`]), and `x` itself where `y` is the same enclosure: a run
+/// of equal coefficients (a flat wall's constant derivative) stays
+/// exactly what it was, as [`Certification::between`] keeps it, where
+/// the plain step would widen it by `t`'s own width at every level.
+/// Sound: a convex combination of two values in one interval is in it.
+/// The same enclosure means the same ends AND the same decoration
+/// ([`Interval::same_enclosure`]): a certified `x` beside a refused `y`
+/// with its ends, or a `Com` one beside a `Def` one, takes the general
+/// step, which carries the weaker, rather than coming back as `x`.
+fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
+    if x.same_enclosure(y) {
+        x
+    } else {
+        x * s + y * t
+    }
+}
+
+/// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
+/// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
+/// keeping the right part (the row on `[a, s1]`), then at
+/// `(b − a)/(s1 − a)`, keeping the left. Each step is the thin convex
+/// step ([`convex`]) at an interval ratio clamped to `[0, 1]`, so at
+/// `Interval` every coefficient encloses the exact restriction's,
+/// `2p` steps deep; `O(p²)` against the blossom pyramid's `O(p³)`
+/// ([`restrict_segment`]). A split at an end of its segment is
+/// skipped. A cut out of order, or a segment that is empty or not
+/// finite, refuses every coefficient.
+// The negated guard refuses a NaN cut, where `a < s0` would pass it.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+pub(crate) fn split_restrict(
+    row: &[Interval],
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<Interval> {
+    if row.is_empty()
+        || !(s0 <= a && a <= b && b <= s1 && s0 < s1 && s0.is_finite() && s1.is_finite())
+    {
+        return vec![Interval::refused(); row.len()];
+    }
+    let ratio = |x: f64, lo: f64| {
+        let lo = Interval::point(lo);
+        ((Interval::point(x) - lo) / (Interval::point(s1) - lo)).clamped_to(0.0, 1.0)
+    };
+    let mut d = row.to_vec();
+    let p = d.len() - 1;
+    if a > s0 {
+        // The right part: entry `k` is level `p − k`'s entry `k`, the
+        // last each level writes from the low end up.
+        let (t, s) = convex(ratio(a, s0));
+        for r in 1..=p {
+            for k in 0..=p - r {
+                d[k] = step(d[k], d[k + 1], (t, s));
+            }
+        }
+    }
+    if b < s1 {
+        // The left part: entry `k` is level `k`'s entry `0`, the last
+        // each level writes from the high end down.
+        let (t, s) = convex(ratio(b, a));
+        for r in 1..=p {
+            for k in (r..=p).rev() {
+                d[k] = step(d[k - 1], d[k], (t, s));
+            }
+        }
+    }
+    d
 }
 
 /// `u` met with the closure `[lo, hi]` (module docs' argument contract):
@@ -540,6 +629,336 @@ mod tests {
             i.iter().all(|c| !c.is_certified()),
             "Interval short held: {i:?}"
         );
+    }
+
+    /// **A split restriction encloses the exact restriction, `2p` steps
+    /// deep.** Rows of degree 1–8 with dyadic coefficients spread over
+    /// `2^{±10}` (a wide weight power's span), cut at dyadic ends whose
+    /// two split ratios are dyadic too, so the exact restriction is
+    /// `f64` de Casteljau with no rounding: every coefficient of
+    /// [`split_restrict`] contains it. Red under the second split
+    /// at `(b − s0)/(s1 − s0)` (the ratio on the wrong segment), or under
+    /// either split keeping the other part. And on drawn non-dyadic cuts
+    /// it meets the blossom pyramid's restriction coefficient by
+    /// coefficient (two enclosures of one row).
+    #[test]
+    fn a_split_restriction_encloses_the_exact_restriction() {
+        // The exact de Casteljau split of a dyadic row at a dyadic `t`:
+        // the right part (`right`) or the left.
+        fn split(row: &[f64], t: f64, right: bool) -> Vec<f64> {
+            let mut levels = vec![row.to_vec()];
+            for r in 1..row.len() {
+                let prev = &levels[r - 1];
+                levels.push(
+                    (0..prev.len() - 1)
+                        .map(|i| (1.0 - t) * prev[i] + t * prev[i + 1])
+                        .collect(),
+                );
+            }
+            let p = row.len() - 1;
+            (0..=p)
+                .map(|k| {
+                    if right {
+                        levels[p - k][k]
+                    } else {
+                        levels[k][0]
+                    }
+                })
+                .collect()
+        }
+        let mut rng = test_utils::fuzz::start("split-restrict-exact");
+        // (s0, s1, a, b) with (a − s0)/(s1 − s0) and (b − a)/(s1 − a)
+        // dyadic.
+        let cuts = [
+            (0.0, 1.0, 0.25, 0.625),
+            (0.0, 1.0, 0.5, 0.75),
+            (2.0, 6.0, 3.0, 4.5),
+            (-1.0, 1.0, -0.5, 0.25),
+            (0.0, 1.0, 0.0, 0.375),
+            (0.0, 1.0, 0.75, 1.0),
+        ];
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let row: Vec<f64> = (0..=p)
+                .map(|_| {
+                    let mag = 2.0_f64.powi(rng.below(21) as i32 - 10);
+                    (rng.range(-8.0, 8.0)).round() * mag
+                })
+                .collect();
+            let lifted: Vec<Interval> = row.iter().map(|&c| Interval::point(c)).collect();
+            for (s0, s1, a, b) in cuts {
+                let ta = (a - s0) / (s1 - s0);
+                let tb = (b - a) / (s1 - a);
+                let exact = split(&split(&row, ta, true), tb, false);
+                let got = split_restrict(&lifted, (s0, s1), (a, b));
+                for (k, (g, e)) in got.iter().zip(&exact).enumerate() {
+                    assert!(
+                        g.is_certified() && g.lo() <= *e && *e <= g.hi(),
+                        "degree {p} on [{s0}, {s1}] cut to [{a}, {b}], coefficient {k}: \
+                         {g:?} misses {e:e}; {}",
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+            let (x, y) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            let (a, b) = (x.min(y), x.max(y));
+            let blossom = restrict_segment(&lifted, (0.0, 1.0), (a, b));
+            let got = split_restrict(&lifted, (0.0, 1.0), (a, b));
+            for (g, w) in got.iter().zip(&blossom) {
+                assert!(
+                    g.lo() <= w.hi() && w.lo() <= g.hi(),
+                    "[{a}, {b}]: {g:?} and the pyramid's {w:?} are disjoint; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **A split restriction encloses the exact restriction where its
+    /// ratios round.** Drawn non-dyadic segments and cuts, so both split
+    /// ratios `(a − s0)/(s1 − s0)` and `(b − a)/(s1 − a)` are inexact in
+    /// `f64`; drawn rows of degree 1–6. Every coefficient of
+    /// [`split_restrict`] holds the exact restriction, two de Casteljau
+    /// splits at the exact rational ratios over the stored numbers,
+    /// computed in big-integer fractions. Red under either ratio taken
+    /// as a rounded point instead of an outward interval.
+    #[test]
+    fn a_split_restriction_holds_the_exact_rational_restriction() {
+        use num_bigint::BigInt;
+        /// An exact rational `n/d`, `d > 0`.
+        #[derive(Clone)]
+        struct Q(BigInt, BigInt);
+        impl Q {
+            fn of(x: f64) -> Self {
+                let bits = x.to_bits();
+                let exp = ((bits >> 52) & 0x7ff) as i32;
+                let frac = BigInt::from(bits & ((1 << 52) - 1));
+                let (m, e) = if exp == 0 {
+                    (frac, -1074)
+                } else {
+                    (frac + (BigInt::from(1) << 52), exp - 1075)
+                };
+                let m = if x < 0.0 { -m } else { m };
+                if e >= 0 {
+                    Q(m << e as usize, BigInt::from(1))
+                } else {
+                    Q(m, BigInt::from(1) << (-e) as usize)
+                }
+            }
+            fn add(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.1 + &o.0 * &self.1, &self.1 * &o.1)
+            }
+            fn sub(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.1 - &o.0 * &self.1, &self.1 * &o.1)
+            }
+            fn mul(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.0, &self.1 * &o.1)
+            }
+            fn div(&self, o: &Q) -> Q {
+                let (n, d) = (&self.0 * &o.1, &self.1 * &o.0);
+                if d.sign() == num_bigint::Sign::Minus {
+                    Q(-n, -d)
+                } else {
+                    Q(n, d)
+                }
+            }
+            /// `self ≤ o`.
+            fn le(&self, o: &Q) -> bool {
+                &self.0 * &o.1 <= &o.0 * &self.1
+            }
+        }
+        // The exact split: `right` keeps `[t, 1]`, else `[0, t]`.
+        fn split(row: &[Q], t: &Q, right: bool) -> Vec<Q> {
+            let one_t = Q::of(1.0).sub(t);
+            let mut levels = vec![row.to_vec()];
+            for r in 1..row.len() {
+                let prev = &levels[r - 1];
+                let next = (0..prev.len() - 1)
+                    .map(|i| one_t.mul(&prev[i]).add(&t.mul(&prev[i + 1])))
+                    .collect();
+                levels.push(next);
+            }
+            let p = row.len() - 1;
+            (0..=p)
+                .map(|k| {
+                    if right {
+                        levels[p - k][k].clone()
+                    } else {
+                        levels[k][0].clone()
+                    }
+                })
+                .collect()
+        }
+        let mut rng = test_utils::fuzz::start("split-restrict-rational");
+        for _ in 0..test_utils::fuzz::scaled(60) {
+            let p = 1 + rng.below(6);
+            let row: Vec<f64> = (0..=p).map(|_| rng.range(-3.0, 3.0)).collect();
+            let s0 = rng.range(-2.0, 1.0);
+            let s1 = s0 + rng.range(0.1, 3.0);
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            let got = split_restrict(
+                &row.iter().map(|&c| Interval::point(c)).collect::<Vec<_>>(),
+                (s0, s1),
+                (a, b),
+            );
+            let (qs0, qs1, qa, qb) = (Q::of(s0), Q::of(s1), Q::of(a), Q::of(b));
+            let ta = qa.sub(&qs0).div(&qs1.sub(&qs0));
+            let tb = qb.sub(&qa).div(&qs1.sub(&qa));
+            let exact = split(
+                &split(
+                    &row.iter().map(|&c| Q::of(c)).collect::<Vec<_>>(),
+                    &ta,
+                    true,
+                ),
+                &tb,
+                false,
+            );
+            for (k, (g, e)) in got.iter().zip(&exact).enumerate() {
+                assert!(
+                    g.is_certified() && Q::of(g.lo()).le(e) && e.le(&Q::of(g.hi())),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}], coefficient {k}: {g:?} \
+                     misses the exact value; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **Equal neighbours step to themselves exactly.** A constant row
+    /// of a drawn non-dyadic value, cut at drawn non-dyadic ends of a
+    /// non-dyadic segment, comes back the same value bit for bit, where
+    /// the plain thin step `x·(1 − t) + y·t` would widen it by the
+    /// ratio's own width at every level. Red with the `x == y` arm of
+    /// `step` removed.
+    #[test]
+    fn a_constant_row_is_cut_to_itself_exactly() {
+        let mut rng = test_utils::fuzz::start("split-restrict-constant");
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let c = Interval::point(rng.range(-3.0, 3.0));
+            let s0 = rng.range(-2.0, 1.0);
+            let s1 = s0 + rng.range(0.1, 3.0);
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            for got in split_restrict(&vec![c; p + 1], (s0, s1), (a, b)) {
+                assert!(
+                    got.lo().to_bits() == c.lo().to_bits()
+                        && got.hi().to_bits() == c.hi().to_bits(),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {got:?} is not {c:?}"
+                );
+            }
+        }
+    }
+
+    /// **A refused neighbour is not laundered by the equal arm.** A
+    /// certified `[0, 2]` beside `sqrt([-1, 4])` — the same ends, refused
+    /// (the domain clamp records `Trv`) — cut strictly inside, where
+    /// every coefficient of the cut reads both, comes back refused in
+    /// either order, as [`Certification::between`] refuses
+    /// it; the pair of certified `[0, 2]`s stays certified. Red with the
+    /// equal arm comparing ends alone: the row `[certified, refused]`
+    /// came back certified.
+    #[test]
+    fn a_refused_neighbour_with_the_same_ends_stays_refused() {
+        let ok = Interval::from_bounds(0.0, 2.0);
+        let refused = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(ok.is_certified() && !refused.is_certified());
+        assert!(
+            ok.lo().to_bits() == refused.lo().to_bits()
+                && ok.hi().to_bits() == refused.hi().to_bits(),
+            "the probe needs the same ends: {ok:?} {refused:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[ok, refused], [refused, ok]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| !c.is_certified()),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            let got = split_restrict(&[ok, ok], (0.0, 1.0), cut);
+            assert!(got.iter().all(|c| c.is_certified()), "{got:?}");
+        }
+    }
+
+    /// **A weaker certified neighbour is not upgraded by the equal arm.**
+    /// A `Com` `[2, 3]` beside `floor([2.5, 3.5])` — the same ends, `Def`
+    /// (the hull across a step) — cut strictly inside comes back at `Def`
+    /// or below in either order, the level the general step carries; two
+    /// `Def` ones stay `Def`, and two `Com` ones `Com`. Red with the equal
+    /// arm comparing ends and `is_certified()` alone: the row
+    /// `[Com, Def]` came back `Com`.
+    #[test]
+    fn a_weaker_neighbour_with_the_same_ends_is_not_upgraded() {
+        use crate::real::Real;
+        use interval_transcendentals::Decoration;
+        let com = Interval::from_bounds(2.0, 3.0);
+        let def = Interval::from_bounds(2.5, 3.5).floor();
+        assert!(com.decoration() == Decoration::Com && def.decoration() == Decoration::Def);
+        assert!(
+            com.lo().to_bits() == def.lo().to_bits() && com.hi().to_bits() == def.hi().to_bits(),
+            "the probe needs the same ends: {com:?} {def:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[com, def], [def, com]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| c.decoration() <= Decoration::Def),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            for (x, level) in [(com, Decoration::Com), (def, Decoration::Def)] {
+                let got = split_restrict(&[x, x], (0.0, 1.0), cut);
+                assert!(got.iter().all(|c| c.decoration() == level), "{got:?}");
+            }
+        }
+    }
+
+    /// **A segment cut is the Bézier span's restriction, to the bit.**
+    /// `restrict_segment` forms each cut end's ratio once rather than at
+    /// every entry of every level; on `KnotVector::bezier(p, (s0, s1))`
+    /// every ratio is that one expression, so the rows agree bit for bit
+    /// (and in certification) with [`SpanRow::restrict`] there: drawn
+    /// widened rows of degree 1–8, non-dyadic segments at several
+    /// magnitudes, cuts anywhere inside them. Red under the ratio formed
+    /// any other way (`(u − s0)·(1/(s1 − s0))`).
+    #[test]
+    fn a_segment_cut_is_the_bezier_spans_restriction_to_the_bit() {
+        let mut rng = test_utils::fuzz::start("restrict-segment-hoisted-ratio");
+        for _ in 0..test_utils::fuzz::scaled(400) {
+            let p = 1 + rng.below(8);
+            let row: Vec<Interval> = (0..=p)
+                .map(|_| {
+                    let c = rng.range(-3.0, 3.0);
+                    let w = rng.range(0.0, 1e-9);
+                    Interval::from_bounds(c - w, c + w)
+                })
+                .collect();
+            let scale = [1e-3, 1.0, 37.0, 1e4][rng.below(4)];
+            let s0 = rng.range(-1.0, 1.0) * scale;
+            let s1 = s0 + rng.range(0.01, 2.0) * scale;
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            let got = restrict_segment(&row, (s0, s1), (a, b));
+            let kv = KnotVector::bezier(p, (s0, s1)).unwrap();
+            let want = kv
+                .span_at(s0)
+                .unwrap()
+                .with_window(&row)
+                .unwrap()
+                .restrict((Interval::point(a), Interval::point(b)))
+                .unwrap();
+            for (g, w) in got.iter().zip(&want) {
+                assert!(
+                    g.lo().to_bits() == w.lo().to_bits()
+                        && g.hi().to_bits() == w.hi().to_bits()
+                        && g.is_certified() == w.is_certified(),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {g:?} against {w:?}; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// **A cut out of order refuses its row** (carried from `compose`'s

@@ -87,10 +87,12 @@
 //! certifies to degree 28 with a floor and past that with the
 //! conservative floor `0.0` ([`PatchCell::m_inf`]).
 //!
-//! **The practical ceiling is lower on a wide weight spread.** The
-//! weight power's coefficients are interval enclosures, and at degree
-//! 17 and above a spread near `1e6` lets the rounding of their
-//! products reach zero: the quotient then does not certify, its sups
+//! **The practical ceiling can be lower on a wide weight spread.** The
+//! weight power's coefficients are interval enclosures, and a spread
+//! wide enough at a high enough degree lets the rounding of their
+//! products reach zero (`geom_core::spline::derivative`'s module docs,
+//! "The practical ceiling", which says why where is not pinned): the
+//! quotient then does not certify, its sups
 //! read `NaN` and its boxes refused, and every consumer's `≤ ε` check
 //! refuses the face.
 
