@@ -1277,12 +1277,13 @@ frame = doc.sketch_frame(
     plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 )
 # The axis of revolution is written IN that frame, in its own two
-# coordinates — an origin and a direction the revolve itself holds:
-# the frame's v is world +z, so the pole axis is its +y through
-# (0, 0). An axis written in the frame cannot leave the plane it turns.
+# coordinates — a point and a heading the revolve itself holds: the
+# frame's v is world +z, so the pole axis is its +y through (0, 0), a
+# quarter turn from its x. An axis written in the frame cannot leave
+# the plane it turns.
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
-    (Formula.literal(0.0), Formula.literal(1.0)),
+    Formula.turn_over(4),
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
@@ -1646,7 +1647,7 @@ ring = doc.insert(
     Node.revolve(
         profile,
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
         Formula.angle_in(2 * math.pi, rad),
     )
 )

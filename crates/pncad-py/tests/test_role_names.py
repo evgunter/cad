@@ -202,7 +202,11 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         self.assertEqual(
             ev.face_frame(node, band(node, scene.piece(0, 2))).origin[1].meters, H
         )
-        self.assertEqual(ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters, H)
+        # The rim's centre is read off the axis, whose quarter-turn heading
+        # rounds its height by an ulp.
+        self.assertAlmostEqual(
+            ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters, H, delta=1e-15
+        )
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):
         doc = Doc()

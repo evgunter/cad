@@ -912,9 +912,14 @@ class TestSnowman(unittest.TestCase):
         self.assertEqual(len(bands), 1)
         pose = ev.face_frame(rolled, bands[0])
         ox, oy, oz = (c.meters for c in pose.origin)
-        self.assertEqual((ox, oz), (0.0, 0.0), "the band is centred on the axis")
+        # The axis's heading is a quarter turn, whose cosine rounds to
+        # 6e-17 rather than 0, so the band's centre is off the axis by
+        # rounding alone.
+        for c in (ox, oz):
+            self.assertAlmostEqual(c, 0.0, delta=1e-15, msg="the band is centred on the axis")
         self.assertAlmostEqual(oy, self.roll_centre()[1], delta=1e-12)
-        self.assertEqual((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0))
+        for got, want in zip((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0)):
+            self.assertAlmostEqual(got, want, delta=1e-15)
 
 
 # ------------------------------------------------------------------

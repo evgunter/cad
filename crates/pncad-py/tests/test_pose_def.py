@@ -177,21 +177,20 @@ class TestTheConstructors(unittest.TestCase):
         self.assertAlmostEqual(above.mass_properties().volume, 0.5, delta=1e-12)
         self.assertAlmostEqual(below.mass_properties().volume, 0.5, delta=1e-12)
 
-    def test_a_plane_spun_about_an_edge_tilts_the_cut(self):
-        """The top plane spun 45° about one of its own edges passes
-        through that edge and down the cube's diagonal: half the cube
-        lies on each side."""
+    def test_a_plane_spun_about_a_line_in_it_tilts_the_cut(self):
+        """The cube's mid-height plane spun 45° about the line through
+        its centre along x stays through the centre, so half the cube
+        lies on each side, whichever way it turns."""
         doc = Doc()
         body = cube(doc)
-        ev = evaluate(doc)
-        cap = face_at(ev, body, 1.0)
-        edge = next(
-            e for e in ev.all_edges(body)
-            if abs(ev.edge_frame(body, e).origin[2].meters - 1.0) < 1e-12
+        frame = doc.sketch_frame()
+        mid = PoseDef.slide(RoleRead(frame, "xy"), RoleRead(frame, "z"), 0.5 * m)
+        line = PoseDef.slide(
+            PoseDef.slide(RoleRead(frame, "x"), RoleRead(frame, "y"), 0.5 * m),
+            RoleRead(frame, "z"),
+            0.5 * m,
         )
-        cut = doc.insert(Node.split(body, PoseDef.spin(
-            PoseDef.plane(body, cap), PoseDef.axis(body, edge), 45 * deg,
-        )))
+        cut = doc.insert(Node.split(body, PoseDef.spin(mid, line, 45 * deg)))
         above, below = evaluate(doc).value(cut).split()
         for half in (above, below):
             self.assertAlmostEqual(half.mass_properties().volume, 0.5, delta=1e-9)
