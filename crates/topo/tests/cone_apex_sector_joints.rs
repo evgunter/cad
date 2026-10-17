@@ -275,3 +275,31 @@ fn near_a_narrow_apex_the_description_refuses_before_the_winding() {
     near_the_apex::<f64>("f64");
     near_the_apex::<geom_core::Interval>("Interval");
 }
+
+/// Review r1 (PR 5244): the near-apex split is not vacuously clean —
+/// every half-edge of the split body carries a stored row, and the
+/// children's rows are the cone's angle-and-free channels.
+fn r1_rows<T: Real + AtRestPolicy + Bounds + std::fmt::Debug>(lane: &str) {
+    let tol = Tol::witness();
+    let near = 1.5 * tol.k() * tol.eps();
+    let mut body = sector::<T>(0.1).unwrap_or_else(|e| panic!("{lane}: {e}"));
+    let rows = |b: &Body<T>| b.half_edges().filter(|(he, _)| b.pcurve(*he).is_some()).count();
+    let (r0, h0) = (rows(&body), body.half_edges().count());
+    let (edge, t) = ruling_at(&body, near);
+    body.split_edge(edge, t, tol).unwrap();
+    let (r1, h1) = (rows(&body), body.half_edges().count());
+    eprintln!("{lane}: rows {r0}/{h0} -> {r1}/{h1}");
+    for (he, _) in body.half_edges() {
+        if let Some(c) = body.pcurve(he) {
+            eprintln!("{lane}:   {he:?} {:?} over {:?}", c.pcurve(), c.params());
+        }
+    }
+    assert_eq!(r1 - r0, h1 - h0, "{lane}: every new half-edge carries a row");
+    assert_eq!(r1, h1, "{lane}: every half-edge carries a row");
+}
+
+#[test]
+fn r1_the_near_apex_split_stores_every_row() {
+    r1_rows::<f64>("f64");
+    r1_rows::<geom_core::Interval>("Interval");
+}
