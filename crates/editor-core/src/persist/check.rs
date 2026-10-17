@@ -1132,12 +1132,9 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         //
         // - Most `InsertNode` node kinds hold their floats in `Expr`
         //   literals, finite by the construction door.
-        // - A constraint's `alignment` and literal placement steps (an
-        //   inserted transform's, a constraint's frame offsets, on an
-        //   inserted placement or through `AddConstraint`) are RAW
-        //   `f64`, not `Expr`s. They are refused
-        //   on replay by `apply` (`EditError::NonFiniteAlignment`,
-        //   `NonFinitePlacement`), which `persist::load` runs the log
+        // - An inserted transform's literal placement steps are RAW
+        //   `f64`, not `Expr`s. They are refused on replay by `apply`
+        //   (`NonFinitePlacement`), which `persist::load` runs the log
         //   through — so they are guarded, but by a door this function
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is

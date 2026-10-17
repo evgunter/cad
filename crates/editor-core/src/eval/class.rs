@@ -227,8 +227,6 @@ pub enum NodeErrorClass {
     MateIndeterminate,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
     MatePoseOutOfRange,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Band`].
-    MateBand,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Contradictory`].
     MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
@@ -419,7 +417,6 @@ impl NodeErrorClass {
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Indeterminate { .. } => Self::MateIndeterminate,
             MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
-            MateFault::Band { .. } => Self::MateBand,
             MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
@@ -577,7 +574,6 @@ mod tests {
         MateClassNotAdmitted,
         MateIndeterminate,
         MatePoseOutOfRange,
-        MateBand,
         MateContradictory,
         MateOverconstrained,
         MateTargetsDiffer,
@@ -977,9 +973,6 @@ mod tests {
             C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange {
                 held: m(8),
                 added: m(9),
-            }),
-            C::MateBand => mate(crate::MateFault::Band {
-                error: band_error(),
             }),
             C::MateContradictory => mate(crate::MateFault::Contradictory {
                 held: m(8),

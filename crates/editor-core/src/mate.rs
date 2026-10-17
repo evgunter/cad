@@ -41,7 +41,7 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
-use geom_core::predicate::{BandError, Indeterminate, Margin};
+use geom_core::predicate::{Indeterminate, Margin};
 
 pub mod coset;
 pub mod member;
@@ -54,9 +54,7 @@ pub(crate) mod value;
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use pin::{PinRefusal, Placed, PlacedBy, pin_at, place_at};
-pub use reach::{
-    FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
-};
+pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
@@ -1023,29 +1021,17 @@ impl core::fmt::Display for LeverRefusal {
 /// an identity nothing enforces ([`Lever::deviation`] computes it).
 ///
 /// A closed enum, and deliberately not a value beside a unit string:
-/// the two arms are the two kinds of number the solve levers, and a
-/// third kind is a new arm with its own sentence, never a free string
-/// a site could set to a length.
+/// its arm is the kind of number the solve levers, and another kind is
+/// a new arm with its own sentence, never a free string a site could
+/// set to a length.
 ///
-/// The arm is the one the predicate was decided over, and the two
-/// kinds are decided over different ones: a `Roll` is decided in the
-/// mate's own coset over that mate's lever, a `Residual` in the fold
-/// over the largest lever of the mates folded so far — so a pair can
-/// print one arm on a roll and a larger one on a residual, each the
-/// truth of its own decision.
+/// The arm is the one the predicate was decided over: the largest
+/// lever of the mates folded so far.
 ///
 /// The solve measures a residual at its own scalar `T` and decides it
 /// there; a refusal carries it at `f64` (the default).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Lever<T = f64> {
-    /// An authored roll, in radians (the clocking rider's
-    /// `mate_clocking_redundant`).
-    Roll {
-        /// The roll, in radians.
-        radians: f64,
-        /// The arm, in metres.
-        arm: f64,
-    },
     /// A dimensionless residual — a sine, a cosine, a Frobenius
     /// departure from the identity, a reachability defect — named by
     /// the predicate that measured it.
@@ -1061,7 +1047,7 @@ impl<T> Lever<T> {
     /// The arm, in metres, whichever kind of number it levered.
     pub fn arm(self) -> f64 {
         match self {
-            Self::Roll { arm, .. } | Self::Residual { arm, .. } => arm,
+            Self::Residual { arm, .. } => arm,
         }
     }
 }
@@ -1074,7 +1060,6 @@ impl<T: geom_core::Real> Lever<T> {
     /// the number the funnel decided are one value.
     pub fn margin(self) -> Margin<T> {
         match self {
-            Self::Roll { radians, arm } => Margin::levered(T::from_f64(radians), T::from_f64(arm)),
             Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
         }
     }
@@ -1128,21 +1113,14 @@ impl Clash {
 /// the two documents a mispaired read named.
 ///
 /// **Which mate an arm is about is read per arm by its two consumers,
-/// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`, and
-/// the two arms that name no mate are not the same case**: [`Self::Band`]
-/// names no mate and reaches EVERY row of the document —
-/// [`solve_document`] records the one fault against every placement
-/// before it reads a mate — while
-/// [`Self::PosesOfAnotherDocument`] names no mate and reaches NO row,
+/// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`.**
+/// [`Self::PosesOfAnotherDocument`] names no mate and reaches no row,
 /// being raised by [`SolvedPoses::placement`] and never inserted in a
-/// fault map. There is deliberately no `subject()` here: an
-/// `Option<RecipeNodeId>` answers `None` for both and erases that
-/// asymmetry, which is the one fact both consumers exist to carry.
+/// fault map.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
     /// The solve is a solve of ANOTHER document (DI3). Names no mate
-    /// and reaches no row — the enum's own doc states which of the two
-    /// mate-less arms reaches what.
+    /// and reaches no row.
     PosesOfAnotherDocument {
         /// The document whose placement was asked for.
         expected: crate::ident::DocumentId,
@@ -1177,11 +1155,6 @@ pub enum MateFault {
         held: MateRef,
         /// The mate whose intersection named the meeting point.
         added: MateRef,
-    },
-    /// The run's tolerance could not yield a band.
-    Band {
-        /// The band constructor's refusal.
-        error: BandError,
     },
     /// The pair's mates intersect to the EMPTY coset (A11 rule 1's
     /// CONTRADICTORY): names both mates, the predicate that failed,
@@ -1330,11 +1303,6 @@ fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> c
             f,
             "measured a clash that is not a finite length ({metres}) where {there}"
         ),
-        Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
-            f,
-            "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m where {there}",
-            lever.deviation()
-        ),
         Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
             f,
             "measured a dimensionless residual of {value} on a {arm} m arm, a deviation of {} m \
@@ -1363,8 +1331,6 @@ impl MateFault {
     /// **The refusal this fault carries, when it carries one**: the
     /// node that raised it and the refusal, which the sentence points
     /// at and never renders ([`crate::NodeErrorKind::carried_chain`]).
-    /// A placer whose own row states its refusal is pointed at and not
-    /// carried ([`PlacerRow`]).
     ///
     /// Exhaustive, so an arm that comes to carry another node's
     /// refusal says so here rather than being drawn as though it did
@@ -1377,7 +1343,6 @@ impl MateFault {
             | Self::ClassNotAdmitted { .. }
             | Self::Indeterminate { .. }
             | Self::PoseOutOfRange { .. }
-            | Self::Band { .. }
             | Self::Contradictory { .. }
             | Self::Overconstrained { .. }
             | Self::TargetsDiffer { .. }
@@ -1397,22 +1362,6 @@ impl MateFault {
     pub fn carried_chain(&self) -> crate::CarriedChain<'_> {
         crate::CarriedChain::from_first(self.carried(), crate::CarriedIn::ThisDocument)
     }
-}
-
-/// **Whether a placer's refusal carried by a mate fault states the
-/// refusal on its own row**, which decides whether the fault carries
-/// it. Read at the site that raises the fault, which knows whether the
-/// placer is poisoned by it, and again where the placement reports the
-/// fault, which knows whether the placer is poisoned by anything else.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlacerRow {
-    /// The placer evaluates and fails with this refusal in its own
-    /// right: its row states it, and the mate points there.
-    States,
-    /// The placer's row cannot state it — the placer is poisoned
-    /// through the instance this fault reached, or is no node of the
-    /// document — so the mate carries it.
-    Silent,
 }
 
 /// The predicate that decides the EMPTY intersection. It is the one
@@ -1448,13 +1397,11 @@ pub enum Refuted {
     PointFixed,
     /// Two one-axis rotation constraints: one rotation reaches both.
     TwoAxisReachable,
-    /// A clocking rider on a coincidence: the rider is redundant.
-    ClockingRedundant,
 }
 
 impl Refuted {
     /// Every predicate, once.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 8] = [
         Self::RotationIdentity,
         Self::TranslationZero,
         Self::TranslationAlong,
@@ -1463,7 +1410,6 @@ impl Refuted {
         Self::PointOnAxis,
         Self::PointFixed,
         Self::TwoAxisReachable,
-        Self::ClockingRedundant,
     ];
 
     /// The funnel's name for it — routing, which a refusal carries in
@@ -1479,7 +1425,6 @@ impl Refuted {
             Self::PointOnAxis => "mate_member_point_on_axis",
             Self::PointFixed => "mate_member_point_fixed",
             Self::TwoAxisReachable => "mate_rotation_two_axis_reachable",
-            Self::ClockingRedundant => "mate_clocking_redundant",
         }
     }
 
@@ -1496,9 +1441,6 @@ impl Refuted {
             Self::PointOnAxis => "the axis point leaves the shared axis",
             Self::PointFixed => "the shared point moves",
             Self::TwoAxisReachable => "no one rotation aligns both axes",
-            Self::ClockingRedundant => {
-                "the clocking disagrees with the roll the coincidence already pins"
-            }
         }
     }
 
@@ -1562,7 +1504,6 @@ impl crate::spoken::Say for MateFault {
                     geom_core::RANGE_RECOURSE
                 )
             }
-            Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
             Self::Contradictory {
                 held,
                 added,

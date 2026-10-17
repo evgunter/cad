@@ -1846,7 +1846,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::NonFinitePlacement { .. }
             | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
-            | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }
             | EditError::PinUnchanged { .. }
             | EditError::LabelUnchanged { .. } => defect(f),
@@ -3898,8 +3897,6 @@ pub fn inline(
     resolver: &std::sync::Arc<dyn PartResolver>,
     tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
-    // A spliced constraint's clocking rider levers through the parts
-    // the same resolver holds.
     let reach = crate::eval::PartReach::<f64>::with_resolver(Some(resolver), tol);
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode {

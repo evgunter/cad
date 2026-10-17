@@ -3607,9 +3607,8 @@ impl Default for EvalOptions {
     }
 }
 
-/// **The mate solve's reach over a part cache** — the two geometric
-/// reads the solve makes (A11 rule 5: a part's extent, a face's pose),
-/// answered from the parts this evaluation resolves.
+/// **A part's reach over a part cache** — a part's extent, answered
+/// from the parts this evaluation resolves.
 ///
 /// Every caller — the viewer's mate tool, the Python door, the demos, the test fixtures — builds one
 /// through [`mate_reach`] over the options it would evaluate with, so
@@ -3634,41 +3633,6 @@ fn reach_over_cache<T: EvalScalar>(
         return Err(crate::mate::ReachRefusal::NoFiniteBound);
     }
     Ok(hi)
-}
-
-/// **A named face's canonical pose over a part cache** — the other
-/// read `ASSEMBLY.md` A11 rule 5 lets into the solve, answered from
-/// the same cached product the reach reads: the part's own product
-/// table resolves the PART-LOCAL name to its face through the name
-/// doors' own table ladder (`names::interrogate::key_in`, the rungs
-/// every read door asks, in their order), and `topo::readback::
-/// face_pose` reads the carrier's frame off the part's own body, in
-/// the part's own coordinates — no placement enters, since the frames
-/// a mate authors are in those coordinates already. The product is one
-/// aggregate body that every row of its table indexes, so the row's
-/// output-body index is not read.
-///
-/// The pose crosses to the solve at the evaluation's scalar, the one
-/// the solve runs at (`ASSEMBLY.md` A11 (5)), as the part's product
-/// holds it.
-fn face_pose_over_cache<T: EvalScalar>(
-    parts: &parts::PartCache<'_, T>,
-    part: &crate::ident::DocRef,
-    face: &crate::FaceName,
-    tol: Tol,
-) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
-    use crate::mate::FacePoseRefusal as R;
-    use crate::names::interrogate::{TableRefusal, key_in};
-    let value = parts
-        .get(part, tol)
-        .map_err(|fault| R::PartUnresolved { fault })?;
-    let (_, key) =
-        key_in::<topo::FaceKey>(&value.names, face).map_err(|refusal| match refusal {
-            TableRefusal::NoSuchName => R::NoSuchName,
-            TableRefusal::Ambiguous { candidates } => R::Ambiguous { candidates },
-            TableRefusal::Kind { found } => R::NotAFace { found },
-        })?;
-    topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)
 }
 
 /// **A mate solve's reach, built outside an evaluation** — what
@@ -3724,14 +3688,6 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
 impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(&self.parts, part, self.tol)
-    }
-
-    fn face_pose(
-        &self,
-        part: &crate::ident::DocRef,
-        face: &crate::FaceName,
-    ) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
-        face_pose_over_cache(&self.parts, part, face, self.tol)
     }
 }
 

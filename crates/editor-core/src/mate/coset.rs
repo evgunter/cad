@@ -519,10 +519,7 @@ impl From<Indeterminate> for FoldStop {
 /// that product to the direction door, which squares it. An arm whose
 /// sixteenfold square is finite keeps every one of those finite, so
 /// such a margin is never infinite for want of range, which `Decide`
-/// would read as maximally definite. **One exception**: the clocking
-/// rider's roll (`Lever::Roll`, `mate/solve.rs`) levers the authored
-/// clocking unreduced, which no bound holds, so its margin can still
-/// overflow (`work/msolve/a-clocking-rider-is-levered-unreduced.md`).
+/// would read as maximally definite.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Arm(f64);
 
@@ -1073,9 +1070,8 @@ fn table<T: SolveScalar>(
 /// [`Measured::clash`], so the number the sentence prints is the
 /// number the funnel decided on.
 ///
-/// At the solve's scalar; the arm is the reach's `f64` upper bound and
-/// an authored roll is the datum's own `f64`, so only what the solve
-/// computed is at `T`. The refusal quotes it at `f64`
+/// At the solve's scalar; the arm is the reach's `f64` upper bound, so
+/// only what the solve computed is at `T`. The refusal quotes it at `f64`
 /// ([`SolveScalar::quoted`]), the number the margin's own lane reads.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Measured<T: Real> {
@@ -1100,9 +1096,6 @@ impl<T: SolveScalar> Measured<T> {
             Self::Length(metres) => Clash::Length {
                 metres: metres.quoted(),
             },
-            Self::Lever(Lever::Roll { radians, arm }) => {
-                Clash::Levered(Lever::Roll { radians, arm })
-            }
             Self::Lever(Lever::Residual { value, arm }) => Clash::Levered(Lever::Residual {
                 value: value.quoted(),
                 arm,

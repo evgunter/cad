@@ -161,9 +161,9 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint, ConstraintKind,
-    Coord, Coset, FacePoseRefusal, FreedomRefusal, Lever, LeverRefusal, Mate, MateFault, MateReach,
+    Coord, Coset, FreedomRefusal, Lever, LeverRefusal, Mate, MateFault, MateReach,
     MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PinRefusal, Placed, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    PinRefusal, Placed, PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Unobservable,
     Value, WorldRead, WorldReadFault, class_admission, head_face, head_of, member_of,
     member_reading, pin_at, place_at, reference_about, relative_freedom_components, solve_document,

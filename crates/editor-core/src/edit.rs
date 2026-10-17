@@ -2,13 +2,9 @@
 //!
 //! `apply` returns a NEW document value; the input is untouched.
 //! Undo/redo is keeping prior values — no edit destroys history at
-//! this layer (spec D2). `apply` is pure over the document AND the
-//! reach it is handed ([`crate::mate::MateReach`]), which it asks for
-//! one decision only: the clocking rider of a mate being inserted,
-//! levered over the mated parts' own extent. No edit records a frame
-//! (A11 (2)), so replay is the edits alone, applied with no reach
-//! ([`apply_replayed`]): pure over the log (spec D7), and never a
-//! solve.
+//! this layer (spec D2). No edit records a frame (A11 (2)), so replay
+//! is the edits alone ([`apply_replayed`]): pure over the log (spec
+//! D7), and never a solve.
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
@@ -2905,28 +2901,12 @@ pub enum EditError {
         /// The direction door's refusal, unaltered.
         error: crate::eval::NodeRefusal,
     },
-    /// A mate's alignment datum carries a non-finite number outside
-    /// its frames — the clocking rider, or a length the primitive
-    /// authors: a datum nothing can decide about never enters the
-    /// document. A frame offset's literal steps are the placement
-    /// frame rule's (`NonFinitePlacement` at a `FrameSite::MateStep`).
-    NonFiniteAlignment {
-        /// The placement holding it.
-        node: SpokenNode,
-        /// The constraint.
-        constraint: crate::node::ConstraintId,
-        /// The constraint's 1-based position in the placement's bundle:
-        /// what the refusal says.
-        position: usize,
-    },
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
     /// whenever it reads the datum: its head does not resolve to a
     /// member, it names one member twice, its class is outside the
     /// vocabulary, a frame has no definite direction, the coset table
-    /// has no row for it, or its clocking rider contradicts the
-    /// coincidence it rides (decided over the mate's own lever,
-    /// through the reach this door holds). The same admission the
+    /// has no row for it. The same admission the
     /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
     /// door, so the insert is refused; the recourse is the fault's
     /// own. A mate on a pair the fold never reads — two members over
@@ -3277,11 +3257,6 @@ impl EditError {
                 node,
                 at: _,
                 check: _,
-            }
-            | Self::NonFiniteAlignment {
-                node,
-                constraint: _,
-                position: _,
             }
             | Self::UpdateOnNonInstance { node }
             | Self::PinUnchanged { node, pin: _ } => {
@@ -4299,16 +4274,6 @@ impl EditError {
             }
             Self::NonFinitePlacement { node, at } => {
                 frame_refusal(f, tail, node, *at, FrameFault::NonFinite)
-            }
-            Self::NonFiniteAlignment { node, position, .. } => {
-                write!(
-                    f,
-                    "{node}'s constraint {position} carries a non-finite alignment coordinate"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("give every alignment coordinate a finite value"),
-                )
             }
             Self::MateRefused { node, fault, held } => {
                 let said = crate::spoken::Said(
@@ -6124,15 +6089,15 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// Apply one edit to a document — pure over the document and the
-/// reach (spec D2): the input is untouched, and the output is a
-/// function of `doc`, `edit` and what `reach` answers; on acceptance
-/// a new value comes back with the [`EditRecord`] and the maintenance
-/// reports ([`Applied::maintenance`]). All validation is here — refs
-/// resolve, no cycles, dimension checks re-run on touched expressions
-/// (spec D6), and a mate being inserted passes the solve's own
-/// per-mate admission, its clocking rider decided over the mated
-/// parts' reach ([`EditError::MateRefused`]).
+/// Apply one edit to a document — pure (spec D2): the input is
+/// untouched, and the output is a function of `doc` and `edit`; on
+/// acceptance a new value comes back with the [`EditRecord`] and the
+/// maintenance reports ([`Applied::maintenance`]). All validation is
+/// here — refs resolve, no cycles, dimension checks re-run on touched
+/// expressions (spec D6), and a mate being inserted passes the solve's
+/// own per-mate admission ([`EditError::MateRefused`]).
+///
+/// `reach` is unread (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -6142,12 +6107,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     apply_with(doc, edit, tol, Some(reach))
 }
 
-/// **Replay one edit**: the edit through every door [`apply`] has,
-/// with no reach — no solve, no store. No edit records a frame and no
-/// maintenance needs one (A11 (2)), so the edits ARE the log, and the
-/// one decision `apply` levers through a reach — the clocking rider of
-/// an inserted mate — is declined here, as
-/// [`crate::mate::solve::admit_mate`] states.
+/// **Replay one edit**: the edit through every door [`apply`] has —
+/// no solve, no store. No edit records a frame and no maintenance
+/// needs one (A11 (2)), so the edits ARE the log.
 ///
 /// # Errors
 ///
