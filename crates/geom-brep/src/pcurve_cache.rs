@@ -7805,9 +7805,10 @@ impl<T: Decide> Placement<T> {
     /// `offset(mid)` alone); `dir`'s angle is then named about the
     /// window's centre less the rest of the offset, `offset(mid) − k·τ`
     /// ([`Azimuth::about`]), so the read at the midpoint has the window's
-    /// own cut and no other, and the phase is that read less the `k`
-    /// turns. With no offset this is `dir`'s angle named about the
-    /// window's centre. The read and the marks' gap are one expression
+    /// own cut and no other; on that cut the marks' tie-break takes the
+    /// window's closed end; and the phase is the read less the turns.
+    /// With no offset this is `dir`'s angle named about the window's
+    /// centre. The read and every gap the marks read are one expression
     /// at every scalar: no frame is chosen on the way.
     pub(crate) fn phase(
         self,
@@ -7816,14 +7817,28 @@ impl<T: Decide> Placement<T> {
         offset: impl FnOnce(T) -> T,
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
+        let period = Period::new(T::tau());
         let centre = self.window(along).centre::<T>();
         let off = offset(self.mid);
-        let turns = self.turns(along, centre + off, band)?;
-        Ok(if turns == 0 {
-            dir.about(centre - off)
+        // The offset's whole turns, on its own gap.
+        let carried = self.turns(along, centre + off, band)?;
+        let rest = if carried == 0 {
+            off
         } else {
-            let whole = Period::new(T::tau()).times(turns);
-            dir.about(centre - (off - whole)) - whole
+            off - period.times(carried)
+        };
+        let read = dir.about(centre - rest);
+        // The read at the midpoint lies within half a turn of the centre,
+        // so its gap meets a mark only on the window's cut, where the
+        // tie-break takes the closed end ([`Placement::turns`]).
+        let at_cut = self.turns(along, read + rest, band)?;
+        let turns = carried
+            .checked_add(at_cut)
+            .ok_or(PcurveCertifyError::PlacementTurnsExceeded)?;
+        Ok(if turns == 0 {
+            read
+        } else {
+            read - period.times(turns)
         })
     }
 
