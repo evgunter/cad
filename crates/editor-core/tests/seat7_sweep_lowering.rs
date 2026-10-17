@@ -369,14 +369,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// digest's name table feed reads, and its names spell no half. No body
 /// moved: the id-masked geometry fence held. Taken merged over the two
 /// re-pins above, so `kitchen_sink`'s value is neither's.
+///
+/// Re-taken merged over main at `8612ce48e8` (main's split naming,
+/// killed lineage and vertex runs, over this unit's per-half tables):
+/// `cut_cylinder`'s merged digest is neither tree's, and
+/// `kitchen_sink`'s is this unit's. Every other row held main's value.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x20d0_b806_b3a7_87fe),
         ("corner_table", 0x0e00_e0f5_df9e_d8b3),
-        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7d),
+        ("cut_cylinder", 0xbc57_5dbd_4b7f_0e3e),
         ("boss_union", 0xe75b_724b_9279_fbee),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

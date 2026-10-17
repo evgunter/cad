@@ -134,8 +134,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// whose ends cite it. The longer sentences are the right names, not a
 /// regression. The percentiles, the maxima and the scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 122, 196, 411_652]),
+    ("scoped faces", [16, 43, 57, 55_615]),
+    ("full", [19, 122, 196, 411_134]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -211,7 +211,15 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// crossing of two rims rather than a touch, and the pieces ending at
 /// that corner say other words (`lib_g16_corpus_name_digests` moved
 /// that row alone).
-const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
+///
+/// FORK-DM4 unit 2 (a name is scoped by the variable holding its body)
+/// moved it with [`NAME_WORDS`], in `cut_cylinder`, `kitchen_sink` and
+/// `part_select` alone, each holding a split: a split's names say no
+/// half, and `part_select`'s union, which declares the rest between the
+/// halves by the half-free section face, took a new tag. Both totals
+/// shrank. Re-taken merged over main at `8612ce48e8`: the merged digest
+/// and the full total are neither tree's.
+const SAID_DIGEST: u64 = 0xe868_2a35_8d29_435c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

@@ -259,19 +259,24 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
 /// held.
 ///
-/// RE-BLESSED, all three, merged over the two re-pins above,, when a name came to be scoped by the variable
+/// RE-BLESSED, all three, merged over the two re-pins above, when a name came to be scoped by the variable
 /// holding its body (FORK-DM4 unit 2): a split's halves are two tables
 /// and its names spell no half, which is what this digest's name table
 /// feed reads; `part_select`'s union, declared by the half-free section
 /// face, took a new id too. No body moved: the id-masked geometry fence
 /// held.
+///
+/// Re-taken merged over main at `8612ce48e8` (main's split naming,
+/// killed lineage and vertex runs, over this unit's per-half tables):
+/// `cut_cylinder`'s merged digest is neither tree's, and `part_select`'s
+/// and `kitchen_sink`'s are this unit's.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7du64),
-        ("part_select", 0x1613_0d79_3326_39ec),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("cut_cylinder", 0xbc57_5dbd_4b7f_0e3eu64),
+        ("part_select", 0x76a5_5082_96be_0ddb),
+        ("kitchen_sink", 0xf354_0cfa_a77b_9461),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
