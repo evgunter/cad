@@ -138,7 +138,7 @@ An operation that reads a body may read a pose whose reads reach that body's roo
 
 **Values** (C). A value sets one freedom its mate leaves, a slide or a spin, to a `Length` or `Angle` variable: `Value { mate, coord: Slide(X | Y | Z) | Spin, by }`, naming its mate by the mate's id in the same bundle. A plane mate leaves `Slide(X)`, `Slide(Y)` and `Spin`; an axis mate `Slide(Z)` (along the axis) and `Spin`; a lone direction mate leaves `Parallel`, all three slides and `Spin`; a point mate's rotation has no chart, and a frame mate leaves nothing. A value is charted on the two bodies' own frames as the placement carries them (ruling C-1):
 
-- each body's frame is swung onto its side of the mate by the shortest turn carrying the body's own `z` to the mated direction `d` (`reference_about`); `d = −z` is decided, and there the half-turn about the body's own `x` is taken. The mated direction is the target's, with a `Flip` normalised to the copy's side;
+- each body's frame is swung onto its side of the mate by the shortest turn carrying the body's own `z` to the mated direction `d` (`reference_about`); `d = −z` is decided, and there the half-turn about the body's own `x` is taken, so a mate between axis-aligned poses has an axis-aligned zero. Inside the sliver band about that one pole the chart refuses, typed at evaluation (`PoseDegenerate { construction: Chart }`), as a construction refuses at its degenerate values. The mated direction is the target's, with a `Flip` normalised to the copy's side;
 - a slide is the copy's origin measured from the target's along the target's swung `x`, `y` or `z`;
 - a spin is the angle about `d` from the target's swung `x` to the copy's, as carried.
 
@@ -268,7 +268,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - the `Offset { frame, (dx, dy, θ) }` mate target, a second way to write three values (FORK-S3M);
   - `SlotId::MateFrameStep` and `VectorSlot::MateFrame*`.
 - `mate_coset` reads the two sides' `PoseValue`s and their common `Subgroup`, the table's row by kind. The face-base read (`resolve_side`, `topo::readback::face_pose`) moves into `eval_pose`, so it runs once per definition, not once per mate.
-- **The world as a target** (Q7): a mate's `to` may read the world through any pose read the world offers and the target constructions, inside the mate (`WorldRead`).
+- **The world as a target** (Q7): a mate's `to` may read the world through any pose read the world offers and the target constructions, inside the mate (`WorldRead`). Written inside the mate, a world read nests in the saved body, so the door bounds its depth (`MAX_WORLD_READ_DEPTH`, fifteen: the gesture's nine and inline's six appended moves; `WorldReadFault::TooDeep`), as an expression's is bounded, and the load door's envelope is the deepest such read.
 - **Analysis.** A value is a slot variable, seeded and boxed as any slot is, through `Doc::reads`. The solve's lanes (MSOLVE-14) are unchanged.
 
 **Migration.** Each mate is restated over geometry plus values:
