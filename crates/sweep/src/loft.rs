@@ -609,7 +609,7 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
                 Self::Loops(sections) => sections
                     .iter()
                     .all(|loops| loops.iter().all(|lp| loop_all(lp.as_profile_loop(), point))),
-                Self::Validated(sections) => sections.iter().all(|p| profile_all(p, point)),
+                Self::Validated(sections) => sections.iter().all(|p| p.value_channel().is_ok()),
             }
     }
 
@@ -636,7 +636,13 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
                 let canonical: Vec<ValidatedProfile<f64>> = sections
                     .iter()
                     .map(ValidatedProfile::value_channel)
-                    .collect();
+                    .collect::<Result<_, _>>()
+                    .unwrap_or_else(|site| {
+                        unreachable!(
+                            "{site}: every value is a point here, by `all_points` at an \
+                             enclosure scalar and by `build`'s finite check at a projective one"
+                        )
+                    });
                 check_shapes(&canonical)
                     .map(|()| (canonical, Vec::new()))
                     .map_err(LoftError::Skin)
