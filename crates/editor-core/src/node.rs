@@ -478,6 +478,16 @@ pub enum SlotId {
         /// The scalar's place in the read.
         step: usize,
     },
+    /// A slide value's length ([`crate::mate::Value`]).
+    ValueSlide {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
+    },
+    /// A spin value's angle ([`crate::mate::Value`]).
+    ValueSpin {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
+    },
     /// A linear pattern's instance spacing (Length).
     Spacing,
     /// A circular pattern's angular step (Angle).
@@ -719,6 +729,8 @@ impl SlotId {
             }
             Self::WorldSlide { .. } => Dimension::Length,
             Self::WorldSpin { .. } => Dimension::Angle,
+            Self::ValueSlide { .. } => Dimension::Length,
+            Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -814,6 +826,8 @@ impl SlotId {
             },
             Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
             Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
+            Self::ValueSlide { .. } => String::from("slide value"),
+            Self::ValueSpin { .. } => String::from("spin value"),
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -875,7 +889,9 @@ impl SlotId {
             | Self::Index { .. }
             | Self::Profile { .. }
             | Self::WorldSlide { .. }
-            | Self::WorldSpin { .. } => None,
+            | Self::WorldSpin { .. }
+            | Self::ValueSlide { .. }
+            | Self::ValueSpin { .. } => None,
         }
     }
 
@@ -900,6 +916,12 @@ impl SlotId {
     /// an address only a mate carries.
     pub fn is_world_read_step(self) -> bool {
         matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
+    }
+
+    /// Whether this slot addresses a value's number — an address only a
+    /// value carries.
+    pub fn is_value(self) -> bool {
+        matches!(self, Self::ValueSlide { .. } | Self::ValueSpin { .. })
     }
 
     /// The chain position and component a rigid step's slot addresses
@@ -4373,8 +4395,11 @@ where
             constraint: c.id,
             side,
         };
-        out.push((seat(crate::mate::MateSide::On), c.mate.on.clone()));
-        if let Some(to) = c.mate.to.pose() {
+        let Some(mate) = c.mate() else {
+            continue;
+        };
+        out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
+        if let Some(to) = mate.to.pose() {
             out.push((seat(crate::mate::MateSide::To), to.clone()));
         }
     }
@@ -4392,7 +4417,9 @@ fn side_rows_mut<S: Slot>(
             constraint: id,
             side,
         };
-        let crate::mate::Mate { on, to, .. } = &mut c.mate;
+        let Some(crate::mate::Mate { on, to, .. }) = c.mate_mut() else {
+            continue;
+        };
         out.push((seat(crate::mate::MateSide::On), on));
         if let Some(to) = to.pose_mut() {
             out.push((seat(crate::mate::MateSide::To), to));
@@ -4412,21 +4439,18 @@ fn map_constraints<S: Slot, S2: Slot, E>(
         .iter()
         .map(|c| {
             let id = c.id;
-            Ok(crate::mate::Constraint {
-                id,
-                mate: c.mate.try_map(
-                    |side, r| {
-                        read(
-                            crate::OperandSlot::Side {
-                                constraint: id,
-                                side,
-                            },
-                            r,
-                        )
-                    },
-                    f,
-                )?,
-            })
+            c.try_map(
+                |side, r| {
+                    read(
+                        crate::OperandSlot::Side {
+                            constraint: id,
+                            side,
+                        },
+                        r,
+                    )
+                },
+                f,
+            )
         })
         .collect()
 }

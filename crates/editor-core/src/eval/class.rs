@@ -245,6 +245,12 @@ pub enum NodeErrorClass {
     MateWorldRead,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnevaluated`].
     MateSideUnevaluated,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::ValueNamesNoMate`].
+    MateValueNamesNoMate,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotAFreedom`].
+    MateNotAFreedom,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NoChart`].
+    MateNoChart,
     /// [`NodeErrorKind::SpaceMismatch`].
     SpaceMismatch,
     /// [`NodeErrorKind::CrossingUnverified`].
@@ -422,6 +428,9 @@ impl NodeErrorClass {
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
             MateFault::WorldRead { .. } => Self::MateWorldRead,
             MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
+            MateFault::ValueNamesNoMate { .. } => Self::MateValueNamesNoMate,
+            MateFault::NotAFreedom { .. } => Self::MateNotAFreedom,
+            MateFault::NoChart { .. } => Self::MateNoChart,
         }
     }
 
@@ -577,6 +586,9 @@ mod tests {
         MateKindsDiffer,
         MateWorldRead,
         MateSideUnevaluated,
+        MateValueNamesNoMate,
+        MateNotAFreedom,
+        MateNoChart,
         SpaceMismatch,
         CrossingUnverified,
         MeasureRefUnreadable,
@@ -1006,6 +1018,19 @@ mod tests {
                 mate: m(9),
                 side: crate::MateSide::On,
                 refusal: Box::new(K::EmptyOperand { input: n(3) }.into()),
+            }),
+            C::MateValueNamesNoMate => mate(crate::MateFault::ValueNamesNoMate {
+                value: m(9),
+                mate: c(1),
+            }),
+            C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
+                value: m(9),
+                coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
+                kind: Some(crate::VarKind::Plane),
+            }),
+            C::MateNoChart => mate(crate::MateFault::NoChart {
+                value: m(9),
+                why: crate::mate::NoChartWhy::PointRotation,
             }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::Space::World,

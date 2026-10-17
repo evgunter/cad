@@ -1273,11 +1273,14 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         // A mate declares a contact only where it rests two faces: a
         // standoff, a construction and a world read place and declare
         // nothing.
-        let Some((a, b)) = crate::mate::rested_faces(doc, &constraint.mate) else {
+        let Some(mate) = constraint.mate() else {
+            continue;
+        };
+        let Some((a, b)) = crate::mate::rested_faces(doc, mate) else {
             continue;
         };
         let (a, b) = (&a, &b);
-        let class = &constraint.mate.class;
+        let class = &mate.class;
         let (head_a, head_b) = (
             crate::mate::member::head_of(doc, *a),
             crate::mate::member::head_of(doc, *b),

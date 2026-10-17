@@ -1685,3 +1685,117 @@ fn candidate_translation<T: SolveScalar>(
 fn sub<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
     Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
 }
+
+// ---- A value's freedom, inside a residual ----
+
+/// **The line a turn about `dir` must take to stay in `g`**
+/// (ruling C-2): `None` where `g` holds no rotation about that
+/// direction; `Some(Some(p))` where its rotations about it fix the
+/// line through `p`; `Some(None)` where any line along `dir` will do
+/// (`g` holds every translation across it).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the parallel verdict lands in the band.
+pub(crate) fn turn_line<T: SolveScalar>(
+    g: Subgroup<T>,
+    dir: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<Option<Option<Point3<T>>>, Indeterminate> {
+    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, arm).map(|apart| apart.is_none());
+    Ok(match g {
+        Subgroup::Se3 => Some(None),
+        Subgroup::Spherical { point } => Some(Some(point)),
+        Subgroup::Planar { normal: axis } | Subgroup::Parallel { direction: axis } => {
+            along(axis)?.then_some(None)
+        }
+        Subgroup::Cylindrical { point, direction } | Subgroup::Revolute { point, direction } => {
+            along(direction)?.then_some(Some(point))
+        }
+        Subgroup::Prismatic { .. }
+        | Subgroup::Translation
+        | Subgroup::PlaneTranslation { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => None,
+    })
+}
+
+/// **Whether `g` holds the translations along `v`** (ruling C-2).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn slides_along<T: SolveScalar>(
+    g: Subgroup<T>,
+    v: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(match g {
+        Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => true,
+        Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
+            perpendicular(v, normal, band, arm)?.is_none()
+        }
+        Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
+            parallel(v, direction, band, arm)?.is_none()
+        }
+        Subgroup::Revolute { .. }
+        | Subgroup::Spherical { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => false,
+    })
+}
+
+/// **What `g` leaves once a value fixes its turn about its rotations'
+/// direction**: `None` where the rest is no subgroup of the table (a
+/// ball's or a free body's turns, less one).
+pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
+    match g {
+        Subgroup::Planar { normal } => Some(Subgroup::PlaneTranslation { normal }),
+        Subgroup::Cylindrical { direction, .. } => Some(Subgroup::Prismatic { direction }),
+        Subgroup::Revolute { .. } => Some(Subgroup::Trivial),
+        Subgroup::Parallel { .. } => Some(Subgroup::Translation),
+        Subgroup::Se3
+        | Subgroup::Spherical { .. }
+        | Subgroup::Prismatic { .. }
+        | Subgroup::Translation
+        | Subgroup::PlaneTranslation { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => None,
+    }
+}
+
+/// **What `g` leaves once a value fixes its slide along `v`**: `None`
+/// where the rest is no subgroup of the table (a turn still free beside
+/// a translation fixed).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the direction left across `v` in a plane of
+/// translations cannot be minted.
+pub(crate) fn after_slide<T: SolveScalar>(
+    g: Subgroup<T>,
+    v: UnitVec3<T>,
+    band: Band,
+) -> Result<Option<Subgroup<T>>, Indeterminate> {
+    Ok(match g {
+        Subgroup::PlaneTranslation { normal } => {
+            match UnitVec3::new(normal.get().cross(v.get()), "mate_value_slide_across", band) {
+                Ok(direction) => Some(Subgroup::Prismatic { direction }),
+                Err(UnitVec3Error::Escalated(diag)) => return Err(diag),
+                Err(_) => None,
+            }
+        }
+        Subgroup::Prismatic { .. } => Some(Subgroup::Trivial),
+        Subgroup::Translation => Some(Subgroup::PlaneTranslation { normal: v }),
+        Subgroup::Se3
+        | Subgroup::Planar { .. }
+        | Subgroup::Cylindrical { .. }
+        | Subgroup::Revolute { .. }
+        | Subgroup::Spherical { .. }
+        | Subgroup::Parallel { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => None,
+    })
+}

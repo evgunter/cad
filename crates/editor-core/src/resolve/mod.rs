@@ -2631,6 +2631,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
+        // A value reads its mate by id and holds a number.
+        | DocEdit::AddValue { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door

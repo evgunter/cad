@@ -1180,9 +1180,10 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetAppearance { .. }
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
-        // A constraint's floats are an inserted node's: its alignment
-        // datum and its offsets' literal frames, held by the door.
+        // A constraint's numbers are slots, written as formulas the
+        // door lowers.
         | DocEdit::AddConstraint { .. }
+        | DocEdit::AddValue { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
         // A label is text.
@@ -2085,10 +2086,18 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // pass over the nodes would be a second place to forget the
         // question. What the fold decides needs the poses' values, and
         // is the placement's at evaluation, never this door's.
-        for c in crate::mate::solve::bundle_of(node).into_iter().flatten() {
-            if let Err(fault) =
-                crate::mate::solve::admit_mate(doc, crate::mate::MateRef::new(id, c.id), &c.mate)
-            {
+        let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
+        for c in bundle {
+            let at = crate::mate::MateRef::new(id, c.id);
+            let admitted = match &c.kind {
+                crate::mate::ConstraintKind::Mate(mate) => {
+                    crate::mate::solve::admit_mate(doc, at, mate)
+                }
+                crate::mate::ConstraintKind::Value(value) => {
+                    crate::mate::solve::admit_value(doc, at, bundle, value)
+                }
+            };
+            if let Err(fault) = admitted {
                 return Err(SnapshotError::MateRefused {
                     node: doc.spoken(id),
                     constraint: c.id,

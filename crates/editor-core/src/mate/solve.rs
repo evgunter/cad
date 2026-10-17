@@ -462,8 +462,11 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         }
         // A world read is inside the mate and reads no variable, so the
         // world is coupled here.
-        let pinned = bundle_of(node)
-            .is_some_and(|bundle| bundle.iter().any(|c| matches!(c.mate.to, Target::World(_))));
+        let pinned = bundle_of(node).is_some_and(|bundle| {
+            bundle
+                .iter()
+                .any(|c| c.mate().is_some_and(|m| matches!(m.to, Target::World(_))))
+        });
         if pinned {
             couple(id, RecipeNodeId::WORLD);
         }
@@ -643,17 +646,21 @@ pub(crate) enum Folded<T: Real> {
 }
 
 /// **One placement's bundle, folded.** A bundle that pins less than its
-/// copy needs makes a loose copy, never a refusal; one that pins it
-/// with a constraint the rest already fix refuses, naming every such
-/// constraint: each whose removal leaves the copy pinned. Constraints
-/// have no order, so each is asked alone.
+/// copy needs makes a loose copy, never a refusal; one whose mates pin
+/// it with a mate the rest already fix refuses, naming every such
+/// mate: each whose removal leaves the copy pinned. Constraints have no
+/// order, so each is asked alone. The values then place the copy inside
+/// what the mates leave ([`super::value::settle`]).
 ///
 /// # Errors
 ///
-/// The fold's own ([`fold_bundle`]), or [`MateFault::Overconstrained`].
+/// The fold's own ([`fold_bundle`]), [`MateFault::Overconstrained`], or
+/// a value's ([`super::value::settle`]).
 pub(crate) fn solve_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
+    values: &[super::value::ReadValue<T>],
+    charts: &BTreeMap<crate::node::ConstraintId, Option<super::value::Chart<T>>>,
     arm: Arm,
     band: Band,
 ) -> Result<Folded<T>, Box<MateFault>> {
@@ -661,10 +668,7 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
         return Ok(Folded::Loose);
     }
     let coset = fold_bundle(mates, arm, band)?;
-    if !coset.subgroup.is_determined() {
-        return Ok(Folded::Loose);
-    }
-    if mates.len() > 1 {
+    if coset.subgroup.is_determined() && mates.len() > 1 {
         let mut redundant = Vec::new();
         for k in 0..mates.len() {
             let rest: Vec<ReadMate<T>> = mates
@@ -685,7 +689,40 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
             }));
         }
     }
-    Ok(Folded::Pinned(coset.representative))
+    Ok(
+        match super::value::settle(coset, values, charts, arm, band)? {
+            Some(at) => Folded::Pinned(at),
+            None => Folded::Loose,
+        },
+    )
+}
+
+/// **Whether a mate's target reads its pose in the opposite sense**: a
+/// flip, through any slides and spins of it — what the chart normalises
+/// to the copy's side (ruling C-1).
+pub(crate) fn target_flipped<P>(doc: &Doc<P>, to: &Target) -> bool {
+    fn read<P>(doc: &Doc<P>, var: crate::VarId) -> bool {
+        use crate::pose::PoseDef as D;
+        match doc.var(var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Pose(D::Flip { pose })) => !read(doc, pose.read),
+            Some(crate::var::VarDef::Pose(
+                D::Slide { pose, .. } | D::Spin { pose, .. } | D::Carried { pose, .. },
+            )) if pose.role.is_none() => read(doc, pose.read),
+            _ => false,
+        }
+    }
+    fn world(w: &super::WorldRead) -> bool {
+        use super::WorldRead as W;
+        match w {
+            W::Flip { pose } => !world(pose),
+            W::Slide { pose, .. } | W::Spin { pose, .. } => world(pose),
+            W::Frame | W::Role { .. } => false,
+        }
+    }
+    match to {
+        Target::Pose(var) => read(doc, *var),
+        Target::World(w) => world(w),
+    }
 }
 
 /// **The fold's arm**: the copy's reach in its own coordinates, plus
@@ -821,4 +858,103 @@ pub(crate) fn admit_mate<P>(
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
     }
     admit_class(mate, data.class)
+}
+
+/// **The body a mate's target pose is charted on** (ruling C-1): the
+/// placement whose copy every read of `to` reaches — through a
+/// [`crate::pose::PoseDef::Carried`], its copy — or `None` where every
+/// read reaches only geometry in the space's own coordinates (a
+/// construction, the world).
+///
+/// # Errors
+///
+/// [`super::NoChartWhy::TwoBodies`] where the reads reach two bodies:
+/// two copies, or a copy and the space's own geometry.
+pub(crate) fn chart_body<P>(
+    doc: &Doc<P>,
+    to: crate::VarId,
+) -> Result<Option<RecipeNodeId>, super::NoChartWhy> {
+    fn walk<P>(doc: &Doc<P>, var: crate::VarId, out: &mut Vec<Option<RecipeNodeId>>) {
+        let placed = |var: crate::VarId| {
+            doc.read_operation(var).filter(|&at| {
+                matches!(
+                    doc.node(at),
+                    Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                )
+            })
+        };
+        let mut push = |body: Option<RecipeNodeId>| {
+            if !out.contains(&body) {
+                out.push(body);
+            }
+        };
+        match doc.var(var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. })) => {
+                push(placed(*copy));
+            }
+            Some(crate::var::VarDef::Pose(def)) => {
+                for (_, &read, _, _) in def.reads() {
+                    walk(doc, read, out);
+                }
+            }
+            _ => push(placed(var)),
+        }
+    }
+    let mut bodies = Vec::new();
+    walk(doc, to, &mut bodies);
+    match bodies.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(*one),
+        _ => Err(super::NoChartWhy::TwoBodies),
+    }
+}
+
+/// **One value's own admission** (ruling C-2, the named interim C-3):
+/// what the recipe decides about it — it names a mate of `bundle`
+/// ([`MateFault::ValueNamesNoMate`]), the mate's kind leaves its
+/// freedom ([`MateFault::NotAFreedom`]) with a chart
+/// ([`MateFault::NoChart`]), and the mate's target reads one body. Its
+/// number's dimension is the slot's, which the lowering checks. Until
+/// F, what needs the bundle's residual — a freedom the bundle's other
+/// constraints already fix — is the placement's own refusal where it
+/// evaluates.
+///
+/// # Errors
+///
+/// The first of those faults.
+pub(crate) fn admit_value<P>(
+    doc: &Doc<P>,
+    value: MateRef,
+    bundle: &[super::Constraint],
+    data: &super::Value,
+) -> Result<(), Box<MateFault>> {
+    let Some(mate) = bundle
+        .iter()
+        .find(|c| c.id == data.mate)
+        .and_then(super::Constraint::mate)
+    else {
+        return Err(Box::new(MateFault::ValueNamesNoMate {
+            value,
+            mate: data.mate,
+        }));
+    };
+    if let Some(kind) = doc.var(mate.on).map(crate::Var::kind) {
+        data.coord.admitted_by(kind).map_err(|refusal| {
+            Box::new(match refusal {
+                super::FreedomRefusal::NotAFreedom => MateFault::NotAFreedom {
+                    value,
+                    coord: data.coord,
+                    kind: Some(kind),
+                },
+                super::FreedomRefusal::NoChart => MateFault::NoChart {
+                    value,
+                    why: super::NoChartWhy::PointRotation,
+                },
+            })
+        })?;
+    }
+    if let Target::Pose(to) = &mate.to {
+        chart_body(doc, *to).map_err(|why| Box::new(MateFault::NoChart { value, why }))?;
+    }
+    Ok(())
 }

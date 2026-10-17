@@ -4765,6 +4765,19 @@ mod tag {
             PART = 2,
             READ = 3,
         }
+        /// What a constraint states: a mate, or a value
+        /// ([`crate::mate::ConstraintKind`]).
+        constraint_kind {
+            MATE = 1,
+            VALUE = 2,
+        }
+        /// Which freedom a value sets ([`crate::mate::Coord`]).
+        value_coord {
+            SLIDE_X = 1,
+            SLIDE_Y = 2,
+            SLIDE_Z = 3,
+            SPIN = 4,
+        }
         /// What a mate's `to` reads: a pose variable of the target
         /// space, or the world read inside the mate.
         mate_target {
@@ -6163,10 +6176,27 @@ fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
         h.write_u64(c.id.0.digest());
+        let mate = match &c.kind {
+            crate::mate::ConstraintKind::Mate(mate) => mate,
+            crate::mate::ConstraintKind::Value(value) => {
+                use crate::mate::{Coord, SlideAxis};
+                h.write_tag(tag::constraint_kind::VALUE);
+                h.write_u64(u64::from(value.mate.0.ordinal()));
+                h.write_u64(value.mate.0.digest());
+                h.write_tag(match value.coord {
+                    Coord::Slide(SlideAxis::X) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(SlideAxis::Y) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(SlideAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Spin => tag::value_coord::SPIN,
+                });
+                continue;
+            }
+        };
+        h.write_tag(tag::constraint_kind::MATE);
         // The class's word is `ContactClass::content_tag` — the one
         // spelling the crossing record and the constraint both write.
-        h.write_u64(c.mate.class.content_tag());
-        match &c.mate.to {
+        h.write_u64(mate.class.content_tag());
+        match &mate.to {
             crate::mate::Target::Pose(_) => h.write_tag(tag::mate_target::POSE),
             crate::mate::Target::World(world) => {
                 h.write_tag(tag::mate_target::WORLD);

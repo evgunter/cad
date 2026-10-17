@@ -48,6 +48,7 @@ pub mod member;
 pub mod pin;
 pub mod reach;
 pub mod solve;
+pub(crate) mod value;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
@@ -430,8 +431,10 @@ pub(crate) fn rested_faces<P>(
 
 /// **A bundle's slots**: each world read's scalars, addressed by the
 /// constraint and the scalar's place in the read
-/// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]). A trait over the bundle so the
-/// node's slot table reads it through the borrow it holds.
+/// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]), and
+/// each value's number ([`crate::SlotId::ValueSlide`],
+/// [`crate::SlotId::ValueSpin`]). A trait over the bundle so the node's
+/// slot table reads it through the borrow it holds.
 pub(crate) trait BundleRows<S> {
     /// The rows, shared.
     fn rows(&self) -> Vec<(crate::SlotId, &S)>;
@@ -443,10 +446,17 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
     fn rows(&self) -> Vec<(crate::SlotId, &S)> {
         let mut out = Vec::new();
         for c in self {
-            if let Target::World(w) = &c.mate.to {
-                for (step, (spin, e)) in w.scalars().into_iter().enumerate() {
-                    out.push((world_slot(c.id, step, spin), e));
+            match &c.kind {
+                ConstraintKind::Mate(Mate {
+                    to: Target::World(w),
+                    ..
+                }) => {
+                    for (step, (spin, e)) in w.scalars().into_iter().enumerate() {
+                        out.push((world_slot(c.id, step, spin), e));
+                    }
                 }
+                ConstraintKind::Mate(_) => {}
+                ConstraintKind::Value(v) => out.push((value_slot(c.id, v.coord), &v.by)),
             }
         }
         out
@@ -456,13 +466,31 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
         let mut out = Vec::new();
         for c in self {
             let id = c.id;
-            if let Target::World(w) = &mut c.mate.to {
-                for (step, (spin, e)) in w.scalars_mut().into_iter().enumerate() {
-                    out.push((world_slot(id, step, spin), e));
+            match &mut c.kind {
+                ConstraintKind::Mate(Mate {
+                    to: Target::World(w),
+                    ..
+                }) => {
+                    for (step, (spin, e)) in w.scalars_mut().into_iter().enumerate() {
+                        out.push((world_slot(id, step, spin), e));
+                    }
+                }
+                ConstraintKind::Mate(_) => {}
+                ConstraintKind::Value(v) => {
+                    let coord = v.coord;
+                    out.push((value_slot(id, coord), &mut v.by));
                 }
             }
         }
         out
+    }
+}
+
+/// The slot of a value's number.
+fn value_slot(constraint: crate::node::ConstraintId, coord: Coord) -> crate::SlotId {
+    match coord {
+        Coord::Slide(_) => crate::SlotId::ValueSlide { constraint },
+        Coord::Spin => crate::SlotId::ValueSpin { constraint },
     }
 }
 
@@ -495,22 +523,273 @@ impl MateRef {
 
 /// **A constraint of a placement** (D10, FORK-S3M): addressed by its
 /// placement and the id minted with it, never by its position. A
-/// constraint is a mate, its payload today's alignment datum.
+/// constraint is a mate or a value.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Constraint<S: crate::Slot = crate::VarId> {
     /// The id minted with it.
     pub id: crate::node::ConstraintId,
-    /// The mate.
-    pub mate: Mate<S>,
+    /// What it states.
+    pub kind: ConstraintKind<S>,
+}
+
+/// **What a constraint states**: two poses equated, or one freedom a
+/// mate leaves set to a number.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields, bound = "")]
+pub enum ConstraintKind<S: crate::Slot = crate::VarId> {
+    /// A mate.
+    Mate(Mate<S>),
+    /// A value.
+    Value(Value<S>),
 }
 
 impl<S: crate::Slot> Constraint<S> {
+    /// A mate, under `id`.
+    #[must_use]
+    pub fn of_mate(id: crate::node::ConstraintId, mate: Mate<S>) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::Mate(mate),
+        }
+    }
+
+    /// A value, under `id`.
+    #[must_use]
+    pub fn of_value(id: crate::node::ConstraintId, value: Value<S>) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::Value(value),
+        }
+    }
+
+    /// The mate it states, `None` for a value.
+    #[must_use]
+    pub fn mate(&self) -> Option<&Mate<S>> {
+        match &self.kind {
+            ConstraintKind::Mate(mate) => Some(mate),
+            ConstraintKind::Value(_) => None,
+        }
+    }
+
+    /// [`Self::mate`], writable.
+    pub fn mate_mut(&mut self) -> Option<&mut Mate<S>> {
+        match &mut self.kind {
+            ConstraintKind::Mate(mate) => Some(mate),
+            ConstraintKind::Value(_) => None,
+        }
+    }
+
+    /// The value it states, `None` for a mate.
+    #[must_use]
+    pub fn value(&self) -> Option<&Value<S>> {
+        match &self.kind {
+            ConstraintKind::Value(value) => Some(value),
+            ConstraintKind::Mate(_) => None,
+        }
+    }
+
     /// Bit-semantic equality (D7).
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.mate.bit_eq(&other.mate)
+        self.id == other.id && self.kind == other.kind
     }
+
+    /// **This constraint in another slot form**: a mate's pose reads
+    /// mapped by `read` ([`Mate::try_map`]), every scalar by `slot`, its
+    /// id kept.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of either.
+    pub fn try_map<S2: crate::Slot, E>(
+        &self,
+        read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
+        slot: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Constraint<S2>, E> {
+        Ok(Constraint {
+            id: self.id,
+            kind: match &self.kind {
+                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(read, slot)?),
+                ConstraintKind::Value(value) => ConstraintKind::Value(Value {
+                    mate: value.mate,
+                    coord: value.coord,
+                    by: slot(&value.by)?,
+                }),
+            },
+        })
+    }
+}
+
+/// **A value** (FORK-S3M, ruling C-2): one freedom its mate leaves —
+/// a slide or a spin, charted on the two bodies' own coordinates as
+/// the placement carries them — set to a `Length` or an `Angle`.
+///
+/// The chart is the two bodies' own frames, each swung onto its side
+/// of the mate by the shortest turn carrying its own `z` to the mated
+/// direction ([`reference_about`]): a slide is the copy's origin
+/// measured from the target's along the target's swung `x`, `y` or
+/// `z`; a spin is the angle about the mated direction from the
+/// target's swung `x` to the copy's. Each is a function of the
+/// relative pose alone, so no order of the values is chosen, and zero
+/// says the two bodies' own coordinates agree as far as the mate
+/// allows.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, bound = "")]
+pub struct Value<S: crate::Slot = crate::VarId> {
+    /// The mate whose freedom it sets, by its id in the same bundle.
+    pub mate: crate::node::ConstraintId,
+    /// Which freedom.
+    pub coord: Coord,
+    /// The number: a `Length` for a slide, an `Angle` for a spin.
+    pub by: S,
+}
+
+/// **Which freedom of its mate a value sets.**
+///
+/// The freedoms each kind of mate leaves: a plane mate slides along
+/// `x` and `y` and spins; an axis mate slides along `z` (its axis) and
+/// spins; a direction mate slides along all three and spins (its
+/// residual, `Parallel`); a point mate's rotation has no chart, and a
+/// frame mate leaves nothing.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Coord {
+    /// A slide along the target's swung axis.
+    Slide(SlideAxis),
+    /// A spin about the mated direction.
+    Spin,
+}
+
+/// **The axis of the target's swung frame a slide runs along.**
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum SlideAxis {
+    /// The swung `x`.
+    X,
+    /// The swung `y`.
+    Y,
+    /// The swung `z`: the mated direction.
+    Z,
+}
+
+impl Coord {
+    /// The dimension of the number that sets it.
+    #[must_use]
+    pub fn dimension(self) -> crate::expr::Dimension {
+        match self {
+            Self::Slide(_) => crate::expr::Dimension::Length,
+            Self::Spin => crate::expr::Dimension::Angle,
+        }
+    }
+
+    /// Its name, for messages.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Slide(SlideAxis::X) => "slide along x",
+            Self::Slide(SlideAxis::Y) => "slide along y",
+            Self::Slide(SlideAxis::Z) => "slide along z",
+            Self::Spin => "spin",
+        }
+    }
+
+    /// **Whether a mate of `kind` leaves this freedom**, from the kind
+    /// alone (ruling C-2). `Err(NoChart)` for a point mate's rotation.
+    ///
+    /// # Errors
+    ///
+    /// [`FreedomRefusal`]: the kind leaves no such freedom, or leaves it
+    /// with no chart.
+    pub fn admitted_by(self, kind: crate::VarKind) -> Result<(), FreedomRefusal> {
+        use crate::VarKind as K;
+        match (kind, self) {
+            (K::Plane, Self::Slide(SlideAxis::X | SlideAxis::Y) | Self::Spin)
+            | (K::Axis, Self::Slide(SlideAxis::Z) | Self::Spin)
+            | (K::Direction, _) => Ok(()),
+            (K::Point, Self::Spin) => Err(FreedomRefusal::NoChart),
+            _ => Err(FreedomRefusal::NotAFreedom),
+        }
+    }
+}
+
+/// **Why a value's freedom has no chart** ([`MateFault::NoChart`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoChartWhy {
+    /// A point mate's rotation: three freedoms with no direction to
+    /// measure one about. A direction mate lowers it first.
+    PointRotation,
+    /// The mate's `to` reads two bodies: each has its own frame, and
+    /// the chart is the one body's.
+    TwoBodies,
+}
+
+/// **Why a mate's kind leaves a value no freedom to set.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreedomRefusal {
+    /// The kind fixes it.
+    NotAFreedom,
+    /// The kind leaves it, with no chart to measure it on: a lone point
+    /// mate's rotation.
+    NoChart,
+}
+
+/// **A body's frame swung onto a mate's direction** (ruling C-1): the
+/// shortest turn carrying the body's own `z` to `axis`, `axis` given in
+/// the body's own coordinates, as the turn's `x` column — the body's
+/// reference direction about `axis`. Its `z` is `axis` and its `y`
+/// is `axis × x`.
+///
+/// For `axis = (a, b, c)` the swung `x` is
+/// `(1 − a²/(1+c), −ab/(1+c), −a)`, with `1 + c` taken as
+/// `(a² + b²)/(1 − c)` where `c < 0`, so the antipode's neighbourhood
+/// loses no digit to cancellation. At the antipode itself (`axis = −z`)
+/// no turn is shortest, and the half-turn about the body's own `x` is
+/// taken: `x` stays. The only predicate is the decided sign of `1 + c`,
+/// read as the chord from `−z` levered over `arm`; a chord the band
+/// cannot decide refuses ([`crate::pose::PoseConstruction::Chart`]).
+///
+/// # Errors
+///
+/// The band's escalation, as [`crate::NodeErrorKind::PoseDegenerate`].
+pub fn reference_about<T: SolveScalar>(
+    axis: geom_core::UnitVec3<T>,
+    arm: f64,
+    band: geom_core::predicate::Band,
+) -> Result<geom_core::linalg::Vec3<T>, crate::NodeErrorKind> {
+    let d = axis.get();
+    let (a, b, c) = (d.x, d.y, d.z);
+    let one = T::one();
+    let across = a * a + b * b;
+    // Which formula is a choice of arithmetic, not a verdict: the two
+    // are one number, and the first loses no digit near the antipode.
+    let one_plus_c = if c.quoted() < 0.0 {
+        across / (one - c)
+    } else {
+        one + c
+    };
+    // The chord from `−z`: |d + z| = √(2(1 + c)), levered over `arm`.
+    let chord = ((one + one) * one_plus_c).sqrt();
+    let sign = geom_core::k_stats::decide(
+        "mate_chart_reference_antipode",
+        geom_core::predicate::Margin::levered(chord, T::from_f64(arm)),
+        band,
+    )
+    .map_err(|_| crate::NodeErrorKind::PoseDegenerate {
+        construction: crate::pose::PoseConstruction::Chart,
+    })?;
+    if sign == geom_core::predicate::Sign::Zero {
+        return Ok(geom_core::linalg::Vec3::new(one, T::zero(), T::zero()));
+    }
+    Ok(geom_core::linalg::Vec3::new(
+        one - a * a / one_plus_c,
+        T::zero() - a * b / one_plus_c,
+        T::zero() - a,
+    ))
 }
 
 /// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
@@ -976,6 +1255,36 @@ pub enum MateFault {
         /// The construction its kinds refuse.
         fault: WorldReadFault,
     },
+    /// **A value names no mate of its bundle** (ruling C-2): the id is
+    /// no constraint of the placement, or a value's.
+    ValueNamesNoMate {
+        /// The value.
+        value: MateRef,
+        /// The id it names.
+        mate: crate::node::ConstraintId,
+    },
+    /// **A value sets a freedom its mate does not leave** (ruling C-2):
+    /// the mate's kind fixes it (`kind` is that kind — refused at the
+    /// door), or the bundle's other constraints already fix it (`None`
+    /// — the placement's own refusal where it evaluates, until F's
+    /// measure-free door).
+    NotAFreedom {
+        /// The value.
+        value: MateRef,
+        /// The freedom it sets.
+        coord: Coord,
+        /// The mate's kind, where the kind alone fixes it.
+        kind: Option<crate::VarKind>,
+    },
+    /// **A value's freedom has no chart** (ruling C-1): a lone point
+    /// mate's rotation, or a mate whose `to` reads two bodies, whose
+    /// own frames do not agree on which reference to measure from.
+    NoChart {
+        /// The value.
+        value: MateRef,
+        /// Why.
+        why: NoChartWhy,
+    },
     /// **A mate's pose did not evaluate**, in the evaluation layer's
     /// own words: the face it reads is gone or has no plane, a
     /// construction is degenerate, a scalar refused.
@@ -1060,7 +1369,10 @@ impl MateFault {
             | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
-            | Self::WorldRead { .. } => None,
+            | Self::WorldRead { .. }
+            | Self::ValueNamesNoMate { .. }
+            | Self::NotAFreedom { .. }
+            | Self::NoChart { .. } => None,
         }
     }
 
@@ -1325,6 +1637,52 @@ impl crate::spoken::Say for MateFault {
                 f,
                 "{}: {fault}. Recourse: re-author the world read",
                 mate_(*mate)
+            ),
+            Self::ValueNamesNoMate { value, mate } => write!(
+                f,
+                "{} names constraint {mate}, which is no mate of its placement's bundle. \
+                 Recourse: name a mate the bundle holds",
+                mate_(*value)
+            ),
+            Self::NotAFreedom {
+                value,
+                coord,
+                kind: Some(kind),
+            } => write!(
+                f,
+                "{} sets the {} of a {kind} mate, which the mate fixes. Recourse: set a freedom \
+                 the mate leaves",
+                mate_(*value),
+                coord.name()
+            ),
+            Self::NotAFreedom {
+                value,
+                coord,
+                kind: None,
+            } => write!(
+                f,
+                "{} sets its mate's {}, which the bundle's other constraints already fix. \
+                 Recourse: remove the value, or the constraint that fixes it",
+                mate_(*value),
+                coord.name()
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::PointRotation,
+            } => write!(
+                f,
+                "{} sets a point mate's rotation, which has no chart: no direction to measure \
+                 a spin about. Recourse: add a direction mate and set its spin",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::TwoBodies,
+            } => write!(
+                f,
+                "{} is charted on its mate's target body, and the mate's `to` reads two. \
+                 Recourse: read `to` off one body, or pin the copy by a frame mate",
+                mate_(*value)
             ),
             // The refusal is the pose's own, drawn on the carried line.
             Self::SideUnevaluated { mate, side, .. } => write!(

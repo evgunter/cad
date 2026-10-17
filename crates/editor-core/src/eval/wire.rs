@@ -599,9 +599,31 @@ where
     let b = band(tol)?;
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
+    let mut values = Vec::new();
+    // Each mate's two poses, its target's sense and the frame of the
+    // body its target is read off: what a value's chart reads.
+    let mut charted = Vec::new();
     let mut target_space: Option<Space> = None;
     for c in constraints {
         let mate = MateRef::new(id, c.id);
+        let m = match &c.kind {
+            crate::mate::ConstraintKind::Mate(m) => m,
+            crate::mate::ConstraintKind::Value(v) => {
+                let slot = match v.coord {
+                    crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
+                    crate::mate::Coord::Spin => SlotId::ValueSpin { constraint: c.id },
+                };
+                let by = crate::expr::eval_var(v.by, v.coord.dimension(), params)
+                    .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+                values.push(crate::mate::value::ReadValue {
+                    value: mate,
+                    mate: v.mate,
+                    coord: v.coord,
+                    by,
+                });
+                continue;
+            }
+        };
         let unevaluated = |side, kind| {
             fault(MateFault::SideUnevaluated {
                 mate,
@@ -617,12 +639,12 @@ where
             doc,
             on_results,
             seat(MateSide::On),
-            crate::pose::RoleRead::plain(c.mate.on),
+            crate::pose::RoleRead::plain(m.on),
             params,
             tol,
         )
         .map_err(|kind| unevaluated(MateSide::On, kind))?;
-        let (to, space) = match &c.mate.to {
+        let (to, space, body) = match &m.to {
             Target::Pose(var) => {
                 let to = pose::eval_pose(
                     doc,
@@ -641,7 +663,17 @@ where
                         _ => None,
                     })
                     .unwrap_or(Space::World);
-                (to, space)
+                // The body's own frame: its placement's motion in the
+                // space, the identity for the space's own geometry. Two
+                // bodies refuse only where a value asks for the chart.
+                let body = crate::mate::solve::chart_body(doc, *var).map(|body| {
+                    body.and_then(|at| match to_results.get(&at) {
+                        Some(NodeResult::Ok(value)) => value.motion.map(|m| m.to_affine()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(geom_core::Affine3::identity)
+                });
+                (to, space, body)
             }
             Target::World(world) => {
                 world
@@ -649,7 +681,7 @@ where
                     .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
                 let to = pose::eval_world(world, params, b)
                     .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                (to, Space::World)
+                (to, Space::World, Ok(geom_core::Affine3::identity()))
             }
         };
         match target_space {
@@ -662,6 +694,8 @@ where
             }
             Some(_) => {}
         }
+        let flipped = crate::mate::solve::target_flipped(doc, &m.to);
+        charted.push((c.id, on.clone(), to.clone(), flipped, body));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     if mates.is_empty() {
@@ -674,7 +708,26 @@ where
         })
     })?;
     let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-    match crate::mate::solve::solve_bundle(id, &mates, arm, b).map_err(|f| fault(*f))? {
+    // A chart is read only for a mate a value names.
+    let mut charts = std::collections::BTreeMap::new();
+    for (mate, on, to, flipped, body) in charted {
+        let Some(value) = values.iter().find(|v| v.mate == mate) else {
+            continue;
+        };
+        let body = body.map_err(|why| {
+            fault(MateFault::NoChart {
+                value: value.value,
+                why,
+            })
+        })?;
+        charts.insert(
+            mate,
+            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
+        );
+    }
+    match crate::mate::solve::solve_bundle(id, &mates, &values, &charts, arm, b)
+        .map_err(|f| fault(*f))?
+    {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep) => Ok((
             crate::mate::solve::marked(rep).rigid(b)?,
