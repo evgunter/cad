@@ -5797,3 +5797,26 @@ Bands: WIREHOLD 13200–13299 and WIRETAIL 13300–13399, recorded in
 `docs/MODEL-AB-LOG.md`. Review posture answered in `plan.md`.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — wave 1 dispatched
+
+- **`wire-chord`** (`wire/merged-chord-rule`):
+  `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`,
+  P0 H. Review tier: FULL single review (a confident wrong name is the
+  failure mode). Told to stop on a naming fork or on held ground
+  (`PlacedUnion` witness excluded).
+- **`wire-endings`** (`wire/refusal-endings`): `need-count-…`,
+  `eval-kernel-bug-…`, `wire-profile-spells-…`, `lane-profile-…`, plus
+  S40's stale `M6` citations and the dead declare-door prose the triage
+  found. Review tier: STYLE single review (refusal text and two
+  internal-break refusals; readable and believable). The variant it
+  picks is the one VGEOM's parked count-cast row raises.
+- **Designer pairs**, blinding bytes on `analysis/design-fork/wire-2026-10-17`:
+  FORK-PINCHNAME (the two pinch-naming rows) and FORK-ENTITYDOOR (the
+  entity door pair). Neither is yet known to be Ev's; a converged,
+  non-ratified-text answer is built without an `[ev]` PR.
+
+`a-union-fold-publishes-no-pinch-row` waits for a lane slot (4-core
+box, two builders live); it may also bear on FORK-PINCHNAME.
+
+Signed (WIRE orchestrator).
