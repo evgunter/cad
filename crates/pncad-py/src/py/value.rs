@@ -2562,7 +2562,6 @@ pub(crate) fn evaluate(
         resolver: resolver
             .map(super::store::Workspace::resolver)
             .or(defaults.resolver),
-        profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
         symbols: defaults.symbols,

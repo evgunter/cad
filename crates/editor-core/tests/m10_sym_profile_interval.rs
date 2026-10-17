@@ -59,7 +59,7 @@ use crate::m10_7_plate::plate;
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
-use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, evaluate};
 use geom_core::SymBudget;
 use geom_core::sym::with_session_rules;
 use std::sync::Arc;
@@ -71,7 +71,6 @@ use std::sync::Arc;
 fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let budget = SymBudget {

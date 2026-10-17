@@ -1190,10 +1190,7 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
         }
     };
     let ((), counts) = if dialled {
-        let opts = editor_core::EvalOptions {
-            profile_lift: editor_core::ProfileLift::Guided,
-            ..symbols
-        };
+        let opts = symbols.clone();
         deferred::with_deferred_session(
             SymBudget {
                 max_terms: std::env::var("TERMS")

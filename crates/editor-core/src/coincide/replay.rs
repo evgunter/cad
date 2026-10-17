@@ -1,7 +1,8 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane ([`crate::ProfileLift::Guided`]), and each row read
+//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
+//! and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -44,7 +45,7 @@ use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{EvalOptions, EvalOutcome, Evaluation, ProfileLift};
+use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -64,8 +65,10 @@ const BUDGET: SymBudget = SymBudget {
 /// **The replay with every variable a symbol, as one session**: the
 /// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
 /// (a margin's form is built only where a reader asks for its
-/// discharge), and profile geometry elaborated in the lane
-/// ([`ProfileLift::Guided`]) on `base`, the caller's environment. Every
+/// discharge), on `base`, the caller's environment — which binds every
+/// variable a symbol or varies a box, so its profile geometry is
+/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
+/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
 /// reader of a replay opens it here — the door (`symbols`), its census,
 /// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
 /// its own degenerate boxes) — so the instrument reads exactly what
@@ -81,15 +84,11 @@ pub fn with_replay_session<R>(
     base: EvalOptions,
     f: impl FnOnce(&EvalOptions) -> R,
 ) -> (R, geom_core::SymCounts) {
-    let opts = EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..base
-    };
     deferred::with_deferred_session(
         BUDGET,
         SymRules::shipped(),
         crate::drive::DEFAULT_SYM_RETRY,
-        || f(&opts),
+        || f(&base),
     )
 }
 

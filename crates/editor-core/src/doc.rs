@@ -2537,6 +2537,7 @@ impl<P> Doc<P> {
             bindings,
             refused: BTreeMap::new(),
             written: std::collections::BTreeSet::new(),
+            binds_symbols: false,
         };
         self.bind_definitions(&mut env);
         env
