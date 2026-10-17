@@ -957,7 +957,8 @@ fn failure(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NodeErrorKind {
 }
 
 /// A deliberately MISBEHAVING resolver: it answers each of a pair of
-/// references with a document instantiating the OTHER, pins ignored.
+/// references with a document instantiating the OTHER, pins ignored,
+/// its instance pinned to the world so the part's product is that copy.
 ///
 /// A4 makes this unconstructible through an honest store — a document
 /// would have to contain its own hash — so a resolver is the only thing
@@ -979,7 +980,8 @@ impl PartResolver for CyclicStore {
             (self.b, self.a)
         };
         let doc = ProfileDoc::empty(here.id, Tol::witness());
-        Ok(insert(doc, Node::instantiate_part(there)).0)
+        let (doc, instance) = insert(doc, Node::instantiate_part(there));
+        Ok(nominally_pinned(doc, instance))
     }
 }
 
@@ -1005,7 +1007,6 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
     let ev = run(&doc, &opts);
-    eprintln!("DEBUGCYCLE {:?}", failure(&ev, ids[0]));
     let (cause, rendered) =
         root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed root");
     match cause {
@@ -1618,4 +1619,32 @@ fn a_canceled_door_stops_in_its_replay() {
         editor_core::coincide::prove(&doc, &[(union, &rows[..])], Tol::witness(), &cancel),
         Err(editor_core::coincide::Canceled)
     );
+}
+
+#[test]
+fn zz_probe_decisions_tmp() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-vlog-part", 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = assembly("asm2a-vlog-asm", &[doc_ref, doc_ref]);
+    let doc = repinned(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), &opts);
+    let doc = repinned(doc, ids[1], &Frame::IDENTITY, &opts);
+    let ev = run(&doc, &opts);
+    let hist = |id: RecipeNodeId| {
+        let mut m = std::collections::BTreeMap::<String, usize>::new();
+        for v in ev.result(id).and_then(NodeResult::value).unwrap().verdicts.iter() {
+            *m.entry(format!("{} {:?}", v.predicate, v.sign)).or_default() += 1;
+        }
+        m
+    };
+    let (a, b) = (hist(ids[0]), hist(ids[1]));
+    for k in a.keys().chain(b.keys()).collect::<std::collections::BTreeSet<_>>() {
+        if a.get(k) != b.get(k) {
+            eprintln!("PROBE {k}: off {:?} identity {:?}", a.get(k), b.get(k));
+        }
+    }
+    let seq = |id: RecipeNodeId| ev.result(id).and_then(NodeResult::value).unwrap().verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>();
+    eprintln!("PROBE lens {} {}", seq(ids[0]).len(), seq(ids[1]).len());
+    eprintln!("PROBE off head {:?}", &seq(ids[0])[..8]);
+    eprintln!("PROBE id head {:?}", &seq(ids[1])[..8]);
 }
