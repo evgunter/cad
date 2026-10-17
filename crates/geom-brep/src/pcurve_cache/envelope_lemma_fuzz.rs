@@ -811,11 +811,12 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     };
     let (t0, t1) = span(s);
     let reach = t0.abs().max(t1.abs());
-    // The stored image is what the mint derives on the chart as stored.
+    // The stored image is what the mint derives on the chart as stored,
+    // placed over the span it is certified on (C4).
     let (derived, _) = derive_harmonic(
         &carrier,
         &surface,
-        super::Placement::own(&carrier, &surface),
+        super::Placement::over((t0, t1), &carrier, &surface),
         band(),
     )
     .ok()?;
@@ -877,7 +878,11 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
             .collect::<Vec<_>>(),
         fuzz::replay()
     );
-    if mode == 3 && images_exactly(class) {
+    // An exact image renamed by its sphere's twin costs nothing; one
+    // renamed by a whole period is a lifted copy, no row (C4), and its
+    // envelope reads the period as its offset, which the bound above
+    // still dominates.
+    if mode == 3 && images_exactly(class) && k == 0.0 {
         assert!(
             envelope <= noise,
             "{}: a renamed exact image costs {envelope:e}; terms {:?} — {}",
@@ -1221,7 +1226,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         let (image, _) = derive_harmonic(
             carrier,
             surface,
-            super::Placement::own(carrier, surface),
+            super::Placement::over((t0, t1), carrier, surface),
             band(),
         )
         .unwrap();
@@ -1248,18 +1253,16 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         // `Ok(())` certifies; `Err(false)` refuses as a residual.
         let corruptions: Vec<(&str, Pcurve<f64>, Result<(), bool>)> = vec![
             ("exact", image.clone(), Ok(())),
-            ("u + τ", h(TAU, 0.0), Ok(())),
-            ("u − 3τ", h(-3.0 * TAU, 0.0), Ok(())),
-            ("u + 7τ", h(7.0 * TAU, 0.0), Ok(())),
+            // A whole-period rename is a lifted copy, the row with a deck
+            // element, and no row of its own (C4): refused as a residual.
+            ("u + τ", h(TAU, 0.0), Err(false)),
+            ("u − 3τ", h(-3.0 * TAU, 0.0), Err(false)),
+            ("u + 7τ", h(7.0 * TAU, 0.0), Err(false)),
             ("u + π", h(PI, 0.0), Err(false)),
             ("u + τ/2 + 1e-9", h(PI + 1e-9, 0.0), Err(false)),
             ("u + 1e3·ε", h(off, 0.0), Err(false)),
             ("v + 1e3·ε", h(0.0, off), Err(false)),
-            (
-                "v + τ",
-                h(0.0, TAU),
-                if angular_v { Ok(()) } else { Err(false) },
-            ),
+            ("v + τ", h(0.0, TAU), Err(false)),
             (
                 "slope u flipped",
                 restated(&image, 0.0, 0.0, [true, false]),
@@ -1279,10 +1282,12 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                 image.map_affine(twin(0.0)),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
+            // The twin a whole period on is a lifted copy of the twin,
+            // no row (C4).
             (
                 "the twin, a period on",
                 image.map_affine(twin(TAU)),
-                if sphere { Ok(()) } else { off_sphere_twin },
+                if sphere { Err(false) } else { off_sphere_twin },
             ),
         ];
         for (what, stored, want) in corruptions {

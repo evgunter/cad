@@ -5640,68 +5640,49 @@ fn fidelity<T: Decide>(
         }
         Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
     };
-    let tau = T::tau();
-    let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // A twin's branch, decided by the channel's own period
-    // ([`Period::decide`]), as the integer it is.
-    let period = Period::new(tau);
-    let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
-        period
-            .decide(name, offset, |gap| Margin::levered(gap, arm.get()), band)
-            .map_err(|stop| stop.miss)
-    };
     // The stored row is placed as its derivation is (C4: the mint and
-    // check 4 place one image over one span, `Placement`), so on the
-    // derivation's branch the stored constants ARE the derived ones and
-    // no whole period is decided: the offsets are read as they are, and a
-    // row stored a whole period off is a different row, which refuses as
-    // its channel's term. On a sphere the stored image may instead be the
-    // derivation's involution twin `(u + π, π − v)`. Where the polar
-    // channel winds (a meridian), the windings say which name the row is,
-    // as structure: the twin's polar winding is the derivation's negated.
+    // check 4 place one image over one span, `Placement`), so its
+    // constants ARE the derived ones, or on a sphere those of the
+    // derivation's involution twin `(u + π, π − v)`, the same placed
+    // image's other name: no whole period is decided, the offsets are read
+    // as they are, and a row stored a whole period off is a lifted copy,
+    // no row (it refuses as its channel's term). Where the polar channel
+    // winds (a meridian), the windings say which name the row is, as
+    // structure: the twin's polar winding is the derivation's negated.
     // Where it does not (a parallel), which name is nearer is one sign,
-    // the cosine of the azimuth offset (`pcurve_fidelity_twin_side`,
-    // levered at the azimuth's arm): near `0` the row is `P_d`, near `π`
-    // its twin, and in band neither, read as `P_d` (D9), where an offset
-    // that mattered refuses as its term. A twin's own branch, on both
-    // channels, is decided: its second angle, `π − v`, is no name the
-    // latitude window places.
+    // the cosine of the azimuth offset (`pcurve_fidelity_twin`, levered at
+    // the azimuth's arm): near `0` the row is `P_d`, near `π` its twin,
+    // and in band neither, read as `P_d` (D9), where an offset that
+    // mattered refuses as its term.
     let sphere = matches!(surface, Surface::Sphere { .. });
     let named_twin = match (sv.winding(), dv.winding()) {
         (Some(stored), Some(derived)) if sphere && derived != 0 => Some(stored == -derived),
         _ => None,
     };
+    let twin = match named_twin {
+        Some(twin) => twin,
+        None => {
+            sphere
+                && matches!(
+                    decide(
+                        "pcurve_fidelity_twin",
+                        Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
+                        band,
+                    ),
+                    Ok(Sign::Negative)
+                )
+        }
+    };
     let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
-    let twin_of = |(q0, qa, qb, ql): HarmonicForm<T>| {
+    let (q0, qa, qb, ql) = if twin {
         (
             Point2::new(q0.x + T::pi(), T::pi() - q0.y),
             flip(qa),
             flip(qb),
             flip(ql),
         )
-    };
-    let derived_form = (q0, qa, qb, ql);
-    let twin_form = twin_of(derived_form);
-    let (k_u, twin, (q0, qa, qb, ql)) = match named_twin {
-        Some(true) => (
-            branch("pcurve_fidelity_twin", p0.x - twin_form.0.x, arm_u).ok(),
-            true,
-            twin_form,
-        ),
-        Some(false) => (Some(0), false, derived_form),
-        None if sphere => match decide(
-            "pcurve_fidelity_twin_side",
-            Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
-            band,
-        ) {
-            Ok(Sign::Negative) => (
-                branch("pcurve_fidelity_twin", p0.x - twin_form.0.x, arm_u).ok(),
-                true,
-                twin_form,
-            ),
-            Ok(Sign::Positive | Sign::Zero) | Err(_) => (Some(0), false, derived_form),
-        },
-        None => (Some(0), false, derived_form),
+    } else {
+        (q0, qa, qb, ql)
     };
     // The windings are structure (C4): the row's are the windings of
     // the name it is measured against, the derivation's or, on a
@@ -5716,24 +5697,10 @@ fn fidelity<T: Decide>(
             derived: derived_windings,
         });
     }
-    // The constant's offset less its branch: none on the derivation's
-    // own, a twin's decided one. Where a twin's branch decides none (a
-    // mark undecided at this width), the raw offset is read: every whole
-    // period bounds the same distance, so the raw offset is a bound too,
-    // only a looser one.
-    let less_branch = |offset: T, k: Option<i32>| match k {
-        Some(0) | None => offset.abs(),
-        Some(k) => (offset - period.times(k)).abs(),
-    };
-    let k_v = if twin && angular_v {
-        branch("pcurve_fidelity_twin", p0.y - q0.y, arm_v).ok()
-    } else {
-        Some(0)
-    };
-    let du = less_branch(p0.x - q0.x, k_u)
+    let du = (p0.x - q0.x).abs()
         + harmonic_sup_scalar(pa.x - qa.x, pb.x - qb.x)
         + (pl.x - ql.x).abs() * reach;
-    let dv = less_branch(p0.y - q0.y, k_v)
+    let dv = (p0.y - q0.y).abs()
         + harmonic_sup_scalar(pa.y - qa.y, pb.y - qb.y)
         + (pl.y - ql.y).abs() * reach;
     terms.add(EnvelopeTerm::FidelityU, arm_u.to_meters(du));
@@ -10093,7 +10060,7 @@ mod tests {
             radius: r,
             u_ref: Vec3::unit_x(),
         };
-        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let p = chart_pcurve_over(&carrier, 0.0, FRAC_PI_2, &cyl, band()).unwrap();
         let Some((_, _, _, pl)) = p.harmonic_form() else {
             panic!("the closed-form lane stores harmonic images")
         };
@@ -10124,9 +10091,12 @@ mod tests {
     }
 
     /// The SAME seam edge, on the SAME surface, carries two DIFFERENT
-    /// pcurves — the `u = 0` and `u = 2π` branches. This is the
+    /// chart curves — the `u = 0` and `u = 2π` branches. This is the
     /// under-keying counterexample in miniature (the body-level row
-    /// lives in `topo`): a per-edge-per-face key cannot hold both.
+    /// lives in `topo`): a per-edge-per-face key cannot hold both. Only
+    /// the placed one is a row (C4: a row is its placed image); the other
+    /// is its lifted copy, the row with a deck element, and certification
+    /// refuses it as a row, the whole period read as its offset.
     #[test]
     fn a_seam_edge_carries_two_different_branches_of_one_surface() {
         let r = 0.5;
@@ -10145,16 +10115,20 @@ mod tests {
             panic!("the closed-form lane stores harmonic images")
         };
         assert!((b.x - a.x - TAU).abs() < 1e-15, "different chart curves");
-        // Both certify against the same carrier and the same surface —
-        // the chart is periodic, so both branches map to the same locus,
-        // and nothing in a row's certificate tells them apart: which
-        // branch a half-edge takes is its loop's fact (`topo::pcurves`).
-        let a = PcurveCache::certify(base, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
-        let b = PcurveCache::certify(wrapped_for_shift, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
-        assert_eq!(
-            a.certificate().envelope.to_bits(),
-            b.certificate().envelope.to_bits(),
-            "a whole-period shift certifies identically"
+        // The placed branch certifies; the lifted copy does not, as a
+        // row: which lift a half-edge's loop walks is its joints' deck
+        // elements (`topo::pcurves`), never a second row.
+        PcurveCache::certify(base, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
+        let lifted = PcurveCache::certify(wrapped_for_shift, 0.0, 1.0, &carrier, &cyl, band());
+        assert!(
+            matches!(
+                lifted,
+                Err(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    ..
+                })
+            ),
+            "a whole-period shift is no row: {lifted:?}"
         );
     }
 
@@ -10467,10 +10441,10 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let carrier = rim(Point3::origin());
-        let good = chart_pcurve(&carrier, &cyl, band()).unwrap();
         // The drift's true miss is half the zero band; the term levers
         // it by about `2·t0/w` past that.
         let (t0, w) = (100.0, 0.1);
+        let good = chart_pcurve_over(&carrier, t0, t0 + w, &cyl, band()).unwrap();
         let l = band().zero() / w;
         let mid = t0 + w / 2.0;
         let drifting = bumped(&good, 0.0, [-(l * mid), 0.0, 0.0, l]);
