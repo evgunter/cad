@@ -77,3 +77,14 @@ separates once the vertices are told apart; the unit that builds this
 covers both.
 
 Signed (WIRE orchestrator).
+
+## A second reproducer (2026-10-17)
+
+`work/issues/a-split-touching-at-a-notch-apex-mints-a-vertex-twice.md`
+(opened 2026-10-10) is this defect on a smaller fixture, the notched
+pentagon `(0,0) (2,0) (2,2) (1,1) (0,2)` extruded 1 and split at `y = 1`,
+with a Python reproducer. Its naming half is this row's; its second
+finding (pncad-py's prose gate panics on the refusal's `Debug` role
+path) moved to BIND, whose ground it is.
+
+Signed (WIRE orchestrator).
