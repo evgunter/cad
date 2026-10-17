@@ -2,11 +2,12 @@
 id: census-collinear-overlap-reads-along-the-first-edges-line
 kind: issue
 title: The census's collinear edge-edge test reads the second edge's offset along the first edge's line, so a short tilted first edge levers a within-zero pair into the band
-status: open
+status: closed
 opened: 2026-10-11
 priority: P3
 cost: E
 refs: [an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap]
+closed: 2026-10-17
 ---
 
 
@@ -65,3 +66,18 @@ PR 4820 retired `ee_lineage`. An operand's carried edge-edge record
 is now placed on the pieces of a split edge by `boolean::ops::carried`
 (`operand_fate`, then `records::landings`), through the census's own
 record confirm.
+
+## Closed
+
+2026-10-17, RESTREAD's crossing lane. `census::collinear_overlap` reads
+the projected overlap first, then the gap as the least distance from
+`ea`'s points over that run to `eb`'s line (`census::overlap_gap`):
+where the two run side by side, so neither one's tilt is levered along
+the other's extended line. Either reading's definite no settles the
+pair. The confirm pass and pass 5 read it alike in either cell order.
+Pinned by `census::edge_pairs_as_segments`
+`a_short_piece_tilted_within_the_zero_overlaps_a_long_one_in_either_order`:
+a 0.03 piece tilted 3.5e-9 against a long one starting 0.36 back read
+1.26e-9 on main in one order and Zero in the other; both orders now
+read the overlap with nothing pushed. `on_edge_interior`'s line gap went
+span-first with FUSE's PR 5227.
