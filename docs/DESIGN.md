@@ -159,13 +159,30 @@ is checked against what was meant.
 [placement], [coincidence], [assertions], [edges], [recipe],
 [import].
 
-### Decide only on what matters `[intrinsic]`
+### Decide on the thing itself `[intrinsic]`
 
 A decision is taken only on unambiguous, intrinsic properties of the
-thing it is about — never on what does not matter: how floating-point
-arithmetic happened to round, the order things were built, enumerated
-or listed in, the frame something was computed in, how a value was
-spelled, a hash map's iteration order.
+thing it is about. Two ways of missing that are kept apart:
+
+- **What is meant, not a proxy for it.** `[intrinsic.meaning]` A
+  decision reads the property it is about, not one that usually goes
+  with it. Properties that are correlated but not dependent are kept
+  apart, so a thing with an unusual mix of them is handled, not
+  misread: no rule lumps them into one category and then decides on
+  whichever member it happens to read. An edge's selector asks whether
+  its curve is known in advance, of the geometry and never of where the
+  body came from ([edges]); the census reads the cells themselves,
+  never the lines or planes they lie on ([topology.tiers]); coincidence
+  is a margined verdict, never bit-equality ([verdicts]). Where it
+  matters that two things are exactly the same, compare their content
+  by hash, never their names: a reference pins its document's content
+  hash, and a pairing is decided by document identity, never by node
+  ids ([assemblies]).
+- **What matters, not something contingent.** `[intrinsic.contingent]`
+  Nothing is decided on what does not matter to the answer: how
+  floating-point arithmetic happened to round, the order things were
+  built, enumerated or listed in, the frame something was computed in,
+  how a value was spelled, a hash map's iteration order.
 
 - **Don't guess.** `[intrinsic.no-guess]` Where the geometry does not
   determine an answer at the tolerance in force, the kernel does not
@@ -185,8 +202,8 @@ spelled, a hash map's iteration order.
   ([tolerance.margins]).
   A quantity that is not such a distance — a mean width 2A/P, a mean
   thickness V/A — decides nothing against ε.
-- **Determinism and equivariance** `[intrinsic.invariance]` are this
-  principle applied to the run and to space: the same inputs give the
+- **Determinism and equivariance** `[intrinsic.invariance]` are
+  `[intrinsic.contingent]` applied to the run and to space: the same inputs give the
   same bits ([determinism]); a designed rule commutes with rigid
   motions and reflections, preferring intrinsic quantities to orders
   and tie-breaks ([determinism.equivariance]); and an operation's
@@ -196,10 +213,14 @@ spelled, a hash map's iteration order.
 *Instantiated in:* [verdicts], [tolerance], [determinism],
 [placement], [edges].
 
-### One way `[one-way]`
+### Few kinds of thing, one way to do each `[one-way]`
 
-Whenever possible there is one way to do a thing, done in one place
-and stated in one place. Two ways of deciding one fact can decide it
+The system has as few kinds of thing as it can, and whenever possible
+one way to do each thing, done in one place and stated in one place. A
+new kind is introduced only where no existing one is it: an assembly
+is a document, and the kernel has no assembly type ([assemblies]); a
+copy, a pattern and a moved body are all placements ([placement]); a
+pattern is an index, not an operation ([repetition]). Two ways of deciding one fact can decide it
 differently inside the band; two places stating one fact can drift
 apart. A family of authored forms is not a second way when every form
 lowers through one reading ([recipe.forms]). The canonical places are
@@ -257,6 +278,8 @@ of them is a defect.
 | A coincidence decided from values | recorded at the one coincidence door | [coincidence] |
 | Whether a coincidence is structural | that door, and nowhere else | [coincidence.structural] |
 | A value authored several ways | a family of forms lowering through one reading | [recipe.forms] |
+| Which version of a document a reference means | its content pin | [assemblies.pins] |
+| Which document a held value is of | the identity it carries, never its node ids | [assemblies.pairing] |
 | A document's validity | `persist::check::validate_document`, at save and at load | [engineering] |
 | The frontier | typed `Unsupported*` refusals, grep-able from the tree | [failure] |
 
@@ -1883,6 +1906,52 @@ birth is cheap and retrofitting it is nearly impossible.
   the flip's diagnosis where not; re-binding cleverness only as
   ratified opt-in policies.
 
+### Assemblies and document identity `[assemblies]`
+
+*From:* [one-way], [intrinsic.meaning], [pure-model].
+
+The rules here bind every component; how editor-core keeps them, door
+by door, is `crates/editor-core/ASSEMBLY.md` and
+`crates/editor-core/IDENTITY.md`.
+
+- **An assembly is a document.** `[assemblies.document]` An assembly is
+  an ordinary document whose leaves instantiate other documents. It
+  uses the same node, edit, naming, undo and memo machinery as a part,
+  and its evaluation is one kernel `Body`, generally multi-solid and
+  not connected: the kernel has no assembly type. Which solids are one
+  part, and which mates hold, is recipe structure, never body state;
+  fusing copies is an explicit boolean, never implied.
+- **A reference pins content.** `[assemblies.pins]` A cross-document
+  reference is a `DocRef`: a `DocumentId`, which says which document
+  and survives every edit, and a `ContentPin`, the SHA-256 of the
+  document's canonical semantic bytes, which says which version. An
+  edit to the referenced document never retargets a reference: a
+  document is served only when its bytes hash to the pin, and moving a
+  pin is a recorded edit. Since the pin is the content, the memo is a
+  pure function of the document, and whether a store still holds the
+  pinned bytes is the mounting session's question, never the memo's.
+- **A held value names the document it came from.**
+  `[assemblies.pairing]` An evaluation, a solve or a pick carries the
+  identity of the document it is of. A door that takes a document
+  together with a value of it refuses a value of another document,
+  typed, before reading anything of it. Node ids cannot decide this:
+  they are minted from the edits that inserted them, so two documents
+  built from one recipe carry the same ids. A node id names one
+  authored node wherever it is minted, and whoever holds one keeps the
+  bare id and asks the document in hand whether it is foreign, deleted
+  or live.
+- **Saving keeps identity; forking is its own act.**
+  `[assemblies.saving]` Identity is the document's, not the file's.
+  Saving at a path keeps the id, and refuses where that directory
+  already holds the id under another filename; saving as a new document
+  mints a fresh id, and every inbound reference stays on the original.
+- **Split and inline are pure.** `[assemblies.split]` Moving content
+  into a document of its own, and back, is a pair of pure refactors
+  that compute no frame and return values plus edit lists.
+  Split-then-evaluate equals the unsplit evaluation at structural and
+  name-resolution identity, and inline-of-split returns the document
+  split was given, up to minted ids and order.
+
 ### Units `[units]`
 
 *From:* [intent.stored], [unrepresentable].
@@ -2420,7 +2489,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | Assemblies, ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: assembly-evaluates-to-a-body, mates as declarations, pins/split-inline, validity, mirror, relative freedom, the product is the world, the constructive-solve boundary |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: the evaluation seam, the pairing doors, pins and split/inline, mirror, the product, the constructive solve; the pre-refactor clauses (A3, A5) gathered until INTENT stages 3–5 retire them |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a `Span` borrows the `KnotVector` it indexes, a `CurveWindow` its curve and a `SurfaceWindow` its surface, so every span-restricted door takes one structure and reads everything from it and the mismatch is unrepresentable; one level down a `SplineCoeffs` borrows the `KnotVector` its coefficients were fitted against and `hull`'s doors read through it, `InteriorKnot` the deliberate crate-private exception |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
@@ -2436,7 +2505,7 @@ is the board and `work/README.md` its contract.
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
-| `docs/VARIABLES-DESIGN.md` | Settled under [intent] (designer pair, converged); built (stage 1) | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
+| `crates/editor-core/VARIABLES.md` | Ratified (designer pair, converged); built | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Retired by [coincidence] (header): coaxiality is one `Axis` read twice, or a margin decided Zero and recorded. The body keeps the conversation that ratified the channel |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
