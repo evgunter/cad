@@ -5,7 +5,7 @@
 //! and stored only when committed; and the value doors read a defined
 //! variable as held.
 // Panicking is a test's failure mechanism (workspace lint note).
-#![allow(clippy::expect_used)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
 use editor_core::ExtrudeSide;

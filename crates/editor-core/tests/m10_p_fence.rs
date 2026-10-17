@@ -596,6 +596,16 @@
 //! which drops two `Part` outcomes of its own: the id-free digest with
 //! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
 //! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A′
+//! (a revolve's axis is a point and a heading).** A revolve holds one
+//! angle where it held two direction components, and a lone `0` is the
+//! constant zero, so ids re-mint; and the heading's `turn/4` has a
+//! cosine that rounds to 6e-17, not 0. Measured by a scratch dump of
+//! every node's outcome and every point's bits at `f64`, ids masked,
+//! the base tree against this one: every outcome identical; 8 points
+//! moved, all in `kitchen_sink`, by at most 2.2e-16 — the same 8 the
+//! turned-vertex change above moved.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -891,7 +901,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x677c_c7e4_46f7_3c3e, 0xb618_dc9c_4b28_76c2),
+        (0xfb26_4516_2477_a6d6, 0xb707_a6ef_a969_870a),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -917,7 +927,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x8c71_a7bc_153b_9ccf, 0x88a1_7e8e_a4c9_4843),
+        (0x76b8_b226_4a1a_3b03, 0xc354_ff1b_c858_1b47),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -1019,7 +1029,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xbd6e_827f_fdee_3e17, 0x3468_7380_ea67_3df3),
+        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

@@ -918,7 +918,7 @@ class TestSnowman(unittest.TestCase):
         for c in (ox, oz):
             self.assertAlmostEqual(c, 0.0, delta=1e-15, msg="the band is centred on the axis")
         self.assertAlmostEqual(oy, self.roll_centre()[1], delta=1e-12)
-        for got, want in zip((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0)):
+        for got, want in zip((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0), strict=True):
             self.assertAlmostEqual(got, want, delta=1e-15)
 
 

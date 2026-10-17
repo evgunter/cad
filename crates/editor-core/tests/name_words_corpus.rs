@@ -218,7 +218,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// the mint chain draws after it. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held. The placement's kind word moved with it.
-const SAID_DIGEST: u64 = 0xa63a_95f4_0ead_42ef;
+const SAID_DIGEST: u64 = 0x9a61_ebaf_7ebb_c089;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
