@@ -5820,3 +5820,21 @@ Signed (WIRE orchestrator).
 box, two builders live); it may also bear on FORK-PINCHNAME.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — FORK-ENTITYDOOR converged in round 1; dispatched
+
+Both designers (A and B) independently rejected the framing (which comes
+first at evaluation, the kind or the tie; what key the door takes) and
+recommended one final state: the kind is authored data on the name, so
+it is the edit and load doors' to refuse, and evaluation reads typed
+keys with no entity door. Both found the same off-question defect, the
+blend and shell arms' silent `filter_map` kind drops. No ratified page
+is contradicted (`Select::fault`'s doc and the stage 2 spec are agent
+text), so this is not an `[ev]` fork and draws no fork-log row. The
+decision is on both rows; seam note on INTENT's log.
+
+Dispatched as `wire-kind` (`wire/selection-kind-at-the-door`), both rows
+in one unit. Review tier: FULL single review — it deletes a door and
+moves refusals across layers, but is reversible (one predicate arm).
+
+Signed (WIRE orchestrator).
