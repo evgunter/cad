@@ -9837,6 +9837,10 @@ mod placement_rows;
 mod radial_pair_rows;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_b2a_r1;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
