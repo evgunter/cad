@@ -143,35 +143,27 @@ save the store can serve. Two acts, both typed:
 existing, requested }`, and `Workspace::save_as_new_document`, with a random
 id.*
 
-## DI5 — Releasing a free-move gesture is the placement edit
+## DI5 — A free-move frame belongs to the loose space it was drawn for
 
-*Stale since INTENT stage 3 B: the edit this clause names,
-`DocEdit::SetOffset`, and the gauge and offset it sets are gone (DESIGN
-`[placement]`), and nothing in the code commits a free-move (below).
-What a release records in the new model, a value of the copy's
-placement, is the stage-3 unit's that builds the commit to state.*
+Releasing a free-move gesture writes nothing to the document. A free-move
+moves the picture of a loose space (D10: a copy whose bundle pins less than
+its body needs, with everything pinned to it), which D10 draws from display
+state no logic reads; the release ends the gesture and leaves the display
+frame where it is. The frame is a held value like any other on this page, so
+it names the world it was drawn for: it is keyed by the loose space's root,
+and it is dropped when that key stops naming a loose space — a placement pins
+the copy, an undo or an edit removes the root (`DisplayState::prune`).
+Consequences:
 
-The viewer records a free-moved placement persistently, under G1's
-preview-versus-commit rule: the gesture's previews stay display frames, and
-**its release emits one `DocEdit::SetOffset`** on the instance — one undo
-step, one document transition — so the placement survives save and reopen,
-which is what a user expects of a part they placed. This extends G3, which
-made free-move display state, never persisted, and left committing it out of
-v1. Consequences:
-
-- `CommitFreeMove` is the committed edit; `moves` in `DisplayState`
-  (`display.rs`) empties, since a committed frame is document data. `hidden`
-  stays display state.
-- Admission is unchanged: only an instance no mate names may be free-moved
-  (`free_move_check`), so the edit's target is a singleton group and roots
-  it (A11 (3)). A later mate that places it on another group clears its
-  offset, as the mate door does for any first operand (A11 (2)).
-- G3's sentence "hiding and free-move are display state, never persisted"
-  narrows to hiding; `crates/viewer/README.md`, the `display.rs` module doc
-  and the round-trip row that pins the boundary follow the edit.
-
-*Open: `no-persistent-setplacement-session-op`. `CommitFreeMove` is still a
-display-only op and `display.rs` still states the old boundary.*
+- Keeping a position means stating it: a placement's mates read poses off
+  geometry and its values are numbers the user types. No edit reads the
+  display frame, and no gesture writes one into the document.
+- A reopened document draws its loose spaces at a default pose, since display
+  state ends with the session. If that layout is ever kept, it is viewer data
+  outside the canonical bytes, never hashed into a `ContentPin` and never read
+  by evaluation.
+- G3's "hiding and free-move are display state, never persisted" stands, over
+  loose spaces.
 
 ## What this doc does not touch
 
