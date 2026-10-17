@@ -47,6 +47,14 @@ impl SaidKey for crate::names::StableName {
     }
 }
 
+impl SaidKey for crate::appearance::AppearanceKey {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.say(f)?;
+        write!(f, " read in ")?;
+        self.at.say(f)
+    }
+}
+
 /// `key` as the file spells it, JSON: a string with its escapes and
 /// quotes, or a unit variant's name as one. Neither can fail to
 /// serialize.

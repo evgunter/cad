@@ -399,6 +399,7 @@ test_utils::f6_variants! {
         NoBodies,
         NoSuchBody,
         Readback,
+        SeveralOutputs,
     ];
 }
 
@@ -440,6 +441,10 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
         (
             InterrogateError::Readback(topo::ReadbackError::NoCarrier),
             vec!["scaffolding", "tier 2 refuses at rest"],
+        ),
+        (
+            InterrogateError::SeveralOutputs { node },
+            vec!["several outputs", "names of its own", "by its port"],
         ),
     ];
     assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);
@@ -1038,6 +1043,7 @@ test_utils::f6_variants! {
         StepIds,
         MintLogOrder,
         NameReadNotMinted,
+        AppearanceReadNotABody,
         NameStepNotMinted,
     ];
 }
@@ -1562,6 +1568,24 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "carries the read",
                 "mint log does not hold",
                 "never minted it",
+            ],
+        ),
+        (
+            SnapshotError::AppearanceReadNotABody {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId::new(0, tagged(5)),
+                        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                    },
+                    node(),
+                ),
+                read: editor_core::VarId::new(0, tagged(9)),
+            },
+            vec![
+                "an appearance entry on",
+                "no output holding a body",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
         (
@@ -2974,6 +2998,7 @@ fn maintenance_display_says_what_the_edit_did() {
         ),
         (
             Maintenance::StrandedAppearance {
+                body: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
                 name: spoken_face_name(),
                 took: editor_core::Took::Piece,
             },
@@ -2981,7 +3006,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 "the appearance store holds an attachment under a name for the end cap of \
                  Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
-                "rebound or cleared",
+                "rebound, re-attached in a live body or cleared",
             ],
         ),
         (

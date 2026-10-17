@@ -51,8 +51,8 @@ a name which output holds the entity, so a split's roles carry no half
 (`SplitBody`, `SectionFace`, `SectionEdge`, `SplitFragment`,
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
-states. The per-node table compensates today by restating the output:
-the split's half and the pattern's `Instance { i }` segment exist only to
+states. Each output has its own table, so a split's roles say no half;
+the pattern's `Instance { i }` segment still restates the output, only to
 keep one node's table distinct. D10 makes the compensation fail: `P1` and
 `P2` are two placements of `X`, each equally a copy of it; pinned into one
 space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
@@ -452,8 +452,9 @@ entity of every output body from kernel birth data alone (`Extruded`/`Revolved`
 maps, `SplitNaming`, `BooleanNaming`, `BlendNaming`, D5 provenance); an unnamed
 live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
 and kind disagreement (`DuplicateName`). The table is bidirectional (`lookup`,
-`name_of`), lives in `NodeValue::name_table`, and rides memo hits with the
-geometry; consumed entities have no row. The invariant CI pins: the table is a
+`name_of`), one per output variable (N1, the scope), read through that
+variable alone (`Evaluation::table`), and rides memo hits with the geometry;
+consumed entities have no row. The invariant CI pins: the table is a
 function of (recipe structure, structural parameters, predicate verdict vector)
 only — same recipe and same verdicts give an identical table at f64 and at
 Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
@@ -530,6 +531,11 @@ Option<Tombstone> }`, tried in that order:
 - `Ambiguous` and `Vanished`: the read stands and the minting node lives, but
   the read's table holds more than one cell for the name, or none. Rebind
   repairs both.
+
+A read the name itself carries (`From { read }`) is a fact of the name, not a
+site. A read the document holds that is no body output (a scalar, a selection,
+a datum's) is no question at all: the door refuses it typed (`ResolveRefusal`),
+never answers it.
 
 `Diagnosis` is one of:
 

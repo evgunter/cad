@@ -275,10 +275,7 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
         Space::Loose { root: l },
         "the subtract is in L's space"
     );
-    let face = ev
-        .value(s)
-        .expect("the subtract evaluates")
-        .name_table
+    let face = crate::fixture::table(&ev, s)
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)

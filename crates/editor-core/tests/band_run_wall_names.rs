@@ -275,7 +275,8 @@ fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
         panic!("a body value");
     };
     let plane_of = |name: &StableName| {
-        let Some(editor_core::Entry::Unique(e)) = v.name_table.lookup(name) else {
+        let Some(editor_core::Entry::Unique(e)) = ev.table_at(ex).expect("one table").lookup(name)
+        else {
             panic!("a unique face for {name:?}");
         };
         let editor_core::EntityKey::Face(f) = e.key else {
@@ -413,7 +414,7 @@ fn reprogrammed(
 /// What a vanished name is offered.
 fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
     let ev = run(doc, &Default::default());
-    match editor_core::resolve(editor_core::RunCtx { doc, eval: &ev }, name) {
+    match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: &ev }, name) {
         editor_core::Resolution::Failed(f) => f.offers,
         other => panic!("{name:?} should vanish, resolved {other:?}"),
     }
@@ -539,11 +540,10 @@ fn arc_run_names_agree_across_scalars() {
             v.sort();
             v
         };
-        let a = names(&ev.value(n).expect("the f64 value").name_table);
+        let a = names(ev.table_at(n).expect("the f64 value"));
         let b = names(
-            &evi.value(n)
-                .unwrap_or_else(|| panic!("{label}: the Interval value"))
-                .name_table,
+            evi.table_at(n)
+                .unwrap_or_else(|| panic!("{label}: the Interval value")),
         );
         let run = run_of(&doc, n, &[0, 1]);
         let seg = if angle.is_some() {

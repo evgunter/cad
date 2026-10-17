@@ -144,6 +144,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let v1_painted = apply(
         &v1,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&v1, &wall),
             name: wall.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
@@ -191,6 +192,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&parent, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -322,6 +324,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&parent, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -420,7 +423,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     for (what, doc, carried) in [("A's top on B", &b, tall), ("B's top on A", &a, taller)] {
         let eval = corpus::eval::<f64>(doc);
         let top = fixture::fname(carried, RoleSeg::Cap(editor_core::CapEnd::End));
-        match editor_core::resolve(editor_core::RunCtx { doc, eval: &eval }, &top) {
+        match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: &eval }, &top) {
             editor_core::Resolution::Failed(f) => assert!(
                 matches!(
                     &f.error,

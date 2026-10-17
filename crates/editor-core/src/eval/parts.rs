@@ -824,7 +824,9 @@ pub(crate) fn keyed_copies<T: Decide>(
                 bodies,
                 family,
                 parts: value.parts,
-                table: Arc::clone(&value.name_table),
+                table: value
+                    .output(0)
+                    .map_or_else(crate::names::empty, super::OutputNames::shared_table),
                 motion: None,
             })
         };

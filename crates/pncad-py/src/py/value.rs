@@ -1408,25 +1408,27 @@ impl Evaluation {
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
-    fn all_edges(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_edges(&self.inner, node.0))
+    fn all_edges(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_edges(&self.inner, node.at()))
     }
 
     /// Every FACE name of `node`'s output, [`Self::all_edges`]'s
     /// sibling — same contract, same alphabet.
-    fn all_faces(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_faces(&self.inner, node.0))
+    fn all_faces(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_faces(&self.inner, node.at()))
     }
 
     /// Every VERTEX name of `node`'s output, same contract.
-    fn all_vertices(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_vertices(&self.inner, node.0))
+    fn all_vertices(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_vertices(&self.inner, node.at()))
     }
 
     /// Every BODY name `node`'s evaluation carries, same contract.
-    /// Usually one row; a split's two halves are the plural case.
-    fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
-        names(py, pncad::select::all_bodies(&self.inner, node.0))
+    /// Usually one row; a family's members are the plural case. A
+    /// split's halves are two reads (`Doc.output(split, 0 | 1)`) with a
+    /// row each.
+    fn all_bodies(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_bodies(&self.inner, node.at()))
     }
 
     /// **Materialize a STRUCTURAL selection**: every name of `node`'s
@@ -1444,10 +1446,13 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(py, pncad::select::select(&self.inner, node.0, &selector.0))
+        names(
+            py,
+            pncad::select::select(&self.inner, node.at(), &selector.0),
+        )
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1476,7 +1481,7 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
@@ -1484,7 +1489,7 @@ impl Evaluation {
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
         match pncad::select::select_where(
             &self.inner,
-            node.0,
+            node.at(),
             &selector.0,
             &atoms,
             &self.params,
@@ -1522,11 +1527,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.0, &name)
+        pncad::select::face_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1544,11 +1549,11 @@ impl Evaluation {
     fn edge_frame(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::edge_frame(&self.inner, node.0, &name)
+        pncad::select::edge_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1561,11 +1566,11 @@ impl Evaluation {
     fn vertex_position(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<(Length, Length, Length)> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::vertex_position(&self.inner, node.0, &name)
+        pncad::select::vertex_position(&self.inner, node.at(), &name)
             .map(lengths)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1591,11 +1596,11 @@ impl Evaluation {
     fn face_carrier_kind(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::select::SurfaceKind> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::face_carrier_kind(&self.inner, node.0, &name)
+        pncad::select::face_carrier_kind(&self.inner, node.at(), &name)
             .map(super::select::surface_kind)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1614,11 +1619,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: &NodeId,
+        node: super::doc::AtArg,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
         let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.0, &name)
+        pncad::select::denotation(&self.inner, node.at(), &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1627,8 +1632,8 @@ impl Evaluation {
     /// the question every consumer that keeps names must ask on every
     /// run, and the one Python's whole store-then-reuse story runs on.
     ///
-    /// Answers a `Resolution`, never a raise: "this name is gone" is
-    /// a verdict, not an error, and the three states are kept three
+    /// Answers a `Resolution`: "this name is gone" is a verdict, not
+    /// an error, and the three states are kept three
     /// because their repairs differ. `resolved` carries `node`, `body`
     /// and `kind`; `failed` means rebind (with `offers` as the
     /// kernel's suggestions, never its substitutions); `indeterminate`
@@ -1636,29 +1641,71 @@ impl Evaluation {
     /// failed, was poisoned or never evaluated, so the repair is
     /// upstream and the name resolves again when that node does.
     ///
-    /// **Evaluation-wide**, where `denotation` is node-scoped: this
-    /// searches every table in evaluation order and answers WHICH node
-    /// carries the name, so it resolves for a name `denotation` would
-    /// refuse `no_such_name` for at the node you happened to ask.
+    /// **In one read**, as every name door is (NAMES N1: a name tells
+    /// apart only what its variable holds): `at` is a `Var` — an
+    /// output, `Doc.output(split, port)` for a split's half — or a node,
+    /// read at its one body output. A `Var` the document no longer
+    /// holds answers `failed` / `read_gone`: re-site the reference. A
+    /// node the document no longer holds answers `node_gone` for a
+    /// name it minted, and otherwise raises `SelectRefusal`
+    /// `node_not_held`: the node took its read with it, and a node
+    /// handle cannot say which read that was. A `Var` that is no body
+    /// output (a scalar, a selection, a datum's) raises `SelectRefusal`
+    /// `read_not_an_output`: there is no table to ask. A node with
+    /// several body outputs is a `ValueError`, since which one is meant
+    /// is the caller's to say.
     ///
-    /// The only raise here is the boundary one every name-taking door
+    /// The other raise is the boundary one every name-taking door
     /// shares: text that is not a name at all is a `ValueError`. A
     /// well-formed name that denotes nothing is the `failed` verdict,
     /// which is the whole point of the door.
-    fn resolve(&self, py: Python<'_>, name: &str) -> PyResult<super::resolve::Resolution> {
+    fn resolve(
+        &self,
+        py: Python<'_>,
+        at: super::doc::AtArg,
+        name: &str,
+    ) -> PyResult<super::resolve::Resolution> {
         let name = super::doc::name_from_text(name)?;
-        super::resolve::resolution(
-            py,
-            &pncad::select::resolve(
-                pncad::select::RunCtx {
-                    doc: &self.doc,
-                    eval: &self.inner,
-                },
-                &name,
-            ),
-            &self.doc,
-            &self.inner,
+        let read = match at {
+            super::doc::AtArg::Var(var) => var.0,
+            // A node named alone is its one named output, as in every
+            // name door (`Evaluation::at_var`): a revolve's body beside
+            // its axis; a split's two halves are no one read. A node with
+            // no value this run is read at its one output, if it has one,
+            // and answers its standing.
+            super::doc::AtArg::Node(node) => match self
+                .inner
+                .at_var(node.0)
+                .or_else(|| self.doc.read_of_node(node.0))
+            {
+                Some(read) => read,
+                None => {
+                    match pncad::select::stranded_at(&self.doc, node.0, &name) {
+                        Some(Ok(gone)) => {
+                            return super::resolve::resolution(py, &gone, &self.doc, &self.inner);
+                        }
+                        Some(Err(refusal)) => {
+                            return Err(super::select::resolve_refusal(py, &refusal, &self.doc));
+                        }
+                        None => {}
+                    }
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "{} defines several outputs; resolve in one of them, by `Doc.output`",
+                        self.doc.spoken(node.0)
+                    )));
+                }
+            },
+        };
+        let resolution = pncad::select::resolve(
+            pncad::select::RunCtx {
+                doc: &self.doc,
+                eval: &self.inner,
+            },
+            read,
+            &name,
         )
+        .map_err(|refusal| super::select::resolve_refusal(py, &refusal, &self.doc))?;
+        super::resolve::resolution(py, &resolution, &self.doc, &self.inner)
     }
 
     /// **What is under this ray?** — the nearest face hit across

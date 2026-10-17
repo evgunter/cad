@@ -1808,9 +1808,145 @@ pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// The name table `id` published, or a panic naming what it did
 /// instead.
 pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
+    ev.table_at(id)
+        .unwrap_or_else(|| panic!("node {id:?} has no one table: {:?}", ev.nodes.get(&id)))
+}
+
+/// **The read `name` is read in where it was minted**: the one named
+/// output of its minting node as the evaluation reads it, else as the
+/// document defines it (a node with no value in the run), NAMES N1: a
+/// name is resolved in the read that holds its body.
+///
+/// # Panics
+///
+/// If the minting node is the document's and neither names one read
+/// for it (a split, whose halves are two): the row names its read.
+/// A node the document no longer holds has no read left, and reads in
+/// a variable no document defines.
+pub fn at_mint<T: geom_core::Decide>(
+    ctx: editor_core::RunCtx<'_, T>,
+    name: &StableName,
+) -> editor_core::VarId {
+    ctx.eval
+        .at_var(name.node)
+        .or_else(|| ctx.doc.read_of_node(name.node))
+        .unwrap_or_else(|| {
+            assert!(
+                ctx.doc.node(name.node).is_none(),
+                "{:?} has no one read: the row names the read {name:?} is read in",
+                name.node
+            );
+            editor_core::VarId::new(0, 0)
+        })
+}
+
+/// [`editor_core::resolve`] in the read `name` was minted in
+/// ([`at_mint`]): the row's site when it is about a name where its own
+/// node published it. A name whose minting node the document no longer
+/// holds is stranded with it ([`editor_core::stranded_at`]: `NodeGone`).
+///
+/// # Panics
+///
+/// If the door refuses the read: [`at_mint`] names a body output.
+pub fn resolve_at_mint<T: geom_core::Decide>(
+    ctx: editor_core::RunCtx<'_, T>,
+    name: &StableName,
+) -> editor_core::Resolution {
+    if let Some(gone) = editor_core::stranded_at(ctx.doc, name.node, name) {
+        return gone.expect("a name minted at a gone node is NodeGone");
+    }
+    editor_core::resolve(ctx, at_mint(ctx, name), name).expect("the mint's read holds a body")
+}
+
+/// [`editor_core::resolve_with_prior`] in the read `name` was minted in
+/// ([`at_mint`], in the new document); [`resolve_at_mint`]'s stranded
+/// case alike.
+///
+/// # Panics
+///
+/// [`resolve_at_mint`]'s.
+pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
+    new: editor_core::RunCtx<'_, T>,
+    prior: editor_core::RunCtx<'_, U>,
+    name: &StableName,
+) -> editor_core::Resolution {
+    if let Some(gone) = editor_core::stranded_at(new.doc, name.node, name) {
+        return gone.expect("a name minted at a gone node is NodeGone");
+    }
+    editor_core::resolve_with_prior(new, prior, at_mint(new, name), name)
+        .expect("the mint's read holds a body")
+}
+
+/// **The body read an appearance entry on `name` is read in**, for a
+/// row that paints a name where it was minted (NAMES N1: an entry is
+/// keyed by its body read and its name): the read an entry the store
+/// already holds on `name` is in, else the one output of the node that
+/// minted it. A name with neither — its node gone or with several
+/// outputs, and nothing painted on it — reads in a variable no document
+/// defines: a row about a refusal the door raises before it reads the
+/// body.
+///
+/// # Panics
+///
+/// If the store holds `name` under two reads: which one a row means is
+/// the row's to say, by reading `doc.appearance_of(read, name)` itself.
+pub fn painted_in(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
+    let mut held = doc.appearance().keys().filter(|key| key.name == *name);
+    let first = held.next().map(|key| key.at);
+    if let Some(second) = held.next() {
+        panic!(
+            "{name:?} is painted in two reads ({:?} and {:?}): the row names its read",
+            first, second.at
+        );
+    }
+    first
+        .or_else(|| doc.read_of_node(name.node))
+        .unwrap_or(editor_core::VarId::new(0, 0))
+}
+
+/// **The appearance record on `name`, read where it was minted** —
+/// [`painted_in`]'s entry.
+///
+/// # Panics
+///
+/// If the record is held on a read the document no longer defines: a
+/// key whose read went is a stranded key whatever its name says, and a
+/// row asking for a live paint must not find one there. A row about a
+/// stranded record reads it with `doc.appearance_of` directly.
+pub fn painted<'a>(
+    doc: &'a ProfileDoc,
+    name: &StableName,
+) -> Option<&'a editor_core::AppearanceRecord> {
+    let read = painted_in(doc, name);
+    let record = doc.appearance_of(read, name);
+    assert!(
+        record.is_none() || doc.operation_of(read).is_some(),
+        "{name:?} is painted in {read:?}, which no node of the document defines"
+    );
+    record
+}
+
+/// **The name table of `split`'s half `half`** — the read of its port
+/// (NAMES N1: each half its own table, its body that table's body 0).
+pub fn half(ev: &Evaluation<f64>, split: RecipeNodeId, half: editor_core::SplitHalf) -> &NameTable {
+    ev.output_var(split, half.port())
+        .and_then(|var| ev.table(var))
+        .unwrap_or_else(|| {
+            panic!(
+                "split {split:?} has no {half:?} table: {:?}",
+                ev.nodes.get(&split)
+            )
+        })
+}
+
+/// **Every name table `id`'s outputs carry**, in port order (NAMES N1:
+/// one per output variable, a split's two halves two) — empty for a
+/// node with no value.
+pub fn tables<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Vec<&NameTable> {
+    ev.named_outputs(id)
+        .into_iter()
+        .filter_map(|var| ev.table(var))
+        .collect()
 }
 
 /// The one entity a name answers to — the row's loud end when a mint
@@ -2238,11 +2374,8 @@ pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f
 /// face carried through untouched booleans before being merged again
 /// is nesting exactly as a bare one is.
 pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
-    for (id, result) in &ev.nodes {
-        let editor_core::NodeResult::Ok(value) = result else {
-            continue;
-        };
-        for (name, _) in value.name_table.iter() {
+    for id in ev.nodes.keys() {
+        for (name, _) in tables(ev, *id).into_iter().flat_map(NameTable::iter) {
             let nested = merged_sets(name)
                 .into_iter()
                 .flat_map(|set| set.iter())
@@ -2348,7 +2481,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::RevolveCap(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
+        | RoleSeg::SplitBody
         | RoleSeg::SectionFace { .. }
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => Vec::new(),

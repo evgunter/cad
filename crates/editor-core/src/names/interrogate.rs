@@ -111,6 +111,13 @@ pub enum InterrogateError {
         /// The index the name carries.
         index: u32,
     },
+    /// The node was named alone and defines several outputs that carry
+    /// names (a split's two halves): a name is scoped by the variable
+    /// that holds its body (NAMES N1), so the read names the output.
+    SeveralOutputs {
+        /// The node named.
+        node: RecipeNodeId,
+    },
     /// The geometry read itself refused — see [`ReadbackError`].
     Readback(
         /// The kernel-side refusal, unaltered.
@@ -165,6 +172,12 @@ impl crate::spoken::Say for InterrogateError {
                  value does not have — the emission and the value disagree, so this is a kernel \
                  bug"
             ),
+            Self::SeveralOutputs { node } => write!(
+                f,
+                "{} defines several outputs, each with names of its own — read one by its \
+                 output (a split's half by its port)",
+                by.node(*node)
+            ),
             Self::Readback(error) => write!(f, "{error}"),
         }
     }
@@ -210,10 +223,10 @@ impl From<ReadbackError> for InterrogateError {
 /// The node's standing ([`InterrogateError::Standing`]) and [`InterrogateError::NoSuchName`].
 pub fn denotation<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<Denotation, InterrogateError> {
-    match ev.usable(node)?.name_table.lookup(name) {
+    match table_at(ev, at)?.1.lookup(name) {
         None => Err(InterrogateError::NoSuchName),
         Some(Entry::Unique(_)) => Ok(Denotation::Unique),
         Some(Entry::Tied(candidates)) => Ok(Denotation::Tied {
@@ -240,10 +253,10 @@ pub fn denotation<T: Decide>(
 /// tied ([`key_in`]).
 pub fn face_frame<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    read(ev, node, name, readback::face_pose)
+    read(ev, at.into(), name, readback::face_pose)
 }
 
 /// **What kind of carrier is the face I selected?** — the named
@@ -262,10 +275,10 @@ pub fn face_frame<T: Decide>(
 /// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn face_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<SurfaceKind, InterrogateError> {
-    read(ev, node, name, readback::face_carrier_kind)
+    read(ev, at.into(), name, readback::face_carrier_kind)
 }
 
 /// **Where is the edge I selected?** — the named edge's certified
@@ -277,10 +290,10 @@ pub fn face_carrier_kind<T: Decide>(
 /// As [`face_frame`], with `WrongKind` for a non-edge name.
 pub fn edge_frame<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    read(ev, node, name, readback::edge_pose)
+    read(ev, at.into(), name, readback::edge_pose)
 }
 
 /// **What kind of carrier is the edge I selected?** — the named
@@ -302,10 +315,10 @@ pub fn edge_frame<T: Decide>(
 /// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn edge_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<CurveKind, InterrogateError> {
-    read(ev, node, name, readback::edge_carrier_kind)
+    read(ev, at.into(), name, readback::edge_carrier_kind)
 }
 
 /// **Where is the vertex I selected?** — the named vertex's stored
@@ -316,10 +329,10 @@ pub fn edge_carrier_kind<T: Decide>(
 /// As [`face_frame`], with `WrongKind` for a non-vertex name.
 pub fn vertex_position<T: Decide>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: impl Into<crate::At>,
     name: &StableName,
 ) -> Result<geom_core::Point3<T>, InterrogateError> {
-    read(ev, node, name, readback::vertex_point)
+    read(ev, at.into(), name, readback::vertex_point)
 }
 
 /// **Where an entity IS**, in ONE point, for any entity kind — the
@@ -381,14 +394,38 @@ pub(crate) fn entity_point<T: Decide>(
 /// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
 fn read<T: Decide, K: Denoted, R>(
     ev: &Evaluation<T>,
-    node: RecipeNodeId,
+    at: crate::At,
     name: &StableName,
     door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
 ) -> Result<R, InterrogateError> {
-    let value = ev.usable(node)?;
-    let (index, key) =
-        key_in::<K>(&value.name_table, name).map_err(|refusal| refusal.at(K::KIND))?;
-    Ok(door(output_body(&value.payload, index)?, key)?)
+    let (var, table) = table_at(ev, at)?;
+    let (index, key) = key_in::<K>(table, name).map_err(|refusal| refusal.at(K::KIND))?;
+    Ok(door(ev.read_body(var, index)??, key)?)
+}
+
+/// **The table `at` names, and its variable** — the readers' one way
+/// to a table ([`Evaluation::table`]).
+///
+/// # Errors
+///
+/// The node's standing; [`InterrogateError::SeveralOutputs`] for a node
+/// named alone whose outputs carry names apart; `NoSuchName` for a read
+/// no output of the evaluated document defines.
+pub(crate) fn table_at<T: Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+) -> Result<(crate::VarId, &super::NameTable), InterrogateError> {
+    let at = at.into();
+    let node = match at {
+        crate::At::Node(node) => node,
+        crate::At::Read(var) => ev.read_port(var).ok_or(InterrogateError::NoSuchName)?.0,
+    };
+    ev.usable(node)?;
+    let var = ev
+        .at_var(at)
+        .ok_or(InterrogateError::SeveralOutputs { node })?;
+    let table = ev.table(var).ok_or(InterrogateError::NoSuchName)?;
+    Ok((var, table))
 }
 
 /// **What a name table answers a read door, where it answers no key**

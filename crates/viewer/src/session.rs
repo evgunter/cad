@@ -68,7 +68,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::Resolution;
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -999,11 +999,11 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self.entity_resolution(&face.name),
+                resolution: self.entity_resolution(face.node, face.body, &face.name),
             },
             Selection::Edge(edge) => Standing::Edge {
                 edge: edge.clone(),
-                resolution: self.entity_resolution(&edge.name),
+                resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
             },
         }
     }
@@ -1036,13 +1036,14 @@ impl DocSession {
     /// `resolve` door, asked once and spelled once for both entity
     /// kinds, with the node it waits on named as the feature tree
     /// names it ([`crate::tree::resolution_as_drawn`]).
-    fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair().map(|(doc, eval)| {
-            Box::new(crate::tree::resolution_as_drawn(
-                resolve(RunCtx { doc, eval }, name),
-                eval,
-            ))
-        })
+    fn entity_resolution(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+        name: &StableName,
+    ) -> Option<Box<Resolution>> {
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(crate::tree::pick_resolution(doc, eval, node, body, name)))
     }
 
     /// The most recent evaluation that answered the current document.

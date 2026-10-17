@@ -223,8 +223,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
 
     let mut all: Vec<String> = Vec::new();
     for id in [solid, hollow, twin] {
-        let v = ev.value(id).expect("a value");
-        for (name, _) in v.name_table.iter() {
+        for (name, _) in ev.table_at(id).expect("a value").iter() {
             all.push(format!("{name:?}"));
         }
     }
@@ -242,11 +241,11 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
 
     // Two IDENTICAL tubes must still be told apart: the discrimination
     // is the minting node, which is what the template already carries.
-    let a = ev.value(solid).expect("solid");
-    let b = ev.value(twin).expect("twin");
+    let a = ev.table_at(solid).expect("solid");
+    let b = ev.table_at(twin).expect("twin");
     assert_eq!(
-        a.name_table.len(),
-        b.name_table.len(),
+        a.len(),
+        b.len(),
         "identical tubes name the same number of entities"
     );
     // And STABILITY: a second evaluation of the same document mints
@@ -254,16 +253,14 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
     let ev2 = eval::<f64>(&doc);
     for id in [solid, hollow, twin] {
         let n1: Vec<String> = ev
-            .value(id)
+            .table_at(id)
             .expect("v")
-            .name_table
             .iter()
             .map(|(n, _)| format!("{n:?}"))
             .collect();
         let n2: Vec<String> = ev2
-            .value(id)
+            .table_at(id)
             .expect("v")
-            .name_table
             .iter()
             .map(|(n, _)| format!("{n:?}"))
             .collect();
@@ -299,13 +296,9 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
     let body = body_of(&ev, tube);
     assert_eq!(body.shells().count(), 2, "an outer shell and a cavity");
     let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
-    let v = ev.value(tube).expect("a value");
-    assert_eq!(
-        v.name_table.len(),
-        entities,
-        "every cavity entity must be named too"
-    );
-    let mut names: Vec<String> = v.name_table.iter().map(|(n, _)| format!("{n:?}")).collect();
+    let v = ev.table_at(tube).expect("a value");
+    assert_eq!(v.len(), entities, "every cavity entity must be named too");
+    let mut names: Vec<String> = v.iter().map(|(n, _)| format!("{n:?}")).collect();
     let total = names.len();
     names.sort();
     names.dedup();

@@ -47,6 +47,13 @@ use editor_core::Node;
 /// ordinals by two where the datum and its frame read went — and every
 /// row naming them; every other row held its word, and the ids-masked
 /// geometry fence held. Taken merged over FORK-DM4 unit 1 (PR 4527).
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `part_select`'s row alone. Its union declares the
+/// rest between the split's halves by the section face, which no longer
+/// spells the half, so the union and every node minted after it took
+/// new ids; the transform's word hashes its id. The id-masked geometry
+/// fence held.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 206, 0x1d1f8e2cc2c77841),
     ("die", 217, 0x3785f6c2ba33c653),

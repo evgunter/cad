@@ -36,7 +36,9 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{DocParamField, ExpansionFault, FreeVar, VarName, VarReadFault, WitnessSiteFault};
+use crate::doc::{
+    DocParamField, ExpansionFault, FreeVar, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
+};
 use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
@@ -1007,10 +1009,10 @@ fn first_non_finite(
     // door already refuses non-finite, and the frame's own components
     // are `Expr`s under the same door. There is no float left for this
     // walk to find.
-    for (name, rec) in &snapshot.appearance {
+    for (at, rec) in &snapshot.appearance {
         if let Some((key, path)) = record_non_finite(rec) {
             return Some(NonFiniteSite::Metadata {
-                name: snapshot.spoken_name(name),
+                name: snapshot.spoken_name(&at.name),
                 key,
                 path,
             });
@@ -1104,7 +1106,12 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
             var: var.clone(),
             field: DocParamField::Offset(d.first_non_finite()?),
         }),
-        DocEdit::SetAppearanceMeta { name, key, value } => {
+        DocEdit::SetAppearanceMeta {
+            body: _,
+            name,
+            key,
+            value,
+        } => {
             value
                 .first_non_finite()
                 .map(|path| NonFiniteSite::Metadata {
@@ -1293,6 +1300,17 @@ pub enum SnapshotError {
         /// The name.
         name: SpokenName,
         /// The read it carries.
+        read: VarId,
+    },
+    /// An appearance entry is read in a variable the document holds
+    /// live that is no output holding a body — a scalar, a selection,
+    /// a datum's output — so no table names what it holds. No edit
+    /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
+    /// operation's read, the stranded key, is legal.
+    AppearanceReadNotABody {
+        /// The entry's name.
+        name: SpokenName,
+        /// The read it is keyed by.
         read: VarId,
     },
     /// A name the document holds spells a profile step its mint log
@@ -1692,6 +1710,12 @@ impl core::fmt::Display for SnapshotError {
                 "{name} carries the read {read}, which the document's mint log does not hold \
                  as a variable's — the document never minted it",
             ),
+            Self::AppearanceReadNotABody { name, read } => write!(
+                f,
+                "an appearance entry on {name} is read in {read}, which the document holds as \
+                 no output holding a body, so no table names what it holds. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
                 "{name} spells the profile step id {step}, which the document's mint log \
@@ -2083,11 +2107,25 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // And every read it carries, against the mint log: the entity
         // derives from that input, and a read is an id no embedded name
         // states.
+        // An appearance key's body read is one too (NAMES N1, the scope).
+        let body = match carrier {
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Payload { .. } | NameCarrier::Select { .. } => None,
+        };
         if let Some(read) = derivation_reads(carrier.name())
             .into_iter()
+            .chain(body)
             .find(|r| !doc.mint.has_var(*r))
         {
             return Err(SnapshotError::NameReadNotMinted {
+                name: doc.spoken_name(carrier.name()),
+                read,
+            });
+        }
+        // An appearance key's read, while the document holds it, holds
+        // a body: what the edit door admits (NAMES N1).
+        if let Some(read) = body.filter(|&r| doc.var(r).is_some() && !doc.holds_body(r)) {
+            return Err(SnapshotError::AppearanceReadNotABody {
                 name: doc.spoken_name(carrier.name()),
                 read,
             });
@@ -2147,11 +2185,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // shared is the walk, irreducibly: the edit door holds the one
     // value it is about to write, and this door holds a map that
     // arrived whole. A walk over one value is not a walk.
-    for (name, rec) in &doc.appearance {
+    for (at, rec) in &doc.appearance {
         for (key, value) in &rec.metadata {
             if let Err(error) = value.require_versioned() {
                 return Err(SnapshotError::MetadataUnversioned {
-                    name: doc.spoken_name(name),
+                    name: doc.spoken_name(&at.name),
                     key: key.clone(),
                     error,
                 });
@@ -2335,6 +2373,7 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameReadNotMinted,
+            AppearanceReadNotABody,
             NameStepNotMinted,
             OperandUnminted,
             SelectionShape,
@@ -2415,6 +2454,7 @@ mod tests {
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
+            | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::ReadCycle { .. }
             | SnapshotError::WitnessSite { .. }
@@ -2475,6 +2515,10 @@ mod tests {
                 entry: crate::Minted::Step(crate::node::StepId::new(0, 3)),
             },
             SnapshotError::NameReadNotMinted {
+                name: crate::SpokenName::absent(face()),
+                read: crate::VarId::new(0, 9),
+            },
+            SnapshotError::AppearanceReadNotABody {
                 name: crate::SpokenName::absent(face()),
                 read: crate::VarId::new(0, 9),
             },
@@ -2910,7 +2954,10 @@ mod tests {
         record
             .metadata
             .insert("swatch".to_owned(), crate::meta::MetaValue::Float(f64::NAN));
-        doc.appearance.insert(name.clone(), record);
+        doc.appearance.insert(
+            crate::appearance::AppearanceKey::new(crate::VarId::new(0, 1), name.clone()),
+            record,
+        );
         match save(&doc, &[], tol) {
             Err(e @ PersistError::NonFinite { .. }) => {
                 let PersistError::NonFinite {
@@ -2972,7 +3019,10 @@ mod tests {
             "the empty document has minted nothing"
         );
         doc.appearance.insert(
-            rv_name(7, crate::names::EntityKind::Face),
+            crate::appearance::AppearanceKey::new(
+                crate::VarId::new(0, 1),
+                rv_name(7, crate::names::EntityKind::Face),
+            ),
             crate::appearance::AppearanceRecord::default(),
         );
         match save(&doc, &[], Tol::witness()) {
