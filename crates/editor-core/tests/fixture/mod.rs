@@ -1475,10 +1475,6 @@ impl Recorder {
                 fresh: Vec::new(),
             })
             .expect("a placement mints its node");
-        let shape = match self.doc.node(placement) {
-            Some(Node::Place { shapes, .. }) => shapes[0].read,
-            _ => unreachable!("a placement was just inserted"),
-        };
         // The pin [`pin`] writes, so a copy that does not evaluate is
         // placed by its fallback too.
         let mate = pin_mate(

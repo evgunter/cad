@@ -803,36 +803,6 @@ fn inline_at_a_pose_over_plain_geometry_moves_nothing() {
     same_bounds(before, after, "nothing moved");
 }
 
-/// **Every seated copy pinned to the world where it is solved**: each
-/// placement whose bundle does not read the world gets its bundle — its
-/// values first, then its mates — replaced by one world pin at its
-/// solved pose.
-fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
-    let poses = solve(&doc, o, Tol::witness());
-    let placed: Vec<(RecipeNodeId, Frame)> = doc
-        .placements()
-        .into_iter()
-        .filter(|&p| !fixture::bundle(&doc, p).is_empty() && !fixture::on_world(&doc, p))
-        .filter_map(|p| Some((p, poses.placement(&doc, p).ok()?)))
-        .collect();
-    placed.into_iter().fold(doc, |doc, (placement, frame)| {
-        let doc = fixture::bundle(&doc, placement)
-            .into_iter()
-            .rev()
-            .fold(doc, |doc, c| {
-                step(
-                    doc,
-                    DocEdit::RemoveConstraint {
-                        placement,
-                        constraint: c.id,
-                    },
-                )
-                .0
-            });
-        fixture::pin(doc, placement, &frame, o)
-    })
-}
-
 /// **`InlineError::UnplaceablePart`'s recourse, followed, inlines**: a
 /// top mated onto a base is placed by its mate, and its part is no one
 /// instance at the identity that could take that bundle, so inline
@@ -859,7 +829,7 @@ fn the_unplaceable_part_recourse_followed_inlines_in_place() {
         other => panic!("a mate-placed instance refuses typed: {other:?}"),
     }
     let before = world_bounds(&doc, &run(&doc, &o));
-    let doc = pinned_where_solved(doc, &o);
+    let doc = fixture::pinned_where_solved(doc, &o);
     assert!(fixture::offset_of(&doc, top).is_some(), "the top is pinned");
     let out = editor_core::inline(&doc, top, &resolver, Tol::witness())
         .expect("the recourse followed, inline admits it");

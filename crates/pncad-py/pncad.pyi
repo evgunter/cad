@@ -3875,6 +3875,16 @@ class Doc:
         `resolver` is the seam the door reads parts through, as
         `apply`'s."""
 
+    def remove_mate(self, mate: MateRef) -> list[MateRef]:
+        """Remove `mate` and every value that names it as one action:
+        each value's removal in bundle order, then the mate's, all
+        applied or none; answers the removed values' addresses. A mate
+        no value names is removed alone. `DocEdit.remove_constraint`
+        stays the raw edit, which refuses a mate a value names
+        (`mate_named_by_value`). Raises `EditError`: `unknown_node`,
+        `constraint_on_non_placement`, `unknown_constraint` (no such
+        id, or the id is a value's)."""
+
     def add_value(self, mate: MateRef, coord: Coord, by: _SlotArg) -> MateRef:
         """Set one freedom `mate` leaves to `by`, and answer the value's
         address: `apply` of `DocEdit.add_value` on `mate`'s placement.

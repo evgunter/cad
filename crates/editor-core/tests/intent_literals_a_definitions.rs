@@ -1009,7 +1009,7 @@ fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    let (part, body) = block(part, 0.0, named("h"));
+    let (part, [_, _, body]) = block(part, 0.0, named("h"));
     let part = crate::fixture::place(part, body).0;
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());

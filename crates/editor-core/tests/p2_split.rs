@@ -399,46 +399,62 @@ fn s3_a_cut_placement_reading_a_kept_copy_refuses_severed_edge() {
 
 // ---- S5: a kept mate reading the cut ----
 
-/// **A kept mate reading a cut instance's face crosses wherever that
-/// instance stands** (A4): the cut holds a base pinned at the identity
-/// and one pinned at `[8, 0, 0]`. A kept top seated on either crosses —
-/// its target written afresh over the instance's copies — and stands
-/// where it stood, since the instance's copies stand where the cut's did.
+/// **A kept mate reading a cut instance's face crosses where that
+/// instance stands at the identity** (A4): the cut holds a base pinned
+/// at the identity and one pinned at `[8, 0, 0]`. A kept top seated on
+/// the base at the identity crosses — its target written afresh over the
+/// instance's copies — and stands where it stood. Seated on the shifted
+/// base it refuses `RemainderReadUncarried` naming that base as posed:
+/// the seat's values are charted on its target body's frame, which
+/// would become the instance's, the part's world, so the top would move.
 ///
-/// *Breaks if* a kept mate onto a cut copy off the identity refuses, or
-/// its target keeps reading the cut node, or the top moves.
+/// *Breaks if* the crossing keeps reading the cut node or moves the top,
+/// or the values of a seat on a copy off the identity are carried over
+/// onto the instance's frame.
 #[test]
-fn s5_a_kept_mate_reading_a_cut_instance_crosses_wherever_it_stands() {
+fn s5_a_kept_mate_reading_a_cut_instance_crosses_only_at_the_identity() {
     let p = parts("s5-frame");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s5-frame"), Tol::witness());
     let (doc, shifted) = pinned_at(doc, p.base, [8.0, 0.0, 0.0], &o);
     let (doc, at_identity) = instance(doc, p.base, &o);
     let (doc, kept) = insert(doc, fixture::mated_instance(p.top));
-    for (base, what) in [(at_identity, "at the identity"), (shifted, "off the identity")] {
-        let (mated, _) = seated(
+    let seat_on = |base: RecipeNodeId| {
+        seated(
             doc.clone(),
             kept,
             head(p.top_cap(kept)),
             head(p.base_cap(base)),
-        );
-        let before = min_corner(&body_of(&run(&mated, &o), kept));
-        let out = split(&mated, &[shifted, at_identity], "s5-frame", &o)
-            .unwrap_or_else(|e| panic!("{what}: the kept mate crosses: {e}"));
-        let carried = only_constraint(&out.remainder, kept);
-        let [select] = fixture::face_reads(&out.remainder, target_of(&carried))[..] else {
-            panic!("{what}: the target reads one face")
-        };
-        assert_eq!(
-            out.remainder.selection(select).map(|s| s.body),
-            out.remainder.output(out.instance, 0),
-            "{what}: the kept mate's target reads the instance's copies"
-        );
-        let mut store = p.store.clone();
-        store.insert(out.part.clone(), Tol::witness());
-        let after = min_corner(&body_of(&run(&out.remainder, &with_resolver(store)), kept));
-        crate::p2_gauges::close(before, after, &format!("{what}: the top is where it was"));
-    }
+        )
+        .0
+    };
+
+    let mated = seat_on(at_identity);
+    let before = min_corner(&body_of(&run(&mated, &o), kept));
+    let out = split(&mated, &[shifted, at_identity], "s5-frame", &o)
+        .unwrap_or_else(|e| panic!("the kept mate crosses: {e}"));
+    let carried = only_constraint(&out.remainder, kept);
+    let [select] = fixture::face_reads(&out.remainder, target_of(&carried))[..] else {
+        panic!("the target reads one face")
+    };
+    assert_eq!(
+        out.remainder.selection(select).map(|s| s.body),
+        out.remainder.output(out.instance, 0),
+        "the kept mate's target reads the instance's copies"
+    );
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let after = min_corner(&body_of(&run(&out.remainder, &with_resolver(store)), kept));
+    crate::p2_gauges::close(before, after, "the top is where it was");
+
+    let err = split(&seat_on(shifted), &[shifted, at_identity], "s5-frame", &o)
+        .expect_err("a seat with values on a copy off the identity");
+    assert!(
+        matches!(&err, SplitError::RemainderReadUncarried { reader, why: Uncarried::Posed { placement } }
+            if reader.id() == kept && placement.id() == shifted),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 // ---- I1–I3: inline at a pose ----
