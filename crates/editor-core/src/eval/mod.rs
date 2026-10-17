@@ -3722,6 +3722,27 @@ pub fn bound_pose<T: EvalScalar>(
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
+/// **A pose read bound against an evaluation, with no reader seat**
+/// — a report's read of a pose variable ([`crate::mate::unobservable`]).
+pub(crate) fn read_pose_in<T: EvalScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    read: crate::pose::RoleRead<crate::VarId>,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
+}
+
+/// **A mate's world read bound at an evaluation's parameters**
+/// ([`read_pose_in`]'s twin for the world).
+pub(crate) fn world_pose_in<T: EvalScalar>(
+    world: &crate::mate::WorldRead,
+    ev: &Evaluation<T>,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    wire::pose::eval_world(world, &ev.env, wire::band(tol)?)
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.

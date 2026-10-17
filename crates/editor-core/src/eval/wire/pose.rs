@@ -100,6 +100,36 @@ pub(crate) fn eval_pose<T: Decide>(
     Ok(through(value, read.role))
 }
 
+/// **A pose read bound against an evaluation's results**, with no
+/// reader seat: what a report over the document's pose variables reads
+/// ([`crate::mate::unobservable`]). Its refusals name no seat a reader
+/// holds, so it is for reports, never for an op.
+pub(crate) fn read_pose<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: RoleRead<VarId>,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    let admits = crate::SlotKind::Pose(crate::pose::PoseAdmits::Any);
+    let value = eval_pose_as(
+        doc,
+        results,
+        OperandSlot::Frame,
+        admits,
+        read.read,
+        env,
+        tol,
+    )?;
+    Ok(match read.role {
+        None => value,
+        Some(role) => role.read(&value).ok_or(NodeErrorKind::UnresolvedRead {
+            slot: OperandSlot::Frame,
+            var: read.read,
+        })?,
+    })
+}
+
 /// `value` read through `role`, or itself for a plain read.
 fn through<T: Decide>(value: PoseValue<T>, role: Option<crate::pose::PoseRole>) -> PoseValue<T> {
     match role {

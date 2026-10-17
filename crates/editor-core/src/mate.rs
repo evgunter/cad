@@ -48,6 +48,7 @@ pub mod member;
 pub mod pin;
 pub mod reach;
 pub mod solve;
+pub mod unobservable;
 pub(crate) mod value;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
@@ -60,6 +61,7 @@ pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
 };
+pub use unobservable::{Unobservable, unobservable};
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
 /// defined lowest). A mate's class IS a contact declaration.
@@ -1626,8 +1628,8 @@ impl crate::spoken::Say for MateFault {
             }
             Self::KindsDiffer { mate, on, to } => write!(
                 f,
-                "{} equates a {} with a {}; a mate's two poses are of one kind, which is its \
-                 primitive. Recourse: read both poses as one kind, through a role where one \
+                "{} equates an `on` pose of kind {} with a `to` pose of kind {}; a mate's two \
+                 poses are of one kind, which is its primitive. Recourse: read both poses as one kind, through a role where one \
                  is finer",
                 mate_(*mate),
                 on,

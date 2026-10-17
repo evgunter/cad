@@ -1799,3 +1799,33 @@ pub(crate) fn after_slide<T: SolveScalar>(
         | Subgroup::Empty => None,
     })
 }
+
+/// **Whether two directions are parallel**, decided over `arm`
+/// ([`parallel`]'s verdict as a yes or no).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn directions_parallel<T: SolveScalar>(
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(parallel(u, v, band, arm)?.is_none())
+}
+
+/// **Whether `p` lies on the line through `origin` along `direction`**
+/// ([`point_on_line`]).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn on_the_line<T: SolveScalar>(
+    p: Point3<T>,
+    origin: Point3<T>,
+    direction: UnitVec3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    point_on_line(p, origin, direction, band)
+}

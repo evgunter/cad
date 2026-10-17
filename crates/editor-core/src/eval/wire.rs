@@ -1166,7 +1166,7 @@ fn placeable_operand<T: Decide>(
 }
 
 /// The linear classification band (kernel-ambient tolerance).
-fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
+pub(crate) fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
