@@ -653,12 +653,20 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
 /// 468 → 428; forms and digests move with them, and freezes and the
 /// largest form hold.
+///
+/// A winding read as its slope through the chart channel's `Period`
+/// (`Period::rate`: `times(k)` over the carrier's period, PCERT B2a's
+/// fix pass, H1) rather than as a literal: each angle channel's slope
+/// is a quotient of two forms, so `Plain/Decision`, `Plain/Assertion`,
+/// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
+/// +10, with every digest; every call, every freeze and the largest
+/// form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 939 forms 15833 frozen 324 digest d7bf10b19c3eda6c659296e78197c5d8\n\
-     Plain/Assertion calls 686 forms 6926 frozen 405 digest 452e016459fe426dc99cbd2cfd74b7cc\n\
-     Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
-     Early/Assertion calls 686 forms 8088 frozen 0 digest 79b94810d3ef70bcb6dbf1ae122ceeb3\n\
-     Door/Decision calls 428 forms 9439 frozen 0 digest d8cb26633aef34788aec4a825cb17f24";
+     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
+     Plain/Assertion calls 686 forms 6929 frozen 405 digest f4eab508b794c8fa5466bab18cfaf388\n\
+     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
+     Early/Assertion calls 686 forms 8091 frozen 0 digest 55a241ec64a4df4b84710196223b9787\n\
+     Door/Decision calls 428 forms 9449 frozen 0 digest eef14bd5c5ea310695b80bac99dc3da5";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

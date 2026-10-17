@@ -318,20 +318,8 @@ fn moving_classes_still_windings_read_their_drift_once() {
         u_ref: Vec3::unit_x(),
     };
     for (what, surface, derivation) in [
-        (
-            "cylinder",
-            &cyl,
-            Derivation::CylinderMoving {
-                beta: Winding::Zero,
-            },
-        ),
-        (
-            "torus",
-            &torus,
-            Derivation::TorusParallel {
-                beta: Winding::Zero,
-            },
-        ),
+        ("cylinder", &cyl, Derivation::CylinderMoving { beta: 0 }),
+        ("torus", &torus, Derivation::TorusParallel { beta: 0 }),
     ] {
         let mut terms = EnvelopeTerms::new();
         incidence(form, surface, derivation, 1.0, &mut terms);

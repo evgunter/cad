@@ -739,10 +739,8 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                             major: iv(*major),
                             minor: iv(*minor),
                         },
-                        image @ Pcurve::Harmonic { .. } => {
-                            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
-                                unreachable!("a harmonic image reads as its coefficients")
-                            };
+                        Pcurve::Harmonic { u, v } => {
+                            let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
                             WallImage::Harmonic([pair(p0), vec(pa), vec(pb), vec(pl)])
                         }
                         _ => WallImage::Other,

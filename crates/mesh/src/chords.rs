@@ -394,10 +394,8 @@ fn nurbs_tighten(
                 let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
                 (pd.x.abs() * rate, pd.y.abs() * rate)
             }
-            image @ Pcurve::Harmonic { .. } => {
-                let Some((_, pa, pb, pl)) = image.harmonic_form() else {
-                    unreachable!("a harmonic image reads as its coefficients")
-                };
+            Pcurve::Harmonic { u, v } => {
+                let (_, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
                 (
                     pa.x.abs() + pb.x.abs() + pl.x.abs(),
                     pa.y.abs() + pb.y.abs() + pl.y.abs(),

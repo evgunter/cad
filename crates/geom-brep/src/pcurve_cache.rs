@@ -123,27 +123,31 @@
 //! the rest (this module's `a_corrupted_pcurve_fails_typed` and
 //! `the_envelope_dominates_a_dense_resampling` rows).
 //!
-//! One boundary on that corollary, because the trilean has a band:
-//! certification admits an **ε-shell around the family** (the winding
-//! decision classifies `|pl.x − β|·r ≤ ε` as Zero), and a pcurve in
-//! that shell is not exactly of the four-coefficient shape. The
-//! envelope's fidelity term carries that drift explicitly — every
-//! coefficient's offset from the re-derived image, metered at the
-//! chart's arm — so the stored bound dominates the true sup for every
-//! input the gate admits, not merely for the exact-in-family caches
-//! the minting lane produces.
+//! One boundary on that corollary: certification admits an **ε-shell
+//! around the family** in each image's real coefficients (a phase, a
+//! free channel's four), so a pcurve in that shell is not exactly the
+//! derivation's. The envelope's fidelity term carries that drift
+//! explicitly — every coefficient's offset from the re-derived image,
+//! metered at the chart's arm — so the stored bound dominates the true
+//! sup for every input the gate admits, not merely for the
+//! exact-in-family caches the minting lane produces. An angle's
+//! windings are no part of the shell: they are integers, compared
+//! exactly ([`PcurveCertifyError::WindingMismatch`]).
 //!
 //! # Domain validity (spec §3)
 //!
 //! A row certifies against its carrier and its chart alone, on **one
 //! branch**: on a periodic chart the azimuth channel of a
-//! [`Pcurve::Harmonic`] is `α + β·t` with a *single* stored `α` and a
-//! winding `β ∈ {−1, 0, +1}`. There is no per-sample branch choice to
-//! get wrong: the M2 PR 5 meridian finding ("nearest-previous
+//! [`Pcurve::Harmonic`] is a [`Channel::Angle`], a *single* stored phase
+//! and an integer count of windings, so `phase + w·t` with `w ∈ {−1, 0,
+//! 1}` on every closed-form table. There is no per-sample branch choice
+//! to get wrong: the M2 PR 5 meridian finding ("nearest-previous
 //! per-sample unwrapping is a bug") is generalized here by making the
 //! wrong unwrap **unrepresentable** — a τ jump cannot be expressed. The
-//! one-period statement certified here is the row's own azimuth extent
-//! ([`PcurveCheck::AzimuthPeriod`]).
+//! row's azimuth spans at most one period because its carrier's
+//! interval does (the edge certificate's `interval_span_winding`,
+//! [`crate::CertifyError::WindingExceeded`]) and its windings are at
+//! most one per carrier period.
 //!
 //! No caller's window enters the certificate, and nothing here tells a
 //! row from the same row a whole period over: both certify
@@ -199,7 +203,7 @@ use crate::ssi::{SsiDecision, SsiLimb};
 pub enum Channel<T> {
     /// An angle of a periodic chart, `phase + w·t`: the image advances
     /// `w` whole periods of the chart's channel per period of its
-    /// carrier ([`Period::rate`]).
+    /// carrier ([`angle_rate`]).
     Angle {
         /// The angle at `t = 0`.
         phase: T,
@@ -237,13 +241,24 @@ impl<T: Real> Channel<T> {
 
     /// The channel's four coefficients `(c, a, b, l)` of
     /// `c + a·cos t + b·sin t + l·t`: an angle's are its phase, two
-    /// zeros and its windings' rate ([`Period::rate`]).
+    /// structural zeros and its windings' rate ([`angle_rate`]).
     pub fn coefficients(self) -> [T; 4] {
         match self {
-            Channel::Angle { phase, winding } => {
-                [phase, T::zero(), T::zero(), Period::<T>::rate(winding)]
-            }
+            Channel::Angle { phase, winding } => [phase, T::zero(), T::zero(), angle_rate(winding)],
             Channel::Free { c, a, b, l } => [c, a, b, l],
+        }
+    }
+
+    /// The channel translated by `s`: an angle's phase, a free
+    /// channel's constant. Total: a translation touches no winding.
+    #[must_use]
+    pub fn shifted(self, s: T) -> Self {
+        match self {
+            Channel::Angle { phase, winding } => Channel::Angle {
+                phase: phase + s,
+                winding,
+            },
+            Channel::Free { c, a, b, l } => Channel::Free { c: c + s, a, b, l },
         }
     }
 
@@ -257,14 +272,21 @@ impl<T: Real> Channel<T> {
 
     /// The channel under `x ↦ ±x (+ shift)` ([`AxisMap`]): an angle's
     /// windings flip with a reflection, and its phase and a free
-    /// channel's constant take the shift.
-    #[must_use]
-    pub fn mapped(self, map: AxisMap<T>) -> Self {
+    /// channel's constant take the shift. The one place a reflection
+    /// touches a winding.
+    ///
+    /// `None` where a reflection meets a count with no negation in
+    /// `i32` (`i32::MIN`): no count is invented for it.
+    pub fn mapped(self, map: AxisMap<T>) -> Option<Self> {
         let lin = |x: T| if map.flip { -x } else { x };
-        match self {
+        Some(match self {
             Channel::Angle { phase, winding } => Channel::Angle {
                 phase: map.point(phase),
-                winding: if map.flip { -winding } else { winding },
+                winding: if map.flip {
+                    winding.checked_neg()?
+                } else {
+                    winding
+                },
             },
             Channel::Free { c, a, b, l } => Channel::Free {
                 c: map.point(c),
@@ -272,8 +294,19 @@ impl<T: Real> Channel<T> {
                 b: lin(b),
                 l: lin(l),
             },
-        }
+        })
     }
+}
+
+/// **A winding as a slope**: `winding` whole periods of the chart's
+/// angle per period of its carrier, read through the two periods it is
+/// counted in ([`Period::rate`]). Every analytic chart's angle has
+/// period `τ` (the spline charts carry no harmonic image), and so does
+/// every carrier with a harmonic form (a circle, an ellipse; a line
+/// winds 0).
+pub fn angle_rate<T: Real>(winding: i32) -> T {
+    let tau = Period::new(T::tau());
+    tau.rate(winding, tau)
 }
 
 /// **One chart axis's map**, `x ↦ ±x (+ shift)`: the maps a chart's
@@ -349,6 +382,21 @@ pub struct ChartMap<T> {
 }
 
 impl<T: Real> ChartMap<T> {
+    /// The sphere chart's involution `(u, v) ↦ (u + π, π − v)`:
+    /// `S(u + π, π − v) = S(u, v)` on a sphere, so every sphere image
+    /// has this second name, its twin.
+    pub fn sphere_involution() -> Self {
+        Self {
+            u: AxisMap::shift(T::pi()),
+            v: AxisMap::reflect_about(T::pi()),
+        }
+    }
+
+    /// Whether the map reflects either axis.
+    pub fn reflects(self) -> bool {
+        self.u.flip || self.v.flip
+    }
+
     /// The map on a chart point.
     pub fn point(self, p: Point2<T>) -> Point2<T> {
         Point2::new(self.u.point(p.x), self.v.point(p.y))
@@ -358,6 +406,17 @@ impl<T: Real> ChartMap<T> {
     pub fn vector(self, d: Vec2<T>) -> Vec2<T> {
         Vec2::new(self.u.vector(d.x), self.v.vector(d.y))
     }
+}
+
+/// Why [`Pcurve::map_affine`] has no image of a row under a map.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartMapRefusal {
+    /// A reflection met a spiric wall image, which rides one sense on
+    /// both channels.
+    WallReflected,
+    /// A reflection met an angle channel whose count has no negation in
+    /// `i32`.
+    WindingUnnegatable,
 }
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
@@ -929,6 +988,20 @@ fn harmonic_span_box<T: Real>(
 /// `p0 + pa·cos t + pb·sin t + pl·t` ([`Pcurve::harmonic_form`]).
 pub type HarmonicForm<T> = (Point2<T>, Vec2<T>, Vec2<T>, Vec2<T>);
 
+/// A harmonic image's two channels read as its four coefficient
+/// vectors ([`HarmonicForm`]), channel by channel
+/// ([`Channel::coefficients`]): total, for a caller that already holds
+/// the channels of a [`Pcurve::Harmonic`].
+pub fn harmonic_form_of<T: Real>(u: Channel<T>, v: Channel<T>) -> HarmonicForm<T> {
+    let ([cu, au, bu, lu], [cv, av, bv, lv]) = (u.coefficients(), v.coefficients());
+    (
+        Point2::new(cu, cv),
+        Vec2::new(au, av),
+        Vec2::new(bu, bv),
+        Vec2::new(lu, lv),
+    )
+}
+
 impl<T: Real> Pcurve<T> {
     /// A harmonic image read as its four coefficient vectors
     /// `(p0, pa, pb, pl)` of `p0 + pa·cos t + pb·sin t + pl·t`, channel
@@ -938,13 +1011,7 @@ impl<T: Real> Pcurve<T> {
         let Pcurve::Harmonic { u, v } = *self else {
             return None;
         };
-        let ([cu, au, bu, lu], [cv, av, bv, lv]) = (u.coefficients(), v.coefficients());
-        Some((
-            Point2::new(cu, cv),
-            Vec2::new(au, av),
-            Vec2::new(bu, bv),
-            Vec2::new(lu, lv),
-        ))
+        Some(harmonic_form_of(u, v))
     }
 
     /// A harmonic image whose two channels are free: an image on a
@@ -1022,7 +1089,7 @@ impl<T: Real> Pcurve<T> {
     /// curve, and a NURBS net goes through [`NurbsCurve2::map_points`]
     /// — the door a structural map takes instead of
     /// `NurbsCurve2::new`, since a pointwise map of a validated net has
-    /// nothing left to validate. Infallible for the same reason.
+    /// nothing left to validate.
     ///
     /// The map is axis by axis because those are the maps a chart's
     /// rows take — [`Pcurve::mirror_v`]'s reflection,
@@ -1030,31 +1097,75 @@ impl<T: Real> Pcurve<T> {
     /// sphere's involution `(u + π, π − v)` — and because an axis map
     /// keeps an angle an angle, which a map mixing the axes would not.
     ///
-    /// # The one variant this is NOT total over
+    /// # Errors
     ///
-    /// [`SpiricImage::Wall`] rides ONE `sense` on two channels (the
-    /// azimuth's opposed on the mirror torus, by its [`WallTorus`] tag
-    /// rather than by a stored number), so a map that reflects the
-    /// second axis alone has no wall image to land on: the `v` channel
-    /// would follow and the `u` channel would not. No torus row takes a
-    /// `v` reflection — `(u, v) ↦ (u, −v)` is orientation-reversing on a
-    /// torus chart, and the torus whose frame realises it (axis negated)
-    /// maps the image to `(−u, −v)`, not `(u, −v)`. This door keeps the
-    /// arm TOTAL for the maps a wall image does take — the two
-    /// whole-period branch translations, whose linear part is the
-    /// identity — and it is [`Pcurve::mirror_v`] that refuses, because
-    /// that is the door whose contract the reflection breaks. A caller
-    /// that hands this function a reflection and a wall image gets the
-    /// translation's answer, which is why the reflection has its own
-    /// door and its own refusal rather than a comment.
+    /// - [`ChartMapRefusal::WallReflected`]: [`SpiricImage::Wall`] rides
+    ///   ONE `sense` on two channels (the azimuth's opposed on the mirror
+    ///   torus, by its [`WallTorus`] tag rather than by a stored number),
+    ///   so a map that reflects an axis has no wall image to land on: the
+    ///   reflected channel would follow and the other would not. No torus
+    ///   row takes a reflection (`(u, v) ↦ (u, −v)` reverses a torus
+    ///   chart's orientation, and the torus whose frame realises it maps
+    ///   the image to `(−u, −v)`), and `topo::revert` mirrors the rows of
+    ///   plane faces only.
+    /// - [`ChartMapRefusal::WindingUnnegatable`]: a reflection meets an
+    ///   angle channel whose count has no negation in `i32`
+    ///   ([`Channel::mapped`]).
+    ///
+    /// A map that reflects nothing refuses neither: [`Pcurve::translate`]
+    /// is that map's total door.
+    pub fn map_affine(&self, map: ChartMap<T>) -> Result<Self, ChartMapRefusal> {
+        self.map_chart(
+            map,
+            |c, axis| c.mapped(axis).ok_or(ChartMapRefusal::WindingUnnegatable),
+            || {
+                if map.reflects() {
+                    Err(ChartMapRefusal::WallReflected)
+                } else {
+                    Ok(())
+                }
+            },
+        )
+    }
+
+    /// The same image translated by `(du, dv)` in the chart: a whole-
+    /// period branch shift of either channel ([`Pcurve::shift_branch`])
+    /// or a re-parameterising offset. [`Pcurve::map_affine`] with no
+    /// reflection, and total: a translation's linear part is the
+    /// identity, so every variant, a spiric wall's included, takes it
+    /// exactly and no winding moves.
     #[must_use]
-    pub fn map_affine(&self, map: ChartMap<T>) -> Self {
+    pub fn translate(&self, du: T, dv: T) -> Self {
+        let map = ChartMap {
+            u: AxisMap::shift(du),
+            v: AxisMap::shift(dv),
+        };
+        let shifted = self.map_chart(
+            map,
+            |c, axis| Ok::<_, core::convert::Infallible>(c.shifted(axis.point(T::zero()))),
+            || Ok(()),
+        );
+        match shifted {
+            Ok(image) => image,
+            Err(never) => match never {},
+        }
+    }
+
+    /// The one body of [`Pcurve::map_affine`] and
+    /// [`Pcurve::translate`]: `channel` maps a harmonic channel, and
+    /// `wall` says whether a spiric wall takes the map.
+    fn map_chart<E>(
+        &self,
+        map: ChartMap<T>,
+        channel: impl Fn(Channel<T>, AxisMap<T>) -> Result<Channel<T>, E>,
+        wall: impl Fn() -> Result<(), E>,
+    ) -> Result<Self, E> {
         let point = |p: Point2<T>| map.point(p);
         let vector = |d: Vec2<T>| map.vector(d);
-        match self {
+        Ok(match self {
             Pcurve::Harmonic { u, v } => Pcurve::Harmonic {
-                u: u.mapped(map.u),
-                v: v.mapped(map.v),
+                u: channel(*u, map.u)?,
+                v: channel(*v, map.v)?,
             },
             Pcurve::Fitted(image) => Pcurve::Fitted(Arc::new(image.map_points(point))),
             Pcurve::General(image) => Pcurve::General(Arc::new(image.map_points(point))),
@@ -1118,6 +1229,7 @@ impl<T: Real> Pcurve<T> {
                         sense,
                         torus,
                     } => {
+                        wall()?;
                         let p = point(Point2::new(*u0, *v0));
                         SpiricImage::Wall {
                             u0: p.x,
@@ -1153,7 +1265,7 @@ impl<T: Real> Pcurve<T> {
             Pcurve::Projected(image) => {
                 Pcurve::Projected(Box::new(image.map_affine(point, vector)))
             }
-        }
+        })
     }
 
     /// The same image under the chart reflection `(u, v) ↦ (u, −v)`,
@@ -1215,7 +1327,9 @@ impl<T: Real> Pcurve<T> {
     /// # Errors
     ///
     /// `None` for a [`SpiricImage::Wall`] image, per the paragraph
-    /// above. Every other variant answers `Some`, exactly.
+    /// above, and for a harmonic image whose angle channel stores a
+    /// count with no negation in `i32` ([`Pcurve::map_affine`]'s two
+    /// refusals). Every other image answers `Some`, exactly.
     #[must_use]
     pub fn mirror_v(&self) -> Option<Self> {
         if matches!(
@@ -1227,10 +1341,11 @@ impl<T: Real> Pcurve<T> {
         ) {
             return None;
         }
-        Some(self.map_affine(ChartMap {
+        self.map_affine(ChartMap {
             u: AxisMap::identity(),
             v: AxisMap::reflect(),
-        }))
+        })
+        .ok()
     }
 }
 
@@ -1240,10 +1355,8 @@ impl<T: SpanLocate> Pcurve<T> {
     /// total.
     pub fn eval(&self, t: T) -> Point2<T> {
         match self {
-            Pcurve::Harmonic { .. } => {
-                let Some((p0, pa, pb, pl)) = self.harmonic_form() else {
-                    unreachable!("a harmonic image reads as its coefficients")
-                };
+            Pcurve::Harmonic { u, v } => {
+                let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
                 let (s, c) = t.sin_cos();
                 Point2::new(
                     p0.x + pa.x * c + pb.x * s + pl.x * t,
@@ -1305,10 +1418,8 @@ impl<T: SpanLocate> Pcurve<T> {
     /// the harmonic arm by its construction's docs).
     pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         match self {
-            Pcurve::Harmonic { .. } => {
-                let Some((p0, pa, pb, pl)) = self.harmonic_form() else {
-                    unreachable!("a harmonic image reads as its coefficients")
-                };
+            Pcurve::Harmonic { u, v } => {
+                let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
                 harmonic_span_box(p0, pa, pb, pl, t0, t1)
             }
             // The **convex-hull property**: a NURBS curve with positive
@@ -1467,10 +1578,7 @@ impl<T: SpanLocate> Pcurve<T> {
     /// there.
     #[must_use]
     pub fn shift_branch(&self, k: i32, period: Period<T>) -> Self {
-        self.map_affine(ChartMap {
-            u: AxisMap::shift(period.times(k)),
-            v: AxisMap::identity(),
-        })
+        self.translate(period.times(k), T::zero())
     }
 }
 
@@ -2586,7 +2694,7 @@ pub enum EnvelopeStatement {
     /// slacks (the trilean-admitted ε-shell around the exact
     /// axis-aligned family, metered through the chart's derivative-net
     /// stretch bounds) are folded in explicitly, exactly as the
-    /// harmonic lane's fidelity term carries its winding drift; a
+    /// harmonic lane's fidelity term carries its coefficients' drift; a
     /// boundary row pays its
     /// snap to the domain end, a collapsed row is taken at the stored
     /// parameter itself and pays the channel's drift alone. Every slack
@@ -3300,12 +3408,21 @@ impl<T: Decide> PcurveCache<T> {
     /// The check sequence (fixed order, D9; every margin in metres):
     ///
     /// 1. **Lane**: the chart and carrier kinds are ones this module
-    ///    certifies in closed form; the azimuth channel of a periodic
-    ///    chart is `α + β·t` with `β ∈ {−1, 0, +1}` (a named trilean
-    ///    selection over a finite structural set, not a guess).
+    ///    certifies in closed form. On a [`Pcurve::Harmonic`] image, the
+    ///    **kind check**: each channel is its chart coordinate's kind, a
+    ///    [`Channel::Angle`] where the coordinate is an angle and a
+    ///    [`Channel::Free`] where it is not
+    ///    ([`PcurveCertifyError::ChannelKindMismatch`]); and the stored
+    ///    windings are counts a closed-form table holds, at most one
+    ///    turn per carrier period
+    ///    ([`PcurveCertifyError::ChartWindingUnsupported`]). Structure,
+    ///    compared with no decision.
     /// 2. **Interval**: `t₁ − t₀` is definitely forward, metered
-    ///    through the carrier's own rate; the pcurve's azimuth extent
-    ///    does not definitely exceed one period.
+    ///    through the carrier's own rate. The image's angles span at
+    ///    most one period because the carrier's interval does (the edge
+    ///    certificate's `interval_span_winding`); a spline net's
+    ///    projected image, whose parameter is no angle, has its own
+    ///    period gate here.
     /// 3. **Schedule**: `|S(P(tᵢ)) − C(tᵢ)| ≤ ε` at the
     ///    [`CERT_SAMPLES`] schedule — evaluated through
     ///    `Surface::eval` and `Curve3::eval` directly, so the closed
@@ -3323,13 +3440,15 @@ impl<T: Decide> PcurveCache<T> {
     ///      ([`EnvelopeStatement::MapResidualClosedForm`]) — on a
     ///      periodic chart the carrier's incidence with the chart plus
     ///      the stored image's fidelity to the image re-derived from the
-    ///      carrier. Fidelity carries every drift step 1 admits (an
-    ///      ε-shell around the exact harmonic family), so the stored
-    ///      envelope bounds the pcurve actually certified; it is zero on
-    ///      every minted cache, and exists so the certificate is honest
-    ///      for every input `certify` admits, attach-path ones
-    ///      included. A refusal names its term
-    ///      ([`PcurveCheck::EnvelopeTerm`]).
+    ///      carrier. The **winding compare** comes first: the stored
+    ///      windings equal the derived name's exactly, or the row refuses
+    ///      as [`PcurveCertifyError::WindingMismatch`]. Fidelity then
+    ///      carries every drift the real coefficients admit (an ε-shell
+    ///      around the exact harmonic family), so the stored envelope
+    ///      bounds the pcurve actually certified; it is zero on every
+    ///      minted cache, and exists so the certificate is honest for
+    ///      every input `certify` admits, attach-path ones included. A
+    ///      refusal names its term ([`PcurveCheck::EnvelopeTerm`]).
     ///    - [`Pcurve::IsoLine`] / [`Pcurve::IsoArc`]: the traversed
     ///      row's control-difference hull
     ///      ([`EnvelopeStatement::MapResidualIsoHull`]).
@@ -3381,8 +3500,8 @@ impl<T: Decide> PcurveCache<T> {
             // into the harmonic checker silently, and the build would
             // not say a word. Adding a variant must be a
             // compiler-guided edit at every dispatch site.
-            harmonic @ Pcurve::Harmonic { .. } => {
-                run_harmonic_checks(harmonic, t0, t1, carrier, surface, band)?
+            Pcurve::Harmonic { u, v } => {
+                run_harmonic_checks((*u, *v), t0, t1, carrier, surface, band)?
             }
             // The spiric lane: closed-form like the harmonic and iso
             // ones — no bracket obligation — so it shares this
@@ -3634,8 +3753,8 @@ impl<T: Decide> PcurveCache<T> {
                 lane,
             ),
             // Exhaustive by variant (see `certify`).
-            harmonic @ Pcurve::Harmonic { .. } => run_harmonic_checks(
-                harmonic,
+            Pcurve::Harmonic { u, v } => run_harmonic_checks(
+                (*u, *v),
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -3716,107 +3835,102 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
     }
 }
 
-/// The periodic chart's azimuth **winding**: the finite structural set
-/// `{−1, 0, +1}` a certified chart image may traverse per unit carrier
-/// parameter. Structure, not a scalar — so the branch on it below is a
-/// match on a named decision, never a comparison on `T`.
+/// The side of a cone's apex a ruling or rim lies on, as a cone
+/// derivation decides it on the height. A sign, not a winding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Winding {
-    /// `β = −1`: the chart azimuth runs against the chart frame.
-    Neg,
-    /// `β = 0`: a constant azimuth — a meridian.
-    Zero,
-    /// `β = +1`: the chart azimuth runs with the chart frame.
+enum Nappe {
+    /// Above the apex, along the axis.
     Pos,
+    /// Below it.
+    Neg,
 }
 
-impl Winding {
-    /// The winding a decided orientation names, sign for sign.
-    fn of(sign: Sign) -> Self {
-        match sign {
-            Sign::Negative => Winding::Neg,
-            Sign::Zero => Winding::Zero,
-            Sign::Positive => Winding::Pos,
-        }
-    }
-
+impl Nappe {
+    /// The side as the unit sign it multiplies a direction by.
     fn value<T: Real>(self) -> T {
-        Period::<T>::rate(self.count())
-    }
-
-    /// The winding as the whole number of periods it stores
-    /// ([`Channel::Angle`]).
-    fn count(self) -> i32 {
         match self {
-            Winding::Neg => -1,
-            Winding::Zero => 0,
-            Winding::Pos => 1,
-        }
-    }
-
-    /// The winding a stored count names, where the closed-form tables
-    /// have one: `None` past a single turn per carrier period.
-    fn from_count(count: i32) -> Option<Self> {
-        match count {
-            -1 => Some(Winding::Neg),
-            0 => Some(Winding::Zero),
-            1 => Some(Winding::Pos),
-            _ => None,
+            Nappe::Pos => T::one(),
+            Nappe::Neg => T::zero() - T::one(),
         }
     }
 }
 
-/// The windings a harmonic image stores, read off its channels as the
-/// closed-form tables name them: a free first channel is no winding (a
-/// plane), a free second channel no second angle. `None` for an image
-/// that is not harmonic, or that winds more than once per carrier
-/// period, which no table holds. Structure, read with no decision.
-fn channel_windings<T: Real>(pcurve: &Pcurve<T>) -> Option<ChartWindings> {
-    let Pcurve::Harmonic { u, v } = *pcurve else {
-        return None;
-    };
+/// The winding a decided orientation names, sign for sign: `−1`, `0`
+/// or `1` whole periods per carrier period, the only counts a
+/// closed-form table derives.
+fn winding_of(sign: Sign) -> i32 {
+    match sign {
+        Sign::Negative => -1,
+        Sign::Zero => 0,
+        Sign::Positive => 1,
+    }
+}
+
+/// The windings a harmonic image on a periodic chart stores, read off
+/// its channels by type: the azimuth's always, the second angle's where
+/// the chart has one. `None` where the first channel is not an angle
+/// (the image is no periodic chart's: a plane's channels are free and
+/// carry no windings), or where a count winds more than once per
+/// carrier period, which no closed-form table holds. Structure, read
+/// with no decision.
+fn angle_windings<T: Real>(u: Channel<T>, v: Channel<T>) -> Option<ChartWindings> {
+    let in_table = |w: i32| (-1..=1).contains(&w).then_some(w);
     Some(ChartWindings {
-        u: match u.winding() {
-            None => Winding::Zero,
-            Some(count) => Winding::from_count(count)?,
-        },
+        u: in_table(u.winding()?)?,
         v: match v.winding() {
             None => None,
-            Some(count) => Some(Winding::from_count(count)?),
+            Some(w) => Some(in_table(w)?),
         },
     })
 }
 
-/// The chart image `S ∘ P` in the certified basis.
+/// A plane chart's image of a harmonic form: the map is affine, so the
+/// coefficients map through one by one. Total.
+fn plane_image<T: Real>(
+    (p0, pa, pb, pl): HarmonicForm<T>,
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    u_ref: Vec3<T>,
+) -> Harmonic3<T> {
+    let v_ref = normal.cross(u_ref);
+    Harmonic3 {
+        c: origin + (u_ref * p0.x + v_ref * p0.y),
+        a: u_ref * pa.x + v_ref * pa.y,
+        b: u_ref * pb.x + v_ref * pb.y,
+        l: u_ref * pl.x + v_ref * pl.y,
+    }
+}
+
+/// The chart image `S ∘ P` in the certified basis. The rows' own
+/// reference (certification reads the plane's arm alone,
+/// [`plane_image`], and every periodic chart's through check 4's lemma).
 ///
 /// - **Plane chart**: the map is affine, so the pcurve's coefficients
 ///   map through one by one.
 /// - **Cylinder chart**: the azimuth channel is `α + β·t` with
-///   `β ∈ {−1, 0, +1}` (the stored windings, [`Channel::Angle`]). For `β = 0` the
+///   `β ∈ {−1, 0, +1}` (the stored windings, [`Channel::Angle`],
+///   [`angle_windings`]). For `β = 0` the
 ///   radial vector is constant and folds into the constant term; for
 ///   `β = ±1` the angle-sum identity
 ///   `cos(α + βt) = cos α·cos t − β·sin α·sin t` puts the radial
 ///   channel exactly in the basis.
+#[cfg(test)]
 fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Option<Harmonic3<T>> {
     // The closed-form image is the closed-form lane's business; a
     // fitted image has no harmonic decomposition by construction.
-    let (p0, pa, pb, pl) = pcurve.harmonic_form()?;
-    let windings = channel_windings(pcurve)?;
-    let winding = windings.u;
+    let Pcurve::Harmonic { u, v } = *pcurve else {
+        return None;
+    };
+    let (p0, pa, pb, pl) = harmonic_form_of(u, v);
+    // A periodic chart reads the image's windings by type; a plane's
+    // channels carry none.
+    let windings = || angle_windings(u, v);
     match *surface {
         Surface::Plane {
             origin,
             normal,
             u_ref,
-        } => {
-            let v_ref = normal.cross(u_ref);
-            Some(Harmonic3 {
-                c: origin + (u_ref * p0.x + v_ref * p0.y),
-                a: u_ref * pa.x + v_ref * pa.y,
-                b: u_ref * pb.x + v_ref * pb.y,
-                l: u_ref * pl.x + v_ref * pl.y,
-            })
-        }
+        } => Some(plane_image((p0, pa, pb, pl), origin, normal, u_ref)),
         Surface::Cylinder {
             origin,
             axis,
@@ -3828,17 +3942,17 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
             // radial(α) and tangential(α) in the chart frame.
             let rad = u_ref * ca + cv * sa;
             let tang = u_ref * (T::zero() - sa) + cv * ca;
-            match winding {
-                Winding::Zero => Some(Harmonic3 {
+            match windings()?.u {
+                0 => Some(Harmonic3 {
                     c: origin + rad * radius + axis * p0.y,
                     a: axis * pa.y,
                     b: axis * pb.y,
                     l: axis * pl.y,
                 }),
-                Winding::Pos | Winding::Neg => Some(Harmonic3 {
+                winding => Some(Harmonic3 {
                     c: origin + axis * p0.y,
                     a: rad * radius + axis * pa.y,
-                    b: tang * (radius * winding.value()) + axis * pb.y,
+                    b: tang * (radius * angle_rate::<T>(winding)) + axis * pb.y,
                     l: axis * pl.y,
                 }),
             }
@@ -3856,12 +3970,12 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
             let cv = axis.cross(u_ref);
             let (sa, ca) = p0.x.sin_cos();
             let rad = u_ref * ca + cv * sa;
-            match winding {
+            match windings()?.u {
                 // Fixed azimuth: S is AFFINE in v along the ruling
                 // direction, so any harmonic v channel maps through
                 // exactly, coefficient by coefficient (the slant-line
                 // meridian class, `v` a length).
-                Winding::Zero => {
+                0 => {
                     let d = axis * c_ha + rad * s_ha;
                     Some(Harmonic3 {
                         c: apex + d * p0.y,
@@ -3873,13 +3987,13 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
                 // Moving azimuth: the rim-circle class at constant
                 // slant v₀ — radius v₀·sin α about the axis point at
                 // height v₀·cos α.
-                Winding::Pos | Winding::Neg => {
+                winding => {
                     let tang = u_ref * (T::zero() - sa) + cv * ca;
                     let rho = p0.y * s_ha;
                     Some(Harmonic3 {
                         c: apex + axis * (p0.y * c_ha),
                         a: rad * rho,
-                        b: tang * (rho * winding.value()),
+                        b: tang * (rho * angle_rate::<T>(winding)),
                         l: Vec3::zero(),
                     })
                 }
@@ -3909,17 +4023,18 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
             let (sa, ca) = p0.x.sin_cos();
             let rad = u_ref * ca + cv * sa;
             let (sd, cd) = p0.y.sin_cos();
-            match (winding, windings.v.unwrap_or(Winding::Zero)) {
+            let windings = windings()?;
+            match (windings.u, windings.v.unwrap_or(0)) {
                 // Moving azimuth, constant polar v₀: the PARALLEL /
                 // polar-circle class — a circle of radius
                 // R + r·cos v₀ (sphere: r·cos v₀) at height r·sin v₀.
-                (Winding::Pos | Winding::Neg, Winding::Zero) => {
+                (winding @ (-1 | 1), 0) => {
                     let tang = u_ref * (T::zero() - sa) + cv * ca;
                     let rho = major + radius * cd;
                     Some(Harmonic3 {
                         c: center + axis * (radius * sd),
                         a: rad * rho,
-                        b: tang * (rho * winding.value()),
+                        b: tang * (rho * angle_rate::<T>(winding)),
                         l: Vec3::zero(),
                     })
                 }
@@ -3927,8 +4042,8 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
                 // MERIDIAN class — cos(δ+σt)/sin(δ+σt) expanded by the
                 // angle-sum identity, exactly as the cylinder's
                 // azimuth arm.
-                (Winding::Zero, sigma @ (Winding::Pos | Winding::Neg)) => {
-                    let s = sigma.value::<T>();
+                (0, sigma @ (-1 | 1)) => {
+                    let s = angle_rate::<T>(sigma);
                     Some(Harmonic3 {
                         c: center + rad * major,
                         a: rad * (radius * cd) + axis * (radius * sd),
@@ -3940,7 +4055,7 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
                 // genuine carrier never certifies against it (the
                 // schedule residuals refuse), so the honest form is
                 // returned rather than a refusal invented here.
-                (Winding::Zero, Winding::Zero) => Some(Harmonic3 {
+                (0, 0) => Some(Harmonic3 {
                     c: center + rad * (major + radius * cd) + axis * (radius * sd),
                     a: Vec3::zero(),
                     b: Vec3::zero(),
@@ -3950,7 +4065,8 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
                 // sphere's general circles, the torus Villarceau
                 // class) — no closed form exists; the fitted lane or a
                 // typed refusal owns it.
-                (Winding::Pos | Winding::Neg, Winding::Pos | Winding::Neg) => None,
+                // (`angle_windings` holds every count in `{−1, 0, 1}`.)
+                _ => None,
             }
         }
         // A spline chart's image has no harmonic decomposition —
@@ -3966,8 +4082,8 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
 /// `v`, plane both) and its slope is unconstrained.
 #[derive(Clone, Copy, Debug)]
 struct ChartWindings {
-    u: Winding,
-    v: Option<Winding>,
+    u: i32,
+    v: Option<i32>,
 }
 
 /// The azimuth lever arm of a chart, in metres per radian — the safe
@@ -4127,16 +4243,14 @@ fn check_residual_as<T: Decide>(
 /// The shared pcurve-certification engine (sequence documented on
 /// [`PcurveCache::certify`]).
 fn run_harmonic_checks<T: Decide>(
-    pcurve: &Pcurve<T>,
+    (u, v): (Channel<T>, Channel<T>),
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-    if pcurve.harmonic_form().is_none() {
-        unreachable!("run_harmonic_checks: both callers match `Pcurve::Harmonic` to reach it")
-    }
+    let pcurve = &Pcurve::Harmonic { u, v };
     // ---- Check 1: the certified lane. ----
     let chart = surface.kind();
     // The closed-form lane is the analytic charts'; a spline chart —
@@ -4148,19 +4262,17 @@ fn run_harmonic_checks<T: Decide>(
     // The channels are the chart's: an angle where the chart's
     // coordinate is one, a free channel where it is not. Structure,
     // compared with no decision.
-    if let Pcurve::Harmonic { u, v } = *pcurve {
-        let angle = |c: Channel<T>| c.winding().is_some();
-        let (want_u, want_v) = match *surface {
-            Surface::Plane { .. } => (false, false),
-            Surface::Cylinder { .. } | Surface::Cone { .. } => (true, false),
-            Surface::Sphere { .. } | Surface::Torus { .. } => (true, true),
-            Surface::Nurbs(_) | Surface::Approx(_) => {
-                unreachable!("a spline chart was refused as no analytic lane above")
-            }
-        };
-        if (angle(u), angle(v)) != (want_u, want_v) {
-            return Err(PcurveCertifyError::ChannelKindMismatch { chart });
+    let angle = |c: Channel<T>| c.winding().is_some();
+    let (want_u, want_v) = match *surface {
+        Surface::Plane { .. } => (false, false),
+        Surface::Cylinder { .. } | Surface::Cone { .. } => (true, false),
+        Surface::Sphere { .. } | Surface::Torus { .. } => (true, true),
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("a spline chart was refused as no analytic lane above")
         }
+    };
+    if (angle(u), angle(v)) != (want_u, want_v) {
+        return Err(PcurveCertifyError::ChannelKindMismatch { chart });
     }
     // `chart_pcurve` mints a harmonic image only from a carrier's own
     // harmonic form, so a carrier without one (a spline, a spiric) was
@@ -4172,17 +4284,18 @@ fn run_harmonic_checks<T: Decide>(
         });
     };
     let reach = t0.abs().max(t1.abs());
-    // The windings the row stores; a count no closed-form table holds
-    // (more than one turn per carrier period) has no image here.
-    let windings = channel_windings(pcurve).ok_or(PcurveCertifyError::ChartWindingUnsupported)?;
-    // Both angular channels moving is the sphere's general circle and
-    // the torus's Villarceau class: azimuth-non-harmonic, so no harmonic
-    // image exists; the projected image owns the first and the focal
-    // section the second.
-    if let (Winding::Pos | Winding::Neg, Some(Winding::Pos | Winding::Neg)) =
-        (windings.u, windings.v)
-    {
-        return Err(PcurveCertifyError::UnsupportedChart { chart });
+    // The windings the row stores, on a periodic chart (a plane's
+    // channels carry none); a count no closed-form table holds (more
+    // than one turn per carrier period) has no image here.
+    if want_u {
+        let windings = angle_windings(u, v).ok_or(PcurveCertifyError::ChartWindingUnsupported)?;
+        // Both angular channels moving is the sphere's general circle
+        // and the torus's Villarceau class: azimuth-non-harmonic, so no
+        // harmonic image exists; the projected image owns the first and
+        // the focal section the second.
+        if windings.u != 0 && windings.v.is_some_and(|w| w != 0) {
+            return Err(PcurveCertifyError::UnsupportedChart { chart });
+        }
     }
 
     let mut max_residual = T::zero();
@@ -4227,29 +4340,33 @@ fn run_harmonic_checks<T: Decide>(
     // and their differences from the carrier's are the bound. A
     // periodic chart's is frame plus incidence plus fidelity (the lemma
     // on `EnvelopeStatement::MapResidualClosedForm`).
-    let terms = match surface {
-        Surface::Plane { .. } => None,
-        _ => Some(periodic_envelope(
-            pcurve,
-            carrier,
-            carrier_form,
-            surface,
-            (t0, t1),
-            reach,
-            band,
-        )?),
-    };
-    let envelope = match terms {
-        Some(terms) => terms.total(),
-        None => {
-            let Some(image_form) = chart_image_harmonic(pcurve, surface) else {
-                unreachable!("chart_image_harmonic: a plane chart images every harmonic pcurve")
-            };
+    let (envelope, terms) = match *surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            let image_form = plane_image(harmonic_form_of(u, v), origin, normal, u_ref);
             let d_c = image_form.c - carrier_form.c;
             let d_a = image_form.a - carrier_form.a;
             let d_b = image_form.b - carrier_form.b;
             let d_l = image_form.l - carrier_form.l;
-            d_c.norm() + harmonic_sup(d_a, d_b) + d_l.norm() * reach
+            (
+                d_c.norm() + harmonic_sup(d_a, d_b) + d_l.norm() * reach,
+                None,
+            )
+        }
+        _ => {
+            let terms = periodic_envelope(
+                (u, v),
+                carrier,
+                carrier_form,
+                surface,
+                (t0, t1),
+                reach,
+                band,
+            )?;
+            (terms.total(), Some(terms))
         }
     };
     // Not folded into `max_residual`: that field is the sampled max,
@@ -4288,21 +4405,21 @@ fn run_harmonic_checks<T: Decide>(
 enum Derivation {
     Plane,
     CylinderMoving {
-        beta: Winding,
+        beta: i32,
     },
     CylinderMeridian,
     /// `anchored`: the nappe was read off the anchor's height, not the
-    /// direction's. `nappe` is its sign, `Pos` or `Neg`.
+    /// direction's. `nappe` is the side of the apex it lies on.
     ConeRuling {
         anchored: bool,
-        nappe: Winding,
+        nappe: Nappe,
     },
     ConeRim {
-        nappe: Winding,
-        beta: Winding,
+        nappe: Nappe,
+        beta: i32,
     },
     SphereParallel {
-        beta: Winding,
+        beta: i32,
     },
     /// `pole`: the azimuth was read off `b`'s radial part, `a`'s having
     /// decided Zero. `far`: the edge lies on the far half of its great
@@ -4311,14 +4428,14 @@ enum Derivation {
     /// image's polar rate.
     SphereMeridian {
         pole: bool,
-        sigma: Winding,
+        sigma: i32,
         far: bool,
     },
     TorusParallel {
-        beta: Winding,
+        beta: i32,
     },
     TorusMeridian {
-        sigma: Winding,
+        sigma: i32,
     },
     /// An ellipse on a cone or a Villarceau circle on a torus: the
     /// image is a [`Pcurve::FocalSection`], which its own lane
@@ -4419,7 +4536,7 @@ impl<T: Decide> EnvelopeTerms<T> {
 /// structure [`derive_harmonic`] selects for it, plus the stored
 /// image's fidelity to the image it derives.
 fn periodic_envelope<T: Decide>(
-    pcurve: &Pcurve<T>,
+    stored: (Channel<T>, Channel<T>),
     carrier: &Curve3<T>,
     carrier_form: Harmonic3<T>,
     surface: &Surface<T>,
@@ -4438,21 +4555,22 @@ fn periodic_envelope<T: Decide>(
         Placement::over(span, carrier, &ideal),
         band,
     )?;
-    if matches!(derivation, Derivation::FocalSection) {
+    // The derivation's image is harmonic on every arm but the focal
+    // section's (`Derivation::FocalSection`), which images as its own
+    // variant.
+    let Pcurve::Harmonic { u: du, v: dv } = derived else {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
             why: "an ellipse on a cone or a Villarceau circle on a torus images as a focal \
                   section, not a harmonic",
         });
-    }
-    let mut terms = EnvelopeTerms::new();
-    let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
-        unreachable!("periodic_envelope: check 4's periodic arm reads a harmonic image")
     };
+    let mut terms = EnvelopeTerms::new();
+    let (p0, pa, pb, pl) = harmonic_form_of(stored.0, stored.1);
     let v_reach = harmonic_span_box(p0, pa, pb, pl, span.0, span.1).v_reach();
     terms.add(EnvelopeTerm::Frame, frame_defect(surface, v_reach));
     incidence(carrier_form, &ideal, derivation, reach, &mut terms);
-    fidelity(pcurve, &derived, &ideal, span, reach, band, &mut terms)?;
+    fidelity(stored, (du, dv), &ideal, span, reach, band, &mut terms)?;
     Ok(terms)
 }
 
@@ -4673,7 +4791,7 @@ fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// pair as drift.
 fn class_circle<T: Decide>(
     terms: &mut EnvelopeTerms<T>,
-    beta: Winding,
+    beta: i32,
     (rho, rho_sq): (T, T),
     (a, b): (Vec3<T>, Vec3<T>),
     axis: Vec3<T>,
@@ -4686,21 +4804,21 @@ fn class_circle<T: Decide>(
         (a, b, T::zero(), T::zero())
     };
     match beta {
-        Winding::Pos | Winding::Neg => {
-            let k = stretch(rho, rho_sq, a_r);
-            let turn = axis.cross(a_r) * beta.value();
-            let pair = harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
-            #[cfg(test)]
-            let pair =
-                mutants::class_circle((rho, rho_sq), a_r, b_r, turn, (aa, bb)).unwrap_or(pair);
-            terms.add(EnvelopeTerm::Radius, pair);
-        }
-        Winding::Zero => {
+        0 => {
             terms.add(EnvelopeTerm::Radius, rho);
             let drift = harmonic_sup(a, b);
             #[cfg(test)]
             let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
             terms.add(EnvelopeTerm::Drift, drift);
+        }
+        _ => {
+            let k = stretch(rho, rho_sq, a_r);
+            let turn = axis.cross(a_r) * angle_rate::<T>(beta);
+            let pair = harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
+            #[cfg(test)]
+            let pair =
+                mutants::class_circle((rho, rho_sq), a_r, b_r, turn, (aa, bb)).unwrap_or(pair);
+            terms.add(EnvelopeTerm::Radius, pair);
         }
     }
 }
@@ -4834,7 +4952,7 @@ fn incidence<T: Decide>(
                     } else {
                         a_r / a_r.norm()
                     } * flip;
-                    let jb = (axis * s_r - d * aa) * sigma.value();
+                    let jb = (axis * s_r - d * aa) * angle_rate::<T>(sigma);
                     let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
                     let cos_part = if pole {
@@ -4850,8 +4968,8 @@ fn incidence<T: Decide>(
                     #[cfg(test)]
                     let read = match (far, sigma) {
                         (false, _) => sigma,
-                        (true, Winding::Pos) => Winding::Neg,
-                        (true, Winding::Neg | Winding::Zero) => Winding::Pos,
+                        (true, 1) => -1,
+                        (true, _) => 1,
                     };
                     #[cfg(test)]
                     let pair = mutants::sphere_meridian(
@@ -4895,7 +5013,15 @@ fn incidence<T: Decide>(
                     let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
                     let (b_r, bb) = (radial(b), b.dot(axis));
                     match beta {
-                        Winding::Pos | Winding::Neg => {
+                        0 => {
+                            terms.add(Centre, w_r.norm());
+                            terms.add(Radius, tube + major_radius + minor_radius);
+                            let drift = harmonic_sup(a, b);
+                            #[cfg(test)]
+                            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
+                            terms.add(Drift, drift);
+                        }
+                        _ => {
                             // `κ = r/m − 1`: the image's radius is `ρ + core·κ`
                             // and its height `h·(1 + κ)`, so its constant
                             // stands `−w_r + e·h·κ` off the carrier's, one
@@ -4905,7 +5031,7 @@ fn incidence<T: Decide>(
                             // which refuses at the envelope's decision.
                             let kappa = (minor_sq - m_sq) / ((minor_radius + m) * m);
                             let k = core * kappa / rho;
-                            let turn = axis.cross(a_r) * beta.value();
+                            let turn = axis.cross(a_r) * angle_rate::<T>(beta);
                             let (constant, cos_part, sin_part) = (
                                 axis * (h * kappa) - w_r,
                                 a_r * k - axis * aa,
@@ -4919,14 +5045,6 @@ fn incidence<T: Decide>(
                                 })
                                 .unwrap_or(whole);
                             terms.add(Radius, whole);
-                        }
-                        Winding::Zero => {
-                            terms.add(Centre, w_r.norm());
-                            terms.add(Radius, tube + major_radius + minor_radius);
-                            let drift = harmonic_sup(a, b);
-                            #[cfg(test)]
-                            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
-                            terms.add(Drift, drift);
                         }
                     }
                 }
@@ -4948,7 +5066,7 @@ fn incidence<T: Decide>(
                     let n = n_sq.sqrt();
                     let k = (minor_sq - n_sq) / ((minor_radius + n) * n);
                     let a_star = w_r * (aw / wr_sq) + axis * aa;
-                    let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value();
+                    let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * angle_rate::<T>(sigma);
                     let pair = harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b));
                     #[cfg(test)]
                     let pair = mutants::torus_meridian(
@@ -5042,19 +5160,14 @@ impl<T: Real> Period<T> {
         T::from_f64(f64::from(k)) * self.length
     }
 
-    /// `k` windings as a rate: the chart channel's advance per unit of
-    /// its carrier's parameter, [`Period::times`]`(k)` per carrier
-    /// period. Every harmonic carrier (a circle, an ellipse, a line's
-    /// fixed angle) has the chart channel's own period `τ`, so the rate
-    /// is `k` itself, spelled as the literal it is (`0`, `1`, `0 − 1`)
-    /// rather than as `k·τ / τ`, which no scalar holds exactly.
-    pub fn rate(k: i32) -> T {
-        match k {
-            0 => T::zero(),
-            1 => T::one(),
-            -1 => T::zero() - T::one(),
-            k => T::from_f64(f64::from(k)),
-        }
+    /// `k` windings of this channel as a rate per unit of a carrier's
+    /// parameter: [`Period::times`]`(k)` of this channel's period over
+    /// the carrier's `period`. A winding becomes a slope only here, read
+    /// through the two periods it is counted in (C4). Exact at `f64`
+    /// for the counts a closed-form table holds; at `Interval` it is a
+    /// tight enclosure of the ratio.
+    pub fn rate(self, k: i32, carrier: Period<T>) -> T {
+        self.times(k) / carrier.length()
     }
 }
 
@@ -5594,28 +5707,16 @@ mod period_rows {
 /// involution twin `(u + π, π − v)`, and the stored image is measured
 /// against the one its azimuth sits nearer.
 fn fidelity<T: Decide>(
-    stored: &Pcurve<T>,
-    derived: &Pcurve<T>,
+    (su, sv): (Channel<T>, Channel<T>),
+    (du, dv): (Channel<T>, Channel<T>),
     surface: &Surface<T>,
     (t0, t1): (T, T),
     reach: T,
     band: Band,
     terms: &mut EnvelopeTerms<T>,
 ) -> Result<(), PcurveCertifyError> {
-    let (
-        Some((p0, pa, pb, pl)),
-        Some((q0, qa, qb, ql)),
-        &Pcurve::Harmonic { u: su, v: sv },
-        &Pcurve::Harmonic { u: du, v: dv },
-    ) = (
-        stored.harmonic_form(),
-        derived.harmonic_form(),
-        stored,
-        derived,
-    )
-    else {
-        unreachable!("fidelity: check 4 compares two harmonic images")
-    };
+    let (p0, pa, pb, pl) = harmonic_form_of(su, sv);
+    let (q0, qa, qb, ql) = harmonic_form_of(du, dv);
     let stored_windings = [su.winding(), sv.winding()];
     // The cone's two legs below are not orthogonal, so its channels add
     // (`FidelityLegs::of`): with `v₁` the nearer slant and `θ` the
@@ -5674,24 +5775,24 @@ fn fidelity<T: Decide>(
                 )
         }
     };
-    let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
-    let (q0, qa, qb, ql) = if twin {
-        (
-            Point2::new(q0.x + T::pi(), T::pi() - q0.y),
-            flip(qa),
-            flip(qb),
-            flip(ql),
-        )
+    // The twin is the derived row under the sphere's involution
+    // (`ChartMap::sphere_involution`, the map `topo`'s walk names a twin
+    // by, channel by channel as `Pcurve::map_affine` maps it), so
+    // `Channel::mapped` is the one place its reflection touches a
+    // winding.
+    let (nu, nv) = if twin {
+        let involution = ChartMap::sphere_involution();
+        du.mapped(involution.u)
+            .zip(dv.mapped(involution.v))
+            .ok_or(PcurveCertifyError::ChartWindingUnsupported)?
     } else {
-        (q0, qa, qb, ql)
+        (du, dv)
     };
+    let (q0, qa, qb, ql) = harmonic_form_of(nu, nv);
     // The windings are structure (C4): the row's are the windings of
     // the name it is measured against, the derivation's or, on a
-    // sphere, its twin's, whose second angle runs the other way.
-    let derived_windings = [
-        du.winding(),
-        dv.winding().map(|w| if twin { -w } else { w }),
-    ];
+    // sphere, its twin's.
+    let derived_windings = [nu.winding(), nv.winding()];
     if stored_windings != derived_windings {
         return Err(PcurveCertifyError::WindingMismatch {
             stored: stored_windings,
@@ -5722,10 +5823,12 @@ fn fidelity<T: Decide>(
 ///    azimuth — and on a torus `vl` is a unit sign
 ///    (`pcurve_focal_section_tube_rate`, levered at `r`).
 /// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
-///    carrier's rate; the azimuth's extent — its endpoint difference,
-///    since it is monotone — gated against one period at the chart's
-///    azimuth arm, and on a torus the tube angle's extent at `r`
-///    (`pcurve_tube_period`, [`PcurveCertifyError::TubePeriodExceeded`]).
+///    carrier's rate. No period gate: the carrier (an ellipse, a
+///    circle) has its interval held to one period by the edge
+///    certificate (`interval_span_winding`), and the image's azimuth
+///    advances monotonically one turn per carrier period (the true
+///    anomaly's), its tube angle at the unit rate check 1 decides, so
+///    neither spans more than one period where the carrier does not.
 /// 3. **Schedule**: the shared [`CERT_SAMPLES`] residuals, the closed
 ///    form's cross-check on the witness lane
 ///    ([`geom_core::Witness::Inexact`]), recording no verdict.
@@ -5832,28 +5935,6 @@ fn run_focal_section_checks<T: Decide>(
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
-    }
-    let mut gates = vec![(
-        "pcurve_azimuth_period",
-        boxed.u_max - boxed.u_min,
-        arm,
-        PcurveCheck::AzimuthPeriod,
-        PcurveCertifyError::AzimuthPeriodExceeded,
-    )];
-    if let Some(r) = tube {
-        gates.push((
-            "pcurve_tube_period",
-            boxed.v_max - boxed.v_min,
-            r,
-            PcurveCheck::TubePeriod,
-            PcurveCertifyError::TubePeriodExceeded,
-        ));
-    }
-    for (name, extent, lever, check, exceeded) in gates {
-        match decide(name, Margin::levered(T::tau() - extent, lever), band).map_err(esc(check))? {
-            Sign::Positive | Sign::Zero => {}
-            Sign::Negative => return Err(exceeded),
-        }
     }
 
     // ---- Check 3: the schedule, the closed form's cross-check. ----
@@ -6309,38 +6390,12 @@ fn run_spiric_checks<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
-    if let (
-        SpiricImage::Wall { sense, .. },
-        &Surface::Torus {
-            minor_radius: chart_minor,
-            ..
-        },
-    ) = (image, surface)
-    {
-        // ONE angular channel is gated here, and the other is gated by
-        // STRUCTURE rather than by a decide that cannot fire.
-        //
-        // The minor angle moves at `sense`, so its extent is the span
-        // and it needs the same one-period headroom every periodic
-        // chart's second channel needs.
-        //
-        // The AZIMUTH does not: `u(t) = u0 + μ·sense·atan2(f(t), d)`
-        // with `f > 0` over the whole two-oval regime, so
-        // `atan2(f, d) ∈ (0, π)` and the channel's TOTAL swing — over
-        // the whole period, let alone a span — is under `π < τ`. A
-        // headroom decide over that is a gate whose verdict is fixed
-        // at compile time, which the discipline calls documentation
-        // rather than a check; the bound is the variant's own
-        // `SpiricImage::Wall` derivation and nothing here can widen
-        // it. Stated instead of spent.
-        let headroom = Margin::levered(T::tau() - (*sense * span).abs(), chart_minor);
-        match decide("pcurve_azimuth_period", headroom, band)
-            .map_err(esc(PcurveCheck::AzimuthPeriod))?
-        {
-            Sign::Positive | Sign::Zero => {}
-            Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
-        }
-    }
+    // No period gate on a wall image: its carrier (a spiric) has its
+    // interval held to one period by the edge certificate
+    // (`interval_span_winding`); the minor angle moves at the unit
+    // `sense` check 1 decides, so it spans what the carrier does, and
+    // the azimuth `u0 + μ·sense·atan2(f, d)` swings under `π` over the
+    // whole period (`f > 0` over the two-oval regime).
 
     // ---- Check 3: the schedule, in metres through the map. ----
     schedule_residuals(
@@ -8424,20 +8479,20 @@ fn derive_class<T: Decide>(
                         Margin::over_lever(orient, radius),
                         band,
                     ) {
-                        Ok(sign) => Winding::of(sign),
+                        Ok(sign) => winding_of(sign),
                         Err(cause) => return Err(winding_escalated(cause).into()),
                     };
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)),
-                        |m| beta.value::<T>() * m,
+                        |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
                                 phase: alpha,
-                                winding: beta.count(),
+                                winding: beta,
                             },
                             v: Channel::Free {
                                 c: w.dot(axis),
@@ -8494,8 +8549,8 @@ fn derive_class<T: Decide>(
                         match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
                             .map_err(esc)?
                         {
-                            Sign::Positive => (radial(w), Winding::Pos, true),
-                            Sign::Negative => (radial(w), Winding::Neg, true),
+                            Sign::Positive => (radial(w), Nappe::Pos, true),
+                            Sign::Negative => (radial(w), Nappe::Neg, true),
                             Sign::Zero => {
                                 match geom_core::k_stats::decide_flagged(
                                     "pcurve_cone_chart_nappe",
@@ -8505,8 +8560,8 @@ fn derive_class<T: Decide>(
                                 )
                                 .map_err(esc)?
                                 {
-                                    Sign::Positive => (radial(dir), Winding::Pos, false),
-                                    Sign::Negative => (radial(dir), Winding::Neg, false),
+                                    Sign::Positive => (radial(dir), Nappe::Pos, false),
+                                    Sign::Negative => (radial(dir), Nappe::Neg, false),
                                     // The apex plane meets the cone at
                                     // its radius `h·tan α = 0`: the apex
                                     // alone.
@@ -8596,8 +8651,8 @@ fn derive_class<T: Decide>(
                     let nappe = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
                         .map_err(esc)?
                     {
-                        Sign::Positive => Winding::Pos,
-                        Sign::Negative => Winding::Neg,
+                        Sign::Positive => Nappe::Pos,
+                        Sign::Negative => Nappe::Neg,
                         // An apex-level "rim" is the apex point itself;
                         // no circle lies there.
                         Sign::Zero => {
@@ -8614,7 +8669,7 @@ fn derive_class<T: Decide>(
                     // the chart azimuth rate on either nappe (the +π
                     // offset is constant), so β needs no nappe sign.
                     let rho = a_r.norm();
-                    let beta = Winding::of(
+                    let beta = winding_of(
                         decide(
                             "pcurve_chart_orientation",
                             Margin::over_lever(orient, rho),
@@ -8625,14 +8680,14 @@ fn derive_class<T: Decide>(
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_dir.dot(cv), a_dir.dot(u_ref)),
-                        |m| beta.value::<T>() * m,
+                        |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
                                 phase: alpha,
-                                winding: beta.count(),
+                                winding: beta,
                             },
                             v: Channel::constant(v0),
                         },
@@ -8827,7 +8882,7 @@ fn derive_class<T: Decide>(
                         }
                     }
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = Winding::of(
+                    let beta = winding_of(
                         decide(
                             "pcurve_chart_orientation",
                             Margin::over_lever(orient, radius),
@@ -8838,7 +8893,7 @@ fn derive_class<T: Decide>(
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)),
-                        |m| beta.value::<T>() * m,
+                        |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
                     let polar = (wa / radius).asin();
@@ -8846,7 +8901,7 @@ fn derive_class<T: Decide>(
                         Pcurve::Harmonic {
                             u: Channel::Angle {
                                 phase: alpha,
-                                winding: beta.count(),
+                                winding: beta,
                             },
                             v: Channel::fixed_angle(polar),
                         },
@@ -8908,8 +8963,8 @@ fn derive_class<T: Decide>(
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => Winding::Pos,
-                        Sign::Negative => Winding::Neg,
+                        Sign::Positive => 1,
+                        Sign::Negative => -1,
                         // A great circle in a plane holding the axis
                         // moves along the meridian at every point, at
                         // rate `r`: a zero rate is no such circle.
@@ -8962,8 +9017,8 @@ fn derive_class<T: Decide>(
                     let far = turned != other;
                     let (d_hat, sigma, reach) = if far {
                         let flipped = match sigma {
-                            Winding::Pos => Winding::Neg,
-                            Winding::Neg | Winding::Zero => Winding::Pos,
+                            1 => -1,
+                            _ => 1,
                         };
                         (
                             d_hat * (T::zero() - T::one()),
@@ -8985,7 +9040,7 @@ fn derive_class<T: Decide>(
                     let delta = place.phase(
                         Along::Latitude,
                         Azimuth::of(aa, reach),
-                        |m| sigma.value::<T>() * m,
+                        |m| angle_rate::<T>(sigma) * m,
                         band,
                     )?;
                     Ok((
@@ -8993,7 +9048,7 @@ fn derive_class<T: Decide>(
                             u: Channel::fixed_angle(alpha),
                             v: Channel::Angle {
                                 phase: delta,
-                                winding: sigma.count(),
+                                winding: sigma,
                             },
                         },
                         Derivation::SphereMeridian {
@@ -9060,7 +9115,7 @@ fn derive_class<T: Decide>(
                     }
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = Winding::of(
+                    let beta = winding_of(
                         decide(
                             "pcurve_chart_orientation",
                             Margin::over_lever(orient, rho),
@@ -9071,7 +9126,7 @@ fn derive_class<T: Decide>(
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)),
-                        |m| beta.value::<T>() * m,
+                        |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
                     // v₀ from the height/radius pair: R + r·cos v =
@@ -9088,7 +9143,7 @@ fn derive_class<T: Decide>(
                         Pcurve::Harmonic {
                             u: Channel::Angle {
                                 phase: alpha,
-                                winding: beta.count(),
+                                winding: beta,
                             },
                             v: Channel::fixed_angle(v0),
                         },
@@ -9140,8 +9195,8 @@ fn derive_class<T: Decide>(
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => Winding::Pos,
-                        Sign::Negative => Winding::Neg,
+                        Sign::Positive => 1,
+                        Sign::Negative => -1,
                         // A meridian circle moves along the meridian at
                         // every point, at rate `r`: a zero rate is no
                         // meridian.
@@ -9155,13 +9210,14 @@ fn derive_class<T: Decide>(
                     // The tube angle placed in the window at the span's
                     // midpoint; σ, read off the direction above, is the
                     // same on either copy.
-                    let delta = place.phase(Along::Tube, tube, |m| sigma.value::<T>() * m, band)?;
+                    let delta =
+                        place.phase(Along::Tube, tube, |m| angle_rate::<T>(sigma) * m, band)?;
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::fixed_angle(alpha),
                             v: Channel::Angle {
                                 phase: delta,
-                                winding: sigma.count(),
+                                winding: sigma,
                             },
                         },
                         Derivation::TorusMeridian { sigma },
@@ -9788,6 +9844,17 @@ pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel
 #[cfg(test)]
 mod envelope_lemma_fuzz;
 
+/// The rows' door to the channel-taking checks: a harmonic image's two
+/// channels, or a panic naming the row that handed something else.
+#[cfg(test)]
+#[allow(clippy::panic)]
+fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
+    match *image {
+        Pcurve::Harmonic { u, v } => (u, v),
+        _ => panic!("the row hands a harmonic image"),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
@@ -10217,44 +10284,113 @@ mod tests {
     }
 
     /// **Windings are structure, compared exactly** (C4; `[ev]` PR 5113's
-    /// first decision). A rim's image with its azimuth's winding negated
-    /// is no number a corruption moved: certification refuses it as the
-    /// windings' mismatch, naming both, at `Interval` (where check 3's
-    /// cross-check, which an `f64` row reads first, is not run).
+    /// first decision). On a rim (derived winding 1) and a seam line
+    /// (derived 0) of a cylinder, the row whose azimuth stores the derived
+    /// count certifies, at `f64` and at `Interval`; every count one off it
+    /// refuses at both lanes. At `Interval` check 3's schedule is not run,
+    /// so the refusal is the compare's own: `WindingMismatch`, naming
+    /// both counts, reached in check 4's fidelity term. At `f64` check
+    /// 3's cross-check reads the one-off image first, and refuses it as
+    /// its residual (`ResidualExceeded` at `MapResidual`). A count no
+    /// closed-form table holds (the rim's 2) refuses at check 1 as
+    /// `ChartWindingUnsupported`, at both lanes.
     #[test]
     fn a_rows_windings_are_compared_exactly() {
         use geom_core::Interval;
         let f = Interval::from_f64;
-        let cyl = cylinder(0.5).map_scalar(f);
-        let carrier = Curve3::Circle {
+        let rim = Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
             radius: 0.5,
             u_ref: Vec3::unit_x(),
+        };
+        let seam = Curve3::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        for (name, carrier, derived) in [("rim", rim, 1), ("seam", seam, 0)] {
+            let Pcurve::Harmonic {
+                u: Channel::Angle { phase, winding },
+                v,
+            } = chart_pcurve(&carrier, &cylinder(0.5), band()).unwrap()
+            else {
+                panic!("{name}: a cylinder row's azimuth is an angle")
+            };
+            assert_eq!(winding, derived, "{name}: the derived count");
+            let at = |w: i32| Pcurve::Harmonic {
+                u: Channel::Angle { phase, winding: w },
+                v,
+            };
+            let lift_channel = |c: Channel<f64>| match c {
+                Channel::Angle { phase, winding } => Channel::Angle {
+                    phase: f(phase),
+                    winding,
+                },
+                Channel::Free { c, a, b, l } => Channel::Free {
+                    c: f(c),
+                    a: f(a),
+                    b: f(b),
+                    l: f(l),
+                },
+            };
+            let lift = |p: Pcurve<f64>| {
+                let (u, v) = channels_of(&p);
+                Pcurve::Harmonic {
+                    u: lift_channel(u),
+                    v: lift_channel(v),
+                }
+            };
+            let (cyl, carrier_iv) = (cylinder(0.5).map_scalar(f), carrier.map_scalar(f));
+            for stored in [derived - 1, derived, derived + 1] {
+                let at_f64 =
+                    PcurveCache::certify(at(stored), 0.0, PI, &carrier, &cylinder(0.5), band());
+                let at_iv = PcurveCache::certify(
+                    lift(at(stored)),
+                    f(0.0),
+                    f(PI),
+                    &carrier_iv,
+                    &cyl,
+                    band(),
+                );
+                if stored == derived {
+                    assert!(
+                        at_f64.is_ok() && at_iv.is_ok(),
+                        "{name}: the derived count certifies: {at_f64:?} / {at_iv:?}"
+                    );
+                    continue;
+                }
+                // A count no closed-form table holds refuses at check 1, at
+                // both lanes, before anything is read.
+                if stored.abs() > 1 {
+                    assert!(
+                        matches!(at_f64, Err(PcurveCertifyError::ChartWindingUnsupported))
+                            && matches!(at_iv, Err(PcurveCertifyError::ChartWindingUnsupported)),
+                        "{name}, stored {stored}: check 1 refuses: {at_f64:?} / {at_iv:?}"
+                    );
+                    continue;
+                }
+                assert!(
+                    matches!(
+                        at_f64,
+                        Err(PcurveCertifyError::ResidualExceeded {
+                            check: PcurveCheck::MapResidual,
+                            ..
+                        })
+                    ),
+                    "{name}, stored {stored}: f64 refuses at check 3: {at_f64:?}"
+                );
+                assert!(
+                    matches!(
+                        at_iv,
+                        Err(PcurveCertifyError::WindingMismatch {
+                            stored: [Some(s), None],
+                            derived: [Some(d), None],
+                        }) if s == stored && d == derived
+                    ),
+                    "{name}, stored {stored}: Interval refuses at the compare: {at_iv:?}"
+                );
+            }
         }
-        .map_scalar(f);
-        let Pcurve::Harmonic {
-            u: Channel::Angle { phase, winding: 1 },
-            v,
-        } = chart_pcurve(&carrier, &cyl, band()).unwrap()
-        else {
-            panic!("a rim winds once with the chart frame")
-        };
-        let flipped = Pcurve::Harmonic {
-            u: Channel::Angle { phase, winding: -1 },
-            v,
-        };
-        let out = PcurveCache::certify(flipped, f(0.0), f(PI), &carrier, &cyl, band());
-        assert!(
-            matches!(
-                out,
-                Err(PcurveCertifyError::WindingMismatch {
-                    stored: [Some(-1), None],
-                    derived: [Some(1), None],
-                })
-            ),
-            "{out:?}"
-        );
     }
 
     /// **A row's channels are its chart's.** The same rim's image with
@@ -10415,7 +10551,8 @@ mod tests {
     /// carries on a periodic chart.
     fn named_term(stored: &Pcurve<f64>, carrier: &Curve3<f64>, s: &Surface<f64>) -> EnvelopeTerm {
         let form = carrier_harmonic(carrier).unwrap();
-        let terms = periodic_envelope(stored, carrier, form, s, (0.0, PI), PI, band()).unwrap();
+        let terms = periodic_envelope(channels_of(stored), carrier, form, s, (0.0, PI), PI, band())
+            .unwrap();
         terms
             .first_over(band())
             .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
@@ -10624,18 +10761,21 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(
-                derivation,
-                Derivation::CylinderMoving {
-                    beta: Winding::Zero
-                }
-            ),
+            matches!(derivation, Derivation::CylinderMoving { beta: 0 }),
             "{derivation:?}"
         );
         let form = carrier_harmonic(&carrier).unwrap();
-        let envelope = periodic_envelope(&image, &carrier, form, &cyl, (0.0, PI), PI, band())
-            .unwrap()
-            .total();
+        let envelope = periodic_envelope(
+            channels_of(&image),
+            &carrier,
+            form,
+            &cyl,
+            (0.0, PI),
+            PI,
+            band(),
+        )
+        .unwrap()
+        .total();
         assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
         assert!(PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, band()).is_err());
     }

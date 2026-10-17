@@ -171,10 +171,10 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
             row.pcurve().harmonic_form()?;
             let twin = body.joint(he)?.deck().twin;
             twin.then(|| {
-                let other = row.pcurve().map_affine(geom_brep::ChartMap {
-                    u: geom_brep::AxisMap::shift(T::pi()),
-                    v: geom_brep::AxisMap::reflect_about(T::pi()),
-                });
+                let other = row
+                    .pcurve()
+                    .map_affine(geom_brep::ChartMap::sphere_involution())
+                    .expect("a sphere row has its twin");
                 let (t0, t1) = row.params();
                 let cache = PcurveCache::certify(other, t0, t1, curve.carrier(), &sphere, band)
                     .expect("the other sheet certifies: it is the same locus");

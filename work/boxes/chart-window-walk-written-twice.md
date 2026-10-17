@@ -64,3 +64,11 @@ previous exit (`bool_torus_chart_closure`). It decides
 `bool_torus_chart_box` through `solid_contain::chart_polygon_box`,
 which it shares with the cone trim. The walk itself is still a second
 copy of `chord_join::face_azimuth_window`'s.
+
+## PCERT B2a (PR 5244, 2026-10-17)
+
+`bool_torus_chart_affine` is gone: a torus chart image's two channels
+are `geom_brep::Channel::Angle`s, whose trigonometric coefficients are
+zero by type, so `solid_contain`'s torus window takes the image by type
+(both channels angles, else the face leaves the class) and decides
+nothing on its coefficients.

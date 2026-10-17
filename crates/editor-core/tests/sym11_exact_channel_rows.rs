@@ -122,8 +122,6 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket −61, pad −57) from the placement's; `numeric` and `frozen` are
 /// the placement's.
 ///
-/// → `[1305, 1211, 2997]`. No dispute fired.
-///
 /// A harmonic row's windings stored as structure (PCERT B2a, `[ev]` PR
 /// 5113's first decision) retire the decisions that read them off a
 /// slope: plate `[987, 726, 729]` → `[939, 686, 729]`, annulus

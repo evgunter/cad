@@ -31,9 +31,9 @@ mod projected_searches;
 
 use super::{
     AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck, Period, Winding, carrier_harmonic,
-    chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope, incidence,
-    orthonormal_chart, periodic_envelope,
+    PcurveCache, PcurveCertifyError, PcurveCheck, Period, angle_rate, carrier_harmonic,
+    channels_of, chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope,
+    incidence, orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
 use geom_core::predicate::Band;
@@ -603,9 +603,9 @@ fn sampled_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: 
 /// variant, split where the arm's own terms differ (a moving class's
 /// zero winding, a ruling's anchor, a meridian's pole start).
 fn arm(derivation: Derivation) -> &'static str {
-    let moving = |beta: Winding, turning: &'static str, still: &'static str| match beta {
-        Winding::Zero => still,
-        Winding::Pos | Winding::Neg => turning,
+    let moving = |beta: i32, turning: &'static str, still: &'static str| match beta {
+        0 => still,
+        _ => turning,
     };
     match derivation {
         Derivation::CylinderMoving { beta } => {
@@ -855,7 +855,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     };
     stored = stored.shift_branch(k, Period::new(TAU));
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
-        stored = stored.map_affine(twin(0.0));
+        stored = stored.map_affine(twin(0.0)).unwrap();
     }
     let form = carrier_harmonic(&carrier).unwrap();
     let context = || {
@@ -864,8 +864,16 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
              drift = {drift:e}, k = {k})"
         )
     };
-    let terms = periodic_envelope(&stored, &carrier, form, &surface, (t0, t1), reach, band())
-        .unwrap_or_else(|e| panic!("{}: the envelope refused at f64: {e}", context()));
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        form,
+        &surface,
+        (t0, t1),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{}: the envelope refused at f64: {e}", context()));
     let envelope = terms.total();
     // A NaN envelope decides `Invalid`, which refuses (a circle past a
     // sphere's pole has no polar angle): sound, and no bound to compare.
@@ -903,7 +911,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // never under the sampled sup.
     let lift = Interval::from_f64;
     if let Ok(at_iv) = periodic_envelope(
-        &lift_harmonic(&stored),
+        channels_of(&lift_harmonic(&stored)),
         &carrier.map_scalar(lift),
         carrier_harmonic(&carrier.map_scalar(lift)).unwrap(),
         &surface.map_scalar(lift),
@@ -975,11 +983,7 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         let d = unit(&mut s);
         let d = (d - e * d.dot(e)).normalize();
         let pole = s.below(2) == 0;
-        let sigma: Winding = if s.below(2) == 0 {
-            Winding::Pos
-        } else {
-            Winding::Neg
-        };
+        let sigma: i32 = if s.below(2) == 0 { 1 } else { -1 };
         let delta = if pole {
             FRAC_PI_2 * if s.below(2) == 0 { 1.0 } else { -1.0 }
         } else {
@@ -987,7 +991,7 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         };
         let moved = |s: &mut fuzz::Rng| unit(s) * (z * s.range(0.0, 0.9));
         let a0 = (d * delta.cos() + e * delta.sin()) * r;
-        let b0 = (e * delta.cos() - d * delta.sin()) * (r * sigma.value::<f64>());
+        let b0 = (e * delta.cos() - d * delta.sin()) * (r * angle_rate::<f64>(sigma));
         let (a, b) = (a0 + moved(&mut s), b0 + moved(&mut s));
         // The derivation's own reading of `a` decides the pole; a draw it
         // would read the other way is not this arm's.
@@ -1021,7 +1025,7 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         let sup = (0..=4096)
             .map(|i| {
                 let t = -PI + TAU * f64::from(i) / 4096.0;
-                let v = v0 + sigma.value::<f64>() * t;
+                let v = v0 + angle_rate::<f64>(sigma) * t;
                 let image = (d_read * v.cos() + e * v.sin()) * r;
                 (image - (a * t.cos() + b * t.sin())).norm()
             })
@@ -1074,13 +1078,20 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         let stored = restated(&image, du, dv, [false, false]);
         let sup = sampled_sup(&stored, &cone, &carrier, 0.0, TAU);
         let form = carrier_harmonic(&carrier).unwrap();
-        let Ok(at_f64) = periodic_envelope(&stored, &carrier, form, &cone, (0.0, TAU), TAU, band())
-        else {
+        let Ok(at_f64) = periodic_envelope(
+            channels_of(&stored),
+            &carrier,
+            form,
+            &cone,
+            (0.0, TAU),
+            TAU,
+            band(),
+        ) else {
             continue;
         };
         let carrier_i = carrier.map_scalar(f);
         let at_iv = periodic_envelope(
-            &lift_harmonic(&stored),
+            channels_of(&lift_harmonic(&stored)),
             &carrier_i,
             carrier_harmonic(&carrier_i).unwrap(),
             &cone.map_scalar(f),
@@ -1285,14 +1296,14 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             ("u + π, v kept (half a twin)", h(PI, 0.0), Err(false)),
             (
                 "the involution twin",
-                image.map_affine(twin(0.0)),
+                image.map_affine(twin(0.0)).unwrap(),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
             // The twin a whole period on is a lifted copy of the twin,
             // no row (C4).
             (
                 "the twin, a period on",
-                image.map_affine(twin(TAU)),
+                image.map_affine(twin(TAU)).unwrap(),
                 if sphere { Err(false) } else { off_sphere_twin },
             ),
         ];

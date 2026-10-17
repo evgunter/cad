@@ -620,9 +620,9 @@ fn m10_9_what_the_registry_buys() {
 /// non-finite check asking boundedness takes 61 theorems out of
 /// `symbolic`: (1287, 1384, 4098).
 ///
-/// dials alike. A harmonic row's windings stored as structure (PCERT
-/// B2a): the decisions that read them gone, (1287, 1384, 4098) →
-/// (1215, 1324, 4098), at both dials alike.
+/// A harmonic row's windings stored as structure (PCERT B2a): the
+/// decisions that read them gone, (1287, 1384, 4098) → (1215, 1324,
+/// 4098), at both dials alike.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
