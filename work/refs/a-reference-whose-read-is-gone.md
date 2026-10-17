@@ -2,9 +2,11 @@
 id: a-reference-whose-read-is-gone
 kind: ruling
 title: What a reference whose read has left the document resolves to (N5 gains ReadGone); whose path the with-history lanes read
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
+pr: 4674
+closed: 2026-10-17
 ---
 
 
@@ -45,4 +47,12 @@ DM4 (FORK-DM4 N1, Ev 2026-10-09) made the read a second coordinate.
   PR 4674; the wider one is
   `work/refs/the-reference-path-reads-every-node-from-mint-to-read.md`.
 
-PR 4674 builds Q1 and the narrower Q2 and closes this item.
+## Closed
+
+PR 4674 builds the ruling as staged. Q1: `ResolveError::ReadGone { name,
+read, edit }` is N5's first rung, ahead of `NodeGone`, with
+`AppearanceLossCause::ReadGone` beside it. A live read that holds no body
+is refused typed (`ResolveRefusal::ReadNotAnOutput`). Q2: the reference's
+path is the nodes the name mentions plus the node defining its read. The
+wider path, every node from mint to read, is
+`work/refs/the-reference-path-reads-every-node-from-mint-to-read.md`.

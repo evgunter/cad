@@ -103,8 +103,8 @@ pub use analysis::{
     var_env_over,
 };
 pub use appearance::{
-    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
-    Attr, AttrKind, AttrSet, Rgba8,
+    AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
+    AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
@@ -135,7 +135,7 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue,
@@ -229,12 +229,12 @@ pub use report::{
 };
 pub use resolve::{
     AboutReference, Diagnosis, FlipSet, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
-    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone, UnnamedEntity,
-    UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
-    derivation_nodes, derivation_reads, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    PredicateDivergence, ReadEdit, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
+    ResolveIndeterminate, ResolveRefusal, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
+    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
+    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, stranded_at, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

@@ -493,23 +493,18 @@ fn a_split_port_read_is_its_half() {
         (volume - 1.5).abs() < 1e-12,
         "the half (0.5) and the block (1): {volume}"
     );
-    let above_rows: Vec<editor_core::StableName> = ev
-        .value(split)
-        .expect("the split")
-        .name_table
-        .iter()
-        .filter(|(_, e)| {
-            matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
-        })
-        .map(|(n, _)| n.clone())
-        .collect();
+    let above_rows: Vec<editor_core::StableName> =
+        fixture::half(&ev, split, editor_core::SplitHalf::Above)
+            .iter()
+            .filter(|(_, e)| matches!(e, editor_core::Entry::Unique(_)))
+            .map(|(n, _)| n.clone())
+            .collect();
     let port_read = doc
         .output(split, editor_core::SplitHalf::Above.port())
         .expect("the split's above port");
     let carried: Vec<editor_core::StableName> = ev
-        .value(by_port)
+        .table_at(by_port)
         .expect("the union")
-        .name_table
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(editor_core::RoleSeg::From { read, of }) if *read == port_read => {
@@ -845,8 +840,8 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
         "the memo builds what a fresh evaluation builds"
     );
     assert_eq!(
-        format!("{:?}", memo.value(boolean).map(|v| &v.name_table)),
-        format!("{:?}", fresh.value(boolean).map(|v| &v.name_table)),
+        format!("{:?}", memo.table_at(boolean)),
+        format!("{:?}", fresh.table_at(boolean)),
         "and names it alike"
     );
 }

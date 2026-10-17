@@ -13,14 +13,10 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use std::sync::Arc;
-
-use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FragmentGroups, GroupCutters, NameTable, NamingKey, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    evaluate, resolve_with_prior,
+    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
+    FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
+    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -136,9 +132,8 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
 /// The `Borders`-qualified cap pieces of `cut`'s table, left to right.
 fn border_pieces(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName> {
     let fragments = ev
-        .value(cut)
+        .table_at(cut)
         .expect("the cut evaluates")
-        .name_table
         .iter()
         .filter_map(|(n, e)| {
             let discriminated = matches!(
@@ -265,38 +260,9 @@ fn one_node_eval(
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty),
-            name_table: Arc::new(t),
-            fragment_groups: Arc::new(groups),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(log),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            motion: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, log)),
     );
-    Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        loose: Default::default(),
-        document,
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    }
+    Evaluation::<f64>::hand_built(document, vec![node], nodes)
 }
 
 /// A two-frame document and the vanished/base/wall names
@@ -365,7 +331,7 @@ fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
     let doc2 = slide(&s, Axis3::X, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     assert!(border_pieces(&ev2, s.cut).is_empty(), "the cap is whole");
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -402,7 +368,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let doc2 = slide(&s, Axis3::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc2,
                 eval: &ev2,
@@ -451,9 +417,8 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
         };
         let plate = plate.read;
         let pieces: Vec<StableName> = ev1
-            .value(s.cut)
+            .table_at(s.cut)
             .expect("the cut evaluates")
-            .name_table
             .iter()
             .filter_map(|(n, e)| {
                 // The plate's rim pieces: the bar's own edges are lone
@@ -474,16 +439,15 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
         let gone: Vec<&StableName> = pieces
             .iter()
             .filter(|n| {
-                ev2.value(s.cut)
+                ev2.table_at(s.cut)
                     .expect("the cut evaluates")
-                    .name_table
                     .lookup(n)
                     .is_none()
             })
             .collect();
         assert!(!gone.is_empty(), "y = {to}: some edge piece vanishes");
         for name in gone {
-            let res = resolve_with_prior(
+            let res = crate::fixture::resolve_with_prior_at_mint(
                 RunCtx {
                     doc: &doc2,
                     eval: &ev2,
@@ -588,7 +552,7 @@ fn group_diagnosis(
         record(prior_groups),
     );
     let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &h.doc,
             eval: &new_ev,
@@ -862,7 +826,7 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
     }
     let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
     let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
-    let res = editor_core::resolve(
+    let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &h.doc,
             eval: &ev,

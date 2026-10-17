@@ -169,8 +169,10 @@ fn a_bore_vanishes_after_the_size_edit(chamfer: bool) {
             doc: &doc,
             eval: &ev1,
         },
+        doc2.read_of_node(fillet).expect("the fillet's read"),
         &carried,
-    );
+    )
+    .expect("a body read");
     let editor_core::Resolution::Failed(f) = res else {
         panic!("{verb}: the consumed wall's name resolves Failed, got {res:?}");
     };

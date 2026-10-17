@@ -147,9 +147,9 @@ fn both_blends_evaluate_in_one_document() {
         "the two-blend document failed: {failures:?}"
     );
     for id in [filleted, chamfered] {
-        let value = ev.value(id).expect("the blend node produced a value");
+        let table = ev.table_at(id).expect("the blend node produced a value");
         assert!(
-            value.name_table.iter().count() > 0,
+            table.iter().count() > 0,
             "node {id:?} produced an empty name table"
         );
     }
@@ -157,9 +157,8 @@ fn both_blends_evaluate_in_one_document() {
     // so their tables share no name: this is what "the discrimination
     // is the minting id" means, executed.
     let names = |id: RecipeNodeId| -> std::collections::BTreeSet<String> {
-        ev.value(id)
+        ev.table_at(id)
             .unwrap()
-            .name_table
             .iter()
             .map(|(n, _)| format!("{n:?}"))
             .collect()

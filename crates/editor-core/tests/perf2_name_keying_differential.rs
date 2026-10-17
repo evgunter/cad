@@ -80,24 +80,29 @@ fn tables_digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     let mut h = Fnv::new();
     for id in &ev.order {
         h.feed(&format!("#{id:?}"));
-        let Some(v) = ev.value(*id) else { continue };
-        for (n, e) in v.name_table.iter() {
-            h.feed(&format!("fwd {n:?}={e:?};"));
-        }
-        for (n, e) in v.name_table.iter() {
-            for ent in match e {
-                editor_core::names::Entry::Unique(one) => vec![*one],
-                editor_core::names::Entry::Tied(many) => many.clone(),
-            } {
-                h.feed(&format!(
-                    "rev {ent:?}={:?};",
-                    v.name_table.name_of(&ent).map(|n| format!("{n:?}"))
-                ));
-            }
-            let _ = n;
+        for t in crate::fixture::tables(ev, *id) {
+            perf2_table_digest(&mut h, t);
         }
     }
     h.0
+}
+
+/// One table's rows into `h`, forward then reverse.
+fn perf2_table_digest(h: &mut Fnv, t: &editor_core::NameTable) {
+    for (n, e) in t.iter() {
+        h.feed(&format!("fwd {n:?}={e:?};"));
+    }
+    for (_, e) in t.iter() {
+        for ent in match e {
+            editor_core::names::Entry::Unique(one) => vec![*one],
+            editor_core::names::Entry::Tied(many) => many.clone(),
+        } {
+            h.feed(&format!(
+                "rev {ent:?}={:?};",
+                t.name_of(&ent).map(|n| format!("{n:?}"))
+            ));
+        }
+    }
 }
 
 /// The saved text with its one `"epsilon":` line removed — the line CI's
@@ -195,6 +200,32 @@ fn sans_epsilon(t: &str) -> String {
 /// outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
+/// The persisted text moved in `kitchen_sink` (its appearance key is
+/// now a body read and a name) and `part_select` (its union's declared
+/// names); `cut_cylinder`'s held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
+///
+/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
+/// main's re-bless and this unit's each moved these rows, so the merged
+/// rows are neither tree's value; the id-masked geometry fence held.
+///
+/// **Re-taken merged over INTENT stage 3 B** (#5232, a placement is the
+/// bundle of mates), which re-pinned every row by its new mint chain:
+/// the merged rows are main's values but for the three split documents,
+/// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
+/// moves, and whose merged values are neither tree's.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x9f0d34d7a07b5474, 0x9f03cc351319921e),
     ("corner_table", 0x366cfaeb1b511dd4, 0x1df2baaa0b4cfe02),
@@ -212,8 +243,8 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xa529e5f0b9bc012b,
     ),
     ("declared_tangency", 0xb33609b3c74c8491, 0x653d3e8e9ab0edf6),
-    ("kitchen_sink", 0x73384c615d0daaa7, 0xa74d487f84505029),
-    ("cut_cylinder", 0x6be2f882ae9c16e0, 0x83a2ba14978f0b0b),
+    ("kitchen_sink", 0x921af29a8a392e9f, 0x1a3281466a9c6d8e),
+    ("cut_cylinder", 0x62aa716fe168434c, 0x83a2ba14978f0b0b),
     ("measured_web", 0x0f7ebbba863dbd6a, 0x5132b64f2ec245cb),
     ("boss_union", 0x51a5d345d1924d24, 0x6632d620a8ff5b33),
     ("die_fillet", 0xc19b1097f6f7ebf3, 0x8f0afb80b53dcc66),
@@ -222,7 +253,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink_fins", 0xc9f255e5f344b455, 0xb1c52ca0771195f8),
     ("die_tool", 0xebe33ebbcca8c1ec, 0xbee2f8e89c69fd49),
     ("face_sketch", 0x8d423ef73f55b3d5, 0x0768994dd185306a),
-    ("part_select", 0x5f060612941cd6be, 0x15b44130613d39d6),
+    ("part_select", 0x618c686b956524f0, 0x15b44130613d39d6),
     ("loft_prism", 0x6ce9439a092a1304, 0x60fd222c8b71e3d6),
     ("die_composed", 0xe4fb7f068ed46951, 0xc8972f50fe776583),
     ("die_composed_tour", 0x8f6423172611a30d, 0x79a850824cb49478),

@@ -157,6 +157,18 @@
 //! `intent_s2_c_world::PRE_C` and `seat4_verb_lowering`'s document
 //! digests moved that row and no other.
 //!
+//! **THREE NUMBERS MOVED WHEN A NAME BECAME SCOPED BY ITS VARIABLE**
+//! (FORK-DM4 unit 2), through `part_select` alone: its union declares
+//! the rest between the split's halves by the section face name, which
+//! no longer spells the half, so the union's id moved, and every id
+//! minted after it in the document. The id-masked fence below did not
+//! move, and an id-masked digest per document, taken on this tree and on
+//! its base (`1c4f9960d9`), is equal for every document: no outcome
+//! flipped and no point moved.
+//! Re-taken merged over INTENT stage 3 PR A, which moved the same
+//! three numbers by `kitchen_sink`'s ids: the merged values are
+//! neither tree's, and the id-masked fence held across the merge.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER

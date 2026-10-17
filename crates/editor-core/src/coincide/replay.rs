@@ -38,14 +38,13 @@
 //! there, between cells of the same names.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use geom_core::sym::deferred;
 use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
+use crate::eval::{EvalOptions, EvalOutcome, Evaluation, ProfileLift};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -103,7 +102,7 @@ pub(super) fn rungs(
                             let ordinal = ordinals.entry(row.site).or_insert(0usize);
                             let at = *ordinal;
                             *ordinal += 1;
-                            prove_row(doc, &ev, node, row, at, band, cancel)
+                            prove_row(&ev, node, row, at, band, cancel)
                         })
                         .collect()
                 })
@@ -116,7 +115,6 @@ pub(super) fn rungs(
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site. Canceled before it discharges a margin.
 fn prove_row(
-    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
     row: &NamedCoincidence,
@@ -146,7 +144,7 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && carrier_verdict(doc, ev, row, band)
+        && carrier_verdict(ev, row, band)
     {
         return Ok(Ok(Rung::CarrierVerdict));
     }
@@ -179,50 +177,35 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
 /// on is proven.
-fn carrier_verdict(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<Lane>,
-    row: &NamedCoincidence,
-    band: Band,
-) -> bool {
+fn carrier_verdict(ev: &Evaluation<Lane>, row: &NamedCoincidence, band: Band) -> bool {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return false,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(doc, ev, cell));
+    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
     let (Some((a, fa)), Some((b, fb))) = (a, b) else {
         return false;
     };
-    match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
+    match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
         _ => false,
     }
 }
 
 /// The face `cell` names, as the replay built it: the body of the read
-/// it came in through and its key there.
-fn face_of(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<Lane>,
-    cell: &NamedCell,
-) -> Option<(Arc<Body<Lane>>, FaceKey)> {
+/// it came in through and its key there, read in that read's own table.
+fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };
-    let value = ev.value(doc.operation_of(*input)?)?;
     let Some(Entry::Unique(EntityRef {
         body,
         key: EntityKey::Face(face),
-    })) = value.name_table.lookup(name)
+    })) = ev.table(*input)?.lookup(name)
     else {
         return None;
     };
-    let body = match (&value.payload, body) {
-        (ValuePayload::Body(b), 0)
-        | (ValuePayload::Boolean(BooleanValue::Body { body: b, .. }), 0) => Arc::clone(b),
-        (ValuePayload::Instances(bodies), i) => Arc::clone(bodies.get(usize::try_from(*i).ok()?)?),
-        _ => return None,
-    };
+    let body = ev.read_body(*input, *body).ok()?.ok()?;
     Some((body, *face))
 }

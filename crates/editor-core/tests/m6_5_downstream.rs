@@ -99,14 +99,10 @@ fn block(
     )
 }
 
-fn table_of(
-    ev: &editor_core::Evaluation<f64>,
-    node: RecipeNodeId,
-) -> std::sync::Arc<editor_core::NameTable> {
-    match ev.nodes.get(&node) {
-        Some(NodeResult::Ok(v)) => std::sync::Arc::clone(&v.name_table),
-        other => panic!("node {node:?} did not evaluate: {other:?}"),
-    }
+fn table_of(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> editor_core::NameTable {
+    ev.table_at(node)
+        .unwrap_or_else(|| panic!("node {node:?} did not evaluate: {:?}", ev.nodes.get(&node)))
+        .clone()
 }
 
 /// The die blank: a unit cube with EVERY edge blended. Returns the
@@ -201,6 +197,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &blend),
             name: blend.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(9, 8, 7)),
         },
@@ -236,7 +233,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
 /// is an ordinary reference.
 #[test]
 fn every_fillet_minted_role_resolves_through_the_ladder() {
-    use editor_core::resolve::{Resolution, RunCtx, resolve};
+    use editor_core::resolve::{Resolution, RunCtx};
     let (doc, cube, blank) = filleted_blank();
     let target_read = fixture::out(&doc, cube);
     let ev = eval(&doc);
@@ -258,7 +255,7 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
             doc: &doc,
             eval: &ev,
         };
-        match resolve(ctx, name) {
+        match crate::fixture::resolve_at_mint(ctx, name) {
             Resolution::Resolved { .. } => {}
             other => panic!("{role} name {name:?} did not resolve: {other:?}"),
         }

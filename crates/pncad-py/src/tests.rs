@@ -1577,16 +1577,22 @@ fn resolution_status_tags_are_stable() {
     faces.sort();
     assert_eq!(faces.len(), 6, "a cube's six faces");
     let stored = faces.remove(0);
+    // The read the name is read in: the extrude's one output.
+    let read = doc.read_of_node(extrude).expect("the extrude's output");
 
     // RESOLVED: the ordinary run, asked about its own name.
     assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &doc,
-                eval: &ev
-            },
-            &stored
-        )),
+        resolution_status_tag(
+            &resolve(
+                RunCtx {
+                    doc: &doc,
+                    eval: &ev
+                },
+                read,
+                &stored
+            )
+            .expect("the extrude's read, or none")
+        ),
         "resolved"
     );
 
@@ -1606,15 +1612,18 @@ fn resolution_status_tags_are_stable() {
             doc: &pruned,
             eval: &after,
         },
+        read,
         &stored,
-    );
+    )
+    .expect("the extrude's read, or none");
     assert_eq!(resolution_status_tag(&verdict), "failed");
-    // ...and WHICH failure, which is the word a repair branches on: a
-    // node that left the document is rebound onto a different
-    // feature, where a tie would have been refined among `offers`.
+    // ...and WHICH failure, which is the word a repair branches on: the
+    // read it was resolved in went with the node, and that rung comes
+    // first — the reference is re-sited in a live read, where a tie
+    // would have been refined among `offers`.
     match &verdict {
         Resolution::Failed(failure) => {
-            assert_eq!(resolve_error_tag(&failure.error), "node_gone");
+            assert_eq!(resolve_error_tag(&failure.error), "read_gone");
         }
         other => panic!("a deleted minting node must fail: {other:?}"),
     }
@@ -1632,8 +1641,10 @@ fn resolution_status_tags_are_stable() {
             doc: &doc,
             eval: &partial,
         },
+        read,
         &stored,
-    );
+    )
+    .expect("the extrude's read, or none");
     assert_eq!(resolution_status_tag(&verdict), "indeterminate");
     match &verdict {
         Resolution::Indeterminate(cause) => {
@@ -5117,6 +5128,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "ambiguous_output",
             "anonymous_var_unread",
+            "appearance_body_not_a_read",
             "appearance_names_missing_node",
             "appearance_not_set",
             "appearance_wrong_kind",
@@ -5415,6 +5427,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_bodies",
             "no_such_body",
             "no_such_name",
+            "several_outputs",
             "whole_body",
             "wrong_kind",
         ],
@@ -5996,7 +6009,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "resolve_error_tag",
-        values: &["ambiguous", "node_gone", "vanished"],
+        values: &["ambiguous", "node_gone", "read_gone", "vanished"],
         delegates: &[],
     },
     TagEntry {
@@ -6007,6 +6020,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "resolve_indeterminate_tag",
         values: &["target_failed", "target_not_evaluated", "target_poisoned"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "resolve_refusal_tag",
+        values: &["node_not_held", "read_not_an_output"],
         delegates: &[],
     },
     TagEntry {
@@ -6217,6 +6235,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "anonymous_var_unread",
+            "appearance_read_not_a_body",
             "assertion_bound",
             "constraint_not_minted",
             "definition_cycle",
