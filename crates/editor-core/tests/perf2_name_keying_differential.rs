@@ -186,6 +186,15 @@ fn sans_epsilon(t: &str) -> String {
 /// the cavity's wall moved from a touch of the wall to a crossing of the
 /// two rims, as the other three such corners are named. Every
 /// other document held its word, and the persisted text did not move.
+///
+/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
+/// mates), every row, the persisted text with it (it spells `Place` and
+/// its constraint): a placement is a `Place` holding a world pin where
+/// it was a `PlaceInWorld`, so its stored node, and with it its mint
+/// preimage, moved, and every id the mint chain draws after it. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x9f0d34d7a07b5474, 0x9f03cc351319921e),
     ("corner_table", 0x366cfaeb1b511dd4, 0x1df2baaa0b4cfe02),

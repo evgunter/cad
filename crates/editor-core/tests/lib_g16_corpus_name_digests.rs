@@ -193,6 +193,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the cavity's wall moved from a touch of the wall to a crossing of the
 /// two rims, as the other three such corners are named. Every
 /// other document held its word.
+///
+/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
+/// mates), every row: a placement is a `Place` holding a world pin
+/// where it was a `PlaceInWorld`, so its stored node, and with it its
+/// mint preimage, moved, and every id the mint chain draws after it. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x3c13fb2010461034),
     ("corner_table", 0xbbddc3c4abc8906c),

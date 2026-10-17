@@ -488,9 +488,10 @@ pub const NODE_KINDS: [&str; 23] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold` and `UpdateReference`
-/// are arms of `DocEdit` that no corpus document authors, and listing
-/// them here would report six permanent misses rather
+/// `AddConstraint`, `RemoveConstraint`, `RenameVar`, `DeleteVar` and
+/// `UpdateReference` are arms of `DocEdit` that no corpus document
+/// authors (a corpus placement holds its constraints from its insert),
+/// and listing them here would report six permanent misses rather
 /// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the

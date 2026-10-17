@@ -38,3 +38,8 @@ unmoved.
 
 Both rows are in the per-PR slow set (`.config/nextest.toml`), so any PR
 seeding editor-core shows them red until this is fixed.
+
+A lead, not checked: `crates/editor-core/tests/m10_p_fence.rs`'s
+module doc records a recent main change that moved recorded vertex
+pairs onto one point key (`ops::record_classes`, through `kiss_carry`).
+Point-key sharing is exactly what `Bound::Shared` reads.

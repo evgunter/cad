@@ -142,6 +142,13 @@
 //! moved too; `lib_g16_corpus_name_digests` moved that row and no
 //! other, and every point of the bodies that remain is where it was.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A PLACEMENT BECAME THE BUNDLE OF
+//! MATES** (INTENT stage 3 B), through every document: a placement is a
+//! `Place` holding a world pin where it was a `PlaceInWorld`, so its
+//! stored node, and with it its mint preimage, moved, and every id the
+//! mint chain draws after it. The id-masked geometry fence below did
+//! not move.
+//!
 //! **ALL FOUR NUMBERS MOVED WHEN A BOOLEAN'S RECORDED VERTEX PAIRS CAME
 //! TO SHARE ONE POINT KEY**, through `kiss_carry` alone: its union's
 //! two kissing corners now sit on one key (`ops::record_classes`), so

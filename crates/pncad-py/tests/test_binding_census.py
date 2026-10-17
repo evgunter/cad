@@ -1896,9 +1896,9 @@ FAMILIES: dict[str, str] = {
 #: `PinMultiplicity`, `PinSites`), the at-rest gate (`assemble`,
 #: `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
-#: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
+#: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `Maintenance`, `groups`, `root_of`, `reading_edges`,
+#: `Maintenance`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,

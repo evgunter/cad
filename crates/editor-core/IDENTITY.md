@@ -30,8 +30,7 @@ symbol beside them; the symbol is the stable half.
   an input of an evaluation only where the evaluation crosses the seam.
 - **Free-move is display state** (G3): a display frame over an instance's
   placement, no solver, admitted only for an instance no mate names
-  (`display.rs`). `DocEdit::SetOffset` sets the instance's offset in its
-  gauge (A11 (2)).
+  (`display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
 

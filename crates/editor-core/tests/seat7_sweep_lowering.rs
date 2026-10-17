@@ -246,6 +246,14 @@ fn both_sweeps_evaluate_in_one_document() {
 /// or a moved bit moves it. They are goldens in the ordinary sense —
 /// when one moves the question is whether the new behaviour is right,
 /// never how to restore the old number.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [

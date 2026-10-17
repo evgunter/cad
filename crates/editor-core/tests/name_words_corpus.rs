@@ -211,6 +211,13 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// crossing of two rims rather than a touch, and the pieces ending at
 /// that corner say other words (`lib_g16_corpus_name_digests` moved
 /// that row alone).
+///
+/// INTENT stage 3 B (a placement is the bundle of mates): a placement
+/// is a `Place` holding a world pin where it was a `PlaceInWorld`, so
+/// its stored node, and with it its mint preimage, moved, and every id
+/// the mint chain draws after it. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held. The placement's kind word moved with it.
 const SAID_DIGEST: u64 = 0xa63a_95f4_0ead_42ef;
 
 /// The tables an evaluation answers for a name it does not hold: a
