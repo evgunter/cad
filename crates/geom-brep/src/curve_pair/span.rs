@@ -42,14 +42,19 @@
 //! vertex of its own, [`Span::endless`] — has no end to be near: every
 //! foot is inside it.
 //!
-//! **The composition** ([`Span::read`]): at an end is [`Reading::End`];
-//! inside, the carrier's reading decides, on ([`Reading::On`]), off
-//! ([`Reading::Off`]) or undecided (its refusal); past, the point is off
-//! the span, on the carrier ([`Reading::Carrier`]) or not
-//! ([`Reading::Off`], an undecided carrier included, since no answer to it
-//! puts the point on the span). A place the band cannot read is off where
-//! the carrier reads the point off, and a refusal otherwise: the
-//! carrier's where it refused too, else the place's.
+//! **The composition** ([`Span::read`]): a point the carrier reads off is
+//! off the span ([`Reading::Off`]) wherever its foot sits, so its place
+//! is not read: no end can be within the band of a point the whole
+//! carrier is past the band from, and a foot need not be defined to say
+//! so (a point on a circle's axis has every parameter for its foot, and
+//! a place read there would decide sides of a half turn the point does
+//! not have). Otherwise, at an end is [`Reading::End`]; inside, the
+//! carrier's reading decides, on ([`Reading::On`]) or undecided (its
+//! refusal); past, the point is off the span, on the carrier
+//! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
+//! included, since no answer to it puts the point on the span). A place
+//! the band cannot read is a refusal: the carrier's where it refused
+//! too, else the place's.
 
 use geom::{CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{decide_reported, straddle};
@@ -331,26 +336,29 @@ impl<'a, T: Decide> Span<'a, T> {
 
     /// **What `q` is against the span**: the two readings at its foot
     /// found from `near`, composed (module docs), deciding nothing of its
-    /// own. The place is read first, so a refusal of the carrier's is the
-    /// last on the frame.
+    /// own. The carrier is read first, and a point it reads off is off
+    /// the span with no place read.
     ///
     /// # Errors
     ///
     /// Whichever reading the answer rests on refused (module docs).
     pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
         let foot = self.carrier.foot(q, near);
-        let place = self.place_at(&foot, band);
-        Ok(match place {
+        let on = foot.on_carrier(band);
+        if on == Ok(OnCarrier::Off) {
+            return Ok(Reading::Off);
+        }
+        Ok(match self.place_at(&foot, band) {
             Ok(Place::End(which)) => Reading::End(which),
-            Ok(Place::Inside { t }) => match foot.on_carrier(band)? {
+            Ok(Place::Inside { t }) => match on? {
                 OnCarrier::On { margin } => Reading::On { t, margin },
                 OnCarrier::Off => Reading::Off,
             },
-            Ok(Place::Past) => match foot.on_carrier(band) {
+            Ok(Place::Past) => match on {
                 Ok(OnCarrier::On { .. }) => Reading::Carrier,
                 Ok(OnCarrier::Off) | Err(_) => Reading::Off,
             },
-            Err(refused) => match foot.on_carrier(band) {
+            Err(refused) => match on {
                 Ok(OnCarrier::Off) => Reading::Off,
                 Ok(OnCarrier::On { .. }) => return Err(refused),
                 Err(carrier) => return Err(carrier),

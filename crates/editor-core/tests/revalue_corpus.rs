@@ -304,11 +304,10 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 ///
 /// `flips` is the same for a decision the builds answer with different
 /// signs: the flipping decisions' predicates IN ORDER, each with its
-/// item, and `after` the predicates re-valued away after them. Given,
-/// both are held exactly — the row reds when an owed flip goes and when
-/// any other decision flips, under any name. Not given, a flip whose
-/// margins re-value in agreement is not asserted (the contract before
-/// the field), and `after` must be empty.
+/// item, and `after` the predicates re-valued away after them. Both are
+/// held exactly, given or not: the row reds when an owed flip goes and
+/// when any other decision flips, under any name, so a row that names
+/// none owes none.
 fn holds(
     name: &str,
     mode: Move,
@@ -347,24 +346,22 @@ fn holds(
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
     );
-    if !flips.is_empty() {
-        for (_, item) in flips {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../..")
-                .join(item);
-            assert!(
-                path.is_file(),
-                "{name}: the owed flip's item {item} is no file"
-            );
-        }
-        let got: Vec<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
-        let want: Vec<&str> = flips.iter().map(|(p, _)| *p).collect();
-        assert_eq!(
-            got, want,
-            "{name}: the decisions the builds answered with different signs are not the owed \
-             ones, in order ({flips:?}) — {found:?}"
+    for (_, item) in flips {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(item);
+        assert!(
+            path.is_file(),
+            "{name}: the owed flip's item {item} is no file"
         );
     }
+    let got: Vec<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
+    let want: Vec<&str> = flips.iter().map(|(p, _)| *p).collect();
+    assert_eq!(
+        got, want,
+        "{name}: the decisions the builds answered with different signs are not the owed \
+         ones, in order ({flips:?}) — a row owes none unless it names them — {found:?}"
+    );
     let want_after: BTreeSet<&str> = after.iter().copied().collect();
     assert_eq!(
         found.after_flip, want_after,
@@ -398,8 +395,9 @@ macro_rules! rows {
     )*};
 }
 
-/// The item that owes `boss_union`'s in-step flip.
-const BOSS_UNION_FLIP: &str = "work/inlane/under-the-guided-lift-boss-unions-curve-pair-span-branch-flips-from-an-exact-zero-under-the-in-step-move.md";
+/// The item that owes a decision exactly zero at the nominal that the
+/// move flips.
+const EXACT_ZERO_AT_THE_NOMINAL: &str = "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md";
 
 rows! {
     // In step: moved apart, a point sits exactly on a loop at the nominal
@@ -411,14 +409,8 @@ rows! {
     // another order and the builds part after decision 3996, the first
     // difference at #3997 (`pcurve_chart_azimuth_frame`)
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
-    // which NOTHING here pins). In step, a branch angle on its cut at the
-    // nominal flips, owed below.
-    revalue_boss_union: "boss_union", InStep, 3243, [],
-        flips [
-            ("curve_pair_span_branch", BOSS_UNION_FLIP),
-            ("curve_pair_span_end_side", BOSS_UNION_FLIP)
-        ],
-        after ["curve_pair_span_end_side"];
+    // which NOTHING here pins).
+    revalue_boss_union: "boss_union", InStep, 3236, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
@@ -428,7 +420,14 @@ rows! {
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
-    revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
+    // Apart: two chart frames on an azimuth exactly zero at the nominal
+    // flip, and nothing re-values away after them, owed below.
+    revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
+        flips [
+            ("pcurve_chart_azimuth_frame", EXACT_ZERO_AT_THE_NOMINAL),
+            ("pcurve_chart_azimuth_frame", EXACT_ZERO_AT_THE_NOMINAL)
+        ],
+        after [];
 }
 
 /// The census over the whole corpus, one document per run with

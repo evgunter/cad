@@ -338,3 +338,39 @@ fn an_undecided_place_beside_an_off_carrier_is_off() {
     assert_eq!(place(span.place(q, t, band())), "escalated");
     assert_eq!(read(&span, q, t), "none");
 }
+
+/// **A point on a circle's axis is off its span with no place read.**
+/// Its foot is every parameter of the carrier, so the place a foot
+/// gives it (the branch about the span's middle, the side of each end)
+/// is the seed's, not the point's: read there, a half turn's cut decides
+/// from an exact zero and a move off the axis flips it (boss_union's
+/// `curve_pair_span_branch`, where a disc's three-arc rim puts the
+/// triangle of its vertices' centroid on the axis). The carrier reads the
+/// point off, and that is the answer at every seed, with no
+/// `curve_pair_span_*` row decided. Red where the place is read first.
+#[cfg(feature = "probe")]
+#[test]
+fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
+    use geom_core::Real;
+    use geom_core::k_stats::{self, Probe};
+    let p = Probe::from_f64;
+    let c = Curve3::Circle {
+        center: Point3::new(p(0.0), p(0.0), p(1.0)),
+        axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+        radius: p(2.0),
+        u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+    };
+    let span = Span::new(&c, (p(2.0 * PI / 3.0), p(4.0 * PI / 3.0)));
+    let centre = Point3::new(p(0.0), p(0.0), p(1.0));
+    for seed in [0.0, PI / 3.0, PI, 5.0 * PI / 3.0, TAU] {
+        k_stats::start_recording();
+        let got = span.contact(centre, p(seed), band());
+        let placed: Vec<&str> = k_stats::take_samples()
+            .iter()
+            .map(|s| s.predicate)
+            .filter(|n| n.starts_with("curve_pair_span_"))
+            .collect();
+        assert!(matches!(got, Ok(None)), "seed {seed}: {got:?}");
+        assert!(placed.is_empty(), "seed {seed}: the place was read: {placed:?}");
+    }
+}
