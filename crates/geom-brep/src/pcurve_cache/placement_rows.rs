@@ -590,7 +590,7 @@ fn a_meridian_with_its_midpoint_at_the_pole_names_one_image_wherever_it_starts()
 /// **A placement's margin is one expression per name across a frame
 /// flip.** A direction pointing down the chart (`y = −1`), read at
 /// `Sym<f64>` with its `x` a parameter: at `x = 0` the frame lane reads
-/// `atan2(y, x)`, at `x = −1e-7` (definitely negative) `atan2(−y, −x) +
+/// `atan2(y, x)`, at `x` ten band-widths negative `atan2(−y, −x) +
 /// π`, the same angle a turn up, so the placement's gap is a different
 /// expression on each side. Each side decides under its own formula's
 /// name (`Frame::placement`), and within a name every margin re-values
@@ -639,9 +639,17 @@ fn a_placements_margin_is_one_expression_per_name_across_a_frame_flip() {
         })
         .0
     };
+    // Past the band on the turned side at every ε row, so the frame
+    // decides Negative there.
+    let past = 10.0 * band().escalate();
     for (side, x, near, name) in [
-        ("direct", 0.0, 1e-7, "pcurve_chart_placement"),
-        ("turned", -1e-7, -2e-7, "pcurve_chart_placement_turned"),
+        ("direct", 0.0, past, "pcurve_chart_placement"),
+        (
+            "turned",
+            -past,
+            -2.0 * past,
+            "pcurve_chart_placement_turned",
+        ),
     ] {
         let here = build(x, near);
         let there = build(near, near);
