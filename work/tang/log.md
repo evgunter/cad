@@ -1019,3 +1019,14 @@ siblings went to WIRE and EMIT.
 - U-lever's item closes. The pinch item records U2a, U-lever and U2p as built; U2b and U2c remain.
 - Not dispatched: the D2 selector build (units 1–8 on `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`, P2) and the rest of the open slate. No row is at P0 or above.
 - The orchestrator steps off, and the program goes `ready`. No lanes are live, and no check-ins are scheduled.
+
+## 2026-10-17 — the priority-seam cut
+
+Ev, in chat: split TANG into multiple programs. TANG measured 142.5 budget points against 30, with 70 live rows. Four successors opened on its priority seam, each under its ceiling. Their rows moved by `git mv` with ids and bodies unchanged:
+
+- **SELECT** (P2, 28.5 points): the D2 selector build and the `OnPair` and chart-image rows it retires or keeps honest.
+- **LEVER** (P2, 28): the levers that still read the wrong extent.
+- **TWICE** (P3, 28): one question read twice; reach measures read past their span.
+- **TANGTAIL** (P3, 30): the contact-line and ring corners, the banked torus rest lane, Approx and offset readings, fixtures.
+
+TANG keeps the pinch machinery (U2b, U2c), the declared-tangency arms parked on the D10 hold, and the contact corners nearest them: 28 points, 20 live rows. Four rows that carried no band were banded at the cut: `a-lone-unread-partner-has-no-class-rule` P2; `an-iso-arc-certificate-…`, `a-carrier-pair-tangency-…` and `chord-join-serves-lines-…` P3. Every in-tree citation of a moved row's path is re-pointed.
