@@ -692,7 +692,7 @@ where
                 (None, inner) => inner,
                 (Some(outer), None) => Some(outer),
                 (Some(outer), Some(inner)) => {
-                    Some(outer.compose(inner).map_err(NodeErrorKind::Motion)?)
+                    Some(if std::env::var_os("R2_M2").is_some() { inner.compose(outer) } else { outer.compose(inner) }.map_err(NodeErrorKind::Motion)?)
                 }
             };
             Ok(super::KeyedCopy {

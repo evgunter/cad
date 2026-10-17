@@ -2956,7 +2956,7 @@ pub fn split(
                 // `Part` selection), pinned at the identity.
                 let survives = match crate::mate::member::member_of_side(doc, *var) {
                     Some(member) => {
-                        member.chain.is_empty() && places_at_identity(doc, member.instance)
+                        (member.chain.is_empty() || std::env::var_os("R2_M8").is_some()) && places_at_identity(doc, member.instance)
                     }
                     None => {
                         !matches!(

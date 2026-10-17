@@ -5411,7 +5411,7 @@ where
             // this copy moves its key, and a bundle that refuses keys
             // DISTINCTLY from any pose — otherwise a repaired document
             // could hit the memo on a stale success.
-            solve_answer.feed_placement(&mut h);
+            if std::env::var_os("R2_M10").is_none() { solve_answer.feed_placement(&mut h); }
             feed_bundle(&mut h, constraints, selections, &solve_answer);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {

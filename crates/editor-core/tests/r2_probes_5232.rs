@@ -170,3 +170,65 @@ fn r2_overconstrained_edit_error_text() {
         "a bundle verdict reported as the constraint's own datum: {text}"
     );
 }
+
+/// The content key skips an own-copy side read through a placer of
+/// the copy (`Doc::upstream_of`'s exemption). Editing that placer moves
+/// the copy; a memo run over the prior must move it too.
+#[test]
+fn r2_own_copy_side_through_a_pattern_memo() {
+    use crate::p2_gauges::{body_of, min_corner, parts};
+    use editor_core::{CancelToken, PatternKind, SlotId, SlotValue};
+    let p = parts("r2-own-copy-memo");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-own-copy-memo"), Tol::witness());
+    let (doc, leg) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, mover) = insert(doc, mated_instance(p.base));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: mover.into(),
+            count: Formula::count(3),
+            kind: PatternKind::Linear {
+                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let mate = fixture::mate(
+        fixture::head(fixture::in_copy(pattern, 1, in_part(mover, p.base_body, CapEnd::Start))),
+        fixture::head(p.top_upper_cap(leg)),
+        ContactClass::Rest,
+        Alignment {
+            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], Tol::witness())
+                .unwrap(),
+            b: MateFrame::from_face(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    );
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = match at_the_door_of(&doc, &reach, mover, mate) {
+        Ok(x) => x,
+        Err((_, f)) => panic!("admitted: {f}"),
+    };
+    let ev = |d: &ProfileDoc, prior| {
+        editor_core::evaluate::<f64>(d, prior, &CancelToken::new(), &o, Tol::witness())
+    };
+    let first = ev(&doc, None);
+    let before = min_corner(&body_of(&first, mover));
+    let (doc2, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: pattern,
+            slot: SlotId::Spacing,
+            value: SlotValue::Formula(len(3.0)),
+            fresh: Vec::new(),
+        },
+    );
+    let fresh = min_corner(&body_of(&ev(&doc2, None), mover));
+    let memo = min_corner(&body_of(&ev(&doc2, Some(&first)), mover));
+    eprintln!("R2-MEMO before={before:?} fresh={fresh:?} memo={memo:?}");
+    assert_ne!(before, fresh, "the spacing edit moves the mover");
+    assert_eq!(memo, fresh, "a memo run serves the copy where a fresh run puts it");
+}
