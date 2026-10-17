@@ -57,6 +57,8 @@ pub enum NodeErrorClass {
     ProfileAnchor,
     /// [`NodeErrorKind::ProfilePieces`].
     ProfilePieces,
+    /// [`NodeErrorKind::ProfileRecordMissing`].
+    ProfileRecordMissing,
     /// [`NodeErrorKind::Extrude`].
     Extrude,
     /// [`NodeErrorKind::Revolve`].
@@ -133,8 +135,8 @@ pub enum NodeErrorClass {
     PoseDegenerate,
     /// [`NodeErrorKind::PoseScalar`].
     PoseScalar,
-    /// [`NodeErrorKind::NonPositiveCount`].
-    NonPositiveCount,
+    /// [`NodeErrorKind::CountOutOfRange`].
+    CountOutOfRange,
     /// [`NodeErrorKind::NegativeSpacing`].
     NegativeSpacing,
     /// [`NodeErrorKind::DegenerateSpacing`].
@@ -296,6 +298,7 @@ impl NodeErrorKind {
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
             Self::ProfileAnchor { .. } => C::ProfileAnchor,
             Self::ProfilePieces { .. } => C::ProfilePieces,
+            Self::ProfileRecordMissing { .. } => C::ProfileRecordMissing,
             Self::Extrude(_) => C::Extrude,
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
@@ -336,7 +339,7 @@ impl NodeErrorKind {
             Self::PoseRead { .. } => C::PoseRead,
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,
-            Self::NonPositiveCount { .. } => C::NonPositiveCount,
+            Self::CountOutOfRange { .. } => C::CountOutOfRange,
             Self::NegativeSpacing { .. } => C::NegativeSpacing,
             Self::DegenerateSpacing => C::DegenerateSpacing,
             Self::DegenerateStep => C::DegenerateStep,
@@ -512,6 +515,7 @@ mod tests {
         ProfileLaneReplay,
         ProfileAnchor,
         ProfilePieces,
+        ProfileRecordMissing,
         Extrude,
         Revolve,
         Tube,
@@ -550,7 +554,7 @@ mod tests {
         PoseRead,
         PoseDegenerate,
         PoseScalar,
-        NonPositiveCount,
+        CountOutOfRange,
         NegativeSpacing,
         DegenerateSpacing,
         DegenerateStep,
@@ -733,6 +737,7 @@ mod tests {
                     anchored: 5,
                 },
             },
+            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: Some(1) },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
@@ -864,7 +869,11 @@ mod tests {
                 var: crate::VarId::new(2, 0),
                 source: EvalError::NonFiniteResult,
             },
-            C::NonPositiveCount => K::NonPositiveCount { count: 0 },
+            C::CountOutOfRange => K::CountOutOfRange {
+                slot: crate::node::SlotId::Count,
+                count: 0,
+                admits: 1..=i64::MAX,
+            },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
                 reversed: [-1.0, 0.0, 0.0]

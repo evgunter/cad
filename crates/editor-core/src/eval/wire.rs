@@ -1662,18 +1662,12 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
-        // One record per program loop, by construction of pass 1. The
-        // EMPTY fallback is not a guard: a loop with a fillet refuses at
-        // the first resolution (`Guide::consume`), but a loop with none
-        // would elaborate against it. What holds the line is the shape
-        // check in `replay_guided`.
         let record = pre
             .structure
             .replay
             .get(li as usize)
-            .cloned()
-            .unwrap_or_default();
-        let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
+            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: Some(li) })?;
+        let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
                 step: error.step,
@@ -1699,16 +1693,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> PayloadResult<T> {
-    let Some(pre) = pre else {
-        // Unreachable by eval_node's stage order; typed, never a panic.
-        return Err(NodeErrorKind::MissingSlot {
-            slot: SlotId::Profile {
-                loop_: 0,
-                step: 0,
-                arg: crate::node::StepArg::PointX,
-            },
-        });
-    };
+    let pre = pre.ok_or(NodeErrorKind::ProfileRecordMissing { loop_: None })?;
     let validated = match lane.lift {
         // The build path: the precompute's VALIDATED form embedded
         // through `from_f64`, every decision carried as the f64 one and
@@ -2166,13 +2151,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///    [`ladder::vanished`]: there is no evidence to weigh
 ///    mid-evaluation.
 ///
-/// Rungs 2 and 3 are ordered by the DOOR. The one-table doors ask 1,
-/// 2, 3. The declare door (`resolve_declarations`) asks 1 and 3 of
-/// BOTH names, then its pair's kind question, then 2: a name that names
-/// nothing says so before any question about the pair, and a pair the
-/// vocabulary has no step for is unsupported however many entities
-/// answer to either name, so the tie is the one per-name refusal the
-/// kind question outranks.
+/// Rungs 2 and 3 are ordered by the DOOR; the one-table doors ask 1,
+/// 2, 3.
 ///
 /// A door supplies [`ladder::Landing`]s, one per table, and keeps its
 /// own arity (which table, what a multi-table hit means, which kind it
@@ -4186,7 +4166,11 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
         slot: SlotId::Count,
     })?;
     if n < 1 {
-        return Err(NodeErrorKind::NonPositiveCount { count: n });
+        return Err(NodeErrorKind::CountOutOfRange {
+            slot: SlotId::Count,
+            count: n,
+            admits: 1..=i64::MAX,
+        });
     }
     let naming = NodeErrorKind::Naming;
     let mut instances: Vec<Arc<Body<T>>> = master.to_vec();
@@ -4253,7 +4237,11 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 slot: SlotId::Count,
             })?;
             if n < 1 {
-                return Err(NodeErrorKind::NonPositiveCount { count: n });
+                return Err(NodeErrorKind::CountOutOfRange {
+                    slot: SlotId::Count,
+                    count: n,
+                    admits: 1..=i64::MAX,
+                });
             }
             (0..n)
                 .map(|i| {
@@ -4323,10 +4311,15 @@ fn section_value<T: Decide>(
     })
 }
 
-/// A structural (Count) slot, refused typed when absent or unusable.
+/// A structural (Count) slot read as a `usize`, refused typed when
+/// absent, negative, or past what a `usize` holds.
 fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, NodeErrorKind> {
     let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
+    usize::try_from(n).map_err(|_| NodeErrorKind::CountOutOfRange {
+        slot,
+        count: n,
+        admits: 0..=i64::try_from(usize::MAX).unwrap_or(i64::MAX),
+    })
 }
 
 /// The Loft node: the §10.3 walls and their solid assembly, over its

@@ -407,7 +407,24 @@ fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
         },
     );
     with_failure(&doc, sweep, |kind| match kind {
-        NodeErrorKind::NonPositiveCount { count } => assert_eq!(*count, -3),
-        other => panic!("expected NonPositiveCount, got {other:?}"),
+        NodeErrorKind::CountOutOfRange {
+            slot,
+            count,
+            admits,
+        } => {
+            assert_eq!(
+                *slot,
+                editor_core::SlotId::Stations,
+                "the slot read is named"
+            );
+            assert_eq!(*count, -3, "the evaluated count is carried");
+            assert_eq!(*admits.start(), 0, "a station count admits zero and up");
+            let text = kind.to_string();
+            assert!(
+                text.starts_with("the stations input evaluated to -3, and it admits "),
+                "the sentence names the slot it read and the value: {text}"
+            );
+        }
+        other => panic!("expected CountOutOfRange, got {other:?}"),
     });
 }

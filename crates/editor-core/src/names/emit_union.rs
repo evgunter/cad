@@ -18,10 +18,10 @@
 //! apart.
 //!
 //! **Coming out** ([`name_union`] for the published table,
-//! [`collapse_table`] for the accumulation the declaration door
-//! reads, and [`collapse_name`] for the refusal paths — three
-//! consumers of one collapse, which the published table follows with
-//! the two end passes below): a fold-table name is rewritten by descending its
+//! [`collapse_table`] for the accumulation a fold step reads, and
+//! [`collapse_name`] for the refusal paths — three consumers of one
+//! collapse, which the published table follows with the two end
+//! passes below): a fold-table name is rewritten by descending its
 //! fold-side chain to the member-keyed [`RoleSeg::From`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
 //! collapsed by the same rule. The result is then put in canonical
@@ -81,12 +81,9 @@
 //! leaves maximal faces and maximal edges (`docs/DESIGN.md`), a complex
 //! unique to the union's region and face partition.
 //!
-//! A refusal raised mid-fold, and the declaration door's view of an
-//! intermediate step, have no finished body and keep the fold's
-//! qualifiers. Neither may carry a fold-qualified member-edge piece: the
-//! declaration door admits no edge (`DeclareUnsupportedPair`), and a
-//! refusal that would carry one refuses as an emission bug instead
-//! (`is_fold_qualified_member_edge`).
+//! A refusal raised mid-fold has no finished body, so the names it
+//! carries take the collapse ([`collapse_name`]) and none of the end
+//! passes.
 //!
 //! # How an intermediate row is told from a member's row
 //!

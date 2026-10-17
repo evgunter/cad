@@ -14,8 +14,7 @@
 //! What stays in the lowering, deliberately: which input is the body
 //! and which the tool (the node's own shape), and the refusal a tool
 //! that is not a plane draws (`NodeErrorKind::WrongOperand` — document
-//! semantics, the class `resolve_declarations` and the revolve's axis
-//! check keep upstairs). What is declared HERE is the correspondence
+//! semantics, the class the revolve's axis check keeps upstairs). What is declared HERE is the correspondence
 //! proper: how a datum value becomes the verb's plane ([`SplitVerb::tool`]
 //! and the label its refusal carries), how the plane becomes the kernel
 //! verb (`build`), and which emitter mints names from the birth record

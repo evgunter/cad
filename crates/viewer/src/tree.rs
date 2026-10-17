@@ -1343,6 +1343,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::ProfileLaneReplay { .. }
         | NodeErrorKind::ProfileAnchor { .. }
         | NodeErrorKind::ProfilePieces { .. }
+        | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
@@ -1367,7 +1368,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
-        | NodeErrorKind::NonPositiveCount { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing
         | NodeErrorKind::DegenerateStep
