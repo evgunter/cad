@@ -1929,14 +1929,11 @@ impl crate::spoken::Say for MateFault {
             } => {
                 let (which, rest) = match constraints.as_slice() {
                     [_] => ("constraint", "the others leave"),
-                    _ => (
-                        "any one of constraints",
-                        "without any one, the others leave",
-                    ),
+                    _ => ("any one of constraints", "without any one the others leave"),
                 };
                 write!(
                     f,
-                    "{}'s bundle pins its copy even without {which} {}: {rest} {}. \
+                    "{}'s bundle pins its copy even without {which} {}, since {rest} {}. \
                      Recourse: {OVERCONSTRAINED_RECOURSE}",
                     by.node(*placement),
                     ids(*placement, constraints),

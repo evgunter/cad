@@ -2537,7 +2537,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
     );
     assert_f6(
         &LeverRefusal::NotAnInstance { node: instance },
-        &["node 000000000007", "not a live instantiate node"],
+        &["node 000000000007", "is not an instance's copy"],
         &["NotAnInstance"],
     );
     assert_f6(
