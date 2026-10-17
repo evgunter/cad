@@ -184,7 +184,7 @@ fn resolver(store: &PartStore) -> Arc<dyn PartResolver> {
 fn crosses_at_a(err: &SplitError, mate: MateRef) -> bool {
     matches!(
         err,
-        SplitError::MateFrameCrosses { placement, constraint, side: MateSide::A }
+        SplitError::MateFrameCrosses { placement, constraint, side: MateSide::A, .. }
             if placement.id() == mate.placement && *constraint == mate.id
     )
 }

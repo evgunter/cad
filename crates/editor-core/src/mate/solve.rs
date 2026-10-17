@@ -95,13 +95,6 @@ pub trait SolveScalar: Decide {
     /// it answers `true`; an analysis lane's map composes as a map.
     fn is_stored_identity(map: &Affine3<Self>) -> bool;
 
-    /// **The residual an UNDER refusal names, at `f64`**
-    /// ([`MateFault::Under`]): the subgroup itself at `f64`, and
-    /// elsewhere its parameters quoted ([`Self::quoted`]) and each
-    /// direction re-minted ([`quoted_residual`]). Total: the quote
-    /// cannot refuse, so every lane's UNDER is an UNDER.
-    fn quoted_residual(g: Subgroup<Self>) -> Subgroup;
-
     /// **The solve's two-argument arctangent** — the angle the coset
     /// fold solves for where two rotation constraints meet, read only
     /// through its sine and cosine, and asked only of two radii decided
@@ -126,10 +119,6 @@ impl SolveScalar for f64 {
         Frame::from_affine(*map).is_identity_bits()
     }
 
-    fn quoted_residual(g: Subgroup) -> Subgroup {
-        g
-    }
-
     fn solve_atan2(y: f64, x: f64) -> f64 {
         f64::atan2(y, x)
     }
@@ -151,69 +140,8 @@ impl SolveScalar for geom_core::Probe {
         false
     }
 
-    fn quoted_residual(g: Subgroup<Self>) -> Subgroup {
-        quoted_residual(g)
-    }
-
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Probe(f64::atan2(y.0, x.0))
-    }
-}
-
-/// The funnel name a quoted residual's direction is re-minted under
-/// ([`quoted_residual`]).
-const MATE_RESIDUAL_QUOTE: &str = "mate_residual_quote";
-
-/// **A residual subgroup quoted at `f64`** — every point and direction
-/// through [`SolveScalar::quoted`], each direction re-minted: the
-/// implementation every analysis scalar's
-/// [`SolveScalar::quoted_residual`] shares.
-///
-/// A quote decides nothing — the run decided each direction at its own
-/// scalar — so the mint asks only that the quoted vector have a length,
-/// under the narrowest band the format admits, never the run's (whose
-/// escalate threshold a unit vector meets only where `Kε < 1`). Every
-/// direction a run minted has one: its value channel is a unit vector,
-/// and its enclosure excludes the origin, so some coordinate of the
-/// enclosure has one sign, and the midpoint keeps it.
-pub(crate) fn quoted_residual<T: SolveScalar>(g: Subgroup<T>) -> Subgroup {
-    let band = Band::new(f64::MIN_POSITIVE, 2.0 * f64::MIN_POSITIVE)
-        .unwrap_or_else(|error| unreachable!("the format's narrowest band is a band: {error}"));
-    let dir = |u: UnitVec3<T>| {
-        UnitVec3::new(u.get().map(T::quoted), MATE_RESIDUAL_QUOTE, band).unwrap_or_else(|error| {
-            unreachable!(
-                "a direction minted at the run's scalar quotes to a finite vector with a \
-                 coordinate of one sign, so a length the format holds: {error}"
-            )
-        })
-    };
-    let pt = |p: Point3<T>| p.map(T::quoted);
-    match g {
-        Subgroup::Se3 => Subgroup::Se3,
-        Subgroup::Trivial => Subgroup::Trivial,
-        Subgroup::Empty => Subgroup::Empty,
-        Subgroup::Planar { normal } => Subgroup::Planar {
-            normal: dir(normal),
-        },
-        Subgroup::Prismatic { direction } => Subgroup::Prismatic {
-            direction: dir(direction),
-        },
-        Subgroup::Cylindrical { point, direction } => Subgroup::Cylindrical {
-            point: pt(point),
-            direction: dir(direction),
-        },
-        Subgroup::Revolute { point, direction } => Subgroup::Revolute {
-            point: pt(point),
-            direction: dir(direction),
-        },
-        Subgroup::Spherical { point } => Subgroup::Spherical { point: pt(point) },
-        Subgroup::Parallel { direction } => Subgroup::Parallel {
-            direction: dir(direction),
-        },
-        Subgroup::Translation => Subgroup::Translation,
-        Subgroup::PlaneTranslation { normal } => Subgroup::PlaneTranslation {
-            normal: dir(normal),
-        },
     }
 }
 
@@ -2138,9 +2066,19 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
         return Ok(Solved::World(marked(coset.representative), factor));
     }
     if !target_placement {
-        // A construction of the world's kind (the stage's interim): the
-        // copy sits at its representative from the identity.
-        return Ok(Solved::World(marked(coset.representative), factor));
+        // A construction (the stage's interim) lives in the space its
+        // reads reach: one reading a loose copy's space pins the copy in
+        // that space, at its representative from the space's root; one
+        // reaching no loose space is of the world's kind, and the copy
+        // sits at its representative from the identity.
+        return Ok(match loose_root_reached(s.doc, solved, target) {
+            Some(root) => Solved::On {
+                target: root,
+                rep: coset.representative,
+                factor,
+            },
+            None => Solved::World(marked(coset.representative), factor),
+        });
     }
     // A loose target's copy is solved in the loose copy's space.
     Ok(Solved::On {
@@ -2148,6 +2086,34 @@ fn solve_placement<P: crate::ProfilePayload, T: SolveScalar>(
         rep: coset.representative,
         factor,
     })
+}
+
+/// **The loose space a construction's reads reach**, by the root of the
+/// first loose copy its upstream walk meets, or `None` when every copy
+/// it reads lives in the world (or it reads none). The walk stops at
+/// each placement: a placement's copy is in its own space, whatever it
+/// reads.
+fn loose_root_reached<P: crate::ProfilePayload, T: Real>(
+    doc: &Doc<P>,
+    solved: &SolvedPoses<T>,
+    construction: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut stack = vec![construction];
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let Some(node) = doc.node(id) else { continue };
+        if id != construction && bundle_of(node).is_some() {
+            if let Some(Space::Loose { root }) = solved.space(id) {
+                return Some(root);
+            }
+            continue;
+        }
+        stack.extend(doc.upstream_of(id, node));
+    }
+    None
 }
 
 /// **Every constraint of a pinning bundle that the rest already fix**:

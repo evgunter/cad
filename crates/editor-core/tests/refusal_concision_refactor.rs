@@ -166,6 +166,7 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::MateFrameCrosses {
             placement: s(7, "InstantiatePart"),
             constraint: constraint(),
+            position: 2,
             side: MateSide::B,
         },
         SplitError::UncutVarReference {
@@ -293,6 +294,7 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::MateFrameCrosses {
             placement: s(7, "InstantiatePart"),
             constraint: constraint(),
+            position: 2,
             side: MateSide::A,
         },
         InlineError::SideLeavesAnInstance {

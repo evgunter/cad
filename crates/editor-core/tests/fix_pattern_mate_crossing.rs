@@ -349,7 +349,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     assert!(
         matches!(
             &refused,
-            editor_core::SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::A }
+            editor_core::SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::A, .. }
                 if placement.id() == top && *constraint == authored_mate.id
         ),
         "{refused:?}"

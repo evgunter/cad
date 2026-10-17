@@ -771,6 +771,9 @@ pub enum SplitError {
         placement: SpokenNode,
         /// The constraint, by its id in that placement.
         constraint: crate::node::ConstraintId,
+        /// The constraint's 1-based position in that placement's
+        /// bundle, as the document holds it: what the refusal says.
+        position: usize,
         /// Which of its sides crosses.
         side: crate::mate::MateSide,
     },
@@ -936,16 +939,18 @@ impl core::fmt::Display for SplitError {
             ),
             Self::MateFrameCrosses {
                 placement,
-                constraint,
+                position,
                 side,
+                ..
             } => write!(
                 f,
-                "split: {placement}'s constraint {constraint} reads, on its {} side, a frame \
-                 on a cut copy that is not pinned to the world at the identity, so once split \
-                 the frame would stand in the instance's coordinates rather than the copy's. {}",
+                "split: {placement}'s constraint {position} reads, on its {} side, a frame \
+                 on a cut copy that is not pinned to the world at the identity, or reads it \
+                 through a pattern, transform or union, so once split the frame would stand \
+                 in the instance's coordinates rather than the copy's. {}",
                 side.name(),
                 Recourse(&format!(
-                    "frame that side on the face it reads, or remove constraint {constraint} \
+                    "frame that side on the face it reads, or remove constraint {position} \
                      (RemoveConstraint), then split"
                 ))
             ),
@@ -1324,6 +1329,9 @@ pub enum InlineError {
         placement: SpokenNode,
         /// The constraint, by its id in that placement.
         constraint: crate::node::ConstraintId,
+        /// The constraint's 1-based position in that placement's
+        /// bundle, as the document holds it: what the refusal says.
+        position: usize,
         /// Which of its sides.
         side: crate::mate::MateSide,
     },
@@ -1499,8 +1507,9 @@ impl core::fmt::Display for InlineError {
             ),
             Self::MateFrameCrosses {
                 placement,
-                constraint,
+                position: constraint,
                 side,
+                ..
             } => write!(
                 f,
                 "inline: {placement}'s constraint {constraint} reads the instance on its {} \
@@ -1784,10 +1793,7 @@ pub struct SplitOutcome {
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `part_edits` reported, net of what a later edit
-    /// in the list took back ([`crate::MaintenanceNet`]), in edit order. The
-    /// carry re-states every offset a carried mate's insert cleared,
-    /// so no [`Maintenance::OffsetCleared`] for a carried node
-    /// survives.
+    /// in the list took back ([`crate::MaintenanceNet`]), in edit order.
     pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
@@ -1811,10 +1817,8 @@ pub struct InlineOutcome {
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `edits` reported, net of what a later edit in
-    /// the list took back ([`crate::MaintenanceNet`]), in edit order. The
-    /// carry re-states every offset a spliced mate's insert cleared,
-    /// so no [`Maintenance::OffsetCleared`] for a carried node
-    /// survives. A refactoring is one action; a caller holding a
+    /// the list took back ([`crate::MaintenanceNet`]), in edit order. A
+    /// refactoring is one action; a caller holding a
     /// document with the maintenance of its last accepted action swaps
     /// `doc` and this in together.
     pub maintenance: Vec<Maintenance>,
@@ -2969,6 +2973,7 @@ pub fn split(
                     return Err(SplitError::MateFrameCrosses {
                         placement: doc.spoken(kept),
                         constraint: constraint.id,
+                        position: position_in(doc, kept, constraint.id),
                         side,
                     });
                 }
@@ -3853,6 +3858,7 @@ pub fn inline(
                 let crosses = || InlineError::MateFrameCrosses {
                     placement: doc.spoken(placement),
                     constraint: constraint.id,
+                    position: position_in(doc, placement, constraint.id),
                     side,
                 };
                 let Some(at) = landing_copy(*var) else {
@@ -4895,4 +4901,20 @@ mod remap_error_reads {
         }
         assert!(found.is_empty(), "{}", found.join("\n"));
     }
+}
+
+/// The 1-based position of `placement`'s constraint `id` in its bundle,
+/// as a refusal says it ([`crate::spoken::Speaker::mate`]).
+fn position_in(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    id: crate::node::ConstraintId,
+) -> usize {
+    doc.node(placement)
+        .and_then(crate::mate::solve::bundle_of)
+        .and_then(|bundle| bundle.iter().position(|c| c.id == id))
+        .map_or_else(
+            || unreachable!("a refusal names a constraint its placement holds"),
+            |k| k + 1,
+        )
 }

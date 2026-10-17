@@ -2790,9 +2790,14 @@ pub enum EditError {
     /// door, so the insert is refused; the recourse is the fault's
     /// own. A mate on a pair the fold never reads — two members over
     /// one instance — is refused on the datum alone all the same.
-    /// What is NOT this: a verdict about a PAIR — under-determined,
+    /// Two verdicts on the bundle arrive here too, both decided at the
+    /// door from the bundle the placement already holds: the held
+    /// bundle already pins the copy (`Overconstrained`), and the
+    /// constraint reads another target than the bundle's
+    /// (`TargetsDiffer`, the stage's interim B2).
+    /// What is NOT this: any other verdict about a PAIR —
     /// contradicting ANOTHER mate, an escalation on a fold — which
-    /// needs the bundle and stays the solve's; and a STATE a mate
+    /// needs the whole bundle folded and stays the solve's; and a STATE a mate
     /// comes to hold after insert (a head a rebind or a shrunk pattern
     /// strands, a `Part` re-pointed, a doctored or older snapshot),
     /// which the doors do not re-decide and the solve refuses at
@@ -4135,14 +4140,21 @@ impl EditError {
                     format_args!("give every alignment coordinate a finite value"),
                 )
             }
-            Self::MateRefused { node, fault, held } => write!(
-                f,
-                "{node} is refused by the solve on its own datum: {}",
-                crate::spoken::Said(
+            Self::MateRefused { node, fault, held } => {
+                let said = crate::spoken::Said(
                     &**fault,
-                    crate::spoken::Speaker::held(held).about(node.id())
-                )
-            ),
+                    crate::spoken::Speaker::held(held).about(node.id()),
+                );
+                if matches!(
+                    **fault,
+                    crate::mate::MateFault::Overconstrained { .. }
+                        | crate::mate::MateFault::TargetsDiffer { .. }
+                ) {
+                    write!(f, "the constraint is refused at {node}'s door: {said}")
+                } else {
+                    write!(f, "{node} is refused by the solve on its own datum: {said}")
+                }
+            }
             Self::UpdateOnNonInstance { node } => {
                 write!(
                     f,

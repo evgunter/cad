@@ -336,7 +336,7 @@ fn s5_a_kept_constraint_reading_a_cut_copy_off_the_identity_refuses_the_frame_ru
     let err = split(&refuses, &[shifted, at_identity], "s5-frame", &o)
         .expect_err("a copy off the identity");
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { placement, constraint, side }
+        matches!(&err, SplitError::MateFrameCrosses { placement, constraint, side, .. }
             if placement.id() == kept
                 && *constraint == mate.id
                 && *side == editor_core::MateSide::B),
@@ -567,7 +567,7 @@ fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
     );
     let err = inline_err(&through_top, i, &store);
     assert!(
-        matches!(&err, InlineError::MateFrameCrosses { placement, constraint, side }
+        matches!(&err, InlineError::MateFrameCrosses { placement, constraint, side, .. }
             if placement.id() == i
                 && *constraint == by_top.id
                 && *side == editor_core::MateSide::A),

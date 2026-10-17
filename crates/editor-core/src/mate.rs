@@ -940,6 +940,11 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
     }
 }
 
+/// The recourse for a face side read on a copy that is not an instance's
+/// (INTENT stage 3 B's named interim, B4).
+const NOT_AN_INSTANCE_RECOURSE: &str =
+    "read the face on an instance's copy, or pin this copy by a world pin";
+
 /// Why a lever could not be formed for a mate: one of its parts' reach
 /// ([`MateReach::reach`]) is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
@@ -1003,10 +1008,11 @@ impl crate::spoken::Say for LeverRefusal {
             } => write!(f, "{}'s part {refusal}", by.node_as(*instance, "instance")),
             Self::NotAnInstance { node } => write!(
                 f,
-                "{} is not a live instantiate node, so it has no part whose extent \
-                 could lever a verdict. {}",
+                "{} is not an instance's copy, so it has no part whose extent could \
+                 lever a verdict: until a constraint relates poses, a face side reads \
+                 only an instance's copy. {}",
                 by.node(*node),
-                geom_core::KERNEL_DEFECT_ENDING
+                crate::sentence::Recourse(NOT_AN_INSTANCE_RECOURSE)
             ),
             Self::OutOfRange { parts, datum } => {
                 // A half that is not finite has no metre figure to print.
@@ -1122,10 +1128,11 @@ impl crate::spoken::Say for FaceRefusal {
             ),
             Self::NotAnInstance { node } => write!(
                 f,
-                "{} is not a live instantiate node, so it has no part whose face could \
-                 be read. {}",
+                "{} is not an instance's copy, so it has no part whose face could be \
+                 read: until a constraint relates poses, a face side reads only an \
+                 instance's copy. {}",
                 by.node(*node),
-                geom_core::KERNEL_DEFECT_ENDING
+                crate::sentence::Recourse(NOT_AN_INSTANCE_RECOURSE)
             ),
             Self::NoPartFace { instance, head } => write!(
                 f,
@@ -1823,9 +1830,9 @@ impl crate::spoken::Say for MateFault {
     ) -> core::fmt::Result {
         use crate::spoken::Said;
         let mate_ = |m: MateRef| by.mate(m);
-        let ids = |ids: &[crate::node::ConstraintId]| {
+        let ids = |placement: RecipeNodeId, ids: &[crate::node::ConstraintId]| {
             ids.iter()
-                .map(ToString::to_string)
+                .map(|&id| by.constraint_numeral(MateRef { placement, id }))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -1919,14 +1926,23 @@ impl crate::spoken::Say for MateFault {
                 placement,
                 constraints,
                 held,
-            } => write!(
-                f,
-                "{}'s bundle pins its copy without each of constraints {}, which leave {}. \
-                 Recourse: {OVERCONSTRAINED_RECOURSE}",
-                by.node(*placement),
-                ids(constraints),
-                held.describe()
-            ),
+            } => {
+                let (which, rest) = match constraints.as_slice() {
+                    [_] => ("constraint", "the others leave"),
+                    _ => (
+                        "any one of constraints",
+                        "without any one, the others leave",
+                    ),
+                };
+                write!(
+                    f,
+                    "{}'s bundle pins its copy even without {which} {}: {rest} {}. \
+                     Recourse: {OVERCONSTRAINED_RECOURSE}",
+                    by.node(*placement),
+                    ids(*placement, constraints),
+                    held.describe()
+                )
+            }
             Self::TargetsDiffer {
                 placement,
                 constraints,
@@ -1936,7 +1952,7 @@ impl crate::spoken::Say for MateFault {
                  one reading of it; a bundle relates its copy to one target. Recourse: place \
                  the copy against one target",
                 by.node(*placement),
-                ids(constraints)
+                ids(*placement, constraints)
             ),
             Self::NotOnTheCopy { mate } => write!(
                 f,

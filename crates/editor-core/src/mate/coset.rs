@@ -56,12 +56,10 @@ use super::{Clash, Lever, LeverRefusal, Refuted};
 /// below lever a sine or a cosine of them by the fold's arm into a
 /// decided margin, and a direction that was not unit would scale that
 /// margin silently, so the fact is carried by the type rather than by
-/// a constructor's diligence. A subgroup's parameters are exactly what
-/// an UNDER refusal must name.
+/// a constructor's diligence.
 ///
 /// At the scalar the solve runs at: a seed run's directions carry their
-/// tangents, a box run's are enclosures. A refusal names its residual
-/// at `f64` ([`SolveScalar::quoted_residual`]).
+/// tangents, a box run's are enclosures.
 #[derive(Debug, Clone, Copy)]
 pub enum Subgroup<T: Real = f64> {
     /// Unconstrained: the fold's identity element (dim 6).

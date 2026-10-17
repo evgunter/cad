@@ -1304,9 +1304,21 @@ impl<'a> Speaker<'a> {
     /// arena key.
     #[must_use]
     pub fn mate(self, mate: crate::mate::MateRef) -> String {
+        format!(
+            "constraint {} of {}",
+            self.constraint_numeral(mate),
+            self.node(mate.placement)
+        )
+    }
+
+    /// **A constraint's numeral alone**, as [`Speaker::mate`] says it:
+    /// its 1-based position in its placement's bundle where the document
+    /// is at hand, its ordinal (`#<ordinal>`) where it is not.
+    #[must_use]
+    pub fn constraint_numeral(self, mate: crate::mate::MateRef) -> String {
         match self.doc.and_then(|doc| doc.constraint_at(mate)) {
-            Some(at) => format!("constraint {at} of {}", self.node(mate.placement)),
-            None => format!("constraint {} of {}", mate.id, self.node(mate.placement)),
+            Some(at) => at.to_string(),
+            None => mate.id.to_string(),
         }
     }
 }

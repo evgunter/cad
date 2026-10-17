@@ -3255,10 +3255,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         false
     }
 
-    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
-        crate::mate::solve::quoted_residual(g)
-    }
-
     /// Across the negative `x` axis the principal branch's cut widens
     /// the enclosure to the whole circle, so there the angle is read on
     /// the branch about `π`: the solve reads an angle only through its
@@ -3292,10 +3288,6 @@ where
         false
     }
 
-    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
-        crate::mate::solve::quoted_residual(g)
-    }
-
     fn solve_atan2(y: Self, x: Self) -> Self {
         let angle = geom_core::Real::atan2(y, x);
         Self {
@@ -3325,10 +3317,6 @@ where
 
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
         false
-    }
-
-    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
-        crate::mate::solve::quoted_residual(g)
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {

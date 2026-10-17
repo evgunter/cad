@@ -709,7 +709,7 @@ fn a3c_a_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
     assert!(
         matches!(
             &err,
-            SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::B }
+            SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::B, .. }
                 if *placement == f.doc.spoken(f.m2.placement) && *constraint == f.m2.id
         ),
         "{err:?}"

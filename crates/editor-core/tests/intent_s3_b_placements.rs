@@ -225,6 +225,104 @@ fn copies_pinned_only_against_each_other_are_one_loose_space() {
     assert_eq!(gathered.solid_copies.len(), 2, "both copies, by themselves");
 }
 
+/// **A copy pinned against a construction lives in the construction's
+/// space**: a subtract of two copies of one loose space is in that
+/// space, so a copy pinned against one of its faces joins the space too.
+/// It is neither in the world nor in the product, which refuses
+/// `EmptyProduct` naming the space's root.
+#[test]
+fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
+    let doc = ProfileDoc::empty(DocumentId::derive("s3b-loose-construction"), Tol::witness());
+    let (doc, a) = block_at(doc, 0.5);
+    let (doc, b) = block_at(doc, 0.2);
+    let (doc, c) = block_at(doc, 0.1);
+    let (doc, l) = step(doc, DocEdit::place(vec![a.into()], vec![]));
+    let l = l.expect("the loose placement mints");
+    let cap = fixture::fname(a, RoleSeg::Cap(CapEnd::Start));
+    let placed_cap = StableName {
+        kind: cap.kind,
+        node: l,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(cap),
+        }],
+    };
+    let pin_on = |target: editor_core::SideRead<Operand>| editor_core::Mate {
+        a: target,
+        b: editor_core::SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::on_part(Placement::IDENTITY),
+            b: MateFrame::on_part(Placement::IDENTITY),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let on_l =
+        editor_core::SideRead::Face(Operand::select(Operand::output(l, 0), vec![placed_cap]));
+    let (doc, l2) = step(doc, DocEdit::place(vec![b.into()], vec![pin_on(on_l)]));
+    let l2 = l2.expect("the pinned placement mints");
+    let (doc, s) = insert(
+        doc,
+        Node::Subtract {
+            from: Operand::output(l, 0).into(),
+            tool: Operand::output(l2, 0).into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(
+        ev.space(s),
+        Space::Loose { root: l },
+        "the subtract is in L's space"
+    );
+    let face = ev
+        .value(s)
+        .expect("the subtract evaluates")
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| n.kind == editor_core::EntityKind::Face)
+        .expect("the subtract names a face");
+    let on_s = editor_core::SideRead::Face(Operand::select(Operand::output(s, 0), vec![face]));
+    let (doc, p) = step(doc, DocEdit::place(vec![c.into()], vec![pin_on(on_s)]));
+    let p = p.expect("the placement on the construction mints");
+    let ev = run(&doc, &EvalOptions::default());
+    assert!(
+        matches!(ev.result(p), Some(NodeResult::Ok(_))),
+        "{:?}",
+        ev.result(p)
+    );
+    assert_eq!(
+        ev.space(p),
+        Space::Loose { root: l },
+        "pinned in L's space, not the world"
+    );
+    match editor_core::product_recorded(&doc, &ev, Tol::witness()) {
+        Err(ProductError::EmptyProduct { loose, .. }) => assert_eq!(loose, vec![l]),
+        other => panic!("an empty world naming L's space, not {other:?}"),
+    }
+}
+
+/// A square block of half-width `half` and unit height, its profile on
+/// the XY frame at the origin.
+fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, half)],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
 /// **A copy its bundle pins less than its body needs is a loose copy,
 /// not a refusal**: coaxial alone leaves a slide.
 #[test]
