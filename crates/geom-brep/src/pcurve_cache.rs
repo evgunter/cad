@@ -7922,12 +7922,25 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// up to a turn, so a margin built on the read is a different expression
 /// in each, and is named by it ([`Frame::placement`]).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> (T, Frame) {
-    match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (
+    // PROBE: the frame decided across the line through the window's cut
+    // (angles -1 and pi-1), so the read's range is the window itself.
+    let (s, c) = T::from_f64(ANGLE_WINDOW_START).sin_cos();
+    let m = c * y - s * x;
+    if std::env::var("PROBE_FRAME").is_ok_and(|v| v == "old") {
+        return match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
+            Ok(Sign::Negative) => (
+                (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+                Frame::Turned,
+            ),
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => (y.atan2(x), Frame::Direct),
+        };
+    }
+    match decide("pcurve_chart_azimuth_frame", Margin::of(m), band) {
+        Ok(Sign::Positive) => (y.atan2(x), Frame::Direct),
+        Ok(Sign::Negative | Sign::Zero) | Err(_) => (
             (T::zero() - y).atan2(T::zero() - x) + T::pi(),
             Frame::Turned,
         ),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => (y.atan2(x), Frame::Direct),
     }
 }
 
@@ -7949,6 +7962,8 @@ impl Frame {
     /// and, where the channel's offset is itself built on a frame-lane
     /// read (the Villarceau circle's `t0`), an offset in `offset`.
     fn placement(self, offset: Frame) -> &'static str {
+        let _ = (self, offset);
+        if true { return "pcurve_chart_placement"; }
         match (self, offset) {
             (Frame::Direct, Frame::Direct) => "pcurve_chart_placement",
             (Frame::Turned, Frame::Direct) => "pcurve_chart_placement_turned",
