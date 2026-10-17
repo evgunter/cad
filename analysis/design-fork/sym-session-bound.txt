@@ -1,0 +1,4 @@
+fork: sym-session-bound (INLANE, how a Sym session bounds what it holds)
+drawn: 2026-10-17T10:47:52Z
+byte: 101 (odd)
+mapping: A = Fable, B = Opus
