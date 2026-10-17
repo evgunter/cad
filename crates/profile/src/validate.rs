@@ -1941,8 +1941,9 @@ impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
     /// each arc's carrier and sweep — through [`Real::from_f64`]; the
-    /// plane taken as given (validation is 2-D and reads nothing of it
-    /// — [`ValidatedProfile::plane`]); everything else carried. No
+    /// plane taken as given once it is finite (validation is 2-D and
+    /// decides nothing of it — [`ValidatedProfile::plane`]); everything
+    /// else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
     /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
     /// from a raw profile, by [`ConstructedProfile`]'s three validations
