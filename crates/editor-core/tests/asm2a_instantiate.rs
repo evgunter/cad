@@ -491,13 +491,14 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 466 is
-    // the placing op's own log on this part (its pin's poses read off
-    // the copy and solved, then placement and validation of the placed
-    // body); 731 is the part's, on its own nodes — its profile's
+    // two instances passes when both lose the same decisions. 467 is
+    // the placing op's own log on this part: its pin's fold off the
+    // identity (the two datum normals, and the at-rest predicate
+    // decided twice, by the fold's snap and by the at-identity read),
+    // then placement and validation of the placed body; 731 is the part's, on its own nodes — its profile's
     // pre-pass on the Profile node's log, decided once (the pinned lift
     // reuses the pre-pass's validated form), and its placement's pin.
-    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
+    assert_eq!(first.len(), 467, "the instantiate op's own decisions");
     assert_eq!(direct_total, 731, "the part's decisions on its own nodes");
 }
 
@@ -1621,30 +1622,3 @@ fn a_canceled_door_stops_in_its_replay() {
     );
 }
 
-#[test]
-fn zz_probe_decisions_tmp() {
-    let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-vlog-part", 0.0, 1.0), Tol::witness());
-    let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-vlog-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), &opts);
-    let doc = repinned(doc, ids[1], &Frame::IDENTITY, &opts);
-    let ev = run(&doc, &opts);
-    let hist = |id: RecipeNodeId| {
-        let mut m = std::collections::BTreeMap::<String, usize>::new();
-        for v in ev.result(id).and_then(NodeResult::value).unwrap().verdicts.iter() {
-            *m.entry(format!("{} {:?}", v.predicate, v.sign)).or_default() += 1;
-        }
-        m
-    };
-    let (a, b) = (hist(ids[0]), hist(ids[1]));
-    for k in a.keys().chain(b.keys()).collect::<std::collections::BTreeSet<_>>() {
-        if a.get(k) != b.get(k) {
-            eprintln!("PROBE {k}: off {:?} identity {:?}", a.get(k), b.get(k));
-        }
-    }
-    let seq = |id: RecipeNodeId| ev.result(id).and_then(NodeResult::value).unwrap().verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>();
-    eprintln!("PROBE lens {} {}", seq(ids[0]).len(), seq(ids[1]).len());
-    eprintln!("PROBE off head {:?}", &seq(ids[0])[..8]);
-    eprintln!("PROBE id head {:?}", &seq(ids[1])[..8]);
-}

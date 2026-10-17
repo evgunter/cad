@@ -453,6 +453,35 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
     (doc, ids)
 }
 
+/// **`instance` pinned to the world over a copy that never
+/// evaluates**: a frame through an edge and a vertex the copy would
+/// name, equated with the world's own. Its part refuses first, so the
+/// names are never resolved; the mate is the shape of a pin, so the
+/// copy is the document's product by its recipe and the part's refusal
+/// is the document's failed root.
+fn nominally_pinned(doc: ProfileDoc, instance: RecipeNodeId) -> ProfileDoc {
+    let named = |kind| StableName {
+        kind,
+        node: instance,
+        path: vec![RoleSeg::Cap(CapEnd::Start)],
+    };
+    let pin = Pin {
+        edge: named(editor_core::EntityKind::Edge),
+        vertex: named(editor_core::EntityKind::Vertex),
+        to: editor_core::Target::World(editor_core::WorldRead::Frame),
+        class: ContactClass::Rest,
+    };
+    let mate = pin.mate(&doc, instance);
+    fixture::constrain_at(doc, instance, mate).0
+}
+
+/// [`instantiating_all`], each instance [`nominally_pinned`].
+fn instantiating_all_pinned(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, ids) = instantiating_all(label, below);
+    let doc = ids.iter().fold(doc, |doc, &id| nominally_pinned(doc, id));
+    (doc, ids)
+}
+
 /// A refusal as a surface draws it: its own sentence, then each
 /// carried level's line.
 fn drawn(kind: &NodeErrorKind) -> Vec<String> {
@@ -461,8 +490,9 @@ fn drawn(kind: &NodeErrorKind) -> Vec<String> {
         .collect()
 }
 
-/// **The loop check runs before the depth check.** A chain whose last
-/// document, `BOUND` documents down, instantiates the first again is
+/// **The loop check runs before the depth check.** A chain of
+/// documents, each pinning its instance of the next to its world, whose
+/// last document, `BOUND` documents down, instantiates the first again is
 /// refused as the loop it is; the same loop closing one document lower
 /// is past the bound first, and refuses `DepthExceeded`.
 #[test]
@@ -475,7 +505,8 @@ fn a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep() 
             let mut store = Unpinned::default();
             for (i, r) in refs.iter().enumerate() {
                 let next = refs.get(i + 1).copied().unwrap_or(refs[0]);
-                let (doc, _) = instantiating_all(&format!("part-depth-loop-{}", i + 1), &[next]);
+                let (doc, _) =
+                    instantiating_all_pinned(&format!("part-depth-loop-{}", i + 1), &[next]);
                 store.0.insert(*r, doc);
             }
             let (top, ids) = instantiating_all("part-depth-loop-top", &[refs[0]]);
@@ -513,8 +544,8 @@ fn a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep() 
 }
 
 /// **Every row a nested document reads is the one its own evaluation
-/// produces.** Below the top, `mixed` instantiates a healthy part
-/// twice, a part whose own part is missing, a missing part, and
+/// produces.** Below the top, `mixed` pins to its world a healthy
+/// part twice, a part whose own part is missing, a missing part, and
 /// itself; each is decided against `mixed`'s chain before `mixed`
 /// evaluates. The refusal the top carries up is drawn exactly as
 /// `mixed`'s own evaluation draws the node it names, and the healthy
@@ -525,13 +556,13 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     let healthy = unpinned_ref("part-descent-healthy");
     store.0.insert(healthy, leaf());
     let hollow = unpinned_ref("part-descent-hollow");
-    let (hollow_doc, _) = instantiating_all(
+    let (hollow_doc, _) = instantiating_all_pinned(
         "part-descent-hollow",
         &[unpinned_ref("part-descent-hollow-missing")],
     );
     store.0.insert(hollow, hollow_doc);
     let mixed = unpinned_ref("part-descent-mixed");
-    let (mixed_doc, _) = instantiating_all(
+    let (mixed_doc, mixed_ids) = instantiating_all(
         "part-descent-mixed",
         &[
             healthy,
@@ -541,6 +572,19 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
             mixed,
         ],
     );
+    // Each copy in `mixed`'s world: the healthy ones pinned over their
+    // geometry at the identity, the rest nominally.
+    let healthy_only = {
+        let mut only = Unpinned::default();
+        only.0.insert(healthy, leaf());
+        only.options()
+    };
+    let mixed_doc = mixed_ids[..2]
+        .iter()
+        .fold(mixed_doc, |doc, &id| fixture::pinned(doc, id, &healthy_only));
+    let mixed_doc = mixed_ids[2..]
+        .iter()
+        .fold(mixed_doc, |doc, &id| nominally_pinned(doc, id));
     store.0.insert(mixed, mixed_doc.clone());
     let (top, ids) = instantiating_all("part-descent-mixed-top", &[mixed]);
     let opts = store.options();
