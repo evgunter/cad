@@ -118,14 +118,15 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
-    /// Delete a node. Refused while any live node holds it as an
-    /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
-    ///
-    /// A payload NAME of the node is not an input and does not refuse
-    /// (DM7, the §0 carve-out): the edit is accepted and every name it
-    /// stranded rides the record as a [`Maintenance::Strand`]. An
-    /// appearance key is the same carve-out at the store instead of a
-    /// payload, and rides it as a [`Maintenance::StrandedAppearance`].
+    /// Delete a node, and the variables it defines as outputs with it;
+    /// the id is never reused afterwards (D3). Nothing is refused (D10:
+    /// deleting a variable leaves its readers unresolved, typed, never
+    /// re-pointed): the record reports what the delete stranded. Each
+    /// live operand still reading one of the node's outputs rides it as
+    /// a [`Maintenance::StrandedRead`]; each surviving payload name the
+    /// node minted (DM7) as a [`Maintenance::Strand`]; and each
+    /// appearance key whose name the node minted, or whose body read it
+    /// defined, as a [`Maintenance::StrandedAppearance`].
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
@@ -477,6 +478,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// dangling semantics), and reports it where it
     /// happens as a [`Maintenance::StrandedAppearance`] (DM7).
     SetAppearance {
+        /// The body read the name is read in (NAMES N1: a name tells
+        /// apart only what its variable holds; D10, addressed by body
+        /// and name).
+        body: VarId,
         /// The face or body name attributed.
         name: StableName,
         /// The attribute (occupies its [`AttrKind`] slot; one per
@@ -487,6 +492,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// require the node to be live: clearing is the repair path for
     /// attributes stranded on retired/deleted names.
     ClearAppearance {
+        /// The body read the name is read in.
+        body: VarId,
         /// The attributed name.
         name: StableName,
         /// The attribute kind removed.
@@ -519,6 +526,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// the kernel never reads the version's meaning) and the D2 float
     /// policy (NaN/inf refused at the edit door).
     SetAppearanceMeta {
+        /// The body read the name is read in.
+        body: VarId,
         /// The face or body name attributed.
         name: StableName,
         /// The metadata key (a producer-owned namespace).
@@ -531,6 +540,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// (clearing is the stranded-record repair path) and refuses
     /// loudly when the key is not set.
     ClearAppearanceMeta {
+        /// The body read the name is read in.
+        body: VarId,
         /// The attributed name.
         name: StableName,
         /// The metadata key removed.
@@ -2627,6 +2638,19 @@ pub enum EditError {
         /// The name whose node is not live.
         name: SpokenName,
     },
+    /// A `SetAppearance` or `SetAppearanceMeta` reading its name in a
+    /// body that no live operation defines as an output holding a body
+    /// (a deleted operation's read, or a datum's): an appearance
+    /// entry is addressed by body and name (D10; NAMES N1, the scope),
+    /// so the body is a read whose table can hold the name. Node
+    /// existence now, name-level resolution at evaluation, as for the
+    /// name's own node.
+    AppearanceBodyNotARead {
+        /// The attributed name.
+        name: SpokenName,
+        /// The variable the edit read it in.
+        body: crate::spoken::SpokenVar,
+    },
     /// A `ClearAppearance` for an attribute that is not set — loud
     /// no-ops per the fail-loud charter.
     AppearanceNotSet {
@@ -3282,6 +3306,7 @@ impl EditError {
             | Self::DeclareNamesMissingNode { name: _ }
             | Self::RebindTargetMissingNode { name: _ }
             | Self::AppearanceNamesMissingNode { name: _ }
+            | Self::AppearanceBodyNotARead { name: _, body: _ }
             | Self::SlotDimensionMismatch {
                 slot: _,
                 expected: _,
@@ -4013,6 +4038,17 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
+            Self::AppearanceBodyNotARead { name, body } => {
+                write!(
+                    f,
+                    "the appearance target ({name}) is read in {body}, which no live operation \
+                     defines as an output"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read it in the output of the operation that holds the body"),
+                )
+            }
             Self::AppearanceNotSet { name, kind } => {
                 write!(f, "no {} attribute is set on {name}", kind.noun())?;
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
@@ -4319,6 +4355,9 @@ pub enum Maintenance {
     /// The attachment itself is untouched: DM7 reports, it never
     /// repairs.
     StrandedAppearance {
+        /// The body read the key reads its name in (NAMES N1): a delete
+        /// of the operation defining it strands the key too.
+        body: SpokenVar,
         /// The key the store holds the attachment under: its `node` is
         /// the id a delete removed, or its locator names a step a
         /// reshaping dropped or a kept step's piece it stopped drawing.
@@ -4391,6 +4430,9 @@ pub enum Took {
     /// A read was re-pointed, and the node that minted the name is no
     /// longer upstream of the node that carries it.
     Reach,
+    /// The operation defining the body read an appearance key reads
+    /// its name in was deleted (NAMES N1: the key is the read's).
+    Body,
 }
 
 impl Took {
@@ -4417,6 +4459,9 @@ impl Took {
                         "re-pointed a read past {}, which minted the name",
                         self.1.minter()
                     ),
+                    Took::Body => {
+                        f.write_str("deleted the operation defining the body it is read in")
+                    }
                 }
             }
         }
@@ -4468,11 +4513,13 @@ impl core::fmt::Display for Maintenance {
                     took.said(name)
                 ),
             },
-            Self::StrandedAppearance { name, took } => write!(
+            Self::StrandedAppearance { body, name, took } => write!(
                 f,
-                "the appearance store holds an attachment under a name for {}; this edit \
-                 {}, so the name resolves to nothing until it is rebound or cleared",
+                "the appearance store holds an attachment under a name for {} read in {}; this \
+                 edit {}, so the name resolves to nothing until it is rebound, re-attached in a \
+                 live body or cleared",
                 name,
+                body,
                 took.said(name)
             ),
             Self::AnonymousVarRemoved { var, distribution } => {
@@ -4544,7 +4591,7 @@ fn stranded_references<P: crate::ProfilePayload>(
 ) -> Vec<Maintenance> {
     let goes = selections_going(doc);
     doc.name_carriers()
-        .filter(|carrier| carrier.name().node == deleted)
+        .filter(|carrier| carrier.name().node == deleted || body_went(before, *carrier, deleted))
         .filter(|carrier| !matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(var)))
         .map(|carrier| match carrier {
             NameCarrier::Payload { node, name } => Maintenance::Strand {
@@ -4558,12 +4605,27 @@ fn stranded_references<P: crate::ProfilePayload>(
                 name: before.spoken_name(name),
                 took: Took::Node,
             },
-            NameCarrier::Store { name } => Maintenance::StrandedAppearance {
+            NameCarrier::Store { body, name } => Maintenance::StrandedAppearance {
+                body: before.spoken_var(body),
                 name: before.spoken_name(name),
-                took: Took::Node,
+                took: if name.node == deleted {
+                    Took::Node
+                } else {
+                    Took::Body
+                },
             },
         })
         .collect()
+}
+
+/// Whether `carrier` is an appearance key whose body read the delete of
+/// `deleted` took: the operation defining it, in `before`.
+fn body_went<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    carrier: NameCarrier<'_>,
+    deleted: RecipeNodeId,
+) -> bool {
+    matches!(carrier, NameCarrier::Store { body, .. } if before.operation_of(body) == Some(deleted))
 }
 
 /// **A `SetProgram`'s step ids, checked and minted** — before the
@@ -4726,8 +4788,9 @@ fn stranded_steps<P: crate::ProfilePayload>(
                 name: before.spoken_name(name).steps_respoken(doc),
                 took,
             }),
-            NameCarrier::Store { name } => {
+            NameCarrier::Store { body, name } => {
                 keys.push(Maintenance::StrandedAppearance {
+                    body: before.spoken_var(body),
                     name: before.spoken_name(name).steps_respoken(doc),
                     took,
                 });
@@ -4747,9 +4810,10 @@ fn move_appearance_record<P: crate::ProfilePayload>(
     before: &Doc<P>,
     store: &mut crate::appearance::AppearanceMap,
     moved: crate::appearance::AppearanceRecord,
-    to: &StableName,
+    onto: &crate::appearance::AppearanceKey,
 ) -> Result<(), EditError> {
-    let dst = store.entry(to.clone()).or_default();
+    let to = &onto.name;
+    let dst = store.entry(onto.clone()).or_default();
     for (kind, attr) in moved.attrs {
         if dst.attrs.contains_key(&kind) {
             return Err(EditError::RebindAppearanceCollision {
@@ -4884,8 +4948,8 @@ impl MaintenanceNet {
                 Maintenance::StrandedSelection { var, name, .. } => end
                     .selection(var.id())
                     .is_some_and(|select| select.names.contains(name.name())),
-                Maintenance::StrandedAppearance { name, .. } => {
-                    end.appearance().contains_key(name.name())
+                Maintenance::StrandedAppearance { body, name, .. } => {
+                    end.appearance_of(body.id(), name.name()).is_some()
                 }
                 Maintenance::StrandedRead { node, slot, var } => {
                     end.node(node.id()).is_some_and(|reader| {
@@ -5123,6 +5187,27 @@ fn check_name_steps<P: crate::ProfilePayload>(
             name: before.spoken_name(name),
             step,
         }),
+    }
+}
+
+/// **An appearance edit's body read, checked** — a variable a live
+/// operation of `doc` defines as an output holding a body
+/// ([`EditError::AppearanceBodyNotARead`]).
+/// `doc` is the document being written, `before` the one the door was
+/// handed.
+fn check_appearance_body<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    body: VarId,
+    name: &StableName,
+) -> Result<(), EditError> {
+    if doc.holds_body(body) {
+        Ok(())
+    } else {
+        Err(EditError::AppearanceBodyNotARead {
+            name: before.spoken_name(name),
+            body: before.spoken_var(body),
+        })
     }
 }
 
@@ -5658,7 +5743,8 @@ fn write_reads<P: crate::ProfilePayload>(
 /// operation or upstream of it — where it could in `before`, or, for a
 /// selection the edit authored at `id`, where the read it replaced
 /// there could. Payload rows in document order, within a node in
-/// [`Node::payload_names`]' order; then selection rows.
+/// [`Node::payload_names`]' order; then selection rows; then the
+/// appearance keys read in such a body, in key order.
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
@@ -5754,6 +5840,28 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
                     took: Took::Reach,
                 });
             }
+        }
+    }
+    // An appearance key is read in its body read as a selection is
+    // (NAMES N1), so a re-point upstream of that read takes its name
+    // out of reach the same way.
+    for key in new.appearance().keys() {
+        let (Some(at), Some(after), Some(was)) = (
+            new.read_operation(key.at),
+            reach(new, key.at),
+            reach(before, key.at),
+        ) else {
+            continue;
+        };
+        if (at == id || crate::doc::strict_ancestors(new, at).contains(&id))
+            && was.contains(&key.name.node)
+            && !after.contains(&key.name.node)
+        {
+            rows.push(Maintenance::StrandedAppearance {
+                body: new.spoken_var(key.at),
+                name: before.spoken_name(&key.name),
+                took: Took::Reach,
+            });
         }
     }
     rows
@@ -6946,9 +7054,21 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // already on `to` is refused loudly: which value
                 // survives would be an auto-pick —
                 // `move_appearance_record` is the one home for that rule.
-                if let Some(moved) = new.appearance.remove(from) {
+                // Each key keeps the body read it is read in (N1): only
+                // the name moves.
+                let keys: Vec<crate::appearance::AppearanceKey> = new
+                    .appearance
+                    .keys()
+                    .filter(|key| key.name == *from)
+                    .cloned()
+                    .collect();
+                for key in keys {
+                    let Some(moved) = new.appearance.remove(&key) else {
+                        continue;
+                    };
                     appearance_sites += 1;
-                    move_appearance_record(doc, &mut new.appearance, moved, to)?;
+                    let onto = crate::appearance::AppearanceKey::new(key.at, to.clone());
+                    move_appearance_record(doc, &mut new.appearance, moved, &onto)?;
                 }
             }
             if name_sites + appearance_sites == 0 {
@@ -6982,7 +7102,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::SetAppearance { name, attr } => {
+        DocEdit::SetAppearance { body, name, attr } => {
             // v1 scope: faces and bodies (M4-PLAN item 7); edges/
             // vertices stay a typed refusal until ratified.
             if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
@@ -6999,8 +7119,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             check_name_steps(doc, new, name)?;
+            check_appearance_body(doc, new, *body, name)?;
             new.appearance
-                .entry(name.clone())
+                .entry(crate::appearance::AppearanceKey::new(*body, name.clone()))
                 .or_default()
                 .attrs
                 .insert(attr.kind(), attr.clone());
@@ -7045,19 +7166,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::ClearAppearance { name, kind } => {
+        DocEdit::ClearAppearance { body, name, kind } => {
             let not_set = || EditError::AppearanceNotSet {
                 name: doc.spoken_name(name),
                 kind: *kind,
             };
-            let Some(rec) = new.appearance.get_mut(name) else {
+            let key = crate::appearance::AppearanceKey::new(*body, name.clone());
+            let Some(rec) = new.appearance.get_mut(&key) else {
                 return Err(not_set());
             };
             if rec.attrs.remove(kind).is_none() {
                 return Err(not_set());
             }
             if rec.is_empty() {
-                new.appearance.remove(name);
+                new.appearance.remove(&key);
             }
             EditRecord {
                 minted: None,
@@ -7087,7 +7209,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::SetAppearanceMeta { name, key, value } => {
+        DocEdit::SetAppearanceMeta {
+            body,
+            name,
+            key,
+            value,
+        } => {
             // Same v1 scope and node-liveness carve-out as
             // SetAppearance: the metadata rides the SAME record.
             if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
@@ -7101,6 +7228,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             check_name_steps(doc, new, name)?;
+            check_appearance_body(doc, new, *body, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load
             // validator also calls. Only the WALK differs between the
@@ -7122,7 +7250,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             new.appearance
-                .entry(name.clone())
+                .entry(crate::appearance::AppearanceKey::new(*body, name.clone()))
                 .or_default()
                 .metadata
                 .insert(key.clone(), value.clone());
@@ -7135,19 +7263,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::ClearAppearanceMeta { name, key } => {
+        DocEdit::ClearAppearanceMeta { body, name, key } => {
             let not_set = || EditError::MetaNotSet {
                 name: doc.spoken_name(name),
                 key: key.clone(),
             };
-            let Some(rec) = new.appearance.get_mut(name) else {
+            let at = crate::appearance::AppearanceKey::new(*body, name.clone());
+            let Some(rec) = new.appearance.get_mut(&at) else {
                 return Err(not_set());
             };
             if rec.metadata.remove(key).is_none() {
                 return Err(not_set());
             }
             if rec.is_empty() {
-                new.appearance.remove(name);
+                new.appearance.remove(&at);
             }
             EditRecord {
                 minted: None,

@@ -213,7 +213,9 @@ impl<'v> Neck<'v> {
         };
         let key = |seg: u32| {
             let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
-            let Some(editor_core::Entry::Unique(ent)) = value.name_table.lookup(&n) else {
+            let Some(editor_core::Entry::Unique(ent)) =
+                ev.table_at(f.placed).expect("one table").lookup(&n)
+            else {
                 panic!("the wall name resolves uniquely at the placed node");
             };
             let editor_core::EntityKey::Face(k) = ent.key else {

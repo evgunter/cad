@@ -12,7 +12,7 @@ use editor_core::{
     Attr, BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd,
     Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
     ProfileDoc, RecipeNodeId, Resolution, Rgba8, RoleSeg, RunCtx, StableName, WitnessAge,
-    WitnessBifurcation, WitnessDatum, evaluate, resolve,
+    WitnessBifurcation, WitnessDatum, evaluate,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -77,16 +77,19 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
+    // Each cap painted in its own block's read (NAMES N1).
     let (doc, _) = step(
-        doc,
+        doc.clone(),
         DocEdit::SetAppearance {
+            body: crate::fixture::out(&doc, a),
             name: cap(a),
             attr: red(),
         },
     );
     let (doc, _) = step(
-        doc,
+        doc.clone(),
         DocEdit::SetAppearance {
+            body: crate::fixture::out(&doc, b),
             name: cap(b),
             attr: red(),
         },
@@ -111,8 +114,11 @@ fn rebind_moves_a_reference_one_shot() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(applied.doc.appearance_of(&cap(t.b)).is_none());
-    assert!(applied.doc.appearance_of(&cap(t.c)).is_some());
+    // The key keeps its read and takes the new name (a Rebind repairs
+    // the name, never the site).
+    let b_read = crate::fixture::out(&t.doc, t.b);
+    assert!(applied.doc.appearance_of(b_read, &cap(t.b)).is_none());
+    assert!(applied.doc.appearance_of(b_read, &cap(t.c)).is_some());
     // One-shot: no alias table — a SECOND rebind of the same source
     // now finds no references.
     assert_eq!(
@@ -133,34 +139,46 @@ fn rebind_moves_a_reference_one_shot() {
         }
     );
     // Purity: the input document is untouched.
-    assert!(t.doc.appearance_of(&cap(t.b)).is_some());
-    assert!(t.doc.appearance_of(&cap(t.c)).is_none());
+    assert!(t.doc.appearance_of(b_read, &cap(t.b)).is_some());
+    assert!(t.doc.appearance_of(b_read, &cap(t.c)).is_none());
 }
 
 #[test]
-fn rebind_repairs_a_stranded_name_after_node_gone() {
+fn a_key_whose_read_went_is_repaired_by_re_attachment() {
     let t = three();
-    // Delete B — cap(b) strands as NodeGone; Rebind is THE repair.
-    let (doc, _) = step(t.doc, DocEdit::DeleteNode { id: t.b });
+    let b_read = crate::fixture::out(&t.doc, t.b);
+    // Delete B: cap(b) strands, and its read goes with the node.
+    let (doc, _) = step(t.doc.clone(), DocEdit::DeleteNode { id: t.b });
     let ev = run(&doc, None);
     assert!(matches!(
-        resolve(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
+        crate::fixture::resolve_at_mint(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
         Resolution::Failed(f) if matches!(f.error, editor_core::ResolveError::NodeGone { .. })
     ));
-    // The source's node is dead-but-once-lived: the rebind APPLIES.
+    // A Rebind keeps a key's read, and that read is gone: the repair is
+    // the re-attachment, Set in C's read and Clear in B's (ruling d).
+    let c_read = crate::fixture::out(&doc, t.c);
     let (doc, _) = step(
         doc,
-        DocEdit::Rebind {
-            body: None,
-            from: cap(t.b),
-            to: cap(t.c),
+        DocEdit::SetAppearance {
+            body: c_read,
+            name: cap(t.c),
+            attr: red(),
         },
     );
-    assert!(doc.appearance_of(&cap(t.b)).is_none());
-    assert!(doc.appearance_of(&cap(t.c)).is_some());
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: b_read,
+            name: cap(t.b),
+            kind: editor_core::AttrKind::Color,
+        },
+    );
+    assert!(doc.appearance_of(b_read, &cap(t.b)).is_none());
+    assert!(doc.appearance_of(c_read, &cap(t.c)).is_some());
     let ev = run(&doc, None);
+    assert!(ev.appearance.is_lossless(), "{:?}", ev.appearance.losses);
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev
@@ -470,10 +488,7 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
     // does not read the witness, so tables and verdicts reproduce
     // exactly.
     for id in [profile, extrude] {
-        assert_eq!(
-            ev1.value(id).unwrap().name_table,
-            ev2.value(id).unwrap().name_table
-        );
+        assert_eq!(ev1.table_at(id).unwrap(), ev2.table_at(id).unwrap());
         assert_eq!(
             ev1.value(id).unwrap().verdicts,
             ev2.value(id).unwrap().verdicts

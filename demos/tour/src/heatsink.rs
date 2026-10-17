@@ -398,11 +398,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // against the prior — the memo counters are the demo.
     let ev5 = eval(&r.doc, None, tol);
     assert_eq!(ev5.recomputed, 9, "a cold evaluation computes every node");
-    let names5 = ev5
-        .value(r.group)
-        .expect("the fin group @ 5")
-        .name_table
-        .clone();
+    let names5 = ev5.table_at(r.group).expect("the fin group @ 5").clone();
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
@@ -435,11 +431,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          change means the naming emission vocabulary moved - update \
          this pin deliberately"
     );
-    let names9 = &evs[2]
-        .1
-        .value(r.group)
-        .expect("the fin group @ 9")
-        .name_table;
+    let names9 = evs[2].1.table_at(r.group).expect("the fin group @ 9");
     let survived = names5
         .iter()
         .filter(|(name, _)| names9.lookup(name).is_some())

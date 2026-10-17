@@ -35,8 +35,8 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     };
     for id in &ev.order {
         feed(&format!("#{id:?}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 feed(&format!("{n:?}={e:?};"));
             }
         }
@@ -194,13 +194,28 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// two rims, as the other three such corners are named. Every
 /// other document held its word.
 ///
-/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
-/// mates), every row: a placement is a `Place` holding a world pin
-/// where it was a `PlaceInWorld`, so its stored node, and with it its
-/// mint preimage, moved, and every id the mint chain draws after it. No
-/// outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
+///
+/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
+/// main's re-bless and this unit's each moved these rows, so the merged
+/// rows are neither tree's value; the id-masked geometry fence held.
+///
+/// **Re-taken merged over INTENT stage 3 B** (#5232, a placement is the
+/// bundle of mates), which re-pinned every row by its new mint chain:
+/// the merged rows are main's values but for the three split documents,
+/// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
+/// moves, and whose merged values are neither tree's.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x3c13fb2010461034),
     ("corner_table", 0xbbddc3c4abc8906c),
@@ -210,8 +225,8 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x66a0cfbf3754287a),
     ("nested_islands_106_depth2", 0xf314d126bb220d9c),
     ("declared_tangency", 0xd22038e5a39ad897),
-    ("kitchen_sink", 0x1ad85ee046c2b633),
-    ("cut_cylinder", 0x3b1780ed4178da39),
+    ("kitchen_sink", 0x4e08c61cc94e6d14),
+    ("cut_cylinder", 0x7efa037f22c590fc),
     ("measured_web", 0x1226e61ce34498da),
     ("boss_union", 0x7a6d76ab53337110),
     ("die_fillet", 0x5b93994d1a18d566),
@@ -220,7 +235,7 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0xb0ad90b1dd1e86f9),
     ("die_tool", 0x8ea30ed7973f010c),
     ("face_sketch", 0x15aa7fa3bc077398),
-    ("part_select", 0x5287cd878efa6e05),
+    ("part_select", 0x2efb8f75c7d753ca),
     ("loft_prism", 0xd6132f025dd397dd),
     ("die_composed", 0xaf01bb67a1bb00f7),
     ("die_composed_tour", 0x949e19222842598a),

@@ -33,7 +33,7 @@ use editor_core::{
     GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
     NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
     RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, resolve, run_checks, select_where,
+    body_name, denotation, evaluate, run_checks, select_where,
 };
 use geom_core::Tol;
 
@@ -278,7 +278,7 @@ fn every_standing_renders_one_way_through_every_door() {
         (&s.canceled, unevaluated),
     ] {
         let name = minted(EntityKind::Body, standing.node(), RoleSeg::OutputBody);
-        let verdict = resolve(RunCtx { doc: &s.doc, eval }, &name);
+        let verdict = crate::fixture::resolve_at_mint(RunCtx { doc: &s.doc, eval }, &name);
         let Resolution::Indeterminate(cause) = verdict else {
             panic!("{standing:?}: the reference is indeterminate, got {verdict:?}");
         };
@@ -538,16 +538,18 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        23,
-        "the home: the evaluator writes every result, and `usable_in` is the one ladder",
+        24,
+        "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
+         test-support hand-built evaluation takes its result map whole",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
         8,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
-         a read of a split's port copies the standing entries and writes the half it projects \
-         (`split_ports_projected`), every read still through `value_of`; a placement's solve \
-         fault reads whether its placer FAILED, a standing and not a value (`placement_fault`)",
+         a read of a split's port or a family's member copies the standing entries and writes \
+         the value it resolves to (`reads_projected`), every read still through `value_of`; a \
+         placement's solve fault reads whether its placer FAILED, a standing and not a value \
+         (`placement_fault`)",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

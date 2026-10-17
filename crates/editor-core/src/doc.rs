@@ -942,6 +942,8 @@ pub(crate) enum NameCarrier<'a> {
     },
     /// A key of the appearance store. No node carries it.
     Store {
+        /// The body read the key reads its name in.
+        body: VarId,
         /// The name.
         name: &'a StableName,
     },
@@ -960,7 +962,9 @@ impl<'a> NameCarrier<'a> {
     /// the accessor.
     pub(crate) fn name(self) -> &'a StableName {
         match self {
-            Self::Payload { name, .. } | Self::Select { name, .. } | Self::Store { name } => name,
+            Self::Payload { name, .. } | Self::Select { name, .. } | Self::Store { name, .. } => {
+                name
+            }
         }
     }
 }
@@ -1957,6 +1961,42 @@ impl<P> Doc<P> {
             .map(|(&id, _)| id)
     }
 
+    /// **The output reads each read feeds**: for every live operation,
+    /// each read it takes as an operand — a selection's body read for a
+    /// selection of it — feeds that operation's outputs. What appearance
+    /// resolution walks downstream from an entry's body read.
+    pub(crate) fn feeds(&self) -> BTreeMap<VarId, Vec<VarId>>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut out: BTreeMap<VarId, Vec<VarId>> = BTreeMap::new();
+        for (&id, node) in &self.nodes {
+            let outputs = self.outputs(id);
+            for (_, var) in node.operand_rows() {
+                let read = self
+                    .var(var)
+                    .and_then(|held| held.def().select())
+                    .map_or(var, |select| select.body);
+                let fed = out.entry(read).or_default();
+                for &output in &outputs {
+                    if !fed.contains(&output) {
+                        fed.push(output);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// **Every output variable and the port that defines it**, the map
+    /// an evaluation answers [`crate::Evaluation::table`] through.
+    pub(crate) fn output_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
+        self.vars
+            .iter()
+            .filter_map(|(&id, var)| Some((id, var.def().output()?)))
+            .collect()
+    }
+
     /// **What an operand naming `node` alone reads**
     /// ([`crate::Operand::Node`], spec Q5): its one output. `None` for a
     /// node that is not live, defines nothing, or defines several
@@ -1966,6 +2006,36 @@ impl<P> Doc<P> {
         match self.outputs(node).as_slice() {
             [one] => Some(*one),
             _ => None,
+        }
+    }
+
+    /// **Whether `var` is a live output holding a body** — a body, a
+    /// family of them, or a profile's sheet: an output whose table names
+    /// what it holds, read where an appearance entry is (NAMES N1).
+    pub fn holds_body(&self, var: VarId) -> bool {
+        let Some((node, port)) = self.var(var).and_then(|held| held.def().output()) else {
+            return false;
+        };
+        self.signature(node)
+            .and_then(|kinds| kinds.get(usize::from(port)).map(|(_, kind)| *kind))
+            .is_some_and(|kind| {
+                matches!(
+                    kind,
+                    crate::VarKind::Body | crate::VarKind::Bodies | crate::VarKind::Profile
+                )
+            })
+    }
+
+    /// **The read holding output body `body` of `node`'s value**: its one
+    /// output, which holds every body of it (a family's members at their
+    /// places), or, for an operation with several outputs, the port
+    /// `body` (a split's half). `None` for a node that is not live or
+    /// defines no such port. What a pick — a node and the body the ray
+    /// met — resolves its name in ([`crate::resolve::resolve`]).
+    pub fn read_of_body(&self, node: RecipeNodeId, body: u32) -> Option<VarId> {
+        match self.outputs(node).as_slice() {
+            [one] => Some(*one),
+            several => several.get(usize::try_from(body).ok()?).copied(),
         }
     }
 
@@ -2189,9 +2259,11 @@ impl<P> Doc<P> {
         &self.appearance
     }
 
-    /// One name's appearance record (attrs + D7 metadata), if any.
-    pub fn appearance_of(&self, name: &StableName) -> Option<&AppearanceRecord> {
-        self.appearance.get(name)
+    /// One name's appearance record (attrs + D7 metadata) read in the
+    /// body `body` (NAMES N1), if any.
+    pub fn appearance_of(&self, body: VarId, name: &StableName) -> Option<&AppearanceRecord> {
+        self.appearance
+            .get(&crate::appearance::AppearanceKey::new(body, name.clone()))
     }
 
     /// **Every [`StableName`] this document holds, with what holds
@@ -2263,11 +2335,10 @@ impl<P> Doc<P> {
                     .flat_map(|select| select.names.iter())
                     .map(move |name| NameCarrier::Select { var, name })
             })),
-            Carrier::Appearance => Box::new(
-                self.appearance
-                    .keys()
-                    .map(|name| NameCarrier::Store { name }),
-            ),
+            Carrier::Appearance => Box::new(self.appearance.keys().map(|key| NameCarrier::Store {
+                body: key.at,
+                name: &key.name,
+            })),
         }
     }
 
@@ -2809,9 +2880,12 @@ mod tests {
                 constraints: Vec::new(),
             },
         );
+        let body = crate::VarId::new(0, 9);
         for key in [&painted_b, &painted_a] {
-            doc.appearance
-                .insert(key.clone(), AppearanceRecord::default());
+            doc.appearance.insert(
+                crate::appearance::AppearanceKey::new(body, key.clone()),
+                AppearanceRecord::default(),
+            );
         }
 
         assert_eq!(
@@ -2821,8 +2895,14 @@ mod tests {
                     node: RecipeNodeId::new(0, 2),
                     name: &crossed,
                 },
-                NameCarrier::Store { name: &painted_a },
-                NameCarrier::Store { name: &painted_b },
+                NameCarrier::Store {
+                    body,
+                    name: &painted_a,
+                },
+                NameCarrier::Store {
+                    body,
+                    name: &painted_b,
+                },
             ],
             "the walk is `Carrier::ALL`'s order: id order over the payloads, then the \
              store's own key order"

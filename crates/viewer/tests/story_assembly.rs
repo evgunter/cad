@@ -43,7 +43,7 @@ use common::asm;
 use common::{body_volume, near};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Resolution, RunCtx, face_frame, resolve};
+use pncad::select::{Resolution, RunCtx, face_frame};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
@@ -396,7 +396,7 @@ fn the_windmill_story() {
     );
     assert!(
         matches!(
-            resolve(RunCtx { doc, eval }, &hit.name),
+            crate::fixture::resolve_at_mint(RunCtx { doc, eval }, &hit.name),
             Resolution::Resolved(_)
         ),
         "a just-picked name resolves in the run it was picked from"

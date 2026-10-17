@@ -1241,6 +1241,9 @@ BOUND_AS = {
     # as the `Evaluation`.
     "RunCtx": "Evaluation",
     "resolve": "Evaluation.resolve",
+    # A reference read at a node the document no longer holds: the
+    # verdict `Evaluation.resolve` answers when its `at` names one.
+    "stranded_at": "Evaluation.resolve",
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
@@ -1249,7 +1252,7 @@ BOUND_AS = {
     # The two enums are one attribute between them, and the merge is
     # deliberate rather than a shortcut: `Resolution.variant` is
     # WHICH arm, and which vocabulary it is drawn from is already said
-    # by `status`. `vanished` / `ambiguous` / `node_gone` under a
+    # by `status`. `vanished` / `ambiguous` / `read_gone` / `node_gone` under a
     # failure, `target_failed` / `target_poisoned` /
     # `target_not_evaluated` under an indeterminate, `None` when
     # resolved. Two attributes would have made a caller read `status`
@@ -1257,6 +1260,13 @@ BOUND_AS = {
     # this file's every-attribute-always-present rule exists to avoid.
     "ResolveError": "Resolution.variant",
     "ResolveIndeterminate": "Resolution.variant",
+    # `ReadGone`'s deleted-or-foreign word is the sentence's, as the
+    # recipe-edit reference inside `node_gone` is: `detail` says it, and
+    # the repair (re-site the reference) does not branch on it.
+    "ReadEdit": "Resolution.detail",
+    # A resolve the door refuses — a read with no table, a gone node
+    # handle — crosses as the select door's own refusal, by `reason`.
+    "ResolveRefusal": "SelectRefusal.reason",
     # `ResolutionFailure` is the struct that pairs one of those arms
     # with the repair candidates, and `offers` is what it ADDS — the
     # error half is `variant` plus `detail` above. So it crosses at the
@@ -1975,7 +1985,7 @@ FAMILIES: dict[str, str] = {
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask
 #: on every run is now askable in the language whose whole selection
-#: story is store-then-reuse: `Evaluation.resolve(name)` answers a
+#: story is store-then-reuse: `Evaluation.resolve(at, name)` answers a
 #: three-state verdict for any name `select`, `all_faces` or a
 #: `PickHit` handed back on an earlier run.
 #:
@@ -2297,6 +2307,10 @@ NOT_BOUND = {
     # `output_signature` and its sentence, and the subgroup family is
     # the value-free name of a `Subgroup.variant` Python already reads.
     "OutputFault": SHAPE,
+    # A split's half: Python reads a half by its port
+    # (`Doc.output(split, 0 | 1)`), and that read is the half's own name
+    # table, so the half is never a separate argument.
+    "SplitHalf": SHAPE,
     # A selection's definition and its two refusals' faults: Python
     # authors a selection through the node that reads it (`Node.fillet`
     # takes the names) and repairs one through `DocEdit.rebind` with
@@ -2638,6 +2652,9 @@ NOT_BOUND = {
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
     "Side": SHAPE,
+    # Where a name door reads a table: a node at its one output or a
+    # read, which Python spells as the `NodeId | Var` argument itself.
+    "At": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
@@ -3742,6 +3759,7 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",
+    "EditError::AppearanceBodyNotARead": "EditError.variant",
     "EditError::AppearanceNotSet": "EditError.variant",
     "EditError::InvalidTolerance": "EditError.variant",
     "EditError::MetaUnversioned": "EditError.variant",
@@ -4259,7 +4277,7 @@ MEMBERS_NOT_BOUND = {
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is
-    # passed to. `SplitHalf`/`Side` and the radius sign are the same
+    # passed to. `Side` and the radius sign are the same
     # `different-shape` argument the selector plumbing carries.
     "ArcLen::r": SHAPE,
     "ArcLen::side": SHAPE,

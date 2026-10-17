@@ -101,7 +101,7 @@ use pncad::document::{
     Speaker, SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
 use pncad::prelude::StableName;
-use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};
+use pncad::select::{ContactClass, InterrogateError, Resolution, face_frame};
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
@@ -573,8 +573,7 @@ impl MateTool {
         let mut events = Vec::new();
         let [said_a, said_b] = std::mem::take(&mut self.said);
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
-            let verdict =
-                crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
+            let verdict = crate::tree::pick_resolution(doc, eval, pick.node, pick.body, &pick.name);
             if resolves(&verdict) {
                 false
             } else {

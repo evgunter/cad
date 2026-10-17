@@ -46,7 +46,6 @@ from pncad import (
     SegTag,
     Selector,
     SketchPlane,
-    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -631,11 +630,13 @@ class TestBracket(unittest.TestCase):
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
         self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
+        # The lower half's own chords: a name tells apart only what its
+        # variable holds, so the half is said by the read selected in.
         chords = evaluate(doc).select(
-            split,
+            doc.output(split, 1),
             Selector.of(
                 NamePat.of_kind(EntityKind.Edge).path(
-                    [SegPat.tag(SegTag.SectionEdge).side(SplitHalf.Below), SegPat.tag(SegTag.Fragment)]
+                    [SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)]
                 )
             ),
         )
@@ -4519,16 +4520,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # The split vocabulary is reachable from Python over the cut,
         # which is what "names end to end" means here: the emitter is
         # TOTAL, not merely non-refusing.
+        # A split's halves are two reads, each its own table: a count
+        # over the cut sums its halves.
+        halves = (doc.output(cut, 0), doc.output(cut, 1))
+
         def count(kind, tag):
-            return len(
-                ev.select(cut, Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag))))
-            )
+            sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
+            return sum(len(ev.select(h, sel)) for h in halves)
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
         self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
-            return len(ev.select(cut, Selector.of(pat)))
+            return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

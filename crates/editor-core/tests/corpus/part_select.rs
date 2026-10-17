@@ -49,13 +49,14 @@ const LIFT: f64 = 2.0;
 /// The document parameter the box's height reads.
 pub const H: &str = "h";
 
-/// The split's section face bounding `side`, in the naming
-/// vocabulary — the name a read of that half carries verbatim.
-pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
+/// The split's section face, in the naming vocabulary — the name each
+/// read of a half carries for its own copy of the section (NAMES N1: the
+/// read scopes it, so the two halves' faces are one name).
+pub fn section_face(split: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { side, section: 0 }],
+        path: vec![RoleSeg::SectionFace { section: 0 }],
     }
 }
 

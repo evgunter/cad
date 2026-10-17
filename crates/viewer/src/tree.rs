@@ -192,7 +192,9 @@ use pncad::document::{
     SpokenNode, ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
-use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
+use pncad::select::{
+    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
+};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -1161,6 +1163,56 @@ pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -
     }
 }
 
+/// **A picked name's [`Resolution`], as drawn** ([`resolution_as_drawn`]):
+/// read in the read holding the body the pick met (NAMES N1: resolution
+/// names the read; `Doc::read_of_body`). A pick whose node the document
+/// no longer holds is stranded with it where the name was minted there
+/// (`stranded_at`), and is otherwise not in the document; one whose
+/// node defines no such read answers the node's standing.
+pub fn pick_resolution(
+    doc: &pncad::document::Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    node: RecipeNodeId,
+    body: u32,
+    name: &pncad::prelude::StableName,
+) -> Resolution {
+    match pncad::select::stranded_at(doc, node, name) {
+        Some(Ok(gone)) => return gone,
+        // The node took its reads with it, and a pick keeps no read.
+        Some(Err(_)) => {
+            return Resolution::Indeterminate(ResolveIndeterminate {
+                standing: NodeStanding::NotInDocument { node },
+            });
+        }
+        None => {}
+    }
+    match doc.read_of_body(node, body) {
+        Some(read) => resolution_as_drawn(
+            resolve(
+                RunCtx {
+                    doc,
+                    eval: evaluation,
+                },
+                read,
+                name,
+            )
+            .unwrap_or_else(|refusal| {
+                unreachable!("a pick met a body, read in a body output: {refusal}")
+            }),
+            evaluation,
+        ),
+        None => Resolution::Indeterminate(ResolveIndeterminate {
+            standing: standing_as_drawn(
+                evaluation
+                    .usable(node)
+                    .err()
+                    .unwrap_or(NodeStanding::NotInDocument { node }),
+                evaluation,
+            ),
+        }),
+    }
+}
+
 /// A name's [`Resolution`], its indeterminate standing re-read by
 /// [`standing_as_drawn`]; every other verdict is the resolution
 /// machinery's, unchanged.
@@ -1192,6 +1244,7 @@ pub fn interrogation_as_drawn(
         | InterrogateError::WholeBody
         | InterrogateError::NoBodies { .. }
         | InterrogateError::NoSuchBody { .. }
+        | InterrogateError::SeveralOutputs { .. }
         | InterrogateError::Readback(_) => error,
     }
 }

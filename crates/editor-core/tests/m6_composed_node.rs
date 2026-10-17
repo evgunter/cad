@@ -60,11 +60,10 @@ fn edge_names(
     ev: &editor_core::Evaluation<f64>,
     node: editor_core::RecipeNodeId,
 ) -> Vec<StableName> {
-    let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
+    let Some(t) = ev.table_at(node) else {
         panic!("node {node:?} did not evaluate");
     };
-    v.name_table
-        .iter()
+    t.iter()
         .filter(|(n, _)| n.kind == EntityKind::Edge)
         .map(|(n, _)| n.clone())
         .collect()
@@ -253,8 +252,9 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         panic!("a body")
     };
     let entities = body.faces().count() + body.edges().count() + body.vertices().count();
+    let table = ev.table_at(result).expect("the composed die's table");
     assert_eq!(
-        v.name_table.len(),
+        table.len(),
         entities + 1,
         "every face, edge and vertex is named, plus the body row"
     );
@@ -294,7 +294,7 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         }
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
-    let seen: BTreeSet<&str> = v.name_table.iter().map(|(n, _)| role(n)).collect();
+    let seen: BTreeSet<&str> = table.iter().map(|(n, _)| role(n)).collect();
     assert_eq!(
         seen.len(),
         14,
@@ -341,13 +341,10 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
 
     // The target's names, and therefore the fillet's, are unchanged.
     let names_of = |ev: &editor_core::Evaluation<f64>, n| {
-        let Some(NodeResult::Ok(v)) = ev.nodes.get(&n) else {
+        let Some(t) = ev.table_at(n) else {
             panic!("node {n:?} evaluates")
         };
-        v.name_table
-            .iter()
-            .map(|(k, _)| k.clone())
-            .collect::<BTreeSet<_>>()
+        t.iter().map(|(k, _)| k.clone()).collect::<BTreeSet<_>>()
     };
     assert_eq!(
         names_of(&before, target),
@@ -360,12 +357,12 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
         "the fillet's names are a function of the target's — covariant"
     );
     // And every selected name still resolves in the bumped target.
-    let Some(NodeResult::Ok(v)) = after.nodes.get(&target) else {
+    let Some(t) = after.table_at(target) else {
         panic!("the bumped target evaluates")
     };
     for n in selection_of(&bumped, fillet) {
         assert!(
-            v.name_table.lookup(&n).is_some(),
+            t.lookup(&n).is_some(),
             "a selected name stopped resolving under the bump: {n:?}"
         );
     }
