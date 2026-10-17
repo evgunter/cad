@@ -240,7 +240,9 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId::new(0, 0); // no node holds it
+    // No node holds it: ordinal 1 is the next draw, under a digest the
+    // mint does not produce (ordinal 0 is the world's).
+    let guessed = RecipeNodeId::new(1, 0);
     let err = doc
         .apply(
             &TEdit::InsertNode {

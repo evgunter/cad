@@ -51,8 +51,8 @@ a name which output holds the entity, so a split's roles carry no half
 (`SplitBody`, `SectionFace`, `SectionEdge`, `SplitFragment`,
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
-states. The per-node table compensates today by restating the output:
-the split's half and the pattern's `Instance { i }` segment exist only to
+states. Each output has its own table, so a split's roles say no half;
+the pattern's `Instance { i }` segment still restates the output, only to
 keep one node's table distinct. D10 makes the compensation fail: `P1` and
 `P2` are two placements of `X`, each equally a copy of it; pinned into one
 space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
@@ -452,8 +452,9 @@ entity of every output body from kernel birth data alone (`Extruded`/`Revolved`
 maps, `SplitNaming`, `BooleanNaming`, `BlendNaming`, D5 provenance); an unnamed
 live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
 and kind disagreement (`DuplicateName`). The table is bidirectional (`lookup`,
-`name_of`), lives in `NodeValue::name_table`, and rides memo hits with the
-geometry; consumed entities have no row. The invariant CI pins: the table is a
+`name_of`), one per output variable (N1, the scope), read through that
+variable alone (`Evaluation::table`), and rides memo hits with the geometry;
+consumed entities have no row. The invariant CI pins: the table is a
 function of (recipe structure, structural parameters, predicate verdict vector)
 only — same recipe and same verdicts give an identical table at f64 and at
 Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
@@ -516,9 +517,27 @@ compare would restore the cost the cache exists to remove.
 
 ## Resolution
 
-**N5 — Typed resolution failure.** `ResolveError` is `Vanished { name, diagnosis,
-last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness }`
-or `NodeGone { name, edit }`. `Diagnosis` is one of:
+**N5 — Typed resolution failure.** A reference is sited at a read and names a
+cell in that read's table, so either coordinate can fail. `ResolveError` is
+`ReadGone { name, read, edit }`, `NodeGone { name, edit }`, `Ambiguous { name,
+candidates, tie: TieWitness }` or `Vanished { name, diagnosis, last_good:
+Option<Tombstone> }`, tried in that order:
+
+- `ReadGone`: the read the reference is sited at is no longer this document's.
+  Its operation was deleted, or the read was never this document's; the
+  document decides which, with no prior run. The repair is to re-site the
+  reference or remove it. Rebind never moves a read, so it cannot repair this.
+- `NodeGone`: the name's minting node is gone. The repair is Rebind.
+- `Ambiguous` and `Vanished`: the read stands and the minting node lives, but
+  the read's table holds more than one cell for the name, or none. Rebind
+  repairs both.
+
+A read the name itself carries (`From { read }`) is a fact of the name, not a
+site. A read the document holds that is no body output (a scalar, a selection,
+a datum's) is no question at all: the door refuses it typed (`ResolveRefusal`),
+never answers it.
+
+`Diagnosis` is one of:
 
 - `PredicateFlip { predicate, from, to }`, `StructuralParam { node, param }`,
   `RecipeEdit { edit }`: evidence on the name's derivation path;
@@ -536,8 +555,10 @@ Diagnosis is computable because every node evaluation records its verdict log
 
 **Two scopes.** The with-history lanes (recorded flips, structural parameters,
 recipe edits) read two scopes, in order (`resolve::upstream_nodes` states the
-rule): first the name's derivation path (N1: the nodes the name mentions),
-answering `PredicateFlip`, `StructuralParam` or `RecipeEdit`; then the nodes
+rule): first the reference's path, which is the nodes the name mentions (N1)
+and the node that defines the read it is sited at, because that node decides
+which table holds the body; this scope answers `PredicateFlip`,
+`StructuralParam` or `RecipeEdit`; then the nodes
 that were strict ancestors of the minting node in the last-good document or in
 the current one, each walked within its own document, minus the path,
 answering `Upstream { node, cause }`, a candidate cause that fed the name

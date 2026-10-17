@@ -2,10 +2,10 @@
 id: two-names-differing-only-in-an-unsaid-carry-node-read-alike
 kind: issue
 title: Two names that differ only in a carry node the words never say read alike, even in full
-status: parked
+status: open
 opened: 2026-10-06
 priority: P3
-blocked_on: [a-name-is-scoped-by-the-variable-holding-its-body]
+blocked_on: []
 ---
 
 
@@ -23,3 +23,7 @@ A name's words say neither a primary carry's node (a Boolean's A, a fillet's tar
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to DOCTAIL and parked on INTENT's `a-name-is-scoped-by-the-variable-holding-its-body` (dispatched). That unit scopes a name by the variable holding its body and drops the split half from a split's roles, which changes both what holds a name and which nodes a name leaves unsaid. Re-read this row against its merge before building anything.
+
+## Re-read against the unit's merge (PR 4674)
+
+The trigger fired. A split's roles no longer spell the half: each half is its own table at its port, and a fragment of a face the plane cuts is ONE name that both halves' tables hold. So the `SplitFragment@N9` / `@N10` witness above is no longer two names of one cap; the halves are told apart by the read, which a name's words never said. The Boolean witness (`Merged[FromA(...) @ node 8 …]` vs `@ node 9`) is unchanged by the unit and still stands as written.

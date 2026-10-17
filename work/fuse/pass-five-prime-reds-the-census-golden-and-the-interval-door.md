@@ -38,6 +38,15 @@ CensusEscalated { cause: Indeterminate { margin: MarginDiag(Invalid), terminal_s
 
 **This is a regression.** The census door now disagrees across certifying scalars on a corpus document. The `Interval` lane fails closed with an `Invalid` margin where `f64` decides "one curve", so the fault is in evaluating the margin, not in the band. A likely mechanism, which has not been executed: `one_curve_gap` → `frame_gap` (`crates/geom-brep/src/curve_pair/pose.rs:956-979`) ends in `sqrt(mid + sqrt(off² + (d1·d2)²))`, with `mid = (d1·d1 + d2·d2)/2`. For two coincident conics `d1` and `d2` enclose zero, and a self-dot read as products of an interval straddling zero has a negative lower end. The outer `sqrt` then reads a straddling enclosure, so it is Invalid at exactly the coincidence the predicate exists to decide. `frame_gap` predates #5227; pass 5′ is the first to route a census pair through it (boss_union's coincident rim arcs). **Fix:** make the one-curve margin certify zero at Interval, for example by reading each self-dot through `norm_squared` or a squaring that never reads below zero, or by clamping `mid` at zero. Add a geom-brep row of two coincident circles and two coincident ellipses at `Interval` that asserts `Pose::Coincident`.
 
+## §1 landed in INTENT stage 3 B (PR 5232, 2026-10-17)
+
+The perf12 re-bless this item prescribes was ported into PR 5232: the
+three goldens (`perf12_census_{1e-6,1e-9,1e-12}.txt`) gain cut_cylinder's
+two `EdgeEdgeOverlap` findings, and nothing else moved from that cause.
+Both rows fail identically at that PR's merge base (`4760a784b2`),
+built and run in place. §2 (boss_union's Interval census) is untouched,
+and stays this item's.
+
 ## 3. Two sweep rows at ε 1e-12, the same reader
 
 Seen on PCERT's PR 5225 (`pcert/azimuth-placement`, merged with main).

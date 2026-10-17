@@ -17,21 +17,31 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Formula,
-    MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    SitedFace, SplitError, StableName, member_of,
+    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, Formula, MateFrame,
+    MatePrimitive, MateRef, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, SitedFace,
+    Space, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
-    gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve, step, xform,
+    gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve, xform,
 };
 use geom_core::Tol;
 
 // ---- the scene ----
+
+/// **The copy of `body` a node over an instance carries** — `node`'s
+/// copies keyed as the instance keys the copy of its part's `body`
+/// ([`fixture::resolver::copy_key`]): what a seat reading one body
+/// reads of a transform over the instance.
+fn one_copy(node: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::keyed(
+        editor_core::Operand::Node(node),
+        fixture::resolver::copy_key(body),
+    )
+}
 
 const BASE_WIDTH: f64 = 3.0;
 const BASE_HEIGHT: f64 = 1.0;
@@ -58,9 +68,9 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Two slab instances and one block instance, with their resolver and
-/// part bodies, the slabs placed in the world. The first slab carries
-/// the world offset and roots the group; the others sit where their
-/// mates put them.
+/// part bodies. The first slab is pinned to the world; the others'
+/// bundles are empty, and sit where the constraints added to them put
+/// them.
 struct Scene {
     doc: ProfileDoc,
     store: PartStore,
@@ -77,7 +87,7 @@ fn scene(label: &str) -> Scene {
 }
 
 /// The scene with one slab only when `two` is false: `base2` is then
-/// `base1` itself, and nothing is left unplaced.
+/// `base1` itself, and nothing is left loose.
 fn scene_with(label: &str, two: bool) -> Scene {
     let mut store = PartStore::new();
     let (base_ref, base_body) = store.insert_part(
@@ -97,10 +107,7 @@ fn scene_with(label: &str, two: bool) -> Scene {
         (doc, base1)
     };
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // The slabs are in the world; each row places what it builds over
-    // `top`.
-    let bases: &[RecipeNodeId] = if two { &[base1, base2] } else { &[base1] };
-    let doc = fixture::place_all(doc, bases);
+    // Each row places what it builds over `top`.
     Scene {
         doc,
         store,
@@ -133,12 +140,12 @@ fn seat_with(
     b: SitedFace,
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+) -> editor_core::Mate<Formula> {
+    fixture::mate(
+        a,
+        b,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::authored(
                 [1.0, 1.0, BASE_HEIGHT],
                 [0.0, 0.0, 1.0],
@@ -157,36 +164,45 @@ fn seat_with(
             sense: AxisSense::Opposed,
             clocking,
         },
-    }
+    )
 }
 
-fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
+fn seat(a: SitedFace, b: SitedFace) -> editor_core::Mate<Formula> {
     seat_with(a, b, MatePrimitive::FrameCoincidence, None)
 }
 
-/// Insert `mate` and answer its id.
-fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate),
-            fresh: Vec::new(),
-        },
-    );
-    (doc, id.expect("the mate inserts"))
+/// `mate` added to `placement`'s bundle — the copy it seats, which a
+/// side may read through a transform or a union — through the store's
+/// reach, which levers the bundle it joins, and answered by its
+/// address.
+fn mated(
+    opts: &EvalOptions,
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+) -> (ProfileDoc, MateRef) {
+    fixture::at_the_door_of(
+        &doc,
+        &editor_core::mate_reach::<f64>(opts, Tol::witness()),
+        placement,
+        mate,
+    )
+    .unwrap_or_else(|(at, fault)| panic!("the constraint is admitted, got {at:?}: {fault}"))
 }
 
-/// `top` lifted by `t1` (z + 10) and `t2` (z + 20), each mated to its
-/// own slab, and the two transforms fused by a union `U` — the gather's
-/// recourse for `PlacedUnderTwoRoots`, followed. `t1`'s mate reads the
-/// block's face as `at_t1` says.
+/// `top` lifted by `t1` (z + 10) and `t2` (z + 20), and the two
+/// transforms fused by a union `U` — the gather's recourse for
+/// `PlacedUnderTwoRoots`, followed. `m1` seats the block on the first
+/// slab through `t1`, in the block's bundle; `m2` seats the second slab
+/// under the block through `t2`, in the second slab's bundle. Each mate
+/// reads the block's face as `at_t1` says.
 struct Fused {
     doc: ProfileDoc,
     t1: RecipeNodeId,
     t2: RecipeNodeId,
     union: RecipeNodeId,
-    m1: RecipeNodeId,
-    m2: RecipeNodeId,
+    m1: MateRef,
+    m2: MateRef,
 }
 
 fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> SitedFace) -> Fused {
@@ -198,13 +214,16 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                one_copy(t1, s.top_body),
+                one_copy(t2, s.top_body),
+            ]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let (at1, at2) = (at_t1(&doc, t1, union), at_t1(&doc, t2, union));
-    let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at1));
-    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), at2));
+    let (doc, m1) = mated(&s.opts, doc, s.top, seat(s.base_cap(s.base1), at1));
+    let (doc, m2) = mated(&s.opts, doc, s.base2, seat(s.base_cap(s.base2), at2));
     Fused {
         doc,
         t1,
@@ -215,10 +234,11 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
     }
 }
 
-/// The solve places every instance and both mates determine.
+/// The solve places every instance, and both seats pin their copies
+/// into the world.
 fn assert_placed(s: &Scene, f: &Fused, what: &str) {
     let poses = solve(&f.doc, &s.opts, Tol::witness());
-    for node in [s.base1, s.base2, s.top, f.m1, f.m2] {
+    for node in [s.base1, s.base2, s.top] {
         assert!(
             poses.fault(node).is_none(),
             "{what}: the solve places {node:?}: {:?}",
@@ -226,9 +246,9 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
         );
     }
     assert_eq!(
-        (poses.role(f.m1), poses.role(f.m2)),
-        (Some(MateRole::Determining), Some(MateRole::Determining)),
-        "{what}: both seats determine"
+        (poses.space(f.m1.placement), poses.space(f.m2.placement)),
+        (Some(Space::World), Some(Space::World)),
+        "{what}: both seats pin their copies"
     );
 }
 
@@ -271,14 +291,19 @@ fn a1b_a_transform_above_the_operand_mints_nothing() {
     );
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, _) = crate::fixture::place(doc, t3);
-    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
+    let (doc, mate) = mated(
+        &s.opts,
+        doc,
+        s.top,
+        seat(s.base_cap(s.base1), head_at(t1, s.top_cap())),
+    );
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
-        poses.fault(mate).is_none(),
+        poses.fault(mate.placement).is_none(),
         "the solve places the mate at t1: {:?}",
-        poses.fault(mate)
+        poses.fault(mate.placement)
     );
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    assert_eq!(poses.space(mate.placement), Some(Space::World));
     let ev = run(&doc, &s.opts);
     crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
@@ -313,8 +338,8 @@ fn a1c_a_reference_read_at_the_union_is_a_member_and_gates() {
 /// **One placement spelled two ways is one member.** A coaxial mate
 /// with its clocking rider (prismatic) read at `t1`, beside a planar
 /// rest read at `U` naming member `t1`'s face, on the same pair: the
-/// two fold, and the pair determines. Two members would leave the
-/// first mate a lone prismatic tree edge, refused UNDER.
+/// two fold, and the block is pinned. Two members would leave the
+/// block's bundle targeting two copies.
 #[test]
 fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let s = scene("msolve13-a2-union");
@@ -326,14 +351,24 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                one_copy(t1, s.top_body),
+                one_copy(t2, s.top_body),
+            ]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let through_t2 = member_name(&doc, union, t2, s.top_cap());
-    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(union, through_t2)));
-    let (doc, coax) = mated(
+    let (doc, m2) = mated(
+        &s.opts,
         doc,
+        s.base2,
+        seat(s.base_cap(s.base2), head_at(union, through_t2)),
+    );
+    let (doc, coax) = mated(
+        &s.opts,
+        doc,
+        s.top,
         seat_with(
             s.base_cap(s.base1),
             head_at(t1, s.top_cap()),
@@ -343,7 +378,9 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     );
     let through_union = member_name(&doc, union, t1, s.top_cap());
     let (doc, plane) = mated(
+        &s.opts,
         doc,
+        s.top,
         seat_with(
             s.base_cap(s.base1),
             head_at(union, through_union),
@@ -359,13 +396,18 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     assert!(at_t1.is_some(), "the t1 spelling is a member");
     assert_eq!(at_t1, at_u, "A2: one placement, one member");
     let poses = solve(&doc, &s.opts, Tol::witness());
-    for node in [coax, plane, m2] {
+    for mate in [coax, plane, m2] {
         assert!(
-            poses.fault(node).is_none(),
-            "A2: the pair folds and determines ({node:?}): {:?}",
-            poses.fault(node)
+            poses.fault(mate.placement).is_none(),
+            "A2: the pair folds and pins ({mate:?}): {:?}",
+            poses.fault(mate.placement)
         );
     }
+    assert_eq!(
+        poses.space(s.top),
+        Some(Space::World),
+        "A2: the block is pinned"
+    );
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "A2: the gate holds: {gated:?}");
@@ -373,8 +415,8 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
 
 /// **`Part { P, 1 }` and `P` naming copy 1 are one placement.** The
 /// coaxial-with-rider mate read at the `Part`, the planar rest read at
-/// the pattern naming copy 1: one member, so the pair folds and
-/// determines, and the gate holds both — the pattern's row lifts
+/// the pattern naming copy 1: one member, so the pair folds and pins
+/// the block, and the gate holds both — the pattern's row lifts
 /// through the `Part` verbatim.
 #[test]
 fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
@@ -400,7 +442,9 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, _) = crate::fixture::place(doc, part);
     let copy1 = in_copy(pattern, 1, s.top_cap());
     let (doc, coax) = mated(
+        &s.opts,
         doc,
+        s.top,
         seat_with(
             s.base_cap(s.base1),
             head_at(part, copy1.clone()),
@@ -409,7 +453,9 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         ),
     );
     let (doc, plane) = mated(
+        &s.opts,
         doc,
+        s.top,
         seat_with(
             s.base_cap(s.base1),
             head_at(pattern, copy1.clone()),
@@ -418,13 +464,18 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         ),
     );
     let poses = solve(&doc, &s.opts, Tol::witness());
-    for node in [coax, plane] {
+    for mate in [coax, plane] {
         assert!(
-            poses.fault(node).is_none(),
-            "A2: the pair folds and determines ({node:?}): {:?}",
-            poses.fault(node)
+            poses.fault(mate.placement).is_none(),
+            "A2: the pair folds and pins ({mate:?}): {:?}",
+            poses.fault(mate.placement)
         );
     }
+    assert_eq!(
+        poses.space(s.top),
+        Some(Space::World),
+        "A2: the block is pinned"
+    );
     assert_eq!(
         member_of(&doc, &head_at(part, copy1.clone())),
         member_of(&doc, &head_at(pattern, copy1)),
@@ -463,71 +514,45 @@ fn local_block(doc: ProfileDoc, at: [f64; 3], w: f64, h: f64) -> (ProfileDoc, Re
 /// `top` lifted by `t1` and mated to the first slab at `t1`: the
 /// opposed seat turns the block a half turn about its corner, so it
 /// stands at `[0, 1] x [0, 1] x [1, 4]` in the world.
-fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, MateRef) {
     let (doc, t1) = insert(
         s.doc.clone(),
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
-    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
+    let (doc, mate) = mated(
+        &s.opts,
+        doc,
+        s.top,
+        seat(s.base_cap(s.base1), head_at(t1, s.top_cap())),
+    );
     (doc, t1, mate)
 }
 
 /// **A consumer placed over the operand reads it; the mate read at the
-/// operand mints nothing**, whatever the consumer does with the face —
-/// a pair boolean that keeps it, a chamfer that trims it, a shell that
-/// keeps it as a wall or opens it. The world copy is the consumer's.
+/// operand mints nothing**: a pair boolean that keeps the face, over
+/// the one copy the transform carries. The world copy is the
+/// consumer's. (A chamfer or a shell reads a selection, whose body is
+/// one body, and a transform over an instance carries its copies, so
+/// neither is written over the operand.)
 #[test]
-fn a_mate_read_below_a_placed_consumer_mints_nothing() {
+fn a_mate_read_below_a_placed_boolean_mints_nothing() {
     let s = scene_with("msolve13-lift-consumers", false);
     let (doc0, t1, mate) = seated_at_t1(&s);
-    let placed_over = |node: AuthoredNode| {
-        let (doc, consumer) = insert(doc0.clone(), node);
-        crate::fixture::place(doc, consumer).0
-    };
-    let (with_far, far) = local_block(doc0.clone(), [10.0, 10.0, 10.0], 1.0, 1.0);
+    let (with_far, far) = local_block(doc0, [10.0, 10.0, 10.0], 1.0, 1.0);
     let (doc, fused) = insert(
         with_far,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![one_copy(t1, s.top_body), far.into()]),
         },
     );
-    let boolean = crate::fixture::place(doc, fused).0;
-    let edges = every_edge(&run(&doc0, &s.opts), t1);
-    let chamfer = placed_over(Node::Chamfer {
-        distance: len(0.1),
-        selection: editor_core::Operand::select(t1, edges),
-    });
-    let shell = |open: StableName| {
-        placed_over(Node::Shell {
-            thickness: len(0.1),
-            open: editor_core::Operand::select(t1, vec![open]),
-        })
-    };
-    for (what, doc) in [
-        ("a pair boolean", boolean),
-        ("a chamfer", chamfer),
-        (
-            "a shell keeping the face",
-            shell(in_part(s.top, s.top_body, CapEnd::End)),
-        ),
-        ("a shell opening the face", shell(s.top_cap())),
-    ] {
-        let ev = run(&doc, &s.opts);
-        assert!(
-            ev.result(mate).is_some_and(|r| r.value().is_some()),
-            "{what}: the mate itself evaluates"
-        );
-        crate::fixture::assert_mints_nothing(&doc, &ev, mate);
-    }
-}
-
-/// Every edge of the block, as `t1` names them.
-fn every_edge(ev: &editor_core::Evaluation<f64>, t1: RecipeNodeId) -> Vec<StableName> {
-    fixture::table(ev, t1)
-        .iter()
-        .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
-        .map(|(n, _)| n.clone())
-        .collect()
+    let doc = crate::fixture::place(doc, fused).0;
+    let ev = run(&doc, &s.opts);
+    assert!(
+        ev.result(mate.placement)
+            .is_some_and(|r| r.value().is_some()),
+        "the mate's placement evaluates"
+    );
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 /// **A `Part` above a union is refused at the door.** A `Part` picks
@@ -545,7 +570,7 @@ fn a_part_above_a_union_is_refused_at_the_door() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![one_copy(t1, s.top_body), far.into()]),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -590,46 +615,13 @@ fn split_of(
 
 /// The placement of `body` in `doc`.
 fn placement_of(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
-    doc.ids()
+    doc.placements()
         .into_iter()
         .find(|&p| {
-            matches!(doc.node(p), Some(Node::PlaceInWorld { .. })) && doc.upstream(p) == vec![body]
+            matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|shape| doc.operation_of(shape.read) == Some(body)))
         })
         .expect("the body is placed")
-}
-
-/// The scene with the slabs on a gauge of their own and the block at an
-/// offset, so a mate between them declares rather than welds.
-fn declaring(label: &str) -> Scene {
-    let s = scene(label);
-    let (mut doc, g) = insert(
-        s.doc.clone(),
-        Node::gauge(
-            None,
-            editor_core::Placement::literal(&editor_core::Frame::translation([0.0, 0.0, -5.0])),
-        ),
-    );
-    for base in [s.base1, s.base2] {
-        doc = step(
-            doc,
-            DocEdit::SetGauge {
-                node: base,
-                gauge: Some(g),
-            },
-        )
-        .0;
-    }
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetOffset {
-            instance: s.top,
-            offset: Some(editor_core::Placement::literal(
-                &editor_core::Frame::translation([0.0, 0.0, 5.0]),
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    Scene { doc, ..s }
 }
 
 /// **A3(a).** A cut that takes the union a mate reads, and its
@@ -655,36 +647,54 @@ fn a3a_a_cut_taking_the_union_but_not_its_members_severs_the_union() {
     );
 }
 
-/// **A3(b).** The reverse: a cut taking the block and the transforms
-/// below the union and leaving the union is the kept union's severed
-/// read. The mates declare (the slabs and the block each stand where
-/// they are put), so no group is torn before the read is reached.
+/// **A3(b).** The reverse: a cut taking the slab, the block whose
+/// bundle holds the mate and the transforms below the union, and
+/// leaving the union, is the kept union's severed read.
 #[test]
 fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
-    let s = declaring("msolve13-a3b");
-    let f = fused(&s, |doc, t1, union| {
-        head_at(union, member_name(doc, union, t1, s.top_cap()))
-    });
-    let err = split_of(&s, &f.doc, &[s.top, f.t1, f.t2], "msolve13-a3b-part")
+    let s = scene_with("msolve13-a3b", false);
+    let (doc, t1) = insert(
+        s.doc.clone(),
+        xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, t2) = insert(doc, xform(s.top, [0.0, 0.0, 20.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                one_copy(t1, s.top_body),
+                one_copy(t2, s.top_body),
+            ]),
+        },
+    );
+    let (doc, _) = crate::fixture::place(doc, union);
+    let (doc, _) = mated(
+        &s.opts,
+        doc,
+        s.top,
+        seat(s.base_cap(s.base1), head_at(t1, s.top_cap())),
+    );
+    let err = split_of(&s, &doc, &[s.base1, s.top, t1, t2], "msolve13-a3b-part")
         .expect_err("the kept union reads the cut transforms");
     assert!(
         matches!(
             &err,
             SplitError::SeveredEdge { consumer, consumer_is_cut: false, .. }
-                if *consumer == f.doc.spoken(f.union)
+                if *consumer == doc.spoken(union)
         ),
         "{err:?}"
     );
 }
 
-/// **A3(c).** A declaring mate whose cut side reads the union through
-/// a transform crosses with a frame the part cannot hold: the member's
+/// **A3(c).** A kept constraint — the second slab's seat — whose cut
+/// side reads the union through a transform crosses with a frame the
+/// part cannot hold: the member's
 /// chain carries the transform, so the face's frame is no frame of the
 /// instance left behind, and the cut refuses `MateFrameCrosses` on
 /// that side.
 #[test]
-fn a3c_a_declaring_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
-    let s = declaring("msolve13-a3c");
+fn a3c_a_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
+    let s = scene("msolve13-a3c");
     let f = fused(&s, |doc, t1, union| {
         head_at(union, member_name(doc, union, t1, s.top_cap()))
     });
@@ -692,28 +702,31 @@ fn a3c_a_declaring_mate_read_through_a_union_and_a_transform_refuses_its_frame()
     let err = split_of(
         &s,
         &f.doc,
-        &[s.top, f.t1, f.t2, f.union, up],
+        &[s.base1, s.top, f.t1, f.t2, f.union, up],
         "msolve13-a3c-part",
     )
     .expect_err("the mates' cut side reads through a transform");
     assert!(
         matches!(
             &err,
-            SplitError::MateFrameCrosses { mate, side: editor_core::MateSide::B, promote: None }
-                if *mate == f.doc.spoken(f.m1)
+            SplitError::MateFrameCrosses { placement, constraint, side: editor_core::MateSide::B, .. }
+                if *placement == f.doc.spoken(f.m2.placement) && *constraint == f.m2.id
         ),
         "{err:?}"
     );
 }
 
-/// **A3(d).** A whole group with its mate read at a union — the slab,
-/// the block, a transform of it, their union, the placements and the
-/// mate — cuts into a part and inlines back: `inline(split(d))` is `d`
-/// up to node ids, the mate still reading the union naming the
-/// block's face, and the gate holds on the result.
+/// **A3(d).** A whole assembly with its mate read at a union — the
+/// slab, the block whose bundle holds the mate, a transform of it and
+/// their union — cuts into a part and inlines back: `inline(split(d))`
+/// is `d` up to node ids, the mate still reading the union naming the
+/// block's face, and the gate holds on the result. The union is read,
+/// not placed: the block is its own placement, so a placement of a
+/// union over its copy would be a second copy of the block where it
+/// stands.
 #[test]
-fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
-    let s = scene("msolve13-a3d");
+fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
+    let s = scene_with("msolve13-a3d", false);
     let (doc, t1) = insert(
         s.doc.clone(),
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
@@ -721,27 +734,32 @@ fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![s.top.into(), t1.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                fixture::copy(s.top, s.top_body),
+                one_copy(t1, s.top_body),
+            ]),
         },
     );
-    let (doc, _) = crate::fixture::place(doc, union);
     let through_top = member_name(&doc, union, s.top, s.top_cap());
-    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(union, through_top)));
-    let ev = run(&doc, &s.opts);
-    assert!(gate(&doc, &ev).is_ok(), "A3(d): the document gates");
-    let cut = fixture::with_placements(
-        &doc,
-        &[s.base1, s.top, t1, union, mate].into_iter().collect(),
+    let (doc, _) = mated(
+        &s.opts,
+        doc,
+        s.top,
+        seat(s.base_cap(s.base1), head_at(union, through_top)),
     );
+    let ev = run(&doc, &s.opts);
+    let gated = gate(&doc, &ev);
+    assert!(gated.is_ok(), "A3(d): the document gates: {gated:?}");
+    let cut = fixture::with_placements(&doc, &[s.base1, s.top, t1, union].into_iter().collect());
     let cut: Vec<_> = cut.into_iter().collect();
     let out = split_of(&s, &doc, &cut, "msolve13-a3d-part")
-        .unwrap_or_else(|e| panic!("A3(d): the whole group cuts: {e}"));
+        .unwrap_or_else(|e| panic!("A3(d): the whole assembly cuts: {e}"));
     let mut store = s.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = editor_core::inline(
         &out.remainder,
         out.instance,
-        &crate::p2_gauges::resolver(store.clone()),
+        &(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("A3(d): the part inlines back: {e}"));

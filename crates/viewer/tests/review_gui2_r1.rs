@@ -46,7 +46,7 @@ use pncad::document::ExtrudeSide;
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{Ray, Resolution, RunCtx, resolve};
+use pncad::select::{Ray, Resolution, RunCtx};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
@@ -608,7 +608,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     // pair — the same verdict `standing` reports.
     let (doc, eval) = session.landed_pair().expect("a landed pair");
     assert!(matches!(
-        resolve(RunCtx { doc, eval }, &face.name),
+        crate::fixture::resolve_at_mint(RunCtx { doc, eval }, &face.name),
         Resolution::Resolved(_)
     ));
 
@@ -676,14 +676,18 @@ fn evidence_probe_an_arena_key_is_storable_and_comparable_via_inference() {
         .expect("a hit");
     assert_eq!(face.node, a);
     let (d, e) = session.landed_pair().expect("a landed pair");
-    let Resolution::Resolved(r) = resolve(RunCtx { doc: d, eval: e }, &face.name) else {
+    let Resolution::Resolved(r) =
+        crate::fixture::resolve_at_mint(RunCtx { doc: d, eval: e }, &face.name)
+    else {
         panic!("a just-picked name resolves");
     };
     // The type of `r.entity` is never spelled anywhere in this file,
     // yet it is copied out, stored in this consumer's own state, and
     // compared with a later run's key.
     let stored = Stash(r.entity);
-    let Resolution::Resolved(again) = resolve(RunCtx { doc: d, eval: e }, &face.name) else {
+    let Resolution::Resolved(again) =
+        crate::fixture::resolve_at_mint(RunCtx { doc: d, eval: e }, &face.name)
+    else {
         panic!("still resolves");
     };
     assert!(

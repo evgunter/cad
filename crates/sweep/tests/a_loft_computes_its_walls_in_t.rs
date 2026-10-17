@@ -169,10 +169,12 @@ fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
         Tol::witness(),
     )
     .expect("the boxed square lofts at Interval");
+    use geom_core::Bounds;
+    use geom_core::spline::SpanLocate;
+    let middle = enclosing.section_params[1];
     assert!(
-        enclosing.section_params[1].is_nan(),
-        "the middle section's parameter is no single point: {:?}",
-        enclosing.section_params
+        middle.point_value().is_none(),
+        "the middle section's parameter is no single point: {middle:?}"
     );
     for h in [lo, 1.2, hi] {
         let sample = loft_body::<f64>(
@@ -183,6 +185,11 @@ fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
         )
         .expect("each member lofts at f64");
         assert_encloses(&format!("h = {h}"), &enclosing, &sample);
+        let p = sample.section_params[1];
+        assert!(
+            middle.lo() <= p && p <= middle.hi(),
+            "h = {h}: the member's middle parameter {p} lies outside {middle:?}"
+        );
     }
 }
 
@@ -407,7 +414,15 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
             places.iter().map(|p| p.map(Interval::from_f64)).collect();
         let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
-        assert_eq!(enclosed.section_params, nominal.section_params, "{what}");
+        assert_eq!(
+            points(&enclosed.section_params),
+            nominal
+                .section_params
+                .iter()
+                .map(|u| Some(*u))
+                .collect::<Vec<_>>(),
+            "{what}"
+        );
         assert_eq!(wall_bits(&enclosed), wall_bits(&nominal), "{what}");
     }
 }
@@ -518,7 +533,14 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
         tol,
     )
     .expect("the elbow sweeps at Interval");
-    assert_eq!(enclosed.section_params, nominal.section_params);
+    assert_eq!(
+        points(&enclosed.section_params),
+        nominal
+            .section_params
+            .iter()
+            .map(|u| Some(*u))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(wall_bits(&enclosed), wall_bits(&nominal));
 }
 
@@ -725,4 +747,9 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
             "every swept pole moves one for one with the start frame's height: {d:?}"
         );
     }
+}
+
+/// Each parameter's one `f64`, `None` where it has none.
+fn points<T: geom_core::spline::SpanLocate>(params: &[T]) -> Vec<Option<f64>> {
+    params.iter().map(|u| u.point_value()).collect()
 }

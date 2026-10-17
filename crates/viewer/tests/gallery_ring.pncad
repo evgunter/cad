@@ -3,7 +3,7 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "mint": {
-      "chain": "3153e91ee30548e8fa3afa2ae0047b2952858f18ae11d2953bff6b9374c621e2",
+      "chain": "e37a6b3740abcdec6ab084c4502d248c9967642411ae213abbb92f8d55195770",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -93,10 +93,13 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "var": "29:83f3f7414b8a034b"
         },
         {
-          "node": "30:28ffbdd3c9d5ff84"
+          "node": "30:0610596b98606d8a"
         },
         {
-          "var": "31:3153e91ee30548e8"
+          "var": "31:04981c54e99ea665"
+        },
+        {
+          "constraint": "32:e37a6b3740abcdec"
         }
       ]
     },
@@ -169,12 +172,37 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "angle": "26:9795c096e76152f9"
         }
       },
-      "30:28ffbdd3c9d5ff84": {
-        "PlaceInWorld": {
-          "body": "28:23f9aa6c6b0a0008",
-          "pose": {
-            "steps": []
-          }
+      "30:0610596b98606d8a": {
+        "Place": {
+          "shapes": [
+            "28:23f9aa6c6b0a0008"
+          ],
+          "constraints": [
+            {
+              "id": "32:e37a6b3740abcdec",
+              "mate": {
+                "a": "world",
+                "b": "copy",
+                "class": "rest",
+                "alignment": {
+                  "a": {
+                    "base": "World",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "b": {
+                    "base": "Part",
+                    "offset": {
+                      "steps": []
+                    }
+                  },
+                  "primitive": "frame_coincidence",
+                  "sense": "aligned"
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -455,11 +483,11 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           }
         }
       },
-      "31:3153e91ee30548e8": {
+      "31:04981c54e99ea665": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "30:28ffbdd3c9d5ff84",
+            "node": "30:0610596b98606d8a",
             "port": 0
           }
         }

@@ -357,9 +357,14 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = scene_doc(tol);
-    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
-        .expect("the heat sink places")
-        .doc
+    apply(
+        &r.doc,
+        &DocEdit::place_in_world(r.solid, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the heat sink places")
+    .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the
@@ -393,11 +398,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // against the prior — the memo counters are the demo.
     let ev5 = eval(&r.doc, None, tol);
     assert_eq!(ev5.recomputed, 9, "a cold evaluation computes every node");
-    let names5 = ev5
-        .value(r.group)
-        .expect("the fin group @ 5")
-        .name_table
-        .clone();
+    let names5 = ev5.table_at(r.group).expect("the fin group @ 5").clone();
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
@@ -430,11 +431,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          change means the naming emission vocabulary moved - update \
          this pin deliberately"
     );
-    let names9 = &evs[2]
-        .1
-        .value(r.group)
-        .expect("the fin group @ 9")
-        .name_table;
+    let names9 = evs[2].1.table_at(r.group).expect("the fin group @ 9");
     let survived = names5
         .iter()
         .filter(|(name, _)| names9.lookup(name).is_some())

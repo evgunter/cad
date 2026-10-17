@@ -138,6 +138,10 @@ UNHASHABLE = {
     "no `Hash`, and this class mirrors its derives. `MateFrame`'s "
     "reason for the absolute placement: a pose is a datum the solver "
     "consumes, and it bottoms out in `f64`",
+    "Mate": "by design: `editor_core::Mate` derives `PartialEq` and no "
+    "`Hash`, and this class mirrors its derives. A mate is a constraint "
+    "the solver folds, addressed by its `MateRef` (which hashes), and "
+    "its datum bottoms out in `f64`",
     "MateFrame": "by design: `editor_core::MateFrame` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "frame is a pose datum the solver consumes, not a key it tallies "

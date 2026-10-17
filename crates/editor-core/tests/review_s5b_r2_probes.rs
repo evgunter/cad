@@ -36,8 +36,9 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> StableName {
 }
 
 /// Claim 6: a construction seat that reads, by variable, the selection
-/// a measure minted over a world copy. The edit door must refuse
-/// `ReadsWorldCopy` (and agree with the load door).
+/// a measure minted over a world copy. A construction may read a copy,
+/// so the edit door admits it, and the load door agrees: the document
+/// saves and loads.
 #[test]
 fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
     let doc = ProfileDoc::empty_derived("r2-probe", Tol::witness());
@@ -79,14 +80,19 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
         &editor_core::RefusingReach,
     );
     let doc = match edited {
-        Err(editor_core::EditError::ReadsWorldCopy { .. }) => return,
-        Err(other) => panic!("refused otherwise: {other}"),
+        Err(e) => panic!("a construction reads a copy's selection, refused: {e}"),
         Ok(o) => o.doc,
     };
-    let saved = editor_core::persist::save(&doc, &[], Tol::witness()).map(|_| "saves");
-    panic!(
-        "the edit door admitted a face frame (a construction) reading a world copy's selection \
-         by variable; the save door then says: {saved:?}"
+    let saved = editor_core::persist::save(&doc, &[], Tol::witness());
+    let loaded = saved.as_ref().map_err(|e| format!("{e:?}")).and_then(|t| {
+        editor_core::persist::load(t, Tol::witness())
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    });
+    assert!(
+        loaded.is_ok(),
+        "the edit door admitted a face frame reading a world copy's selection, and the load \
+         door disagrees: {loaded:?}"
     );
 }
 

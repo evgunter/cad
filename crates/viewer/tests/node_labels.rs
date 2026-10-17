@@ -412,15 +412,17 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         SessionOp::AddInstance { id: bench.post.id },
         "third post",
     );
-    run(
-        &mut session,
-        asm::seat_op(
+    // A mate is a constraint in a placement's bundle and makes no node,
+    // so it is no creation and takes no label.
+    assert!(
+        Creation::of(asm::seat_op(
             &bench,
             bench.post_b,
             ContactClass::Tangent,
             asm::middle_seat_alignment(),
-        ),
-        "seat",
+        ))
+        .is_err(),
+        "a mate creates no node"
     );
 
     let dir = common::tempdir("node-labels-every-creation-roster");
@@ -811,7 +813,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "PlaceInWorld {} output 0: not certifiably disjoint from PlaceInWorld {} output 0",
+            "Place {} output 0: not certifiably disjoint from Place {} output 0",
             copy(big),
             copy(small)
         )),

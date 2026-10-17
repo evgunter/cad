@@ -556,15 +556,20 @@ pub struct Speaker<'a> {
 }
 
 /// **The name tables a [`Speaker`] says names within**: a name is said
-/// within the table of the node that minted it, as an evaluation answers it.
+/// within the tables of the node that minted it, as an evaluation
+/// answers them — one per output that carries names (a split's halves
+/// two).
 pub trait NameTables {
-    /// The name table of `node`'s output, `None` where there is none.
-    fn table(&self, node: RecipeNodeId) -> Option<&NameTable>;
+    /// The name tables of `node`'s outputs, empty where there are none.
+    fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable>;
 }
 
 impl<T: geom_core::Decide> NameTables for crate::Evaluation<T> {
-    fn table(&self, node: RecipeNodeId) -> Option<&NameTable> {
-        self.value(node).map(|value| &*value.name_table)
+    fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable> {
+        self.named_outputs(node)
+            .into_iter()
+            .filter_map(|var| self.table(var))
+            .collect()
     }
 }
 
@@ -588,6 +593,11 @@ trait HoldsNodes {
     /// The operation `id` is an output of, and its port's name, where
     /// the document holds it.
     fn output_port(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        None
+    }
+    /// The 1-based position of the constraint `mate` names in its
+    /// placement's bundle, where the document holds it.
+    fn constraint_at(&self, _mate: crate::mate::MateRef) -> Option<usize> {
         None
     }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
@@ -623,6 +633,13 @@ trait HoldsNodes {
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        self.node(mate.placement)
+            .and_then(crate::mate::solve::bundle_of)?
+            .iter()
+            .position(|c| c.id == mate.id)
+            .map(|k| k + 1)
     }
 
     fn written(
@@ -793,6 +810,8 @@ enum NodeFact {
     Carry(RecipeNodeId, Carry),
     /// A variable an operation defines, with that operation and port.
     Output(crate::var::VarId, OutputOf),
+    /// A constraint, with its 1-based position in its bundle.
+    Constraint(crate::mate::MateRef, usize),
 }
 
 impl NodeFact {
@@ -803,6 +822,7 @@ impl NodeFact {
             Self::SoleProfile(node, _) => (1, node.0),
             Self::Carry(node, _) => (2, node.0),
             Self::Output(var, _) => (3, var.0),
+            Self::Constraint(mate, _) => (4, mate.id.0),
         }
     }
 
@@ -878,6 +898,13 @@ impl HeldNodes {
 }
 
 impl HoldsNodes for HeldNodes {
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Constraint(held, at) if held == mate => Some(at),
+            _ => None,
+        })
+    }
+
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.nodes
             .iter()
@@ -936,6 +963,11 @@ impl<P> Recording<'_, P> {
 }
 
 impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
+    fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
+        let at = self.doc.constraint_at(mate)?;
+        self.said.borrow_mut().keep(NodeFact::Constraint(mate, at));
+        Some(at)
+    }
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         let node = self.doc.spoken(id);
         let mut said = self.said.borrow_mut();
@@ -1076,9 +1108,13 @@ impl<'a> Speaker<'a> {
     /// The detail this speaker says `name` at ([`Speaker::within`]).
     pub(crate) fn detail_of(self, name: &StableName) -> Detail {
         self.scope
-            .and_then(|tables| tables.table(name.node))
-            .and_then(|table| table.detail(name))
-            .cloned()
+            .and_then(|tables| {
+                tables
+                    .tables(name.node)
+                    .into_iter()
+                    .find_map(|table| table.detail(name))
+                    .cloned()
+            })
             .unwrap_or(Detail::Full)
     }
 
@@ -1268,6 +1304,32 @@ impl<'a> Speaker<'a> {
         let said = (self.subject != Some(id)).then(|| self.spoken(id));
         NodeAs(noun, said)
     }
+
+    /// **A constraint, said**: `constraint <n> of <placement>`, `n` its
+    /// 1-based position in the placement's bundle as the document holds
+    /// it (the viewer's tree says it so), the placement as
+    /// [`Speaker::node`] says it. With no document to read the bundle
+    /// off, `n` is the constraint's ordinal (`#<ordinal>`), never its
+    /// arena key.
+    #[must_use]
+    pub fn mate(self, mate: crate::mate::MateRef) -> String {
+        format!(
+            "constraint {} of {}",
+            self.constraint_numeral(mate),
+            self.node(mate.placement)
+        )
+    }
+
+    /// **A constraint's numeral alone**, as [`Speaker::mate`] says it:
+    /// its 1-based position in its placement's bundle where the document
+    /// is at hand, its ordinal (`#<ordinal>`) where it is not.
+    #[must_use]
+    pub fn constraint_numeral(self, mate: crate::mate::MateRef) -> String {
+        match self.doc.and_then(|doc| doc.constraint_at(mate)) {
+            Some(at) => at.to_string(),
+            None => mate.id.to_string(),
+        }
+    }
 }
 
 /// A name said ([`Speaker::name`]): the one spelling of a name in
@@ -1366,7 +1428,8 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
-        Node::PlaceInWorld { .. } => "PlaceInWorld",
+        Node::Place { .. } => "Place",
+        Node::World => "World",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
@@ -1386,8 +1449,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Gauge { .. } => "Gauge",
-        Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
     }

@@ -14,7 +14,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef, EvalOptions,
     Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
-    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate, resolve,
+    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -51,10 +51,15 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .enumerate()
             .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
             .collect(),
+        // A placement's copies: the bodies its name table indexes.
+        ValuePayload::Copies(c) => c
+            .bodies
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
+            .collect(),
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Mate(_)
-        | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
         // invert.
         | ValuePayload::Measure { .. }
@@ -82,23 +87,30 @@ fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
                 let name = entity_name(ev, node, ent)
                     .unwrap_or_else(|e| panic!("unnamed entity at {node:?}: {e:?}"));
                 assert_eq!(name.kind, key.kind(), "kind agreement at {node:?}");
-                // Per-table bidirectionality: THIS node's forward row
-                // gives the entity back (unique, or a tie listing it).
-                match v.name_table.lookup(name) {
+                // Per-table bidirectionality: the forward row of the
+                // read holding the entity gives it back (unique, or a
+                // tie listing it) — a split's half its own table.
+                let (var, at) = ev
+                    .entity_read(node, ent)
+                    .unwrap_or_else(|| panic!("no read holds {ent:?} at {node:?}"));
+                let table = ev.table(var).expect("the read's table");
+                match table.lookup(name) {
                     Some(editor_core::Entry::Unique(r)) => {
-                        assert_eq!(*r, ent, "table round trip moved {name:?}");
+                        assert_eq!(*r, at, "table round trip moved {name:?}");
                     }
                     Some(editor_core::Entry::Tied(c)) => {
-                        assert!(c.contains(&ent), "tie row lost {name:?}");
+                        assert!(c.contains(&at), "tie row lost {name:?}");
                     }
                     None => panic!("reverse row without forward row for {name:?}"),
                 }
-                // Global resolvability: the name resolves (its first
-                // carrying node may be an earlier pass-through source
-                // — a split half re-indexes bodies, so only the NODE-
-                // LOCAL entity is asserted above) or is honestly tied.
-                match resolve(ctx, name) {
-                    Resolution::Resolved(_) => {}
+                // Resolvability in the read that holds the entity (N1:
+                // resolution names the read): the name resolves there,
+                // to this very entity of this node's value, or is
+                // honestly tied.
+                match editor_core::resolve(ctx, var, name).unwrap() {
+                    Resolution::Resolved(r) => {
+                        assert_eq!((r.node, r.entity), (node, ent), "{name:?} resolves home");
+                    }
                     Resolution::Failed(f) => {
                         assert!(
                             matches!(
@@ -280,18 +292,12 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, gauge) = insert(
-        doc,
-        Node::gauge(
-            None,
-            editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
-        ),
-    );
-    let ev2 = run(&doc2);
+    // The sketch frame denotes no body, so its table is empty.
+    let frame = doc.ids()[0];
+    let ev2 = run(&doc);
     let some_face = ev2
-        .value(ext2)
+        .table_at(ext2)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(_, e)| match e {
             editor_core::Entry::Unique(r) if matches!(r.key, EntityKey::Face(_)) => Some(*r),
@@ -299,9 +305,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         })
         .unwrap();
     assert_eq!(
-        entity_name(&ev2, gauge, some_face),
+        entity_name(&ev2, frame, some_face),
         Err(HitTestError::Unnamed(UnnamedEntity {
-            node: gauge,
+            node: frame,
             entity: some_face
         }))
     );
@@ -417,13 +423,13 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         ),
         (
             HitTestError::AcrossSpaces {
-                group: node,
-                cause: editor_core::Unplaced::NoOffset,
+                a: editor_core::Space::World,
+                b: editor_core::Space::Loose { root: node },
             },
             vec![
                 "different spaces",
-                "node 000000000007",
-                "no instance in it carries an offset",
+                "the world's space",
+                "the space of the loose copy node 000000000007",
                 "Recourse:",
             ],
         ),

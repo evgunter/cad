@@ -214,7 +214,11 @@ fn face_of(
     p: [f64; 3],
     n: [f64; 3],
 ) -> StableName {
-    table(ev, node)
+    // The read holding output `index`, and the body's index in its table
+    // (a split's half is body 0 of its own, NAMES N1).
+    let (var, index) = ev.body_read_of(node, index).expect("the node evaluated");
+    ev.table(var)
+        .expect("the node evaluated")
         .iter()
         .find_map(|(name, entry)| match entry {
             Entry::Unique(r) if r.body == index => match r.key {
@@ -1598,7 +1602,10 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
         angle: ang(std::f64::consts::PI),
     }
     .into();
-    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
+    let (doc, q) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::place_in_world(the_box, Some(turned)),
+    );
     q.expect("the placement inserts");
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");

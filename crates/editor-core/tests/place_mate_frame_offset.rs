@@ -3,7 +3,8 @@
 //! composed with a `Placement` written in the base's frame.
 //!
 //! The scenes are `p2_gauges`'s two literal blocks: a 3 x 3 x 1 base
-//! and a 1 x 1 x 3 top, each with a corner at its own origin. A cap
+//! pinned to the world at the identity and a 1 x 1 x 3 top the seat
+//! places, each with a corner at its own origin. A cap
 //! face's frame stands at the cap's centre; the base's upper cap runs
 //! its axis along +z and its reference along +x, which the witness
 //! ladder puts on local +Y. The top's lower cap seats on it, outward
@@ -14,29 +15,26 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use crate::p2_gauges::{Parts, block, body_of, cut, literal, min_corner, parts, set_gauge};
+use crate::p2_gauges::{Parts, block, body_of, cut, literal, min_corner, parts, pinned};
 use crate::wire::doctored;
-use editor_core::AuthoredNode;
 
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocumentId, EditError, EvalOptions,
-    Formula, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide,
-    Node, PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace,
-    SlotId, SnapshotError, SplitError, Step, VarName, apply, load, save,
+    Formula, Frame, FrameSite, FreeValue, FreeVar, Mate, MateFrame, MatePrimitive, MateRef,
+    MateSide, Node, PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg,
+    SitedFace, SlotId, SnapshotError, SplitError, Step, VarName, apply, load, save,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{ang, gate, head, insert, len, run, scl, solve, step, step_with};
+use fixture::{ang, constrain_with, gate, head, insert, len, run, scl, solve, step, step_with};
 use geom_core::Tol;
 
 // ---- substrate ----
 
-/// **An instance of `part`, placed in `doc`'s world at the identity**
-/// (A10): each instance here is in the product, as the product roots
-/// were.
+/// **An instance of `part`, pinned to `doc`'s world at the identity**
+/// (A10): its copy is in the product.
 fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = insert(doc, Node::instantiate_part(part));
-    (crate::fixture::place(doc, id).0, id)
+    insert(doc, Node::instantiate_part(part))
 }
 
 fn slide() -> VarName {
@@ -66,45 +64,77 @@ fn slid_by_the_parameter() -> Placement<Formula> {
 /// "Seat the top on the base": the top's lower cap (the mover) on its
 /// own face, the base's upper cap on its face composed with `offset`,
 /// outward normals opposed.
-fn seat(top: SitedFace, base: SitedFace, offset: Placement<Formula>) -> AuthoredNode {
-    Node::Mate {
-        a: top.into(),
-        b: base.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
+fn seat(top: SitedFace, base: SitedFace, offset: Placement<Formula>) -> Mate<Formula> {
+    fixture::mate(
+        top,
+        base,
+        ContactClass::Rest,
+        Alignment {
             a: MateFrame::from_face(),
             b: MateFrame::on_face(offset),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
         },
+    )
+}
+
+/// **`mate` added to `placement`'s bundle as an edit**, for a row that
+/// reads the door's refusal.
+fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<ProfileProgram> {
+    DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(mate),
+        fresh: Vec::new(),
     }
 }
 
 /// The two-block scene: the base, the top, and the top seated on the
-/// base through `offset` — the mate inserted through the store's reach,
-/// which resolves its face sides at the door. `prelude` runs on the
-/// empty document first (a parameter's declaration).
+/// base through `offset` — the seat in the top's bundle, added through
+/// the store's reach, which resolves its face sides at the door.
+/// `prelude` runs on the empty document first (a parameter's
+/// declaration).
 fn seated(
     label: &str,
     offset: Placement<Formula>,
     prelude: impl FnOnce(ProfileDoc) -> ProfileDoc,
-) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
+) -> (Parts, ProfileDoc, [RecipeNodeId; 2], MateRef) {
     let p = parts(label);
     let doc = prelude(ProfileDoc::empty(DocumentId::derive(label), Tol::witness()));
     let (doc, base) = instance(doc, p.base);
-    let (doc, top) = instance(doc, p.top);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (doc, m) = step_with(
+    let (doc, m) = constrain_with(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
-            fresh: Vec::new(),
-        },
         &reach,
+        seat(head(p.top_cap(top)), head(p.base_cap(base)), offset),
     );
-    (p, doc, [base, top, m.expect("the seat is minted")])
+    (p, doc, [base, top], m)
+}
+
+/// The seat places the top: the solve refuses nothing for it.
+fn assert_placed(doc: &ProfileDoc, o: &EvalOptions, top: RecipeNodeId) {
+    let poses = solve(doc, o, Tol::witness());
+    assert_eq!(poses.fault(top), None, "the seat places the top");
+    assert!(
+        poses.placement(doc, top).is_ok(),
+        "the top has a world pose"
+    );
+}
+
+/// Whether `slot` is the base side's first-step translation along its
+/// local +Y — the address `slide` is read at — in any constraint.
+fn is_the_slide_slot(slot: &SlotId) -> bool {
+    matches!(
+        slot,
+        SlotId::MateFrameStep {
+            side: MateSide::B,
+            step: 0,
+            arg: RigidArg::Translation(editor_core::Axis3::Y),
+            ..
+        }
+    )
 }
 
 fn declare_slide(doc: ProfileDoc, value: f64) -> ProfileDoc {
@@ -133,13 +163,10 @@ fn top_corner(doc: &ProfileDoc, o: &EvalOptions, top: RecipeNodeId) -> [f64; 3] 
 #[test]
 fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
     let label = "place-mfo-follow";
-    let (mut p, doc, [base, top, m]) =
+    let (mut p, doc, [base, top], _) =
         seated(label, literal([0.0, 0.5, 0.0]), std::convert::identity);
     let o = p.opts();
-    assert_eq!(
-        solve(&doc, &o, Tol::witness()).role(m),
-        Some(MateRole::Determining)
-    );
+    assert_placed(&doc, &o, top);
     assert_eq!(
         top_corner(&doc, &o, top),
         [1.5, 1.0, 1.0],
@@ -187,25 +214,30 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
 /// **A parameter drives an offset, and the solved pose moves.** The
 /// base cap's offset reads the document's `slide`: at 0.5 the top
 /// sits at x = 1.5, and one value edit to 1.0 moves it to 2.0 — the
-/// evaluation fed the first as its memo re-keys the mate and the top
-/// and serves neither from the memo. The parameter is read by the mate
-/// at both doors that check one: a mate naming an undeclared
-/// parameter refuses at insert, and one reading an angle parameter
-/// as a length refuses, each naming the offset's own slot.
+/// evaluation fed the first as its memo re-keys the top, whose bundle
+/// holds the seat, and does not serve it from the memo. The parameter
+/// is read by the seat at both doors that check one: a seat naming an
+/// undeclared parameter refuses as it is added, and one reading an
+/// angle parameter as a length refuses, each naming the offset's own
+/// slot.
 #[test]
 fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let label = "place-mfo-param";
-    let (p, doc, [base, top, m]) =
+    let (p, doc, [base, top], m) =
         seated(label, slid_by_the_parameter(), |d| declare_slide(d, 0.5));
     let o = p.opts();
     let slot = SlotId::MateFrameStep {
+        constraint: m.id,
         side: MateSide::B,
         step: 0,
         arg: RigidArg::Translation(editor_core::Axis3::Y),
     };
     assert!(
-        doc.node(m).expect("the mate").slots().contains(&slot),
-        "the offset's components are the mate's slots"
+        doc.node(m.placement)
+            .expect("the placement")
+            .slots()
+            .contains(&slot),
+        "the offset's components are the placement's slots"
     );
     let first = run(&doc, &o);
     assert_eq!(min_corner(&body_of(&first, top)), [1.5, 1.0, 1.0]);
@@ -228,22 +260,26 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
         [2.0, 1.0, 1.0],
         "the pose moved"
     );
-    for (id, what) in [(m, "the mate"), (top, "the top")] {
-        assert_ne!(
-            first.value(id).map(|v| v.content_key),
-            second.value(id).map(|v| v.content_key),
-            "{what} re-keys on the parameter its offset reads"
-        );
-    }
+    assert_ne!(
+        first.value(top).map(|v| v.content_key),
+        second.value(top).map(|v| v.content_key),
+        "the top re-keys on the parameter its seat's offset reads"
+    );
     assert_eq!(
         first.value(base).map(|v| v.content_key),
         second.value(base).map(|v| v.content_key),
         "the base reads nothing that moved"
     );
 
-    // The two parameter doors, at the insert.
+    // The two parameter doors, as the seat is added.
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (unmated, _) = step(doc.clone(), DocEdit::DeleteNode { id: m });
+    let (unmated, _) = step(
+        doc.clone(),
+        DocEdit::RemoveConstraint {
+            placement: top,
+            constraint: m.id,
+        },
+    );
     let (unmated, _) = step(
         unmated,
         DocEdit::DeclareVar {
@@ -262,23 +298,23 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let refused = |offset| {
         apply(
             &unmated,
-            &DocEdit::InsertNode {
-                node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
-                fresh: Vec::new(),
-            },
+            &add_constraint(
+                top,
+                seat(head(p.top_cap(top)), head(p.base_cap(base)), offset),
+            ),
             Tol::witness(),
             &reach,
         )
-        .expect_err("the insert refuses")
+        .expect_err("the constraint refuses")
     };
     let err = refused(named("nowhere", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotUnknownVarName { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotUnknownVarName { slot: s, .. } if is_the_slide_slot(s)),
         "{err:?}"
     );
     let err = refused(named("tilt", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotVarKind { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotVarKind { slot: s, .. } if is_the_slide_slot(s)),
         "{err:?}"
     );
 }
@@ -323,25 +359,23 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, base) = instance(doc, p.base);
-    // No offset of its own, so the base stays the group's root.
+    // Its bundle empty, so the mate is the top's and pins it.
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = step(
+    let (doc, _) = fixture::constrain_at(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: head(p.base_cap(base)).into(),
-                b: head(p.top_cap(top)).into(),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a,
-                    b,
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Aligned,
-                    clocking: None,
-                },
-            }),
-            fresh: Vec::new(),
-        },
+        top,
+        fixture::mate(
+            head(p.base_cap(base)),
+            head(p.top_cap(top)),
+            ContactClass::Rest,
+            Alignment {
+                a,
+                b,
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        ),
     );
     let placed = solve(&doc, &o, tol).placement(&doc, top).expect("placed");
     let want = Frame::from_affine(point_at(oa, aa, ra) * point_at(ob, ab, rb).inverse());
@@ -354,32 +388,49 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
 /// and an improper one at load**, named by its side and step. A mirror
 /// in a face side's offset and a scale in it are refused before the
 /// mate's admission composes them; a mirror written into a saved file
-/// refuses at the load door as a gauge's would.
+/// refuses at the load door as a world pin's would.
 #[test]
 fn an_improper_literal_step_refuses_at_the_door_and_at_load() {
     let label = "place-mfo-improper";
-    let (p, doc, [base, top, m]) = seated(label, literal([0.0, 0.5, 0.0]), std::convert::identity);
+    let (p, doc, [base, top], m) = seated(label, literal([0.0, 0.5, 0.0]), std::convert::identity);
     let at = FrameSite::MateStep {
+        constraint: m.id,
         side: MateSide::B,
         index: 0,
     };
+    let base_side_first_step = |a: &FrameSite| {
+        matches!(
+            a,
+            FrameSite::MateStep {
+                side: MateSide::B,
+                index: 0,
+                ..
+            }
+        )
+    };
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (unmated, _) = step(doc.clone(), DocEdit::DeleteNode { id: m });
+    let (unmated, _) = step(
+        doc.clone(),
+        DocEdit::RemoveConstraint {
+            placement: top,
+            constraint: m.id,
+        },
+    );
     let with = |columns: [[f64; 3]; 3]| {
         apply(
             &unmated,
-            &DocEdit::InsertNode {
-                node: Box::new(seat(
+            &add_constraint(
+                top,
+                seat(
                     head(p.top_cap(top)),
                     head(p.base_cap(base)),
                     Placement::literal(&Frame {
                         columns,
                         translation: [0.0; 3],
                     }),
-                )),
-                fresh: Vec::new(),
-            },
+                ),
+            ),
             Tol::witness(),
             &reach,
         )
@@ -388,20 +439,27 @@ fn an_improper_literal_step_refuses_at_the_door_and_at_load() {
     let mirror = [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     let err = with(mirror);
     assert!(
-        matches!(&err, EditError::ImproperPlacement { at: a, .. } if *a == at),
+        matches!(&err, EditError::ImproperPlacement { at: a, .. } if base_side_first_step(a)),
         "{err:?}"
     );
     let err = with([[2.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     assert!(
-        matches!(&err, EditError::NonRigidPlacement { at: a, .. } if *a == at),
+        matches!(&err, EditError::NonRigidPlacement { at: a, .. } if base_side_first_step(a)),
         "{err:?}"
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     load(&text, Tol::witness()).expect("the admitted document loads");
     let mirrored = doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][m.0.to_string()]["Mate"]["alignment"]["b"]["offset"]["steps"]
-            [0]["Literal"]["columns"] = serde_json::json!(mirror);
+        let [seat] = wire["snapshot"]["nodes"][top.0.to_string()]["InstantiatePart"]["constraints"]
+            .as_array_mut()
+            .expect("a bundle is a list on the wire")
+            .as_mut_slice()
+        else {
+            panic!("the top's bundle is its one seat");
+        };
+        seat["mate"]["alignment"]["b"]["offset"]["steps"][0]["Literal"]["columns"] =
+            serde_json::json!(mirror);
     });
     let err = load(&mirrored, Tol::witness()).expect_err("a mirror refuses at load");
     assert!(
@@ -422,16 +480,13 @@ fn an_improper_literal_step_refuses_at_the_door_and_at_load() {
 /// declared rest.
 #[test]
 fn a_rest_side_set_back_along_the_normal_is_refuted_by_the_gate() {
-    let (p, doc, [_, top, m]) = seated(
+    let (p, doc, [_, top], m) = seated(
         "place-mfo-setback",
         literal([0.0, 0.0, 0.25]),
         std::convert::identity,
     );
     let o = p.opts();
-    assert_eq!(
-        solve(&doc, &o, Tol::witness()).role(m),
-        Some(MateRole::Determining)
-    );
+    assert_placed(&doc, &o, top);
     assert_eq!(
         top_corner(&doc, &o, top),
         [1.0, 1.0, 1.25],
@@ -457,19 +512,19 @@ fn a_rest_side_set_back_along_the_normal_is_refuted_by_the_gate() {
 /// seat whose face offset reads `slide` carries the parameter into the
 /// part, inline merges it back, and `inline(split(d))` is `d` up to
 /// node ids — the offset included — with the top where it was. A kept
-/// mate reading `slide` beside a cut one that does not keeps the
+/// seat reading `slide` beside a cut one that does not keeps the
 /// parameter in the remainder alone; both reading it is the uncut
 /// reference split refuses.
 #[test]
 fn the_offset_and_its_parameter_cross_split_and_inline() {
     let label = "place-mfo-seam";
-    let (p, doc, [base, top, m]) =
+    let (p, doc, [base, top], m) =
         seated(label, slid_by_the_parameter(), |d| declare_slide(d, 0.5));
     let o = p.opts();
     let before = top_corner(&doc, &o, top);
     let out = editor_core::split(
         &doc,
-        &cut(&doc, &[base, top, m]),
+        &cut(&doc, &[base, top]),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -497,27 +552,24 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
         "the top where it was"
     );
 
-    // A kept declaring mate reading `slide`: a third block on its own
-    // gauge, its lower cap on the top's upper cap slid by `slide`.
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
-    let (doc, k) = instance(doc, p.top);
-    let doc = set_gauge(doc, k, Some(g));
+    // A kept seat reading `slide`: a second base pinned to the world
+    // at `[0, 0, 8]` and a third block seated on it, slid by `slide`,
+    // both left out of the cut.
+    let (doc, kept_base) = pinned(doc, p.base, literal([0.0, 0.0, 8.0]));
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(
+    let (doc, _) = constrain_with(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat(
-                head(p.top_cap(k)),
-                head(p.top_upper_cap(top)),
-                slid_by_the_parameter(),
-            )),
-            fresh: Vec::new(),
-        },
         &reach,
+        seat(
+            head(p.top_cap(k)),
+            head(p.base_cap(kept_base)),
+            slid_by_the_parameter(),
+        ),
     );
     let err = editor_core::split(
         &doc,
-        &cut(&doc, &[base, top, m]),
+        &cut(&doc, &[base, top]),
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -528,22 +580,28 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
         "{err:?}"
     );
     // The cut seat re-authored to read nothing: the parameter stays.
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: m });
-    let (doc, plain) = step_with(
+    let (doc, _) = step(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat(
+        DocEdit::RemoveConstraint {
+            placement: top,
+            constraint: m.id,
+        },
+    );
+    let (doc, _) = step_with(
+        doc,
+        add_constraint(
+            top,
+            seat(
                 head(p.top_cap(top)),
                 head(p.base_cap(base)),
                 literal([0.0, 0.5, 0.0]),
-            )),
-            fresh: Vec::new(),
-        },
+            ),
+        ),
         &reach,
     );
     let out = editor_core::split(
         &doc,
-        &cut(&doc, &[base, top, plain.expect("minted")]),
+        &cut(&doc, &[base, top]),
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -565,11 +623,11 @@ fn top_image(map: &editor_core::NodeMap, top: RecipeNodeId) -> RecipeNodeId {
 
 // ---- Row 7: a slot edit at a frame step is admitted as an insert is ----
 
-/// **A slot edit that reaches a mate's frame offset asks the mate's
-/// admission.** A rigid step turning about +z is admitted; zeroing its
+/// **A slot edit that reaches a constraint's frame offset asks the
+/// constraint's admission.** A rigid step turning about +z is admitted; zeroing its
 /// axis one component at a time through `SetParam` is admitted until
 /// the last zero leaves no direction, which refuses `MateRefused`
-/// carrying `FrameUnevaluated` — what the insert of that mate refuses
+/// carrying `FrameUnevaluated` — what adding that constraint refuses
 /// with. `SetExpression` at the same address refuses alike.
 #[test]
 fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
@@ -579,10 +637,11 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         angle: ang(0.0),
     }
     .into();
-    let (p, doc, [_, _, m]) = seated("place-mfo-slot", turn, std::convert::identity);
+    let (p, doc, _, m) = seated("place-mfo-slot", turn, std::convert::identity);
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
     let axis = |ax| SlotId::MateFrameStep {
+        constraint: m.id,
         side: MateSide::B,
         step: 0,
         arg: RigidArg::RotationAxis(ax),
@@ -590,7 +649,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
     let doc = apply(
         &doc,
         &DocEdit::SetParam {
-            node: m,
+            node: m.placement,
             slot: axis(editor_core::Axis3::X),
             value: scl(0.0).into(),
             fresh: Vec::new(),
@@ -613,7 +672,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
     let err = zeroed(
         &doc,
         DocEdit::SetParam {
-            node: m,
+            node: m.placement,
             slot: axis(editor_core::Axis3::Z),
             value: scl(0.0).into(),
             fresh: Vec::new(),
@@ -624,7 +683,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         &doc,
         DocEdit::SetExpression {
             path: editor_core::ExprPath {
-                node: m,
+                node: m.placement,
                 slot: axis(editor_core::Axis3::Z),
                 path: vec![],
             },
@@ -636,10 +695,11 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
 
 // ---- Row 8: a mate's alignment compares by bits ----
 
-/// **Two mates differing only in a signed zero are two nodes to D7.**
-/// A literal frame offset at `+0.0` and at `-0.0`, a rider at `+0.0`
-/// and `-0.0`: each pair is equal by value and different by bits, and
-/// `Node::bit_eq` says so, as it does for a gauge's literal step.
+/// **Two mates differing only in a signed zero are two constraints to
+/// D7.** A literal frame offset at `+0.0` and at `-0.0`, a rider at
+/// `+0.0` and `-0.0`: each pair is equal by value and different by
+/// bits, and `Mate::bit_eq` says so, as it does for a world pin's
+/// literal pose.
 #[test]
 fn a_mates_alignment_compares_by_bits() {
     let cap = |node, end| {
@@ -649,20 +709,19 @@ fn a_mates_alignment_compares_by_bits() {
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };
-    let mate = |offset: Placement<Formula>, clocking: Option<f64>| Node::<
-        ProfileProgram<Formula>,
-        Formula,
-    >::Mate {
-        a: cap(1, editor_core::CapEnd::Start).into(),
-        b: cap(2, editor_core::CapEnd::End).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame::from_face(),
-            b: MateFrame::on_face(offset),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking,
-        },
+    let mate = |offset: Placement<Formula>, clocking: Option<f64>| {
+        fixture::mate(
+            cap(1, editor_core::CapEnd::Start),
+            cap(2, editor_core::CapEnd::End),
+            ContactClass::Rest,
+            Alignment {
+                a: MateFrame::from_face(),
+                b: MateFrame::on_face(offset),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking,
+            },
+        )
     };
     let plus = literal([0.0, 0.5, 0.0]);
     let minus = literal([-0.0, 0.5, 0.0]);
@@ -678,9 +737,9 @@ fn a_mates_alignment_compares_by_bits() {
             mate(plus.clone(), Some(-0.0)),
         ),
         (
-            "gauge",
-            Node::gauge(None, plus.clone()),
-            Node::gauge(None, minus.clone()),
+            "world pin",
+            Mate::world_pin(plus.clone()),
+            Mate::world_pin(minus.clone()),
         ),
     ] {
         assert_eq!(x, y, "{what}: equal by value");

@@ -81,7 +81,9 @@ from pncad import (
     MateFault,
     MateFrame,
     MatePrimitive,
-    MateRole,
+    Mate,
+    MateRef,
+    ConstraintId,
     NamePat,
     MeridianEnd,
     Node,
@@ -117,7 +119,6 @@ from pncad import (
     canonical_bytes,
     circle,
     class_admission,
-    groups,
     content_pin,
     deg,
     rad,
@@ -131,7 +132,6 @@ from pncad import (
     meridian_vertex,
     import_step,
     load,
-    root_of,
     header_document_id,
     inline,
     m,
@@ -587,23 +587,25 @@ recomputed_nodes: int = both.recomputed
 crossings: int = both.part_evaluations
 
 # LIB-G18b: the assembly authoring vocabulary. A reference becomes an
-# instance, an offset or a gauge places it, a mate says how two
-# instances meet, and the gate says whether the result is valid at
+# instance, a bundle of constraints places each copy, a mate says how
+# two copies meet, and the gate says whether the result is valid at
 # rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference))
-placed: DocEdit = DocEdit.set_offset(instance, Placement.literal(here))
-unplaced_edit: DocEdit = DocEdit.set_offset(instance, None)
-stand_on: NodeId = doc.insert(Node.gauge(Placement.identity()))
-on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
-to_world: DocEdit = DocEdit.set_gauge(instance, None)
-promoted: DocEdit = DocEdit.promote(instance)
-folded: DocEdit = DocEdit.fold(stand_on)
+at_here: Mate = Mate.world_pin(Placement.literal(here))
+at_origin: Mate = Mate.world_pin()
+loose_instance: Node = Node.instantiate_part(reference, [])
+pinned_instance: Node = Node.instantiate_part(reference, [at_here])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-placed: NodeId = doc.place(instance, Placement.identity(), label="the post")
+placed: NodeId = doc.place(sideways, [Mate.world_pin(Placement.identity())], label="the post")
+twice: NodeId = doc.place([sideways, sideways])
 world: list[NodeId] = doc.placements()
-placer: Node = Node.place_in_world(instance)
-offset_read: Placement | None = doc.offset(instance)
-gauge_read: NodeId | None = doc.gauge(instance)
+the_world: NodeId = doc.world
+placer: Node = Node.place(sideways, [at_origin])
+held: list[tuple[MateRef, Mate]] = doc.bundle(placed)
+pin_ref: MateRef = held[0][0]
+pin_id: ConstraintId = pin_ref.constraint
+pin_holder: NodeId = pin_ref.placement
+unpinned: DocEdit = DocEdit.remove_constraint(pin_ref)
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[Maintenance] = doc.last_maintenance
@@ -626,23 +628,21 @@ on_top: MateFrame = MateFrame.on_face(
 )
 side_base: str = on_top.base
 side_offset: Placement = side_a.offset
-joint: NodeId = doc.insert(
-    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
-)
-regauged: NodeId = doc.regauge_then_mate(
-    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
-)
+mate: Mate = Mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
+mate_class: ContactClass = mate.class_
+mate_datum: Alignment = mate.alignment
+mate_side: str = mate.a
+pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
+joint: MateRef = doc.constrain(instance, mate)
 
 # The solve's read side, and the admission table a tool asks first.
 poses: SolvedPoses = solve_document(doc)
-root: NodeId | None = poses.root(instance)
-role: MateRole | None = poses.role(joint)
-refusal: MateFault | None = poses.fault(joint)
-world: Frame = poses.placement(doc, instance)
-why_unplaced: str | None = poses.unplaced(instance)
-in_space: tuple[NodeId, str] | None = evaluate(doc).unplaced(instance)
-placed_groups: list[list[NodeId]] = groups(doc)
-keyed_by: NodeId = root_of(doc, instance)
+refusal: MateFault | None = poses.fault(instance)
+faulted_mate: MateRef | None = refusal.mate if refusal is not None else None
+relative: Frame | None = poses.pose(instance)
+world_pose: Frame = poses.placement(doc, instance)
+loose: list[NodeId] = evaluate(doc).loose
+in_space: str | NodeId = evaluate(doc).space(instance)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 admission: ClassAdmission = class_admission(ContactClass.Rest)
 mintable: bool = admission.mints
@@ -744,7 +744,7 @@ except NodePickError as pick_refusal:
 # attribute is optional and the caller reads them after branching on
 # `status`, which is always a `str`.
 stored_name: str = seamed.all_faces(upright)[0]
-standing: Resolution = seamed.resolve(stored_name)
+standing: Resolution = seamed.resolve(upright, stored_name)
 state: str = standing.status
 which_arm: str | None = standing.variant
 carried_by: NodeId | None = standing.node

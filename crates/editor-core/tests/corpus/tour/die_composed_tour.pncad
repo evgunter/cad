@@ -5052,13 +5052,38 @@ id: a8d79f40ddb79de569d778f1c0b832f9
     {
       "InsertNode": {
         "node": {
-          "PlaceInWorld": {
-            "body": {
-              "Node": "262:bec08dc17c663286"
-            },
-            "pose": {
-              "steps": []
-            }
+          "Place": {
+            "shapes": [
+              {
+                "Node": "262:bec08dc17c663286"
+              }
+            ],
+            "constraints": [
+              {
+                "id": "0:0000000000000000",
+                "mate": {
+                  "a": "world",
+                  "b": "copy",
+                  "class": "rest",
+                  "alignment": {
+                    "a": {
+                      "base": "World",
+                      "offset": {
+                        "steps": []
+                      }
+                    },
+                    "b": {
+                      "base": "Part",
+                      "offset": {
+                        "steps": []
+                      }
+                    },
+                    "primitive": "frame_coincidence",
+                    "sense": "aligned"
+                  }
+                }
+              }
+            ]
           }
         }
       }

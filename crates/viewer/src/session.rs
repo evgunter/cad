@@ -59,15 +59,16 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
-    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
-    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
-    parse_formula, product_recorded, run_checks_at_rest_on,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Mate, Node, Operand,
+    OperandSlot, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded,
+    Recording, SideRead, SitedFace, SlotId, StepId, Subject, VarId, VarName, apply,
+    assemble_gathered, cascade_delete_order, parse_formula, product_recorded,
+    run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::Resolution;
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -998,11 +999,11 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self.entity_resolution(&face.name),
+                resolution: self.entity_resolution(face.node, face.body, &face.name),
             },
             Selection::Edge(edge) => Standing::Edge {
                 edge: edge.clone(),
-                resolution: self.entity_resolution(&edge.name),
+                resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
             },
         }
     }
@@ -1035,13 +1036,14 @@ impl DocSession {
     /// `resolve` door, asked once and spelled once for both entity
     /// kinds, with the node it waits on named as the feature tree
     /// names it ([`crate::tree::resolution_as_drawn`]).
-    fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair().map(|(doc, eval)| {
-            Box::new(crate::tree::resolution_as_drawn(
-                resolve(RunCtx { doc, eval }, name),
-                eval,
-            ))
-        })
+    fn entity_resolution(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+        name: &StableName,
+    ) -> Option<Box<Resolution>> {
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(crate::tree::pick_resolution(doc, eval, node, body, name)))
     }
 
     /// The most recent evaluation that answered the current document.
@@ -1706,14 +1708,22 @@ impl DocSession {
                 b,
                 class,
                 alignment,
-            } => self.commit(DocEdit::InsertNode {
-                node: Box::new(Node::Mate {
-                    a: a.into(),
-                    b: b.into(),
-                    class,
-                    alignment,
-                }),
-                fresh: Vec::new(),
+            } => {
+                let placement = mate_placement(self.history.doc(), &a, &b);
+                self.commit(DocEdit::AddConstraint {
+                    placement,
+                    mate: Box::new(Mate {
+                        a: SideRead::Face(a.into()),
+                        b: SideRead::Face(b.into()),
+                        class,
+                        alignment,
+                    }),
+                    fresh: Vec::new(),
+                })
+            }
+            SessionOp::RemoveConstraint { mate } => self.commit(DocEdit::RemoveConstraint {
+                placement: mate.placement,
+                constraint: mate.id,
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
@@ -1939,13 +1949,10 @@ impl DocSession {
             Ok(pin) => pin,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
-        // A creation: the instance, and an identity world placement of
-        // each body it defines — one per world placement of its part.
+        // A creation: the instance, which is a placement standing on
+        // the world at the identity — its part's world, moved by nothing.
         self.commit_run(|run| {
-            let instance = run.insert(Node::instantiate_part(DocRef { id, pin }))?;
-            for body in run.doc().outputs(instance) {
-                run.apply(DocEdit::place(body, None))?;
-            }
+            run.insert(Node::instantiate_part(DocRef { id, pin }))?;
             Ok(())
         })
     }
@@ -2948,7 +2955,7 @@ impl DocSession {
         rotation_axis: [Formula; 3],
         rotation_angle: Formula,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
         }
         // Total, as the other lowerings are: slot dimensions are the
@@ -2981,7 +2988,7 @@ impl DocSession {
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
         }
         if let PatternRuleSpec::Circular { axis, .. } = rule
@@ -3052,7 +3059,7 @@ impl DocSession {
                 pattern,
                 PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
             ))?;
-            run.apply(DocEdit::place(copy, None))?;
+            run.apply(DocEdit::place_in_world(copy, None))?;
             Ok(())
         })
     }
@@ -3129,7 +3136,7 @@ impl DocSession {
                         .is_some_and(|v| v.kind() == pncad::document::VarKind::Body)
                 })
                 .map_or_else(|| made.into(), Operand::from);
-            run.apply(DocEdit::place(body, None))?;
+            run.apply(DocEdit::place_in_world(body, None))?;
             Ok(())
         })
     }
@@ -3171,6 +3178,22 @@ impl DocSession {
                 }),
             },
         }
+    }
+
+    /// **The gate a placer's input asks**: a body, or a placement's
+    /// copies, moved by transforms or not ([`moves_copies`]) — a
+    /// transform or a pattern of an instance places its copies, which
+    /// the kernel's placer seat admits
+    /// (`SlotKind::Placeable`). Anything else is refused as a body seat
+    /// refuses, naming the body it wanted.
+    fn require_placeable(&self, read: &Operand) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        let copies =
+            crate::world::read_output(doc, read).is_some_and(|(node, _)| moves_copies(doc, node));
+        if copies && admits_read(doc, read, NodeKindWanted::Instances) {
+            return Ok(());
+        }
+        self.require_read(read, NodeKindWanted::Body)
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3235,7 +3258,8 @@ impl DocSession {
             // enters; no panel offers one, so it is never a field's
             // standing value.
             DocEdit::SetParam {
-                value: pncad::document::SlotValue::Read(_),
+                value:
+                    pncad::document::SlotValue::Read(_) | pncad::document::SlotValue::Copy { .. },
                 ..
             } => false,
             // A declaration's two independent fields, each against
@@ -3276,13 +3300,10 @@ impl DocSession {
             | DocEdit::SetProgram { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
-            // An instance's offset, and the gauge an instance or a
-            // gauge sits on, are structure: which frame a group stands
-            // on, not a panel field's value.
-            | DocEdit::SetOffset { .. }
-            | DocEdit::SetGauge { .. }
-            | DocEdit::Promote { .. }
-            | DocEdit::Fold { .. }
+            // A placement's bundle gaining or losing a constraint is
+            // structure: where a copy stands, not a panel field's value.
+            | DocEdit::AddConstraint { .. }
+            | DocEdit::RemoveConstraint { .. }
             // The variable doors that are not the value or the
             // notation half. A declare mints a variable and a
             // definition replaces one whole: each is an act the door
@@ -3519,17 +3540,36 @@ impl DocSession {
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue
-/// 1): the slot door on each placement's body slot, in the action that
-/// authored `result`.
+/// 1): the slot door on each shape of each placement that copies the
+/// output of a node `result` reads, in the action that authored
+/// `result` — so a placement of the target copies the result in its
+/// place.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
     result: RecipeNodeId,
 ) -> Result<(), EditError> {
-    for placement in placements {
+    let doc = run.doc();
+    let read = doc.upstream(result);
+    let copies_read = |var: VarId| doc.operation_of(var).is_some_and(|at| read.contains(&at));
+    let edits: Vec<(RecipeNodeId, u32)> = placements
+        .into_iter()
+        .flat_map(|placement| {
+            let shapes: Vec<u32> = match doc.node(placement) {
+                Some(Node::Place { shapes, .. }) => (0_u32..)
+                    .zip(shapes)
+                    .filter(|(_, shape)| copies_read(shape.read))
+                    .map(|(index, _)| index)
+                    .collect(),
+                _ => Vec::new(),
+            };
+            shapes.into_iter().map(move |index| (placement, index))
+        })
+        .collect();
+    for (placement, index) in edits {
         run.apply(DocEdit::SetParam {
             node: placement,
-            slot: SlotId::Operand(OperandSlot::Body),
+            slot: SlotId::Operand(OperandSlot::Shape(index)),
             value: pncad::document::SlotValue::Read(result.into()),
             fresh: Vec::new(),
         })?;
@@ -3570,6 +3610,76 @@ fn combine_in_world(
     Ok(())
 }
 
+/// **The placement a mate between two picked faces joins**: the copy
+/// it places. Of the two sides' placements, the one whose bundle is
+/// still empty, so the mate places a copy nothing pins yet; else the one
+/// not standing on the world, so a copy already in the product keeps
+/// its pose; else side `b`'s. Across two unrelated spaces this places
+/// one copy relative to the other.
+///
+/// A side's placement is the node its face is read at when that node is
+/// a placement, and otherwise the instance its member walk ends on
+/// ([`pncad::document::member_of`]). The rule reads the bundles alone:
+/// what is drawn where, and any display-only frame, never enter it. A
+/// mate the chosen bundle already fixes is the edit door's
+/// [`pncad::document::MateFault::Overconstrained`] refusal — or, while a
+/// bundle relates its copy to one target, its
+/// [`pncad::document::MateFault::TargetsDiffer`] when the bundle's pin
+/// reads the world — surfaced as every door refusal is.
+pub(crate) fn mate_placement(
+    doc: &Doc<ProfileProgram>,
+    a: &SitedFace,
+    b: &SitedFace,
+) -> RecipeNodeId {
+    let bundle = |placement: RecipeNodeId| match doc.node(placement) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            Some(constraints)
+        }
+        _ => None,
+    };
+    let placement_of = |side: &SitedFace| {
+        if bundle(side.at).is_some() {
+            side.at
+        } else {
+            pncad::document::member_of(doc, side).map_or(side.at, |member| member.instance)
+        }
+    };
+    let (a, b) = (placement_of(a), placement_of(b));
+    let empty = |p: RecipeNodeId| bundle(p).is_some_and(|bundle| bundle.is_empty());
+    let on_world = |p: RecipeNodeId| {
+        bundle(p).is_some_and(|bundle| {
+            bundle.iter().any(|constraint| {
+                [&constraint.mate.a, &constraint.mate.b]
+                    .into_iter()
+                    .any(|side| matches!(side, SideRead::World))
+            })
+        })
+    };
+    if empty(b) {
+        b
+    } else if empty(a) {
+        a
+    } else if !on_world(b) {
+        b
+    } else if !on_world(a) {
+        a
+    } else {
+        b
+    }
+}
+
+/// **Whether `node`'s value is a placement's copies**, moved by nothing
+/// or by transforms only: a placement, or a transform of one.
+fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    match doc.node(node) {
+        Some(Node::InstantiatePart { .. } | Node::Place { .. }) => true,
+        Some(Node::Transform { input, .. }) => doc
+            .operation_of(*input)
+            .is_some_and(|input| moves_copies(doc, input)),
+        _ => false,
+    }
+}
+
 /// Whether a document is assembly-shaped — one of the two conditions
 /// [`AtRestBadge`] names for taking an A5 badge: a document that
 /// instantiates no part declares no cross-instance rest and has
@@ -3589,13 +3699,11 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         // Placements of a prototype drawn in THIS document: the rest
         // between them is the placement rule's, not a crossing.
         Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
-        // Relates instances some other node put in the document.
-        Node::Mate { .. } => false,
-        // A frame instances stand on; it puts nothing in.
-        Node::Gauge { .. } => false,
-        // Puts a copy of a body this document already holds in the
-        // world.
-        Node::PlaceInWorld { .. } => false,
+        // Copies bodies this document already holds; its constraints
+        // relate copies some other node put in the document.
+        Node::Place { .. } => false,
+        // Where copies stand; it puts nothing in.
+        Node::World => false,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }
@@ -3753,10 +3861,7 @@ mod tests {
         );
         assert!(outcome.committed.is_empty(), "nothing is committed");
         assert_eq!(session.history().len(), before, "nothing is recorded");
-        assert!(
-            session.committed_doc().ids().is_empty(),
-            "neither frame landed"
-        );
+        assert!(session.committed_doc().is_empty(), "neither frame landed");
     }
 
     /// **The hide admission is asked of the document the op reads, not

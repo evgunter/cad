@@ -144,13 +144,152 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// or a moved bit moves it. They are goldens in the ordinary sense —
 /// when one moves the question is whether the new behaviour is right,
 /// never how to restore the old number.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// The numbers were taken on this branch and re-taken on the extracted
+/// merge base with this file and the shared feed copied onto it; all
+/// three reproduce there. That differential is what "nothing observable moved" means;
+/// without it the constants would only say the branch agrees with
+/// itself. They are goldens in the ordinary sense — when one moves the
+/// question is whether the new behaviour is right, never how to restore
+/// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
+/// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
+/// main's shared copy points: each moved it alone — the split halves'
+/// union builds in the chord join (JOIN-1), and
+/// an op's copies of one vertex share its point, so the arena order the
+/// digest hashes moved (main) — and the merged tree is neither value.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink` only, when declaring a
+/// variable began minting its id on the document's chain: every node
+/// minted after a declare was renumbered, and this digest feeds ids.
+/// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the feed
+/// reproduces every old constant, so no evaluation moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
+///
+/// RE-BLESSED, `cut_cylinder` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
+///
+/// RE-BLESSED, `cut_cylinder` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
+///
+/// RE-BLESSED, all three, for INTENT stage 4 E (booleans glue on Zero):
+/// a body no longer carries provenance side tables (`GeomSource`
+/// stamps, field and axis sources), and the digest feeds each body's
+/// `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `part_select` only, when its union came to read the
+/// split's two ports where it read a `Part` of each half: the two
+/// projections are gone from the evaluation this digest walks, and the
+/// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
+/// pins held.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527) and the split-half retirement (PR 4618).
+///
+/// RE-BLESSED, `part_select` only, where the at-rest records' cell-pair
+/// shape met the split's ports: each moved it alone, and the merged
+/// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
+///
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
+///
+/// RE-BLESSED, all three, merged over the two re-pins above, when a name came to be scoped by the variable
+/// holding its body (FORK-DM4 unit 2): a split's halves are two tables
+/// and its names spell no half, which is what this digest's name table
+/// feed reads; `part_select`'s union, declared by the half-free section
+/// face, took a new id too. No body moved: the id-masked geometry fence
+/// held.
+///
+/// Re-taken merged over main at `8612ce48e8` (main's split naming,
+/// killed lineage and vertex runs, over this unit's per-half tables):
+/// `cut_cylinder`'s merged digest is neither tree's, and `part_select`'s
+/// and `kitchen_sink`'s are this unit's.
+///
+/// Re-taken merged over INTENT stage 3 B (#5232, a placement is the
+/// bundle of mates), which re-blessed these rows by its new mint chain:
+/// `cut_cylinder`, `part_select`, `kitchen_sink` moved by this unit as well, and
+/// their merged values are neither tree's; every other row is main's.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7du64),
-        ("part_select", 0x1613_0d79_3326_39ec),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("cut_cylinder", 0x2346_bf6f_fea8_eda4u64),
+        ("part_select", 0x613b_f017_f88d_98f9),
+        ("kitchen_sink", 0xe1e2_ab7e_f873_c25f),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -229,6 +368,37 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// reds THIS row while the three document constants stand, and a
 /// lowering that turned the typed empty into anything else — or an
 /// empty side into a phantom body — moves this number.
+///
+/// empty side into a phantom body — moves this number. The constant
+/// reproduces on the extracted merge base (the empty path predates the
+/// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED when a name came to be scoped by the variable holding its
+/// body (FORK-DM4 unit 2): the split's one table became a table per
+/// half, the empty half's empty, and its names spell no half.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -249,7 +419,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x80bf_b0ea_1f66_8105,
+        got, 0x34f6_1e4d_65ea_b6a4,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
