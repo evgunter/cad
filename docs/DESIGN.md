@@ -617,7 +617,10 @@ newtypes at the API boundary only ([units]).
 STEP
 import is an adoption stage ([import]) that brings external geometry up to
 kernel invariants *before* it becomes a kernel body; entities that
-can't be adopted fail loudly in a typed import error.
+can't be adopted fail loudly in a typed import error. An imported body
+is never distinguishable from a native one: no state is reachable only
+through import, so anything import admits is a state some native
+construction could reach, and anything else it refuses at the door.
 
 - **ε and persistence.** A document records the ε it was authored
   under; the application pins the run's ε to the document's; an
@@ -1385,7 +1388,9 @@ section, one oval, in the torus's own minor angle).
 
 *From:* [intent.stored], [loud-failure], [one-way].
 
-Imported geometry is not second-class. Rather than an extensional escape
+Imported geometry is not second-class, and it is not distinguishable
+from native geometry either: no state is reachable only through import
+([tolerance.boundary]). Rather than an extensional escape
 hatch, import **reconstructs** the intensional description the
 extensional data satisfies — possible because the intrinsic variants
 are properties of the current geometry: an imported edge recovers its
