@@ -479,10 +479,7 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
         let mut moved = base.clone();
         for &he in &cycle {
             let cache = base.pcurve(he).unwrap();
-            let image = cache.pcurve().map_affine(geom_brep::ChartMap {
-                u: geom_brep::AxisMap::shift(shift),
-                v: geom_brep::AxisMap::identity(),
-            });
+            let image = cache.pcurve().translate(shift, 0.0);
             let edge = base.get_edge(base.get_half_edge(he).unwrap().edge).unwrap();
             let carrier = base
                 .get_curve_geom(edge.curve)

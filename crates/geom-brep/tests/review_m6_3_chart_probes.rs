@@ -210,30 +210,23 @@ fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
     // The polar channel is an angle (`geom_brep::Channel::Angle`): its
     // slope is its windings and it has no `cos`/`sin` part, so the drift
     // a stored row can carry there is its phase alone.
-    for (ca, cb, cl, c0) in [(0.0_f64, 0.0_f64, 0.0_f64, d), (0.0, 0.0, 0.0, -d)] {
-        let bad = image.map_affine(geom_brep::ChartMap {
-            u: geom_brep::AxisMap::identity(),
-            v: geom_brep::AxisMap::shift(c0),
-        });
+    for c0 in [d, -d] {
+        let bad = image.translate(0.0, c0);
         // True sup of |S(P(t)) - C(t)| by dense sampling.
         let mut sup: f64 = 0.0;
         for i in 0..=2000 {
             let t = t0 + (t1 - t0) * (i as f64) / 2000.0;
-            let Some((p0, pa, pb, pl)) = bad.harmonic_form() else {
-                unreachable!()
-            };
-            let u = p0.x + pa.x * t.cos() + pb.x * t.sin() + pl.x * t;
-            let v = p0.y + pa.y * t.cos() + pb.y * t.sin() + pl.y * t;
-            let e = sphere_eval(&s, u, v) - carrier.eval(t);
+            let at = bad.eval(t);
+            let e = sphere_eval(&s, at.x, at.y) - carrier.eval(t);
             sup = sup.max(e.norm());
         }
         // The certificate's envelope statement for the snapped image:
-        // channel drifts at the polar arm r (all corruption is in the
+        // the phase drift at the polar arm r (all corruption is in the
         // v channel here).
-        let env = (c0.abs() + ca.abs() + cb.abs() + cl.abs() * t1.abs().max(t0.abs())) * r;
+        let env = c0.abs() * r;
         assert!(
             sup <= env * (1.0 + 1e-9),
-            "true sup {sup:e} beats the envelope bound {env:e} for ({ca},{cb},{cl},{c0})"
+            "true sup {sup:e} beats the envelope bound {env:e} for a phase drift {c0}"
         );
         assert!(
             PcurveCache::certify(bad, t0, t1, &carrier, &s, band()).is_err(),

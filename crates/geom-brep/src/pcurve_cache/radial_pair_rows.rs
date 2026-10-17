@@ -243,7 +243,7 @@ fn a_pole_start_reads_its_residual_as_one_pair() {
     let d = 0.6 * zero();
     let derivation = Derivation::SphereMeridian {
         pole: true,
-        sigma: Winding::Neg,
+        sigma: -1,
         far: false,
     };
     let incidence_of = |form: Harmonic3<f64>| -> f64 {
@@ -316,23 +316,26 @@ fn a_still_parallel_reads_its_pair_whole() {
     )
     .unwrap();
     assert!(
-        matches!(
-            derivation,
-            Derivation::SphereParallel {
-                beta: Winding::Zero
-            }
-        ),
+        matches!(derivation, Derivation::SphereParallel { beta: 0 }),
         "the circle about the pole is a still parallel: {derivation:?}"
     );
     let span = (0.0, TAU);
     let form = carrier_harmonic(&carrier).unwrap();
-    let at_f64 = periodic_envelope(&image, &carrier, form, &sphere, span, TAU, band())
-        .unwrap()
-        .total();
+    let at_f64 = periodic_envelope(
+        channels_of(&image),
+        &carrier,
+        form,
+        &sphere,
+        span,
+        TAU,
+        band(),
+    )
+    .unwrap()
+    .total();
     let f = Interval::from_f64;
     let carrier_i = carrier.map_scalar(f);
     let at_interval = periodic_envelope(
-        &lift_pcurve(&image),
+        channels_of(&lift_pcurve(&image)),
         &carrier_i,
         carrier_harmonic(&carrier_i).unwrap(),
         &sphere.map_scalar(f),
@@ -411,10 +414,7 @@ fn a_stored_image_moved_in_both_channels_reads_one_displacement() {
     let d = 0.6 * zero();
     let stored = chart_pcurve(&carrier, &cyl, band())
         .unwrap()
-        .map_affine(super::ChartMap {
-            u: super::AxisMap::shift(d / r),
-            v: super::AxisMap::shift(d),
-        });
+        .translate(d / r, d);
     certifies(
         "fidelity, both channels",
         &stored,
@@ -443,10 +443,7 @@ fn the_cones_fidelity_channels_add() {
     );
     let stored = chart_pcurve(&carrier, &surface, band())
         .unwrap()
-        .map_affine(super::ChartMap {
-            u: super::AxisMap::shift(1.0),
-            v: super::AxisMap::shift(v),
-        });
+        .translate(1.0, v);
     let (t0, t1) = (0.0, TAU);
     let sup = (0..=4096)
         .map(|i| {
@@ -460,13 +457,21 @@ fn the_cones_fidelity_channels_add() {
         "the displacement {sup:e} is the acute-angle one, past 1.38·v"
     );
     let form = carrier_harmonic(&carrier).unwrap();
-    let at_f64 = periodic_envelope(&stored, &carrier, form, &surface, (t0, t1), t1, band())
-        .unwrap()
-        .total();
+    let at_f64 = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        form,
+        &surface,
+        (t0, t1),
+        t1,
+        band(),
+    )
+    .unwrap()
+    .total();
     let f = Interval::from_f64;
     let carrier_i = carrier.map_scalar(f);
     let at_interval = periodic_envelope(
-        &lift_pcurve(&stored),
+        channels_of(&lift_pcurve(&stored)),
         &carrier_i,
         carrier_harmonic(&carrier_i).unwrap(),
         &surface.map_scalar(f),

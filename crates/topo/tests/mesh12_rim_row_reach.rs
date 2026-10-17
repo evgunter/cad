@@ -223,10 +223,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
             };
             let face = body.face_of_half_edge(he)?;
             let sphere = body.get_surface(body.get_face(face)?.surface)?;
-            let shifted = row.pcurve().map_affine(geom_brep::ChartMap {
-                u: geom_brep::AxisMap::identity(),
-                v: geom_brep::AxisMap::shift(100.0 * eps / RS),
-            });
+            let shifted = row.pcurve().translate(0.0, 100.0 * eps / RS);
             let (t0, t1) = row.params();
             Some(geom_brep::PcurveCache::certify(
                 shifted,

@@ -148,11 +148,11 @@
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
 //! - **`bool_torus_trim`** / **`bool_torus_trim_major_period`** /
-//!   **`bool_torus_trim_minor_period`** / **`bool_torus_chart_affine`**:
-//!   the torus face's two angular windows, the period guard that decides
-//!   whether each one trims the face or the face wraps it, and the check
-//!   that each boundary edge's chart image really is the affine one the
-//!   walk reads endpoints off.
+//!   **`bool_torus_trim_minor_period`**: the torus face's two angular
+//!   windows, and the period guard that decides whether each one trims
+//!   the face or the face wraps it. Each boundary edge's chart image is
+//!   affine by type (both channels angles), so the walk reads its
+//!   endpoints off it with no decision.
 //! - **The cylinder wall's outline** ([`wall_outline`]):
 //!   **`bool_wall_iso_meridian`**, **`bool_wall_iso_rim`**,
 //!   **`bool_wall_section_tilt`** and **`bool_wall_section_seat`**
@@ -2473,26 +2473,18 @@ fn torus_chart_windows<T: Decide>(
             }
             Err(_) => return Ok(None),
         };
-        let Some((p0, pa, pb, pl)) = pcurve.harmonic_form() else {
+        // The torus lane's images are angles on both channels, which
+        // carry no trigonometric part by type, so the endpoint
+        // evaluations are the extent. Any other image takes the face out
+        // of the class.
+        let geom_brep::Pcurve::Harmonic {
+            u: u @ geom_brep::Channel::Angle { .. },
+            v: v @ geom_brep::Channel::Angle { .. },
+        } = pcurve
+        else {
             return Ok(None);
         };
-        // The torus lane's images carry no trigonometric part in either
-        // channel. Checked rather than premised: a harmonic term here
-        // would mean the endpoint evaluations are not the extent, and
-        // the window would understate the face. Angular coefficients
-        // are metered through the chart's own lever arm (D4 ¶1).
-        for coeff in [pa.x, pa.y, pb.x, pb.y] {
-            if decide(
-                "bool_torus_chart_affine",
-                Margin::levered(coeff, lever),
-                band,
-            )
-            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-                != Sign::Zero
-            {
-                return Ok(None);
-            }
-        }
+        let (p0, _, _, pl) = geom_brep::harmonic_form_of(u, v);
         let (entry_t, exit_t) = if edge.he_plus == he {
             (t0, t1)
         } else {

@@ -357,7 +357,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_roots_slack"
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
-        | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
         | "bool_torus_chart_closure"
         | "bool_torus_frame_radius"
