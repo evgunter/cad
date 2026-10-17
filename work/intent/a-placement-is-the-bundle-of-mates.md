@@ -2,7 +2,8 @@
 id: a-placement-is-the-bundle-of-mates
 kind: issue
 title: D10 stage 3 PR B: Place { shapes, constraints } owns today's mates, the world is a node, an instance is a placement, spaces are kinds; gauges, offsets, PlaceInWorld, the spanning tree and roots retire
-status: dispatched
+status: closed
+closed: 2026-10-17
 opened: 2026-10-08
 priority: P0
 cost: H
@@ -32,3 +33,7 @@ Closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clu
 Builds on stage 2 F (`a-mate-reads-face-variables`: mate sides read `Face` variables) and stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so the contacts they declared become rows of the two copies the gather records, reported by the `unproven-coincidence` check, and refuse nothing.
 
 **A host construction never reads a part's world** (from the second review of INTENT stage 2 C, PR #4359, NOTE-F). In stage 2 an instance's one `body` output is its part's whole product, every copy at its pose (`eval/parts.rs`), so a host boolean reading an instance depends on the part's placement poses: the pose is read "by the gather" only in the letter. Stage 2 C refuses the visible edges of this (`Uncarried::Posed` and `SplitError::RemainderReadUncarried` where split or inline would carry such a read across the seam), but the read itself stands. This unit's instance ports must close it: no port a host construction reads carries a part's world placements.
+
+## Closed by PR 5232 (2026-10-17)
+
+Built as §3 states, with the interims the PR names: B2 (`a-bundle-folds-in-the-joined-space`), B4 (`the-solve-reads-a-face-only-of-an-instance`), the fused instance body (`an-instance-value-carries-its-copies-only`) and the multi-shape `Place` kept contained pending #4748. The viewer's authoring forms cannot yet write a read of one copy (`the-viewer-authors-no-read-of-one-copy`). Test 7 and the migration are reported in the PR body.

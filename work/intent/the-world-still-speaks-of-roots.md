@@ -2,9 +2,8 @@
 id: the-world-still-speaks-of-roots
 kind: issue
 title: Under the world the kernel still names placements roots: CheckFinding.root, ChecksError::Root, PartRoot*, ProductError::Root*, "part root" wording
-status: parked
+status: open
 opened: 2026-10-08
-blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 
@@ -34,3 +33,7 @@ output 0") rather than by the body it places.
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to INTENT and parked on stage 3's `a-placement-is-the-bundle-of-mates`, which retires `PlaceInWorld`, roots and the spanning tree. Renaming these now would be churn; the stage 3 B lane renames or deletes them, and closes this row in its PR.
+
+## Unblocked by INTENT stage 3 B (PR 5232, 2026-10-17)
+
+B retired the group roots: `MateRole`, groups and `Unplaced`, as `Space::{World, Loose}`. The product's and checks' `root` vocabulary listed above is untouched; `CheckFinding::root`, `ProductError::Root*` and `PartRoot*` still hold placement ids. The rename is this row's, and nothing blocks it now.
