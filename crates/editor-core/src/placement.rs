@@ -559,9 +559,7 @@ impl<T: Decide> Motion<T> {
 }
 
 /// **A placement: an ordered chain of steps** — what a
-/// [`crate::Node::Transform`] holds, and a mate frame's offset is, a
-/// world pin's pose among them ([`crate::Mate::world_pin`];
-/// ASSEMBLY-DESIGN A3, A11 (2)). An explicit rule's listed placements
+/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A3). An explicit rule's listed placements
 /// hold literal [`Frame`]s.
 ///
 /// The chain composes as a product: `[s0, s1, …, sn]` denotes

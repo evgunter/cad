@@ -39,22 +39,21 @@
 //! The cut's world placements are the part's world, so the instance's
 //! copies stand where the cut's did, and every pose is the one the cut
 //! solved to. A kept constraint reading a cut copy reads it in the
-//! instance (FORK-S3M: a constraint reads its target across the cut): a
-//! face frame rides its face; a frame on the copy's own part stands in
-//! that copy's coordinates, which are the instance's only where the
-//! side reads the copy through nothing that moves it and the copy is
-//! pinned to the world at the identity ([`SplitError::MateFrameCrosses`]).
-//! Neither door computes a frame.
+//! instance (FORK-S3M: a constraint reads its target across the cut):
+//! its pose is written afresh over the instance's copies, each selection
+//! in it re-authored as a crossing selection is. The instance is pinned
+//! to the world at the identity over its own geometry
+//! ([`crate::mate::pin_at`]). Neither door computes a frame.
 //!
-//! [`inline`] is the inverse. An instance pinned to the world at a pose
-//! splices its part's placements with every constraint on the part's
-//! world moved by that pose (at the identity, verbatim). An instance
-//! placed by other constraints is inlined only over a part whose one
-//! placement on its world is an instance pinned there at the identity,
-//! which takes the instance's bundle in place of its pin
-//! ([`InlineError::UnplaceablePart`]). A host constraint side reading
-//! the instance crosses the seam only where its coordinates do not
-//! change ([`InlineError::MateFrameCrosses`]).
+//! [`inline`] is the inverse. An instance whose mates all target the
+//! world splices its part's placements with every mate on the part's
+//! world moved by the motion it solved to (at the identity, verbatim).
+//! An instance placed by other constraints is inlined only over a part
+//! whose one placement on its world is an instance pinned there at the
+//! identity, which takes the instance's bundle in place of its pin
+//! ([`InlineError::UnplaceablePart`]). A host mate reading the
+//! instance's copies is written afresh over the spliced copy its names
+//! land on.
 //!
 //! # Variables go where their readers go
 //!

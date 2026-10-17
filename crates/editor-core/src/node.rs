@@ -2171,8 +2171,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     },
     /// **The world** (D10): one undeletable node every document holds
     /// from its creation, at [`RecipeNodeId::WORLD`]. It defines no
-    /// variable, so only a placement's constraints read it
-    /// ([`crate::mate::SideRead::World`]), and export writes its
+    /// variable, so only a placement's mates read it
+    /// ([`crate::mate::Target::World`]), and export writes its
     /// coordinates. It is not on the wire: every document has it.
     World,
     /// **A pattern of an upstream value** with a STRUCTURAL

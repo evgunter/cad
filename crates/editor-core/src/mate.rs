@@ -936,7 +936,7 @@ pub enum LeverRefusal {
     OutOfRange {
         /// The two parts' reach, summed.
         parts: f64,
-        /// The datum's own terms ([`Alignment::lever_arm`]).
+        /// The poses' own distances from their origins.
         datum: f64,
     },
     /// The lever is formed, but it is no longer than the band's zero
@@ -1185,10 +1185,9 @@ pub enum MateFault {
         /// by an arm, or nothing — the structural refusal.
         ///
         /// A lever's arm is the mate's lever as the solve forms it —
-        /// the two mated parts' own extent from the datum plus the
-        /// datum's own terms, `ASSEMBLY.md` A11 rule 5's qualifier
-        /// ([`Alignment::lever_arm`] states the sum; [`MateReach`] is
-        /// the parts' half) — and NOT a contact feature, so a message
+        /// the copy's reach plus its poses' own distances from their
+        /// origins, `ASSEMBLY.md` A11 rule 5's qualifier — and NOT a
+        /// contact feature, so a message
         /// that names it is naming the parts' scale and nothing in the
         /// model.
         clash: Clash,
@@ -1228,14 +1227,13 @@ pub enum MateFault {
         mate: MateRef,
     },
 
-    /// The mate's lever could not be formed: one of its parts' reach
-    /// ([`MateReach`]) is not in hand, so no verdict over the parts'
-    /// extent can be levered ([`Alignment::lever_arm`] for the sum).
+    /// The mate's lever could not be formed: the copy's reach is not in
+    /// hand, so no verdict over its extent can be levered.
     Unleverable {
         /// The mate.
         mate: MateRef,
-        /// Why — boxed, as [`Self::FaceUnresolved`]'s is: the refusal
-        /// carries the instance, the part and the reach's own refusal,
+        /// Why — boxed: the refusal carries the shape and the reach's
+        /// own refusal,
         /// and the fault's every other arm stays the size it is.
         refusal: Box<LeverRefusal>,
     },
@@ -1386,7 +1384,7 @@ impl MateFault {
     }
 }
 
-/// **Whether a [`MateFault::PlacerRefused`]'s placer states the
+/// **Whether a placer's refusal carried by a mate fault states the
 /// refusal on its own row**, which decides whether the fault carries
 /// it. Read at the site that raises the fault, which knows whether the
 /// placer is poisoned by it, and again where the placement reports the

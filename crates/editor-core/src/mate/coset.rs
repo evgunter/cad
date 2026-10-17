@@ -527,9 +527,9 @@ impl From<Indeterminate> for FoldStop {
 pub struct Arm(f64);
 
 impl Arm {
-    /// **The one door a lever is formed through**: the mated parts'
-    /// reach `parts` (`R_a + R_b`) plus the datum's own terms `datum`
-    /// ([`super::Alignment::lever_arm`]).
+    /// **The one door a lever is formed through**: the copy's reach
+    /// `parts` plus the mates' poses' own distances from their origins
+    /// `datum` (`mate::solve::bundle_arm`).
     ///
     /// # Errors
     ///

@@ -109,9 +109,8 @@ pub trait MateReach<T: Real = f64> {
     /// **The canonical pose of `face`, a face of the part `part`
     /// names**, in the part's own coordinates: the name resolved in
     /// the part's own product table to its face, then
-    /// `topo::readback::face_pose` on the part's own body — the
-    /// frame a face-based mate frame resolves to
-    /// ([`super::MateFrame`]). The pose is the CARRIER's, read off
+    /// `topo::readback::face_pose` on the part's own body. The pose is
+    /// the CARRIER's, read off
     /// its surface parameters exactly, with the face's orientation
     /// sense beside the axis and not folded into it.
     ///
@@ -125,9 +124,7 @@ pub trait MateReach<T: Real = f64> {
 
 /// Why a face's pose is not in hand ([`MateReach::face_pose`]) —
 /// closed over the resolver's, the table's and the readback's own
-/// refusals, named against the part alone; the solve carries it beside
-/// the instance it was reading and the face it named
-/// ([`super::FaceRefusal::Reach`]).
+/// refusals, named against the part alone.
 ///
 /// Displayed as what the part answered, after the subject the carrier
 /// names: each sentence ends on its recourse, or on the kernel-defect
