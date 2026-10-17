@@ -118,6 +118,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
 ///
+/// **Placement named per frame** (PR 5225's revalue fix): a placement
+/// whose azimuth the frame lane read as `atan2(−y, −x) + π` decides its
+/// marks under `pcurve_chart_placement_turned`, the gap built on that
+/// formula, and one read as `atan2(y, x)` under `pcurve_chart_placement`,
+/// so each name is one expression. The 52 numeric decisions split by
+/// the frame each azimuth read: the d-tab 34 + 18, the boss 30 + 22. No
+/// decision is added or taken, and no proof moves.
+///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
 /// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
@@ -193,7 +201,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_azimuth_affine", [24, 0]),
     ("pcurve_chart_azimuth_frame", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
-    ("pcurve_chart_placement", [0, 52]),
+    ("pcurve_chart_placement", [0, 34]),
+    ("pcurve_chart_placement_turned", [0, 18]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
@@ -322,7 +331,8 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_azimuth_affine", [24, 0]),
             ("pcurve_chart_azimuth_frame", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
-            ("pcurve_chart_placement", [0, 52]),
+            ("pcurve_chart_placement", [0, 30]),
+            ("pcurve_chart_placement_turned", [0, 22]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),
