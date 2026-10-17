@@ -132,7 +132,7 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, FacePoseRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
+    EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass,
     NodeErrorKind, NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy,
     PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
@@ -699,9 +699,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
         EditError::LabelUnchanged { .. } => "label_unchanged",
-        // A mate's alignment is authored geometry, so the non-finite
-        // refusal is the placement one's sibling and tags beside it.
-        EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
         // The solve's own per-mate admission, met at the door: the
         // word is the door's, the fault's word rides `inner_variant`.
         EditError::MateRefused { .. } => "mate_refused",
@@ -1064,7 +1061,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateIndeterminate => "mate_indeterminate",
         C::MatePoseOutOfRange => "mate_pose_out_of_range",
-        C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateTargetsDiffer => "mate_targets_differ",
@@ -1332,7 +1328,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::LabelUnchanged { .. } => None,
-        EditError::NonFiniteAlignment { .. } => None,
     }
 }
 
@@ -1927,18 +1922,6 @@ pub fn placed_by_tag(by: PlacedBy) -> &'static str {
     match by {
         PlacedBy::PlanarFace => "planar_face",
         PlacedBy::Pin => "pin",
-    }
-}
-
-/// The stable tag for the reach's refusal of a face's pose
-/// (`MateReach::face_pose`). Exhaustive, as every map here is.
-pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
-    match refusal {
-        FacePoseRefusal::PartUnresolved { .. } => "part_unresolved",
-        FacePoseRefusal::NoSuchName => "no_such_name",
-        FacePoseRefusal::Ambiguous { .. } => "ambiguous",
-        FacePoseRefusal::NotAFace { .. } => "not_a_face",
-        FacePoseRefusal::Readback(_) => "readback",
     }
 }
 

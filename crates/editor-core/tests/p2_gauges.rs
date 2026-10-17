@@ -838,21 +838,6 @@ fn left_at_identity(p: &Parts, out: &editor_core::SplitOutcome) -> bool {
         .at_identity(out.instance, fixture::band())
 }
 
-/// **Each of `pattern`'s `count` copies placed in the world**, in
-/// instance order: a `Part` per copy, each placed at the identity (A10).
-pub(crate) fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
-    (0..count).fold(doc, |doc, i| {
-        let (doc, copy) = insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: editor_core::PartSelect::Instance(Formula::count(i)),
-            },
-        );
-        fixture::place(doc, copy).0
-    })
-}
-
 /// **A cut of one placed pair moves as selected** (A4). The instance
 /// left behind sits on the world at the identity, the base keeps its
 /// world pin in the part, and the top keeps its seat.

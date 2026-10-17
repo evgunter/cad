@@ -9,8 +9,7 @@
 //!
 //! The rows go through ordinary doors with a `PartStore`: the item's
 //! own document (a block seated on a post's cap, the post's height
-//! edited, the mate following by the height change); the reach's own
-//! face pose bit for bit against the part's; a NURBS face, a tie, a
+//! edited, the mate following by the height change); a NURBS face, a tie, a
 //! vanished name and an unresolvable part refusing where the placement
 //! evaluates and never at the door or at load; the memo key moving
 //! under an edit to the face's part and holding under one outside it;
@@ -30,7 +29,7 @@ use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
-    Evaluation, FaceName, Formula, Frame, LoopProgram, MateFault, MateRef, MateSide, Node,
+    Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node,
     NodeErrorKind, NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram,
     REGENERATE_RECOURSE, RecipeNodeId, RefusingReach, RoleSeg, SlideAxis, SlotId, StableName,
     Target, Value, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load, mate_reach,
@@ -361,43 +360,6 @@ fn a1_the_mate_follows_the_edited_face() {
     );
 }
 
-// ---- A2: the reach's face pose ----
-
-/// A part whose product carries a face of `wanted`'s kind, built
-/// through the ordinary doors, with that face's part-local name and
-/// its pose off the part's own evaluation.
-fn carrier(
-    label: &str,
-    wanted: SurfaceKind,
-) -> (ProfileDoc, StableName, topo::readback::Pose<f64>) {
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let doc = match wanted {
-        SurfaceKind::Plane => block(label, 0.5, 1.0).0,
-        // A rectangle revolved a full turn: a cylinder wall between
-        // two planar ends.
-        SurfaceKind::Cylinder => revolved(
-            doc,
-            vec![vec![(0.0, 0.0), (0.4, 0.0), (0.4, 1.0), (0.0, 1.0)]],
-        ),
-        // A triangle revolved: a cone flank on a planar base.
-        SurfaceKind::Cone => revolved(doc, vec![vec![(0.0, 0.0), (0.5, 0.0), (0.0, 0.8)]]),
-        // A half disc revolved: a sphere.
-        SurfaceKind::Sphere => revolved_program(doc, crate::corpus::die_pips::half_disc_program()),
-        // A circle off the axis revolved: a torus.
-        SurfaceKind::Torus => revolved_program(doc, circle_program(0.6, 0.2)),
-        other => panic!("no analytic fixture for {other:?}"),
-    };
-    let ev = run(&doc, &EvalOptions::default());
-    let root = *doc.ids().last().expect("the revolve");
-    let name = all_faces(&ev, root)
-        .into_iter()
-        .find(|name| face_carrier_kind(&ev, root, name) == Ok(wanted))
-        .unwrap_or_else(|| panic!("{label}: a {wanted:?} face"));
-    let pose = face_frame(&ev, root, &name).expect("the carrier has a pose");
-    let (doc, name) = world_face(doc, root, &name);
-    (doc, name, pose)
-}
-
 /// `loops` on the xz plane revolved a full turn about the plane's y
 /// axis (the world z).
 fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
@@ -412,83 +374,6 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
         ),
     );
     doc
-}
-
-/// A loop PROGRAM on the xz plane revolved a full turn about its y
-/// axis.
-fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDoc {
-    let (doc, plane) = insert(
-        doc,
-        fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-    );
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            frame: plane.into(),
-            loops: vec![program],
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, _) = insert(
-        doc,
-        fixture::revolve_about(
-            profile,
-            (0.0, 0.0),
-            crate::fixture::along_y(),
-            fixture::ang(std::f64::consts::TAU),
-        ),
-    );
-    doc
-}
-
-/// A full circle of radius `r` centred `big` off the revolve axis: the
-/// seamless closed carrier.
-fn circle_program(big: f64, r: f64) -> LoopProgram<Formula> {
-    let length = |v: f64| Formula::literal(v, editor_core::Dimension::Length).unwrap();
-    LoopProgram::Circle {
-        centre: [length(big), length(0.0)],
-        radius: length(r),
-    }
-}
-
-/// **The reach's `face_pose` is the part's own `face_frame`, bit for
-/// bit, on every analytic carrier**: the door the solve reads through
-/// (`PartReach::face_pose`, off the cached product) answers exactly
-/// what the name door answers on the part's own evaluation — origin,
-/// chart axis, reference and sense.
-#[test]
-fn a2_the_reachs_face_pose_is_the_parts_own_face_frame_bit_for_bit() {
-    for (kind, label) in [
-        (SurfaceKind::Plane, "msolve9-a2-door-plane"),
-        (SurfaceKind::Cylinder, "msolve9-a2-door-cylinder"),
-        (SurfaceKind::Cone, "msolve9-a2-door-cone"),
-        (SurfaceKind::Sphere, "msolve9-a2-door-sphere"),
-        (SurfaceKind::Torus, "msolve9-a2-door-torus"),
-    ] {
-        let (part, name, pose) = carrier(label, kind);
-        let mut store = PartStore::new();
-        let part_ref = store.insert(part, Tol::witness());
-        let store: Arc<dyn editor_core::PartResolver> = Arc::new(store);
-        let reach = editor_core::PartReach::<f64>::with_resolver(Some(&store), Tol::witness());
-        let got = editor_core::MateReach::face_pose(
-            &reach,
-            &part_ref,
-            &FaceName::new(name).expect("a face"),
-        )
-        .unwrap_or_else(|refusal| panic!("{kind:?}: the reach answers: {refusal:?}"));
-        let p = |v: geom_core::Point3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
-        let d = |v: geom_core::Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
-        assert_eq!(p(got.origin), p(pose.origin), "{kind:?}: origin");
-        assert_eq!(d(got.axis), d(pose.axis), "{kind:?}: axis");
-        assert_eq!(
-            got.u_ref.map(d),
-            pose.u_ref.map(d),
-            "{kind:?}: reference — got {:?}, standalone {:?}",
-            got.u_ref,
-            pose.u_ref
-        );
-        assert_eq!(got.sense, pose.sense, "{kind:?}: sense");
-    }
 }
 
 /// **`face`, a face of `part` by the part's product name, as the target

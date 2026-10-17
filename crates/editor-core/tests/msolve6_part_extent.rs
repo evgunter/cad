@@ -786,14 +786,6 @@ impl MateReach for Counting<'_> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
     }
-
-    fn face_pose(
-        &self,
-        part: &editor_core::DocRef,
-        face: &editor_core::FaceName,
-    ) -> Result<topo::readback::Pose<f64>, editor_core::FacePoseRefusal> {
-        self.1.face_pose(part, face)
-    }
 }
 
 /// Two instances of a box, the first pinned to the world and the

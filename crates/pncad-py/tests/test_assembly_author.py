@@ -1225,11 +1225,9 @@ class TestMateFaultPayload(BenchWorkspace):
     then reads attributes of other arms off the same value, which must
     be `None` rather than raise.
 
-    Five attributes have no row that carries them here and that is a
+    Two attributes have no row that carries them here and that is a
     fact about the DOORS, not a gap: `margin_low`/`margin_high` are the
-    interval scalar's enclosure, which no f64 solve produces,
-    `field`/`value` belong to a band the tolerance witness cannot fail
-    to form, and `lever_tilt` belongs to a roll no predicate levers.
+    interval scalar's enclosure, which no f64 solve produces.
     `crates/pncad-py/src/tests.rs`'s arm table builds them directly;
     the rows here own the other half, that they are present and `None`
     on the arms an author can reach."""
@@ -1243,7 +1241,7 @@ class TestMateFaultPayload(BenchWorkspace):
         return doc, post_i, shelf_i
 
     def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
-        """The three are `None`, not zeroes: an arm whose decision
+        """Both are `None`, not zeroes: an arm whose decision
         measured no lever names no lever at all — here a mate the rest
         of its bundle already fixes, refused over-constrained where the
         placement evaluates. Three plane mates pin the post where it
@@ -1269,7 +1267,6 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertEqual(fault.placement, post)
         self.assertEqual(fault.residual.variant, "trivial")
         self.assertIsNone(fault.mate)
-        self.assertIsNone(fault.lever_tilt)
         self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
         self.assertIsNone(fault.clash)
@@ -1279,7 +1276,7 @@ class TestMateFaultPayload(BenchWorkspace):
         """A membership margin that levers a PURE NUMBER — here a
         second rest whose plane is turned a quarter off the first, so no
         one rotation aligns both normals — crosses as `lever_residual`,
-        a bare float, beside the arm; `lever_tilt` stays `None`.
+        a bare float, beside the arm.
         `clash` is the product, to the kernel's own rounding, and the
         message says the number is dimensionless rather than calling it
         radians."""
@@ -1301,7 +1298,6 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual((fault.held, fault.added), (held, added))
         self.assertIsNotNone(fault.predicate)
-        self.assertIsNone(fault.lever_tilt)
         self.assertIsInstance(fault.lever_residual, float)
         self.assertGreater(fault.lever_residual, 0.0)
         self.assertIsNotNone(fault.lever_arm)

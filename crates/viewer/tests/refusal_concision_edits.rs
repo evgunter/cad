@@ -671,14 +671,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "NonFiniteAlignment",
-            EditError::NonFiniteAlignment {
-                node: s(5, "Place"),
-                constraint: c(9),
-                position: 2,
-            },
-        ),
-        (
             "MateRefused",
             EditError::MateRefused {
                 node: s(7, "Place"),
@@ -856,15 +848,6 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                     predicate: Some("mate_coaxial"),
                     terminal_sliver: false,
                 }),
-            },
-        ),
-        (
-            "Band",
-            MateFault::Band {
-                error: geom_core::BandError::Empty {
-                    zero: 1.0e-6,
-                    escalate: 1.0e-9,
-                },
             },
         ),
         (

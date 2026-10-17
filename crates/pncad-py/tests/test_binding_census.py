@@ -1128,10 +1128,6 @@ BOUND_AS = {
     "place_at": "Doc.place_at",
     "PlacedBy": "Placed.by",
     "PinRefusal": "EditError.variant",
-    # The reach's own refusal of a face pose, named against the part
-    # alone: the words a face that reads to no pose refuses with, the
-    # vocabulary `InterrogateError` shares.
-    "FacePoseRefusal": "MateFault.inner_variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -2598,12 +2594,10 @@ NOT_BOUND = {
     # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
     # beside the `MateFault` arm that carries it (`mate_contradictory`)
     # — and, like `MarginDiag`, a discriminant that crosses as WHICH
-    # ATTRIBUTE IS SET rather than as a word: an authored roll is
-    # `MateFault.lever_tilt`, a dimensionless residual is
-    # `MateFault.lever_residual`, and the arm both lever is
-    # `MateFault.lever_arm`. Both arms reach a Python caller and each
-    # is distinguishable from the other, so a `lever_kind` word beside
-    # them would publish one fact twice.
+    # ATTRIBUTE IS SET rather than as a word: a dimensionless residual
+    # is `MateFault.lever_residual`, and the arm it levers is
+    # `MateFault.lever_arm`, so a `lever_kind` word beside them would
+    # publish one fact twice.
     "Lever": SHAPE,
     # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
     # lever above and crosses the same way: a length is `clash` alone,
@@ -2957,11 +2951,6 @@ NOT_BOUND = {
     "CarriedChain": SHAPE,
     "CarriedLevel": SHAPE,
     "CarriedIn": SHAPE,
-    # Whether a `PlacerRefused` placer states its own refusal, which
-    # decides whether the fault carries it. Python never holds one: it
-    # reads the answer as `MateFault.cause` being the placer's refusal
-    # or `None`.
-    "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
     # refusal that tests an `EntityKey`'s kind (`select_kind`). Carried
     # in Rust because a Rust consumer can match that variant and would
@@ -3801,7 +3790,6 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
-    "EditError::NonFiniteAlignment": "EditError.variant",
     "EditError::MateNamedByValue": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
@@ -3851,7 +3839,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::Indeterminate": "MateFault.variant",
     "MateFault::PoseOutOfRange": "MateFault.variant",
-    "MateFault::Band": "MateFault.variant",
     "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::TargetsDiffer": "MateFault.variant",

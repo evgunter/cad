@@ -187,19 +187,18 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
 fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
     let doc = ProfileDoc::empty_derived("recourse_split_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let wb = wall(&doc, b, 0);
+    let wa = wall(&doc, a, 0);
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
             radius: len(0.1),
-            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
+            selection: editor_core::Operand::select(a, vec![fname(a, wa.clone())]),
         },
     );
     let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
-    let (from, to) = (fname(b, wb), fname(c, wc));
+    let (from, to) = (fname(a, wa), fname(c, wc));
     let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,

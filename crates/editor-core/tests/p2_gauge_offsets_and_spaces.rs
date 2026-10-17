@@ -130,10 +130,6 @@ fn rigid(t: [f64; 3], axis: [f64; 3], angle: f64) -> M4 {
     ]
 }
 
-fn tr(t: [f64; 3]) -> M4 {
-    rigid(t, [0.0, 0.0, 1.0], 0.0)
-}
-
 fn of_frame(f: &Frame) -> M4 {
     let c = f.columns;
     [

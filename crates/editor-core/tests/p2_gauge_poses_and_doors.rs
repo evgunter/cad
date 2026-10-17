@@ -80,17 +80,6 @@ impl M {
         }
         out
     }
-    fn inv(&self) -> M {
-        let mut r = [[0.0; 3]; 3];
-        for (i, row) in r.iter_mut().enumerate() {
-            for (j, v) in row.iter_mut().enumerate() {
-                *v = self.r[j][i];
-            }
-        }
-        let m = M { r, t: [0.0; 3] };
-        let t = m.p(self.t).map(|v| -v);
-        M { r, t }
-    }
     fn frame(&self) -> Frame {
         Frame {
             columns: [0, 1, 2].map(|j| [self.r[0][j], self.r[1][j], self.r[2][j]]),

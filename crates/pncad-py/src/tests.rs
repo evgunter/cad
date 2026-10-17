@@ -865,7 +865,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         MateSide, MintId, NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, SlideAxis,
         Subgroup, VarKind, WorldReadFault,
     };
-    use pncad::geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag, UnitVec3};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3};
 
     let id = |n| RecipeNodeId::new(0, n);
     // A constraint's address: constraint `n` of placement `n`.
@@ -937,30 +937,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["mate", "zero", "escalate"],
     );
-    carries(
-        &F::Band {
-            error: BandError::InvalidValue {
-                field: BandField::Zero,
-                value: 0.0,
-            },
-        },
-        &["inner_variant", "field", "value"],
-    );
-    carries(
-        &F::Band {
-            error: BandError::InvalidLeverArm { value: -1.0 },
-        },
-        &["inner_variant", "value"],
-    );
-    carries(
-        &F::Band {
-            error: BandError::Empty {
-                zero: 1.0e-6,
-                escalate: 1.0e-9,
-            },
-        },
-        &["inner_variant", "zero", "escalate"],
-    );
     // A struct, not an enum: the escalation has no inner WORD, and
     // its shape is which margin attribute is set.
     carries(
@@ -996,28 +972,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["mate", "shape", "inner_variant"],
     );
-    // A levered clash carries both halves of the lever beside it —
-    // the tilt for an authored roll, the residual for a pure number
-    // — and one measured without a lever carries none of the three.
-    carries(
-        &F::Contradictory {
-            held: m(1),
-            added: m(1),
-            predicate: "mate_clocking_redundant",
-            clash: Clash::Levered(Lever::Roll {
-                radians: 0.25,
-                arm: 2.0,
-            }),
-        },
-        &[
-            "held",
-            "added",
-            "predicate",
-            "clash",
-            "lever_tilt",
-            "lever_arm",
-        ],
-    );
+    // A levered clash carries both halves of the lever beside it, and
+    // one measured without a lever carries neither.
     carries(
         &F::Contradictory {
             held: m(1),
@@ -1261,27 +1217,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // **`clash` IS the product of the lever's two halves.** The
     // kernel computes the deviation at the raising site and stores
     // it; the two halves ride beside it, and a caller multiplying
-    // them gets the number it was handed. A roll sets the tilt and a
-    // residual the residual; the other half is `None`, and which is
-    // set is how the kind crosses.
-    let levered = F::Contradictory {
-        held: m(1),
-        added: m(1),
-        predicate: "mate_clocking_redundant",
-        clash: Clash::Levered(Lever::Roll {
-            radians: 0.25,
-            arm: 2.0,
-        }),
-    };
-    let payload = mate_payload(&levered);
-    let (tilt, arm) = (
-        payload
-            .lever_tilt
-            .expect("a levered clash carries its tilt"),
-        payload.lever_arm.expect("and its arm"),
-    );
-    assert_eq!(payload.clash, Some(tilt * arm));
-    assert_eq!(payload.lever_residual, None);
+    // them gets the number it was handed.
     let levered = F::Contradictory {
         held: m(1),
         added: m(2),
@@ -1299,9 +1235,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         payload.lever_arm.expect("and its arm"),
     );
     assert_eq!(payload.clash, Some(residual * arm));
-    assert_eq!(payload.lever_tilt, None);
-    // The structural refusal measures nothing: no clash and none of
-    // the three halves — `None` rather than zeroes claiming a
+    // The structural refusal measures nothing: no clash and neither
+    // half — `None` rather than zeroes claiming a
     // measurement nothing made.
     let structural = F::Contradictory {
         held: m(1),
@@ -1311,13 +1246,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     };
     let payload = mate_payload(&structural);
     assert_eq!(
-        (
-            payload.clash,
-            payload.lever_tilt,
-            payload.lever_residual,
-            payload.lever_arm
-        ),
-        (None, None, None, None)
+        (payload.clash, payload.lever_residual, payload.lever_arm),
+        (None, None, None)
     );
 }
 
@@ -2465,7 +2395,6 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateIndeterminate => "mate_indeterminate",
         MatePoseOutOfRange => "mate_pose_out_of_range",
-        MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
         MateOverconstrained => "mate_overconstrained",
         MateTargetsDiffer => "mate_targets_differ",
@@ -2816,27 +2745,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             at: pncad::document::FrameSite::Step { index: 0 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::NonFiniteAlignment {
-            node: sp(1),
-            constraint,
-            position: 1,
-        },
-        &["node", "constraint"],
-    );
-    // A step of a constraint side's frame offset names the constraint
-    // beside the side and the step.
-    carries(
-        &E::NonFinitePlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::MateStep {
-                constraint,
-                side: pncad::document::MateSide::To,
-                index: 1,
-            },
-        },
-        &["node", "index", "side", "constraint"],
     );
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
@@ -5137,7 +5045,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
-            "non_finite_alignment",
             "non_finite_placement",
             "non_finite_var",
             "non_rigid_placement",
@@ -5297,17 +5204,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_join",
             "sliver_rim",
             "smooth_join_refuted",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "face_pose_refusal_tag",
-        values: &[
-            "ambiguous",
-            "no_such_name",
-            "not_a_face",
-            "part_unresolved",
-            "readback",
         ],
         delegates: &[],
     },
@@ -5567,7 +5463,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "instance_out_of_range",
             "loft",
-            "mate_band",
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_indeterminate",
@@ -6641,7 +6536,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    ("ambiguous", 4),
+    ("ambiguous", 3),
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
     ("anonymous_var_unread", 2),
@@ -6730,7 +6625,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
-    ("no_such_name", 2),
     ("node_failed", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
@@ -6739,7 +6633,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_body", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    ("part_unresolved", 3),
+    ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
     ("path", 2),
     // ONE concept, and pinned as one: the variable-read convention
@@ -6768,9 +6662,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // A split's and an inline's refusal of a ranked run its re-minted
     // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
     ("ranked_run_reordered", 2),
-    // One fact: `topo::readback` refused the face it read, as a face
-    // frame's refusal and as a pose read off geometry's.
-    ("readback", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
@@ -7010,57 +6901,30 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
     }
 }
 
-/// **A face's pose refusal spells the facts it shares the way their
-/// own maps do** — `SHARED_TAG_WORDS`' entries among these are one
-/// fact, not a coincidence. A part that does not resolve is the same
-/// refusal met while reading a face's pose and while levering over the
-/// part's reach; a copied shape's reach and a part's refuse in the
-/// reach's one vocabulary; and a face's name arms are the name table's
-/// own answers that `InterrogateError` publishes (no row, a tie). A
-/// binding reading these words across a mate and a measure reads one
-/// word for one fact.
+/// **A lever refusal spells a copied shape's reach and a part's
+/// alike**: both refuse in the reach's one vocabulary, so a binding
+/// reading the word reads one word for one fact.
 #[test]
-fn a_face_pose_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
-    use crate::tags::{
-        face_pose_refusal_tag, interrogate_error_tag, lever_refusal_tag, reach_refusal_tag,
-    };
+fn a_lever_refusal_spells_a_shapes_reach_and_a_parts_alike() {
+    use crate::tags::lever_refusal_tag;
     use pncad::document::{
-        ContentPin, DocRef, DocumentId, FacePoseRefusal, LeverRefusal, PartFault, ReachRefusal,
-        RecipeNodeId,
+        ContentPin, DocRef, DocumentId, LeverRefusal, ReachRefusal, RecipeNodeId,
     };
-    use pncad::select::InterrogateError;
 
-    let instance = RecipeNodeId::new(0, 0);
     let part = DocRef {
         id: DocumentId::derive("face-refusal-words"),
         pin: ContentPin([0u8; 32]),
     };
-    assert_eq!(
-        face_pose_refusal_tag(&FacePoseRefusal::PartUnresolved {
-            fault: PartFault::NoResolver,
-        }),
-        reach_refusal_tag(&ReachRefusal::PartUnresolved {
-            fault: PartFault::NoResolver,
-        }),
-    );
     assert_eq!(
         lever_refusal_tag(&LeverRefusal::Shape {
             shape: RecipeNodeId::new(0, 1),
             refusal: ReachRefusal::NoExtent,
         }),
         lever_refusal_tag(&LeverRefusal::Reach {
-            instance,
+            instance: RecipeNodeId::new(0, 0),
             part,
             refusal: ReachRefusal::NoExtent,
         }),
-    );
-    assert_eq!(
-        face_pose_refusal_tag(&FacePoseRefusal::NoSuchName),
-        interrogate_error_tag(&InterrogateError::NoSuchName),
-    );
-    assert_eq!(
-        face_pose_refusal_tag(&FacePoseRefusal::Ambiguous { candidates: 2 }),
-        interrogate_error_tag(&InterrogateError::Ambiguous { candidates: 2 }),
     );
 }
 

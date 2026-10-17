@@ -42,9 +42,8 @@
 //!
 //! A NESTED REFUSAL crosses as its own word rather than being
 //! flattened into this record's other attributes:
-//! [`MateFaultPayload::inner_variant`] is the band constructor's word
-//! on `Band`, the lever refusal's on `Unleverable` and the world
-//! read's on `WorldRead`. `Indeterminate` carries a STRUCT rather than
+//! [`MateFaultPayload::inner_variant`] is the lever refusal's word on
+//! `Unleverable` and the world read's on `WorldRead`. `Indeterminate` carries a STRUCT rather than
 //! an enum, so it has no inner word at all and its shape is which
 //! margin attribute is set.
 //!
@@ -55,19 +54,16 @@
 //! rather than re-spelled: the escalation a mate reports and the one
 //! a frame constructor reports are the same value, and a caller that
 //! learned the words at one door reads them at the other. The fork
-//! itself is [`crate::escalation`], which both doors call. `field` /
-//! `value` are the band arm's, at the same door.
+//! itself is [`crate::escalation`], which both doors call.
 
 use pncad::document::{
     Clash, ConstraintId, Coord, DocumentId, Lever, LeverRefusal, MateFault, MateRef, MateSide,
     NoChartWhy, ReachRefusal, RecipeNodeId, Subgroup, VarKind,
 };
-use pncad::geom_core::{BandError, Indeterminate};
+use pncad::geom_core::Indeterminate;
 
 use crate::escalation::escalation;
-use crate::tags::{
-    band_error_tag, band_field_tag, lever_refusal_tag, node_error_tag, world_read_fault_tag,
-};
+use crate::tags::{lever_refusal_tag, node_error_tag, world_read_fault_tag};
 
 /// What one [`MateFault`] arm carries, every field present.
 ///
@@ -118,8 +114,8 @@ pub struct MateFaultPayload<'a> {
     pub expected_document: Option<DocumentId>,
     /// The document the solve is of.
     pub found_document: Option<DocumentId>,
-    /// **The nested refusal's own word**: the band constructor's, the
-    /// lever refusal's, or the world read's. An arm whose payload is a
+    /// **The nested refusal's own word**: the lever refusal's, or the
+    /// world read's. An arm whose payload is a
     /// struct rather than an enum has none.
     pub inner_variant: Option<&'static str>,
     /// The in-band margin, in metres, when the classifier saw a
@@ -131,21 +127,10 @@ pub struct MateFaultPayload<'a> {
     /// Its upper bound.
     pub margin_high: Option<f64>,
     /// The coincidence threshold of the band a margin was classified
-    /// against, or of the band a constructor could not form.
+    /// against.
     pub zero: Option<f64>,
     /// Its escalation threshold.
     pub escalate: Option<f64>,
-    /// WHICH band threshold a rejected value was
-    /// ([`crate::tags::band_field_tag`]).
-    pub field: Option<&'static str>,
-    /// The rejected number: a threshold, or a lever arm handed to the
-    /// band constructor.
-    pub value: Option<f64>,
-    /// The lever's TILT, in radians, when a contradictory clash
-    /// levered a roll (`Lever::Roll`). One of this and
-    /// `lever_residual` is set on a levered clash, never both: which
-    /// one says what kind of number the predicate measured.
-    pub lever_tilt: Option<f64>,
     /// The lever's RESIDUAL, a pure number — a sine, a cosine, a
     /// Frobenius departure from the identity, a reachability defect,
     /// named by `predicate` — when a contradictory clash levered one
@@ -181,7 +166,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 33] {
+    pub fn presence(&self) -> [(&'static str, bool); 30] {
         let Self {
             mate,
             side,
@@ -204,9 +189,6 @@ impl<'a> MateFaultPayload<'a> {
             margin_high,
             zero,
             escalate,
-            field,
-            value,
-            lever_tilt,
             lever_residual,
             lever_arm,
             on_kind,
@@ -239,9 +221,6 @@ impl<'a> MateFaultPayload<'a> {
             ("margin_high", margin_high.is_some()),
             ("zero", zero.is_some()),
             ("escalate", escalate.is_some()),
-            ("field", field.is_some()),
-            ("value", value.is_some()),
-            ("lever_tilt", lever_tilt.is_some()),
             ("lever_residual", lever_residual.is_some()),
             ("lever_arm", lever_arm.is_some()),
             ("on_kind", on_kind.is_some()),
@@ -286,9 +265,6 @@ impl<'a> MateFaultPayload<'a> {
         margin_high: None,
         zero: None,
         escalate: None,
-        field: None,
-        value: None,
-        lever_tilt: None,
         lever_residual: None,
         lever_arm: None,
         on_kind: None,
@@ -317,28 +293,6 @@ fn with_escalation<'a>(base: MateFaultPayload<'a>, diag: &Indeterminate) -> Mate
     }
 }
 
-/// A band constructor's refusal, on the frame door's own words: which
-/// threshold was rejected and what it was, or the pair a band could
-/// not be formed from.
-fn with_band<'a>(base: MateFaultPayload<'a>, error: &BandError) -> MateFaultPayload<'a> {
-    match error {
-        BandError::InvalidValue { field, value } => MateFaultPayload {
-            field: Some(band_field_tag(field)),
-            value: Some(*value),
-            ..base
-        },
-        BandError::InvalidLeverArm { value } => MateFaultPayload {
-            value: Some(*value),
-            ..base
-        },
-        BandError::Empty { zero, escalate } => MateFaultPayload {
-            zero: Some(*zero),
-            escalate: Some(*escalate),
-            ..base
-        },
-    }
-}
-
 /// The word a reach refusal's unbounded face names its kind by.
 fn unbounded(refusal: &ReachRefusal) -> Option<&'static str> {
     match refusal {
@@ -359,23 +313,12 @@ fn unbounded(refusal: &ReachRefusal) -> Option<&'static str> {
 pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
     let none = MateFaultPayload::NONE;
     match fault {
-        // The two arms whose subject is not a mate at all, and not
-        // the same case — which rows each reaches is stated once, on
-        // `MateFault`'s own doc. The document ids one names, and the
-        // band refusal the other holds, belong to those types' own
-        // vocabularies and stay in the prose.
+        // The arm whose subject is not a mate at all: two documents.
         MateFault::PosesOfAnotherDocument { expected, found } => MateFaultPayload {
             expected_document: Some(*expected),
             found_document: Some(*found),
             ..none
         },
-        MateFault::Band { error } => with_band(
-            MateFaultPayload {
-                inner_variant: Some(band_error_tag(error)),
-                ..none
-            },
-            error,
-        ),
         MateFault::ClassNotAdmitted { mate } | MateFault::NotOnTheCopy { mate } => {
             MateFaultPayload {
                 mate: Some(*mate),
@@ -417,10 +360,8 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         }
         // The lever is the mated bodies' own extent rather than
         // anything in the model, and `clash` is the PRODUCT of its
-        // two halves. The kind of number levered is which half is
-        // set — a roll's tilt or a residual — and a length measured
-        // outright, or the structural refusal, carries none of the
-        // three.
+        // two halves. A length measured outright, or the structural
+        // refusal, carries neither.
         MateFault::PoseOutOfRange { held, added } => MateFaultPayload {
             held: Some(*held),
             added: Some(*added),
@@ -432,17 +373,15 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             predicate,
             clash,
         } => {
-            let (lever_tilt, lever_residual, lever_arm) = match clash {
-                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
-                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
-                Clash::Structural | Clash::Length { .. } => (None, None, None),
+            let (lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Residual { value, arm }) => (Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None),
             };
             MateFaultPayload {
                 held: Some(*held),
                 added: Some(*added),
                 predicate: Some(predicate),
                 clash: clash.deviation(),
-                lever_tilt,
                 lever_residual,
                 lever_arm,
                 ..none

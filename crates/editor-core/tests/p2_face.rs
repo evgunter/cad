@@ -71,9 +71,26 @@ fn target_var(doc: &ProfileDoc, mate: MateRef) -> editor_core::VarId {
     select
 }
 
+/// **`face`'s pose in its part's own coordinates**: the part resolved
+/// through `o`'s resolver and evaluated on its own, the face read at
+/// the part placement that names it.
+fn part_face_pose(
+    o: &EvalOptions,
+    part: &editor_core::DocRef,
+    face: &FaceName,
+) -> topo::readback::Pose<f64> {
+    let resolver = o.resolver.as_ref().expect("a resolver");
+    let doc = resolver
+        .resolve(part, Tol::witness())
+        .unwrap_or_else(|failure| panic!("the part resolves: {failure:?}"));
+    let name = face.clone().into_name();
+    editor_core::face_frame(&run(&doc, o), name.node, &name)
+        .unwrap_or_else(|refusal| panic!("the face has a pose: {refusal:?}"))
+}
+
 /// **Where a mate's target face is in the world**: the face its head
 /// names in the member's part (`head_face`), read through the part's
-/// own evaluation (`MateReach::face_pose`), carried by the member's
+/// own evaluation ([`part_face_pose`]), carried by the member's
 /// solved world pose and then by `copy_shift`, the translation the
 /// scene's pattern puts between a copy and its master — origin, normal
 /// and reference direction. A plain read (its own instance, no copy, no
@@ -95,9 +112,7 @@ fn target_world(
     let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(member.instance) else {
         panic!("the member stands on an instance");
     };
-    let reach = editor_core::PartReach::<f64>::with_resolver(o.resolver.as_ref(), Tol::witness());
-    let pose = editor_core::MateReach::face_pose(&reach, doc_ref, &face)
-        .unwrap_or_else(|refusal| panic!("the face has a pose: {refusal:?}"));
+    let pose = part_face_pose(o, doc_ref, &face);
     let placed = solve(doc, o, Tol::witness())
         .placement(doc, member.instance)
         .expect("the member is placed")
@@ -450,8 +465,7 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         fixture::resolver::in_world(p.top_body, CapEnd::End),
         "the master's own row, as the part's world names it"
     );
-    let reach = editor_core::PartReach::<f64>::with_resolver(o.resolver.as_ref(), Tol::witness());
-    let pose = editor_core::MateReach::face_pose(&reach, &p.top, &master).expect("a pose");
+    let pose = part_face_pose(&o, &p.top, &master);
     let placed = solve(&doc, &o, Tol::witness())
         .placement(&doc, mover)
         .expect("the mover is placed");

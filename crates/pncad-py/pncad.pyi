@@ -150,10 +150,8 @@ class EditError(PncadError):
       two attributes.
     - `mate` is a constraint's address (`MateRef`): the placement
       `node` names with the constraint the refusal is about — an id
-      the bundle does not hold (`unknown_constraint`), a mate a value
-      names (`mate_named_by_value`), a non-finite alignment, or the
-      frame offset a refused step sits in, with
-      `side` and `index`.
+      the bundle does not hold (`unknown_constraint`) or a mate a
+      value names (`mate_named_by_value`).
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
       keyword.
@@ -189,7 +187,6 @@ class EditError(PncadError):
     offered: Optional[float | int]
     determinant: Optional[float]
     index: Optional[int]
-    side: Optional[str]
     mate: Optional[MateRef]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
@@ -5991,8 +5988,8 @@ class MateFault:
     branch on `variant` first.
 
     The classifier's words are the frame door's words: `margin`,
-    `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
-    and `predicate` are spelled here exactly as `FrameError` spells
+    `margin_low`, `margin_high`, `zero`, `escalate` and `predicate`
+    are spelled here exactly as `FrameError` spells
     them, because an escalation a mate reports and one a frame
     constructor reports are the same value.
 
@@ -6082,9 +6079,8 @@ class MateFault:
 
     @property
     def inner_variant(self) -> Optional[str]:
-        """The nested refusal's own word: the band constructor's
-        (`invalid_value`, `invalid_lever_arm`, `empty`), the lever
-        refusal's (`part_unresolved`, `face_unbounded`,
+        """The nested refusal's own word: the lever refusal's
+        (`part_unresolved`, `face_unbounded`,
         `malformed_body`, `no_extent`, `no_finite_bound`, with the
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the
@@ -6115,8 +6111,7 @@ class MateFault:
     @property
     def zero(self) -> Optional[float]:
         """The coincidence threshold of the band a margin was
-        classified against, or of the band a constructor could not
-        form. A plain real, as the frame door answers it: a band's
+        classified against. A plain real, as the frame door answers it: a band's
         thresholds are whatever its predicate measures in."""
 
     @property
@@ -6124,29 +6119,11 @@ class MateFault:
         """Its escalation threshold."""
 
     @property
-    def field(self) -> Optional[str]:
-        """Which band threshold a rejected value was — `zero` or
-        `escalate`."""
-
-    @property
-    def value(self) -> Optional[float]:
-        """The rejected number: a threshold, or a lever arm handed to
-        the band constructor."""
-
-    @property
-    def lever_tilt(self) -> Optional[Angle]:
-        """The lever's TILT, when a contradictory clash levered a
-        roll.
-        One of this and `lever_residual` is set on a levered clash,
-        never both: which one says what kind of number the predicate
-        measured."""
-
-    @property
     def lever_residual(self) -> Optional[float]:
         """The lever's RESIDUAL — a pure number, named by `predicate`:
         a sine, a cosine, a Frobenius departure from the identity, a
-        reachability defect — when a contradictory clash levered one
-        rather than an authored roll. Dimensionless, so a bare float
+        reachability defect — when a contradictory clash levered one.
+        Dimensionless, so a bare float
         and not a quantity."""
 
     @property
@@ -6156,7 +6133,7 @@ class MateFault:
         the bodies' scale and nothing
         else in the model. `clash` is the PRODUCT of the set half and
         the arm, and an arm that measured its margin without a lever
-        carries none of the three."""
+        carries neither."""
 
 
 

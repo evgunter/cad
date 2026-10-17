@@ -80,17 +80,6 @@
 //! own refusal — drawn under the placement's row as a carried line
 //! ([`carried_lines`]), never as a link to another node to repair.
 //!
-//! **[`MateFault::Band`] names none, and it is the arm that still
-//! reaches rows.** A band is the RUN's tolerance, not a decision about
-//! any node: with no band the solve decides nothing, and faults every
-//! placement in the DOCUMENT — including instances no mate touches —
-//! with one shared cause. No row is more at fault than another, so nothing here
-//! picks one and every row it reached keeps its own `Failed`. That
-//! reading is honest about blame and poor about scope, and improving
-//! it wants a status saying "the run, not this row" rather than a
-//! culprit invented here
-//! (`work/chrome/band-refusal-still-badges-every-row.md`).
-//!
 //! # A failed row outside the solve links where its own error says
 //!
 //! Every other `NodeErrorKind` is asked the same question
@@ -1371,8 +1360,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// else it names; why that holds for an arm naming a node an author
 /// may repair is stated once, in the module header's second section.
 ///
-/// Two arms name none: `Band` reaches every row, and the mispairing
-/// reaches none.
+/// One arm names none: the mispairing, which reaches no row.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::ClassNotAdmitted { mate }
@@ -1390,9 +1378,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::TargetsDiffer { placement, .. } => {
             vec![*placement]
         }
-        // Names no mate and reaches EVERY row of the document — the
-        // asymmetry with the arm below is stated once, on `MateFault`.
-        MateFault::Band { .. } => Vec::new(),
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
@@ -1416,8 +1401,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 ///
 /// `None` — the row keeps its own `Failed` — when the failure is not
 /// a mate refusal, when the fault names this very node, and when it
-/// names no mate at all ([`MateFault::Band`], the module header's
-/// second section).
+/// names no mate at all.
 ///
 /// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
 /// walkable-in-one-hop invariant holds because the kernel's answer is

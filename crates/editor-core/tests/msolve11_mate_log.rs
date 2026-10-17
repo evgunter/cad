@@ -675,9 +675,6 @@ fn every_refuted_predicate_reads_in_words() {
         Refuted::PointOnAxis => "the axis point leaves the shared axis",
         Refuted::PointFixed => "the shared point moves",
         Refuted::TwoAxisReachable => "no one rotation aligns both axes",
-        Refuted::ClockingRedundant => {
-            "the clocking disagrees with the roll the coincidence already pins"
-        }
     };
     let mut names: Vec<&str> = Refuted::ALL.iter().map(|r| r.name()).collect();
     names.sort_unstable();

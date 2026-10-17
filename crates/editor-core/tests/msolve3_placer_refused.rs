@@ -98,11 +98,6 @@ impl Scene {
         }
     }
 
-    /// The refusal the placer itself raises on the twin.
-    fn own_refusal(&self) -> (String, NodeErrorClass) {
-        self.own_refusal_of(self.placer)
-    }
-
     /// What `node`'s row in the MATED document fails with, when it
     /// fails in its own right.
     fn mated_refusal_of(&self, node: RecipeNodeId) -> Option<String> {

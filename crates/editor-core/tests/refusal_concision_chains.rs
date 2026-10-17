@@ -4111,12 +4111,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "Band",
-            M::Band {
-                error: band_error(),
-            },
-        ),
-        (
             "Contradictory",
             M::Contradictory {
                 held: r(8),

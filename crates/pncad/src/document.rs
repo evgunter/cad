@@ -424,12 +424,6 @@ pub use editor_core::{
 // of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
 // `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
 // own refusals end on.
-/// Why a part's face did not read to a pose through a part cache
-/// ([`MateReach::face_pose`]), by the same payload rule: the part does
-/// not resolve, the part's table has no row for the name or ties it,
-/// the readback refuses the carrier, or the product's scalar pins no
-/// `f64`.
-pub use editor_core::FacePoseRefusal;
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -452,7 +446,7 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal, Lever, Mate,
     MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PartReach, PinRefusal, PlacedBy, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Unobservable,
     Value, WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of, member_reading,
     pin_at, place_at, reference_about, relative_freedom_components, solve_document, unobservable,

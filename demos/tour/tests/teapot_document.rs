@@ -738,6 +738,7 @@ fn a_split_carries_a_held_slits_band() {
         tol,
     );
     // The lid is the document's product; a cut carries what it places.
+    eprintln!("PROBE {:?}", eval(&doc, tol).node_error(holder));
     place_in_world(&mut doc, holder, tol);
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =

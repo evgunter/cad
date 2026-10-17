@@ -144,15 +144,6 @@ fn instance_at(
     (fixture::pin(doc, inst, &pose, o), inst)
 }
 
-fn near(a: Frame, b: Frame, tol: f64) -> bool {
-    a.columns
-        .iter()
-        .flatten()
-        .chain(a.translation.iter())
-        .zip(b.columns.iter().flatten().chain(b.translation.iter()))
-        .all(|(x, y)| (x - y).abs() <= tol)
-}
-
 // ---- Tiny hand algebra (this file's own, never the solver's) ----
 
 /// Row-major 3x3 times column vector.

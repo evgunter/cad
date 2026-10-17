@@ -32,7 +32,7 @@ use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, FacePoseRefusal,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions,
     MateFault, MateReach, MateRef, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
     ReachRefusal, RecipeNodeId, RefusingReach, SlideAxis, SnapshotError, Target, VarKind,
     WorldRead, WorldReadFault, load, mate_reach, save,
@@ -177,22 +177,17 @@ fn through_door(
     }
 }
 
-/// A reach that counts its asks and answers through `inner` — the
-/// reach asks and the face-pose asks counted apart.
-struct Counting<'a>(
-    core::cell::Cell<usize>,
-    &'a dyn MateReach,
-    core::cell::Cell<usize>,
-);
+/// A reach that counts its asks and answers through `inner`.
+struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach);
 
 impl<'a> Counting<'a> {
     fn over(inner: &'a dyn MateReach) -> Self {
-        Self(core::cell::Cell::new(0), inner, core::cell::Cell::new(0))
+        Self(core::cell::Cell::new(0), inner)
     }
 
-    /// How many asks of either kind were made.
+    /// How many asks were made.
     fn asks(&self) -> usize {
-        self.0.get() + self.2.get()
+        self.0.get()
     }
 }
 
@@ -200,15 +195,6 @@ impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
-    }
-
-    fn face_pose(
-        &self,
-        part: &editor_core::DocRef,
-        face: &editor_core::FaceName,
-    ) -> Result<topo::readback::Pose<f64>, FacePoseRefusal> {
-        self.2.set(self.2.get() + 1);
-        self.1.face_pose(part, face)
     }
 }
 

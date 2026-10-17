@@ -43,7 +43,7 @@ use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
 use super::place::Frame;
-use super::quantity::{Angle, Length};
+use super::quantity::Length;
 
 /// One bare metre figure as the length it is.
 fn length(m: f64) -> Length {
@@ -774,15 +774,14 @@ impl Subgroup {
 /// `shape`, `placement`, `constraints`, `residual`, `held`, `added`,
 /// `predicate`, `clash`, `what`, `expected_document`,
 /// `found_document`, `inner_variant`, `margin`, `margin_low`,
-/// `margin_high`, `zero`, `escalate`, `field`, `value`, `lever_tilt`,
-/// `lever_residual`, `lever_arm`, `on_kind`, `to_kind`, `value_ref`,
+/// `margin_high`, `zero`, `escalate`, `lever_residual`, `lever_arm`, `on_kind`, `to_kind`, `value_ref`,
 /// `named`, `coord`, `mate_kind`, `why`, `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
-/// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
-/// `value` and `predicate` are spelled here exactly as
+/// `margin_low` / `margin_high`, `zero` / `escalate` and `predicate`
+/// are spelled here exactly as
 /// [`super::place::frame_err`] spells them, because an escalation a
 /// mate reports and one a frame constructor reports are the same
 /// value; the fork itself is `crate::escalation`, which both doors
@@ -835,11 +834,10 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the three arms whose
-    /// subject is not one mate (`mate_band`; `mate_contradictory`,
-    /// which names `held` and `added` instead; and
-    /// `mate_poses_of_another_document`, whose subject is two
-    /// documents).
+    /// The mate the fault is about, `None` for an arm whose subject is
+    /// not one mate (`mate_contradictory`, which names `held` and
+    /// `added` instead; `mate_poses_of_another_document`, whose
+    /// subject is two documents).
     #[getter]
     fn mate(&self) -> Option<MateRef> {
         self.payload().mate.map(MateRef)
@@ -1014,8 +1012,8 @@ impl MateFault {
         self.payload().found_document.map(|id| id.hex())
     }
 
-    /// **The nested refusal's own word**: the band constructor's, the
-    /// lever refusal's, or the world read's (`mate_world_read`). `None` on an arm whose payload is a struct
+    /// **The nested refusal's own word**: the lever refusal's, or the
+    /// world read's (`mate_world_read`). `None` on an arm whose payload is a struct
     /// rather than an enum — an escalation has no inner word, and its
     /// shape is which margin attribute is set.
     #[getter]
@@ -1048,7 +1046,7 @@ impl MateFault {
     }
 
     /// The coincidence threshold of the band a margin was classified
-    /// against, or of the band a constructor could not form.
+    /// against.
     ///
     /// A plain real, as the frame door answers it: a `Band`'s
     /// thresholds are whatever its predicate measures in, and the
@@ -1064,35 +1062,10 @@ impl MateFault {
         self.payload().escalate
     }
 
-    /// WHICH band threshold a rejected value was — `zero` or
-    /// `escalate`.
-    #[getter]
-    fn field(&self) -> Option<&'static str> {
-        self.payload().field
-    }
-
-    /// The rejected number: a threshold, or a lever arm handed to the
-    /// band constructor.
-    #[getter]
-    fn value(&self) -> Option<f64> {
-        self.payload().value
-    }
-
-    /// The lever's TILT, when a contradictory clash levered a roll.
-    /// One of this and `lever_residual` is set on a levered clash,
-    /// never both: which one says what kind of number the predicate
-    /// measured.
-    #[getter]
-    fn lever_tilt(&self) -> Option<Angle> {
-        self.payload()
-            .lever_tilt
-            .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
-    }
-
     /// The lever's RESIDUAL — a pure number, named by `predicate`: a
     /// sine, a cosine, a Frobenius departure from the identity, a
-    /// reachability defect — when a contradictory clash levered one
-    /// rather than an authored roll. Dimensionless, so a bare float
+    /// reachability defect — when a contradictory clash levered one.
+    /// Dimensionless, so a bare float
     /// and not a quantity.
     #[getter]
     fn lever_residual(&self) -> Option<f64> {
@@ -1106,8 +1079,7 @@ impl MateFault {
     /// nothing else in the model.
     ///
     /// `clash` is the PRODUCT of the two halves: a levered refusal
-    /// reports `lever_tilt * lever_arm` or `lever_residual *
-    /// lever_arm` as its deviation. An arm that measured its margin
+    /// reports `lever_residual * lever_arm` as its deviation. An arm that measured its margin
     /// without a lever carries none of the three.
     #[getter]
     fn lever_arm(&self) -> Option<Length> {
