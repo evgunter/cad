@@ -317,7 +317,11 @@ fn typed_refusal_doors() {
     match ev.nodes.get(&pat) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::NonPositiveCount { count: 0 }
+            NodeErrorKind::CountOutOfRange {
+                slot: editor_core::SlotId::Count,
+                count: 0,
+                ..
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }

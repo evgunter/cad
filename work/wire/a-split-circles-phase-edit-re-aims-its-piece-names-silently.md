@@ -4,6 +4,9 @@ kind: issue
 title: A circle_split phase moved by a multiple of 2π/n keeps every piece name and reports nothing, while Piece(k) now draws the arc Piece(k+1) drew
 status: open
 opened: 2026-09-30
+priority: P1
+cost: M
+design: true
 ---
 
 

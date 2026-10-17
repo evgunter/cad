@@ -169,8 +169,8 @@ impl crate::spoken::Say for InterrogateError {
             Self::NoSuchBody { index } => write!(
                 f,
                 "the name carries output-body index {index}, which this node's \
-                 value does not have — the emission and the value disagree, so this is a kernel \
-                 bug"
+                 value does not have — the emission and the value disagree. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SeveralOutputs { node } => write!(
                 f,

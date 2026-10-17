@@ -105,3 +105,7 @@ every arm, enforced by `every_knot_algebra_error_arm_names_a_recourse`
 beside it, so the row the admission was holding open renders a recourse
 and the admission went red for being unused — which is
 `every_admission_admits_a_row_it_is_needed_for` working.
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+WIRE's block of `FILED_NO_RECOURSE` is down to 79 entries; the `Declare*`, `AxisInDifferentPlane` and `ParamSourceAttach` families are gone. The `PlacementRule/*`, `PlacementsUncertified`, `InstanceOutOfRange`, `FaceFrame*` and `FrameDirection` entries stand on stage 3 ground and are NOT this row's to write now; the rest (`Select*`, `Expr/*`, `MeasureRefUnreadable/*`, `Naming/*`, `Seed/*`, `Profile*`) can start. The escalation-menu section predates the declare door's deletion: re-read `COINCIDENCE_RECOURSE` before acting on it.
