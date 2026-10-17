@@ -566,29 +566,22 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 
 /// **A check named for the recorder and NOT logged as a verdict** —
 /// the door for a ruled decision that is not part of what a
-/// certificate states: the evaluator's finiteness check on every
-/// expression it produces (`editor_core::expr::refuse_non_finite`,
-/// ledger row F18), and `geom_brep`'s pcurve schedule on a `Harmonic`
+/// certificate states: `geom_brep`'s pcurve schedule on a `Harmonic`
 /// row, which cross-checks check 4's closed form where the scalar is
 /// a point and is not run over a parameter box (C4; ledger row F20),
 /// and limb 2's image-miss tell, which names a refusal the certificate
 /// has already made (ledger row F21). It classifies through the one body, so its K
-/// samples carry its name (they were charged to whichever predicate
-/// classified last until M10-8 scoped the name — 1,054 corpus rows at
-/// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is
-/// the verdict-diff engine's — the witness's certification verdicts
-/// against the leaf's, row for row — and the finiteness check fires
-/// once per expression evaluation, a count the two lanes do not share
-/// (routed through [`classify`], every M10-6 min-clearance box refused
-/// on a verdict-vector mismatch, the certification key moved, and no
-/// geometry had changed). Its refusal already reaches the consumer as
-/// `EvalError::NonFiniteResult`, so no verdict is lost by not logging
-/// one. The pcurve cross-check is the same shape: it runs at the
-/// driver's point witness and not at the box leaf, so logged it would
-/// put rows in one vector the other cannot have, and a refusal still
-/// refuses the witness build. `ledger_row` is the obligation
-/// [`decide_flagged`] carries: the audit row that argues why the
-/// decision is taken outside the logged `Margin` doors.
+/// samples carry its name, and it stays OUT of the verdict log on
+/// purpose: the log is the verdict-diff engine's — the witness's
+/// certification verdicts against the leaf's, row for row — and the
+/// pcurve cross-check runs at the driver's point witness and not at the
+/// box leaf, so logged it would put rows in one vector the other cannot
+/// have, and a refusal still refuses the witness build. (The
+/// evaluator's finiteness check, ledger row F18, went through here
+/// until it stopped deciding: it asks `Real::is_bounded` now.)
+/// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
+/// row that argues why the decision is taken outside the logged
+/// `Margin` doors.
 pub fn check_unlogged<T: Decide>(
     name: &'static str,
     margin: T,

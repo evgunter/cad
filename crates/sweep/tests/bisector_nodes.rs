@@ -269,10 +269,12 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 ///   edge, which keeps the quadric's door;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
-/// - `δ` beyond the band and short of `√band`: the crossing layer
-///   passes, and the pierce vertex's side reading refuses next, its
-///   sagitta charge `δ²/4` short of the band
-///   (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`);
+/// - `δ` beyond the band and short of `√band`: each pierce reads the
+///   partner wall through the plane the sweep found it on, and the arcs
+///   from each pierce to the node read their wedge at their faces'
+///   reach, so every pose builds at its closed form (at ε 1e-12 a cap's
+///   short ruling refuses at its pcurve,
+///   `work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`);
 /// - `δ` past `√band`: every operation builds at its closed form.
 ///
 /// Every operation, both operand orders, both poses, at every ε.
@@ -281,6 +283,7 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let (zero, escalate) = (band.zero(), band.escalate());
+    let fine = zero < 1e-10;
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
     let v_rod = 4.0 * PI;
     // The Steinmetz solid's piece beyond `y = d` of B's axis.
@@ -291,13 +294,13 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
     enum Want {
         Door,
         Escalates,
-        SideRefuses,
+        PastThePierce,
         Builds,
     }
     for (delta, want) in [
         (0.3 * zero, Want::Door),
         (4.0 * zero, Want::Escalates),
-        (30.0 * escalate, Want::SideRefuses),
+        (30.0 * escalate, Want::PastThePierce),
         (5.0 * escalate.sqrt(), Want::Builds),
     ] {
         let poses = [
@@ -356,13 +359,32 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 ),
                                 "{cut}: the crossings' distance in band, got {r:?}"
                             ),
-                            Want::SideRefuses => assert!(
-                                matches!(
-                                    r,
-                                    Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
-                                ),
-                                "{cut}: past the crossing layer, the pierce's side, got {r:?}"
-                            ),
+                            // At ε 1e-12 the ruling where the cap meets the
+                            // partner wall between the two pierces mints its
+                            // pcurve at the wall's seam
+                            // (`work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`).
+                            Want::PastThePierce if capped && fine && pose == "re-posed" => {
+                                assert!(
+                                    map_residual(&r),
+                                    "{cut}: the short ruling's pcurve, got {r:?}"
+                                );
+                            }
+                            // Otherwise every pose builds: the pierce reads the
+                            // partner wall through its branch, and the short arcs
+                            // from each pierce to the node read their wedge at
+                            // their faces' reach.
+                            Want::PastThePierce => {
+                                let Ok(BooleanResult::Body(out)) = r else {
+                                    panic!("{cut}: builds, got {r:?}");
+                                };
+                                let m = topo::mass_properties(&out.body, tol).unwrap();
+                                assert!(
+                                    (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                    "{cut}: volume {} ± {}, want {closed}",
+                                    m.volume,
+                                    m.volume_pad
+                                );
+                            }
                             Want::Builds => {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
@@ -390,6 +412,221 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
             }
         }
     }
+}
+
+/// Whether `r` is a pcurve's chart map refusing its residual, at the
+/// merge or at rest.
+fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
+    let text = format!("{r:?}");
+    text.contains("Pcurve") && text.contains("MapResidual")
+}
+
+/// **U2p's acceptance poses at the witness band**: two unit rods at right
+/// angles, each seam turned and each cap standing `δ ∈ {1e-8, 1e-6,
+/// 1e-4}` off a node, and both operands capped, every operation, both
+/// operand orders and both poses.
+///
+/// - Each seam and each cap at 1e-6 and 1e-4, and both caps, build at
+///   their closed forms (both caps: `2X − 2X³/3 − 2δ·acos δ`,
+///   `X = √(1 − δ²)`): the arcs from each pierce to the node, `2δ` long at
+///   a dihedral of `δ`, read their wedge at their faces' reach.
+/// - 1e-8 is the witness band's escalation edge (K·ε). The node stands
+///   1e-8 off the seam, so its placement escalates (margin 9.99e-9); both
+///   caps' sectors stand about a band apart (margins 1e-9 to 4e-9) and
+///   escalate, or their rims' placement does; a single cap builds at its
+///   closed form, or its rim's placement escalates where
+///   its margin of about `δ` rounds inside the edge (9.999999995e-9 in one
+///   re-posed order). D4's ε < δ < K·ε.
+#[test]
+fn the_near_node_poses_at_the_witness_band() {
+    let tol = Tol::witness();
+    if geom_core::Band::linear(tol).unwrap().zero() != 1e-9 {
+        test_utils::vacuity::stood_down(
+            "the witness band only",
+            "the near-node acceptance poses are stated at ε 1e-9; the band-relative \
+             row `an_edge_near_a_node_crosses_through_the_bisector_planes` holds them \
+             at every ε",
+        );
+        return;
+    }
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let v = |d: f64| PI * (2.0 - d);
+    let beyond = |d: f64| {
+        let s = (1.0 - d * d).sqrt();
+        2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    // Both caps: `x² + y² ≤ 1`, `x² + z² ≤ 1`, `y ≥ d`, `z ≥ d`. At each
+    // `x` the section is the square `[d, s]²`, `s = √(1 − x²)`, so the
+    // piece is `∫ (s − d)² dx` over `|x| ≤ X = √(1 − d²)`.
+    let both = |d: f64| {
+        let x = (1.0 - d * d).sqrt();
+        2.0 * x - 2.0 * x.powi(3) / 3.0 - 2.0 * d * d.acos()
+    };
+    for d in [1e-8, 1e-6, 1e-4] {
+        let poses = [
+            (
+                "A's seam",
+                rod_at(-2.0, 2.0, d),
+                across(&rod(-2.0, 2.0)),
+                4.0 * PI,
+                4.0 * PI,
+                16.0 / 3.0,
+            ),
+            (
+                "B's seam",
+                rod(-2.0, 2.0),
+                across(&rod_at(-2.0, 2.0, d)),
+                4.0 * PI,
+                4.0 * PI,
+                16.0 / 3.0,
+            ),
+            (
+                "A's cap",
+                rod(d, 2.0),
+                across(&rod(-2.0, 2.0)),
+                v(d),
+                4.0 * PI,
+                beyond(d),
+            ),
+            (
+                "B's cap",
+                rod(-2.0, 2.0),
+                across(&rod(d, 2.0)),
+                4.0 * PI,
+                v(d),
+                beyond(d),
+            ),
+            (
+                "both caps",
+                rod(d, 2.0),
+                across(&rod(d, 2.0)),
+                v(d),
+                v(d),
+                both(d),
+            ),
+        ];
+        let mut single_cap_builds = 0;
+        for (what, a, b, va, vb, cap) in poses {
+            for (pose, a, b) in [
+                ("direct", a.clone(), b.clone()),
+                ("re-posed", repose(&a), repose(&b)),
+            ] {
+                let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+                for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+                    for (op, r, closed) in [
+                        ("∪", topo::union(x, y, tol), vx + vy - cap),
+                        ("∩", topo::intersect(x, y, tol), cap),
+                        ("∖", topo::subtract(x, y, tol), vx - cap),
+                    ] {
+                        let cut = format!("{what} δ = {d:e}, {pose} ({order}), {op}");
+                        let seam = what.ends_with("seam");
+                        if d == 1e-8 {
+                            // The witness band's escalation edge.
+                            let decision = match &r {
+                                Err(topo::BooleanError::Escalated { decision, .. }) => {
+                                    Some(*decision)
+                                }
+                                _ => None,
+                            };
+                            if seam {
+                                // The node stands `δ` off the seam: its
+                                // placement in the seam's face.
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(topo::BooleanDecision::Containment { .. })
+                                    ),
+                                    "{cut}: the node's placement in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            if what == "both caps" {
+                                // A rim's placement `δ` off its boundary, or
+                                // the two caps' sectors a band apart.
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(
+                                            topo::BooleanDecision::Containment { .. }
+                                                | topo::BooleanDecision::Coincidence(
+                                                    topo::Coincide::Sectors
+                                                        | topo::Coincide::SectorSide,
+                                                    _
+                                                )
+                                        )
+                                    ),
+                                    "{cut}: a rim or the caps' sectors in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            // A single cap: its rim's placement in the
+                            // partner's face, `δ` off its boundary, lands
+                            // either side of the edge by its rounding.
+                            if r.is_err() {
+                                assert!(
+                                    matches!(
+                                        decision,
+                                        Some(topo::BooleanDecision::Containment { .. })
+                                    ),
+                                    "{cut}: the rim's placement in band, got {r:?}"
+                                );
+                                continue;
+                            }
+                            single_cap_builds += 1;
+                        }
+                        let Ok(BooleanResult::Body(out)) = r else {
+                            panic!("{cut}: builds, got {r:?}");
+                        };
+                        let m = topo::mass_properties(&out.body, tol).unwrap();
+                        assert!(
+                            (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                            "{cut}: volume {} ± {}, want {closed}",
+                            m.volume,
+                            m.volume_pad
+                        );
+                    }
+                }
+            }
+        }
+        if d == 1e-8 {
+            assert!(
+                single_cap_builds > 0,
+                "a single cap 1e-8 off builds in at least one pose and order"
+            );
+        }
+    }
+}
+
+/// **A pierce whose branch the sweep did not record keeps the tangent
+/// plane.** With every recorded branch forgotten
+/// ([`topo::forget_branches`]), A's cap `30·escalate` off the station
+/// reads its pierces' sides as before the record, on the pierced wall's
+/// tangent plane, where the sagitta charge refuses
+/// `CurvedSectorSideUnsupported`; with the record it builds.
+#[test]
+fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
+    let tol = Tol::witness();
+    let d = 30.0 * geom_core::Band::linear(tol).unwrap().escalate();
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let (a, b) = (
+        finished("A", rod(d, 2.0), tol),
+        finished("B", across(&rod(-2.0, 2.0)), tol),
+    );
+    topo::forget_branches(true);
+    let forgotten = topo::intersect(&a, &b, tol);
+    topo::forget_branches(false);
+    assert!(
+        matches!(
+            forgotten,
+            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+        ),
+        "no record: the tangent plane's sagitta, got {forgotten:?}"
+    );
+    let recorded = topo::intersect(&a, &b, tol);
+    assert!(
+        matches!(recorded, Ok(BooleanResult::Body(_))),
+        "the record: builds, got {recorded:?}"
+    );
 }
 
 /// **A rim vertex on a node refuses as a node on the boundary.** A branch
@@ -469,43 +706,35 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
     }
 }
 
-/// **At oblique angles the pierce vertex's ring reaches further**
-/// (`work/tang/a-sqrt-band-refused-ring-around-every-pinch-node.md`): A's
-/// seam turned `δ` off a node, at 35° with `r = 1` and at 60° with
-/// `r = 0.5`, crosses the partner wall at two pierces the bisector planes
-/// find, and each pierce's side reading escalates `PierceCurvature`. The
-/// offsets scale with `√band`, as the sagitta charge's margin does, so
-/// each pose stands at the same place in the ring at every ε. Every
-/// operation, both operand orders.
+/// **At oblique angles a seam near a node builds**: A's seam turned `δ`
+/// off a node, at 35° with `r = 1` and at 60° with `r = 0.5`, crosses the
+/// partner wall at two pierces that read it through their bisector
+/// plane, and the arcs from each pierce to the node read their wedge at
+/// their faces' reach. At `δ = √band`, `3·√band` and `5·√band` every
+/// operation builds. Every operation, both operand orders.
 #[test]
-fn an_oblique_seam_near_a_node_escalates_at_the_pierce() {
+fn an_oblique_seam_near_a_node_builds() {
     let tol = Tol::witness();
     let root = geom_core::Band::linear(tol).unwrap().escalate().sqrt();
-    for (deg, r, delta) in [(35.0_f64, 1.0, 5.0 * root), (60.0, 0.5, 4.0 * root)] {
-        let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
-        let b = spin(
-            &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
-            Vec3::new(1.0, 0.0, 0.0),
-            deg.to_radians(),
-        );
-        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
-        for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
-            for (op, got) in [
-                ("∪", topo::union(x, y, tol)),
-                ("∩", topo::intersect(x, y, tol)),
-                ("∖", topo::subtract(x, y, tol)),
-            ] {
-                assert!(
-                    matches!(
-                        got,
-                        Err(topo::BooleanError::Escalated {
-                            decision: topo::BooleanDecision::PierceCurvature,
-                            ..
-                        })
-                    ),
-                    "{deg}°, r = {r}, δ = {delta:e} ({order}), {op}: the pierce's side \
-                     reading escalates, got {got:?}"
-                );
+    for (deg, r) in [(35.0_f64, 1.0), (60.0, 0.5)] {
+        for k in [1.0, 3.0, 5.0] {
+            let delta = k * root;
+            let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), delta);
+            let b = spin(
+                &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
+                Vec3::new(1.0, 0.0, 0.0),
+                deg.to_radians(),
+            );
+            let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+            for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+                for (op, got) in [
+                    ("∪", topo::union(x, y, tol)),
+                    ("∩", topo::intersect(x, y, tol)),
+                    ("∖", topo::subtract(x, y, tol)),
+                ] {
+                    let what = format!("{deg}°, r = {r}, δ = {delta:e} ({order}), {op}");
+                    assert!(got.is_ok(), "{what}: builds, got {got:?}");
+                }
             }
         }
     }
@@ -833,9 +1062,6 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// - `B∖A` is four solids touching at the nodes, its 3′ the census
 ///   lane's frontier alone.
 ///
-/// At ε 1e-6 the 3° slant's sector side falls in the band and every
-/// operation there refuses `CurvedSectorSideUnsupported`, typed.
-///
 /// The volumes close under inclusion–exclusion (`∪ + ∩ = V_A + V_B`,
 /// `A∖B = V_A − ∩`, `B∖A = V_B − ∩`) within the certified brackets, and
 /// each sits within half a percent of its mesh's enclosed volume. The
@@ -890,27 +1116,6 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
             ("B, A", &b, &a, (vb, va), false),
         ] {
             let cut = |op: &str| format!("{what} ({order}), {op}");
-            // At the coarse ε the shallowest slant's sector side, a
-            // second-order reading at the node's tangency, falls in the
-            // band: every operation refuses that, typed.
-            let coarse = geom_core::Band::linear(tol).unwrap().zero() >= 1e-6;
-            if coarse && what.starts_with("3°") {
-                for (op, r) in [
-                    ("∩", topo::intersect(x, y, tol)),
-                    ("∪", topo::union(x, y, tol)),
-                    ("∖", topo::subtract(x, y, tol)),
-                ] {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
-                        ),
-                        "{}: the sector side's typed refusal at this ε, got {r:?}",
-                        cut(op)
-                    );
-                }
-                continue;
-            }
             let i = built(topo::intersect(x, y, tol), nodes, &cut("∩"));
             let u = built(topo::union(x, y, tol), nodes, &cut("∪"));
             let d = built(topo::subtract(x, y, tol), nodes, &cut("∖"));

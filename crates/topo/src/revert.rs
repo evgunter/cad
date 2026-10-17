@@ -802,7 +802,7 @@ mod tests {
         // is the defect, and the meter says so where it always did.
         assert!(
             matches!(
-                source.recertify(start, end, surfaces, band),
+                source.recertify(start, end, surfaces, 1.0, band),
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
                     sample: 1,
@@ -812,7 +812,7 @@ mod tests {
             "the source's image is wrong on the reverted plane"
         );
         let rerun = mirrored
-            .recertify(start, end, surfaces, band)
+            .recertify(start, end, surfaces, 1.0, band)
             .expect("the mirrored image certifies on the reverted plane");
         assert_eq!(
             format!("{rerun:?}"),

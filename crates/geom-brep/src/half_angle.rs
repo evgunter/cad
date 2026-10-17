@@ -518,6 +518,9 @@ const BISECTIONS: u32 = 64;
 /// budget, and [`Unsettled::ImpossibleCount`] for an odd count round the
 /// turn or more roots than the degree allows.
 ///
+/// The same Taylor bound, over a piece of a harmonic, is
+/// `curve_pair::pose::window`'s.
+///
 /// `F` shares the residual's sign. The clear margin is read in metres
 /// through the CEILING `f_per_metre_hi` (capped at `residual_reach`), so
 /// it is a lower bound on the residual's least magnitude over the piece —

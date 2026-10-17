@@ -129,7 +129,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRows};
+use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
 use crate::validate::decide;
 
 /// This consumer's K rows for the shared walk, and the greppable
@@ -1237,11 +1237,14 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::End => EdgeContact::End,
                 ConicHit::Unsettled => EdgeContact::Unread,
             },
-            Self::Spiric(k) => match k.contact(q, rows.spiric, band)? {
-                SpiricHit::Off => EdgeContact::Off,
-                SpiricHit::On(on) => EdgeContact::On(on),
-                SpiricHit::End => EdgeContact::End,
-                SpiricHit::Unsettled => EdgeContact::Unread,
+            Self::Spiric(k) => match k.contact(q, rows.spiric, band) {
+                Ok(SpiricHit::Off) => EdgeContact::Off,
+                Ok(SpiricHit::On(on)) => EdgeContact::On(on),
+                Ok(SpiricHit::End) => EdgeContact::End,
+                // The pass cannot place the point; the region walk holds
+                // the arc as it holds a spline's ball.
+                Err(SpiricRefusal::Unsettled) => EdgeContact::Unread,
+                Err(SpiricRefusal::Escalated(diag)) => return Err(diag.into()),
             },
             Self::Unrowed { .. } => EdgeContact::Unread,
         })
@@ -1384,7 +1387,7 @@ fn step_ball<T: Decide>(
 }
 
 /// The loop's vertices and its edges on their carriers, a conic's span
-/// read on `rows.conic`.
+/// read on `conic`, the only rows building the loop reads.
 ///
 /// # Errors
 ///
@@ -1395,7 +1398,7 @@ fn step_ball<T: Decide>(
 pub(crate) fn carrier_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-    rows: BoundaryRows,
+    conic: ConicRows,
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
@@ -1416,7 +1419,7 @@ pub(crate) fn carrier_loop<T: Decide>(
             edges.push(LoopEdge::Chord);
             continue;
         };
-        match ConicArc::of(curve.carrier(), curve.params(), rows.conic, band) {
+        match ConicArc::of(curve.carrier(), curve.params(), conic, band) {
             // A whole-turn scaffold circle is how
             // `EdgeCurveSpec::self_loop_circle_at` certifies a NULL edge:
             // a deliberately arbitrary unit circle, which the conic row
@@ -1744,7 +1747,7 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
+    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic, band)?;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
         return point_in_vertex_polygon(body, r#loop, normal, q, band);
     }
@@ -2404,19 +2407,6 @@ mod tests {
         }
     }
 
-    /// The lower bound and the upper bound `ConicArc::hit` reads on the
-    /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
-    /// point `x` out along its major axis: the Hessian-bounded root of the
-    /// implicit form, and the distance to the Newton foot, the vertex.
-    fn major_vertex_bounds(a: f64, b: f64, x: f64) -> (f64, f64) {
-        let u = x / a;
-        let f = u.powi(2) - 1.0;
-        let g = 2.0 * u / a;
-        let small = a.min(b);
-        let lower = 2.0 * f.abs() / (g + (g.powi(2) + 4.0 * f.abs() / small.powi(2)).sqrt());
-        (lower, x - a)
-    }
-
     /// **A straddle is one escalation on the frame, carrying the
     /// enclosure of its two bounds** (`k_stats::straddle`): under the
     /// walk's straddle row, the enclosure `bounds` the site's own lower
@@ -2510,6 +2500,19 @@ mod tests {
             samples.iter().all(|s| s.outcome != SampleOutcome::Invalid),
             "{samples:?}"
         );
+    }
+
+    /// The lower bound and the upper bound `ConicArc::hit` reads on the
+    /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
+    /// point `x` out along its major axis: the Hessian-bounded root of the
+    /// implicit form, and the distance to the Newton foot, the vertex.
+    fn major_vertex_bounds(a: f64, b: f64, x: f64) -> (f64, f64) {
+        let u = x / a;
+        let f = u.powi(2) - 1.0;
+        let g = 2.0 * u / a;
+        let small = a.min(b);
+        let lower = 2.0 * f.abs() / (g + (g.powi(2) + 4.0 * f.abs() / small.powi(2)).sqrt());
+        (lower, x - a)
     }
 
     /// **An ellipse bending tighter than the band** (`b²/a = ε/100`): at

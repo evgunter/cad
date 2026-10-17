@@ -862,6 +862,8 @@ mod r2_probes;
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
+mod wedge_reach;
+pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
@@ -896,9 +898,9 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, swap_split_roles,
-    sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points,
-    take_shared_points,
+    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, forget_branches,
+    swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
+    take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
@@ -906,8 +908,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_contact_row,
-    census_rest_decision, record_at_rest,
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_cell_solid, census_contact_row,
+    census_entity_solid, census_interference_solids, census_rest_decision, census_uncleared_solids,
+    record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};

@@ -377,15 +377,44 @@ fn verdict(got: &Result<Meetings<f64>, MeetRefusal<f64>>) -> Option<bool> {
     }
 }
 
-/// `q`'s distance from the span's carrier over the span, sampled and
-/// polished apart from the reader: exact on a line or a circle.
+/// `q`'s distance from the span, apart from the reader: exact on a line
+/// (its segment) and a circle (its arc: the carrier's distance where the
+/// foot's angle lies in the span, else the nearer end's), sampled and
+/// polished on any other kind.
 fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
-    match s.carrier() {
-        c @ (Curve3::Line { .. } | Curve3::Circle { .. }) => distance(c, q),
-        c => {
-            let (t0, t1) = s.params();
-            least(t0, t1, 2000, |t| (c.eval(t) - q).norm()).1
+    let (t0, t1) = s.params();
+    let ends = || {
+        (s.carrier().eval(t0) - q)
+            .norm()
+            .min((s.carrier().eval(t1) - q).norm())
+    };
+    match *s.carrier() {
+        Curve3::Line { origin, dir } => {
+            let t = (q - origin).dot(dir) / dir.dot(dir);
+            if (t0.min(t1)..=t0.max(t1)).contains(&t) {
+                distance(s.carrier(), q)
+            } else {
+                ends()
+            }
         }
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let w = q - center;
+            let v = axis.cross(u_ref);
+            let angle = (w.dot(v) * radius.signum()).atan2(w.dot(u_ref) * radius.signum());
+            let mid = 0.5 * (t0 + t1);
+            let t = mid + (angle - mid + PI).rem_euclid(TAU) - PI;
+            if (t0.min(t1)..=t0.max(t1)).contains(&t) {
+                distance(s.carrier(), q)
+            } else {
+                ends()
+            }
+        }
+        ref c => least(t0, t1, 2000, |t| (c.eval(t) - q).norm()).1,
     }
 }
 

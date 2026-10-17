@@ -674,7 +674,7 @@ which is what actually moves the number.
 | ray_walk.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_advance | a straddling chord's crossing advance along the ray: a 2×2 determinant (m²) over the straddle height (m) | m | OK (new in TRIM-3) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_containment | per-axis extent margin between two solids' vertex hulls (coordinate differences — metres); clearance = any definitely negative; anything else sends the pair to the material test, which decides through `point_in_solid`'s own predicates (the invariant the clear rests on is stated at `census.rs` arm 2) | m | OK (new in the union fix) |
-| census/curved.rs (FUSE curved join) | pm_census_ve_curved_gap / pm_census_ve_curved_span / pm_census_ve_curved_side / pm_census_ve_curved_end / pm_census_curved_speed_floor / pm_census_curved_speed_hi | a point's distance from its polished foot on a carrier of any kind (`Margin::norm3`); its parameter's distance from each span end, and the span's own length, metered by the carrier's least speed (`Margin::metered`, `carrier_speed::speed_range`), and the span's reach by its greatest (`Margin::metered_sup`); where the end's distance decides zero or in its band, the same distance metered by the greatest speed (`Margin::metered_sup`) for the side, and the point's distance from the end's point | m | OK |
+| census/curved.rs (FUSE curved join) | pm_census_curved_speed_floor / pm_census_curved_speed_hi | the span's own length metered by the carrier's least speed (`Margin::metered`, `carrier_speed::speed_range`), and its reach by its greatest (`Margin::metered_sup`); a point against the span is `geom_brep::curve_pair::Span::contact`'s rows (`curve_pair_span_*`) | m | OK |
 | census/curved.rs (FUSE curved join) | pm_census_ve_curved_clear / pm_census_ve_curved_piece | the foot search's bisection (`geom_core::bisect`): a piece's middle point's distance from a point less the piece's reach (half its span metered by the carrier's greatest speed, `Margin::metered_sup`), and a piece's reach alone, the piece stopped when it decides negative or zero (`stops`); two edges' meetings are `geom_brep::curve_pair::meet`'s rows | m | OK |
 | census.rs (FUSE pass 2′) | pm_census_ve_curved_sweep_end | the vertex-on-curved-edge sweep's skip of a pair pass 1 owns: a vertex's distance from each end of the edge (`Margin::norm3`); only a definite Positive or Negative reads on, a Zero or an in-band reading leaves the pair to pass 1. Its walk shares the curved lane's own rows (`pm_census_ve_curved_clear` / `pm_census_ve_curved_piece`, `census::curved::near_pieces`) | m | OK (new) |
 | census/curved.rs (FUSE curved join) | pm_census_curved_polish_step | a Gauss–Newton step's length in metres against its `16·slack` bound, decided on the exact-order band (`splitting::order::exact_band`): a heuristic's step kept or dropped, no verdict on geometry; a poison (singular) step escalates and is dropped | m | OK (exact band) |
@@ -1090,6 +1090,13 @@ Flagged, NOT fixed here (dispositions):
   at margin 0 and never a rule sample, so no K claim moves; what moves
   is the per-predicate attribution of 1,054 rows, now under their own
   name.
+
+  **Retired (2026-10-16, `expr-non-finite-asks-value-times-zero`).**
+  `value · 0` reads `[0, 0]` for an unbounded enclosure (`[MAX, ∞]`,
+  `[0, ∞]`, `[−∞, ∞]`), so the check passed an expression whose value
+  ran to infinity. `refuse_non_finite` now asks `Real::is_bounded`,
+  which is not a band decision, so this site decides nothing and
+  records no `expr_non_finite` K sample.
 
 - **F19** (added by TRIM-3, the chart-boundary outside test)
   `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the

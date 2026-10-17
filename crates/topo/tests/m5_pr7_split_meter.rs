@@ -59,6 +59,7 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         p0,
         p1,
         |_| None,
+        1.0,
         Band::linear(Tol::witness()).unwrap(),
     )
     .expect_err("conventional-description Nurbs carriers do not certify");

@@ -127,6 +127,11 @@ fn lying_ray() -> Option<[f64; 3]> {
     Some(lying(0.0)[2])
 }
 
+/// `base` mirrored through the top.
+fn below_the_top(base: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    base.map(|[x, y, z]| [x, y, -z])
+}
+
 /// The arch: a pyramid standing on [`MEET`].
 fn arch() -> [[f64; 3]; 3] {
     corners(60.0, 0.5, 0.4)
@@ -158,9 +163,8 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// Where `ray` names the far end of the lying pyramid's ray along the
 /// top (relative to [`MEET`]), that ray's contacts may refuse too: its
 /// corner on the top and the ray on it, the operand's own, likewise not
-/// carried; and an edge of the other operand along the ray, whose
-/// overlap with it the result's record does not carry
-/// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
+/// carried. The result's record carries an edge of the other
+/// operand's along the ray.
 /// Where `glued` names the corners, in order round it, of a rectangle in
 /// which one operand's own pieces touch, glued face to face, their own
 /// contacts there may refuse too: coincident corners, and edges
@@ -240,7 +244,6 @@ fn three_prime(
                 }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
-                CensusContact::EdgeEdgeOverlap { a, b } => on_ray(a) && on_ray(b),
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
@@ -629,6 +632,8 @@ struct Scene {
     along: AtRestBody<f64>,
     lying: AtRestBody<f64>,
     along_ray: Vec<(&'static str, AtRestBody<f64>)>,
+    void_lying: AtRestBody<f64>,
+    along_void_ray: Vec<(String, AtRestBody<f64>)>,
     flush: AtRestBody<f64>,
     on_lying: AtRestBody<f64>,
     dart: AtRestBody<f64>,
@@ -750,6 +755,21 @@ impl Scene {
             along_ray: along_lying_ray()
                 .into_iter()
                 .map(|(label, base)| (label, tet(base, pose)))
+                .collect(),
+            // The lying scene mirrored through the top: a void below it
+            // whose ray lies on it, and the same partners mirrored.
+            void_lying: built(
+                "the plate less a void lying under the top",
+                subtract(&plate, &tet(below_the_top(lying(0.0)), pose), t()),
+            ),
+            along_void_ray: along_lying_ray()
+                .into_iter()
+                .map(|(label, base)| {
+                    (
+                        format!("{label}, mirrored into the void"),
+                        tet(below_the_top(base), pose),
+                    )
+                })
                 .collect(),
             flush: tet(on_the_lying_faces()[0], pose),
             on_lying: tet(on_the_lying_faces()[1], pose),
@@ -893,7 +913,10 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// the face builds sound in every op** (`vtxfac::partner_side`): the
 /// lying pyramid's ray along the top is an edge of its own on the top,
 /// and pyramids under it, on it beside the lying one, around it, inside
-/// it and continuing its face across it each pair with its apex. A
+/// it and continuing its face across it each pair with its apex; and
+/// the scene mirrored through the top, a void below it whose ray lies
+/// on it, which the edge-edge event reads under the top and in the
+/// void's complement at once (`recl::HeldFace`). A
 /// pyramid with a face flush on the top across the ray, and one with a
 /// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
 /// is not read beside a coincidence of the touch's or the pair's
@@ -904,6 +927,9 @@ fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() 
     let s = Scene::at(pose);
     for (label, x) in &s.along_ray {
         builds_along(label, x, &s.lying, pose, false, lying_ray());
+    }
+    for (label, x) in &s.along_void_ray {
+        builds_along(label, x, &s.void_lying, pose, false, lying_ray());
     }
     refuses_beside_the_ray(
         "flush on the top",
@@ -1317,6 +1343,9 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         }
         for (label, x) in &s.along_ray {
             held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
+        }
+        for (label, x) in &s.along_void_ray {
+            held += builds_along(label, x, &s.void_lying, &pose, false, lying_ray());
         }
         refuses_beside_the_ray(
             "flush on the top",

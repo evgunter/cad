@@ -5196,6 +5196,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
         self.value.point_value()
     }
 
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
     /// A constant only when this value's node is the literal of its
     /// value ([`SymNode::literal`], recomputed by its content hash, so
     /// nothing is interned and no session is read): any other node, a

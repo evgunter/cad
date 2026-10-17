@@ -738,6 +738,12 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                             [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
                             &carrier,
                             (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
                             declared,
                             band,
                         )
@@ -748,6 +754,12 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                             [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
                             &carrier,
                             (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
                             band,
                         )
                     },

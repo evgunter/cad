@@ -1018,14 +1018,14 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge)?;
+    // The edge's own extent levers what is read ALONG the edge: the
+    // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
+    // pair's co-ruling.
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
-    // Predicate 5 first at the link level: the arm's side depends on
-    // the convexity, so the sign is established before any geometry.
-    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -1034,6 +1034,18 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
         .clone();
+    // Predicate 5 first at the link level: the arm's side depends on
+    // the convexity, so the sign is established before any geometry.
+    // The convexity is the wedge between the edge's two faces, levered
+    // as every reader of that wedge levers it: the faces' extent
+    // (`topo::wedge_reach`) folded with their curvature arms.
+    let wedge_arm = geom_brep::folded_lever_arm(
+        &sa,
+        &sb,
+        p,
+        topo::wedge_reach(body, [face_a, face_b], &carrier, (t0, t1)),
+    );
+    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, wedge_arm, edge, band)?;
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
     // radial, so `sense` says on which side of that sphere the material

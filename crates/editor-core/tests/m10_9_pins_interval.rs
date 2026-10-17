@@ -90,6 +90,11 @@ pub(crate) struct Study {
 /// the pad holds). `registered` and the verdicts do not move, and an
 /// untoleranced variable binds as its nominal (VR8).
 ///
+/// `expr-non-finite-asks-value-times-zero`: the final non-finite check
+/// asks boundedness and decides nothing, so its theorems leave every
+/// `symbolic` count (plate −45, annulus −27, link −35, bracket −61,
+/// pad −61). Numeric, frozen, registered and the verdicts do not move.
+///
 /// PCERT unit B1 (C4: a row is its image placed over the edge's span in
 /// the chart's principal window) reads a cylinder's meridian azimuth only
 /// on a meridian, so a rim circle centred on the axis no longer takes the
@@ -123,7 +128,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [984, 984, 984],
+            symbolic: [987, 987, 987],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -134,7 +139,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [502, 502, 502],
+            symbolic: [523, 523, 523],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -154,8 +159,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((751, 740), Some("pcurve_envelope"))),
-            symbolic: [798, 798, 798],
+            without_the_registry: Some(((766, 780), Some("pcurve_envelope"))),
+            symbolic: [811, 811, 811],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -169,13 +174,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1311, 1099), None)),
+            without_the_registry: Some(((1310, 1149), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1368, 1368, 1368],
+            symbolic: [1367, 1367, 1367],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -186,11 +191,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1212, 1388), None)),
+            without_the_registry: Some(((1223, 1448), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1276, 1276, 1276],
+            symbolic: [1287, 1287, 1287],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -595,9 +600,26 @@ fn m10_9_what_the_registry_buys() {
 /// holds. The pcurve envelope's orthonormal chart squaring its frame by
 /// cross products (`geom::square_frame`) builds its frame terms in
 /// another form: frozen 3453 → 3426, every decision column held.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord reads each certified
+/// edge's two faces' boundary vertices: frozen 3426 → 3972, every
+/// decision column held, and both dials still read one receipt.
+///
 /// Placing each row in the chart's principal window (PCERT B1): the
 /// frame reads on rims centred on the axis gone and two numeric marks
 /// per placed azimuth, (1372, 1284, 3426) → (1348, 1384, 3444), at both
+/// dials alike: `symbolic` −24 (the frame reads), `numeric` +100 (fifty
+/// placements' two marks), and `frozen` +18, the marks' contradiction
+/// checks whose forms froze; the frame reads were proved, so froze
+/// nothing. With the wedge levered at its faces' extent as well, the two
+/// moves add: (1348, 1384, 3990), the wedge's +546 frozen on top. The
+/// placement's azimuth levered at the carrier's farthest reach from the
+/// axis at the span's ends and midpoint (PR 5225's one lever rule), not
+/// at one direction's length, builds its marks' forms from three points:
+/// frozen 3990 → 4098, every decision column held. Main's final
+/// non-finite check asking boundedness takes 61 theorems out of
+/// `symbolic`: (1287, 1384, 4098).
+///
 /// dials alike. A harmonic row's windings stored as structure (PCERT
 /// B2a): the decisions that read them gone, (1348, 1384, 3444) →
 /// (1276, 1324, 3444), at both dials alike.
@@ -634,7 +656,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1276, 1324, 3444), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1287, 1384, 4098), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

@@ -1812,48 +1812,120 @@ impl<T: Real> ValidatedProfile<T> {
     }
 }
 
+/// Where a canonical form holds a value with no single point (poison,
+/// or an enclosure wider than a point): [`ValidatedProfile::value_channel`]'s
+/// refusal. Indices are the canonical form's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueNotAPoint {
+    /// A component of the sketch plane's placement.
+    Plane,
+    /// Vertex `vertex` of canonical loop `loop_index`.
+    Vertex {
+        /// The canonical loop.
+        loop_index: usize,
+        /// The vertex.
+        vertex: usize,
+    },
+    /// Segment `segment` of canonical loop `loop_index`: an endpoint,
+    /// or an arc's carrier or sweep.
+    Segment {
+        /// The canonical loop.
+        loop_index: usize,
+        /// The segment.
+        segment: usize,
+    },
+}
+
+impl fmt::Display for ValueNotAPoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let what = match self {
+            Self::Plane => "the sketch plane".to_owned(),
+            Self::Vertex { loop_index, vertex } => format!("vertex {vertex} of loop {loop_index}"),
+            Self::Segment {
+                loop_index,
+                segment,
+            } => {
+                format!("segment {segment} of loop {loop_index}")
+            }
+        };
+        write!(
+            f,
+            "{what} of the profile holds a value with no single point, so the profile has no \
+             f64 value channel"
+        )
+    }
+}
+
+impl std::error::Error for ValueNotAPoint {}
+
 impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// **This canonical form's value channel**: every stored scalar —
     /// the plane, each vertex, each segment's endpoints, each arc's
-    /// carrier and sweep — read through
-    /// [`SpanLocate::value_channel`](geom_core::spline::SpanLocate::value_channel)
-    /// (its one `f64`, NaN where it has none), and everything else —
-    /// roles, the segment classifications and turns, the joint sets —
-    /// carried. The decisions were made along this channel (C6), so
-    /// they hold of it as they hold of the form; a value with no point
-    /// comes back NaN, for the reader to refuse.
-    #[must_use]
-    pub fn value_channel(&self) -> ValidatedProfile<f64> {
-        let v = geom_core::spline::SpanLocate::value_channel;
-        ValidatedProfile {
-            plane: self.plane.map(v),
-            loops: self
-                .loops
+    /// carrier and sweep — read as its one `f64`
+    /// ([`SpanLocate::point_value`](geom_core::spline::SpanLocate::point_value)),
+    /// and everything else — roles, the segment classifications and
+    /// turns, the joint sets — carried. The decisions were made along
+    /// this channel (C6), so they hold of it as they hold of the form.
+    ///
+    /// # Errors
+    ///
+    /// [`ValueNotAPoint`] naming the first value with no single point
+    /// (poison, or an enclosure wider than a point): a canonical form's
+    /// values are validated ones, so there is no `f64` form to mint.
+    pub fn value_channel(&self) -> Result<ValidatedProfile<f64>, ValueNotAPoint> {
+        let point2 =
+            |p: Point2<T>, site: ValueNotAPoint| match (p.x.point_value(), p.y.point_value()) {
+                (Some(x), Some(y)) => Ok(Point2::new(x, y)),
+                _ => Err(site),
+            };
+        let plane = self
+            .plane
+            .try_map(|x| x.point_value().ok_or(ValueNotAPoint::Plane))?;
+        let mut loops = Vec::with_capacity(self.loops.len());
+        for (loop_index, lp) in self.loops.iter().enumerate() {
+            let vertices = lp
+                .vertices
                 .iter()
-                .map(|lp| ValidatedLoop {
-                    vertices: lp.vertices.iter().map(|p| p.map(v)).collect(),
-                    segments: lp
-                        .segments
-                        .iter()
-                        .map(|s| ValidatedSegment {
-                            start: s.start.map(v),
-                            end: s.end.map(v),
-                            kind: match s.kind {
-                                SegmentKind::Line => SegmentKind::Line,
-                                SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
-                                    arc: arc.map(v),
-                                    turn,
-                                },
+                .enumerate()
+                .map(|(vertex, p)| point2(*p, ValueNotAPoint::Vertex { loop_index, vertex }))
+                .collect::<Result<Vec<_>, _>>()?;
+            let segments = lp
+                .segments
+                .iter()
+                .enumerate()
+                .map(|(segment, s)| {
+                    let site = ValueNotAPoint::Segment {
+                        loop_index,
+                        segment,
+                    };
+                    let kind = match s.kind {
+                        SegmentKind::Line => SegmentKind::Line,
+                        SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                            arc: Arc2 {
+                                centre: point2(arc.centre, site)?,
+                                radius: arc.radius.point_value().ok_or(site)?,
+                                sweep: arc.sweep.point_value().ok_or(site)?,
                             },
-                        })
-                        .collect(),
-                    tangent_joints: lp.tangent_joints.clone(),
-                    cusp_joints: lp.cusp_joints.clone(),
-                    decided_joints: lp.decided_joints.clone(),
-                    role: lp.role,
+                            turn,
+                        },
+                    };
+                    Ok(ValidatedSegment {
+                        start: point2(s.start, site)?,
+                        end: point2(s.end, site)?,
+                        kind,
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, ValueNotAPoint>>()?;
+            loops.push(ValidatedLoop {
+                vertices,
+                segments,
+                tangent_joints: lp.tangent_joints.clone(),
+                cusp_joints: lp.cusp_joints.clone(),
+                decided_joints: lp.decided_joints.clone(),
+                role: lp.role,
+            });
         }
+        Ok(ValidatedProfile { plane, loops })
     }
 }
 
