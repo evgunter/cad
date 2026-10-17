@@ -177,11 +177,7 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
 /// on is proven.
-fn carrier_verdict(
-    ev: &Evaluation<Lane>,
-    row: &NamedCoincidence,
-    band: Band,
-) -> bool {
+fn carrier_verdict(ev: &Evaluation<Lane>, row: &NamedCoincidence, band: Band) -> bool {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,

@@ -4685,10 +4685,9 @@ pub fn inline(
             .map_err(|missing| InlineError::stranded(&part, name, missing))?;
         // The body read lands on its spliced local read, as a name's
         // carried reads do.
-        let body = read_map
-            .get(&at.at)
-            .copied()
-            .ok_or_else(|| InlineError::stranded(&part, name, RemapError::Unmapped(Unmapped::Read(at.at))))?;
+        let body = read_map.get(&at.at).copied().ok_or_else(|| {
+            InlineError::stranded(&part, name, RemapError::Unmapped(Unmapped::Read(at.at)))
+        })?;
         for attr in record.attrs.values() {
             step(
                 &mut current,
