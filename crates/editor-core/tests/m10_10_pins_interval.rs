@@ -343,9 +343,10 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
     assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0]));
-    // The branches themselves are definite sign decisions read off the
-    // value: 32 for check 4's fidelity, 34 for the walk, which decides
-    // each loop's closure joint as it does every other.
-    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 32]));
+    // The walk's branches are definite sign decisions read off the
+    // value, 34, deciding each loop's closure joint as it does every
+    // other. Check 4 decides no whole period (PCERT B2b: a row is its
+    // placed image), so fidelity's 32 branch decisions are gone.
+    assert_eq!(split.get("pcurve_fidelity_branch"), None);
     assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 34]));
 }

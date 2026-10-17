@@ -581,6 +581,13 @@ fn sym_9_what_each_retry_recovers() {
 /// falls because the decisions are gone, not because a retry took
 /// them.
 ///
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's numeric
+/// branch decisions are gone, with the ladder and without it alike. The
+/// plate's `numeric` 686 → 654, the annulus 431 → 399, the boss
+/// 398 → 374, the bracket 1042 → 1002, the link 691 → 659; the pad's
+/// leaf 1324 → 1276 bare and 1320 → 1272 with the ladder. `symbolic`
+/// and `retried` hold.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -590,11 +597,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [939, 686], [939, 686], 0),
-        ("r1_annulus", [475, 431], [475, 431], 0),
-        ("r1_segment_boss", [468, 398], [468, 398], 0),
-        ("r2_filleted_bracket", [1307, 1042], [1307, 1042], 0),
-        ("r2_link", [763, 691], [763, 691], 0),
+        ("two_hole_plate", [939, 654], [939, 654], 0),
+        ("r1_annulus", [475, 399], [475, 399], 0),
+        ("r1_segment_boss", [468, 374], [468, 374], 0),
+        ("r2_filleted_bracket", [1307, 1002], [1307, 1002], 0),
+        ("r2_link", [763, 659], [763, 659], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -709,7 +716,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1219, 1320, 4],
+        [1219, 1272, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -721,7 +728,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1215, 1324, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1215, 1276, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

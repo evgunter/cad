@@ -113,7 +113,11 @@ pub(crate) struct Study {
 /// 811 → 763, bracket 1367 → 1307, pad 1287 → 1215; with the door shut
 /// the link (766, 780) → (718, 740), still refusing at
 /// `pcurve_envelope`, the bracket (1310, 1149) → (1250, 1099) and the pad
-/// (1223, 1448) → (1151, 1388). No registrant moved and no verdict
+/// (1223, 1448) → (1151, 1388). Check 4 deciding no whole period (PCERT
+/// B2b) takes fidelity's numeric branch decisions out of each door-shut
+/// replay: the link (718, 740) → (718, 708), still refusing at
+/// `pcurve_envelope`, the bracket (1250, 1099) → (1250, 1059) and the pad
+/// (1151, 1388) → (1151, 1340). No registrant moved and no verdict
 /// moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
@@ -159,7 +163,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((718, 740), Some("pcurve_envelope"))),
+            without_the_registry: Some(((718, 708), Some("pcurve_envelope"))),
             symbolic: [763, 763, 763],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -174,7 +178,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1250, 1099), None)),
+            without_the_registry: Some(((1250, 1059), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -191,7 +195,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1151, 1388), None)),
+            without_the_registry: Some(((1151, 1340), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -622,7 +626,8 @@ fn m10_9_what_the_registry_buys() {
 ///
 /// A harmonic row's windings stored as structure (PCERT B2a): the
 /// decisions that read them gone, (1287, 1384, 4098) → (1215, 1324,
-/// 4098), at both dials alike.
+/// 4098), at both dials alike; check 4 deciding no whole period (PCERT
+/// B2b), fidelity's 48 numeric branch decisions gone, (1215, 1276, 4098).
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -656,7 +661,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1215, 1324, 4098), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1215, 1276, 4098), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

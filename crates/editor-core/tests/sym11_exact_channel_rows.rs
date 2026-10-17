@@ -129,12 +129,17 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `[291, 275, 542]`, bracket `[1372, 1096, 2110]` → `[1312, 1046,
 /// 2110]`, pad `[1248, 1211, 3558]` → `[1212, 1181, 3558]`. The decisions
 /// are gone, not moved; no dispute fired, and `frozen` holds.
+///
+/// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
+/// branch decisions out: plate `numeric` 686 → 654, annulus 431 → 399,
+/// link 275 → 259, bracket 1046 → 1006, pad 1181 → 1157; `symbolic` and
+/// `frozen` hold, and no dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [939, 686, 729]),
-    ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [291, 275, 542]),
-    ("r2_filleted_bracket", [1312, 1046, 2110]),
-    ("r2_rounded_pad", [1212, 1181, 3558]),
+    ("two_hole_plate", [939, 654, 729]),
+    ("r1_annulus", [475, 399, 940]),
+    ("r2_link", [291, 259, 542]),
+    ("r2_filleted_bracket", [1312, 1006, 2110]),
+    ("r2_rounded_pad", [1212, 1157, 3558]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
