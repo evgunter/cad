@@ -233,7 +233,10 @@ impl OperandSlot {
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
-            Self::Face | Self::Side { .. } => SlotKind::Is(VarKind::Face),
+            Self::Face => SlotKind::Is(VarKind::Face),
+            // A mate's pose, of whichever kind; the door asks that its
+            // two sides agree (`MateFault::KindsDiffer`).
+            Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             // A placement copies a body or a family whole.
             Self::Input | Self::Shape(_) => SlotKind::Placeable,

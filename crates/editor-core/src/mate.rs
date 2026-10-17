@@ -41,23 +41,20 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
-use crate::placement::Placement;
-use geom_core::Tol;
-use geom_core::linalg::frame::FrameError;
-use geom_core::linalg::{Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate, Margin};
 
 pub mod coset;
 pub mod member;
+pub mod pin;
 pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
+pub use pin::{PinRefusal, pin_at};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
-pub(crate) use solve::solve_with_env;
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
@@ -409,6 +406,28 @@ impl<S: crate::Slot> Mate<S> {
     }
 }
 
+/// **The two faces a mate rests**, when it equates two faces' planes:
+/// each side a face read as its plane, through any number of plain
+/// flips (a rest's faces face each other) — the face–face contact a
+/// `Rest` declares (A5), `on`'s face first. `None` for a mate of another
+/// kind, for a plane constructed off a face (a standoff), and for a
+/// world read: such a mate places, and declares no contact.
+pub(crate) fn rested_faces<P>(
+    doc: &crate::doc::Doc<P>,
+    mate: &Mate,
+) -> Option<(crate::VarId, crate::VarId)> {
+    let face = |mut var: crate::VarId| loop {
+        match doc.var(var).map(crate::Var::def)? {
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => return Some(*face),
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
+                pose: crate::pose::RoleRead { read, role: None },
+            }) => var = *read,
+            _ => return None,
+        }
+    };
+    Some((face(mate.on)?, face(*mate.to.pose()?)?))
+}
+
 /// **A bundle's slots**: each world read's scalars, addressed by the
 /// constraint and the scalar's place in the read
 /// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]). A trait over the bundle so the
@@ -603,11 +622,6 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
     }
 }
 
-/// The recourse for a face side read on a copy that is not an instance's
-/// (INTENT stage 3 B's named interim, B4).
-const NOT_AN_INSTANCE_RECOURSE: &str =
-    "read the face on an instance's copy, or pin this copy by a world pin";
-
 /// Why a lever could not be formed for a mate: one of its parts' reach
 /// ([`MateReach::reach`]) is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
@@ -668,14 +682,9 @@ impl crate::spoken::Say for LeverRefusal {
             Self::Reach {
                 instance, refusal, ..
             } => write!(f, "{}'s part {refusal}", by.node_as(*instance, "instance")),
-            Self::NotAnInstance { node } => write!(
-                f,
-                "{} is not an instance's copy, so it has no part whose extent could \
-                 lever a verdict: until a constraint relates poses, a face side reads \
-                 only an instance's copy. {}",
-                by.node(*node),
-                crate::sentence::Recourse(NOT_AN_INSTANCE_RECOURSE)
-            ),
+            Self::Shape { shape, refusal } => {
+                write!(f, "the body {} copies {refusal}", by.node(*shape))
+            }
             Self::OutOfRange { parts, datum } => {
                 // A half that is not finite has no metre figure to print.
                 let length = |f: &mut core::fmt::Formatter<'_>, x: f64, of: &str| {
@@ -707,109 +716,6 @@ impl crate::spoken::Say for LeverRefusal {
 
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for LeverRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
-    }
-}
-
-/// Why a face base could not be resolved to a pose: what the
-/// mated part's own evaluation answered about the head's face
-/// ([`MateReach::face_pose`]), named against the instance the solve
-/// was reading, the part it stands on and the face the head names in
-/// it — the subject a [`LeverRefusal`] adds to a reach refusal, and a
-/// face.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FaceRefusal {
-    /// **The reach's own refusal of the face's pose**, named against
-    /// the instance, its part and the face the head names in that
-    /// part: the reach's vocabulary has its one home in
-    /// [`FacePoseRefusal`].
-    Reach {
-        /// The instance.
-        instance: RecipeNodeId,
-        /// Its part.
-        part: crate::ident::DocRef,
-        /// The face the head names, in the part's own spelling
-        /// ([`head_face`]).
-        face: crate::FaceName,
-        /// Why the face's pose is not in hand.
-        refusal: FacePoseRefusal,
-    },
-    /// The member stands on a node that is not a live instantiate
-    /// node, so there is no part whose face could be asked — the same
-    /// fact as [`LeverRefusal::NotAnInstance`], met by the reader of a
-    /// frame, and no door reaches it either.
-    NotAnInstance {
-        /// The node.
-        node: RecipeNodeId,
-    },
-    /// **The head names no face of its part**: below the member walk's
-    /// pattern qualifiers it is not one part face wrapped at the
-    /// member's instance ([`head_face`] answers `None`), so the part
-    /// has no row to read. A head an instance mints is always of that
-    /// shape; a document reaches this only written some other way.
-    NoPartFace {
-        /// The member's instance.
-        instance: RecipeNodeId,
-        /// The head, as the mate holds it.
-        head: crate::FaceName,
-    },
-}
-
-impl FaceRefusal {
-    /// The face the refusal is about, where it names one: the part's
-    /// face the reach refused, or the head that names none.
-    pub fn face(&self) -> Option<&crate::FaceName> {
-        match self {
-            Self::Reach { face, .. } => Some(face),
-            Self::NoPartFace { head, .. } => Some(head),
-            Self::NotAnInstance { .. } => None,
-        }
-    }
-}
-
-// The face is the part's name and the reach's refusal the part's, both
-// numbered in the part, so each is said by its own `Display`; the
-// instance and the node are this document's.
-impl crate::spoken::Say for FaceRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        match self {
-            Self::Reach {
-                instance,
-                face,
-                refusal,
-                ..
-            } => write!(
-                f,
-                "{}'s part answers none for {face}: {refusal}",
-                by.node_as(*instance, "instance")
-            ),
-            Self::NotAnInstance { node } => write!(
-                f,
-                "{} is not an instance's copy, so it has no part whose face could be \
-                 read: until a constraint relates poses, a face side reads only an \
-                 instance's copy. {}",
-                by.node(*node),
-                crate::sentence::Recourse(NOT_AN_INSTANCE_RECOURSE)
-            ),
-            Self::NoPartFace { instance, head } => write!(
-                f,
-                "the {head} is not a face of {}'s part under that instance's own \
-                 qualifier, so its part has no face to take the frame from. Recourse: delete \
-                 the mate, and insert it again on a face the instance places, or with authored \
-                 vectors",
-                by.node_as(*instance, "instance")
-            ),
-        }
-    }
-}
-
-/// The refusal where no document is at hand: each node by its tag.
-impl core::fmt::Display for FaceRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }

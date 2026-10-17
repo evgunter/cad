@@ -14,17 +14,9 @@
 //! which is arithmetic, not admission — does evaluate, in the solve's
 //! one environment at its scalar ([`super::solve::solve_document`]).
 
-use geom_core::Decide;
-use geom_core::linalg::{Affine3, Point3};
-use geom_core::predicate::Band;
-
-use super::{MateFault, MateSide, PlacerRow};
 use crate::doc::Doc;
-use crate::eval::slots::{SlotValues, eval_slots};
-use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
-use crate::expr::VarEnv;
 use crate::names::{RoleSeg, VerbatimEdge};
-use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{Node, PartSelect, RecipeNodeId};
 
 /// **The member a mate reference resolves to** (A11's member
 /// vocabulary): a live `InstantiatePart`, reached from the
@@ -127,27 +119,10 @@ enum Placer {
         node: RecipeNodeId,
         /// The copy index the NAME says.
         i: u32,
-        /// The `Node::Part` the walk reached this pattern through,
-        /// when one stands above it with nothing but transforms
-        /// between — the node whose own index expression must agree
-        /// with the flat body the name says ([`check_reference`]).
-        ///
-        /// A `Part` carries no map and is no placer of its own; it is
-        /// recorded HERE because the only thing it can disagree with
-        /// is the copy this pattern's name segment names, and a check
-        /// wants both halves in one place.
-        part: Option<RecipeNodeId>,
     },
     /// A transform: the one production node that moves a body and
     /// mints no name.
     Transform(RecipeNodeId),
-}
-
-impl Placer {
-    /// The recipe node this placer is — what a refusal names.
-    fn node(self) -> RecipeNodeId {
-        Placing::from(self).node()
-    }
 }
 
 /// The member's view of a placer: which copy or which transform, with
@@ -155,7 +130,7 @@ impl Placer {
 impl From<Placer> for Placing {
     fn from(p: Placer) -> Self {
         match p {
-            Placer::Pattern { node, i, part: _ } => Self::Copy {
+            Placer::Pattern { node, i } => Self::Copy {
                 pattern: node,
                 index: i,
             },
@@ -177,9 +152,6 @@ impl From<Placer> for Placing {
 #[derive(Debug, Clone)]
 pub(super) struct Walk {
     pub(super) member: Member,
-    chain: Vec<Placer>,
-    /// The reference's own name, as the side's selection holds it.
-    pub(super) head: crate::FaceName,
     /// The name inside every `Instance(i)` qualifier the walk took
     /// off, headed at the member's instance: a copy's MASTER's name.
     placed: crate::names::StableName,
@@ -189,11 +161,8 @@ impl Walk {
     /// **The face of the member's PART the reference names** — the
     /// one `InPart` the member's instance puts round its part's names,
     /// taken off the name the walk reached there
-    /// ([`crate::FaceName::part_local`]). What a
-    /// face-based side ([`super::FrameBase::Face`]) reads its frame off, in the
-    /// part's own coordinates; a copy reads its master's face, since
-    /// the copy map between them is the walk's static offset, applied
-    /// by the solve.
+    /// ([`crate::FaceName::part_local`]), in the part's own
+    /// coordinates; a copy reads its master's face.
     ///
     /// `None` when the name at the instance is not one `InPart` round
     /// a face: a name an instance mints always is, so only a document
@@ -221,11 +190,6 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     let mut at = r.at;
     let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
-    // The `Part` the walk last passed with nothing pose-bearing since
-    // — the one standing DIRECTLY above whatever node comes next, and
-    // so the only one whose index expression a pattern's name segment
-    // can be checked against.
-    let mut part: Option<RecipeNodeId> = None;
     loop {
         if at != name.node {
             // Not the head yet: only a name-carrying edge
@@ -255,9 +219,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // placer, no name segment, and — because the
                     // index it carries is an EXPRESSION — nothing
                     // evaluated. The name is the authority on which
-                    // copy; this node is checked against it per
-                    // reference ([`check_reference`]).
-                    part = Some(at);
+                    // copy.
                     at = doc.operation_of(of).ok_or(at)?;
                 }
                 Some(VerbatimEdge::Intact) | None => return Err(at),
@@ -273,8 +235,6 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                         instance: at,
                         chain: chain.iter().copied().map(Placing::from).collect(),
                     },
-                    chain,
-                    head: r.name.clone(),
                     placed: name.clone(),
                 });
             }
@@ -286,11 +246,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 let Some(RoleSeg::Instance { i, of }) = name.path.first() else {
                     return Err(at);
                 };
-                chain.push(Placer::Pattern {
-                    node: at,
-                    i: *i,
-                    part: part.take(),
-                });
+                chain.push(Placer::Pattern { node: at, i: *i });
                 name = of;
                 at = doc.operation_of(*input).ok_or(at)?;
             }
@@ -306,7 +262,6 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 if !members.reads().any(|m| m.read == *read) {
                     return Err(at);
                 }
-                part = None;
                 name = of;
                 at = doc.operation_of(*read).ok_or(at)?;
             }
@@ -325,8 +280,6 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                         instance: at,
                         chain: chain.iter().copied().map(Placing::from).collect(),
                     },
-                    chain,
-                    head: r.name.clone(),
                     placed: name.clone(),
                 });
             }
@@ -395,9 +348,8 @@ pub fn member_reading<P>(
 
 /// **The face of the member's PART a side names** — the side walked
 /// to its member, then the instance's `InPart` taken off the name the
-/// walk reached there ([`crate::FaceName::part_local`]). What a
-/// face-based side ([`super::FrameBase::Face`]) reads its frame off, in the
-/// part's own coordinates; a copy reads its MASTER's face.
+/// walk reached there ([`crate::FaceName::part_local`]), in the part's
+/// own coordinates; a copy reads its MASTER's face.
 ///
 /// `None` when the side is outside A11's member vocabulary
 /// ([`member_of`] answers `None`), or when the name at the member's
@@ -405,12 +357,6 @@ pub fn member_reading<P>(
 /// instance mints always is.
 pub fn head_face<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate::FaceName> {
     walk(doc, head).ok()?.part_face()
-}
-
-/// **[`member_of`] of a mate side the document holds**: the side's head
-/// ([`head_of`]) walked to its member.
-pub(crate) fn member_of_side<P>(doc: &Doc<P>, side: crate::VarId) -> Option<Member> {
-    member_of(doc, &head_of(doc, side)?)
 }
 
 /// **A mate side's head, read off its selection** (D10): the node whose
@@ -434,569 +380,6 @@ pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::Sited
     ))
 }
 
-/// **[`member_of`] for a MATE's side**: the walk, with the mate and
-/// side that attribute its refusal (N5).
-///
-/// The one door the solve reads a side through — the member for the
-/// pair keying and the partitions, the chain for the offset. A second
-/// door answering only the member would be a second name for one
-/// walk, and the caller that wanted both would take whichever it
-/// remembered.
-///
-/// # Errors
-///
-/// [`MateFault::SideUnresolved`] where the side reads no head
-/// ([`head_of`]); [`MateFault::DanglingHead`] naming the node the WALK
-/// STOPPED AT, the first node below the side's body that no member
-/// stands on. Naming the side's own head instead would attribute the
-/// refusal to a node that is often perfectly live and perfectly fine.
-pub(super) fn walk_of<P>(
-    doc: &Doc<P>,
-    mate: crate::mate::MateRef,
-    side: MateSide,
-    read: crate::VarId,
-) -> Result<Walk, MateFault> {
-    let head = head_of(doc, read).ok_or(MateFault::SideUnresolved { mate, side, read })?;
-    walk(doc, &head).map_err(|head| MateFault::DanglingHead { mate, side, head })
-}
-
-/// **The per-reference checks that need a number** — run once per
-/// reference of every live mate, at the site the solve walks it.
-///
-/// The walk is structural and evaluates nothing, so the member never
-/// depends on a slot value. Two questions about a
-/// reference are not structural, and both compare the NAME against an
-/// evaluated count:
-///
-/// - the copy the name says must exist — its structural index against
-///   the pattern's evaluated count;
-/// - a `Part` standing above a pattern (with nothing but transforms
-///   between) says which body of that pattern's VALUE the body below
-///   it is, and the name says which copy the mate is about. The two
-///   speak in different index spaces and are compared in the `Part`'s:
-///   a pattern's value is laid out placement-major, so copy `(j, i)`
-///   of a pattern over a pattern is flat body `j·M + i`
-///   ([`crate::names::flat_body_index`], the evaluator's own layout),
-///   and the name's copy chain below the `Part` folds through every
-///   pattern level down to the next `Part` (whose value is one body)
-///   into the flat index the `Part` must select. A document where
-///   they disagree would be PLACED by the name and GATHERED by the
-///   `Part`, so the solve refuses rather than choosing.
-///
-/// **They live here, per reference, and not in the offset.** The
-/// offset is derived only from a bundle's first mate (every mate of a
-/// bundle relates one member pair) — so a check sited there runs on
-/// some references and not others, and a later mate of the bundle
-/// whose `Part` names another copy would be silently green with its
-/// body somewhere else. Every mate the solve reads gets both checks, and a
-/// reference that fails either refuses typed at that reading, exactly
-/// as a dangling head does.
-///
-/// # Errors
-///
-/// [`MateFault::DanglingHead`] at the pattern for a copy index at or
-/// beyond the count — the named copy does not exist;
-/// [`MateFault::PartSelectsAnotherCopy`] for the disagreement, naming
-/// both indices. A number this check needs that does not EXIST refuses
-/// [`MateFault::PlacerRefused`] instead, carrying the evaluation
-/// layer's own words for it, at the node whose slot it is: `Expr` for
-/// a pattern's count at the pattern, and for a `Part`'s index at the
-/// `Part`, whose expression does not evaluate in `env`;
-/// `InstanceOutOfRange` at the `Part` for an index outside the value it
-/// selects from, judged before the name is; `MissingInput`
-/// for a node the walk recorded and the document does not hold, which
-/// no door reaches.
-///
-/// The two numbers are read one at a time with `eval_count` — the
-/// call [`eval_slots`] itself makes for a structural slot — rather
-/// than through the whole-node door [`derived_offset`] uses, because
-/// asking a pattern's direction to answer "does copy 0 exist" would
-/// refuse a member whose pose does exist.
-///
-/// `env` is the solve's one environment, at whichever scalar the solve
-/// runs ([`super::solve::solve_document`] says why there is one). Only
-/// its `Count` bindings are read, and no box or seed binds a count, so
-/// in every lane they are the document's own: these two checks are
-/// decided at the nominal in every run (`ASSEMBLY.md` A11 (5)).
-pub(super) fn check_reference<P: crate::ProfilePayload, S>(
-    doc: &Doc<P>,
-    env: &VarEnv<S>,
-    mate: crate::mate::MateRef,
-    side: MateSide,
-    w: &Walk,
-) -> Result<(), MateFault> {
-    // One pattern level of the chain, outermost first: the copy the
-    // name says, its evaluated count, and the `Part` above it if any.
-    struct Level {
-        node: RecipeNodeId,
-        i: u32,
-        n: u32,
-        part: Option<RecipeNodeId>,
-    }
-    // This fault reaches the mate alone, so a placer is never poisoned
-    // by it: `States` where the placer's own evaluation raises the same
-    // refusal, `Silent` where its row would read otherwise.
-    let refused = |node: RecipeNodeId, kind: NodeErrorKind, placer_row| MateFault::PlacerRefused {
-        mate,
-        side,
-        placer: node,
-        error: NodeRefusal::from(kind),
-        placer_row,
-    };
-    let count_of = |node: RecipeNodeId, var: &crate::VarId, slot: SlotId, row| {
-        crate::expr::eval_var_count(*var, env)
-            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }, row))
-    };
-    // The copy exists: the name's index against the evaluated count.
-    let mut levels: Vec<Level> = Vec::new();
-    for placer in &w.chain {
-        let Placer::Pattern { node, i, part } = *placer else {
-            continue;
-        };
-        // No door reaches this refusal either: the walk recorded the
-        // pattern where it read it from this document.
-        let Some(Node::Pattern { count, .. }) = doc.node(node) else {
-            return Err(refused(
-                node,
-                NodeErrorKind::MissingInput { input: node },
-                PlacerRow::Silent,
-            ));
-        };
-        let n = count_of(node, count, SlotId::Count, PlacerRow::States)?;
-        if i64::from(i) >= n {
-            return Err(MateFault::DanglingHead {
-                mate,
-                side,
-                head: node,
-            });
-        }
-        // In range by the check above, so the count fits the table's
-        // row width iff the index does — refused as the evaluator
-        // refuses it, through the naming layer's one home.
-        let n = usize::try_from(n)
-            .ok()
-            .and_then(|n| crate::names::output_body(n).ok())
-            .ok_or_else(|| {
-                refused(
-                    node,
-                    NodeErrorKind::Naming(crate::names::NamingError::Emission {
-                        what: "a pattern's count exceeds the table's u32 row width",
-                    }),
-                    PlacerRow::States,
-                )
-            })?;
-        levels.push(Level { node, i, n, part });
-    }
-    // The `Part` agrees: its index against the FLAT body the name's
-    // chain names in this level's value — this level's copy folded
-    // through every level below it down to the next `Part` (whose
-    // value is one body, so nothing below it widens this level's
-    // master), by the evaluator's own layout.
-    for (t, level) in levels.iter().enumerate() {
-        let Some(part) = level.part else {
-            continue;
-        };
-        // The flat index is a row of THIS level's value, so a layout
-        // that overflows it is this level's — the pattern the `Part`
-        // selects from — and never a level below, whose own count
-        // fits. A pattern over another pattern's many bodies does not
-        // evaluate, so its row states a refusal of its own and the
-        // mate carries this one.
-        // The value's flat length is that level's arithmetic too.
-        let past_width = || {
-            refused(
-                level.node,
-                NodeErrorKind::Naming(crate::names::NamingError::Emission {
-                    what: "an output-body index exceeds the table's u32 row width",
-                }),
-                PlacerRow::Silent,
-            )
-        };
-        let mut flat = level.i;
-        let mut bodies = level.n;
-        for below in &levels[t + 1..] {
-            if below.part.is_some() {
-                break;
-            }
-            flat = crate::names::flat_body_index(flat, below.n, below.i)
-                .map_err(|e| refused(level.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
-            bodies = bodies.checked_mul(below.n).ok_or_else(past_width)?;
-        }
-        // No door reaches this refusal: the walk recorded `part` only
-        // where it read this node of this document as a `Part`
-        // selecting an instance, and the walk is of the document it
-        // hands here. It is answered rather than assumed, at the
-        // `Part`, whose node it is about.
-        let Some(Node::Part {
-            of,
-            select: PartSelect::Instance(index),
-        }) = doc.node(part)
-        else {
-            return Err(refused(
-                part,
-                NodeErrorKind::MissingInput { input: part },
-                PlacerRow::Silent,
-            ));
-        };
-        // The index is the `Part`'s own `Instance` slot, so its refusal
-        // is the `Part`'s, which the evaluation fails with the same
-        // refusal in its own right.
-        let selected = count_of(part, index, SlotId::Instance, PlacerRow::States)?;
-        // Judged against the value's flat length before the name, as the
-        // evaluation judges it: an index outside it selects no copy, and
-        // the `Part` fails on it in its own right.
-        if !(0..i64::from(bodies)).contains(&selected) {
-            // The read the index is judged against: a `Part` whose
-            // source no live operation defines refuses that, as the
-            // evaluation refuses it, rather than naming itself.
-            let Some(input) = doc.operation_of(*of) else {
-                return Err(refused(
-                    part,
-                    NodeErrorKind::UnresolvedRead {
-                        slot: crate::OperandSlot::Of,
-                        var: *of,
-                    },
-                    PlacerRow::Silent,
-                ));
-            };
-            return Err(refused(
-                part,
-                NodeErrorKind::InstanceOutOfRange {
-                    input,
-                    index: selected,
-                    count: bodies as usize,
-                },
-                PlacerRow::States,
-            ));
-        }
-        if selected != i64::from(flat) {
-            return Err(MateFault::PartSelectsAnotherCopy {
-                mate,
-                side,
-                part,
-                named: flat,
-                selected,
-            });
-        }
-    }
-    Ok(())
-}
-
-/// **The reference's derived offset**: the rigid map every
-/// pose-bearing node BETWEEN the operand and the minting instance
-/// composes onto that instance's placement, in evaluation order — the
-/// map nearest the instance applied first, so a pattern `M(i)` over a
-/// transform `T` yields `M(i) ∘ T`.
-///
-/// The two placers and where their math lives:
-///
-/// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
-///   named index — THE evaluation's own stepped rule, fed the
-///   pattern's authored slots evaluated in `env`;
-/// - a transform contributes its placement's motion — the construction
-///   `wire_transform` places the body by, fed the node's slots
-///   evaluated in `env` through the evaluation's own door.
-///
-/// A `Part` contributes nothing at all — it selects a body, it does
-/// not move one. Whether it agrees with the name, and whether the
-/// named copy exists, are [`check_reference`]'s: they are facts about
-/// a REFERENCE, and this door sees only the references of each
-/// bundle's first mate. Arithmetic here, admission and agreement
-/// there.
-///
-/// Both are document-coordinate maps and both are LEFT-composed, for
-/// the reason `wire_transform` and `wire_pattern` compose them
-/// outside the placement.
-///
-/// `None` is the identity: an empty chain, or a chain whose every
-/// placer is itself the identity (copy 0, the master, reads no operand
-/// and contributes none). Kept as absence, so a document
-/// with no transform and no pattern composes nothing and its solve
-/// stays bit-for-bit what it was.
-///
-/// The offset is STATIC: nothing here depends on any solved pose,
-/// which is how a mate through a placer can never create per-instance
-/// freedom — the placed body rides its instance wherever the solve
-/// puts it.
-///
-/// # Errors
-///
-/// [`MateFault::PlacerRefused`], carrying the evaluation layer's own
-/// typed refusal UNALTERED — a slot that does not evaluate
-/// ([`NodeErrorKind::Expr`]), a direction of zero, underflowed or
-/// non-finite length (the direction door's own `DegenerateDirection`/
-/// `UnderflowedDirection`/`NonFiniteDirection`, whose `role` word
-/// names the vector), an explicit-rule pattern, a circular rule whose
-/// `axis` operand is not an axis datum, a node the chain recorded and
-/// the document no longer holds. This door refuses rather than
-/// guessing a pose, and it relabels nothing: a refusal the evaluation
-/// layer grows arrives here carried rather than renamed, under the id
-/// of the node that raised it ([`MateFault::PlacerRefused::placer`]).
-///
-/// An in-band direction-norm decision escalates
-/// [`MateFault::Indeterminate`], as every decided predicate here
-/// does — an escalation is this solve's own indeterminacy, not a fact
-/// about the placer.
-///
-/// [`MateFault::DanglingHead`] is NOT among them: [`check_reference`]
-/// has already compared the named index against the count for every
-/// reference of every live mate, so the index is in range here by
-/// construction.
-///
-/// **One length decision, two funnel names, ratified.** A circular
-/// rule's direction is a DATUM's axis direction, and this derivation
-/// re-derives it from the recipe expressions rather than reading the
-/// evaluated `PoseValue` whose `UnitVec3` normalized the same
-/// triple. So one datum direction is decided under two predicate
-/// names depending on which road reaches it — same body, same
-/// refusal shape, different name in the K census. That split is
-/// RATIFIED, not tolerated, and the argument is SEAT-DN's, not this
-/// module's: SEAT's closed
-/// `direction-normalization-two-doors-one-home` and the
-/// `decide_unit_direction` seat it closed on.
-///
-/// `env` is the solve's one environment, at the scalar it runs at
-/// ([`super::solve::solve_document`] says why there is one): a box or a
-/// seed that binds a placer's slot moves the map here, in the lane that
-/// binds it.
-pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    env: &VarEnv<T>,
-    mate: crate::mate::MateRef,
-    side: MateSide,
-    w: &Walk,
-    band: Band,
-) -> Result<Option<Affine3<T>>, Box<MateFault>> {
-    let mut composed: Option<Affine3<T>> = None;
-    for placer in &w.chain {
-        let node = placer.node();
-        let derived = match *placer {
-            Placer::Pattern { i, .. } => pattern_map(doc, node, i, env, band),
-            Placer::Transform(_) => transform_map(doc, node, env, band).map(Some),
-        };
-        // ONE wrapping, at the arm's edge: the derivation answers with
-        // the node that raised and the kind it raised, and this is
-        // where those become the mate vocabulary.
-        let Some(map) = derived.map_err(|refused| refuse(mate, side, node, *refused))? else {
-            continue;
-        };
-        composed = Some(match composed {
-            None => map,
-            Some(held) => held * map,
-        });
-    }
-    Ok(composed)
-}
-
-/// **A derivation's refusal, in the mate vocabulary.** Two arms and
-/// no relabelling: an escalation is the SOLVE's own indeterminacy and
-/// says so, and everything else is carried exactly as the layer that
-/// raised it typed it, under the id of the node that raised it.
-///
-/// `on_chain` is the placer being derived. The fault reaches the
-/// instance under it, so a refusal seated there is one its poisoned row
-/// never states and the fault carries; one seated off the chain (an
-/// axis datum, a transform on the way to it) is its node's own, stated
-/// on that node's row.
-fn refuse(
-    mate: crate::mate::MateRef,
-    side: MateSide,
-    on_chain: RecipeNodeId,
-    (at, kind): (RecipeNodeId, NodeErrorKind),
-) -> Box<MateFault> {
-    match kind {
-        NodeErrorKind::Escalated { source, .. }
-        | NodeErrorKind::MeasureEscalated { source, .. }
-        | NodeErrorKind::PlacementAxisEscalated { source, .. }
-        | NodeErrorKind::PoseDirectionEscalated { source, .. } => {
-            Box::new(MateFault::Indeterminate {
-                mate,
-                diag: Box::new(source),
-            })
-        }
-        carried => Box::new(MateFault::PlacerRefused {
-            mate,
-            side,
-            placer: at,
-            error: NodeRefusal::from(carried),
-            placer_row: if at == on_chain {
-                PlacerRow::Silent
-            } else {
-                PlacerRow::States
-            },
-        }),
-    }
-}
-
-/// **The map a pattern copy contributes**, or `None` for copy 0 —
-/// the master, which reads no operand, as on the evaluation's road.
-/// Every other copy builds its operands through the constructor the
-/// evaluation steps by ([`SteppedOperands`]), so a spacing or step the
-/// pattern refuses, the solve refuses the same way.
-///
-/// # Errors
-///
-/// The node that raised and the kind it raised. A circular rule reads
-/// its axis DATUM's slots, and a refusal from that read is the
-/// datum's: it is reported under the datum's id, which is the node an
-/// author would go and fix.
-fn pattern_map<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    node: RecipeNodeId,
-    i: u32,
-    env: &VarEnv<T>,
-    band: Band,
-) -> Result<Option<Affine3<T>>, Seated> {
-    let here = |kind| Box::new((node, kind));
-    let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
-        return Err(here(NodeErrorKind::MissingInput { input: node }));
-    };
-    if i == 0 {
-        return Ok(None);
-    }
-    let vals = node_slots(pattern, env).map_err(here)?;
-    let ops = match kind {
-        PatternKind::Linear { .. } => SteppedOperands::linear(
-            need_vec3(&vals, SlotId::Direction).map_err(here)?,
-            need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-            &crate::node::Axis3::ALL
-                .map(|axis| crate::eval::written(doc, node)(SlotId::Direction(axis))),
-            band,
-        )
-        .map_err(here)?,
-        PatternKind::Circular { axis, .. } => {
-            // The operand-KIND question is the pattern's wiring, and
-            // its refusal is seated where `axis_datum` says; everything
-            // read out of the datum below is the datum's.
-            let axis =
-                crate::eval::read_at(doc, crate::OperandSlot::Axis, axis.read).map_err(here)?;
-            let datum = axis_datum(doc, node, axis)?;
-            let at_datum = |kind| Box::new((axis, kind));
-            let dvals = node_slots(datum, env).map_err(at_datum)?;
-            SteppedOperands::circular(
-                Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
-                crate::eval::unit_direction(
-                    need_vec3(&dvals, SlotId::Direction).map_err(at_datum)?,
-                    crate::eval::DATUM_AXIS_ROLE,
-                    band,
-                )
-                .map_err(at_datum)?,
-                need_scalar(&vals, SlotId::Step).map_err(here)?,
-                &crate::eval::written(doc, node)(SlotId::Step),
-                band,
-            )
-            .map_err(here)?
-        }
-        // The list-rule pattern's count has two spellings, which the
-        // pattern node itself refuses; no copy of it has a derived
-        // pose to stand a member on.
-        //
-        // **No document reaching this door carries one**: `Node::Pattern`
-        // holds its count in a slot, so an explicit list is that second
-        // spelling and `apply` refuses the insert
-        // (`EditError::PlacementRuleMismatch`, pinned by
-        // `msolve3_placer_refused`'s
-        // `an_explicit_pattern_rule_never_reaches_the_solve`). This arm
-        // is the backstop for a hand-built one, refusing by name rather
-        // than composing a pose out of a rule it cannot step.
-        PatternKind::Explicit(_) => {
-            return Err(here(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling {
-                    shape: crate::node::CountMismatch::ListedOnPattern,
-                },
-            )));
-        }
-    };
-    crate::eval::stepped_rule_map(&ops, i64::from(i))
-        .map(|motion| Some(motion.to_affine()))
-        .map_err(here)
-}
-
-/// **The map a transform contributes** — its placement's motion, by
-/// the construction `wire_transform` places the body by
-/// (`Placement::motion`), fed the node's slots through the
-/// evaluation's own door ([`node_slots`]).
-///
-/// # Errors
-///
-/// The node that raised and the kind it raised; for a transform that
-/// is always the transform itself.
-fn transform_map<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    node: RecipeNodeId,
-    env: &VarEnv<T>,
-    band: Band,
-) -> Result<Affine3<T>, Seated> {
-    let here = |kind| Box::new((node, kind));
-    let Some(transform @ Node::Transform { placement, .. }) = doc.node(node) else {
-        return Err(here(NodeErrorKind::MissingInput { input: node }));
-    };
-    let vals = node_slots(transform, env).map_err(here)?;
-    placement.motion(&vals, band).map_err(here)
-}
-
-/// **The placer's slots, in `env`** — [`eval_slots`], the
-/// evaluation's own door, so a slot that does not evaluate on this
-/// road refuses with the very [`NodeErrorKind::Expr`] the node's own
-/// evaluation raises for it.
-fn node_slots<P: crate::ProfilePayload, T: Decide>(
-    node: &Node<P>,
-    env: &VarEnv<T>,
-) -> Result<SlotValues<T>, NodeErrorKind> {
-    eval_slots(node, env).map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })
-}
-
-/// **A circular rule's axis operand, as the recipe holds it.**
-///
-/// The evaluation reads the operand's VALUE and refuses
-/// [`NodeErrorKind::WrongOperand`] naming the family it found; this
-/// road never holds a value, so the word comes from
-/// [`crate::eval::node_value_kind`] — the recipe-side reading of the
-/// same question, written next to the payload one so the two cannot
-/// be moved apart unnoticed.
-///
-/// # Errors
-///
-/// At the pattern, as its own wiring: `MissingInput` for an operand
-/// that is no live node, `WrongOperand` for one that lands in a
-/// family other than a datum axis. At a transform on the operand's
-/// chain, as that transform's own: whatever [`crate::eval::
-/// node_value_kind`] seats there — a source that is not placeable, an
-/// input that is no live node — carried with its seat.
-fn axis_datum<P>(
-    doc: &Doc<P>,
-    pattern: RecipeNodeId,
-    axis: RecipeNodeId,
-) -> Result<&Node<P>, Seated> {
-    match doc.node(axis) {
-        Some(node @ Node::Datum(Datum::Axis { .. })) => Ok(node),
-        Some(_) => match crate::eval::node_value_kind(doc, axis) {
-            Ok(found) => Err(Box::new((
-                pattern,
-                NodeErrorKind::WrongOperand {
-                    input: axis,
-                    expected: crate::eval::phrase::DATUM_AXIS,
-                    found,
-                },
-            ))),
-            Err(seated) => Err(seated),
-        },
-        None => Err(Box::new((
-            pattern,
-            NodeErrorKind::MissingInput { input: axis },
-        ))),
-    }
-}
-
-/// **The seat rows**: a circular pattern over a real body, its axis
-/// operand wired through transforms, refused on both roads and
-/// compared. The body is authored through `apply` so the evaluation's
-/// own reading of the pattern is not masked by an input it refuses;
-/// the datums, the transforms and the pattern are written straight
-/// into the map, because the states some rows need — a read of the
-/// wrong kind — are ones the doors refuse (`SlotVarKind` at `apply`
-/// and at `load`), and a hand-built document is what the spec
-/// sanctions for it.
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

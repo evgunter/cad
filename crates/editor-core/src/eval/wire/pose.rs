@@ -327,14 +327,16 @@ pub(crate) fn eval_world<T: Decide>(
     };
     Ok(match world {
         W::Frame => PoseValue::Frame(RigidMotion::axes_xy(Point3::origin())),
-        W::Role { pose, role } => role
-            .read(&eval_world(pose, env, b)?)
-            .unwrap_or_else(|| unreachable!("a world read's role is its pose's: its kind was checked")),
+        W::Role { pose, role } => role.read(&eval_world(pose, env, b)?).unwrap_or_else(|| {
+            unreachable!("a world read's role is its pose's: its kind was checked")
+        }),
         W::Slide { pose, along, by } => {
             let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) =
                 eval_world(along, env, b)?
             else {
-                unreachable!("a world read slides along a direction or an axis: its kind was checked")
+                unreachable!(
+                    "a world read slides along a direction or an axis: its kind was checked"
+                )
             };
             let by = scalar(*by, crate::expr::Dimension::Length)?;
             slide(eval_world(pose, env, b)?, dir, by)?

@@ -163,7 +163,6 @@ impl Space {
     }
 }
 
-
 /// **Every placement's answer, read off an evaluation** — for a caller
 /// outside one: where each copy sits, which space it lives in, or why
 /// its placement refused. Built by [`SolvedPoses::of`] from the
@@ -179,6 +178,10 @@ pub struct SolvedPoses<T: Decide = f64> {
     /// Each placement's answer: its space and its motion in that
     /// space's coordinates (`None` the identity), or its refusal.
     placed: BTreeMap<RecipeNodeId, Result<(Space, Option<Affine3<T>>), MateFault>>,
+    /// Each placed copy's reach about its space's origin, an `f64`
+    /// upper bound ([`super::part_reach`]): the arm a turn of it is
+    /// measured over ([`SolvedPoses::at_identity`]).
+    reach: BTreeMap<RecipeNodeId, f64>,
 }
 
 /// **Why the nominal world-pose door has no pose** for a placement
@@ -225,7 +228,11 @@ impl crate::spoken::Say for PoseRefusal {
                 by.node(*root)
             ),
             Self::Unevaluated { placement } => {
-                write!(f, "{} did not evaluate, so it has no pose", by.node(*placement))
+                write!(
+                    f,
+                    "{} did not evaluate, so it has no pose",
+                    by.node(*placement)
+                )
             }
         }
     }
@@ -248,6 +255,7 @@ impl<T: SolveScalar> SolvedPoses<T> {
         T: crate::eval::EvalScalar,
     {
         let mut placed = BTreeMap::new();
+        let mut reach = BTreeMap::new();
         for id in doc.ids() {
             if doc.node(id).and_then(bundle_of).is_none() {
                 continue;
@@ -256,6 +264,19 @@ impl<T: SolveScalar> SolvedPoses<T> {
                 Some(crate::eval::NodeResult::Ok(value)) => {
                     let space = value.space.unwrap_or(Space::World);
                     placed.insert(id, Ok((space, value.motion.map(|m| m.to_affine()))));
+                    let bodies: Vec<&topo::Body<T>> = match &value.payload {
+                        crate::eval::ValuePayload::Body(body) => vec![body],
+                        crate::eval::ValuePayload::Copies(copies) => {
+                            copies.bodies.iter().map(|b| &**b).collect()
+                        }
+                        _ => Vec::new(),
+                    };
+                    let farthest = bodies
+                        .into_iter()
+                        .filter_map(|body| super::part_reach(body).ok())
+                        .map(SolveScalar::upper)
+                        .fold(0.0_f64, f64::max);
+                    reach.insert(id, farthest);
                 }
                 Some(crate::eval::NodeResult::Failed(error)) => {
                     if let crate::eval::NodeErrorKind::Mate(fault) = &error.kind {
@@ -268,6 +289,7 @@ impl<T: SolveScalar> SolvedPoses<T> {
         Self {
             document: doc.id(),
             placed,
+            reach,
         }
     }
 
@@ -299,6 +321,40 @@ impl<T: SolveScalar> SolvedPoses<T> {
 /// The nominal solve's doors: its poses read as the frames a document
 /// stores.
 impl SolvedPoses {
+    /// **Whether `placement`'s copy stands at the identity of the
+    /// world's coordinates**, decided at `band`: no point of it moves
+    /// further than the band's zero — its translation's length plus its
+    /// turn's departure from the identity levered over the copy's reach
+    /// (D4 ¶1). A copy pinned over its geometry stands there to
+    /// rounding, which this decides as the identity; a copy that is
+    /// loose, refused or unplaced does not stand there.
+    pub fn at_identity(&self, placement: RecipeNodeId, band: Band) -> bool {
+        let Some(Ok((Space::World, motion))) = self.placed.get(&placement) else {
+            return false;
+        };
+        let Some(m) = motion else {
+            return true;
+        };
+        let q = m.linear;
+        let turn = [
+            q.c0 - geom_core::linalg::Vec3::new(1.0, 0.0, 0.0),
+            q.c1 - geom_core::linalg::Vec3::new(0.0, 1.0, 0.0),
+            q.c2 - geom_core::linalg::Vec3::new(0.0, 0.0, 1.0),
+        ]
+        .iter()
+        .map(|c| c.norm_squared())
+        .sum::<f64>()
+        .sqrt();
+        let arm = self.reach.get(&placement).copied().unwrap_or(0.0);
+        let moved = m.translation.norm() + turn * arm;
+        geom_core::k_stats::decide(
+            "solve_copy_at_identity",
+            geom_core::predicate::Margin::of(moved),
+            band,
+        )
+        .is_ok_and(|sign| sign == geom_core::predicate::Sign::Zero)
+    }
+
     /// **A copy's pose in its space**: where it sits in the world's
     /// coordinates for a copy pinned against the world, in a loose
     /// copy's own for one pinned to it.
@@ -333,7 +389,9 @@ impl SolvedPoses {
                 placement,
                 root: *root,
             }),
-            Some(Ok((Space::World, motion))) => Ok(motion.map_or(Frame::IDENTITY, Frame::from_affine)),
+            Some(Ok((Space::World, motion))) => {
+                Ok(motion.map_or(Frame::IDENTITY, Frame::from_affine))
+            }
         }
     }
 }
@@ -361,8 +419,7 @@ pub fn solve_document_at<T>(
 where
     T: SolveScalar + crate::eval::EvalScalar,
 {
-    let evaluation =
-        crate::eval::evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
+    let evaluation = crate::eval::evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
     SolvedPoses::of(doc, &evaluation)
 }
 
@@ -405,11 +462,8 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         }
         // A world read is inside the mate and reads no variable, so the
         // world is coupled here.
-        let pinned = bundle_of(node).is_some_and(|bundle| {
-            bundle
-                .iter()
-                .any(|c| matches!(c.mate.to, Target::World(_)))
-        });
+        let pinned = bundle_of(node)
+            .is_some_and(|bundle| bundle.iter().any(|c| matches!(c.mate.to, Target::World(_))));
         if pinned {
             couple(id, RecipeNodeId::WORLD);
         }
@@ -657,9 +711,10 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
         .fold(0.0_f64, f64::max);
     Arm::of(reach, datum).map_err(|refusal| {
         Box::new(MateFault::Unleverable {
-            mate: mates
-                .first()
-                .map_or_else(|| unreachable!("an arm is formed for a bundle with a mate"), |m| m.mate),
+            mate: mates.first().map_or_else(
+                || unreachable!("an arm is formed for a bundle with a mate"),
+                |m| m.mate,
+            ),
             refusal: Box::new(refusal),
         })
     })
@@ -702,7 +757,11 @@ pub(crate) fn own_copy_side<P>(
 /// **Whether `on` reads the copy `placement` defines**, before
 /// placement: every operation its definition reaches is one of a
 /// `Place`'s shapes, or an instance's own output.
-pub(crate) fn on_reads_the_copy<P>(doc: &Doc<P>, placement: RecipeNodeId, on: crate::VarId) -> bool {
+pub(crate) fn on_reads_the_copy<P>(
+    doc: &Doc<P>,
+    placement: RecipeNodeId,
+    on: crate::VarId,
+) -> bool {
     let reached = doc.read_ports(on);
     let copied: Vec<RecipeNodeId> = match doc.node(placement) {
         Some(Node::Place { shapes, .. }) => shapes

@@ -2712,8 +2712,8 @@ impl<P> Node<P> {
         };
         match self {
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
-            // Each constraint's face reads, in bundle order, `a` before
-            // `b`; the copy and the world are read by no variable.
+            // Each constraint's pose reads, in bundle order, `on` before
+            // a pose `to`; a world read reads no variable.
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
@@ -3002,25 +3002,6 @@ impl<P> Node<P> {
         AssertionBoundFault::against(dim(value)?, dim(bound)?)
     }
 
-    /// **The first constraint of this placement whose alignment datum
-    /// carries a coordinate no predicate can decide on** (ASM-R2a D-1).
-    ///
-    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
-    /// one place a NODE is asked it, so the edit door and the load
-    /// door's walk share the destructuring as well as the test.
-    /// `None` for every node that holds no constraint.
-    pub(crate) fn non_finite_alignment(&self) -> Option<ConstraintId> {
-        match self {
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .iter()
-                    .find(|c| !c.mate.alignment.is_finite())
-                    .map(|c| c.id)
-            }
-            _ => None,
-        }
-    }
-
     /// **What is wrong with this node's indexed reads**, if anything:
     /// an index at a family argument, or a read carrying other than its
     /// family's rank of indices.
@@ -3147,9 +3128,8 @@ impl<P> Node<P> {
     /// admission rule refuses at `tol`, with where it sits
     /// ([`crate::Placement::frame_fault`]) — the one question the edit
     /// door and the load door ask of a node's literal steps: a
-    /// transform's, and each of a placement's constraints' two frame
-    /// offsets, in bundle order, side `a` first. `None` for every node
-    /// without one.
+    /// transform's. A mate holds no frame (FORK-S3M). `None` for every
+    /// node without one.
     pub fn placement_frame_fault(
         &self,
         tol: geom_core::Tol,
@@ -3157,21 +3137,6 @@ impl<P> Node<P> {
         let step = |(index, fault)| (crate::placement::FrameSite::Step { index }, fault);
         match self {
             Node::Transform { placement, .. } => placement.frame_fault(tol).map(step),
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints.iter().find_map(|c| {
-                    c.mate.frames().into_iter().find_map(|(side, frame)| {
-                        let (index, fault) = frame.offset.frame_fault(tol)?;
-                        Some((
-                            crate::placement::FrameSite::MateStep {
-                                constraint: c.id,
-                                side,
-                                index,
-                            },
-                            fault,
-                        ))
-                    })
-                })
-            }
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -3193,6 +3158,8 @@ impl<P> Node<P> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
+            | Node::InstantiatePart { .. }
             | Node::World
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -4129,24 +4096,12 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record, pinned to the world at the identity — the authoring
-    /// constructor, so every insert door yields an instance standing
-    /// where its part's world does ([`crate::mate::Mate::world_pin`]).
-    /// An instance placed by other constraints starts from
-    /// [`Node::instantiate_part_with`], its bundle empty. A non-empty
-    /// record is mintable only by the refactoring that observed
-    /// declarations crossing a cut: an authored instance crosses
-    /// nothing.
+    /// record and no constraint: a loose copy until its mates pin it. A
+    /// mate reads poses off geometry and there is no part frame to read
+    /// (FORK-S3M), so no constructor can pin an instance where its
+    /// part's world is; the façade's "place part" writes the mates.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        let mut node = Self::instantiate_part_with(doc_ref, InterfaceRecord::default());
-        if let Node::InstantiatePart { constraints, .. } = &mut node {
-            constraints.push(crate::mate::Constraint {
-                // The insert door mints the constraint's id.
-                id: ConstraintId(crate::MintId::new(0, 0)),
-                mate: crate::mate::Mate::world_pin(crate::placement::Placement::IDENTITY),
-            });
-        }
-        node
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
@@ -4240,13 +4195,6 @@ impl<P> Node<P, crate::Formula> {
             Node::Shell { open, .. } => vec![open],
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .iter()
-                    .flat_map(|c| [c.mate.a.face(), c.mate.b.face()])
-                    .flatten()
-                    .collect()
-            }
             // Exhaustive, so a selection seat added to a node is stated
             // here or does not compile: an operand that is a whole body
             // authors no selection.
@@ -4272,6 +4220,8 @@ impl<P> Node<P, crate::Formula> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
+            | Node::InstantiatePart { .. }
             | Node::Assertion { .. } => Vec::new(),
         };
         seats
@@ -4408,44 +4358,44 @@ where
     }
 }
 
-/// **A bundle's face reads**, each at its seat
-/// ([`crate::OperandSlot::Side`]), in bundle order, `a` before `b`.
-fn side_rows(constraints: &[crate::mate::Constraint]) -> Vec<(crate::OperandSlot, VarId)> {
+/// **A bundle's pose reads**, each at its seat
+/// ([`crate::OperandSlot::Side`]), in bundle order, `on` before a pose
+/// `to` (a world read reads no variable).
+fn side_rows<S: Slot>(
+    constraints: &[crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, S::Read)>
+where
+    S::Read: Clone,
+{
     let mut out = Vec::new();
     for c in constraints {
-        for (side, read) in c.mate.sides() {
-            if let Some(read) = read.face() {
-                out.push((
-                    crate::OperandSlot::Side {
-                        constraint: c.id,
-                        side,
-                    },
-                    *read,
-                ));
-            }
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: c.id,
+            side,
+        };
+        out.push((seat(crate::mate::MateSide::On), c.mate.on.clone()));
+        if let Some(to) = c.mate.to.pose() {
+            out.push((seat(crate::mate::MateSide::To), to.clone()));
         }
     }
     out
 }
 
 /// [`side_rows`], writable, in the same order.
-fn side_rows_mut(
-    constraints: &mut [crate::mate::Constraint],
-) -> Vec<(crate::OperandSlot, &mut VarId)> {
+fn side_rows_mut<S: Slot>(
+    constraints: &mut [crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, &mut S::Read)> {
     let mut out = Vec::new();
     for c in constraints {
         let id = c.id;
-        let crate::mate::Mate { a, b, .. } = &mut c.mate;
-        for (side, read) in [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)] {
-            if let Some(read) = read.face_mut() {
-                out.push((
-                    crate::OperandSlot::Side {
-                        constraint: id,
-                        side,
-                    },
-                    read,
-                ));
-            }
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: id,
+            side,
+        };
+        let crate::mate::Mate { on, to, .. } = &mut c.mate;
+        out.push((seat(crate::mate::MateSide::On), on));
+        if let Some(to) = to.pose_mut() {
+            out.push((seat(crate::mate::MateSide::To), to));
         }
     }
     out

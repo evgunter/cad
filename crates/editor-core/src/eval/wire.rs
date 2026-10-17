@@ -438,7 +438,16 @@ where
                 .iter()
                 .map(|&(at, _, values)| copy_reach(values, at))
                 .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)));
-            let placed = fold_with(doc, unprojected, unprojected, id, constraints, reach, env, tol)?;
+            let placed = fold_with(
+                doc,
+                unprojected,
+                unprojected,
+                id,
+                constraints,
+                reach,
+                env,
+                tol,
+            )?;
             wire_place(id, &reads, placed.0.as_ref(), tol).map(|out| out.moved(placed))
         }
         // The world DENOTES NO BODY and defines no variable.
@@ -501,12 +510,11 @@ where
             // The copy before placement is what its mates' `on` poses
             // read: the part's product where the part put it.
             let unplaced = wire_instantiate_part(id, doc_ref, interface, None, env, tol)?;
-            let reach = match &unplaced.payload {
-                ValuePayload::Body(value) => body_reach(&value.body, id),
-                _ => Ok(0.0),
-            };
-            let mut own = unprojected.clone();
-            own.insert(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)));
+            let reach = payload_reach(&unplaced.payload, id);
+            // `on` reads the copy alone (the door's `on_reads_the_copy`),
+            // so the copy is all its reads need.
+            let own: Results<T> =
+                BTreeMap::from([(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)))]);
             let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
             let out = wire_instantiate_part(id, doc_ref, interface, placed.0.clone(), env, tol)?;
             Ok(out.moved(placed))
@@ -516,26 +524,40 @@ where
 
 /// **A copy's reach in its own coordinates** — a shape's body's, as
 /// [`crate::mate::part_reach`] bounds a part's — for the fold's arm.
-fn copy_reach<T: Decide>(
+fn copy_reach<T: crate::mate::SolveScalar>(
     results: &Results<T>,
     at: RecipeNodeId,
 ) -> Result<f64, crate::mate::LeverRefusal> {
     match results.get(&at) {
-        Some(NodeResult::Ok(value)) => match &value.payload {
-            ValuePayload::Body(body) => body_reach(&body.body, at),
-            _ => Ok(0.0),
-        },
+        Some(NodeResult::Ok(value)) => payload_reach(&value.payload, at),
+        _ => Ok(0.0),
+    }
+}
+
+/// [`copy_reach`] of a value's payload: its body's, or the farthest of
+/// its copies'. A value that is no body reaches nowhere.
+fn payload_reach<T: crate::mate::SolveScalar>(
+    payload: &ValuePayload<T>,
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    match payload {
+        ValuePayload::Body(body) => body_reach(body, at),
+        ValuePayload::Copies(copies) => copies
+            .bodies
+            .iter()
+            .map(|body| body_reach(body, at))
+            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r))),
         _ => Ok(0.0),
     }
 }
 
 /// [`copy_reach`] of one body, read off the node `at`.
-fn body_reach<T: Decide>(
+fn body_reach<T: crate::mate::SolveScalar>(
     body: &topo::Body<T>,
     at: RecipeNodeId,
 ) -> Result<f64, crate::mate::LeverRefusal> {
     crate::mate::part_reach(body)
-        .map(|bracket| bracket.hi())
+        .map(crate::mate::SolveScalar::upper)
         .and_then(|hi| {
             if hi.is_finite() {
                 Ok(hi)
@@ -794,6 +816,7 @@ where
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         motion: None,
+        space: None,
     })
 }
 
@@ -1072,8 +1095,7 @@ impl<T: Decide> Placeable<T> {
 /// The operand of a placer, read off its evaluated value: one body
 /// (a `Body` value or a boolean's non-empty result), or an `Instances`
 /// value taken whole. Everything else refuses typed naming both
-/// admitted shapes; an empty boolean is a typed absence. The same
-/// rule over NODE kinds lives in [`super::node_value_kind`].
+/// admitted shapes; an empty boolean is a typed absence.
 fn placeable_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,

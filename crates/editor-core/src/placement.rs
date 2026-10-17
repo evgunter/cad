@@ -821,29 +821,6 @@ impl Placement {
         self.chain_motion(before, &vals, band)
     }
 
-    /// **The one construction of a placement's motion**, from its
-    /// slots already evaluated: a rigid step minted by the transform
-    /// construction over its axis decided under the transform's role
-    /// word, a literal step admitted at the decided door
-    /// ([`Frame::rigid_motion`]), the chain folded through
-    /// [`Motion::compose`] — so a chain of witnesses is one, decided
-    /// nowhere again.
-    ///
-    /// # Errors
-    ///
-    /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
-    /// among `vals`, the direction door's own refusal, and
-    /// [`NodeErrorKind::Motion`] for a step's motion that is not
-    /// minted or not admitted.
-    pub(crate) fn motion<T: Decide>(
-        &self,
-        vals: &SlotValues<T>,
-        band: Band,
-    ) -> Result<Affine3<T>, NodeErrorKind> {
-        self.chain_motion(Motion::Identity, vals, band)
-            .map(Motion::affine)
-    }
-
     /// [`Placement::motion`] with the bit-exact identity kept marked
     /// ([`Motion`]), for a door that skips it.
     ///

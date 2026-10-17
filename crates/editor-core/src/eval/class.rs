@@ -221,12 +221,8 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::Mate`] carrying
     /// [`MateFault::PosesOfAnotherDocument`].
     MatePosesOfAnotherDocument,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Frame`].
-    MateFrame,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::ClassNotAdmitted`].
     MateClassNotAdmitted,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::TableLacks`].
-    MateTableLacks,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Indeterminate`].
     MateIndeterminate,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
@@ -241,27 +237,16 @@ pub enum NodeErrorClass {
     MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideBase`].
-    MateSideBase,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnresolved`].
-    MateSideUnresolved,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::DanglingHead`].
-    MateDanglingHead,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::PlacerRefused`].
-    MatePlacerRefused,
-    /// [`NodeErrorKind::Mate`] carrying
-    /// [`MateFault::PartSelectsAnotherCopy`].
-    MatePartSelectsAnotherCopy,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SelfMate`].
-    MateSelf,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::KindsDiffer`].
+    MateKindsDiffer,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::WorldRead`].
+    MateWorldRead,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnevaluated`].
+    MateSideUnevaluated,
     /// [`NodeErrorKind::SpaceMismatch`].
     SpaceMismatch,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
-    MateFaceUnresolved,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameUnevaluated`].
-    MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefUnreadable`].
@@ -425,9 +410,7 @@ impl NodeErrorClass {
     pub fn of_mate(fault: &MateFault) -> Self {
         match fault {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
-            MateFault::Frame { .. } => Self::MateFrame,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
-            MateFault::TableLacks { .. } => Self::MateTableLacks,
             MateFault::Indeterminate { .. } => Self::MateIndeterminate,
             MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
             MateFault::Band { .. } => Self::MateBand,
@@ -435,15 +418,10 @@ impl NodeErrorClass {
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
-            MateFault::SideBase { .. } => Self::MateSideBase,
-            MateFault::SideUnresolved { .. } => Self::MateSideUnresolved,
-            MateFault::DanglingHead { .. } => Self::MateDanglingHead,
-            MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
-            MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
-            MateFault::SelfMate { .. } => Self::MateSelf,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
-            MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
-            MateFault::FrameUnevaluated { .. } => Self::MateFrameUnevaluated,
+            MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
+            MateFault::WorldRead { .. } => Self::MateWorldRead,
+            MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
         }
     }
 
@@ -587,9 +565,7 @@ mod tests {
         PartDepthExceeded,
         PartNotEntered,
         MatePosesOfAnotherDocument,
-        MateFrame,
         MateClassNotAdmitted,
-        MateTableLacks,
         MateIndeterminate,
         MatePoseOutOfRange,
         MateBand,
@@ -597,16 +573,11 @@ mod tests {
         MateOverconstrained,
         MateTargetsDiffer,
         MateNotOnTheCopy,
-        MateSideBase,
-        MateSideUnresolved,
-        MateDanglingHead,
-        MatePlacerRefused,
-        MatePartSelectsAnotherCopy,
-        MateSelf,
         MateUnleverable,
+        MateKindsDiffer,
+        MateWorldRead,
+        MateSideUnevaluated,
         SpaceMismatch,
-        MateFaceUnresolved,
-        MateFrameUnevaluated,
         CrossingUnverified,
         MeasureRefUnreadable,
         MeasureNonFinite,
@@ -986,19 +957,7 @@ mod tests {
                 expected: crate::DocumentId::derive("a"),
                 found: crate::DocumentId::derive("b"),
             }),
-            C::MateFrame => mate(crate::MateFault::Frame {
-                mate: m(9),
-                side: crate::MateSide::A,
-                error: geom_core::FrameError::Degenerate {
-                    input: geom_core::FrameInput::Aim,
-                    indeterminate: None,
-                },
-            }),
             C::MateClassNotAdmitted => mate(crate::MateFault::ClassNotAdmitted { mate: m(9) }),
-            C::MateTableLacks => mate(crate::MateFault::TableLacks {
-                mate: m(9),
-                what: "a clocking rider on a planar rest",
-            }),
             C::MateIndeterminate => mate(crate::MateFault::Indeterminate {
                 mate: m(9),
                 diag: Box::new(diag()),
@@ -1026,39 +985,6 @@ mod tests {
                 constraints: vec![c(1), c(2)],
             }),
             C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
-            C::MateSideBase => mate(crate::MateFault::SideBase {
-                mate: m(9),
-                side: crate::MateSide::A,
-                base: crate::FrameBase::World,
-            }),
-            C::MateSideUnresolved => mate(crate::MateFault::SideUnresolved {
-                mate: m(9),
-                side: crate::MateSide::A,
-                read: crate::VarId::new(3, 3),
-            }),
-            C::MateDanglingHead => mate(crate::MateFault::DanglingHead {
-                mate: m(9),
-                side: crate::MateSide::B,
-                head: n(4),
-            }),
-            C::MatePlacerRefused => mate(crate::MateFault::PlacerRefused {
-                mate: m(9),
-                side: crate::MateSide::B,
-                placer: n(4),
-                error: K::EmptyOperand { input: n(3) }.into(),
-                placer_row: crate::PlacerRow::Silent,
-            }),
-            C::MatePartSelectsAnotherCopy => mate(crate::MateFault::PartSelectsAnotherCopy {
-                mate: m(9),
-                side: crate::MateSide::A,
-                part: n(6),
-                named: 2,
-                selected: 5,
-            }),
-            C::MateSelf => mate(crate::MateFault::SelfMate {
-                mate: m(9),
-                instance: n(6),
-            }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
                 mate: m(9),
                 refusal: Box::new(crate::LeverRefusal::Reach {
@@ -1067,30 +993,24 @@ mod tests {
                     refusal: crate::ReachRefusal::NoExtent,
                 }),
             }),
+            C::MateKindsDiffer => mate(crate::MateFault::KindsDiffer {
+                mate: m(9),
+                on: crate::VarKind::Plane,
+                to: crate::VarKind::Axis,
+            }),
+            C::MateWorldRead => mate(crate::MateFault::WorldRead {
+                mate: m(9),
+                fault: crate::WorldReadFault::FlippedPoint,
+            }),
+            C::MateSideUnevaluated => mate(crate::MateFault::SideUnevaluated {
+                mate: m(9),
+                side: crate::MateSide::On,
+                refusal: Box::new(K::EmptyOperand { input: n(3) }.into()),
+            }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::Space::World,
                 b: crate::Space::Loose { root: n(6) },
             },
-            C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
-                mate: m(9),
-                side: crate::MateSide::A,
-                refusal: Box::new(crate::FaceRefusal::Reach {
-                    instance: n(6),
-                    part: doc_ref(),
-                    face: crate::FaceName::new(name()).expect("a face name"),
-                    refusal: crate::FacePoseRefusal::NoSuchName,
-                }),
-            }),
-            C::MateFrameUnevaluated => mate(crate::MateFault::FrameUnevaluated {
-                mate: m(9),
-                side: crate::MateSide::B,
-                refusal: Box::new(
-                    K::DegenerateDirection {
-                        role: crate::eval::TRANSFORM_AXIS_ROLE,
-                    }
-                    .into(),
-                ),
-            }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),

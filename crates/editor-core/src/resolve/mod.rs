@@ -2614,10 +2614,9 @@ pub fn apply_with_names<T: Decide>(
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
-            for (_, read) in mate.sides() {
-                if let Some(read) = read.face() {
-                    names.extend(read.selected_names());
-                }
+            names.extend(mate.on.selected_names());
+            if let Some(to) = mate.to.pose() {
+                names.extend(to.selected_names());
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance

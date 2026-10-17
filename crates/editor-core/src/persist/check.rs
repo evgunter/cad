@@ -1476,14 +1476,18 @@ pub enum SnapshotError {
         /// name.
         check: &'static str,
     },
-    /// A constraint's alignment datum carries a non-finite coordinate.
-    /// The edit door refuses it, so a file holding one is corrupt: no
-    /// predicate could decide anything about it.
-    MateAlignment {
+    /// A constraint the edit door would refuse on what the recipe
+    /// decides of it ([`crate::mate::solve::admit_mate`]): its `on` reads
+    /// no copy, its world read is no pose, its two poses are of two
+    /// kinds, or its class is not admitted. A file holding one is
+    /// corrupt.
+    MateRefused {
         /// The placement holding it.
         node: SpokenNode,
         /// The offending constraint.
         constraint: crate::node::ConstraintId,
+        /// The admission's refusal.
+        fault: Box<crate::MateFault>,
     },
     /// A placement-rule node carrying a rule the edit door would have
     /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
@@ -1898,11 +1902,11 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementNonRigid { node, at, check } => {
                 frame_refusal(f, node, *at, FrameFault::NotRigid { check })
             }
-            Self::MateAlignment { node, constraint } => write!(
-                f,
-                "{node}'s constraint {constraint}'s alignment datum carries a non-finite \
-                 coordinate"
-            ),
+            Self::MateRefused {
+                node,
+                constraint,
+                fault,
+            } => write!(f, "{node}'s constraint {constraint} is refused: {fault}"),
             Self::PlacementRule { node, fault } => write!(f, "{node}: {fault}"),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
@@ -2076,19 +2080,21 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 bound,
             });
         }
-        // ASM-R2a D-1: a mate's alignment is authored numbers a
-        // predicate must be able to decide on. Asked in THIS walk, of
-        // the same `Node::has_non_finite_alignment` the edit door asks
-        // — a second pass over the nodes would be a second place to
-        // forget the question. A face-based side authors nothing: its
-        // numbers are the face its head names in the part, and whether
-        // the part has that face is the solve's at evaluation
-        // (`MateFault::FaceUnresolved`), never this door's.
-        if let Some(constraint) = node.non_finite_alignment() {
-            return Err(SnapshotError::MateAlignment {
-                node: doc.spoken(id),
-                constraint,
-            });
+        // A constraint's own admission, the one the edit door asks
+        // (`mate::solve::admit_mate`), asked in THIS walk: a second
+        // pass over the nodes would be a second place to forget the
+        // question. What the fold decides needs the poses' values, and
+        // is the placement's at evaluation, never this door's.
+        for c in crate::mate::solve::bundle_of(node).into_iter().flatten() {
+            if let Err(fault) =
+                crate::mate::solve::admit_mate(doc, crate::mate::MateRef::new(id, c.id), &c.mate)
+            {
+                return Err(SnapshotError::MateRefused {
+                    node: doc.spoken(id),
+                    constraint: c.id,
+                    fault,
+                });
+            }
         }
     }
     // Every `StableName` the document holds, in ONE pass over the
@@ -2403,7 +2409,7 @@ mod tests {
             PlacementNonFinite,
             PlacementImproper,
             PlacementNonRigid,
-            MateAlignment,
+            MateRefused,
             PlacementRule,
             InputList,
             AssertionBound,
@@ -2465,7 +2471,7 @@ mod tests {
             | SnapshotError::PlacementNonFinite { .. }
             | SnapshotError::PlacementImproper { .. }
             | SnapshotError::PlacementNonRigid { .. }
-            | SnapshotError::MateAlignment { .. }
+            | SnapshotError::MateRefused { .. }
             | SnapshotError::PlacementRule { .. }
             | SnapshotError::InputList { .. }
             | SnapshotError::AssertionBound { .. }
@@ -2643,9 +2649,15 @@ mod tests {
                 at: FrameSite::Step { index: 1 },
                 check: "transform_rigid_col0_unit",
             },
-            SnapshotError::MateAlignment {
+            SnapshotError::MateRefused {
                 node: node(),
                 constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
+                fault: Box::new(crate::MateFault::NotOnTheCopy {
+                    mate: crate::mate::MateRef::new(
+                        crate::node::RecipeNodeId::new(1, 1),
+                        crate::node::ConstraintId(crate::MintId::new(2, 2)),
+                    ),
+                }),
             },
             SnapshotError::PlacementRule {
                 node: node(),

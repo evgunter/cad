@@ -34,8 +34,7 @@ pub(crate) use wire::{
 };
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
-    stepped_rule_map, transform_map, unit as unit_direction, written,
+    TRANSFORM_AXIS_ROLE, need_scalar, need_vec3, transform_map, unit as unit_direction,
 };
 
 pub(crate) use anchor::derive_naming;
@@ -1129,9 +1128,6 @@ macro_rules! family_word {
     (instances) => {
         "instances"
     };
-    (world) => {
-        "world"
-    };
     (copies) => {
         "copies"
     };
@@ -1146,8 +1142,7 @@ macro_rules! family_word {
 /// **The family words** — the vocabulary a typed operand mismatch
 /// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
 /// written once. [`ValuePayload::kind_name`] says them over a value,
-/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
-/// says them in the refusals it builds.
+/// and `eval::wire`'s operand door says them in the refusals it builds.
 pub(crate) mod family {
     pub(crate) const DATUM: &str = family_word!(datum);
     pub(crate) const PROFILE: &str = family_word!(profile);
@@ -1155,7 +1150,6 @@ pub(crate) mod family {
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
     pub(crate) const SPLIT: &str = family_word!(split);
     pub(crate) const INSTANCES: &str = family_word!(instances);
-    pub(crate) const WORLD: &str = family_word!(world);
     pub(crate) const COPIES: &str = family_word!(copies);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
@@ -1177,8 +1171,7 @@ pub(crate) mod family {
 /// speaks one.
 ///
 /// `found:` never appears here. The door computes it from the value it
-/// was handed ([`ValuePayload::kind_name`]) or from the node
-/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// was handed ([`ValuePayload::kind_name`]), so no site can answer it with the negation of
 /// its own `expected:` and leave a reader told twice what the input is
 /// not and never what it is.
 ///
@@ -1266,134 +1259,6 @@ impl<T: Decide> ValuePayload<T> {
             Self::MeasureUnavailable { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
         }
-    }
-}
-
-/// **A refusal beside the node it is seated at**: the id of the node
-/// whose own evaluation raises `kind`, and the kind. Boxed once, here,
-/// for every road that carries one: the pair is the cold half of every
-/// classification and derivation, and a [`NodeErrorKind`] is wide.
-pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
-
-/// **The value family a node's evaluation lands in**, in
-/// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
-/// of the same question, for the roads that never hold a value: a
-/// reference read straight out of the document (the mate solve's
-/// derived offset refusing a circular rule's `axis` operand).
-///
-/// It is that match written a second time over node kinds, with a
-/// walk down the placer chain in front of it, which is a
-/// correspondence a reader has to believe. What checks it is
-/// behavioural and partial: the mate suite's `msolve3_placer_refused`
-/// compares the refusal this word lands in against the one the
-/// operand's own evaluation raises, and reaches three of the family
-/// words — `"datum"`, `"body"` and `"instances"` — over four authored
-/// shapes (a plane datum, a body, a transform of a pattern, a
-/// transform of a transform of a body). The other eight of
-/// `kind_name`'s arms are by inspection, and this sentence is where
-/// that is said.
-///
-/// **A placer answers with its input's family.** A `Transform` is
-/// shape-preserving over its input's value (`Body → Body`,
-/// `Instances → Instances`), so its family is its INPUT's, read
-/// through the document; a `Pattern` lands in `Instances` whatever it
-/// patterns. The walk follows only a transform's `input` edge, which
-/// the edit door fixes at insert to a node that is already live
-/// ([`crate::EditError::UnresolvedInput`]) and no edit rewrites, over
-/// a recipe checked acyclic at every edit that adds an edge
-/// ([`crate::EditError::WouldCycle`]) — so it terminates with no guard
-/// of its own.
-///
-/// # Errors
-///
-/// Each seated at the node whose own evaluation raises it
-/// ([`Seated`]), so a road that holds no poison can refuse where the
-/// evaluation fails:
-///
-/// - [`NodeErrorKind::WrongOperand`] at a transform whose source is
-///   not placeable — the transform's own refusal, in its own words.
-///   Whether a placer takes a family is decided in the one match
-///   below, beside the family itself: a body, a boolean (whose
-///   non-empty result is a body; the empty one is a typed absence
-///   only a value can show) and instances, which is the value door's
-///   rule (`wire::placeable_operand`) read over node kinds. The
-///   evaluation fails that transform and poisons every consumer
-///   through it; a document holding one is admitted by `apply`.
-/// - [`NodeErrorKind::MissingInput`] naming a transform's input that
-///   is no live node, at that transform — likewise the transform's own
-///   refusal. A delete strands the transform's read rather than
-///   leaving it, and the transform's own evaluation refuses that
-///   (`UnresolvedRead`) before this walk reaches it; refused typed
-///   anyway.
-/// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
-///   live node, seated at `id`: the walk has no other node to name.
-pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
-    use crate::node::Node;
-    let mut at = id;
-    // The transform whose input the walk is reading, once one is passed.
-    let mut placer: Option<RecipeNodeId> = None;
-    let source = loop {
-        let Some(node) = doc.node(at) else {
-            return Err(Box::new((
-                placer.unwrap_or(at),
-                NodeErrorKind::MissingInput { input: at },
-            )));
-        };
-        let Node::Transform { input, .. } = node else {
-            break node;
-        };
-        let Some(source) = doc.operation_of(*input) else {
-            return Err(Box::new((
-                at,
-                NodeErrorKind::UnresolvedRead {
-                    slot: crate::OperandSlot::Input,
-                    var: *input,
-                },
-            )));
-        };
-        placer = Some(at);
-        at = source;
-    };
-    // The family, and whether a placer takes it.
-    let (found, placeable) = match source {
-        Node::Transform { .. } => {
-            unreachable!("the walk above stops at the first node that is not a transform")
-        }
-        Node::Datum(_) => (family::DATUM, false),
-        Node::Profile(_) => (family::PROFILE, false),
-        Node::Subtract { .. } => (family::BOOLEAN, true),
-        Node::Split { .. } => (family::SPLIT, false),
-        Node::Pattern { .. } => (family::INSTANCES, true),
-        Node::World => (family::WORLD, false),
-        Node::Measure { .. } => (family::MEASURE, false),
-        Node::Assertion { .. } => (family::ASSERTION, false),
-        Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Union { .. }
-        | Node::Intersect { .. }
-        | Node::PlacedUnion { .. }
-        | Node::Part { .. } => (family::BODY, true),
-        Node::Place { shapes, .. } if shapes.len() > 1 => (family::COPIES, true),
-        Node::Place { .. } => (family::BODY, true),
-        Node::InstantiatePart { .. } => (family::COPIES, true),
-    };
-    match placer {
-        Some(transform) if !placeable => Err(Box::new((
-            transform,
-            NodeErrorKind::WrongOperand {
-                input: at,
-                expected: phrase::BODY_OR_INSTANCES,
-                found,
-            },
-        ))),
-        _ => Ok(found),
     }
 }
 
@@ -3696,9 +3561,7 @@ impl Default for EvalOptions {
 /// reads the solve makes (A11 rule 5: a part's extent, a face's pose),
 /// answered from the parts this evaluation resolves.
 ///
-/// The evaluation's own run reads the cache it has already built
-/// ([`CacheReach`]); every caller outside a run — the viewer's mate
-/// tool, the Python door, the demos, the test fixtures — builds one
+/// Every caller — the viewer's mate tool, the Python door, the demos, the test fixtures — builds one
 /// through [`mate_reach`] over the options it would evaluate with, so
 /// there is one implementation of "a part's extent" and it is the
 /// evaluation's.
@@ -3756,26 +3619,6 @@ fn face_pose_over_cache<T: EvalScalar>(
             TableRefusal::Kind { found } => R::NotAFace { found },
         })?;
     topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)
-}
-
-/// The running evaluation's reach: its own cache, borrowed.
-struct CacheReach<'r, 'a, T: EvalScalar> {
-    parts: &'r parts::PartCache<'a, T>,
-    tol: Tol,
-}
-
-impl<T: EvalScalar> crate::mate::MateReach<T> for CacheReach<'_, '_, T> {
-    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
-        reach_over_cache(self.parts, part, self.tol)
-    }
-
-    fn face_pose(
-        &self,
-        part: &crate::ident::DocRef,
-        face: &crate::FaceName,
-    ) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
-        face_pose_over_cache(self.parts, part, face, self.tol)
-    }
 }
 
 /// **A mate solve's reach, built outside an evaluation** — what
@@ -4687,10 +4530,11 @@ where
                 space: match node {
                     // A measure and an assertion read geometry and
                     // answer a number, which lives in no space.
-                    crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => {
-                        None
-                    }
-                    _ => out.space.or(inputs_space).or(Some(crate::mate::Space::World)),
+                    crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => None,
+                    _ => out
+                        .space
+                        .or(inputs_space)
+                        .or(Some(crate::mate::Space::World)),
                 },
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
@@ -4721,7 +4565,6 @@ where
         },
     }
 }
-
 
 /// **The content key's structural tags, declared by vocabulary.**
 ///
