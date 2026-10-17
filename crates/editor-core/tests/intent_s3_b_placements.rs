@@ -750,3 +750,31 @@ fn r1_a_copys_space_turns_on_a_value() {
         "one recipe, two spaces: the kind turned on a value"
     );
 }
+
+/// r1 probe (claim 10 / message truth): the door's Overconstrained
+/// refusal, rendered as the edit error a user reads.
+#[test]
+fn r1_the_doors_overconstrained_text() {
+    let (doc, store, doc_ref, body) = host("r1-door-text");
+    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
+    let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let err = doc
+        .apply(
+            &DocEdit::AddConstraint {
+                placement: b,
+                mate: Box::new(coaxial(body, a, b)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &reach,
+        )
+        .expect_err("overconstrained");
+    let said = err.to_string();
+    println!("r1 door text: {said}");
+    assert!(
+        !said.contains("on its own datum"),
+        "an overconstraint is the bundle's, not the datum's: {said}"
+    );
+}
