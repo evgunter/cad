@@ -689,13 +689,11 @@ fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
 
 /// The tool of the content-key row: the plane normal to the line where
 /// `f1`'s yz plane meets `f2`'s xy plane, through the foot of the point
-/// at `(0.5, 0.5, 0.5)` in `point_frame`.
-fn meet_through_tool(
-    f1: RecipeNodeId,
-    f2: RecipeNodeId,
-    point_frame: RecipeNodeId,
-) -> RoleRead<Operand> {
-    RoleRead::through(
+/// at `(0.5, 0.5, 0.5)` in `point_frame` — the frame through them read
+/// through its xy plane, slid by the constant `0` along its z so that a
+/// re-point, which reads plainly, defines a plane.
+fn meet_through_tool(f1: RecipeNodeId, f2: RecipeNodeId, point_frame: RecipeNodeId) -> Operand {
+    let through = || {
         pose(PoseDef::Through {
             axis: plain(pose(PoseDef::Meet {
                 a: RoleRead::through(Operand::output(f1, 0), PoseRole::Yz),
@@ -705,9 +703,13 @@ fn meet_through_tool(
                 &Operand::output(point_frame, 0),
                 [0.5; 3].map(len),
             ))),
-        }),
-        PoseRole::Xy,
-    )
+        })
+    };
+    pose(PoseDef::Slide {
+        pose: RoleRead::through(through(), PoseRole::Xy),
+        along: RoleRead::through(through(), PoseRole::Z),
+        by: Formula::zero(Dimension::Length),
+    })
 }
 
 /// **Two pose trees reaching the same operations in another
@@ -731,7 +733,7 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
         doc,
         Node::Split {
             target: Operand::output(cube, 0).into(),
-            tool: meet_through_tool(f1, f2, f1),
+            tool: meet_through_tool(f1, f2, f1).into(),
         },
     );
     let ev_first = eval(&first);
@@ -740,7 +742,7 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
         &DocEdit::SetParam {
             node: split,
             slot: editor_core::SlotId::Operand(OperandSlot::Tool),
-            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2).read),
+            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2)),
             fresh: Vec::new(),
         },
         Tol::witness(),

@@ -1805,8 +1805,8 @@ pub enum NodeErrorKind {
         /// The construction.
         construction: crate::pose::PoseConstruction,
     },
-    /// **A scalar a pose definition reads did not evaluate**: an
-    /// in-frame coordinate or a standoff's length.
+    /// **A scalar a pose definition reads did not evaluate**: a slide's
+    /// length or a spin's angle.
     PoseScalar {
         /// The scalar variable.
         var: crate::VarId,

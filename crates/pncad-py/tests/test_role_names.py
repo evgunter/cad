@@ -41,6 +41,7 @@ meridian vertices on its second loop.
 
 import json
 import math
+import sys
 import unittest
 
 from pncad import (
@@ -203,9 +204,11 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
             ev.face_frame(node, band(node, scene.piece(0, 2))).origin[1].meters, H
         )
         # The rim's centre is read off the axis, whose quarter-turn heading
-        # rounds its height by an ulp.
+        # (cosine 6.1e-17, not 0) rounds its height by an ulp of `H`.
         self.assertAlmostEqual(
-            ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters, H, delta=1e-15
+            ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters,
+            H,
+            delta=2 * sys.float_info.epsilon * H,
         )
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):

@@ -122,6 +122,10 @@ fn scalar(py: Python<'_>, slot: PoseSlot, arg: &SlotArg) -> PyResult<d::Formula>
     if formula.dim() == expected {
         return Ok(formula);
     }
+    // A lone `0` is the constant zero of the slot's dimension (VR6).
+    if formula.is_zero() {
+        return Ok(d::Formula::zero(expected));
+    }
     Err(pyo3::exceptions::PyValueError::new_err(format!(
         "the pose's {} reads a {}, not a {}",
         slot.label(),

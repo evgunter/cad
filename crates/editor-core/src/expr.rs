@@ -1112,13 +1112,28 @@ impl<L: LeafSet> ExprTree<L> {
         Self::leaf(Dimension::Angle, ExprKind::Turn)
     }
 
-    /// Zero, at `dim`: a count's zero is the integer constant, the
-    /// one spelling a count has for it.
+    /// Zero, at `dim`: a count's zero is the integer constant and a
+    /// scalar's the rational, the one spelling each has for it, so the
+    /// `Zero` leaf stands only at a length or an angle.
     pub(crate) fn zero_leaf(dim: Dimension) -> Self {
         match dim {
             Dimension::Count => Self::integer_leaf(0),
-            _ => Self::leaf(dim, ExprKind::Zero),
+            Dimension::Scalar => Self::integer_ratio(0),
+            Dimension::Length | Dimension::Angle => Self::leaf(dim, ExprKind::Zero),
         }
+    }
+
+    /// The rational constant `n`, a whole number in range.
+    fn integer_ratio(n: i64) -> Self {
+        let Ok(ratio) = Ratio::new(n, 1) else {
+            unreachable!("a small whole number is a rational in range")
+        };
+        Self::ratio_leaf(ratio)
+    }
+
+    /// Whether this tree is the `Zero` leaf of a length or an angle.
+    fn is_dimensioned_zero(&self) -> bool {
+        matches!(self.kind, ExprKind::Zero)
     }
 
     /// A leaf of the form's own vocabulary, read at `dim`.
@@ -1189,6 +1204,9 @@ impl<L: LeafSet> ExprTree<L> {
     /// [`DimensionError::NestedTooDeep`] alone: negation is total over
     /// every dimension, so only the nesting bound refuses it.
     pub fn neg(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(a);
+        }
         Self::over(a.dim, ExprKind::Neg(Box::new(a)))
     }
 
@@ -1208,6 +1226,12 @@ impl<L: LeafSet> ExprTree<L> {
             (Scalar, d) | (d, Scalar) => d,
             (l, r) => return Err(DimensionError::MulNeedsScalar { left: l, right: r }),
         };
+        // A product with a length's or an angle's zero is that zero: a
+        // dimensioned zero has no spelling as a factor the text door
+        // could read back at its dimension.
+        if a.is_dimensioned_zero() || b.is_dimensioned_zero() {
+            return Ok(Self::zero_leaf(dim));
+        }
         Self::over(dim, ExprKind::Mul(Box::new(a), Box::new(b)))
     }
 
@@ -1227,6 +1251,9 @@ impl<L: LeafSet> ExprTree<L> {
                 right: b.dim,
             });
         }
+        if a.is_dimensioned_zero() {
+            return Ok(a);
+        }
         Self::over(a.dim, ExprKind::Div(Box::new(a), Box::new(b)))
     }
 
@@ -1243,16 +1270,25 @@ impl<L: LeafSet> ExprTree<L> {
 
     /// Sine of an `Angle` → `Scalar` (spec D4).
     pub fn sin(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(0));
+        }
         Self::trig("sin", a, ExprKind::Sin)
     }
 
     /// Cosine of an `Angle` → `Scalar`.
     pub fn cos(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(1));
+        }
         Self::trig("cos", a, ExprKind::Cos)
     }
 
     /// Tangent of an `Angle` → `Scalar`.
     pub fn tan(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(0));
+        }
         Self::trig("tan", a, ExprKind::Tan)
     }
 
@@ -1606,12 +1642,17 @@ impl<L: LeafSet> ExprTree<L> {
     ///
     /// # Errors
     ///
-    /// [`Ratio::new`]'s for a zero or out-of-range `den`.
+    /// [`DimensionError::ConstantOutOfRange`] for a zero `den`, or one
+    /// no constant in range spells.
     pub fn turn_over(den: u64) -> Result<Self, DimensionError> {
-        Self::div(
-            Self::turn(),
-            Self::ratio(i64::try_from(den).unwrap_or(i64::MAX), 1)?,
-        )
+        let refused = || DimensionError::ConstantOutOfRange {
+            text: format!("turn/{den}"),
+        };
+        let den = i64::try_from(den)
+            .ok()
+            .filter(|&n| n > 0)
+            .ok_or_else(refused)?;
+        Self::div(Self::turn(), Self::ratio(den, 1).map_err(|_| refused())?)
     }
 
     /// The constant zero at `dim`, any dimension (VR5): `0` alone, the

@@ -356,6 +356,24 @@ fn the_tilted_seat_plane_evaluates() {
     };
     let n = UnitVec3::get(normal);
     near(n.z, tilt.cos(), "the normal leans 15°");
+    // Right-handed about the rim's own direction `d`: the top's normal
+    // `z` turns towards `d × z`.
+    let Some(VarDef::Pose(PoseDef::Spin { about, .. })) = doc.var(tool.read).map(|v| v.def())
+    else {
+        panic!("a spun plane");
+    };
+    let Ok(PoseValue::Axis { dir, .. }) =
+        bound_pose(&doc, &ev, OperandSlot::Axis, about.read, Tol::witness())
+    else {
+        panic!("the rim's axis");
+    };
+    let d = UnitVec3::get(dir);
+    let toward = d.cross(geom_core::Vec3::new(0.0, 0.0, 1.0));
+    near(
+        n.dot(toward),
+        tilt.sin(),
+        "the normal leans by the right-hand rule",
+    );
     // The front rim runs from (0, 0, 1) to (1, 0, 1): the spin turns the
     // plane about it, so both its ends stay on the plane.
     for end in [[0.0, 0.0, 1.0], [1.0, 0.0, 1.0]] {
@@ -442,5 +460,247 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
         matches!(built.nodes.get(&revolve), Some(NodeResult::Ok(_))),
         "the revolve about x builds: {:?}",
         built.nodes.get(&revolve)
+    );
+    let axis = doc.output(revolve, 1).expect("a revolve defines its axis");
+    let Ok(PoseValue::Axis { dir, .. }) =
+        bound_pose(&doc, &built, OperandSlot::Axis, axis, Tol::witness())
+    else {
+        panic!("the revolve's axis");
+    };
+    let d = UnitVec3::get(dir);
+    for (got, want, what) in [(d.x, 1.0, "x"), (d.y, 0.0, "y"), (d.z, 0.0, "z")] {
+        near(
+            got,
+            want,
+            &format!("the axis runs along the profile's x: {what}"),
+        );
+    }
+}
+
+/// **A lone `0` is the constant at every door** (VR6): written at a
+/// length slot or a count slot of a node the insert door lowers, and at
+/// a slide's length inside a pose definition, a count `0` is the
+/// constant of the slot's dimension.
+#[test]
+fn a_lone_zero_is_the_constant_at_the_insert_door() {
+    let (doc, cube) = unit_box();
+    let (doc, frame) = turned_frame(doc);
+    let (doc, pattern) = fixture::insert(
+        doc,
+        Node::Pattern {
+            input: Operand::output(cube, 0),
+            count: Formula::count(0),
+            kind: editor_core::PatternKind::Circular {
+                axis: RoleRead::through(Operand::Var(frame), PoseRole::Y),
+                step: Formula::count(0),
+            },
+        },
+    );
+    for (slot, dim) in [
+        (SlotId::Count, Dimension::Count),
+        (SlotId::Step, Dimension::Angle),
+    ] {
+        let var = doc.slot(pattern, slot).expect("the slot");
+        assert!(doc.lowers_to_constant(var), "{slot:?}: a constant");
+        let Some(VarDef::Defined(expr)) = doc.var(var).map(|v| v.def()) else {
+            panic!("{slot:?}: a defined variable");
+        };
+        assert_eq!(expr.dim(), dim, "{slot:?}: at the slot's dimension");
+    }
+    let (doc, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Slide {
+                pose: RoleRead::through(Operand::Var(frame), PoseRole::Zx),
+                along: RoleRead::through(Operand::Var(frame), PoseRole::Y),
+                by: Formula::count(0),
+            })
+            .into(),
+        },
+    );
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split");
+    };
+    let Some(VarDef::Pose(PoseDef::Slide { by, .. })) = doc.var(tool.read).map(|v| v.def()) else {
+        panic!("a slid plane");
+    };
+    assert!(doc.lowers_to_constant(*by), "the slide's `0` is a constant");
+}
+
+/// **A dimensioned zero reads back as it was built**: `w + 0` keeps the
+/// length's zero beside `w`, and a product or a negation of a length's
+/// zero is that zero, so the text of each reads back as the tree.
+#[test]
+fn a_dimensioned_zero_reads_back_through_the_text_door() {
+    let w = editor_core::VarName::from_static("w");
+    let params = std::collections::BTreeMap::from([(w.clone(), Dimension::Length)]);
+    let parsed = editor_core::parse::parse_formula("w + 0", &params).expect("parses");
+    assert_eq!(parsed.dim(), Dimension::Length);
+    let k = editor_core::VarName::from_static("k");
+    let zero = Formula::zero(Dimension::Length);
+    for built in [
+        Formula::add(Formula::named(w.clone(), Dimension::Length), zero.clone()).unwrap(),
+        Formula::mul(zero.clone(), Formula::named(k.clone(), Dimension::Scalar)).unwrap(),
+        Formula::div(zero.clone(), Formula::named(k.clone(), Dimension::Scalar)).unwrap(),
+        Formula::neg(zero.clone()).unwrap(),
+    ] {
+        let params = std::collections::BTreeMap::from([
+            (w.clone(), Dimension::Length),
+            (k.clone(), Dimension::Scalar),
+        ]);
+        let text = editor_core::unparse(&built, &|_| None::<&editor_core::VarName>);
+        let back = editor_core::parse::parse_formula(&text, &params).expect("reads back");
+        if built.is_zero() {
+            // A lone zero reads back as the text door's `0`, which a
+            // slot takes at its own dimension.
+            assert!(back.is_zero(), "{text}");
+        } else {
+            assert_eq!(back, built, "{text}");
+        }
+    }
+}
+
+/// **A flip of a flip read through a role refuses**: it is the pose
+/// read through that role, a read the door does not store a second
+/// way.
+#[test]
+fn a_flip_of_a_flip_through_a_role_refuses() {
+    let (doc, cube) = unit_box();
+    let (doc, frame) = turned_frame(doc);
+    let refused = fixture::insert_refused(
+        &doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Flip {
+                pose: RoleRead::plain(pose(PoseDef::Flip {
+                    pose: RoleRead::through(Operand::Var(frame), PoseRole::Xy),
+                })),
+            })
+            .into(),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::PoseShape {
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **A role is keyed** (D9): a split by the turned frame's zx plane
+/// slid along its y to the cube's mid-height, re-pointed to its yz
+/// plane slid along its x to the cube's mid-depth, keys apart, and a memo of the first does not serve the
+/// second.
+#[test]
+fn a_reads_role_is_in_the_content_key() {
+    let (doc, cube) = unit_box();
+    let (doc, frame) = turned_frame(doc);
+    let tool = |plane, along, by| {
+        pose(PoseDef::Slide {
+            pose: RoleRead::through(Operand::Var(frame), plane),
+            along: RoleRead::through(Operand::Var(frame), along),
+            by: len(by),
+        })
+    };
+    let (first, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: tool(PoseRole::Zx, PoseRole::Y, -2.5).into(),
+        },
+    );
+    let ev_first = eval(&first);
+    let second = editor_core::apply(
+        &first,
+        &DocEdit::SetParam {
+            node: split,
+            slot: SlotId::Operand(OperandSlot::Tool),
+            value: SlotValue::Read(tool(PoseRole::Yz, PoseRole::X, -1.5)),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("re-tools")
+    .doc;
+    let fresh = eval(&second);
+    let memo = evaluate::<f64>(
+        &second,
+        Some(&ev_first),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let ok = |ev: &Evaluation<f64>| match ev.nodes.get(&split) {
+        Some(NodeResult::Ok(v)) => (v.content_key, format!("{:?}", v.payload)),
+        other => panic!("the split builds: {other:?}"),
+    };
+    let ((key_first, body_first), (key_second, body_second)) = (ok(&ev_first), ok(&fresh));
+    assert_ne!(body_first, body_second, "premise: the two tools cut apart");
+    assert_ne!(key_first, key_second, "two roles, one content key");
+    assert_eq!(ok(&memo).1, body_second, "the memo served the other role");
+}
+
+/// **A re-point replaces a seat's read whole, its role with it**: a
+/// split's tool read as a frame's xy plane, re-pointed to a plane datum,
+/// reads that plane plainly and builds; re-pointed to the frame itself,
+/// it refuses, a frame being no plane.
+#[test]
+fn a_repoint_replaces_the_read_and_its_role() {
+    let (doc, cube) = unit_box();
+    let (doc, frame) = turned_frame(doc);
+    let (doc, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: RoleRead::through(Operand::Var(frame), PoseRole::Zx),
+        },
+    );
+    let (doc, plane) = fixture::insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [0.0, 0.0, 1.0].map(fixture::scl),
+        }),
+    );
+    let repoint = |doc: &ProfileDoc, read: Operand| {
+        editor_core::apply(
+            doc,
+            &DocEdit::SetParam {
+                node: split,
+                slot: SlotId::Operand(OperandSlot::Tool),
+                value: SlotValue::Read(read),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let moved = repoint(&doc, Operand::output(plane, 0))
+        .expect("a plane re-points the tool")
+        .doc;
+    let Some(Node::Split { tool, .. }) = moved.node(split) else {
+        panic!("the split");
+    };
+    assert_eq!(tool.role, None, "the role went with the read it qualified");
+    assert!(
+        matches!(eval(&moved).nodes.get(&split), Some(NodeResult::Ok(_))),
+        "the split by the plane builds"
+    );
+    let refused = repoint(&doc, Operand::Var(frame)).expect_err("a frame is no plane");
+    assert!(
+        matches!(
+            refused,
+            EditError::SlotVarKind {
+                found: editor_core::VarKind::Frame,
+                ..
+            }
+        ),
+        "{refused:?}"
     );
 }

@@ -747,7 +747,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     }) else {
         panic!("both caps walk")
     };
-    assert_eq!(a.origin, coincide::Origin::Datum(tool));
+    assert_eq!(a.origin, coincide::Origin::Datum(tool, None));
     assert_eq!(a, b);
     for proof in proofs(&doc, union, &got) {
         assert!(

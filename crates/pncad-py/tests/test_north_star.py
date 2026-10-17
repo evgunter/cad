@@ -13,6 +13,7 @@ prompt to move a NO row to YES.
 
 import inspect
 import math
+import sys
 import unittest
 from pathlib import Path
 from typing import ClassVar
@@ -913,13 +914,16 @@ class TestSnowman(unittest.TestCase):
         pose = ev.face_frame(rolled, bands[0])
         ox, oy, oz = (c.meters for c in pose.origin)
         # The axis's heading is a quarter turn, whose cosine rounds to
-        # 6e-17 rather than 0, so the band's centre is off the axis by
-        # rounding alone.
+        # 6.1e-17 rather than 0: the band's centre, at height `oy` on the
+        # axis, sits off it by `cos(turn/4)·|oy|` plus an ulp of `|oy|`.
+        off = (6.2e-17 + sys.float_info.epsilon) * max(abs(oy), 1.0)
         for c in (ox, oz):
-            self.assertAlmostEqual(c, 0.0, delta=1e-15, msg="the band is centred on the axis")
+            self.assertAlmostEqual(c, 0.0, delta=off, msg="the band is centred on the axis")
         self.assertAlmostEqual(oy, self.roll_centre()[1], delta=1e-12)
+        # The axis's direction is the heading's unit vector, each
+        # component within `cos(turn/4)` and an ulp of 1 of the y axis.
         for got, want in zip((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0), strict=True):
-            self.assertAlmostEqual(got, want, delta=1e-15)
+            self.assertAlmostEqual(got, want, delta=6.2e-17 + sys.float_info.epsilon)
 
 
 # ------------------------------------------------------------------

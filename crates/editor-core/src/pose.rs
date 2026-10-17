@@ -228,9 +228,11 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     },
     /// **The opposite sense** of a direction, axis, plane or frame (a
     /// frame turned a half-turn about its `x`). A flip of a flip is the
-    /// pose itself: the edit door normalises it to that pose, so a
-    /// document never stores one ([`PoseFault::DoubleFlip`] at the load
-    /// door).
+    /// pose itself: the edit door normalises one whose inner flip reads
+    /// plainly to that pose, and refuses one whose inner flip reads
+    /// through a role (the pose read through the role is the one
+    /// spelling), so a document never stores one
+    /// ([`PoseFault::DoubleFlip`] at the load door).
     Flip {
         /// The pose flipped.
         pose: RoleRead<R>,
@@ -634,6 +636,8 @@ pub enum PoseFault {
         role: PoseRole,
         /// The kind of the pose it reads.
         found: crate::VarKind,
+        /// What the read admits.
+        expected: crate::SlotKind,
     },
     /// A read or a scalar the document's mint log does not hold (a
     /// file's fault, never a door's).
@@ -679,9 +683,10 @@ impl core::fmt::Display for PoseFault {
                 read.label(),
                 crate::sentence::article(&found.to_string())
             ),
-            Self::DoubleFlip => {
-                f.write_str("it flips a flip, which is the unflipped pose: read that pose instead")
-            }
+            Self::DoubleFlip => f.write_str(
+                "it flips a flip, which is the unflipped pose: read that pose instead, through \
+                 the role the inner flip reads it through if it reads one",
+            ),
             Self::Unminted { var } => {
                 write!(
                     f,
@@ -707,15 +712,33 @@ impl core::fmt::Display for PoseFault {
                 f,
                 "it carries its pose by {var}, which is no placement's copies"
             ),
-            Self::Role { read, role, found } => write!(
+            Self::Role {
+                read,
+                role,
+                found,
+                expected,
+            } if *found != role.of() => write!(
                 f,
-                "its {} reads {} {found} through {} {role}, which {} {} offers (a frame its \
-                 axes, origin and planes; a plane its normal; an axis its direction)",
+                "its {} reads {} {found} through its {role}, which only {} {} offers (a frame \
+                 its axes, origin and planes; a plane its normal; an axis its direction); \
+                 {expected} is read there",
                 read.label(),
                 crate::sentence::article(&found.to_string()),
-                crate::sentence::article(role.label()),
                 crate::sentence::article(&role.of().to_string()),
                 role.of()
+            ),
+            Self::Role {
+                read,
+                role,
+                found,
+                expected,
+            } => write!(
+                f,
+                "its {} reads {} {found}'s {role}, which is {} {}, where {expected} is read",
+                read.label(),
+                crate::sentence::article(&found.to_string()),
+                crate::sentence::article(&role.kind().to_string()),
+                role.kind()
             ),
         }
     }

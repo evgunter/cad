@@ -1301,8 +1301,8 @@ impl ViewerBehavior<'_> {
         let unit = self.notation.length.def();
         ui.horizontal(|ui| {
             ui.label("axis through");
-            point_fields(ui, unit, &mut self.drafts.revolve_axis_origin);
-            length_picker(ui, "revolve_axis_origin", &mut self.notation.length);
+            point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
+            length_picker(ui, "revolve_axis_through", &mut self.notation.length);
         });
         ui.horizontal(|ui| {
             ui.label("axis heading");
@@ -1330,7 +1330,7 @@ impl ViewerBehavior<'_> {
         });
         self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
             Ok(tool.op(
-                notation.point_literals(drafts.revolve_axis_origin.to_array())?,
+                notation.point_literals(drafts.revolve_axis_through.to_array())?,
                 notation.angle_literal(drafts.revolve_axis_heading)?,
                 notation.angle_literal(drafts.revolve_angle)?,
             )?)

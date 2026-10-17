@@ -739,11 +739,11 @@ fn fold(pending: Option<(Formula, usize, Make)>, rhs: Formula) -> Result<Formula
     // that reads a variable is promoted only explicitly (`scalar(n)`).
     // Where the scalar cannot stand either, the refusal is the one the
     // text as written earns.
-    // A lone `0` beside an operand of another dimension is the zero of
-    // that dimension, where it can stand there (VR5): `w + 0` adds
-    // nothing to a length, and `w * 0` keeps its scalar.
+    // A lone `0` beside a length or an angle is that dimension's zero,
+    // where it can stand there (VR5): `w + 0` adds nothing to a length,
+    // and `w * 0` keeps its scalar.
     let zero = |f: &Formula, other: &Formula| {
-        (f.as_integer() == Some(0) && !matches!(other.dim(), Dimension::Count))
+        (f.as_integer() == Some(0) && matches!(other.dim(), Dimension::Length | Dimension::Angle))
             .then(|| Formula::zero(other.dim()))
     };
     if let (l @ Some(_), r) | (l, r @ Some(_)) = (zero(&lhs, &rhs), zero(&rhs, &lhs))

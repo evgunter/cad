@@ -801,7 +801,8 @@ impl SlotId {
         self,
         expr: &crate::expr::ExprTree<L>,
     ) -> Option<SlotDimensionFault> {
-        (self.dimension() != Some(expr.dim())).then(|| SlotDimensionFault {
+        // A lone `0` stands at every slot's dimension (VR6).
+        (self.dimension() != Some(expr.dim()) && !expr.is_zero()).then(|| SlotDimensionFault {
             slot: self,
             expected: self.kind(),
             found: expr.dim(),
@@ -3800,9 +3801,8 @@ impl<P, S: Slot> Node<P, S> {
     /// yields: what both doors refuse as the seat's kind fault.
     #[must_use]
     pub fn seat_role_fault(&self) -> Option<(crate::OperandSlot, crate::VarKind)> {
-        use crate::OperandSlot as O;
-        [O::Tool, O::Axis].into_iter().find_map(|seat| {
-            let role = self.seat_role(seat)?;
+        self.role_seats().into_iter().find_map(|(seat, role)| {
+            let role = role?;
             crate::pose::role_kind(role.of(), role, seat.kind())
                 .is_none()
                 .then_some((seat, role.kind()))
@@ -3814,9 +3814,39 @@ impl<P, S: Slot> Node<P, S> {
     /// ring's axis read off a frame.
     #[must_use]
     pub fn seat_role(&self, seat: crate::OperandSlot) -> Option<crate::pose::PoseRole> {
+        self.role_seats()
+            .into_iter()
+            .find_map(|(at, role)| (at == seat).then_some(role).flatten())
+    }
+
+    /// **Every seat whose read carries a role**, with the role it reads
+    /// through: the one list both [`Self::seat_role`] and
+    /// [`Self::seat_role_fault`] read.
+    fn role_seats(&self) -> Vec<(crate::OperandSlot, Option<crate::pose::PoseRole>)> {
+        use crate::OperandSlot as O;
+        match self {
+            Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
+            Node::Pattern {
+                kind: PatternKind::Circular { axis, .. },
+                ..
+            }
+            | Node::PlacedUnion {
+                kind: PatternKind::Circular { axis, .. },
+                ..
+            } => vec![(O::Axis, axis.role)],
+            _ => Vec::new(),
+        }
+    }
+
+    /// The role of the read at `seat`, writable: what a re-point of
+    /// that read clears, since the read it writes is replaced whole.
+    pub(crate) fn seat_role_mut(
+        &mut self,
+        seat: crate::OperandSlot,
+    ) -> Option<&mut Option<crate::pose::PoseRole>> {
         use crate::OperandSlot as O;
         match (self, seat) {
-            (Node::Split { tool, .. }, O::Tool) => tool.role,
+            (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (
                 Node::Pattern {
                     kind: PatternKind::Circular { axis, .. },
@@ -3827,7 +3857,7 @@ impl<P, S: Slot> Node<P, S> {
                     ..
                 },
                 O::Axis,
-            ) => axis.role,
+            ) => Some(&mut axis.role),
             _ => None,
         }
     }

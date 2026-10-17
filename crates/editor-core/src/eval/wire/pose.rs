@@ -268,19 +268,22 @@ fn definition<T: Decide>(
             let angle = scalar(*by, crate::expr::Dimension::Angle)?;
             let turn = RigidMotion::rotation_about_axis(origin, dir, angle)
                 .map_err(NodeErrorKind::Motion)?;
+            // A turned point takes `q + R·(p − q)`, which widens by its
+            // offset from the axis, not by the composite map's anchor.
+            let point = |p| geom_core::Affine3::rotate_point_about_unit_axis(origin, dir, angle, p);
             match pose(read)? {
                 PoseValue::Point { position } => PoseValue::Point {
-                    position: turn.transform_point(position),
+                    position: point(position),
                 },
                 PoseValue::Direction { dir } => PoseValue::Direction {
                     dir: turn.turn(dir),
                 },
                 PoseValue::Axis { origin, dir } => PoseValue::Axis {
-                    origin: turn.transform_point(origin),
+                    origin: point(origin),
                     dir: turn.turn(dir),
                 },
                 PoseValue::Plane { origin, normal } => PoseValue::Plane {
-                    origin: turn.transform_point(origin),
+                    origin: point(origin),
                     normal: turn.turn(normal),
                 },
                 PoseValue::Frame(f) => {

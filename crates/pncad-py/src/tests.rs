@@ -3924,6 +3924,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // sentence; the cells cross on the Python value, not the payload.
     let tool = pncad::document::NamedCell::Tool {
         input: pncad::document::VarId(RecipeNodeId::new(0, 3).0),
+        role: None,
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {

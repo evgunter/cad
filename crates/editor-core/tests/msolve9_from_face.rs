@@ -646,8 +646,11 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
     );
     let z = |f: &Frame| f.columns[2];
     // The axis's heading is a quarter turn, whose cosine rounds to
-    // 6e-17, so the two reads agree to the rounding of that component.
-    let close = |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= 1e-16);
+    // 6.1e-17 rather than 0. Each read rounds that unit vector's
+    // components once more, by at most half an ulp of 1, so the two
+    // agree to within an ulp of 1, `f64::EPSILON`.
+    let close =
+        |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= f64::EPSILON);
     assert!(
         close(z(&aligned), pose.axis.to_array()),
         "{:?} against {:?}",

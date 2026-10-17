@@ -194,7 +194,7 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The revolve tool's point on its axis, metres, in the profile's
     /// own 2-D coordinates.
-    pub(crate) revolve_axis_origin: Point2<f64>,
+    pub(crate) revolve_axis_through: Point2<f64>,
     /// The revolve tool's axis heading from the profile's x axis,
     /// radians. Opens a quarter turn, along the profile's +y, the axis
     /// a profile drawn beside it turns about.
@@ -673,7 +673,7 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
-            revolve_axis_origin: Point2::origin(),
+            revolve_axis_through: Point2::origin(),
             revolve_axis_heading: core::f64::consts::FRAC_PI_2,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],

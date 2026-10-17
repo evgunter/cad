@@ -352,7 +352,7 @@ where
             (target.read, at(O::Target, target.read)?),
             (
                 &pose::eval_pose(doc, unprojected, O::Tool, *tool, env.lane.params, tol)?,
-                tool.read,
+                *tool,
             ),
             results,
             tol,
@@ -1153,7 +1153,8 @@ fn need_vec2<T: Decide>(
 
 /// **A revolve's axis direction in its profile's plane**: the unit
 /// vector at its heading from the profile's x axis, `(cos h, sin h)`.
-/// Unit by construction, so no direction is decided.
+/// Unit by construction, up to the rounding of the sine and cosine;
+/// its readers decide it as they decide any authored direction.
 fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Result<Vec2<T>, NodeErrorKind> {
     let (sin, cos) = need_scalar(vals, SlotId::AxisHeading)?.sin_cos();
     Ok(Vec2::new(cos, sin))
@@ -2561,7 +2562,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     (target_read, target): (crate::VarId, RecipeNodeId),
-    (tool, tool_read): (&PoseValue<T>, crate::VarId),
+    (tool, tool_read): (&PoseValue<T>, crate::pose::RoleRead<crate::VarId>),
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {

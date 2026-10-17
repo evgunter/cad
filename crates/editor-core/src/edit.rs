@@ -1098,6 +1098,7 @@ fn lower_node<P: crate::ProfilePayload>(
     tol: Tol,
     spoken: impl Fn() -> SpokenNode,
 ) -> Result<Node<P>, EditError> {
+    let node = &zero_at_its_slots(node);
     let rows: Vec<(ExprSite, &Formula)> = node
         .rows()
         .into_iter()
@@ -1136,6 +1137,28 @@ fn lower_node<P: crate::ProfilePayload>(
             },
         )
     })
+}
+
+/// **`node` with each lone `0` at a slot read at that slot's
+/// dimension** (VR6): the constant zero takes the dimension of the slot
+/// it stands in, whatever dimension it was written at.
+fn zero_at_its_slots<P: Clone + crate::program::SlotPayload<Formula>>(
+    node: &Node<P, Formula>,
+) -> Node<P, Formula> {
+    let mut node = node.clone();
+    for (slot, formula) in node.rows_mut() {
+        zero_at(slot, formula);
+    }
+    node
+}
+
+/// A lone `0` at `slot`, read at the slot's dimension (VR6).
+fn zero_at(slot: SlotId, formula: &mut Formula) {
+    if let Some(dim) = slot.dimension()
+        && formula.is_zero()
+    {
+        *formula = Formula::zero(dim);
+    }
 }
 
 /// **Every operand of an authored node as the door writes it**, in the
@@ -1342,6 +1365,7 @@ fn mint_pose<P: crate::ProfilePayload>(
                     read: which,
                     role,
                     found: role.of(),
+                    expected: admits,
                 }));
             }
             Ok(var)
@@ -1349,6 +1373,13 @@ fn mint_pose<P: crate::ProfilePayload>(
         &mut |_, formula| Ok::<_, EditError>(formula.clone()),
     )?;
     let stored: PoseDef = read.try_map(&mut |_, &var| Ok(var), &mut |pose_slot, formula| {
+        let zero;
+        let formula = if formula.is_zero() {
+            zero = Formula::zero(pose_slot.dimension());
+            &zero
+        } else {
+            formula
+        };
         let var = Lowering::none()
             .slot(doc, formula)
             .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
@@ -1381,6 +1412,20 @@ fn mint_pose<P: crate::ProfilePayload>(
         })) = doc.var(*pose).map(Var::def)
     {
         return Ok(*twice);
+    }
+    // One whose inner flip reads through a role is that pose read
+    // through the role, which only a read can say: refused, not stored.
+    if let PoseDef::Flip {
+        pose: RoleRead {
+            read: pose,
+            role: None,
+        },
+    } = &stored
+        && let Some(VarDef::Pose(PoseDef::Flip {
+            pose: RoleRead { role: Some(_), .. },
+        })) = doc.var(*pose).map(Var::def)
+    {
+        return Err(shape(PoseFault::DoubleFlip));
     }
     // A copy carries the pose: what it reads as the copy is a
     // placement's copies.
@@ -1724,6 +1769,12 @@ fn lower_loops<P>(
 ) -> Result<Vec<crate::LoopProgram>, EditError> {
     let mut lowered = Vec::with_capacity(loops.len());
     for (li, lp) in loops.iter().enumerate() {
+        let mut lp = lp.clone();
+        for ((step, arg), formula) in lp.rows_mut() {
+            let loop_ = crate::program::program_index(li);
+            zero_at(SlotId::Profile { loop_, step, arg }, formula);
+        }
+        let lp = &lp;
         let rows: Vec<(SlotId, &Formula)> = lp
             .rows()
             .into_iter()
@@ -2090,8 +2141,10 @@ pub enum EditError {
     },
     /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
     /// not one the document can store ([`crate::pose::PoseFault`]): a
-    /// projection its source has no arm to. (A flip of a flip is the
-    /// pose it flips, which the door normalises rather than refuses.) A
+    /// read through a role its pose does not offer, or whose kind the
+    /// read does not admit, or a flip of a flip read through a role. (A
+    /// flip of a plainly read flip is the pose it flips, which the door
+    /// normalises rather than refuses.) A
     /// read of a kind the definition does not admit is the read's own
     /// [`EditError::SlotVarKind`].
     PoseShape {
@@ -3453,8 +3506,9 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "project a frame to its plane, axis or origin, or a plane or an axis to \
-                         its direction"
+                        "read a frame through its axes, origin or planes, a plane through its \
+                         normal, or an axis through its direction, where the read admits that \
+                         kind; slide along a direction or an axis, and spin about an axis"
                     ),
                 )
             }
@@ -5656,6 +5710,11 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     if let Some(body) = rewritten.body_read_mut(slot) {
         body.key = key.cloned();
     }
+    // A re-point replaces the read whole, so a role the old read was
+    // read through goes with it.
+    if let Some(role) = rewritten.seat_role_mut(slot) {
+        *role = None;
+    }
     let expected = match (&rewritten, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => rewritten.seat_kind(slot),
@@ -6633,12 +6692,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         slot: *slot,
                     });
                 }
-                // A lone `0` is the constant zero of the slot's own
-                // dimension, whatever dimension it was written at (VR6).
-                (_, SlotValue::Formula(formula)) => match slot.dimension() {
-                    Some(dim) if formula.is_zero() => std::borrow::Cow::Owned(Formula::zero(dim)),
-                    _ => std::borrow::Cow::Borrowed(formula),
-                },
+                (_, SlotValue::Formula(formula)) => std::borrow::Cow::Borrowed(formula),
                 // A read at a scalar slot is the formula of the one
                 // variable it resolves to, held to every rule a formula
                 // is.
@@ -7467,6 +7521,9 @@ fn lower_index<P>(
     slot: SlotId,
     formula: &Formula,
 ) -> Result<VarId, EditError> {
+    let mut formula = formula.clone();
+    zero_at(slot, &mut formula);
+    let formula = &formula;
     if let Some(SlotDimensionFault {
         slot,
         expected,
@@ -7516,6 +7573,9 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     if !holds {
         return Err(EditError::UnknownSlot { id: spoken, slot });
     }
+    let mut formula = formula.clone();
+    zero_at(slot, &mut formula);
+    let formula = &formula;
     // D6's comparison, from its one home (`SlotId::dimension_fault`) —
     // the same rule the node-wide walk asks, of a formula the node
     // does not hold yet.

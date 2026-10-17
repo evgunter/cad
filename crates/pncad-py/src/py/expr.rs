@@ -96,8 +96,6 @@ fn quantity(obj: &Bound<'_, PyAny>) -> PyResult<(f64, d::Dimension)> {
     ))
 }
 
-/// Raise `LiteralError` for a value the expression layer refused,
-/// carrying the refusal's stable tag and the offending number.
 /// A count as the `value` a refusal reports, rounded where it is wider
 /// than a float carries exactly.
 #[allow(clippy::cast_precision_loss)]
@@ -105,6 +103,8 @@ fn u64_value(n: u64) -> f64 {
     n as f64
 }
 
+/// Raise `LiteralError` for a value the expression layer refused,
+/// carrying the refusal's stable tag and the offending number.
 fn literal_err(py: Python<'_>, value: f64, err: &d::DimensionError) -> PyErr {
     let tag = expr_dimension_error_tag(err);
     let value_obj = match value.into_pyobject(py) {

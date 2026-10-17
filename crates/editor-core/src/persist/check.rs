@@ -190,8 +190,9 @@ pub(crate) enum Walk {
     /// [`first_pose_fault`] over the variable table (D10): every pose
     /// definition reads minted variables, a live read at a kind it
     /// admits and a live scalar at its slot's dimension; no flip flips
-    /// a flip, no projection lacks its arm, a flip's stored kind is its
-    /// read's, and no definition reaches itself through its reads — the
+    /// a flip, no role is read off a pose that does not offer it or at
+    /// a read that does not admit its kind, a move's, a flip's and a
+    /// carried pose's stored kind is its read's, and no definition reaches itself through its reads — the
     /// predicates the seat door asks of a pose it mints. Snapshot only.
     Pose,
     /// [`first_definition_read_fault`] over every defined variable's
@@ -618,6 +619,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                             read,
                             role,
                             found: held.kind(),
+                            expected,
                         });
                     }
                 }
@@ -654,7 +656,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             && snapshot
                 .var(*pose)
                 .and_then(|held| held.def().pose())
-                .is_some_and(|d| matches!(d, PoseDef::Flip { pose } if pose.role.is_none()))
+                .is_some_and(|d| matches!(d, PoseDef::Flip { .. }))
         {
             return Some(PoseFault::DoubleFlip);
         }
