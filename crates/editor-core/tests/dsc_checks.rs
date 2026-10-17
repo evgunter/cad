@@ -1056,3 +1056,12 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
         "the recourse says what a finding is and is not: {rendered}"
     );
 }
+
+#[test]
+fn zz_c4_probe() {
+    let (doc, root) = annihilated();
+    let ev = run(&doc);
+    eprintln!("PROBE result={:?}", ev.result(root).map(|r| r.error()));
+    eprintln!("PROBE bundle={:?}", fixture::bundle(&doc, root));
+    panic!("probe");
+}

@@ -253,7 +253,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
         other => panic!("the part's profile: {other:?}"),
     };
     ids.insert(at, None);
-    apply(
+    let doc = apply(
         base,
         &DocEdit::SetProgram {
             node: profile,
@@ -265,7 +265,26 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
         &editor_core::RefusingReach,
     )
     .unwrap()
-    .doc
+    .doc;
+    // The part's world pin reads its frame off an edge and a vertex of
+    // the body, which the reshape may move: the placement is pinned
+    // again where the reshaped body stands in its own coordinates.
+    let [placement] = doc.placements()[..] else {
+        panic!("the part places its body once")
+    };
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::pinned(doc, placement, &editor_core::EvalOptions::default())
 }
 
 /// **Two versions of one part that branch from one value.** Version A

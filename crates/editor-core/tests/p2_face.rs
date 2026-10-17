@@ -22,7 +22,7 @@ use crate::p2_gauges::{Parts, block, cut, parts};
 use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
+    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
     PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -159,9 +159,11 @@ fn resolver(store: &PartStore) -> Arc<dyn PartResolver> {
 
 /// **The face-crossing scene**: a base pinned to the world at
 /// `[4, 0, 0]` and a top mated onto it, so the top is placed by its
-/// mate rather than pinned; and a third block `k` placed by `m` alone,
-/// `k`'s bottom cap seated on the top's upper cap. Returns the store's
-/// parts, the document, `[base, top, k]` and `m`.
+/// mate rather than pinned; and a third block `k` whose one mate `m`
+/// rests `k`'s bottom cap on the top's upper cap, its in-plane freedoms
+/// left free — a value would be charted on the top's frame, which a
+/// split cannot carry off the identity. Returns the store's parts, the
+/// document, `[base, top, k]` and `m`.
 fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let p = parts(label);
     let o = p.opts();
@@ -172,7 +174,11 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let (doc, base) = pinned_at(doc, p.base, [4.0, 0.0, 0.0], &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _seat) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
-    let (doc, m) = face_mate(doc, k, head(p.top_cap(k)), head(p.top_upper_cap(top)));
+    let (doc, m) = fixture::constrain_at(
+        doc,
+        k,
+        fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top)), ContactClass::Rest),
+    );
     (p, doc, [base, top, k], m)
 }
 

@@ -145,6 +145,39 @@ fn shelved(versions: &[(DocumentId, f64)]) -> (EvalOptions, Vec<DocRef>) {
     (with_shelf(shelf), refs)
 }
 
+/// **`node` moved to `new_pin` and pinned again at `dx` along +x**: the
+/// pin reads its frame off the copy's own edge and vertex, by the names
+/// the version it was written against minted, and another version mints
+/// its steps under other ids — so a moved reference is pinned afresh,
+/// as its author would re-place it.
+fn repinned(
+    doc: ProfileDoc,
+    node: RecipeNodeId,
+    new_pin: ContentPin,
+    dx: f64,
+    o: &EvalOptions,
+) -> ProfileDoc {
+    let doc = doc
+        .apply(
+            &DocEdit::UpdateReference { node, new_pin },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the update applies")
+        .doc;
+    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
+        fixture::step(
+            doc,
+            DocEdit::RemoveConstraint {
+                placement: node,
+                constraint: c.id,
+            },
+        )
+        .0
+    });
+    fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
+}
+
 /// The reference a node carries — the value every row reads back.
 fn pin_at(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
     match doc.node(node) {
@@ -526,17 +559,7 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
     assert_eq!(before.part_evaluations, 1, "one version, one evaluation");
     let vol_before = volume(&product(&doc, &before, Tol::witness()).expect("gathers"));
 
-    let staged = doc
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[1],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let staged = repinned(doc, ids[1], r2.pin, 10.0, &opts);
     let after = run(&staged, &opts);
     assert_eq!(
         after.part_evaluations, 2,
@@ -552,17 +575,7 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
     assert!((vol_after - 5.0).abs() < 1e-9, "v1 + v2: {vol_after}");
 
     // Fully updated: the OLD content is not served at all.
-    let done = staged
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the second site moves")
-        .doc;
+    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
     let ev = run(&done, &opts);
     assert_eq!(ev.part_evaluations, 1, "one version again, one evaluation");
     let vol_done = volume(&product(&done, &ev, Tol::witness()).expect("gathers"));
@@ -598,17 +611,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
         "one v1 solid: {vol_before}"
     );
 
-    let updated = top
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: s2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let updated = repinned(top, ids[0], s2.pin, 0.0, &opts);
     let vol_after = product_volume(&updated, &opts);
     assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
     assert_eq!(
@@ -674,17 +677,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // One site updated, re-evaluated over the SAME warm prior: the
     // moved reference is re-keyed and re-resolved, the untouched one
     // is served from the prior, and the product is one solid of each.
-    let staged = doc
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[1],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let staged = repinned(doc, ids[1], r2.pin, 10.0, &opts);
     let warm_staged = run_warm(&staged, &cold, &opts);
     assert_eq!(
         warm_staged.part_evaluations, 1,
@@ -695,17 +688,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
 
     // The second site moves over the STAGED prior: the old version is
     // now named nowhere, and nothing serves it.
-    let done = staged
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
     let warm_done = run_warm(&done, &warm_staged, &opts);
     assert_eq!(warm_done.part_evaluations, 1, "one reference moved");
     let vol_done = volume(&product(&done, &warm_done, Tol::witness()).expect("gathers"));
@@ -740,17 +723,7 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
     let vol_before = volume(&product(&top, &control, Tol::witness()).expect("gathers"));
     assert!((vol_before - 1.0).abs() < 1e-9, "one v1 solid");
 
-    let updated = top
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: s2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let updated = repinned(top, ids[0], s2.pin, 0.0, &opts);
     let warm = run_warm(&updated, &cold, &opts);
     let vol_after = volume(&product(&updated, &warm, Tol::witness()).expect("gathers"));
     assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
@@ -879,16 +852,3 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     );
 }
 
-#[test]
-fn zz_c4_probe() {
-    let id = DocumentId::derive("asm-upd-r5a-part");
-    let mut shelf = VersionShelf::default();
-    let r1 = shelf.shelve(part_version(id, 1.0), Tol::witness());
-    let r2 = shelf.shelve(part_version(id, 2.0), Tol::witness());
-    let opts = with_shelf(shelf);
-    let (doc, ids) = assembly("asm-upd-r5a-asm", &[r1, r1], &opts);
-    let staged = doc.apply(&DocEdit::UpdateReference { node: ids[1], new_pin: r2.pin }, Tol::witness(), &editor_core::RefusingReach).unwrap().doc;
-    let after = run(&staged, &opts);
-    eprintln!("PROBE err={:?}", after.node_error(ids[1]));
-    panic!("probe");
-}

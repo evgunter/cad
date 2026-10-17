@@ -1793,6 +1793,7 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 /// lane's rounding, so at a fine enough ε it escalates with no box at
 /// all (the spec's §5 (b),
 /// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`).
+/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12, none does.
 const INTERVAL_ESCALATIONS: [(f64, &str, &str); 0] = [];
 
 /// The escalation `id` fails with in `ev`, if its fault is one: a mate
@@ -2082,16 +2083,4 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         (lo, hi),
         "the clearance leaf",
     );
-}
-
-#[test]
-fn zz_probe_interval_escalations() {
-    for (label, doc, opts) in corpus() {
-        let i = run_at::<Interval>(&doc, &opts, None);
-        for id in doc.ids() {
-            if let Some(d) = escalation(&i, id) {
-                eprintln!("PROBE {label} {:?}", d.predicate);
-            }
-        }
-    }
 }

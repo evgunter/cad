@@ -26,10 +26,10 @@ use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
-    ContactClass, Coord, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node,
-    NodeErrorKind, NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SlideAxis, Space, StableName, Value, apply, load, product, relative_freedom_components, save,
+    ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
+    Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
+    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SlideAxis, Space,
+    StableName, Value, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -67,13 +67,12 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **The stored part and the names its instances are read through**:
-/// the store, the reference, the body, the part's own roles for two
+/// the store, the body, the part's own roles for two
 /// adjacent walls (segments 0 and 1) and for the profile's four corners
 /// in loop order (adjacent corners a unit apart, opposite ones `√2`).
 #[derive(Clone)]
 struct Kit {
     store: PartStore,
-    doc_ref: DocRef,
     body: RecipeNodeId,
     walls: [RoleSeg; 2],
     corners: [ProfileVertexRef; 4],
@@ -157,7 +156,6 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
     let (doc_ref, body) = store.insert_part((part_doc, body), Tol::witness());
     let kit = Kit {
         store,
-        doc_ref,
         body,
         walls,
         corners,

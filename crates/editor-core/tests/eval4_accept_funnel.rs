@@ -89,7 +89,7 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r2-cell"),
         Tol::witness(),
-        Some(&store),
+        Some(&(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>)),
     )
     .expect("a whole group and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
@@ -107,7 +107,7 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         None,
         "the member stays mate-placed"
     );
-    let mut parts = PartStore::new();
+    let mut parts = store;
     parts.insert(out.part.clone(), Tol::witness());
     assert!(
         offset_of(&out.remainder, out.instance).is_some(),
@@ -141,10 +141,10 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
-        Some(&store),
+        Some(&(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>)),
     )
     .expect("cuts");
-    let mut parts = PartStore::new();
+    let mut parts = store;
     parts.insert(out.part.clone(), Tol::witness());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(parts);
     let back = inline(&out.remainder, out.instance, &resolver, Tol::witness())
@@ -167,7 +167,7 @@ fn placed_pair(
     label: &str,
 ) -> (
     ProfileDoc,
-    std::sync::Arc<dyn editor_core::PartResolver>,
+    PartStore,
     [RecipeNodeId; 2],
     WorldRead<Formula>,
 ) {
@@ -185,21 +185,6 @@ fn placed_pair(
     );
     assert_eq!(joint.placement, b, "the mate places the second instance");
     let offset = offset_of(&doc, a).expect("a is pinned by one world read");
-    (doc, std::sync::Arc::new(store), [a, b], offset)
+    (doc, store, [a, b], offset)
 }
 
-#[test]
-fn zz_c4_probe() {
-    let (doc, store, [a, b], _offset) = placed_pair("eval4-r2");
-    let out = fixture::split_world(&doc, &BTreeSet::from([a, b]), DocumentId::derive("eval4-r2-cell"), Tol::witness(), Some(&store)).expect("cuts");
-    let mut parts = PartStore::new();
-    parts.insert(out.part.clone(), Tol::witness());
-    let o = with_resolver(parts);
-    let poses = fixture::solve(&out.remainder, &o, Tol::witness());
-    let ev = fixture::run(&out.remainder, &o);
-    eprintln!("PROBE fault={:?} space={:?} rel={:?} err={:?}", poses.fault(out.instance), poses.space(out.instance), poses.relative(out.instance), ev.node_error(out.instance));
-    eprintln!("PROBE bundle={:?}", fixture::bundle(&out.remainder, out.instance));
-    let pev = fixture::run(&out.part, &editor_core::EvalOptions::default());
-    for (id, r) in &pev.nodes { if let Some(e) = r.error() { eprintln!("PROBE part err {id:?} {e:?}"); } }
-    panic!("probe");
-}

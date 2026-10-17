@@ -167,6 +167,11 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         "the operand is a read site, not a name: {:?}",
         crate::fixture::without_anonymous(&applied.maintenance)
     );
+    {
+        let ev = fixture::run(&applied.doc, &opts);
+        eprintln!("PROBE result={:?}", ev.result(mate.placement));
+        eprintln!("PROBE bundle={:?}", fixture::bundle(&applied.doc, mate.placement));
+    }
     let fault = solve_document(&applied.doc, &opts, Tol::witness())
         .fault(mate.placement)
         .expect("the placement refuses the mate whose operand left")
