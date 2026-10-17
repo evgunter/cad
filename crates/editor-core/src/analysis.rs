@@ -448,6 +448,12 @@ pub trait AxisScalar: geom_core::Real {
         let _ = var;
         Self::axis(lo, hi)
     }
+
+    /// Whether [`AxisScalar::axis_of`] binds the variable as a PARAMETER
+    /// SYMBOL (its identity), rather than as a number: true for
+    /// `geom_core::Sym<T>` alone, whose door does exactly that. Read by
+    /// [`var_env_over`] into [`crate::expr::VarEnv::binds_symbols`].
+    const BINDS_IDENTITIES: bool = false;
 }
 
 /// A point scalar carries only a degenerate axis, and the comparison is
@@ -514,6 +520,8 @@ where
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         T::axis(lo, hi).map(geom_core::Sym::opaque)
     }
+
+    const BINDS_IDENTITIES: bool = true;
 
     fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
@@ -1087,13 +1095,15 @@ impl ParamBox {
 /// so the enclosure rounds outward — at `Sym`, a parameter symbol.
 /// `Count` parameters bind exactly as [`Doc::var_env`] binds them (they
 /// are structural, never axes). A variable the box HOLDS — a
-/// [`BoxAxis::Fixed`] axis, or a toleranced parameter the box does not
-/// name — binds its nominal plus a zero offset: the bits the axis door
-/// binds at every numeric scalar, and at `Sym` a constant, so the
-/// symbolic lane reads it as a number, not a symbol. A parameter with no
-/// tolerance the box does not name is no axis ([`is_axis`]) and binds
-/// its nominal as a constant, as [`Doc::var_env`] binds it. So a box that
-/// varies nothing binds the build's values at every scalar.
+/// [`BoxAxis::Fixed`] axis — binds its nominal plus a zero offset: the
+/// bits the axis door binds at every numeric scalar, and at `Sym` a
+/// constant, so the symbolic lane reads it as a number, not a symbol. A
+/// toleranced parameter the box does not name binds its nominal as an
+/// axis of no width through the identified door, so at `Sym` it is its
+/// id's symbol (VR8). A parameter with no tolerance the box does not name
+/// is no axis ([`is_axis`]) and binds its nominal as a constant, as
+/// [`Doc::var_env`] binds it. The environment records whether any
+/// binding is a symbol ([`crate::expr::VarEnv::binds_symbols`]).
 ///
 /// # Errors
 ///
@@ -1112,6 +1122,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         }
     }
     let mut bindings = BTreeMap::new();
+    let mut binds_symbols = false;
     for (id, p) in doc.free_vars() {
         // Bound by id, as `Doc::var_env` binds it: the two environment
         // doors read one iteration base.
@@ -1122,18 +1133,19 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                     value: T::from_f64(value),
                 }
             }
-            // HELD at its nominal: a `Fixed` axis, or an axis the box does
-            // not name. Its value is the nominal plus a zero offset, bit
-            // for bit what the axis door binds at every numeric scalar
-            // (`-0.0` lands on `+0.0` there too) — and at `Sym` a
-            // CONSTANT, not a parameter symbol. A held variable is not
-            // free to vary, so no identity may be proved over it as if it
-            // were; a caller that wants it a symbol says so with a
-            // varying axis (`Varying { lo: x, hi: x }`) or with `symbols`.
-            // This is what makes a box that varies nothing the build at
-            // every scalar (`crate::eval::EvalOptions::profile_lift`).
+            // HELD at its nominal: a `Fixed` axis. Its value is the
+            // nominal plus a zero offset, bit for bit what the axis door
+            // binds at every numeric scalar (`-0.0` lands on `+0.0` there
+            // too) — and at `Sym` a CONSTANT, not a parameter symbol. A
+            // held variable is not free to vary, so no identity may be
+            // proved over it as if it were; a caller that wants it a
+            // symbol says so with a varying axis (`Varying { lo: x, hi: x
+            // }`) or with `symbols`. A toleranced variable the box does
+            // not name is still an axis of no width through the
+            // identified door below, and so a symbol at `Sym` (VR8: a
+            // toleranced variable is an axis and a symbol).
             FreeVar::Continuous { dim, value, .. }
-                if !matches!(box_.get(id), Some(BoxAxis::Varying { .. })) =>
+                if matches!(box_.get(id), Some(BoxAxis::Fixed)) =>
             {
                 crate::expr::ParamValue::Continuous {
                     dim,
@@ -1152,6 +1164,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                         lo,
                         hi,
                     })?;
+                binds_symbols |= T::BINDS_IDENTITIES;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,
@@ -1165,6 +1178,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
+        binds_symbols,
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.
@@ -1212,6 +1226,7 @@ pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
+        binds_symbols: true,
     };
     doc.bind_definitions(&mut env);
     Ok(env)

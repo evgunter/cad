@@ -648,3 +648,86 @@ fn at_sym_a_fixed_box_is_the_build_and_a_degenerate_varying_one_is_guided() {
         guided_log.len()
     );
 }
+
+/// Each node's content key and the first profile node's verdict log, for
+/// `doc` at `T` over an EMPTY box or none, in a deferring session at the
+/// door's budget (a no-op at a numeric scalar).
+fn under_an_empty_box<T: editor_core::EvalScalar>(
+    doc: &editor_core::ProfileDoc,
+    boxed: bool,
+) -> (Vec<Option<editor_core::ContentKey>>, Vec<String>) {
+    let opts = EvalOptions {
+        param_box: boxed.then(|| {
+            std::sync::Arc::new(editor_core::analysis::ParamBox::from_axes(
+                std::collections::BTreeMap::new(),
+            ))
+        }),
+        ..EvalOptions::default()
+    };
+    geom_core::sym::deferred::with_deferred_session(
+        geom_core::SymBudget {
+            max_terms: 256,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        },
+        geom_core::SymRules::shipped(),
+        editor_core::drive::DEFAULT_SYM_RETRY,
+        || {
+            let ev = evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness());
+            let profile = *doc
+                .ids()
+                .iter()
+                .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
+                .expect("a profile node");
+            let keys = ev
+                .order
+                .iter()
+                .map(|id| ev.value(*id).map(|v| v.content_key))
+                .collect();
+            let log = ev
+                .value(profile)
+                .expect("the profile evaluates")
+                .verdicts
+                .iter()
+                .map(|v| format!("{v:?}"))
+                .collect();
+            (keys, log)
+        },
+    )
+    .0
+}
+
+/// **The lift follows what the environment binds.** The two-hole plate
+/// has toleranced variables. Under an EMPTY box at `Sym` each binds as
+/// its id's symbol (VR8: a toleranced variable is an axis and a symbol),
+/// so the environment is not the build's and the lift is guided though
+/// the box varies nothing — its profile log the build's, then the op's
+/// own. At `f64` and `Interval` the same empty box binds every variable
+/// at its nominal, and the evaluation is the build, key for key and
+/// verdict for verdict.
+#[test]
+fn an_empty_box_is_the_build_at_a_numeric_scalar_and_guided_at_sym_over_a_toleranced_variable() {
+    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, Tol::witness()).0;
+    assert!(
+        doc.free_vars()
+            .any(|(_, p)| editor_core::analysis::is_axis(p)),
+        "the plate has a toleranced variable"
+    );
+    assert_eq!(
+        under_an_empty_box::<f64>(&doc, true),
+        under_an_empty_box::<f64>(&doc, false),
+        "at f64 an empty box is the build"
+    );
+    assert_eq!(
+        under_an_empty_box::<geom_core::Interval>(&doc, true),
+        under_an_empty_box::<geom_core::Interval>(&doc, false),
+        "at Interval an empty box is the build"
+    );
+    let (_, build) = under_an_empty_box::<geom_core::Sym<f64>>(&doc, false);
+    let (_, boxed) = under_an_empty_box::<geom_core::Sym<f64>>(&doc, true);
+    assert!(
+        boxed.len() > build.len() && boxed[..build.len()] == build[..],
+        "at Sym the empty box binds symbols, so the lift is guided: build {} decisions, boxed {}",
+        build.len(),
+        boxed.len()
+    );
+}

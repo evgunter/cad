@@ -3497,14 +3497,21 @@ impl EvalOptions {
     /// scalar ([`ProfileLift::Guided`]); every other evaluation is the
     /// build, at any scalar ([`ProfileLift::Pinned`]). A box of only
     /// [`Fixed`](crate::analysis::BoxAxis::Fixed) axes, or none, holds
-    /// every variable at its nominal, so it is the build too, and an
-    /// unused box seam changes no decision. The pinned lift
+    /// every variable it names at its nominal, so at a numeric scalar it
+    /// is the build too, and an unused box seam changes no decision. The pinned lift
     /// reads the profile at the nominal, so in an analysis it would
     /// enter profile geometry as constants of a function the document
     /// does not compute; with the variables at their nominal, the two
     /// lifts read the same values and the pinned one is the build's own
     /// bits.
     #[must_use]
+    ///
+    /// This is what the OPTIONS say. The evaluation also reads the
+    /// environment it built: one that binds a variable as a parameter
+    /// symbol ([`crate::expr::VarEnv::binds_symbols`] — at `Sym`, a
+    /// toleranced variable under any box, named or not, as VR8 has it)
+    /// is guided whatever this answers, because its variables are not
+    /// bound to their nominal values.
     pub fn profile_lift(&self) -> ProfileLift {
         let varies = self.param_box.as_ref().is_some_and(|b| {
             b.axes()
@@ -3985,7 +3992,13 @@ where
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
-            lift: opts.profile_lift(),
+            // The options' lift, or guided where the environment binds
+            // a symbol whatever its box's shape (`VarEnv::binds_symbols`).
+            lift: if env.binds_symbols {
+                ProfileLift::Guided
+            } else {
+                opts.profile_lift()
+            },
             params: &env,
             nominal: &nominal_env,
         },

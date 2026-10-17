@@ -1662,6 +1662,15 @@ pub struct VarEnv<T> {
     /// variable's the person never named. An operation's output is here
     /// too: its refusal ([`EvalError::OutputRead`]) is its reader's.
     pub written: std::collections::BTreeSet<VarId>,
+    /// Whether some variable is bound as a PARAMETER SYMBOL — set where
+    /// the bindings are made: by [`crate::analysis::var_env_symbolic`],
+    /// and by [`crate::analysis::var_env_over`] when it binds a variable
+    /// through the identified axis door at a scalar whose door mints
+    /// identities ([`crate::analysis::AxisScalar::BINDS_IDENTITIES`]).
+    /// An environment that binds one is not the build's, whatever its
+    /// box looks like, so the evaluation's profile lift is guided
+    /// ([`crate::eval::EvalOptions::profile_lift`]).
+    pub binds_symbols: bool,
 }
 
 impl<T> VarEnv<T> {
@@ -1689,6 +1698,7 @@ impl<T> Default for VarEnv<T> {
             bindings: std::collections::BTreeMap::new(),
             refused: std::collections::BTreeMap::new(),
             written: std::collections::BTreeSet::new(),
+            binds_symbols: false,
         }
     }
 }
