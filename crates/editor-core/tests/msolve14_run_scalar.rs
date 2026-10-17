@@ -937,9 +937,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// shaft is gone with the rider; every instance is pinned over its
 /// geometry, so its pose is the identity to that pin's rounding.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2b8d_96bb_96da_b27d),
-    (1e-6, 0x2473_b1c6_90d7_f46c),
-    (1e-12, 0x7ce3_8a76_e479_ef33),
+    (1e-9, 0xf006_51e3_7f39_7b01),
+    (1e-6, 0x4592_8faa_7b43_09a7),
+    (1e-12, 0xff04_1bf2_4be5_0f27),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -2082,4 +2082,16 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         (lo, hi),
         "the clearance leaf",
     );
+}
+
+#[test]
+fn zz_probe_interval_escalations() {
+    for (label, doc, opts) in corpus() {
+        let i = run_at::<Interval>(&doc, &opts, None);
+        for id in doc.ids() {
+            if let Some(d) = escalation(&i, id) {
+                eprintln!("PROBE {label} {:?}", d.predicate);
+            }
+        }
+    }
 }

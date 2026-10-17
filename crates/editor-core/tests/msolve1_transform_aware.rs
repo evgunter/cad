@@ -30,7 +30,7 @@ use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
     constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, plane, rest,
-    run, scl, solve, step, step_with, xform,
+    run, scl, solve, step_with, xform,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -291,9 +291,15 @@ fn parts(label: &str) -> (Part, Part, EvalOptions) {
 /// Builds that scene. `on_base` is the base's transform chain,
 /// innermost first.
 fn scene(label: &str, on_base: &[Step]) -> Scene {
+    scene_at(label, on_base, &editor_core::Frame::IDENTITY)
+}
+
+/// [`scene`] with the base pinned to the world at `at`.
+fn scene_at(label: &str, on_base: &[Step], at: &editor_core::Frame) -> Scene {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert(doc, fixture::mated_instance(base_part.doc_ref));
+    let doc = fixture::pin(doc, base, at, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, a_at) = chain(doc, base, on_base);
     let doc = world(doc, &opts, &[a_at], &[]);
@@ -708,21 +714,6 @@ fn a4_the_two_non_commuting_orders_place_different_geometry() {
 #[test]
 fn a4_a_placed_target_seats_through_its_chain() {
     let seat = control_seat("msolve1-a4-placed");
-    let s = scene(
-        "msolve1-a4-placed-frame",
-        &[([1.0, 2.0, 3.0], [1.0, 1.0, 0.0], -0.6)],
-    );
-    // The base's one world pin, re-authored at the pose.
-    let [pin] = fixture::bundle(&s.doc, s.base)
-        .try_into()
-        .expect("one world pin");
-    let (doc, _) = step(
-        s.doc.clone(),
-        DocEdit::RemoveConstraint {
-            placement: s.base,
-            constraint: pin.id,
-        },
-    );
     let at = editor_core::Frame::rotate_then_translate(
         [0.3, -0.2, 0.9],
         0.8,
@@ -730,8 +721,11 @@ fn a4_a_placed_target_seats_through_its_chain() {
         fixture::band(),
     )
     .expect("a literal axis has a definite direction");
-    let doc = fixture::pin(doc, s.base, &at, &s.opts);
-    let placed = Scene { doc, ..s };
+    let placed = scene_at(
+        "msolve1-a4-placed-frame",
+        &[([1.0, 2.0, 3.0], [1.0, 1.0, 0.0], -0.6)],
+        &at,
+    );
     placed.assert_green_and_seated(&seat, "A4 placed target");
 }
 
@@ -907,39 +901,36 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 
 /// **A8(b).** Deleting the transform a seat reads the target at
 /// strands its `to` pose: D10's unresolved reader, which the placement
-/// refuses where it evaluates, naming the mate and the pose, until the
-/// read is re-authored.
+/// refuses where it evaluates, naming the constraint and the pose, until
+/// the read is re-authored — and the copy it would place has no pose.
 ///
 /// *Breaks if* the stranded seat is folded anyway, or its refusal is
 /// laid on the `on` pose.
 #[test]
-fn a8b_deleting_the_operand_leaves_the_pose_unevaluated() {
+fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
     let s = scene("msolve1-a8b", &[LIFT]);
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.a_at }, &reach);
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    let fault = poses.fault(s.mate.placement).unwrap_or_else(|| {
-        panic!(
-            "the stranded mate refuses: {:?}",
-            run(&doc, &s.opts).node_error(s.mate.placement)
-        )
-    });
-    assert!(
-        matches!(
-            fault,
-            MateFault::SideUnevaluated { mate, side: MateSide::To, .. } if *mate == s.mate
-        ),
-        "expected the stranded pose, got {fault:?}"
-    );
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(
             ev.node_error(s.mate.placement).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::Mate(f))
-                if matches!(**f, MateFault::SideUnevaluated { side: MateSide::To, .. })
+            Some(editor_core::NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Side {
+                    constraint,
+                    side: MateSide::To,
+                },
+                ..
+            }) if *constraint == s.mate.id
         ),
-        "{:?}",
+        "expected the stranded pose, got {:?}",
         ev.node_error(s.mate.placement)
+    );
+    assert!(
+        solve(&doc, &s.opts, Tol::witness())
+            .placement(&doc, s.mate.placement)
+            .is_err(),
+        "a copy placed by a stranded constraint has no pose"
     );
     // The stranded pose lands on no member; the live one still does,
     // which is what makes the refusal a per-pose one.

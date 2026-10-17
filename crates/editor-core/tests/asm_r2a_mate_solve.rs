@@ -1033,7 +1033,7 @@ fn row6c_the_gather_takes_the_placements_alone() {
 }
 
 /// *Breaks if* a stranded face still lands on a member, or the
-/// placement refuses with anything but the unevaluated `to` pose.
+/// placement refuses with anything but the unresolved `to` read.
 #[test]
 fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
     let (doc, ids, kit) = assembly("asm-r2a-row6d", 2);
@@ -1045,29 +1045,26 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
         "the stranded head contributes NO edge (N5)"
     );
     let o = kit.opts();
-    let fault = solve(&doc, &o, Tol::witness())
-        .fault(ids[1])
-        .expect("the solve refuses")
-        .clone();
-    assert!(
-        matches!(
-            &fault,
-            MateFault::SideUnevaluated { mate, side: MateSide::To, .. } if *mate == mate_ref
-        ),
-        "expected the stranded pose, got {fault:?}"
-    );
-    assert!(
-        fault.to_string().contains("repair the pose's definition"),
-        "{fault}"
-    );
     let ev = run(&doc, &o);
     assert!(
         matches!(
             ev.node_error(ids[1]).map(|e| &e.kind),
-            Some(NodeErrorKind::Mate(f)) if matches!(**f, MateFault::SideUnevaluated { .. })
+            Some(NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Side {
+                    constraint,
+                    side: MateSide::To,
+                },
+                ..
+            }) if *constraint == mate_ref.id
         ),
-        "{:?}",
+        "expected the stranded pose, got {:?}",
         ev.node_error(ids[1])
+    );
+    assert!(
+        solve(&doc, &o, Tol::witness())
+            .placement(&doc, ids[1])
+            .is_err(),
+        "a copy placed by a stranded constraint has no pose"
     );
 }
 
@@ -1120,12 +1117,11 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
         applied.record.structural,
         "a constraint's read moved, so its placement's content key moved with it"
     );
-    let o = kit.opts();
+    let ev = run(&applied.doc, &kit.opts());
     assert!(
-        solve(&applied.doc, &o, Tol::witness())
-            .fault(ids[1])
-            .is_none_or(|f| !matches!(f, MateFault::SideUnevaluated { .. })),
-        "and the solve no longer refuses the pose"
+        matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))),
+        "and the placement evaluates again: {:?}",
+        ev.node_error(ids[1])
     );
 }
 
