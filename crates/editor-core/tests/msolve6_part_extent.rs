@@ -749,7 +749,9 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_placements_memo() {
             // the fold's answer did not move. The key does: the
             // placement copies a re-pinned part, so the memo cannot
             // serve the old entry — it re-runs and answers the same.
-            let large = second.value(b).expect("the large part's placement evaluates");
+            let large = second
+                .value(b)
+                .expect("the large part's placement evaluates");
             assert_ne!(
                 key_small, large.content_key,
                 "the placement reads the re-pinned part"

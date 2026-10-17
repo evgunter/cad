@@ -34,8 +34,7 @@ use bvh::Aabb;
 use pncad::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
     LoopProgram, Node, Operand, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply,
-    evaluate,
-    held_by, product,
+    evaluate, held_by, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
@@ -868,7 +867,9 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
     // and values.
     let (doc, placement) = insert(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(extrude))]),
+        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
+            extrude,
+        ))]),
         tol,
     )?;
     let placed = editor_core::place_at(
@@ -891,18 +892,21 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
     let [mate] = record.minted_constraints[..] else {
         unreachable!("an AddConstraint mints one constraint id")
     };
-    let doc = placed.values.into_iter().try_fold(doc, |doc, (coord, by)| {
-        edit(
-            doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-            tol,
-        )
-        .map(|(doc, _)| doc)
-    })?;
+    let doc = placed
+        .values
+        .into_iter()
+        .try_fold(doc, |doc, (coord, by)| {
+            edit(
+                doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(pncad::document::Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+                tol,
+            )
+            .map(|(doc, _)| doc)
+        })?;
     Ok((doc, extrude))
 }
 
@@ -1596,8 +1600,8 @@ fn edit(
     // The scene's document has no instance, and its constraints place
     // the plate against the world, which reads no part: the refusing
     // reach is never asked.
-    let applied = apply(&doc, &edit, tol, &pncad::document::RefusingReach)
-        .map_err(SceneDocError::Edit)?;
+    let applied =
+        apply(&doc, &edit, tol, &pncad::document::RefusingReach).map_err(SceneDocError::Edit)?;
     Ok((applied.doc, applied.record))
 }
 

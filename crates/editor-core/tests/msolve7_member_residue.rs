@@ -111,7 +111,10 @@ fn a1_the_solve_builds_no_environment_and_the_fold_reads_its_lanes() {
             "{file} builds no environment"
         );
     }
-    let solve = shipped(SOLVE, &["pub fn solve_document", "pub fn solve_document_at"]);
+    let solve = shipped(
+        SOLVE,
+        &["pub fn solve_document", "pub fn solve_document_at"],
+    );
     assert!(
         body_of(&solve, "pub fn solve_document(").contains("solve_document_at("),
         "`solve_document` is `solve_document_at` at `f64`"
@@ -342,12 +345,7 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
 #[test]
 fn a1_a_spin_value_follows_the_documents_angle_parameter() {
     let params = [("th", FreeVar::continuous(Dimension::Angle, 0.7))];
-    let control = scene(
-        "msolve7-a1-spin-control",
-        &params,
-        len(1.0),
-        ang(0.0),
-    );
+    let control = scene("msolve7-a1-spin-control", &params, len(1.0), ang(0.0));
     let c = top_pose(&control, "control").affine::<f64>();
     let s = scene(
         "msolve7-a1-spin",

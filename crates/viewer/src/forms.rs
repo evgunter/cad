@@ -394,4 +394,3 @@ impl FieldWriting {
         props::authored_in(self.unit, shown)
     }
 }
-

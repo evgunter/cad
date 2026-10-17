@@ -79,15 +79,14 @@
 
 use pncad::document::{
     CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, FreedomRefusal, Mate,
-    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, Target,
-    SlideAxis, VarKind, class_admission, member_of, pose,
+    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SlideAxis, SpokenNode,
+    Target, VarKind, class_admission, member_of, pose,
 };
 use pncad::select::{ContactClass, Resolution};
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
 use crate::vocab::partial_mirror;
-
 
 /// **The kinds a mate's face picks are read as**, with their labels: a
 /// face read as its plane (with its outward normal), or as its
@@ -99,8 +98,7 @@ use crate::vocab::partial_mirror;
 /// `partial_mirror!` invocation below forces every [`VarKind`] variant
 /// to be offered at a seat of this list or named as deliberately
 /// absent, with the reason.
-pub const MATE_KINDS: [(VarKind, &str); 2] =
-    [(VarKind::Plane, "plane"), (VarKind::Axis, "axis")];
+pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKind::Axis, "axis")];
 
 /// **Every freedom a mate's value can set**, in the order the mate
 /// panel draws them: the slides along the chart's `x`, `y` and `z`, and
@@ -181,6 +179,15 @@ pub enum MateToolError {
         /// The face-name constructor's own refusal, carried.
         refusal: NotAFaceName,
     },
+    /// A pick is on a node the document no longer holds: the tool was
+    /// asked without the survival step ([`MateTool::reconcile`]) having
+    /// dropped it.
+    PickGone {
+        /// Which pick.
+        side: MateSide,
+        /// The node, by the label the tool kept.
+        node: SpokenNode,
+    },
     /// The `on` pick is on no placement's copy: neither a `Place` nor an
     /// instance, nor anything A11's member walk reads down to an
     /// instance ([`pncad::document::member_of`]) — a pair boolean's
@@ -230,6 +237,11 @@ impl core::fmt::Display for MateToolError {
                 "the {} pick does not name a face, so no pose is read off it: {refusal}",
                 side.name()
             ),
+            Self::PickGone { side, node } => write!(
+                f,
+                "the {} pick is on {node}, which the document no longer holds",
+                side.name()
+            ),
             Self::NotACopyPick { node } => write!(
                 f,
                 "the on pick is on {node}, which is no placement's copy; a mate places a copy"
@@ -239,11 +251,9 @@ impl core::fmt::Display for MateToolError {
                 "both picks are on {head}, the copy the mate places; a mate relates it to \
                  something else"
             ),
-            Self::KindNotOffered { kind } => write!(
-                f,
-                "a face pick reads a plane or an axis, not a {}",
-                kind
-            ),
+            Self::KindNotOffered { kind } => {
+                write!(f, "a face pick reads a plane or an axis, not a {}", kind)
+            }
             Self::ClassRefused { class } => {
                 write!(
                     f,
@@ -255,12 +265,7 @@ impl core::fmt::Display for MateToolError {
                 coord,
                 kind,
                 refusal: FreedomRefusal::NotAFreedom,
-            } => write!(
-                f,
-                "a {} mate leaves no {} to set",
-                kind,
-                coord.name()
-            ),
+            } => write!(f, "a {} mate leaves no {} to set", kind, coord.name()),
             Self::NotAFreedom {
                 coord,
                 kind,
@@ -285,6 +290,10 @@ impl MateToolError {
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
+            Self::PickGone { side, node } => Self::PickGone {
+                side,
+                node: node.respoken(doc),
+            },
             Self::NotACopyPick { node } => Self::NotACopyPick {
                 node: node.respoken(doc),
             },
@@ -335,12 +344,14 @@ impl MateToolState {
     /// drop notice's phrase.
     pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
         let [on, to] = self.picks();
-        crate::seats::picks_line([(MateSide::On, on), (MateSide::To, to)].map(|(side, pick)| {
-            (
-                side.name(),
-                pick.map(|pick| face_of(&doc.spoken(pick.node))),
-            )
-        }))
+        crate::seats::picks_line(
+            [(MateSide::On, on), (MateSide::To, to)].map(|(side, pick)| {
+                (
+                    side.name(),
+                    pick.map(|pick| face_of(&doc.spoken(pick.node))),
+                )
+            }),
+        )
     }
 }
 
@@ -454,7 +465,11 @@ fn pose_of(kind: VarKind, face: &SitedFace) -> pncad::document::Operand {
 /// The placement whose copy a pick at `at` is on: `at` itself when it
 /// is a `Place` or an instance, the instance A11's member walk reaches
 /// otherwise.
-fn placement_of(doc: &Doc<ProfileProgram>, at: RecipeNodeId, face: &SitedFace) -> Option<RecipeNodeId> {
+fn placement_of(
+    doc: &Doc<ProfileProgram>,
+    at: RecipeNodeId,
+    face: &SitedFace,
+) -> Option<RecipeNodeId> {
     match doc.node(at) {
         Some(Node::Place { .. } | Node::InstantiatePart { .. }) => Some(at),
         _ => member_of(doc, face).map(|member| member.instance),
@@ -620,11 +635,18 @@ impl MateTool {
         };
         let picked_on = face(MateSide::On, on, on.name.clone())?;
         let picked_to = face(MateSide::To, to, to.name.clone())?;
-        let placement = placement_of(doc, on.node, &picked_on).ok_or_else(|| {
-            MateToolError::NotACopyPick {
-                node: self.spoken(doc, MateSide::On, on.node),
+        for (side, pick) in [(MateSide::On, on), (MateSide::To, to)] {
+            if doc.node(pick.node).is_none() {
+                return Err(MateToolError::PickGone {
+                    side,
+                    node: self.spoken(doc, side, pick.node),
+                });
             }
-        })?;
+        }
+        let placement =
+            placement_of(doc, on.node, &picked_on).ok_or_else(|| MateToolError::NotACopyPick {
+                node: self.spoken(doc, MateSide::On, on.node),
+            })?;
         if placement_of(doc, to.node, &picked_to) == Some(placement) {
             let head = if placement == on.node {
                 self.spoken(doc, MateSide::On, on.node)
@@ -638,11 +660,12 @@ impl MateTool {
         let on_face = match doc.node(on.node) {
             Some(Node::Place { .. }) => {
                 let (at, _, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
-                let own = pncad::document::FaceName::new(own)
-                    .map_err(|refusal| MateToolError::PickIsNotAFace {
+                let own = pncad::document::FaceName::new(own).map_err(|refusal| {
+                    MateToolError::PickIsNotAFace {
                         side: MateSide::On,
                         refusal,
-                    })?;
+                    }
+                })?;
                 SitedFace::new(at, own)
             }
             _ => picked_on,

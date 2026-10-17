@@ -1724,56 +1724,39 @@ impl Doc {
                 })
                 .map_err(edit_failed)?;
         }
-        let shape = match action.doc().node(placement) {
-            Some(d::Node::Place { shapes, .. }) => d::Operand::Var(
-                shapes
-                    .first()
-                    .unwrap_or_else(|| unreachable!("a placement reads a shape"))
-                    .read,
-            ),
-            _ => unreachable!("a placement was just inserted"),
-        };
-        let placed = d::place_at(action.doc(), &shape, &pose, &opts, tol).map_err(|refusal| {
-            boundary_edit_err(
-                py,
-                BoundaryEdit::Pin(&refusal),
-                format!("the copy cannot be placed over its geometry: {refusal}"),
-            )
-        })?;
-        let mate = action
-            .apply_recorded(d::DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(placed.mate),
-                fresh: Vec::new(),
-            })
-            .map_err(edit_failed)?
-            .minted_constraints[0];
-        let mut values = Vec::with_capacity(placed.values.len());
-        for (coord, by) in placed.values {
-            let record = action
-                .apply_recorded(d::DocEdit::AddValue {
-                    placement,
-                    value: Box::new(d::Value {
-                        mate,
-                        coord,
-                        by,
-                    }),
-                    fresh: Vec::new(),
-                })
-                .map_err(edit_failed)?;
-            values.push(super::mate::MateRef(d::MateRef::new(
-                placement,
-                record.minted_constraints[0],
-            )));
-        }
+        let placed = gesture(py, &mut action, placement, &pose, &opts, tol)?;
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);
-        Ok(super::mate::Placed {
-            placement: NodeId(placement),
-            mate: super::mate::MateRef(d::MateRef::new(placement, mate)),
-            values,
-            by: placed.by,
-        })
+        Ok(placed)
+    }
+
+    /// **The "place part" gesture on a placement already in the
+    /// document** — an instance, or a loose `Place` — answered as a
+    /// `Placed`: `place_at`'s constraints added to its bundle, pinning
+    /// its copy in the world at `pose` (the identity when `None`). An
+    /// instance's part is read through `resolver`. The mate and the
+    /// values are one action, and refuse as `place_at`'s do.
+    #[pyo3(signature = (placement, pose=None, *, resolver=None))]
+    fn pin(
+        &mut self,
+        py: Python<'_>,
+        placement: &NodeId,
+        pose: Option<&super::place::Frame>,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<super::mate::Placed> {
+        let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0.clone());
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let opts = d::EvalOptions {
+            resolver: seam.clone(),
+            ..d::EvalOptions::default()
+        };
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let placed = gesture(py, &mut action, placement.0, &pose, &opts, tol)?;
+        let done = action.finish().map_err(|err| edit_err(py, &err))?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(placed)
     }
 
     /// **Set one freedom `mate` leaves to `by`**, and return the
@@ -2479,6 +2462,71 @@ impl Node {
         Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
+}
+
+/// **The "place part" gesture's constraints added to `placement`** on
+/// `action`: the kernel's `place_at` over the placement's copy (a
+/// `Place`'s first shape, an instance's own output), the mate, then
+/// each value naming it.
+fn gesture(
+    py: Python<'_>,
+    action: &mut d::Recording<'_, d::ProfileProgram>,
+    placement: d::RecipeNodeId,
+    pose: &d::Frame,
+    opts: &d::EvalOptions,
+    tol: Tol,
+) -> PyResult<super::mate::Placed> {
+    let edit_failed = |err: d::EditError| edit_err(py, &err);
+    let copy = match action.doc().node(placement) {
+        Some(d::Node::Place { shapes, .. }) => shapes.first().map(|shape| shape.read),
+        Some(d::Node::InstantiatePart { .. }) => action.doc().output(placement, 0),
+        Some(_) => {
+            return Err(edit_failed(d::EditError::ConstraintOnNonPlacement {
+                node: action.doc().spoken(placement),
+            }));
+        }
+        None => {
+            return Err(edit_failed(d::EditError::UnknownNode {
+                id: d::SpokenNode::absent(placement),
+            }));
+        }
+    };
+    let copy = d::Operand::Var(copy.unwrap_or_else(|| unreachable!("a placement defines a copy")));
+    let placed = d::place_at(action.doc(), &copy, pose, opts, tol).map_err(|refusal| {
+        boundary_edit_err(
+            py,
+            BoundaryEdit::Pin(&refusal),
+            format!("the copy cannot be placed over its geometry: {refusal}"),
+        )
+    })?;
+    let mate = action
+        .apply_recorded(d::DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        })
+        .map_err(edit_failed)?
+        .minted_constraints[0];
+    let mut values = Vec::with_capacity(placed.values.len());
+    for (coord, by) in placed.values {
+        let record = action
+            .apply_recorded(d::DocEdit::AddValue {
+                placement,
+                value: Box::new(d::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            })
+            .map_err(edit_failed)?;
+        values.push(super::mate::MateRef(d::MateRef::new(
+            placement,
+            record.minted_constraints[0],
+        )));
+    }
+    Ok(super::mate::Placed {
+        placement: NodeId(placement),
+        mate: super::mate::MateRef(d::MateRef::new(placement, mate)),
+        values,
+        by: placed.by,
+    })
 }
 
 /// `mates` as a bundle, each id a placeholder the insert door mints.
@@ -3469,10 +3517,10 @@ impl Node {
     /// `update_references` for every site at once).
     ///
     /// **Placed by `constraints`.** An instance IS a placement: its
-    /// part's world, moved by its bundle. `None` pins it to the world
-    /// at the identity, where its part's world stands; a sequence of
-    /// `Mate`s is that bundle, and `[]` a loose copy, in a space of its
-    /// own until a constraint (`Doc.constrain`) pins it.
+    /// part's world, moved by its bundle: a sequence of `Mate`s. `None`
+    /// or `[]` is a loose copy, in a space of its own until constraints
+    /// pin it — `Doc.pin(instance)`, the "place part" gesture, or
+    /// `Doc.constrain`.
     ///
     /// The instance also carries no interface record: an AUTHORED
     /// instance crosses nothing, and a non-empty record is mintable

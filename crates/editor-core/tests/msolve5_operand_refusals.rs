@@ -270,10 +270,7 @@ fn a_name_the_copy_does_not_carry_refuses_at_its_placement() {
 /// *Breaks if* a tie resolves to one of its fragments.
 #[test]
 fn a_tied_face_refuses_at_its_placement() {
-    let s = scene(
-        "msolve5-tied-face",
-        slotted_part("msolve5-tied-face-top"),
-    );
+    let s = scene("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.top, EntityKind::Face);
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
@@ -342,7 +339,9 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         );
         let (next, placed) = insert(
             next,
-            Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::Node(part))]),
+            Node::place(vec![editor_core::BodyRead::plain(
+                editor_core::Operand::Node(part),
+            )]),
         );
         doc = next;
         copies.push(placed);

@@ -4373,9 +4373,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // The words an address is not completed by: a profile
             // program's expression is reached by a loop index, a step
             // index and an argument role, a later placement step's by a
-            // step index and a component, a mate offset's by its
-            // constraint, a side, a step index and a component, a list's
-            // entry by its position, a constraint's side by its
+            // step index and a component, a world read's move by its
+            // constraint and its place in the read, a value's number by
+            // its constraint, a list's entry by its position, a constraint's side by its
             // constraint and which side, and an indexed
             // read's index by its seat, none of which the word carries.
             None => assert!(
@@ -4383,7 +4383,10 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                     *word,
                     "program"
                         | "placement_step"
-                        | "mate_frame_step"
+                        | "world_slide"
+                        | "world_spin"
+                        | "value_slide"
+                        | "value_spin"
                         | "section"
                         | "member"
                         | "shape"
@@ -4935,12 +4938,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "boundary_edit_tag",
-        values: &[
-            "mate_head_not_a_face",
-            "name_serialize",
-            "param_name_not_an_identifier",
-        ],
-        delegates: &["label_fault_tag", "placement_rule_fault_tag"],
+        values: &["name_serialize", "param_name_not_an_identifier"],
+        delegates: &["label_fault_tag", "pin_refusal_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -5021,6 +5020,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_rung_tag",
         values: &["carrier_verdict", "margin_identity", "same_construction"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coord_tag",
+        values: &["slide_x", "slide_y", "slide_z", "spin"],
         delegates: &[],
     },
     TagEntry {
@@ -5122,6 +5126,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_tolerance",
             "label_unchanged",
             "loft_sections_spelled",
+            "mate_named_by_value",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -5303,11 +5308,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "face_refusal_tag",
-        values: &["no_part_face", "not_an_instance"],
-        delegates: &["face_pose_refusal_tag"],
-    },
-    TagEntry {
         function: "fmt_quantity_error_tag",
         values: &["non_finite"],
         delegates: &[],
@@ -5358,17 +5358,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "instance_body_name_referenced",
             "instance_output_uncarried",
             "instance_read_uncarried",
-            "mate_frame_crosses",
+            "instance_unsolved",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
+            "pin_reads_variable",
             "ranked_run_reordered",
-            "side_leaves_an_instance",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
             "unplaceable_part",
             "unresolved_var_crosses_cut",
+            "value_on_a_moved_world",
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
@@ -5417,7 +5418,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["below_zero_band", "not_an_instance", "out_of_range"],
+        values: &["below_zero_band", "out_of_range"],
         delegates: &["reach_refusal_tag"],
     },
     TagEntry {
@@ -5460,11 +5461,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "mate_fault_tag",
         values: &[],
         delegates: &["node_error_tag"],
-    },
-    TagEntry {
-        function: "mate_primitive_tag",
-        values: &["clocking", "coaxial", "frame_coincidence", "planar_rest"],
-        delegates: &[],
     },
     TagEntry {
         function: "mc_refusal_tag",
@@ -5534,6 +5530,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["band_error_tag", "rim_share_tag"],
     },
     TagEntry {
+        function: "no_chart_why_tag",
+        values: &["point_rotation", "two_bodies"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "node_error_tag",
         values: &[
             "assertion_dimension",
@@ -5565,23 +5566,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_band",
             "mate_class_not_admitted",
             "mate_contradictory",
-            "mate_dangling_head",
-            "mate_face_unresolved",
-            "mate_frame_degenerate",
-            "mate_frame_unevaluated",
             "mate_indeterminate",
+            "mate_kinds_differ",
+            "mate_no_chart",
+            "mate_not_a_freedom",
             "mate_not_on_the_copy",
             "mate_overconstrained",
-            "mate_part_selects_another_copy",
-            "mate_placer_refused",
             "mate_pose_out_of_range",
             "mate_poses_of_another_document",
-            "mate_self",
-            "mate_side_base",
-            "mate_side_unresolved",
-            "mate_table_lacks",
+            "mate_side_unevaluated",
             "mate_targets_differ",
             "mate_unleverable",
+            "mate_value_names_no_mate",
+            "mate_world_read",
             "measure_clearance_refused",
             "measure_non_finite",
             "measure_not_parallel",
@@ -5639,16 +5636,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "witness_bifurcation",
             "wrong_operand",
         ],
-        delegates: &[
-            "node_error_tag",
-            "resolve_fault_tag",
-            "resolve_fault_tag",
-            "resolve_fault_tag",
-        ],
+        delegates: &["node_error_tag", "resolve_fault_tag", "resolve_fault_tag", "resolve_fault_tag"],
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &["meet", "through"],
+        values: &["chart", "meet", "through"],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",
@@ -5829,6 +5821,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "pieces_fault_tag",
         values: &["length", "no_ids", "no_record", "no_step_id"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "pin_refusal_tag",
+        values: &[
+            "pin_already_placed",
+            "pin_band",
+            "pin_no_frame",
+            "pin_no_node",
+            "pin_not_a_body",
+            "pin_unevaluated",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "placed_by_tag",
+        values: &["pin", "planar_face"],
         delegates: &[],
     },
     TagEntry {
@@ -6157,7 +6166,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distance",
             "index",
             "instance",
-            "mate_frame_step",
             "normal_x",
             "normal_y",
             "normal_z",
@@ -6192,6 +6200,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_x",
             "v_y",
             "v_z",
+            "value_slide",
+            "value_spin",
+            "world_slide",
+            "world_spin",
         ],
         delegates: &["operand_slot_tag"],
     },
@@ -6209,7 +6221,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_invalid",
             "input_list",
             "label_on_missing_node",
-            "mate_alignment",
+            "mate_refused",
             "metadata_unversioned",
             "mint_log_order",
             "name_on_missing_var",
@@ -6252,7 +6264,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
-            "mate_frame_crosses",
+            "instance_unpinned",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
@@ -6588,6 +6600,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
         delegates: &[],
     },
+    TagEntry {
+        function: "world_read_fault_tag",
+        values: &["about", "along", "flipped_point", "role", "slid_direction"],
+        delegates: &[],
+    },
 ];
 
 /// **Every word that two tag maps both mint, and how many mint it.**
@@ -6629,7 +6646,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
-    ("coaxial", 2),
     ("contact_contradicted", 2),
     ("containment", 2),
     ("corrupt", 2),
@@ -6697,9 +6713,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
     ("join", 3),
-    // One rule (A4's frame rule) refused in both directions across the
-    // seam: a split's kept mate and an inline's host mate.
-    ("mate_frame_crosses", 2),
+    // One fact at the edit and load doors: a constraint the per-mate
+    // admission refuses, its fault carried whole.
+    ("mate_refused", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
@@ -6712,7 +6728,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
     ("part_unresolved", 3),
@@ -6730,6 +6745,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb. The profile program's word is a coincidence.
     ("pieces", 3),
+    ("pin", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),
     // One fact at the edit and load doors: a pose definition of a shape
@@ -6750,6 +6766,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
     ("revolve", 2),
+    // One fact at an authored pose and a mate's world read: a role
+    // its pose's kind does not offer.
+    ("role", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
     // One fact at the edit and load doors: a selection not in its
@@ -6768,6 +6787,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    ("spin", 2),
     // One fact: one `SplitLineageCycle`, met by the Boolean
     // (`BooleanErrorKind::SplitLineage`) or by naming
     // (`NamingError::SplitLineage`);
@@ -10875,7 +10895,7 @@ mod product_memo_rows {
 /// alike, each in id order, which is the order its nodes were placed.
 #[test]
 fn a_split_node_map_reaches_python_in_target_id_order() {
-    use pncad::document::{Datum, DocumentId, Node, ProfileDoc, RecipeNodeId, split};
+    use pncad::document::{Datum, DocumentId, Node, RecipeNodeId, split};
     let frame = |x: f64| {
         Node::Datum(Datum::Frame {
             origin: [len(x), len(0.0), len(0.0)],
@@ -10884,18 +10904,17 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
-    // One instance, pinned to the world, gives the cut its material (a
-    // cut of frames alone refuses `no_material`); the frames give it
-    // its many ids.
+    // A box placed in the world gives the cut its material (a cut of
+    // frames alone refuses `no_material`); the frames give it its many
+    // ids.
     let material = || {
-        let (doc, instance) = insert(
-            ProfileDoc::empty_derived("place-node-map", Tol::witness()),
-            Node::instantiate_part(pncad::document::DocRef {
-                id: DocumentId::derive("place-node-map-ref"),
-                pin: pncad::document::ContentPin([0u8; 32]),
-            }),
-        );
-        (doc, vec![instance])
+        let (doc, _, _) = box_doc("place-node-map");
+        let held: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|&id| id != RecipeNodeId::WORLD)
+            .collect();
+        (doc, held)
     };
     let (doc, cut) = (0..4u32).fold(material(), |(doc, mut cut), i| {
         let (doc, id) = insert(doc, frame(f64::from(i)));

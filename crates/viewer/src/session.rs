@@ -59,11 +59,10 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand,
-    OperandSlot, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded,
-    Recording, SlotId, StepId, Subject, VarId, VarName, apply,
-    assemble_gathered, cascade_delete_order, parse_formula, product_recorded,
-    run_checks_at_rest_on,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -3471,16 +3470,17 @@ impl DocSession {
     /// for a mate, each value naming it first, then the mate, as one
     /// action.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        let named: Vec<pncad::document::ConstraintId> = match self.committed_doc().node(mate.placement) {
-            Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-                constraints
+        let named: Vec<pncad::document::ConstraintId> =
+            match self.committed_doc().node(mate.placement) {
+                Some(
+                    Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
+                ) => constraints
                     .iter()
                     .filter(|c| c.value().is_some_and(|value| value.mate == mate.id))
                     .map(|c| c.id)
-                    .collect()
-            }
-            _ => Vec::new(),
-        };
+                    .collect(),
+                _ => Vec::new(),
+            };
         self.commit_run(|run| {
             for constraint in named.into_iter().chain([mate.id]) {
                 run.apply(DocEdit::RemoveConstraint {

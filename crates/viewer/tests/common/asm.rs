@@ -355,6 +355,34 @@ pub fn middle_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
     seat_values(SHELF_LENGTH / 2.0)
 }
 
+/// **Where [`seat_values`] puts a post under the bench shelf**: the
+/// post unturned, its top cap on the shelf's underside, its middle at
+/// `b_x` along the shelf and midway across it.
+pub fn seated_at(b_x: f64) -> Frame {
+    Frame::translation([
+        SHELF_AT[0] + b_x - POST_SECTION / 2.0,
+        SHELF_AT[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0,
+        SHELF_AT[2] - POST_HEIGHT,
+    ])
+}
+
+/// **Asserts `placement` solves to `want`** in the session's landed
+/// document, each entry of the rigid motion within `1e-9`.
+pub fn assert_solved_at(session: &DocSession, placement: RecipeNodeId, want: &Frame, what: &str) {
+    let (doc, _) = session.landed_pair().expect("landed");
+    let got = super::solve(session, doc, Tol::witness())
+        .placement(doc, placement)
+        .unwrap_or_else(|refusal| panic!("{what}: {placement:?} has no pose: {refusal}"));
+    let close = got
+        .columns
+        .iter()
+        .flatten()
+        .chain(&got.translation)
+        .zip(want.columns.iter().flatten().chain(&want.translation))
+        .all(|(g, w)| (g - w).abs() < 1e-9);
+    assert!(close, "{what}: {got:?} vs {want:?}");
+}
+
 /// The mate tool's choice for the seat: a Rest of two planes, the
 /// target flipped (the faces rest against each other), at
 /// [`middle_seat_values`].

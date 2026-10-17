@@ -495,7 +495,11 @@ fn a2_the_reachs_face_pose_is_the_parts_own_face_frame_bit_for_bit() {
 /// of a block resting on it**: the block's bundle refuses with its
 /// target's own refusal where it evaluates, or not at all. Answers the
 /// evaluation and the rest's address.
-fn rest_on_the_face(label: &str, part: ProfileDoc, face: &StableName) -> (Evaluation<f64>, MateRef) {
+fn rest_on_the_face(
+    label: &str,
+    part: ProfileDoc,
+    face: &StableName,
+) -> (Evaluation<f64>, MateRef) {
     let mut store = PartStore::new();
     let part_ref = store.insert(part, Tol::witness());
     let (block_ref, block_body) =
@@ -751,7 +755,8 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
     // The load: the document holding the seat on the vanished face
     // loads with no store; what it then evaluates to is its reader's.
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a seat on a vanished face loads with no store");
+    let loaded =
+        load(&text, Tol::witness()).expect("a seat on a vanished face loads with no store");
     assert!(loaded.doc.bit_eq(&doc), "the seat as saved");
     let ev = run(&loaded.doc, &s.opts);
     assert!(
@@ -1050,11 +1055,7 @@ fn c5_every_tracked_document_loads_on_this_wire_and_re_saves_identically() {
                     .count()
             })
             .sum();
-        assert!(
-            seen >= mates,
-            "{}: the walk met every mate",
-            path.display()
-        );
+        assert!(seen >= mates, "{}: the walk met every mate", path.display());
         let again = save(&loaded.snapshot, &loaded.edits, Tol::witness())
             .unwrap_or_else(|e| panic!("{}: re-saves: {e}", path.display()));
         assert_eq!(again, text, "{}: re-saves byte for byte", path.display());

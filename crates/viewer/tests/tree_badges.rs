@@ -408,7 +408,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
     use viewer::combine::DuplicateFault;
-    use viewer::matetool::{MateTool, MateToolError, MateToolEvent};
+    use viewer::matetool::{MateTool, MateToolEvent};
     use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
 
     let tol = Tol::witness();
@@ -532,33 +532,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The mate tool's frame read, on a pick of post_a and one of post_b.
-    let mut both = MateTool::new();
-    both.pick(session.doc(), face.clone());
-    both.pick(
-        session.doc(),
-        FaceSelection {
-            name: common::asm::in_part(bench.post_b, &bench.post_top),
-            node: bench.post_b,
-            body: 0,
-        },
-    );
-    match &both.proposal(doc, common::asm::seat_choice()) {
-        Err(
-            refused @ MateToolError::Frame {
-                error: InterrogateError::Standing(standing),
-                ..
-            },
-        ) => {
-            assert_eq!(*standing, post_a, "the mate tool's frame read");
-            assert!(
-                refused.to_string().contains(&post_a_said),
-                "the mate tool's refusal speaks post_a: {refused}"
-            );
-        }
-        other => panic!("the mate tool refuses the frame read, got {other:?}"),
-    }
-
     // The pick index refuses on a placement with no value; its tooltip
     // carries that placement's standing as the tree draws it.
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
@@ -844,8 +817,7 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 #[test]
 fn child_band_refusal_rows() {
     use pncad::document::{
-        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, NodeErrorKind,
-        ProfileDoc, RecipeNodeId, apply, content_pin,
+        DocEdit, DocRef, MateFault, NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
     };
     use pncad::geom_core::Band;
     use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -870,20 +842,20 @@ fn child_band_refusal_rows() {
     Band::linear(tol).expect_err("no band exists at this tolerance");
 
     // The document. Nothing in it carries geometry — a profile cannot
-    // be AUTHORED where no band exists, and neither can a mate: the
-    // edit door asks the solve's own admission, which begins with the
-    // band, so the mate refuses typed at the door (DOOR 2a below) —
-    // which is the shape a user meets when a saved document commits
-    // its own ε on open: three instances, authored elsewhere, read
-    // back at a tolerance that admits no band.
+    // be AUTHORED where no band exists. A mate can: the edit door's
+    // admission is structural and measures nothing (DOOR 2a below), so
+    // the band is the run's to refuse — which is also the shape a user
+    // meets when a saved document commits its own ε on open: three
+    // instances, authored elsewhere, read back at a tolerance that
+    // admits no band.
     let part = ProfileDoc::empty_derived("band-part", tol);
     let doc_ref = DocRef {
         id: part.id(),
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    // Each instance's bundle empty: even its world pin is a constraint,
-    // which the door refuses where no band exists (DOOR 2a).
+    // Each instance's bundle empty: no pin is read off geometry where no
+    // band exists.
     let a = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
     let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
     // A third instance, which no mate could touch: the row that decides
@@ -897,44 +869,26 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    // The part base with no step: no band forms to author vectors
-    // through.
-    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
-    // DOOR 2a — a mate cannot be INSERTED where no band exists: the
-    // edit door refuses it with the solve's own `Band`. A snapshot
-    // loaded under this tolerance can still hold one, and the solve
-    // records `Band` against it the way it does against every
-    // instance below.
-    let refused = apply(
+    // DOOR 2a — a mate IS inserted where no band exists: the edit
+    // door's admission is structural, so it measures nothing and needs
+    // no band. The run records `Band` against its placement the way it
+    // does against every instance below.
+    let asm = apply(
         &asm,
         &DocEdit::AddConstraint {
             placement: b,
-            mate: Box::new(pncad::document::Mate {
-                a: pncad::document::SideRead::Face(face_of(a).into()),
-                b: pncad::document::SideRead::Face(face_of(b).into()),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: frame.clone(),
-                    b: frame,
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            }),
+            mate: Box::new(crate::fixture::rest(
+                face_of(b),
+                face_of(a),
+                ContactClass::Rest,
+            )),
             fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
     )
-    .expect_err("no band, no mate");
-    assert!(
-        matches!(
-            &refused,
-            pncad::document::EditError::MateRefused { fault, .. }
-                if matches!(fault.as_ref(), MateFault::Band { .. })
-        ),
-        "{refused:?}"
-    );
+    .expect("the door measures nothing, so no band is asked")
+    .doc;
 
     let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
         &asm,
@@ -1475,9 +1429,10 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 }
 
 /// **A placement's row carries its constraints as children**, in bundle
-/// order, each by its address; the world, which every document holds
-/// and nothing deletes, has no row; and removing a constraint through
-/// its child row's op takes it off the row.
+/// order, each by its address — a mate and each value naming it; the
+/// world, which every document holds and nothing deletes, has no row;
+/// and removing a mate through its child row's op takes it, and the
+/// values naming it, off the row.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1492,7 +1447,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
 
@@ -1502,20 +1457,33 @@ fn a_placement_row_carries_its_constraints_as_children() {
             .all(|row| row.id != pncad::document::RecipeNodeId::WORLD),
         "the world has no row"
     );
+    let ids: Vec<_> = crate::fixture::bundle(session.committed_doc(), bench.post_b)
+        .iter()
+        .map(|c| pncad::document::MateRef::new(bench.post_b, c.id))
+        .collect();
+    assert_eq!(ids.first(), Some(&seat), "the seat leads post_b's bundle");
     assert_eq!(
         common::row_of(&rows, bench.post_b).constraints,
-        vec![ConstraintRow {
-            mate: seat,
-            said: "constraint 1: Rest mate".to_owned(),
-        }],
-        "post_b's row carries the seat that places it"
+        ids.into_iter()
+            .zip([
+                "constraint 1: Rest mate",
+                "constraint 2: slide along x value",
+                "constraint 3: slide along y value",
+                "constraint 4: spin value",
+            ])
+            .map(|(mate, said)| ConstraintRow {
+                mate,
+                said: said.to_owned(),
+            })
+            .collect::<Vec<_>>(),
+        "post_b's row carries the seat that places it, and its values"
     );
     let pin = common::asm::world_pin_of(session.committed_doc(), bench.shelf_i);
     assert_eq!(
         common::row_of(&rows, bench.shelf_i).constraints,
         vec![ConstraintRow {
             mate: pin,
-            said: "constraint 1: world pin".to_owned(),
+            said: "constraint 1: world mate".to_owned(),
         }],
         "the shelf's row carries the pin it stands on"
     );
@@ -1527,7 +1495,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     assert_eq!(
         common::row_of(&rows, bench.post_b).constraints,
         Vec::new(),
-        "the removed constraint leaves the row"
+        "the removed mate leaves the row, its values with it"
     );
     assert_eq!(
         common::status_of(&rows, bench.post_b),
@@ -1573,13 +1541,11 @@ const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
 /// What the loading child prints once its last assertion has run.
 const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
 
-/// The mate both instances carry: frame coincidence on the two parts'
-/// own frames.
+/// The mate the snapshot carries: `b`'s face resting on `a`'s.
 fn snapshot_mate(
     a: pncad::document::RecipeNodeId,
     b: pncad::document::RecipeNodeId,
 ) -> pncad::document::Mate<pncad::document::Formula> {
-    use pncad::document::{Alignment, AxisSense, Mate, MateFrame, MatePrimitive, SideRead};
     use pncad::prelude::StableName;
     use pncad::select::EntityKind;
     let face_of = |instance| {
@@ -1589,22 +1555,7 @@ fn snapshot_mate(
             path: Vec::new(),
         })
     };
-    // The part base with no step: its frame is the part's own, which
-    // asks no direction of the band (an authored frame's literal is
-    // unit-length, and its re-minted axis does not clear a band of 16).
-    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
-    Mate {
-        a: SideRead::Face(face_of(a).into()),
-        b: SideRead::Face(face_of(b).into()),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: frame.clone(),
-            b: frame,
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    }
+    crate::fixture::rest(face_of(b), face_of(a), ContactClass::Rest)
 }
 
 /// CHILD MODE, the author. No-op unless [`SNAPSHOT_AUTHOR`] is set.
@@ -1644,18 +1595,16 @@ fn child_band_snapshot_author() {
 
 /// CHILD MODE, the loader. No-op unless [`SNAPSHOT_TEXT`] is set.
 ///
-/// **A mate's band refusal, reached the way a state reaches it.** The
-/// constraint door refuses a mate where no band exists
-/// ([`child_band_refusal_rows`]' DOOR 2a), so no edit and no replay
-/// lands one there; a SNAPSHOT is a state, and one authored where its
-/// ε had a band loads in a process whose K leaves it none. The value of
+/// **A mate's band refusal, reached the way a state reaches it.** A
+/// SNAPSHOT is a state, and one authored where its ε had a band loads
+/// in a process whose K leaves it none. The value of
 /// the placement holding the mate is then the solve's `Band`, and the
 /// tree draws its row FAILED in the payload's own words with nothing
 /// pointed at it: the fault names no constraint, so `blamed_mates`
 /// answers empty for it.
 #[test]
 fn child_band_snapshot_load() {
-    use pncad::document::{MateFault, NodeErrorKind, RecipeNodeId, SideRead, load};
+    use pncad::document::{MateFault, NodeErrorKind, RecipeNodeId, Target, load};
     use pncad::geom_core::Band;
 
     let Ok(text) = std::env::var(SNAPSHOT_TEXT) else {
@@ -1670,8 +1619,9 @@ fn child_band_snapshot_load() {
         .into_iter()
         .filter(|&id| {
             crate::fixture::bundle(&doc, id).iter().any(|constraint| {
-                matches!(constraint.mate.a, SideRead::Face(_))
-                    && matches!(constraint.mate.b, SideRead::Face(_))
+                constraint
+                    .mate()
+                    .is_some_and(|mate| matches!(mate.to, Target::Pose(_)))
             })
         })
         .collect();

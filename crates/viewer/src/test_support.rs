@@ -24,8 +24,8 @@ use editor_core::ExtrudeSide;
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload,
-    VarName, apply, evaluate,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
+    apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -280,9 +280,9 @@ pub fn pin(
     tol: Tol,
 ) -> Doc<ProfileProgram> {
     let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => pncad::document::Operand::Var(
-            shapes.first().expect("a placement copies a shape").read,
-        ),
+        Some(Node::Place { shapes, .. }) => {
+            pncad::document::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
         Some(Node::InstantiatePart { .. }) => pncad::document::Operand::Var(
             doc.output(placement, 0)
                 .expect("an instance defines its copies"),

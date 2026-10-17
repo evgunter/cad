@@ -5,7 +5,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use pncad::document::Formula;
 
 use common::asm;
 use pncad::geom_core::Tol;
@@ -33,7 +32,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
@@ -67,8 +66,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
 #[test]
 fn the_at_rest_badge_checks_a_loose_space() {
     use pncad::document::{
-        Alignment, CancelToken, DocEdit, EvalOptions, Mate, SideRead, apply, assemble, evaluate,
-        load, mate_reach, save,
+        CancelToken, DocEdit, EvalOptions, Value, apply, assemble, evaluate, load, mate_reach, save,
     };
     let tol = Tol::witness();
     let bench = asm::bench("r2badge", tol);
@@ -85,12 +83,14 @@ fn the_at_rest_badge_checks_a_loose_space() {
                 edit: DocEdit<pncad::document::ProfileProgram>| {
         let applied = apply(doc, &edit, tol, &reach).unwrap();
         *doc = applied.doc;
+        applied.record.minted_constraints
     };
-    let seat = |post, alignment: Alignment<Formula>| Mate {
-        a: SideRead::Face(common::head(asm::in_part(post, &bench.post_top)).into()),
-        b: SideRead::Face(common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)).into()),
-        class: ContactClass::Rest,
-        alignment,
+    let seat = |post| {
+        crate::fixture::rest(
+            common::head(asm::in_part(post, &bench.post_top)),
+            common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            ContactClass::Rest,
+        )
     };
     let unpin = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, placement| {
         let pin = asm::world_pin_of(doc, placement);
@@ -100,19 +100,31 @@ fn the_at_rest_badge_checks_a_loose_space() {
         }
     };
     // The world-side lone instance, far off.
-    asm::instance_at(&mut doc, bench.post, [1.0, 0.0, 0.0], tol);
+    asm::instance_at(&mut doc, bench.post, [1.0, 0.0, 0.0], &opts, tol);
     // Both posts at ONE spot under the shelf: undeclared interference.
     for post in [bench.post_a, bench.post_b] {
         let edit = unpin(&doc, post);
         step(&mut doc, edit);
-        step(
+        let [mate] = step(
             &mut doc,
             DocEdit::AddConstraint {
                 placement: post,
-                mate: Box::new(seat(post, asm::middle_seat_alignment())),
+                mate: Box::new(seat(post)),
                 fresh: Vec::new(),
             },
-        );
+        )[..] else {
+            panic!("the mate mints one id")
+        };
+        for (coord, by) in asm::middle_seat_values() {
+            step(
+                &mut doc,
+                DocEdit::AddValue {
+                    placement: post,
+                    value: Box::new(Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            );
+        }
     }
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     assert!(

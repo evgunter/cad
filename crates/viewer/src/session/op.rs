@@ -17,8 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
-    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId,
-    VarName,
+    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;

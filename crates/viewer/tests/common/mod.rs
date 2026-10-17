@@ -367,6 +367,50 @@ pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
         .collect()
 }
 
+/// **A mate and its values written into `doc`** through the edit door:
+/// `mate` added to `placement`'s bundle, then each of `values` naming
+/// the id it minted — what the mate tool's op commits, for a row that
+/// authors its document before a session opens it. Answers the mate.
+pub fn mate_into(
+    doc: &mut Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    mate: pncad::document::Mate<Formula>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+    tol: Tol,
+) -> pncad::document::MateRef {
+    let applied = pncad::document::apply(
+        doc,
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the mate is admitted");
+    let [id] = applied.record.minted_constraints[..] else {
+        panic!("a mate mints one id")
+    };
+    *doc = applied.doc;
+    for (coord, by) in values {
+        edit_into(
+            doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(pncad::document::Value {
+                    mate: id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            tol,
+        );
+    }
+    pncad::document::MateRef::new(placement, id)
+}
+
 /// **Commit a mate through the session**, pump, and answer the mate it
 /// added — the op's first committed edit checked to BE an
 /// `AddConstraint` and the rest its values, and the mate read back by

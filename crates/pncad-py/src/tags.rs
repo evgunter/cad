@@ -1950,8 +1950,9 @@ pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
 /// refuse a lever arrives here as a compile error.
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
-        LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
-        LeverRefusal::Shape { refusal, .. } => reach_refusal_tag(refusal),
+        LeverRefusal::Reach { refusal, .. } | LeverRefusal::Shape { refusal, .. } => {
+            reach_refusal_tag(refusal)
+        }
         LeverRefusal::OutOfRange { .. } => "out_of_range",
         LeverRefusal::BelowZeroBand { .. } => "below_zero_band",
     }

@@ -115,8 +115,7 @@ fn scene(label: &str) -> Scene {
         block_part_body,
         RoleSeg::LateralEdge(fixture::vpiece(&block_doc, block_part_body, 0, 0)),
     );
-    let (block_ref, block_body) =
-        store.insert_part((block_doc, block_part_body), Tol::witness());
+    let (block_ref, block_body) = store.insert_part((block_doc, block_part_body), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
@@ -316,7 +315,8 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     s.seat_cap();
     s.seat_other(6.0, 6.0);
     let ev = fixture::run(&s.doc, &s.opts);
-    let names = |node| -> Vec<&'static str> { log(&ev, node).iter().map(|v| v.predicate).collect() };
+    let names =
+        |node| -> Vec<&'static str> { log(&ev, node).iter().map(|v| v.predicate).collect() };
     let (cap_log, other_log, pattern_log) = (names(s.cap), names(s.other), names(s.pattern));
     let on = |got: &[&str], p: &str| got.contains(&p);
     assert!(
@@ -328,7 +328,10 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
         "the other block's one mate intersects nothing: {other_log:?}"
     );
     for p in PATTERN_RULE {
-        assert!(on(&pattern_log, p), "the pattern decides its {p}: {pattern_log:?}");
+        assert!(
+            on(&pattern_log, p),
+            "the pattern decides its {p}: {pattern_log:?}"
+        );
         for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
             assert!(
                 !on(got, p),

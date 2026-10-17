@@ -682,10 +682,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "MateRefused",
             EditError::MateRefused {
                 node: s(7, "Place"),
-                fault: Box::new(MateFault::SelfMate {
-                    mate: r(9),
-                    instance: n(6),
-                }),
+                fault: Box::new(MateFault::NotOnTheCopy { mate: r(9) }),
                 held: Default::default(),
             },
         ),
@@ -830,8 +827,8 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Clash, LeverRefusal, MateSide, Subgroup};
-    use geom_core::{Band, FrameError, FrameInput, Indeterminate, MarginDiag, Tol};
+    use editor_core::{Clash, Coord, LeverRefusal, MateSide, SlideAxis, Subgroup, VarKind};
+    use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let doc_ref = editor_core::DocRef {
         id: DocumentId::derive("bracket"),
@@ -846,26 +843,8 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "Frame",
-            MateFault::Frame {
-                mate: r(9),
-                side: MateSide::A,
-                error: FrameError::Degenerate {
-                    input: FrameInput::Aim,
-                    indeterminate: None,
-                },
-            },
-        ),
-        (
             "ClassNotAdmitted",
             MateFault::ClassNotAdmitted { mate: r(9) },
-        ),
-        (
-            "TableLacks",
-            MateFault::TableLacks {
-                mate: r(9),
-                what: "a clocking rider on a planar rest",
-            },
         ),
         (
             "Indeterminate",
@@ -914,46 +893,48 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         ),
         ("NotOnTheCopy", MateFault::NotOnTheCopy { mate: r(9) }),
         (
-            "SideBase",
-            MateFault::SideBase {
+            "KindsDiffer",
+            MateFault::KindsDiffer {
                 mate: r(9),
-                side: MateSide::A,
-                base: editor_core::FrameBase::World,
+                on: VarKind::Plane,
+                to: VarKind::Axis,
             },
         ),
         (
-            "DanglingHead",
-            MateFault::DanglingHead {
+            "WorldRead",
+            MateFault::WorldRead {
                 mate: r(9),
-                side: MateSide::B,
-                head: n(4),
+                fault: editor_core::WorldReadFault::FlippedPoint,
             },
         ),
         (
-            "PlacerRefused",
-            MateFault::PlacerRefused {
-                mate: r(9),
-                side: MateSide::B,
-                placer: n(4),
-                error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
-                placer_row: pncad::document::PlacerRow::Silent,
+            "ValueNamesNoMate",
+            MateFault::ValueNamesNoMate {
+                value: r(9),
+                mate: c(8),
             },
         ),
         (
-            "PartSelectsAnotherCopy",
-            MateFault::PartSelectsAnotherCopy {
-                mate: r(9),
-                side: MateSide::A,
-                part: n(6),
-                named: 2,
-                selected: 5,
+            "NotAFreedom",
+            MateFault::NotAFreedom {
+                value: r(9),
+                coord: Coord::Slide(SlideAxis::Z),
+                kind: Some(VarKind::Plane),
             },
         ),
         (
-            "SelfMate",
-            MateFault::SelfMate {
+            "NoChart",
+            MateFault::NoChart {
+                value: r(9),
+                why: editor_core::NoChartWhy::PointRotation,
+            },
+        ),
+        (
+            "SideUnevaluated",
+            MateFault::SideUnevaluated {
                 mate: r(9),
-                instance: n(6),
+                side: MateSide::To,
+                refusal: Box::new(NodeErrorKind::EmptyOperand { input: n(3) }.into()),
             },
         ),
         (

@@ -66,8 +66,7 @@ use editor_core::{
     AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
     ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate,
-    solve_document,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -134,7 +133,9 @@ pub fn constraint(doc: &ProfileDoc, mate: editor_core::MateRef) -> editor_core::
 /// **A face read as its plane** (DM1a: its carrier's plane, with the
 /// face's outward normal), as a pose a mate equates.
 pub fn plane(face: impl Into<editor_core::Operand>) -> editor_core::Operand {
-    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Plane { face: face.into() }))
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Plane {
+        face: face.into(),
+    }))
 }
 
 /// **An axis read off a face or an edge** (a carrier's axis, an edge's
@@ -146,7 +147,9 @@ pub fn axis(of: impl Into<editor_core::Operand>) -> editor_core::Operand {
 /// **A point read off a face, an edge or a vertex** (a carrier's centre,
 /// a vertex's point).
 pub fn point_of(of: impl Into<editor_core::Operand>) -> editor_core::Operand {
-    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Point { of: of.into() }))
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Point {
+        of: of.into(),
+    }))
 }
 
 /// **A pose's opposite sense** ([`editor_core::pose::PoseDef::Flip`]).
@@ -360,9 +363,9 @@ pub fn pin(
     o: &EvalOptions,
 ) -> ProfileDoc {
     let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => editor_core::Operand::Var(
-            shapes.first().expect("a placement copies a shape").read,
-        ),
+        Some(Node::Place { shapes, .. }) => {
+            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
         Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
             doc.output(placement, 0)
                 .expect("an instance defines its copies"),
@@ -612,10 +615,7 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 /// **The world read a placement is pinned at**, as written, where its
 /// bundle is one mate to the world ([`pin`]); `None` for any other
 /// bundle. Panics on a node that is no placement.
-pub fn offset_of(
-    doc: &ProfileDoc,
-    id: RecipeNodeId,
-) -> Option<editor_core::WorldRead<Formula>> {
+pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::WorldRead<Formula>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
@@ -631,7 +631,16 @@ pub fn offset_of(
     let dims: Vec<(bool, Dimension)> = world
         .scalars()
         .into_iter()
-        .map(|(spin, _)| (spin, if spin { Dimension::Angle } else { Dimension::Length }))
+        .map(|(spin, _)| {
+            (
+                spin,
+                if spin {
+                    Dimension::Angle
+                } else {
+                    Dimension::Length
+                },
+            )
+        })
         .collect();
     let mut k = 0;
     world

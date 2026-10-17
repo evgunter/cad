@@ -307,12 +307,18 @@ impl Scene {
 }
 
 /// `mates` added to `cap`'s bundle in order; their addresses.
-fn seated(doc: ProfileDoc, cap: RecipeNodeId, mates: Vec<Mate<Formula>>) -> (ProfileDoc, Vec<MateRef>) {
-    mates.into_iter().fold((doc, Vec::new()), |(doc, mut refs), mate| {
-        let (doc, m) = fixture::constrain_at(doc, cap, mate);
-        refs.push(m);
-        (doc, refs)
-    })
+fn seated(
+    doc: ProfileDoc,
+    cap: RecipeNodeId,
+    mates: Vec<Mate<Formula>>,
+) -> (ProfileDoc, Vec<MateRef>) {
+    mates
+        .into_iter()
+        .fold((doc, Vec::new()), |(doc, mut refs), mate| {
+            let (doc, m) = fixture::constrain_at(doc, cap, mate);
+            refs.push(m);
+            (doc, refs)
+        })
 }
 
 /// `top` (the tall block), instantiated and pinned to the world at the
@@ -321,8 +327,12 @@ fn seated(doc: ProfileDoc, cap: RecipeNodeId, mates: Vec<Mate<Formula>>) -> (Pro
 fn scene(label: &str) -> Scene {
     let mut store = PartStore::new();
     let (part, body) = part_doc(&format!("{label}-top"), TOP_WIDTH, TOP_HEIGHT);
-    let lateral =
-        |v| fixture::ename(body, RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, v)));
+    let lateral = |v| {
+        fixture::ename(
+            body,
+            RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, v)),
+        )
+    };
     let rim = |k| fixture::rim_edge(body, CapEnd::End, fixture::piece(&part, body, 0, k));
     let names = PartNames {
         lateral: [lateral(0), lateral(1)],
@@ -401,7 +411,6 @@ fn assert_target_unresolved(ev: &Evaluation<f64>, cap: RecipeNodeId, what: &str)
         "{what}: the target's refusal is its selection's: {refusal:?}"
     );
 }
-
 
 // ---- A1: a nested copy seats where its chain stands ----
 
@@ -563,8 +572,8 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
 // ---- A4: the `Part`'s index against the name ----
 
 /// **A4.** A `Part` whose index selects a copy the target's NAME does
-/// not name: the `Part` carries copy 2's rows and the name says copy
-/// 1. The door decides nothing that needs a value, so the mates enter;
+/// not name: the `Part` carries copy 2's rows and the name says
+/// copy 1. The door decides nothing that needs a value, so the mates enter;
 /// where the cap evaluates, its target resolves nothing, and the cap
 /// refuses with the selection's own refusal — the name is never
 /// re-read as the copy the `Part` happens to select.

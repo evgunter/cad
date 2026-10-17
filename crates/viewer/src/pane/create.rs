@@ -17,7 +17,8 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, PatternKindChoice,
+    ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_FREEDOMS, MATE_KINDS, MateChoice, MateToolState, admitted_classes};
@@ -1997,14 +1998,14 @@ mod tests {
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
-            "pick a: face of node 000000000003; pick b: —"
+            "on: face of node 000000000003; to: —"
         );
         assert_eq!(
             painted(&MateToolState::Two {
-                a: face_on(3),
-                b: face_on(5),
+                on: face_on(3),
+                to: face_on(5),
             }),
-            "pick a: face of node 000000000003; pick b: face of node 000000000005"
+            "on: face of node 000000000003; to: face of node 000000000005"
         );
     }
 
@@ -2997,7 +2998,7 @@ mod tools_respeak {
             .into_iter()
             .filter_map(|notice| match notice {
                 ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
-                    side: MateSide::A,
+                    side: MateSide::On,
                     node,
                     ..
                 }) => Some(node.to_string()),
@@ -3008,7 +3009,7 @@ mod tools_respeak {
         assert_eq!(
             said,
             [last],
-            "pick a's drop names the block by its last label"
+            "the on pick's drop names the block by its last label"
         );
     }
 }

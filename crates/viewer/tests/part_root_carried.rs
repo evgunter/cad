@@ -22,9 +22,8 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Mate,
-    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SideRead,
-    content_pin, evaluate,
+    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult, PatternKind,
+    ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -397,20 +396,15 @@ fn in_part(
     .into_name()
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
-}
-
 /// **A mate's carried level inside a part is labelled with that part.**
 ///
-/// `sub.pncad` mates onto copy 1 of a pattern whose direction is
-/// `1e200`, so its fold refuses `PlacerRefused` and poisons the pattern;
-/// its first root, the cap instance the mate places, fails with that
-/// fault. An assembly instantiating `sub.pncad` draws two levels under
-/// its row: the cap's refusal and, under it, the pattern's, which the
-/// mate carries. Both nodes are numbered in `sub.pncad`, and both
-/// levels say so.
+/// `sub.pncad` rests its cap instance on copy 1 of a pattern whose
+/// direction is `1e200`, so the pattern refuses, the mate's target does
+/// not evaluate (`SideUnevaluated`), and the cap the mate places fails
+/// with that fault, carrying the pattern's refusal. An assembly
+/// instantiating `sub.pncad` draws two levels under its row: the cap's
+/// refusal and, under it, the pattern's, which the mate carries. Both
+/// nodes are numbered in `sub.pncad`, and both levels say so.
 #[test]
 fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let tol = Tol::witness();
@@ -444,30 +438,18 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         &sub,
         DocEdit::AddConstraint {
             placement: cap,
-            mate: Box::new(Mate {
-                a: SideRead::Face(
-                    common::head(StableName {
-                        kind: EntityKind::Face,
-                        node: pattern,
-                        path: vec![RoleSeg::Instance {
-                            i: 1,
-                            of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
-                        }],
-                    })
-                    .into(),
-                ),
-                b: SideRead::Face(
-                    common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)).into(),
-                ),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            }),
+            mate: Box::new(crate::fixture::rest(
+                common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
+                common::head(StableName {
+                    kind: EntityKind::Face,
+                    node: pattern,
+                    path: vec![RoleSeg::Instance {
+                        i: 1,
+                        of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
+                    }],
+                }),
+                ContactClass::Rest,
+            )),
             fresh: Vec::new(),
         },
         tol,

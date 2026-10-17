@@ -44,10 +44,10 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     match tool.proposal(doc, asm::seat_choice()) {
         Err(MateToolError::PickIsNotAFace { side, refusal }) => {
-            assert_eq!(side, MateSide::A);
+            assert_eq!(side, MateSide::On);
             assert_eq!(refusal.found, EntityKind::Edge);
         }
         other => panic!("an edge-named pick must refuse as the kind, got {other:?}"),
@@ -55,10 +55,10 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
 }
 
 /// **The refusal says the kind, in the constructor's own words.** The
-/// operand arm (`NotAnInstancePick`) names a node and says nothing
-/// about what the selection denoted, so it is the wrong sentence for
-/// this mistake; the kind arm forwards `NotAFaceName`'s rendering
-/// rather than re-spelling it.
+/// operand arm (`NotACopyPick`) names a node and says nothing about
+/// what the selection denoted, so it is the wrong sentence for this
+/// mistake; the kind arm forwards `NotAFaceName`'s rendering rather
+/// than re-spelling it.
 #[test]
 fn the_kind_refusal_forwards_the_head_constructors_sentence() {
     let refusal = pncad::document::FaceName::new(pncad::prelude::StableName {
@@ -68,7 +68,7 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
     })
     .expect_err("an edge is not a face name");
     let shown = MateToolError::PickIsNotAFace {
-        side: MateSide::B,
+        side: MateSide::To,
         refusal,
     }
     .to_string();
@@ -77,8 +77,7 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
         "the kind refusal drops the constructor's sentence: {shown:?}"
     );
 
-    let operand = MateToolError::NotAnInstancePick {
-        side: MateSide::A,
+    let operand = MateToolError::NotACopyPick {
         node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId::new(0, 0)),
     }
     .to_string();
@@ -89,18 +88,18 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 }
 
 /// **A face name at an instance that is not the instance's own
-/// wrapping of a part face is refused at the pre-check.** The member
-/// walk stands a member on any name headed at a live instance, so a
-/// hand-built selection naming a face there with no `InPart` is a
-/// member; the instance's product holds only its part's rows, each
-/// in its one `InPart`, so the pose pre-check answers `NoSuchName`
-/// before any frame is authored, and the solve never meets a head it
-/// cannot strip.
+/// wrapping of a part face is the placement's refusal where it
+/// evaluates.** The tool reads no pose before committing, so a
+/// hand-built selection naming a face at the instance with no `InPart`
+/// proposes and commits; the instance's product holds only its part's
+/// rows, each in its one `InPart`, so the mate's `on` does not evaluate
+/// and the post's row fails `SideUnevaluated` on the `on` side — never
+/// a placement that silently stands somewhere.
 #[test]
-fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_at_the_pre_check() {
+fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_where_it_evaluates() {
     let tol = Tol::witness();
     let bench = asm::bench("rv-matehead-bare", tol);
-    let session = asm::open_bench(&bench, tol);
+    let mut session = asm::open_bench(&bench, tol);
     let (mut a, b) = asm::seat_picks(&session, &bench);
     assert_eq!(a.name.node, a.node, "pick a is on its instance");
     // The instance's own name, its `InPart` taken off: a bare face name
@@ -111,13 +110,30 @@ fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_at_the_pre_check() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(MateToolError::Frame {
-            side: MateSide::A,
-            error: pncad::select::InterrogateError::NoSuchName,
-            ..
-        }) => {}
-        other => panic!("a bare face name at an instance refuses at the pre-check, got {other:?}"),
+    asm::unpin(&mut session, bench.post_b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("no pose is read before the commit");
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let (_, eval) = session.landed_pair().expect("landed");
+    match eval
+        .result(bench.post_b)
+        .and_then(|r| r.error())
+        .map(|e| &e.kind)
+    {
+        Some(pncad::document::NodeErrorKind::Mate(fault))
+            if matches!(
+                fault.as_ref(),
+                pncad::document::MateFault::SideUnevaluated {
+                    side: MateSide::On,
+                    ..
+                }
+            ) => {}
+        other => {
+            panic!("a bare face name at an instance refuses where it evaluates, got {other:?}")
+        }
     }
 }

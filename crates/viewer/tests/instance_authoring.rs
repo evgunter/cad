@@ -124,7 +124,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance stands on its world pin alone
+    // Free-move: an authored instance stands on its world mate alone
     // until a mate names it, so the probe opens and commits.
     for op in [
         SessionOp::BeginFreeMove { instance: shelf_i },
@@ -140,11 +140,11 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(session.display().free_move_of(shelf_i).is_some());
 
     // The shipped mate tool's op takes them from here. Both instances
-    // stand pinned, so the mate joins the shelf's bundle, which its pin
-    // already fixes: the door refuses it typed — overconstrained, or,
-    // while a bundle relates its copy to one target, as a second target
-    // beside the world — and commits nothing. A mate beyond the pin is
-    // never dropped silently.
+    // stand placed, so the mate joins the post's bundle, which its
+    // world mate and values already fix: the door refuses it typed —
+    // overconstrained, or, while a bundle relates its copy to one
+    // target, as a second target beside the world — and commits
+    // nothing. A mate beyond the pin is never dropped silently.
     let seat = || {
         asm::seat_op_under(
             &bench,
@@ -165,18 +165,19 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
                         fault.as_ref(),
                         pncad::document::MateFault::Overconstrained { placement, .. }
                         | pncad::document::MateFault::TargetsDiffer { placement, .. }
-                            if *placement == shelf_i
+                            if *placement == post_i
                     )
             ),
-            "the shelf's bundle refuses the mate beyond its pin: {error}"
+            "the post's bundle refuses the mate beyond its pin: {error}"
         ),
         other => panic!("a mate beyond the pin refuses, got {other:?}"),
     }
-    // With the shelf's world pin taken off, the same mate places it.
-    asm::unpin(&mut session, shelf_i);
+    // With the post's world mate (and its values) taken off, the same
+    // mate places it: one mate and its three values.
+    asm::unpin(&mut session, post_i);
     let outcome = session.perform(seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
+    assert_eq!(outcome.committed.len(), 4);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -185,7 +186,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     };
     assert_eq!(
         superseded.instance, shelf_i,
-        "the mate supersedes the probe on the instance it constrains"
+        "the mate supersedes the probe on the instance it names"
     );
     assert!(
         matches!(

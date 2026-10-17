@@ -22,9 +22,7 @@
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
-use editor_core::{
-    HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity,
-};
+use editor_core::{HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity};
 use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
 use pncad::mesh::TessellateError;
 use test_utils::refusal::tagged;
@@ -230,10 +228,7 @@ fn mate_tool_error_names_the_freedom_a_kind_fixes() {
     }
     .to_string();
     assert!(outer.contains(&VarKind::Axis.to_string()), "{outer}");
-    assert!(
-        outer.contains(Coord::Slide(SlideAxis::X).name()),
-        "{outer}"
-    );
+    assert!(outer.contains(Coord::Slide(SlideAxis::X).name()), "{outer}");
     prose(&outer, "NotAFreedom");
 }
 

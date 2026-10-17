@@ -4906,8 +4906,8 @@ mod properties_pane_tests {
         Option<RecipeNodeId>,
     ) {
         use pncad::document::{
-            Bodies, BodyRead, ContentPin, CopyKey, DocEdit, DocRef, DocumentId, Node, Operand,
-            ProfileDoc, RecipeNodeId, VarId,
+            Bodies, BodyRead, ContentPin, CopyKey, DocRef, DocumentId, Node, Operand, ProfileDoc,
+            RecipeNodeId, VarId,
         };
         let tol = pncad::tolerance::witness();
         let part = DocRef {
@@ -4932,7 +4932,10 @@ mod properties_pane_tests {
             );
             // Placed, loose: the part never resolves, so no pose is
             // read off its copies to pin it by.
-            insert(&mut doc, Node::place(vec![BodyRead::plain(union.into())]));
+            insert(
+                &mut doc,
+                Node::place(vec![BodyRead::plain(Operand::from(union))]),
+            );
             union
         });
         let mut session = crate::session::DocSession::inline(doc, tol);
