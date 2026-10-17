@@ -659,3 +659,94 @@ fn a_carried_pose_moves_with_its_copy() {
     assert_eq!(origins[1].x - origins[0].x, 3.0, "moved with its copy");
     assert_eq!(origins[1].z, origins[0].z, "and no further");
 }
+
+// ---- r1 review probes (PR 5232) ----
+
+/// r1 probe (claim 10): with the document at hand, a constraint is
+/// spoken by its 1-based position. `Overconstrained` names its
+/// constraints by `#ordinal` even when spoken with the document.
+#[test]
+fn r1_overconstrained_speaks_positions_with_the_document() {
+    let (doc, store, doc_ref, body) = host("r1-spoken");
+    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coaxial(body, a, b));
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, seated(body, a, b));
+    let ev = run(&doc, &o);
+    let fault = mate_fault(&ev, b);
+    let said = editor_core::spoken_by(&fault, &doc);
+    println!("r1 said: {said}");
+    assert!(
+        said.contains("constraints 1, 2") || said.contains("constraint 1"),
+        "spoken with the document, yet by ordinal: {said}"
+    );
+}
+
+/// r1 probe (spec §1 "kinds are decided from the recipe, never from a
+/// value"): one recipe, two values of one angle; the copy's space
+/// changes with the value, and the copy leaves the product silently.
+#[test]
+fn r1_a_copys_space_turns_on_a_value() {
+    use editor_core::{Dimension, FrameBase, FreeValue, FreeVar, SideRead, Step, VarDecl, VarName};
+    let (doc, store, doc_ref, _body) = host("r1-space-value");
+    let theta = VarName::from_static("theta");
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: theta.clone(),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+        },
+    );
+    let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let tilt = || -> Placement<Formula> {
+        Step::Rigid {
+            translation: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
+            axis: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+            angle: Formula::named(theta.clone(), Dimension::Angle),
+        }
+        .into()
+    };
+    let coax = |w: Placement<Formula>, c: Placement<Formula>| editor_core::Mate {
+        a: SideRead::World,
+        b: SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame {
+                base: FrameBase::World,
+                offset: w,
+            },
+            b: MateFrame::on_part(c),
+            primitive: MatePrimitive::Coaxial,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let o = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::constrain_through(
+        doc,
+        &reach,
+        b,
+        coax(Placement::IDENTITY, Placement::IDENTITY),
+    );
+    let (doc, _) = fixture::constrain_through(doc, &reach, b, coax(tilt(), tilt()));
+    let ev = run(&doc, &o);
+    println!("r1 theta=0.5: {:?} {:?}", ev.space(b), ev.result(b).map(|r| format!("{r:?}").chars().take(200).collect::<String>()));
+    let (doc0, _) = step(
+        doc,
+        DocEdit::SetVarValue {
+            var: theta.into(),
+            value: FreeValue::Continuous(0.0),
+        },
+    );
+    let ev0 = run(&doc0, &o);
+    println!("r1 theta=0: {:?} {:?}", ev0.space(b), ev0.result(b).map(|r| format!("{r:?}").chars().take(200).collect::<String>()));
+    assert_eq!(
+        ev.space(b),
+        ev0.space(b),
+        "one recipe, two spaces: the kind turned on a value"
+    );
+}
