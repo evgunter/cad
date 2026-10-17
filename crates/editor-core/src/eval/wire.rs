@@ -91,6 +91,9 @@ pub(crate) struct OpOut<T: Decide> {
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
+    /// A placement's space (`NodeValue::space`), `None` for every other
+    /// op, whose value lives in its inputs'.
+    pub space: Option<crate::mate::Space>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -105,12 +108,17 @@ impl<T: Decide> OpOut<T> {
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
+            space: None,
         }
     }
 
-    /// This output, a placement's, sitting at `motion`.
-    fn moved(self, motion: Option<RigidMotion<T>>) -> Self {
-        Self { motion, ..self }
+    /// This output, a placement's, sitting at `motion` in `space`.
+    fn moved(self, (motion, space): (Option<RigidMotion<T>>, crate::mate::Space)) -> Self {
+        Self {
+            motion,
+            space: Some(space),
+            ..self
+        }
     }
 
     /// This output, its records' carried citations naming `inputs` by
@@ -224,13 +232,6 @@ impl<T> Copy for LaneEnv<'_, T> {}
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
-    /// The document's solve, run once per evaluation at its scalar:
-    /// every placement's pose around its anchor's frame.
-    pub poses: &'a crate::mate::SolvedPoses<T>,
-    /// The nodes whose reads lie in two spaces, each naming the two
-    /// (`mate::solve::spaces_of`).
-    pub across:
-        &'a std::collections::BTreeMap<RecipeNodeId, (crate::mate::Space, crate::mate::Space)>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -239,9 +240,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op). `frame` is
-/// a placement's anchor frame (`mate::SolvedPoses::frame`), read there
-/// once for the content key and reused here.
+/// inside the node's verdict frame and ahead of this op).
 #[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
@@ -251,7 +250,6 @@ pub(crate) fn run_op<T>(
     vals: &SlotValues<T>,
     payload: Option<&super::Payload<T>>,
     profile_pre: Option<&ProfilePre>,
-    frame: Option<crate::placement::Motion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -412,8 +410,10 @@ where
         Node::Transform { input, placement } => {
             wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
-        Node::Place { shapes, .. } => {
-            select_sides(doc, results, id, node)?;
+        Node::Place {
+            shapes,
+            constraints,
+        } => {
             // Each shape projected by itself: two halves of one split
             // are two bodies, which one map keyed by the split cannot
             // hold.
@@ -434,8 +434,12 @@ where
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            let map = placement_map(id, frame, env.poses, tol)?;
-            wire_place(id, &reads, map.as_ref(), tol).map(|out| out.moved(map))
+            let reach = reads
+                .iter()
+                .map(|&(at, _, values)| copy_reach(values, at))
+                .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)));
+            let placed = fold_with(doc, unprojected, unprojected, id, constraints, reach, env, tol)?;
+            wire_place(id, &reads, placed.0.as_ref(), tol).map(|out| out.moved(placed))
         }
         // The world DENOTES NO BODY and defines no variable.
         Node::World => unreachable!("the world is scheduled nowhere (`eval::schedule`)"),
@@ -490,121 +494,171 @@ where
             wire_assertion(*value_dim, *bound_dim, certified, node, payload, tol)
         }
         Node::InstantiatePart {
-            doc_ref, interface, ..
+            doc_ref,
+            interface,
+            constraints,
         } => {
-            select_sides(doc, results, id, node)?;
-            let map = placement_map(id, frame, env.poses, tol)?;
-            let out = wire_instantiate_part(id, doc_ref, interface, map, env, tol)?;
-            select_own_sides(doc, id, node, out.outputs[0].table())?;
-            Ok(out.moved(map))
-        }
-    }
-}
-
-/// **A placement's constraint sides, read first**: each face side
-/// that reads another copy resolves in that copy's table, so a side
-/// whose name no longer answers refuses in the selection's own words,
-/// as every reader of a selection refuses. (A placement the solve
-/// faulted has already refused in the fault's words, `eval_node`.) A side on the placement's own copy resolves once the copy
-/// exists ([`select_own_sides`]).
-fn select_sides<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    id: RecipeNodeId,
-    node: &Node<ProfileProgram>,
-) -> Result<(), NodeErrorKind> {
-    for (slot, var) in node.operand_rows() {
-        if matches!(slot, crate::OperandSlot::Side { .. })
-            && !crate::mate::solve::own_copy_side(doc, id, slot, var)
-        {
-            select(doc, results, slot, var)?;
-        }
-    }
-    Ok(())
-}
-
-/// **A placement's constraint sides on its own copy**, resolved in the
-/// copy's own `table` ([`select_sides`]'s other half). A side read
-/// through a placer of the copy (a pattern of it, a transform, a union)
-/// reads a value evaluated after this node, so it is resolved as the
-/// member walk reads it: the name the walk reaches at the copy
-/// ([`crate::mate::member::member_reading`]), in the copy's table.
-fn select_own_sides(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    id: RecipeNodeId,
-    node: &Node<ProfileProgram>,
-    table: &names::NameTable,
-) -> Result<(), NodeErrorKind> {
-    for (slot, var) in node.operand_rows() {
-        if !crate::mate::solve::own_copy_side(doc, id, slot, var) {
-            continue;
-        }
-        if doc
-            .selection(var)
-            .is_some_and(|select| doc.operation_of(select.body) == Some(id))
-        {
-            let Some((entity, _)) = doc.var(var).and_then(|held| held.kind().selection()) else {
-                return Err(NodeErrorKind::UnresolvedRead { slot, var });
+            // The copy before placement is what its mates' `on` poses
+            // read: the part's product where the part put it.
+            let unplaced = wire_instantiate_part(id, doc_ref, interface, None, env, tol)?;
+            let reach = match &unplaced.payload {
+                ValuePayload::Body(value) => body_reach(&value.body, id),
+                _ => Ok(0.0),
             };
-            resolve_selection(doc, table, slot, var, entity, id)?;
-            continue;
-        }
-        let reached = crate::mate::member::head_of(doc, var)
-            .and_then(|head| crate::mate::member::member_reading(doc, &head));
-        if let Some((member, name)) = reached
-            && member.instance == id
-        {
-            ladder::resolve_in(&name, doc, table, |error| NodeErrorKind::SelectResolve {
-                slot,
-                var,
-                reference: 0,
-                error,
-            })?;
+            let mut own = unprojected.clone();
+            own.insert(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)));
+            let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
+            let out = wire_instantiate_part(id, doc_ref, interface, placed.0.clone(), env, tol)?;
+            Ok(out.moved(placed))
         }
     }
-    Ok(())
 }
 
-/// **A placement's solve fault, as its row reports it.** A placer
-/// the solve says states its own refusal ([`crate::mate::PlacerRow::States`])
-/// states it only where it failed in its own right: a placer poisoned
-/// by a failure upstream of it never ran, so its row names another
-/// cause, and the fault carries the refusal instead
-/// ([`crate::mate::PlacerRow::Silent`]). The solve holds no evaluation,
-/// so the standing is read here, where it is known.
-pub(super) fn placement_fault<T: Decide>(
-    fault: &crate::mate::MateFault,
+/// **A copy's reach in its own coordinates** — a shape's body's, as
+/// [`crate::mate::part_reach`] bounds a part's — for the fold's arm.
+fn copy_reach<T: Decide>(
     results: &Results<T>,
-) -> NodeErrorKind {
-    let mut fault = fault.clone();
-    if let crate::mate::MateFault::PlacerRefused {
-        placer, placer_row, ..
-    } = &mut fault
-        && *placer_row == crate::mate::PlacerRow::States
-        && !matches!(results.get(placer), Some(NodeResult::Failed(_)))
-    {
-        *placer_row = crate::mate::PlacerRow::Silent;
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    match results.get(&at) {
+        Some(NodeResult::Ok(value)) => match &value.payload {
+            ValuePayload::Body(body) => body_reach(&body.body, at),
+            _ => Ok(0.0),
+        },
+        _ => Ok(0.0),
     }
-    NodeErrorKind::Mate(Box::new(fault))
 }
 
-/// **The motion a placement's copies sit at, in this lane**: its pose
-/// composed around its anchor's `frame`, both at the solve's scalar
-/// (`mate::solve::Pose::compose_around`), `None` for the bit-exact
-/// identity, a general map admitted at the decided door
-/// ([`crate::placement::Motion::rigid`]). A loose copy sits at its pose
-/// in its own space.
-fn placement_map<T: crate::mate::SolveScalar>(
+/// [`copy_reach`] of one body, read off the node `at`.
+fn body_reach<T: Decide>(
+    body: &topo::Body<T>,
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    crate::mate::part_reach(body)
+        .map(|bracket| bracket.hi())
+        .and_then(|hi| {
+            if hi.is_finite() {
+                Ok(hi)
+            } else {
+                Err(crate::mate::ReachRefusal::NoFiniteBound)
+            }
+        })
+        .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
+}
+
+/// **A placement's bundle, folded where it evaluates** (INTENT stage 3
+/// C), its `on` poses read in `on_results` (an instance's own copy
+/// before placement among them) and its `to` poses in `to_results`: each mate's `on` read off the copied shapes before placement, in
+/// their own coordinates, and its `to` off the target space's geometry,
+/// or the world read inside the mate; the bundle folded
+/// ([`crate::mate::solve::solve_bundle`]). Answers the copy's motion in
+/// its target space's coordinates (`None` the identity) and the space
+/// it joins: a loose copy roots its own.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Mate`] with the bundle's fault.
+#[allow(clippy::too_many_arguments)]
+fn fold_with<T>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    on_results: &Results<T>,
+    to_results: &Results<T>,
     id: RecipeNodeId,
-    frame: Option<crate::placement::Motion<T>>,
-    poses: &crate::mate::SolvedPoses<T>,
+    constraints: &[crate::mate::Constraint],
+    reach: Result<f64, crate::mate::LeverRefusal>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
-) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
-    let frame = frame.unwrap_or(crate::placement::Motion::Identity);
-    let pose = poses
-        .pose(id)
-        .unwrap_or_else(crate::mate::solve::Pose::identity);
-    pose.compose_around(frame).rigid(band(tol)?)
+) -> Result<(Option<RigidMotion<T>>, crate::mate::Space), NodeErrorKind>
+where
+    T: crate::mate::SolveScalar,
+{
+    use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
+    let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
+    let b = band(tol)?;
+    let params = env.lane.params;
+    let mut mates = Vec::with_capacity(constraints.len());
+    let mut target_space: Option<Space> = None;
+    for c in constraints {
+        let mate = MateRef::new(id, c.id);
+        let unevaluated = |side, kind| {
+            fault(MateFault::SideUnevaluated {
+                mate,
+                side,
+                refusal: Box::new(super::NodeRefusal::from(kind)),
+            })
+        };
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: c.id,
+            side,
+        };
+        let on = pose::eval_pose(
+            doc,
+            on_results,
+            seat(MateSide::On),
+            crate::pose::RoleRead::plain(c.mate.on),
+            params,
+            tol,
+        )
+        .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let (to, space) = match &c.mate.to {
+            Target::Pose(var) => {
+                let to = pose::eval_pose(
+                    doc,
+                    to_results,
+                    seat(MateSide::To),
+                    crate::pose::RoleRead::plain(*var),
+                    params,
+                    tol,
+                )
+                .map_err(|kind| unevaluated(MateSide::To, kind))?;
+                let space = doc
+                    .read_ports(*var)
+                    .iter()
+                    .find_map(|(at, _)| match to_results.get(at) {
+                        Some(NodeResult::Ok(value)) => value.space,
+                        _ => None,
+                    })
+                    .unwrap_or(Space::World);
+                (to, space)
+            }
+            Target::World(world) => {
+                world
+                    .kind()
+                    .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
+                let to = pose::eval_world(world, params, b)
+                    .map_err(|kind| unevaluated(MateSide::To, kind))?;
+                (to, Space::World)
+            }
+        };
+        match target_space {
+            None => target_space = Some(space),
+            Some(held) if held != space => {
+                return Err(fault(MateFault::TargetsDiffer {
+                    placement: id,
+                    constraints: constraints.iter().map(|c| c.id).collect(),
+                }));
+            }
+            Some(_) => {}
+        }
+        mates.push(crate::mate::solve::ReadMate { mate, on, to });
+    }
+    if mates.is_empty() {
+        return Ok((None, Space::Loose { root: id }));
+    }
+    let reach = reach.map_err(|refusal| {
+        fault(MateFault::Unleverable {
+            mate: mates[0].mate,
+            refusal: Box::new(refusal),
+        })
+    })?;
+    let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+    match crate::mate::solve::solve_bundle(id, &mates, arm, b).map_err(|f| fault(*f))? {
+        crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
+        crate::mate::solve::Folded::Pinned(rep) => Ok((
+            crate::mate::solve::marked(rep).rigid(b)?,
+            target_space.unwrap_or(Space::World),
+        )),
+    }
 }
 
 /// ASM-2A D-3: materialize an instance through the shipped doors.

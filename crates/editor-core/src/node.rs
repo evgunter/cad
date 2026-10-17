@@ -461,19 +461,22 @@ pub enum SlotId {
         /// Which of the rigid step's components.
         arg: RigidArg,
     },
-    /// A component of a rigid step of a mate side's frame offset
-    /// ([`crate::MateFrame`]): `arg` of step `step` of side `side`'s
-    /// offset. A mate holds two placements, so its addresses carry
-    /// the side, and step 0 is addressed by its index like any other.
-    MateFrameStep {
+    /// A slide's length in a mate's world read ([`crate::WorldRead`]):
+    /// the `step`th scalar of constraint `constraint`'s read, in
+    /// pre-order.
+    WorldSlide {
         /// Which constraint of the placement.
         constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
+        /// The scalar's place in the read.
         step: usize,
-        /// Which of the rigid step's components.
-        arg: RigidArg,
+    },
+    /// A spin's angle in a mate's world read ([`crate::WorldRead`]),
+    /// addressed as [`SlotId::WorldSlide`] is.
+    WorldSpin {
+        /// Which constraint of the placement.
+        constraint: ConstraintId,
+        /// The scalar's place in the read.
+        step: usize,
     },
     /// A linear pattern's instance spacing (Length).
     Spacing,
@@ -564,13 +567,6 @@ fn rigid_label(step: usize, noun: &str) -> String {
     }
 }
 
-/// **The prose of a mate side's offset component**, `noun`, at chain
-/// index `step` of side `side`'s offset — counted from one, as
-/// [`rigid_label`] counts.
-fn mate_step_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
-    format!("side {} frame step {} {noun}", side.name(), step + 1)
-}
-
 /// A slot family whose members are the three COMPONENTS of one
 /// 3-vector — the vector-valued half of [`SlotId`], named once here so
 /// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
@@ -622,26 +618,6 @@ pub enum VectorSlot {
         /// The step's index in the chain.
         step: usize,
     },
-    /// A rigid step's translation in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameTranslation {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
-    /// A rigid step's rotation axis in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameRotationAxis {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
 }
 
 impl VectorSlot {
@@ -656,26 +632,6 @@ impl VectorSlot {
             Self::V => SlotId::V(axis),
             Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
             Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
-            Self::MateFrameTranslation {
-                constraint,
-                side,
-                step,
-            } => SlotId::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg: RigidArg::Translation(axis),
-            },
-            Self::MateFrameRotationAxis {
-                constraint,
-                side,
-                step,
-            } => SlotId::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg: RigidArg::RotationAxis(axis),
-            },
         }
     }
 
@@ -694,12 +650,6 @@ impl VectorSlot {
             Self::V => "y axis".to_owned(),
             Self::Translation { step } => rigid_label(step, "translation"),
             Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
-            Self::MateFrameTranslation { side, step, .. } => {
-                mate_step_label(side, step, "translation")
-            }
-            Self::MateFrameRotationAxis { side, step, .. } => {
-                mate_step_label(side, step, "rotation axis")
-            }
         }
     }
 
@@ -764,9 +714,11 @@ impl SlotId {
                 Dimension::Count
             }
             // A later step's component has its step-0 twin's dimension.
-            Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
+            Self::PlacementStep { arg, .. } => {
                 return SlotId::rigid(0, arg).dimension();
             }
+            Self::WorldSlide { .. } => Dimension::Length,
+            Self::WorldSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -860,12 +812,8 @@ impl SlotId {
                 Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
                 _ => String::from("component"),
             },
-            Self::MateFrameStep {
-                side, step, arg, ..
-            } => match arg {
-                RigidArg::RotationAngle => mate_step_label(side, step, "rotation angle"),
-                RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
-            },
+            Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
+            Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -904,30 +852,6 @@ impl SlotId {
                     (_, RigidArg::RotationAngle) => None,
                 }
             }
-            Self::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg,
-            } => match arg {
-                RigidArg::Translation(axis) => Some((
-                    VectorSlot::MateFrameTranslation {
-                        constraint,
-                        side,
-                        step,
-                    },
-                    axis,
-                )),
-                RigidArg::RotationAxis(axis) => Some((
-                    VectorSlot::MateFrameRotationAxis {
-                        constraint,
-                        side,
-                        step,
-                    },
-                    axis,
-                )),
-                RigidArg::RotationAngle => None,
-            },
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
@@ -949,7 +873,9 @@ impl SlotId {
             | Self::Stations
             | Self::Operand(_)
             | Self::Index { .. }
-            | Self::Profile { .. } => None,
+            | Self::Profile { .. }
+            | Self::WorldSlide { .. }
+            | Self::WorldSpin { .. } => None,
         }
     }
 
@@ -970,10 +896,10 @@ impl SlotId {
         SlotId::PlacementStep { step, arg }
     }
 
-    /// Whether this slot addresses a step of a mate side's frame
-    /// offset — an address only a mate carries.
-    pub fn is_mate_frame_step(self) -> bool {
-        matches!(self, Self::MateFrameStep { .. })
+    /// Whether this slot addresses a scalar of a mate's world read —
+    /// an address only a mate carries.
+    pub fn is_world_read_step(self) -> bool {
+        matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
     }
 
     /// The chain position and component a rigid step's slot addresses

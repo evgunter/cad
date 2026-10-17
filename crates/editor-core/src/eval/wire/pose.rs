@@ -307,6 +307,49 @@ fn definition<T: Decide>(
     })
 }
 
+/// **A world read, evaluated** (spec Q7): the world's frame is the
+/// identity of the world's coordinates, and the read's moves are a pose
+/// definition's ([`slide`], [`spin`], [`flip`], a role's
+/// [`crate::pose::PoseRole::read`]). Its kinds were checked
+/// ([`crate::WorldRead::kind`]) before it is asked.
+///
+/// # Errors
+///
+/// A scalar's refusal ([`NodeErrorKind::PoseScalar`]), or a move's.
+pub(crate) fn eval_world<T: Decide>(
+    world: &crate::mate::WorldRead,
+    env: &VarEnv<T>,
+    b: geom_core::predicate::Band,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    use crate::mate::WorldRead as W;
+    let scalar = |var: VarId, dim| {
+        eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
+    };
+    Ok(match world {
+        W::Frame => PoseValue::Frame(RigidMotion::axes_xy(Point3::origin())),
+        W::Role { pose, role } => role
+            .read(&eval_world(pose, env, b)?)
+            .unwrap_or_else(|| unreachable!("a world read's role is its pose's: its kind was checked")),
+        W::Slide { pose, along, by } => {
+            let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) =
+                eval_world(along, env, b)?
+            else {
+                unreachable!("a world read slides along a direction or an axis: its kind was checked")
+            };
+            let by = scalar(*by, crate::expr::Dimension::Length)?;
+            slide(eval_world(pose, env, b)?, dir, by)?
+        }
+        W::Spin { pose, about, by } => {
+            let PoseValue::Axis { origin, dir } = eval_world(about, env, b)? else {
+                unreachable!("a world read spins about an axis: its kind was checked")
+            };
+            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            spin(eval_world(pose, env, b)?, origin, dir, angle)?
+        }
+        W::Flip { pose } => flip(eval_world(pose, env, b)?, b)?,
+    })
+}
+
 /// **A pose slid along `dir` by `by`**: its position moved, its
 /// directions kept. A direction has no position and is no slide's.
 ///
@@ -635,7 +678,7 @@ fn walk<T: Decide>(
 
 /// A read's role word ([`crate::eval::tag::pose_role`]), a plain
 /// read's included.
-fn role_word(role: Option<crate::pose::PoseRole>) -> u8 {
+pub(crate) fn role_word(role: Option<crate::pose::PoseRole>) -> u8 {
     use crate::eval::tag::pose_role as w;
     use crate::pose::PoseRole as R;
     match role {

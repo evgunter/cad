@@ -806,6 +806,10 @@ pub struct NodeValue<T: Decide> {
     /// identity and for every value that is no placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
+    /// **The space the value lives in** (D10, Spaces): a placement's
+    /// copy its bundle's, every other value its inputs', `None` for a
+    /// value that lives in none (a measure's, an assertion's).
+    pub space: Option<crate::mate::Space>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -877,6 +881,31 @@ impl<T: Decide> NodeValue<T> {
     }
 }
 
+impl<T: Decide> NodeValue<T> {
+    /// **A value read for one pose and never kept**: an op's output with
+    /// no log, no key and no space, which a placement's fold reads its
+    /// own copy before placement through and drops.
+    pub(crate) fn scratch(out: wire::OpOut<T>) -> Self {
+        Self {
+            payload: out.payload,
+            outputs: out.outputs.into(),
+            contacts: out.contacts,
+            carried: out.carried,
+            coincidences: out.coincidences,
+            cited_inputs: out.cited_inputs,
+            parts: out.parts,
+            verdicts: Arc::new(Vec::new()),
+            escalations: Arc::new(Vec::new()),
+            placement: None,
+            motion: None,
+            space: None,
+            witness: WitnessSlot::default(),
+            content_key: ContentKey(0),
+            naming_key: NamingKey(0),
+        }
+    }
+}
+
 /// **Hand-built values and evaluations** (`test-support`): for rows that
 /// probe a door on a table no evaluation mints. Each node's names are
 /// its one output's, read through a variable minted from its id.
@@ -902,6 +931,7 @@ impl NodeValue<f64> {
             escalations: Arc::new(vec![]),
             placement: None,
             motion: None,
+            space: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1505,6 +1535,45 @@ impl NodeRefusal {
     pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> String {
         failed_line(node, self.get(), by)
     }
+}
+
+/// **The one space `node`'s inputs live in**, read off their values:
+/// a `Place`'s shapes (it copies them as one), no input of an
+/// instance's (it copies a part), every other node's inputs — a
+/// constraint reads across spaces by design, so its reads are no input
+/// here. `None` for a node reading no value that lives in a space.
+///
+/// # Errors
+///
+/// The first two spaces, where the inputs lie in two.
+fn input_space<T: Decide>(
+    doc: &Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    node: &crate::node::Node<ProfileProgram>,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> Result<Option<crate::mate::Space>, (crate::mate::Space, crate::mate::Space)> {
+    use crate::node::Node;
+    let inputs = match node {
+        Node::InstantiatePart { .. } => Vec::new(),
+        Node::Place { shapes, .. } => shapes
+            .iter()
+            .filter_map(|shape| doc.operation_of(shape.read))
+            .collect(),
+        _ => doc.upstream_of(id, node),
+    };
+    let mut first: Option<crate::mate::Space> = None;
+    for input in inputs {
+        let Some(NodeResult::Ok(value)) = results.get(&input) else {
+            continue;
+        };
+        match (first, value.space) {
+            (_, None) => {}
+            (None, Some(space)) => first = Some(space),
+            (Some(held), Some(space)) if held != space => return Err((held, space)),
+            (Some(_), Some(_)) => {}
+        }
+    }
+    Ok(first)
 }
 
 /// A node's failure as one line: the node, then its kind's prose, each
@@ -3942,29 +4011,13 @@ where
         tol,
     )
     .with_symbols(opts.symbols);
-    // The mate solve is a WHOLE-DOCUMENT computation over recipe data
-    // (A11): each placement's bundle folded once, in schedule order,
-    // read by every placement below. Running it here rather than per
-    // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this copy sit". It runs at this
-    // evaluation's scalar over the lane environment (A11 (5)), so a
-    // seed or a box that binds what a mate reads moves the poses with
-    // it. Its two geometric reads — each mated part's extent (the lever)
-    // and a face-based side's face pose — come off THIS run's part
-    // cache: at the top a mated part is evaluated on its first ask,
-    // once, under the cache's shielding bracket, and below the top the
-    // descent has already entered it. Either way its instantiate node
-    // then hits the cache.
-    let reach = CacheReach { parts: &parts, tol };
-    let poses = crate::mate::solve_with_env(doc, &env, &reach, tol);
-    // Which space each node lives in, read off the solve once, as the
-    // solve is: a per-node reading would be a second answer.
-    let spaces = crate::mate::solve::spaces_of(doc, &poses);
+    // A placement's bundle is folded where the placement evaluates
+    // (INTENT stage 3 C): every pose a mate reads is then a value of
+    // this run, at its scalar over the lane environment (A11 (5)), so a
+    // seed or a box that binds what a mate reads moves the copy with it.
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
-        poses: &poses,
-        across: &spaces.across,
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
@@ -4049,10 +4102,12 @@ where
     // result DAG — canceled prefixes resolve what completed and report
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
-    let loose = spaces
-        .space
+    let loose = nodes
         .iter()
-        .filter_map(|(&node, space)| Some((node, space.loose()?)))
+        .filter_map(|(&node, result)| match result {
+            NodeResult::Ok(value) => Some((node, value.space?.loose()?)),
+            _ => None,
+        })
         .collect();
 
     Evaluation {
@@ -4292,24 +4347,6 @@ where
         // Unreachable: the schedule only lists live nodes.
         return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
-    // A placement's log opens with what the solve decided about its
-    // bundle: the solve ran before any frame was open and kept each
-    // decision for the one placement whose bundle it decided
-    // (`mate::solve::SolvedPoses::take_recordings`), so the decision is
-    // on this placement's log whether it evaluates `Ok` or not.
-    let is_placement = crate::mate::solve::bundle_of(node).is_some();
-    let spliced = is_placement.then(|| {
-        let mut kept = geom_core::k_stats::Recorded::default();
-        for recording in op_env.poses.take_recordings(id) {
-            kept.verdicts
-                .extend_from_slice(&recording.recorded().verdicts);
-            kept.escalations
-                .extend_from_slice(&recording.recorded().escalations);
-            geom_core::k_stats::splice(recording);
-        }
-        kept
-    });
-
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
     // FAILED node (propagated through poisoned intermediaries).
@@ -4323,13 +4360,6 @@ where
         .find_map(|(slot, var)| doc.unresolved_read(var).map(|at| (slot, at)))
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
-    }
-    // A placement the solve faulted refuses in its own words even where
-    // the copies its constraints read failed with it: the solve's fault
-    // is about its bundle, so poisoning it through them would lose the
-    // one sentence that names it.
-    if is_placement && let Some(fault) = op_env.poses.fault(id) {
-        return fail(bracket, wire::placement_fault(fault, results));
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
     for input in doc.upstream_of(id, node) {
@@ -4413,13 +4443,12 @@ where
     };
     // A node whose reads lie in two spaces relates two raw coordinate
     // systems, which only a mate may do (D10), and refuses before it
-    // reads them.
-    if let Some(&(a, b)) = op_env.across.get(&id) {
-        return fail(bracket, NodeErrorKind::SpaceMismatch { a, b });
-    }
-    // A placement's anchor frame, in this lane: read once, before the
-    // key, which it feeds, and handed to the op.
-    let anchor_frame = op_env.poses.frame(id);
+    // reads them. Every input it reads has its value (above), and
+    // carries its space.
+    let inputs_space = match input_space(doc, id, node, results) {
+        Ok(space) => space,
+        Err((a, b)) => return fail(bracket, NodeErrorKind::SpaceMismatch { a, b }),
+    };
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
     // resolve at f64 because they feed C6 structure selection, which
@@ -4561,7 +4590,6 @@ where
         lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        SolveAnswer::of(op_env.poses, doc, id, anchor_frame),
         tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
@@ -4599,10 +4627,6 @@ where
         // dozen verdicts per hit, beside a precompute that just
         // replayed and validated the profile.
         let fresh = bracket.finish();
-        // A placement's frame opens with the solve's decisions about its
-        // bundle, which read only what its key fixes (its constraints,
-        // their reads, its anchor's frame), so D9 makes them the reused
-        // log's opening too: the prefix assert below covers them.
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),
@@ -4625,7 +4649,6 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
-        anchor_frame,
         op_env,
         tol,
     );
@@ -4649,9 +4672,6 @@ where
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
-    if let Some(spliced) = &spliced {
-        placement_log_opens_with_the_solves(id, &recorded, spliced);
-    }
     let escalations = Arc::new(recorded.escalations);
     match (op, placement) {
         (Ok(out), Ok(placement)) => NodeStep {
@@ -4664,6 +4684,14 @@ where
                 cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 motion: out.motion,
+                space: match node {
+                    // A measure and an assertion read geometry and
+                    // answer a number, which lives in no space.
+                    crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => {
+                        None
+                    }
+                    _ => out.space.or(inputs_space).or(Some(crate::mate::Space::World)),
+                },
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -4694,24 +4722,6 @@ where
     }
 }
 
-/// **A placement's frame opens with exactly what the solve recorded
-/// for its bundle**, spliced in before any of its own decisions; its
-/// op's decisions (placing its copies, an instance's part) follow. The
-/// escalations compare by predicate, since a margin that is no number
-/// compares unequal to itself.
-fn placement_log_opens_with_the_solves(
-    id: RecipeNodeId,
-    frame: &geom_core::k_stats::Recorded,
-    spliced: &geom_core::k_stats::Recorded,
-) {
-    let named = |r: &geom_core::k_stats::Recorded| -> Vec<&'static str> {
-        r.escalations.iter().map(|e| e.predicate()).collect()
-    };
-    assert!(
-        frame.verdicts.starts_with(&spliced.verdicts) && named(frame).starts_with(&named(spliced)),
-        "placement {id}'s frame does not open with the solve's decisions about its bundle"
-    );
-}
 
 /// **The content key's structural tags, declared by vocabulary.**
 ///
@@ -4812,8 +4822,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v13: a pose read writes the role it reads through, a
-            /// node's read of an output through one included. (v12: a
+            /// v14: a mate writes its class and its target's word, a
+            /// world read its arms and roles; the solved pose and the
+            /// parts a face frame resolves against are no longer keyed,
+            /// the fold being a function of the keyed reads. (v13: a
+            /// pose read writes the role it reads through, a node's
+            /// read of an output through one included. v12: a
             /// blend, a shell, a face frame and a measure write
             /// the names of the selections they read, the measure each
             /// reference's names (none for a whole body) where it wrote
@@ -4826,7 +4840,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 13,
+            VERSION = 14,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4908,29 +4922,20 @@ mod tag {
             PART = 2,
             READ = 3,
         }
-        /// The mate's fault flag, read after its role word: whether the
-        /// solve recorded a fault against the node.
-        fault {
-            CLEAR = 0,
-            FAULTED = 1,
+        /// What a mate's `to` reads: a pose variable of the target
+        /// space, or the world read inside the mate.
+        mate_target {
+            POSE = 1,
+            WORLD = 2,
         }
-        /// A mate's axis sense, read after its authored lengths.
-        axis_sense {
-            ALIGNED = 1,
-            OPPOSED = 2,
-        }
-        /// A mate frame's base, read before that side's offset shape.
-        mate_frame_base {
-            PART = 1,
-            FACE = 2,
-            WORLD = 3,
-        }
-        /// A constraint side's read, before its name: a face, the copy
-        /// itself, or the world.
-        side_read {
-            FACE = 1,
-            COPY = 2,
-            WORLD = 3,
+        /// A world read's arms, in pre-order ([`crate::WorldRead`]); a
+        /// role arm writes its role word after its own.
+        world_read {
+            FRAME = 1,
+            ROLE = 2,
+            SLIDE = 3,
+            SPIN = 4,
+            FLIP = 5,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -5151,171 +5156,6 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
     verb_content_tag(kind).expect("a verb a Node builds declares a content tag")
 }
 
-/// **The solve's answer for one node**, as the content key reads it.
-///
-/// **Why the key reads it at all** — the one home for this argument,
-/// which the placement arms point at rather than restate. The solve
-/// runs once per evaluation, BEFORE the schedule, and a placement (a
-/// `Place` or an instance) denotes what it decided: its copy evaluates
-/// at its solved pose, or to a typed refusal. So the answer is one of
-/// the placement's inputs and belongs in its key, exactly as a slot
-/// value does. Where the copy sits is read off other nodes — the
-/// targets its constraints read, the parameters their offsets read —
-/// so a key without the answer would serve last evaluation's `Ok` into
-/// the run that moves or refuses it.
-///
-/// It travels as ONE argument read off [`crate::mate::SolvedPoses`] at
-/// the single `content_key` call site, so the key stays a pure
-/// function of what it is handed and each node's arm feeds the half
-/// that is its own input.
-///
-/// **The fault's CONTENT is deliberately absent, and its presence is
-/// kept.** The key states the fault's presence beside the pose rather
-/// than reading an absent pose as a proxy for "faulted": that the solve
-/// poses no placement it faults is the SOLVE's invariant, and a key
-/// that depended on it would go quietly wrong the day it changed. What
-/// the key does not need is WHICH fault: a faulted placement evaluates
-/// to `Err` and the memo serves only `NodeResult::Ok` priors, so two
-/// different faults on one placement can never be confused through
-/// reuse.
-#[derive(Debug, Clone)]
-struct SolveAnswer<T: geom_core::Real> {
-    /// The copy's pose around its anchor's frame, at this evaluation's
-    /// scalar, `None` when the node is not a placement the solve posed
-    /// — which includes a placement whose bundle, or whose target's,
-    /// refused.
-    pose: Option<crate::mate::solve::Pose<T>>,
-    /// The anchor's frame in this lane: the world pose its bundle pins,
-    /// the identity in a loose copy's own space. `None` beside a `None`
-    /// pose.
-    frame: Option<crate::placement::Motion<T>>,
-    /// Whether the solve recorded a fault against the node.
-    faulted: bool,
-    /// **The part each face-based side of the placement's constraints
-    /// resolves through**, in bundle order, `a` before `b`, by
-    /// reference — `None` for a side on no face base, and for a side
-    /// whose walk reaches no instance.
-    /// A face frame's value is the part's product, so the part's
-    /// content pin is what the mate's key must carry for that side
-    /// (a part edit that moves the face moves the pin; one that leaves
-    /// the part alone leaves it): the pin over-approximates the face
-    /// — an edit elsewhere in the part moves it too — in the direction
-    /// that re-reads rather than serves a stale pose.
-    face_parts: Vec<Option<crate::ident::DocRef>>,
-}
-
-impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
-    /// What `poses` answers for `id`, with its anchor's frame in this
-    /// lane.
-    fn of<P>(
-        poses: &crate::mate::SolvedPoses<T>,
-        doc: &crate::doc::Doc<P>,
-        id: RecipeNodeId,
-        frame: Option<crate::placement::Motion<T>>,
-    ) -> Self {
-        // The solve's own derivation of the part a face side resolves
-        // against (`mate::solve::part_of`), so the key and the solve
-        // name one part for one side.
-        let part_of = |read: &crate::mate::SideRead<crate::VarId>,
-                       frame: &crate::mate::MateFrame| match (
-            read, frame.base,
-        ) {
-            (crate::mate::SideRead::Face(side), crate::mate::FrameBase::Face) => {
-                let member = crate::mate::member::member_of_side(doc, *side)?;
-                crate::mate::solve::part_of(doc, &member).ok()
-            }
-            _ => None,
-        };
-        let face_parts = doc
-            .node(id)
-            .and_then(crate::mate::solve::bundle_of)
-            .map(|bundle| {
-                bundle
-                    .iter()
-                    .flat_map(|c| {
-                        [
-                            part_of(&c.mate.a, &c.mate.alignment.a),
-                            part_of(&c.mate.b, &c.mate.alignment.b),
-                        ]
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        Self {
-            pose: poses.pose(id).filter(|_| poses.fault(id).is_none()),
-            frame,
-            faulted: poses.fault(id).is_some(),
-            face_parts,
-        }
-    }
-
-    /// The face-based sides' parts, each as its content pin behind a
-    /// presence word — read after the alignment, so a face frame's key
-    /// carries the product it resolves against.
-    fn feed_face_parts(&self, h: &mut KeyHasher) {
-        for part in &self.face_parts {
-            match part {
-                Some(doc_ref) => {
-                    h.write_tag(tag::presence::PRESENT);
-                    feed_doc_ref(h, doc_ref);
-                }
-                None => h.write_tag(tag::presence::ABSENT),
-            }
-        }
-    }
-
-    /// The placement's tags: one for "no pose" so a refusing bundle
-    /// keys distinctly from any pose, else the pose's two factors and
-    /// the anchor's frame, each by its lane's exact representation
-    /// ([`ContentBits`]): a dual's two channels, value then tangent, so
-    /// a seeded pass's pose never meets an unseeded prior's entry.
-    fn feed_placement(&self, h: &mut KeyHasher) {
-        // The linear part column by column, then the translation — the
-        // order a stored frame's arrays hold them in.
-        let frame_bits = |h: &mut KeyHasher, map: &geom_core::Affine3<T>| {
-            for c in [map.linear.c0, map.linear.c1, map.linear.c2, map.translation] {
-                for x in [c.x, c.y, c.z] {
-                    x.feed(h);
-                }
-            }
-        };
-        let (Some(pose), Some(frame)) = (self.pose, self.frame) else {
-            h.write_tag(tag::presence::ABSENT);
-            return;
-        };
-        h.write_tag(tag::presence::PRESENT);
-        match pose.left {
-            Some(left) => {
-                h.write_tag(tag::presence::PRESENT);
-                frame_bits(h, &left);
-            }
-            None => h.write_tag(tag::presence::ABSENT),
-        }
-        frame_bits(h, &pose.right.affine());
-        match frame {
-            crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
-            crate::placement::Motion::Rigid(rigid) => {
-                h.write_tag(tag::presence::PRESENT);
-                frame_bits(h, &rigid.to_affine());
-            }
-            crate::placement::Motion::Map(map) => {
-                h.write_tag(tag::presence::PRESENT);
-                frame_bits(h, &map);
-            }
-        }
-    }
-
-    /// The fault flag: whether the solve recorded a fault against the
-    /// placement.
-    fn feed_fault(&self, h: &mut KeyHasher) {
-        h.write_tag(if self.faulted {
-            tag::fault::FAULTED
-        } else {
-            tag::fault::CLEAR
-        });
-    }
-}
-
 /// **A placement's STEP STRUCTURE and its literal frames** — recipe
 /// payload outside the slots: the slot values are fed by position, so
 /// a chain's kinds and order must feed too, or `[rigid, literal]` and
@@ -5372,7 +5212,6 @@ fn content_key<'d, T>(
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[UpstreamRead<ContentKey>],
     witness: Option<&crate::witness::WitnessDatum>,
-    solve_answer: SolveAnswer<T>,
     tol: Tol,
 ) -> ContentKey
 where
@@ -5691,13 +5530,10 @@ where
             constraints,
         } => {
             feed_doc_ref(&mut h, doc_ref);
-            // The SOLVED pose and its anchor's frame in this lane: a
-            // constraint edit, or a parameter a target reads, that moves
-            // this copy moves its key, and a bundle that refuses keys
-            // DISTINCTLY from any pose — otherwise a repaired document
-            // could hit the memo on a stale success.
-            solve_answer.feed_placement(&mut h);
-            feed_bundle(&mut h, constraints, selections, &solve_answer);
+            // Its bundle: the fold is a function of what this feeds and
+            // of the reads its upstream keys carry, so a constraint
+            // edit, or a parameter a pose reads, moves the key.
+            feed_bundle(&mut h, constraints);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -5710,15 +5546,14 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A placement's shapes are input edges; their count, its bundle
-        // and the pose it solved to feed here.
+        // A placement's shapes are input edges; their count and its
+        // bundle feed here.
         Node::Place {
             shapes,
             constraints,
         } => {
             h.write_u64(shapes.len() as u64);
-            solve_answer.feed_placement(&mut h);
-            feed_bundle(&mut h, constraints, selections, &solve_answer);
+            feed_bundle(&mut h, constraints);
         }
         Node::World => {}
         // The operands and the members are input edges.
@@ -6475,96 +6310,54 @@ fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     }
 }
 
-/// Feeds a mate's alignment datum: the structural choices as tags, the
-/// authored coordinates as bits — the same (tag, payload) convention
-/// every other structural payload uses here.
-///
-/// The primitive's own lengths come from
-/// [`crate::mate::MatePrimitive::authored_lengths`], which is where
-/// they are enumerated for the lever arm and the finiteness admission
-/// as well. This is the reader where leaving one out is WORST: the tag
-/// match below breaks on a new variant, so the variant cannot arrive
-/// untagged — but a length it carries would silently not be hashed,
-/// and two documents differing only in that length would share a memo
-/// entry. Reading the list rather than naming a variant is what makes
-/// the tag and its payload arrive together.
-fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
-    use crate::mate::{AxisSense, MatePrimitive};
-    h.write_tag(match a.primitive {
-        MatePrimitive::FrameCoincidence => 1,
-        MatePrimitive::Coaxial => 2,
-        MatePrimitive::PlanarRest { .. } => 3,
-        MatePrimitive::Clocking => 4,
-    });
-    for length in a.primitive.authored_lengths() {
-        match length {
-            Some(l) => {
-                h.write_tag(tag::presence::PRESENT);
-                h.write_f64_bits(l);
-            }
-            None => h.write_tag(tag::presence::ABSENT),
-        }
-    }
-    h.write_tag(match a.sense {
-        AxisSense::Aligned => tag::axis_sense::ALIGNED,
-        AxisSense::Opposed => tag::axis_sense::OPPOSED,
-    });
-    match a.clocking {
-        Some(theta) => {
-            h.write_tag(tag::presence::PRESENT);
-            h.write_f64_bits(theta);
-        }
-        None => h.write_tag(tag::presence::ABSENT),
-    }
-    // Each side's base as a word, then its offset's shape: the step
-    // kinds and every literal frame's coordinates. A rigid step's
-    // components are the mate's slots, fed with every slot. A face
-    // base's face is the head's, which the mate's key feeds beside
-    // this, and the part the face resolves against is the mate's other
-    // channel (`SolveAnswer::feed_face_parts`), read after this.
-    for crate::mate::MateFrame { base, offset } in [&a.a, &a.b] {
-        h.write_tag(match base {
-            crate::mate::FrameBase::Part => tag::mate_frame_base::PART,
-            crate::mate::FrameBase::Face => tag::mate_frame_base::FACE,
-            crate::mate::FrameBase::World => tag::mate_frame_base::WORLD,
-        });
-        feed_placement_shape(h, offset);
-    }
-}
-
-/// **A bundle's key**: each constraint's id, what it SAYS — each side's
-/// read (a face by its selection's names, the face's body carried by
-/// the upstream keys), its class and its alignment — then the parts its
-/// face-based sides resolve against and the solve's fault flag.
-fn feed_bundle<'d>(
-    h: &mut KeyHasher,
-    constraints: &[crate::mate::Constraint],
-    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
-    solve_answer: &SolveAnswer<impl Decide + ContentBits>,
-) {
+/// **A bundle's key**: each constraint's id and what it says that no
+/// other channel keys — its class, and its target's word, a world read
+/// by its arms and roles. The poses it reads are reads, keyed by the
+/// node's pose words and its upstream keys, and a world read's scalars
+/// are slots, fed with every slot.
+fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
     h.write_u64(constraints.len() as u64);
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
         h.write_u64(c.id.0.digest());
-        for (_, read) in c.mate.sides() {
-            match read {
-                crate::mate::SideRead::Face(var) => {
-                    h.write_tag(tag::side_read::FACE);
-                    for name in selected(selections, *var) {
-                        feed_stable_name(h, name);
-                    }
-                }
-                crate::mate::SideRead::Copy => h.write_tag(tag::side_read::COPY),
-                crate::mate::SideRead::World => h.write_tag(tag::side_read::WORLD),
-            }
-        }
         // The class's word is `ContactClass::content_tag` — the one
         // spelling the crossing record and the constraint both write.
         h.write_u64(c.mate.class.content_tag());
-        feed_alignment(h, &c.mate.alignment);
+        match &c.mate.to {
+            crate::mate::Target::Pose(_) => h.write_tag(tag::mate_target::POSE),
+            crate::mate::Target::World(world) => {
+                h.write_tag(tag::mate_target::WORLD);
+                feed_world_read(h, world);
+            }
+        }
     }
-    solve_answer.feed_face_parts(h);
-    solve_answer.feed_fault(h);
+}
+
+/// A world read's arms in pre-order, a role arm with its role's word.
+fn feed_world_read(h: &mut KeyHasher, world: &crate::mate::WorldRead) {
+    use crate::mate::WorldRead as W;
+    match world {
+        W::Frame => h.write_tag(tag::world_read::FRAME),
+        W::Role { pose, role } => {
+            h.write_tag(tag::world_read::ROLE);
+            h.write_tag(wire::pose::role_word(Some(*role)));
+            feed_world_read(h, pose);
+        }
+        W::Slide { pose, along, .. } => {
+            h.write_tag(tag::world_read::SLIDE);
+            feed_world_read(h, pose);
+            feed_world_read(h, along);
+        }
+        W::Spin { pose, about, .. } => {
+            h.write_tag(tag::world_read::SPIN);
+            feed_world_read(h, pose);
+            feed_world_read(h, about);
+        }
+        W::Flip { pose } => {
+            h.write_tag(tag::world_read::FLIP);
+            feed_world_read(h, pose);
+        }
+    }
 }
 
 /// The names the selection `var` holds, as a content key feeds them:
