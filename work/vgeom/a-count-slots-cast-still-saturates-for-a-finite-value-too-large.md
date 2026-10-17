@@ -192,3 +192,33 @@ row is a small chrome-side diff and nothing else.
 **Announced to WIRE rather than left to be found**: the trigger is
 named in `blocked_on`, and this note says what VGEOM will do when it
 fires. Nothing here asks WIRE to schedule it.
+
+## What WIRE minted, and why it is not the viewer's word (2026-10-17, `wire-endings` lane)
+
+`need-count-spells-every-failure-as-a-pattern-count` replaced
+`NodeErrorKind::NonPositiveCount` with
+`NodeErrorKind::CountOutOfRange { slot: SlotId, count: i64, admits: RangeInclusive<i64> }`
+(`crates/editor-core/src/eval/mod.rs`), which covers both directions
+— below a slot's least value, and past what the integer the slot is
+read into holds (`need_count`'s `usize`, so `u32::MAX` on `wasm32`).
+Its sentence names the slot and the range: *"the v degree input
+evaluated to -1, and it admits at least 0. Recourse: make it evaluate
+within that range"*.
+
+**It cannot be the word `props::SlotValue::of` raises**, for two
+reasons read off the tree, not judged:
+
+- `SlotValue::of(dimension, value)` returns `DimensionError` and
+  knows no slot — `pane/properties.rs`'s new-variable form calls it
+  for a `Count` *variable* declaration, where there is no slot to name.
+- `CountOutOfRange::count` is an `i64`, and this row's value (`1e30`,
+  `f64::MAX`) is a finite `f64` that is not one. The fault is upstream
+  of every slot: the typed number never becomes a count at all.
+
+So this row's word belongs at the literal door beside
+`DimensionError::NonFiniteLiteral` (`crates/editor-core/src/expr.rs`,
+INTENT's), as its own `DimensionError` arm for a finite value outside
+`i64`, which `SlotValue::of` then raises the way it raises
+`NonFiniteLiteral` today. A value inside `i64` that a slot does not
+admit already reaches `CountOutOfRange` at evaluation, on the node's
+badge.

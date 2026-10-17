@@ -411,7 +411,7 @@ class TestThePatternDoor(unittest.TestCase):
     def test_a_count_below_one_refuses(self):
         doc = Doc()
         family = pattern_of(doc, box(doc), count=0)
-        self.assertEqual(refusal(self, doc, family), "non_positive_count")
+        self.assertEqual(refusal(self, doc, family), "count_out_of_range")
 
     def test_an_explicit_rule_refuses_at_insert(self):
         """The explicit rule carries its OWN placements, so pairing it

@@ -18,10 +18,10 @@
 //! apart.
 //!
 //! **Coming out** ([`name_union`] for the published table,
-//! [`collapse_table`] for the accumulation the declaration door
-//! reads, and [`collapse_name`] for the refusal paths — three
-//! consumers of one collapse, which the published table follows with
-//! the two end passes below): a fold-table name is rewritten by descending its
+//! [`collapse_table`] for the accumulation a fold step reads, and
+//! [`collapse_name`] for one name, as the fragment groups read a fold
+//! step's bases (`names::groups`) — three consumers of one collapse, which the published table follows with the two end
+//! passes below): a fold-table name is rewritten by descending its
 //! fold-side chain to the member-keyed [`RoleSeg::From`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
 //! collapsed by the same rule. The result is then put in canonical
@@ -81,12 +81,13 @@
 //! leaves maximal faces and maximal edges (`docs/DESIGN.md`), a complex
 //! unique to the union's region and face partition.
 //!
-//! A refusal raised mid-fold, and the declaration door's view of an
-//! intermediate step, have no finished body and keep the fold's
-//! qualifiers. Neither may carry a fold-qualified member-edge piece: the
-//! declaration door admits no edge (`DeclareUnsupportedPair`), and a
-//! refusal that would carry one refuses as an emission bug instead
-//! (`is_fold_qualified_member_edge`).
+//! A refusal raised mid-fold carries no fold-table name: a step's
+//! refusal is the kernel's own, under the member that step folds in
+//! (`NodeErrorKind::UnionFoldStep`). The coincidence rows a step
+//! decides are named against the collapsed accumulation
+//! ([`collapse_table`]) and published as they are, without the end
+//! passes, so a row citing an intermediate entity keeps the fold's
+//! qualifiers.
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -2467,10 +2468,10 @@ fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableN
 /// Two callers, and the split is what tells them apart. [`name_union`]
 /// rewrites the LAST step's table, which names a finished body and is
 /// held to totality. The fold rewrites an INTERMEDIATE step's, and
-/// for a different purpose: a step's rows are named in the space this
-/// node's refusals name (`collapse_name`), so the fold reads the
-/// accumulation in that same space. The entities are untouched — same keys, same ties — so the
-/// keys a lookup returns are the accumulation's own.
+/// for a different purpose: a step's coincidence rows are named in this
+/// node's own space, so the fold reads the accumulation in that space.
+/// The entities are untouched — same keys, same ties — so the keys a
+/// lookup returns are the accumulation's own.
 ///
 /// Rows of one seam edge the fold met at several steps collapse to one
 /// spelling: two faces of one member set seam wherever a later member
@@ -2517,13 +2518,11 @@ pub(crate) fn collapse_table(
 ///
 /// The collapse [`name_union`] applies to a whole table (before its end
 /// passes over member edges, which need the finished body), exposed
-/// for the paths that carry a name out of a step that did NOT finish:
-/// a refusal raised at step `k` reads the ACCUMULATED table, whose
-/// rows are still headed by a fold side, and a name in that shape is
-/// in the fold's internal space — no published table holds it and
-/// nothing can resolve it. Every name a union's refusal carries goes
-/// through here first, so what a caller is handed denotes in the space
-/// this node's own names live in.
+/// for one name read out of a step that did NOT finish: a fold step's
+/// table is still headed by a fold side, and a name in that shape is
+/// in the fold's internal space, which no published table holds. The
+/// fragment groups (`names::groups`) collapse a step's bases through
+/// here to compare them with the published ones.
 pub(crate) fn collapse_name(
     node: RecipeNodeId,
     name: &StableName,

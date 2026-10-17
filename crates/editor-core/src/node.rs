@@ -3991,7 +3991,7 @@ impl<P, S: Slot> Node<P, S> {
         let frames = self.placement_rule()?.1.placements()?;
         // The list IS the count, so an EMPTY list is the explicit
         // rule's `count < 1` — refused for the same reason
-        // `NonPositiveCount` refuses a stepped rule's zero, rather
+        // `CountOutOfRange` refuses a stepped rule's zero, rather
         // than quietly denoting an empty body (LIB-PLACEDUNION review
         // MAJOR-1).
         if frames.is_empty() {
