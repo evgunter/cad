@@ -2296,6 +2296,8 @@ fn sweep_vertex_face<T: Decide>(
 }
 
 /// One vertex–face pair of pass 3, the vertex off the face's boundary.
+/// A residual in the band's edge escalates only where the vertex on the
+/// plane would find something: off it, the pair finds nothing.
 fn pair_vertex_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -2305,26 +2307,41 @@ fn pair_vertex_face<T: Decide>(
     f: &FaceGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    let residual = (q - f.origin).dot(f.normal);
-    let Some(Some(margin)) =
-        signed_zero_reading("pm_census_vf_residual", Margin::of(residual), band, errors)
-    else {
-        return;
-    };
     // Boundary coincidences are pass-1/2 findings; Out and
     // escalations (pushed) need nothing more here.
-    if contain(body, f, q, band, errors) == Some(FaceContainment::In)
-        && !declared.vf.contains(&(vk, f.key))
-        && !declared.vf_face_backed(geo, vk, f.key)
-    {
-        errors.push(ValidationError::UnrecordedContact {
-            contact: CensusContact::VertexOnFace {
-                vertex: vk,
-                face: f.key,
-            },
-            witness: witness(q),
-            margin: Some(margin),
-        });
+    let on_plane = |margin, errors: &mut Vec<ValidationError>| {
+        if contain(body, f, q, band, errors) == Some(FaceContainment::In)
+            && !declared.vf.contains(&(vk, f.key))
+            && !declared.vf_face_backed(geo, vk, f.key)
+        {
+            errors.push(ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnFace {
+                    vertex: vk,
+                    face: f.key,
+                },
+                witness: witness(q),
+                margin,
+            });
+        }
+    };
+    let residual = (q - f.origin).dot(f.normal);
+    let mut refused = Vec::new();
+    match signed_zero_reading(
+        "pm_census_vf_residual",
+        Margin::of(residual),
+        band,
+        &mut refused,
+    ) {
+        Some(Some(margin)) => on_plane(Some(margin), errors),
+        Some(None) => {}
+        None => {
+            let mut found = Vec::new();
+            on_plane(None, &mut found);
+            if !found.is_empty() {
+                errors.extend(refused);
+                errors.extend(escalations(found));
+            }
+        }
     }
 }
 
@@ -2528,6 +2545,11 @@ fn sweep_edge_face<T: Decide>(
 }
 
 /// One edge–face pair of pass 4, the edge not bounding the face.
+///
+/// An end whose residual is in the band's edge escalates only where the
+/// readings it could take disagree ([`EfPair::on_signs`] run under
+/// each): where none of them finds anything, the pair is a miss
+/// whichever reading is right.
 #[allow(clippy::too_many_arguments)] // one pair of pass 4, the region door riding to the rung
 fn pair_edge_face<T: Decide>(
     body: &Body<T>,
@@ -2540,54 +2562,125 @@ fn pair_edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     let p1 = e.p0 + e.dir * e.len;
-    let r0 = (e.p0 - f.origin).dot(f.normal);
-    let r1 = (p1 - f.origin).dot(f.normal);
-    let (d0, d1) = match (
-        geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r0), band),
-        geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r1), band),
+    let r = [
+        (e.p0 - f.origin).dot(f.normal),
+        (p1 - f.origin).dot(f.normal),
+    ];
+    let read = r
+        .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
+    let pair = EfPair {
+        body,
+        geo,
+        declared,
+        band,
+        region,
+        e,
+        f,
+        r,
+    };
+    if let [Ok(d0), Ok(d1)] = &read {
+        pair.on_signs(
+            [d0.sign, d1.sign],
+            Some(d0.margin.jointly(d1.margin)),
+            errors,
+        );
+        return;
+    }
+    let readings = read.each_ref().map(|d| match d {
+        Ok(d) => vec![d.sign],
+        Err(_) => vec![Sign::Negative, Sign::Zero, Sign::Positive],
+    });
+    // Two residuals read alike are one value, which reads one sign.
+    let alike = matches!(&read, [Err(a), Err(b)] if a == b);
+    let found = readings[0]
+        .iter()
+        .flat_map(|&s0| readings[1].iter().map(move |&s1| [s0, s1]))
+        .filter(|&[s0, s1]| !(alike && s0 != s1))
+        .map(|signs| {
+            let mut found = Vec::new();
+            pair.on_signs(signs, None, &mut found);
+            found
+        })
+        .find(|found| !found.is_empty());
+    if let Some(found) = found {
+        errors.extend(read.into_iter().filter_map(|d| {
+            d.err()
+                .map(|cause| ValidationError::CensusEscalated { cause })
+        }));
+        errors.extend(escalations(found));
+    }
+}
+
+/// The escalations among what a reading found: what a refusal carries
+/// of a reading made on a premise it could not decide, its findings
+/// being the premise's and not the body's.
+fn escalations(found: Vec<ValidationError>) -> impl Iterator<Item = ValidationError> {
+    found
+        .into_iter()
+        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+}
+
+/// One edge–face pair of pass 4 and its ends' two plane residuals.
+struct EfPair<'a, T: Decide> {
+    body: &'a Body<T>,
+    geo: &'a Geo<T>,
+    declared: &'a Declared,
+    band: Band,
+    region: Option<RegionLane<T>>,
+    e: &'a EdgeGeo<T>,
+    f: &'a FaceGeo<T>,
+    r: [T; 2],
+}
+
+impl<T: Decide> EfPair<'_, T> {
+    /// What the pair finds with its ends read `signs` off the plane,
+    /// `margin` the two readings' joint margin where both were decided.
+    fn on_signs(
+        &self,
+        signs: [Sign; 2],
+        margin: Option<MarginDiag>,
+        errors: &mut Vec<ValidationError>,
     ) {
-        (Ok(d0), Ok(d1)) => (d0, d1),
-        (a, b) => {
-            for r in [a, b] {
-                if let Err(cause) = r {
-                    errors.push(ValidationError::CensusEscalated { cause });
+        let (body, e, f, [r0, r1]) = (self.body, self.e, self.f, self.r);
+        let p1 = e.p0 + e.dir * e.len;
+        match signs {
+            [Sign::Positive, Sign::Negative] | [Sign::Negative, Sign::Positive] => {
+                // Proper plane crossing at both-strict interiors.
+                let q = e.p0 + (p1 - e.p0) * (r0 / (r0 - r1));
+                // OnEdge → the edge-edge pass's crossing finding;
+                // OnVertex → the v-on-e finding; Out/escalated →
+                // nothing more here.
+                //
+                // NO backing rung is consulted, deliberately: a
+                // transverse dive through a face's interior is
+                // interpenetration however the seat is declared
+                // (between two copies at rest, the assembly
+                // layer's interference evidence); the crossing
+                // rung [`ee_cross_backed`] is the in-contact-plane
+                // case and does not reach here.
+                if contain(body, f, q, self.band, errors) == Some(FaceContainment::In) {
+                    errors.push(ValidationError::UnrecordedContact {
+                        contact: CensusContact::EdgeFacePierce {
+                            edge: e.key,
+                            face: f.key,
+                        },
+                        witness: witness(q),
+                        margin: None,
+                    });
                 }
             }
-            return;
+            [Sign::Zero, Sign::Zero] => ef_overlap_lane(
+                body,
+                (e, f, margin),
+                self.geo,
+                self.declared,
+                self.band,
+                self.region,
+                errors,
+            ),
+            // One endpoint on the plane: pass-1/2/3 territory.
+            _ => {}
         }
-    };
-    match (d0.sign, d1.sign) {
-        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
-            // Proper plane crossing at both-strict interiors.
-            let q = e.p0 + (p1 - e.p0) * (r0 / (r0 - r1));
-            // OnEdge → the edge-edge pass's crossing finding;
-            // OnVertex → the v-on-e finding; Out/escalated →
-            // nothing more here.
-            //
-            // NO backing rung is consulted, deliberately: a
-            // transverse dive through a face's interior is
-            // interpenetration however the seat is declared
-            // (between two copies at rest, the assembly
-            // layer's interference evidence); the crossing
-            // rung [`ee_cross_backed`] is the in-contact-plane
-            // case and does not reach here.
-            if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
-                errors.push(ValidationError::UnrecordedContact {
-                    contact: CensusContact::EdgeFacePierce {
-                        edge: e.key,
-                        face: f.key,
-                    },
-                    witness: witness(q),
-                    margin: None,
-                });
-            }
-        }
-        (Sign::Zero, Sign::Zero) => {
-            let margin = d0.margin.jointly(d1.margin);
-            ef_overlap_lane(body, (e, f, margin), geo, declared, band, region, errors);
-        }
-        // One endpoint on the plane: pass-1/2/3 territory.
-        _ => {}
     }
 }
 
@@ -2597,7 +2690,7 @@ fn pair_edge_face<T: Decide>(
 #[allow(clippy::too_many_arguments)] // the lane's whole state, the region door riding to the rung
 fn ef_overlap_lane<T: Decide>(
     body: &Body<T>,
-    (e, f, margin): (&EdgeGeo<T>, &FaceGeo<T>, MarginDiag),
+    (e, f, margin): (&EdgeGeo<T>, &FaceGeo<T>, Option<MarginDiag>),
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -2615,7 +2708,7 @@ fn ef_overlap_lane<T: Decide>(
                     face: f.key,
                 },
                 witness: witness(cell.mid),
-                margin: Some(margin),
+                margin,
             });
         }
     }
@@ -2704,20 +2797,33 @@ fn ef_overlap_cells<T: Decide>(
             continue;
         };
         let off = Margin::norm3((pw - e.p0).cross(e.dir));
-        if gap_is_zero("pm_census_ef_cut_gap", off, band, errors) != Some(true) {
+        let mut gap_refused = Vec::new();
+        let on_line = gap_is_zero("pm_census_ef_cut_gap", off, band, &mut gap_refused);
+        if on_line == Some(false) {
             continue;
         }
         let s = (pw - e.p0).dot(e.dir);
         let lo = decide("pm_census_ef_cut_span", Margin::of(s), band);
         let hi = decide("pm_census_ef_cut_span", Margin::of(e.len - s), band);
-        if matches!(lo, Ok(Sign::Positive)) && matches!(hi, Ok(Sign::Positive)) {
+        let cuts_here = matches!(lo, Ok(Sign::Positive)) && matches!(hi, Ok(Sign::Positive));
+        let span_refused: Vec<_> = [lo, hi]
+            .into_iter()
+            .filter_map(|r| {
+                r.err()
+                    .map(|cause| ValidationError::CensusEscalated { cause })
+            })
+            .collect();
+        // A gap in the band's edge matters only where a vertex on the
+        // line would cut the span or refuse it; elsewhere the gap's two
+        // readings leave the cuts the same.
+        if on_line.is_none() && !cuts_here && span_refused.is_empty() {
+            continue;
+        }
+        errors.extend(gap_refused);
+        if on_line == Some(true) && cuts_here {
             cuts.push(end(s));
         }
-        for r in [lo, hi] {
-            if let Err(cause) = r {
-                errors.push(ValidationError::CensusEscalated { cause });
-            }
-        }
+        errors.extend(span_refused);
     }
     let Some(crossings) = boundary_crossings(body, e, f, band, errors) else {
         return out;
@@ -2886,6 +2992,12 @@ fn edge_crossings<T: Decide>(
         .get_edge(side.key)
         .and_then(|edge| body.get_curve_geom(edge.curve))
         .and_then(CurveGeom::certified);
+    // Two straight segments from one point meet nowhere else unless they
+    // run together, and a shared run is no cut either.
+    let straight = stored.is_none_or(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+    if matches!(edge, LoopEdge::Chord) && straight && shares_an_end(body, e, side.key) {
+        return Ok(Vec::new());
+    }
     // A straight edge with no certified curve of its own is the segment
     // between its loop ends.
     let chord = geom::Curve3::Line {
@@ -2935,6 +3047,24 @@ fn edge_crossings<T: Decide>(
             (Hit::On { .. } | Hit::End(_), Hit::End(_)) | (Hit::End(_), Hit::On { .. }) => None,
         })
         .collect())
+}
+
+/// Whether edge `g` has an end on one of `e`'s ends' points.
+fn shares_an_end<T: Real>(body: &Body<T>, e: &EdgeGeo<T>, g: EdgeKey) -> bool {
+    let point = |v: VertexKey| body.vertices.get(v).map(|d| d.point);
+    let ends = body.get_edge(g).and_then(|g| {
+        Some([
+            body.half_edges.get(g.he_plus)?.start,
+            body.half_edge_end(g.he_plus)?,
+        ])
+    });
+    ends.is_some_and(|ends| {
+        ends.iter().any(|&w| {
+            [e.v0, e.v1]
+                .iter()
+                .any(|&v| v == w || point(v).is_some_and(|p| point(w) == Some(p)))
+        })
+    })
 }
 
 /// Census pass 5: edge × edge — proper interior crossings (backable
@@ -3901,7 +4031,8 @@ pub(crate) fn torus_chart_window<T: Decide>(
 /// than the corners of a box around it
 /// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
 /// difference is not cosmetic at a tilted axis). `None` for a face
-/// with no boundary. `face` is `f`'s record, resolved by
+/// with no boundary, or with a boundary edge whose axial span has no
+/// claim (no sound box, or a spiric). `face` is `f`'s record, resolved by
 /// [`face_reach_in`]; every hop past it is a link and panics as there.
 fn boundary_axial<T: Decide>(
     body: &Body<T>,
@@ -3928,9 +4059,7 @@ fn boundary_axial<T: Decide>(
                 ) {
                     // No axial-span closed form is written for the
                     // spiric (the boolean lane's own reading).
-                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
-                        AxialCarrier::Unclaimable
-                    }
+                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => return None,
                     EdgeBoxRule::Chord => AxialCarrier::Chord,
                     EdgeBoxRule::ConicAmplitude {
                         center,
@@ -9997,6 +10126,47 @@ mod tests {
             lost.iter().any(|&(_, f)| f == EntityId::Face(face)),
             "a planted-empty face box must lose its accepted pairs (got {lost:?})"
         );
+    }
+
+    /// **A plane residual in the band's edge escalates only where the
+    /// face can be touched.** A unit cube turned a quarter-right-angle
+    /// stands `5e-9` above another's top, in the band's edge of it
+    /// (`band()`), its bottom a diamond whose box overlaps the top's.
+    /// Where the diamond lies 0.32 clear of the top, the top's corner
+    /// (vertex–face) and the diamond's edges (edge–face) read nothing
+    /// whichever the residual is; where it covers the top's corner,
+    /// both escalate.
+    #[test]
+    fn a_plane_residual_in_band_escalates_only_where_the_face_can_be_touched() {
+        let residuals = |at: Vec3<f64>| -> Vec<&'static str> {
+            let body = two_cubes_turned(at, core::f64::consts::FRAC_PI_4);
+            let (errors, _) = census_traces(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+                CensusStrategy::Realized,
+            );
+            errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::CensusEscalated { cause } => cause.predicate,
+                    _ => None,
+                })
+                .filter(|p| ["pm_census_ef_residual", "pm_census_vf_residual"].contains(p))
+                .collect()
+        };
+        let lift = 1.0 + 5e-9;
+        let apart = residuals(Vec3::new(1.657, 0.793, lift));
+        assert!(apart.is_empty(), "the diamond clear of the top: {apart:?}");
+        let over = residuals(Vec3::new(1.157, 0.293, lift));
+        for p in ["pm_census_ef_residual", "pm_census_vf_residual"] {
+            assert!(
+                over.contains(&p),
+                "the diamond over the top's corner: {p} in {over:?}"
+            );
+        }
     }
 
     #[test]

@@ -2,11 +2,12 @@
 id: the-census-edge-face-cut-escalates-a-line-gap-at-a-boundary-vertex-beyond-the-edge
 kind: issue
 title: The census's edge-face cut and vertex-edge lanes escalate a vertex's gap off the edge's line before reading its span, so a face vertex 0.58 to 1.0 beyond the edge's end escalates pm_census_ef_cut_gap
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: E
 refs: [4335]
+closed: 2026-10-17
 ---
 
 ## What
@@ -36,3 +37,25 @@ Repro: `NT_DUMP=1 cargo run -p sweep --release --example near_tangent_census_pro
 Read the span first. A vertex whose span along the edge is definitely
 outside `[0, len]` by more than K·ε cuts nothing there, whatever its line
 gap. The same reorder serves `on_edge_interior`.
+
+## Closed
+
+`census::ef_overlap_cells` now escalates a boundary vertex's line gap
+only where a vertex on the line would make a difference: the span would
+cut the edge's interior (both span decides `Positive`), or a span decide
+escalates. Where the vertex reads at or beyond an end, the gap reads
+`Zero` or `Positive` and the result is the same, no cut, so the gap is
+not pushed. `on_edge_interior` already read the span first, through
+`Span::contact` (PR 5227). Measured on the probe's default grid: at
+ε = 1e-9, `pm_census_ef_cut_gap` drops from 411 to 0; at 1e-12, from
+21 to 0; at 1e-6, from 854 to 0. Pinned by `sweep`'s
+`near_tangent_census_edge_face_lane` on per-row poses (`Ltop nt e2 a8
+d1e-9` among them).
+
+The crossing reading behind the same pairs also escalated:
+`edge_crossings`' `meet` of the edge against a straight boundary edge
+leaving its end the other way escalated `curve_pair_pose_offset`, and
+went from 411 to 0 at 1e-9. A straight boundary edge that shares an end
+point with the edge now contributes no crossing cut. Two straight
+segments from one point meet nowhere else unless they run together,
+and a shared run is no cut either.

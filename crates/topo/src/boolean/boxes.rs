@@ -5167,6 +5167,46 @@ pub(crate) mod tests {
         }
     }
 
+    /// **A slab face with an unclaimable boundary edge has no census
+    /// reach**: a cylinder or cone wall one of whose side generators is
+    /// null scaffolding (no sound box) answers `None` from
+    /// [`crate::census::face_reach`], never a box with a NaN end.
+    #[test]
+    fn a_slab_face_with_an_unclaimable_boundary_edge_has_no_census_reach() {
+        for (what, (mut body, face)) in [
+            ("cylinder", cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
+            ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
+        ] {
+            assert!(
+                crate::census::face_reach(&body, face, witness_band()).is_some(),
+                "{what}: the described wall claims a reach"
+            );
+            let (curve, he) = body
+                .edges
+                .iter()
+                .find_map(|(_, e)| {
+                    let line = matches!(
+                        body.get_curve_geom(e.curve)
+                            .and_then(crate::null::CurveGeom::certified)
+                            .map(|c| c.carrier()),
+                        Some(Curve3::Line { .. })
+                    );
+                    line.then_some((e.curve, e.he_plus))
+                })
+                .unwrap_or_else(|| panic!("{what}: a wall has a straight generator"));
+            let ends = crate::null::NullEdge {
+                below_end: body.half_edges[he].start,
+                above_end: body.half_edge_end(he).unwrap(),
+            };
+            body.curves[curve] = crate::null::CurveGeom::NullScaffold(ends);
+            let reach = crate::census::face_reach(&body, face, witness_band());
+            assert!(
+                reach.is_none(),
+                "{what}: a null generator leaves the window unclaimed, got {reach:?}"
+            );
+        }
+    }
+
     /// **Poison survives one poisoned END.** [`Span::mul`] folds four
     /// corner products; whether a `NaN` corner survives depends
     /// entirely on WHICH min/max the fold uses. `Real::min`
