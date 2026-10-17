@@ -85,7 +85,9 @@ class WorldPins(unittest.TestCase):
         self.assertEqual(doc.node_kind(doc.world), "world")
         self.assertNotIn(doc.world, doc.order(), "the world is not counted among the nodes")
         self.assertEqual(doc.node_count, len(doc.order()))
-        self.assertEqual(evaluate(doc, resolver=self.ws).order()[0], doc.world)
+        self.assertNotIn(
+            doc.world, evaluate(doc, resolver=self.ws).order(), "the world is scheduled nowhere"
+        )
         at = solve_document(doc, resolver=self.ws).placement(doc, post).origin
         self.assertEqual(tuple(c.meters for c in at), (5.0, 0.0, 2.0))
         # An inserted instance with no bundle given stands where its

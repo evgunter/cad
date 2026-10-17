@@ -373,8 +373,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
         doc.apply(DocEdit.define_var(VarName("which"), FreeVar.count(1)))
         again = evaluate(doc, prior=first)
         self.assertEqual(again.recomputed, 1)
-        # Every other node is served, and the world the document holds.
-        self.assertEqual(again.reused, len(doc) - 1 + 1)
+        self.assertEqual(again.reused, len(doc) - 1)
 
     def test_neither_slot_door_reaches_the_others_slot(self):
         doc, family, chosen = self.build()

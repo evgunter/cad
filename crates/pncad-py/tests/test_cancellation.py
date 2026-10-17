@@ -182,8 +182,7 @@ class TestCanceledEvaluation(unittest.TestCase):
         as a prefix rather than as an arbitrary subset."""
         complete = evaluate(self.doc)
         self.assertEqual(self.canceled.order(), complete.order())
-        # Every node of the stack, and the world the document holds.
-        self.assertEqual(len(self.canceled.order()), 4 * SMALL)
+        self.assertEqual(len(self.canceled.order()), 4 * SMALL - 1)
 
     def test_nothing_ran_and_nothing_was_reused(self):
         self.assertEqual(self.canceled.recomputed, 0)
@@ -389,8 +388,7 @@ class TestCancelingARunUnderWay(unittest.TestCase):
         helper.join()
 
         order = run.order()
-        # Every node of the stack, and the world the document holds.
-        self.assertEqual(len(order), 4 * WIDE)
+        self.assertEqual(len(order), 4 * WIDE - 1)
         reached = [run.succeeded(node) for node in order]
         if not run.canceled:
             self.assertTrue(all(reached))

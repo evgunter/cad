@@ -110,15 +110,11 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, DocEdit, DocRef, Formula, Node, SegTag, Workspace, evaluate, m, mm
+from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Node, SegTag, Workspace, content_pin, evaluate, m, mm
 
 #: The layout's nodes: the post instance, its pattern and the shelf
 #: instance, then each pattern copy projected and placed.
 LAYOUT_NODES = 3 + 2 * PATTERN_COUNT
-
-#: What an evaluation of the layout orders and runs: its nodes, and the
-#: world the document holds.
-LAYOUT_ORDER = LAYOUT_NODES + 1
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -794,8 +790,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         first = evaluate(docs["layout"], resolver=store)
         again = evaluate(docs["layout"], resolver=store, prior=first)
-        self.assertEqual((first.reused, first.recomputed), (0, LAYOUT_ORDER))
-        self.assertEqual((again.reused, again.recomputed), (LAYOUT_ORDER, 0))
+        self.assertEqual((first.reused, first.recomputed), (0, LAYOUT_NODES))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
 
     def test_the_two_counters_account_for_every_node_that_ran_or_was_reused(self):
         """The invariant is `reused + recomputed == len(order) -
@@ -824,14 +820,14 @@ class TestTheMemoIsObservable(CorpusCase):
     def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
         """The no-resolver layout: two instantiate nodes RUN and fail,
         and everything over them — the pattern, its projected copies
-        and their placements — is poisoned and never runs; the world
-        runs. So the sum is 3 against every node in `order()` — and the
-        difference is exactly the poisoning."""
+        and their placements — is poisoned and never runs. So the sum is
+        2 against every node in `order()` — and the difference is
+        exactly the poisoning."""
         _, docs = opened()
         refusing = evaluate(docs["layout"])
         self.assertEqual(poisoned(refusing), LAYOUT_NODES - 2)
-        self.assertEqual(len(refusing.order()), LAYOUT_ORDER)
-        self.assertEqual((refusing.reused, refusing.recomputed), (0, 3))
+        self.assertEqual(len(refusing.order()), LAYOUT_NODES)
+        self.assertEqual((refusing.reused, refusing.recomputed), (0, 2))
         self.assertEqual(
             refusing.reused + refusing.recomputed,
             len(refusing.order()) - poisoned(refusing),
@@ -845,7 +841,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(docs["layout"], resolver=store)
         self.assertEqual(first.part_evaluations, 2)
         again = evaluate(docs["layout"], prior=first)
-        self.assertEqual((again.reused, again.recomputed), (LAYOUT_ORDER, 0))
+        self.assertEqual((again.reused, again.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(again.part_evaluations, 0)
 
     def test_an_edit_recomputes_only_the_cone_below_it(self):
@@ -868,12 +864,11 @@ class TestTheMemoIsObservable(CorpusCase):
         post.apply(DocEdit.delete_node(extrude))
         post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))))
         again = evaluate(post, prior=first)
-        # THREE reused: the world, and the post's sketch frame and the
-        # section drawn on it, which are what the deleted extrude
-        # consumed, and neither moved; the new extrude and its
-        # placement run.
+        # TWO reused: the post's sketch frame and the section drawn on
+        # it, which are what the deleted extrude consumed, and neither
+        # moved; the new extrude and its placement run.
         self.assertEqual(post.order()[:2], [frame, profile])
-        self.assertEqual((again.reused, again.recomputed), (3, 2))
+        self.assertEqual((again.reused, again.recomputed), (2, 2))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
@@ -893,21 +888,25 @@ class TestTheMemoIsObservable(CorpusCase):
         """The sharp form of the same fact, and the one that shows why
         "a key is content, not position" was the wrong sentence.
 
-        The layout and the stand instantiate the SAME two documents at
-        the SAME pins, so their instantiate nodes agree on content, and
-        two documents built from one recipe CAN mint the same ids. What
+        A sibling of the layout that opens with the layout's own first
+        insert, the post instance over the SAME document at the SAME pin
+        with the same (empty) bundle, agrees with it on content, and two
+        documents built from one recipe CAN mint the same ids. What
         makes the overlap worth nothing is not luck but DI3's refusal:
         the prior is of another document, so it is dropped whole and
-        all five of the stand's nodes recompute.
+        every node of the sibling recomputes.
         """
         store, docs = opened()
         layout = evaluate(docs["layout"], resolver=store)
-        stand = evaluate(docs["stand"], resolver=store, prior=layout)
-        shared = [n for n in stand.order() if n in layout.order()]
+        post = docs["post"]
+        sibling = Doc("pncad-layout-sibling")
+        sibling.insert(Node.instantiate_part(DocRef(post.id, content_pin(post)), []))
+        again = evaluate(sibling, resolver=store, prior=layout)
+        shared = [n for n in again.order() if n in layout.order()]
         self.assertTrue(shared, "the two share an id, so the memo could have hit")
-        self.assertEqual(failures(stand), {})
-        self.assertEqual(stand.reused, 0, "no cross-document reuse, by construction")
-        self.assertEqual(stand.recomputed, len(stand.order()))
+        self.assertEqual(failures(again), {})
+        self.assertEqual(again.reused, 0, "no cross-document reuse, by construction")
+        self.assertEqual(again.recomputed, len(again.order()))
 
 
 class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
@@ -965,7 +964,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         self.assertEqual(
             failures(memoized), {}, "the memo never asks, so nothing refuses"
         )
-        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_ORDER, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(memoized.part_evaluations, 0, "the seam is not crossed")
         self.assertVolumes(
             volumes(memoized, shelf_node),
@@ -993,7 +992,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
         self.assertEqual(failures(memoized), {})
-        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_ORDER, 0))
+        self.assertEqual((memoized.reused, memoized.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(memoized.part_evaluations, 0)
 
     def test_a_prior_evaluates_an_assembly_with_no_resolver_at_all(self):
@@ -1003,7 +1002,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         before = evaluate(docs["layout"], resolver=store)
         after = evaluate(docs["layout"], prior=before)
         self.assertEqual(failures(after), {}, "no part_no_resolver either")
-        self.assertEqual((after.reused, after.recomputed), (LAYOUT_ORDER, 0))
+        self.assertEqual((after.reused, after.recomputed), (LAYOUT_NODES, 0))
         self.assertEqual(after.part_evaluations, 0)
 
 
