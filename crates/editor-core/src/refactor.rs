@@ -1318,6 +1318,19 @@ pub enum InlineError {
         /// The construction, spoken from the referenced document.
         node: SpokenNode,
     },
+    /// **The part's world moves under the inline and one of its copies
+    /// is pinned against a construction** (D's interim: a construction
+    /// is of the document's one kind): at a pose of the instance's own,
+    /// or as the root that takes the instance's bundle, the part's
+    /// copies move and its constructions do not, so the copy would land
+    /// where the construction stays rather than where the instance put
+    /// it.
+    CopyPinnedToConstruction {
+        /// The part placement, spoken from the referenced document.
+        placement: SpokenNode,
+        /// The construction its bundle pins it against, likewise.
+        construction: SpokenNode,
+    },
     /// **A host constraint's frame would change coordinates across the
     /// seam** (A4's frame rule): its side reads the instance on the
     /// copy's own part frame, and the part copy its names land on does
@@ -1503,6 +1516,19 @@ impl core::fmt::Display for InlineError {
                 Recourse(
                     "pin the instance to the world at the identity, or re-point the \
                      construction at a body, then inline"
+                )
+            ),
+            Self::CopyPinnedToConstruction {
+                placement,
+                construction,
+            } => write!(
+                f,
+                "inline: the instance does not sit at the identity, and the referenced \
+                 document's {placement} is pinned against {construction}, which would stay \
+                 where it is while the copy moves with the instance. {}",
+                Recourse(
+                    "pin the instance to the world at the identity, or pin the placement \
+                     against a copy, then inline"
                 )
             ),
             Self::MateFrameCrosses {
@@ -2625,17 +2651,7 @@ fn world_pin_pose<P>(
 fn world_pin_of<S: crate::Slot>(
     mate: &crate::mate::Mate<S>,
 ) -> Option<&crate::placement::Placement<S>> {
-    use crate::mate::{AxisSense, FrameBase, MatePrimitive, SideRead};
-    let a = &mate.alignment;
-    (matches!(mate.a, SideRead::World)
-        && matches!(mate.b, SideRead::Copy)
-        && a.a.base == FrameBase::World
-        && a.b.base == FrameBase::Part
-        && a.b.offset.steps.is_empty()
-        && a.primitive == MatePrimitive::FrameCoincidence
-        && a.sense == AxisSense::Aligned
-        && a.clocking.is_none())
-    .then_some(&a.a.offset)
+    mate.is_world_pin().then_some(&mate.alignment.a.offset)
 }
 
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
@@ -3743,6 +3759,42 @@ pub fn inline(
                 return Err(InlineError::ConstructionReadsCopy {
                     node: part.spoken(id),
                 });
+            }
+        }
+    }
+    // Wherever the part's world moves (a pose of the instance's own, or
+    // the root taking the instance's bundle), its constructions stay,
+    // so a part copy pinned against one would land beside it rather
+    // than where the instance put it.
+    let world_moves = match &landing {
+        Landing::Pinned(pose) => !pose.steps.is_empty(),
+        Landing::Root(_) => true,
+    };
+    if world_moves {
+        for placement in part.placements() {
+            let Some(bundle) = part.node(placement).and_then(crate::mate::solve::bundle_of) else {
+                continue;
+            };
+            for constraint in bundle {
+                for (_, read) in constraint.mate.sides() {
+                    let crate::mate::SideRead::Face(var) = read else {
+                        continue;
+                    };
+                    let Some(member) = crate::mate::member::member_of_side(&part, *var) else {
+                        continue;
+                    };
+                    if member.instance != placement
+                        && !matches!(
+                            part.node(member.instance),
+                            Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::World)
+                        )
+                    {
+                        return Err(InlineError::CopyPinnedToConstruction {
+                            placement: part.spoken(placement),
+                            construction: part.spoken(member.instance),
+                        });
+                    }
+                }
             }
         }
     }

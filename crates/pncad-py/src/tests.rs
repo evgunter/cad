@@ -2849,6 +2849,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::NonFiniteAlignment {
             node: sp(1),
             constraint,
+            position: 1,
         },
         &["node", "constraint"],
     );
@@ -5375,6 +5376,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "inline_error_tag",
         values: &[
             "construction_reads_copy",
+            "copy_pinned_to_construction",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",

@@ -2577,6 +2577,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
+        InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
         InlineError::SideLeavesAnInstance { .. } => "side_leaves_an_instance",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",

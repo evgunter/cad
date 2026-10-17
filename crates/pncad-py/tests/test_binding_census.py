@@ -3784,6 +3784,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::NotAnInstance": "InlineError.variant",
     "InlineError::UnplaceablePart": "InlineError.variant",
     "InlineError::ConstructionReadsCopy": "InlineError.variant",
+    "InlineError::CopyPinnedToConstruction": "InlineError.variant",
     "InlineError::SideLeavesAnInstance": "InlineError.variant",
     "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",

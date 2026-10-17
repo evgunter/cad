@@ -491,7 +491,7 @@ fn select_sides<T: Decide>(
 ) -> Result<(), NodeErrorKind> {
     for (slot, var) in node.operand_rows() {
         if matches!(slot, crate::OperandSlot::Side { .. })
-            && !crate::mate::solve::reads_own_copy(doc, id, var)
+            && !crate::mate::solve::own_copy_side(doc, id, slot, var)
         {
             select(doc, results, slot, var)?;
         }
@@ -512,9 +512,7 @@ fn select_own_sides(
     table: &names::NameTable,
 ) -> Result<(), NodeErrorKind> {
     for (slot, var) in node.operand_rows() {
-        if !(matches!(slot, crate::OperandSlot::Side { .. })
-            && crate::mate::solve::reads_own_copy(doc, id, var))
-        {
+        if !crate::mate::solve::own_copy_side(doc, id, slot, var) {
             continue;
         }
         if doc

@@ -2082,3 +2082,82 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
         other => panic!("expected RankedRunReordered, got {other:?}"),
     }
 }
+
+/// **Inline refuses where the part's world would move under a copy
+/// pinned against a construction**: at a pose of the instance's own the
+/// part's copies move with it and its constructions do not, so a copy
+/// pinned against a raw extrude of the part would land where the
+/// extrude stays, not where the instance put it. Refused typed, naming
+/// the placement and the construction, rather than spliced displaced.
+#[test]
+fn inline_at_a_pose_refuses_a_copy_pinned_against_a_construction() {
+    use editor_core::{
+        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive,
+        Placement, SideRead,
+    };
+    let part = ProfileDoc::empty(
+        DocumentId::derive("asm4-pinned-to-construction"),
+        Tol::witness(),
+    );
+    let extrude = |doc: ProfileDoc, half: f64| {
+        let (doc, profile) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, half)],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let (part, anchor) = extrude(part, 0.5);
+    let (part, body) = extrude(part, 0.25);
+    let (part, place) = insert(
+        part,
+        Node::place(vec![editor_core::BodyRead::from(
+            editor_core::Operand::Node(body),
+        )]),
+    );
+    let cap = StableName {
+        kind: EntityKind::Face,
+        node: anchor,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    let pin = editor_core::Mate {
+        a: SideRead::Face(fixture::head_at(anchor, cap).into()),
+        b: SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::on_part(Placement::literal(&editor_core::Frame::translation([
+                2.0, 0.0, 0.0,
+            ]))),
+            b: MateFrame::on_part(Placement::IDENTITY),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let part = fixture::constrain_at(part, place, pin).0;
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part, Tol::witness());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("asm4-pinned-to-construction-host"),
+        Tol::witness(),
+    );
+    let (host, instance) = pinned_at(host, doc_ref, [0.0, 0.0, 5.0]);
+    match inline(&host, instance, &resolver, Tol::witness()) {
+        Err(InlineError::CopyPinnedToConstruction {
+            placement,
+            construction,
+        }) => assert_eq!((placement.id(), construction.id()), (place, anchor)),
+        Err(other) => panic!("refused naming the placement and its construction, not {other}"),
+        Ok(_) => panic!("spliced, with the copy displaced from where the instance put it"),
+    }
+}

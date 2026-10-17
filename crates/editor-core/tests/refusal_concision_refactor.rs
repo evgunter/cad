@@ -95,7 +95,8 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
-        UnresolvedVarCrossesCut, ConstructionReadsCopy, MateFrameCrosses, SideLeavesAnInstance,
+        UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, MateFrameCrosses,
+        SideLeavesAnInstance,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
@@ -290,6 +291,10 @@ fn inline_refusals() -> Vec<InlineError> {
         },
         InlineError::ConstructionReadsCopy {
             node: s(3, "Union"),
+        },
+        InlineError::CopyPinnedToConstruction {
+            placement: s(8, "Place"),
+            construction: s(3, "Union"),
         },
         InlineError::MateFrameCrosses {
             placement: s(7, "InstantiatePart"),

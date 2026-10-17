@@ -320,7 +320,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // A constraint's address: the placement is the subject, and the
         // id beside it names the constraint.
         EditError::UnknownConstraint { node, constraint }
-        | EditError::NonFiniteAlignment { node, constraint } => EditPayload {
+        | EditError::NonFiniteAlignment {
+            node, constraint, ..
+        } => EditPayload {
             node: Some(node.id()),
             constraint: Some(*constraint),
             ..none

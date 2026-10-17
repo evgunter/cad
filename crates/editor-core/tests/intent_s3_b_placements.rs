@@ -323,6 +323,78 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
+/// **A copy of no instance forms no lever its constraints do not ask
+/// for**: a `Place` copy resting on a world plane decides nothing over a
+/// lever, so its bundle never asks the parts' reach, which has no part
+/// to answer for it. The copy stands, loose in the rest's plane.
+#[test]
+fn a_place_copy_resting_on_the_world_asks_no_lever() {
+    let (doc, body) = block("s3b-world-rest");
+    let rest = editor_core::Mate {
+        a: editor_core::SideRead::World,
+        b: editor_core::SideRead::Copy,
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame {
+                base: editor_core::FrameBase::World,
+                offset: Placement::IDENTITY,
+            },
+            b: MateFrame::on_part(Placement::IDENTITY),
+            primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    };
+    let (doc, place) = step(doc, DocEdit::place(vec![body.into()], vec![rest]));
+    let place = place.expect("the placement mints");
+    let ev = run(&doc, &EvalOptions::default());
+    assert!(
+        matches!(ev.result(place), Some(NodeResult::Ok(_))),
+        "{:?}",
+        ev.result(place)
+    );
+    assert_eq!(ev.space(place), Space::Loose { root: place });
+}
+
+/// **B4's interim refuses with its recourse**: a face side read on a
+/// `Place` copy (no instance's) is refused at the door, saying the face
+/// side reads only an instance's copy until a constraint relates poses,
+/// and how to proceed, never as a kernel defect.
+#[test]
+fn a_face_side_on_a_place_copy_refuses_with_b4s_recourse() {
+    let (doc, body) = block("s3b-b4-place-face");
+    let (doc, place) = step(doc, DocEdit::place(vec![body.into()], vec![]));
+    let place = place.expect("the placement mints");
+    let side = editor_core::Mate {
+        a: editor_core::SideRead::World,
+        b: editor_core::SideRead::Face(
+            fixture::head(fixture::fname(body, RoleSeg::Cap(CapEnd::End))).into(),
+        ),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame {
+                base: editor_core::FrameBase::World,
+                offset: Placement::IDENTITY,
+            },
+            b: MateFrame::from_face(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
+            clocking: None,
+        },
+    };
+    let o = EvalOptions::default();
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let Err((_, fault)) = at_the_door_of(&doc, &reach, place, side) else {
+        panic!("a face side on a Place copy is B4's refusal")
+    };
+    let said = fault.to_string();
+    assert!(
+        said.contains("is not an instance's copy") && said.contains("Recourse:"),
+        "{said}"
+    );
+    assert!(!said.contains("kernel defect"), "{said}");
+}
+
 /// **A copy its bundle pins less than its body needs is a loose copy,
 /// not a refusal**: coaxial alone leaves a slide.
 #[test]
@@ -615,6 +687,70 @@ fn an_instances_copies_are_read_one_by_key() {
         },
         other => panic!("a refusal, not {other:?}"),
     }
+}
+
+/// **One copy of a nested instance is placed by the outer motion after
+/// the inner one**: a part placed in a middle document at a translation,
+/// the middle document instanced in an outer one at a quarter turn, and
+/// a reader of that one copy sees the block turned about the outer
+/// origin after it was moved, never moved after it was turned.
+#[test]
+fn a_nested_instances_copy_is_placed_outer_after_inner() {
+    let mut store = PartStore::default();
+    let (leaf, leaf_body) = store.insert_part(block("s3b-nested-leaf"), Tol::witness());
+    let mid = ProfileDoc::empty(DocumentId::derive("s3b-nested-mid"), Tol::witness());
+    let (mid, inner) = insert(
+        mid,
+        Node::instantiate_part_with(leaf, editor_core::InterfaceRecord::default()),
+    );
+    let (mid, _) = fixture::constrain_at(
+        mid,
+        inner,
+        editor_core::Mate::world_pin(Placement::literal(&editor_core::Frame::translation([
+            5.0, 0.0, 0.0,
+        ]))),
+    );
+    let mid_ref = store.insert(mid, Tol::witness());
+    let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
+    let (top, outer) = insert(
+        top,
+        Node::instantiate_part_with(mid_ref, editor_core::InterfaceRecord::default()),
+    );
+    let quarter_turn = editor_core::Frame {
+        columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [0.0, 0.0, 0.0],
+    };
+    let (top, _) = fixture::constrain_at(
+        top,
+        outer,
+        editor_core::Mate::world_pin(Placement::literal(&quarter_turn)),
+    );
+    let key = CopyKey::part(inner, copy_key(leaf_body));
+    let (top, reader) = step(
+        top,
+        DocEdit::place_in_world(BodyRead::keyed(Operand::Node(outer), key), None),
+    );
+    let reader = reader.expect("the reader mints");
+    let ev = run(&top, &with_resolver(store));
+    let body = match ev.value(reader).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => b.clone(),
+        other => panic!("one copy reads one body, not {other:?}"),
+    };
+    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+    for (_, p) in body.points() {
+        for (k, c) in p.to_array().into_iter().enumerate() {
+            lo[k] = lo[k].min(c);
+            hi[k] = hi[k].max(c);
+        }
+    }
+    // Moved to x ∈ [4.5, 5.5], then turned: x ∈ [-0.5, 0.5],
+    // y ∈ [4.5, 5.5]. Turned first and moved after, it would stand at
+    // x ∈ [4.5, 5.5], y ∈ [-0.5, 0.5].
+    let near = |a: [f64; 3], b: [f64; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-12);
+    assert!(
+        near(lo, [-0.5, 4.5, 0.0]) && near(hi, [0.5, 5.5, 1.0]),
+        "the copy stands at {lo:?}..{hi:?}"
+    );
 }
 
 /// **A `Place` over several shapes defines one output, its copies keyed

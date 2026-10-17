@@ -624,11 +624,7 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Plac
         return None;
     };
     let m = &only.mate;
-    let a = &m.alignment;
-    (matches!(m.a, editor_core::SideRead::World)
-        && matches!(m.b, editor_core::SideRead::Copy)
-        && a.b.offset.steps.is_empty())
-    .then(|| a.a.offset.clone())
+    m.is_world_pin().then(|| m.alignment.a.offset.clone())
 }
 
 /// Applies an edit, returning the new doc and any minted id, through

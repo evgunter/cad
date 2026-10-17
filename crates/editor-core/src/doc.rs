@@ -1920,10 +1920,7 @@ impl<P> Doc<P> {
         let at = node
             .operand_rows()
             .into_iter()
-            .filter(|&(seat, var)| {
-                !(matches!(seat, crate::OperandSlot::Side { .. })
-                    && crate::mate::solve::reads_own_copy(self, id, var))
-            })
+            .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(self, id, seat, var))
             .flat_map(|(_, var)| self.read_ports(var))
             .map(|(at, _)| at)
             .chain(observed);
@@ -2629,10 +2626,9 @@ pub(crate) enum WitnessSiteFault {
 /// One predicate with one home, asked by every door that writes a row
 /// — [`crate::DocEdit::ReWitness`] and
 /// [`crate::DocEdit::ReWitnessBulk`] — and by the load door's walk over
-/// the store, each naming the answer in its own vocabulary. It is the
-/// same shape as [`gauge_ref_fault`], and for the same reason: an id
-/// held in the document names a node of a required kind, and the two
-/// doors must agree on which ids are admitted.
+/// the store, each naming the answer in its own vocabulary: an id held
+/// in the document names a node of a required kind, and the two doors
+/// must agree on which ids are admitted.
 pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<WitnessSiteFault> {
     match doc.nodes.get(&node) {
         None => Some(WitnessSiteFault::NoSuchNode),

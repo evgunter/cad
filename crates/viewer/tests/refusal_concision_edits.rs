@@ -675,6 +675,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::NonFiniteAlignment {
                 node: s(5, "Place"),
                 constraint: c(9),
+                position: 2,
             },
         ),
         (

@@ -3546,6 +3546,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             EditError::NonFiniteAlignment {
                 node: held(6, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
+                position: 1,
             },
             vec![held(6, "Place")],
         ),

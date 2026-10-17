@@ -1150,3 +1150,74 @@ fn a_carry_replays_without_a_solve() {
     let host = replay(&out.remainder, &back.edits);
     assert!(host.bit_eq(&back.doc), "the inline's edit list is the host");
 }
+
+/// **The content key's own-copy exemption keeps a memo honest**: a
+/// placement whose constraint reads its own copy through a pattern of
+/// that copy keys nothing on that read (`Doc::upstream_of`'s one
+/// exemption), so an edit of the pattern's spacing must still move the
+/// copy under a prior: the placement's key folds the solve's own share
+/// of the read.
+#[test]
+fn an_own_copy_side_through_a_pattern_moves_its_copy_under_a_memo() {
+    use editor_core::{
+        Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, Formula,
+        MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, SlotId, SlotValue,
+    };
+    let p = parts("p2-own-copy-memo");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-own-copy-memo"), Tol::witness());
+    let (doc, leg) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: mover.into(),
+            count: Formula::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let mate = fixture::mate(
+        head(fixture::in_copy(
+            pattern,
+            1,
+            in_part(mover, p.base_body, CapEnd::Start),
+        )),
+        head(p.top_upper_cap(leg)),
+        ContactClass::Rest,
+        Alignment {
+            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], Tol::witness())
+                .expect("an authored frame"),
+            b: MateFrame::from_face(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    );
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = fixture::at_the_door_of(&doc, &reach, mover, mate)
+        .unwrap_or_else(|(_, fault)| panic!("the seat is admitted: {fault}"));
+    let ev = |d: &ProfileDoc, prior| {
+        editor_core::evaluate::<f64>(d, prior, &CancelToken::new(), &o, Tol::witness())
+    };
+    let first = ev(&doc, None);
+    let before = min_corner(&body_of(&first, mover));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: pattern,
+            slot: SlotId::Spacing,
+            value: SlotValue::Formula(len(3.0)),
+            fresh: Vec::new(),
+        },
+    );
+    let fresh = min_corner(&body_of(&ev(&doc, None), mover));
+    let memo = min_corner(&body_of(&ev(&doc, Some(&first)), mover));
+    assert_ne!(before, fresh, "the spacing edit moves the copy");
+    assert_eq!(
+        memo, fresh,
+        "a memo run serves the copy where a fresh run puts it"
+    );
+}

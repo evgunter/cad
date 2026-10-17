@@ -532,3 +532,48 @@ fn one_copy_twice_is_a_self_mate() {
     );
     let _ = store;
 }
+
+/// INVARIANT: two DISTINCT copies of one instance's pattern both stand
+/// on that instance, so a constraint of the instance reading copy 0 on
+/// one side and copy 1 on the other relates the copy to itself: the
+/// same self-mate refusal, met at the edit door. (A pattern of a copy
+/// moves with the copy, so no bundle of the copy can pin one of its
+/// pattern's copies against another.)
+#[test]
+fn sibling_copies_of_one_instances_pattern_are_a_self_mate() {
+    let mut store = PartStore::default();
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-siblings-leg"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("mate1-siblings"), Tol::witness());
+    let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: leg.into(),
+            count: Formula::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(1.0),
+            },
+        },
+    );
+    let refusal = at_the_door_of(
+        &doc,
+        &editor_core::RefusingReach,
+        leg,
+        seat_mate(
+            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
+        ),
+    );
+    assert!(
+        matches!(
+            refusal,
+            Err((_, editor_core::MateFault::SelfMate { instance, .. })) if instance == leg
+        ),
+        "sibling copies of one instance's pattern are one member: {:?}",
+        refusal.err()
+    );
+    let _ = store;
+}

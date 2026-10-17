@@ -188,8 +188,8 @@ use std::collections::BTreeMap;
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Datum, Dimension,
     Doc, Evaluation, Expr, Formula, Label, MateFault, MateRef, MeasureUnavailableAt, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SideRead,
-    SplitSide, SpokenNode, ValuePayload, VarId, node_kind_noun,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide,
+    SpokenNode, ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -402,11 +402,7 @@ pub struct ConstraintRow {
 /// reads.
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     let mate = &constraint.mate;
-    let pin = matches!(
-        (&mate.a, &mate.b),
-        (SideRead::World, SideRead::Copy) | (SideRead::Copy, SideRead::World)
-    );
-    if pin {
+    if mate.is_world_pin() {
         format!("constraint {at}: world pin")
     } else {
         format!("constraint {at}: {} mate", mate.class.name())

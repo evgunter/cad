@@ -83,8 +83,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{
-    Constraint, ConstraintId, Doc, Frame, Mate, MateRef, Node, OperandSlot, ProfileProgram,
-    RecipeNodeId, SideRead, SpokenNode, VarId,
+    Constraint, ConstraintId, Doc, Frame, MateRef, Node, OperandSlot, ProfileProgram, RecipeNodeId,
+    SideRead, SpokenNode, VarId,
 };
 use pncad::geom_core::Vec3;
 
@@ -416,7 +416,7 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Ma
                 .iter()
                 .filter(|constraint| {
                     let mate = &constraint.mate;
-                    let own = placement == instance && !is_world_pin(mate);
+                    let own = placement == instance && !mate.is_world_pin();
                     own || names_instance(&mate.a) || names_instance(&mate.b)
                 })
                 .map(|constraint| MateRef::new(placement, constraint.id))
@@ -434,15 +434,6 @@ fn bundle_of(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> &[Constraint
         }
         _ => &[],
     }
-}
-
-/// Whether `mate` pins its copy to the world by the copy's own frame:
-/// one side the world, the other the copy itself.
-fn is_world_pin(mate: &Mate<VarId>) -> bool {
-    matches!(
-        (&mate.a, &mate.b),
-        (SideRead::World, SideRead::Copy) | (SideRead::Copy, SideRead::World)
-    )
 }
 
 /// **`node` is a live `InstantiatePart`**, or the typed refusal that

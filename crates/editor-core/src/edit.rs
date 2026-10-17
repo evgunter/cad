@@ -2777,6 +2777,9 @@ pub enum EditError {
         node: SpokenNode,
         /// The constraint.
         constraint: crate::node::ConstraintId,
+        /// The constraint's 1-based position in the placement's bundle:
+        /// what the refusal says.
+        position: usize,
     },
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
@@ -3135,6 +3138,7 @@ impl EditError {
             | Self::NonFiniteAlignment {
                 node,
                 constraint: _,
+                position: _,
             }
             | Self::UpdateOnNonInstance { node }
             | Self::PinUnchanged { node, pin: _ } => {
@@ -4130,10 +4134,10 @@ impl EditError {
             Self::NonFinitePlacement { node, at } => {
                 frame_refusal(f, tail, node, *at, FrameFault::NonFinite)
             }
-            Self::NonFiniteAlignment { node, constraint } => {
+            Self::NonFiniteAlignment { node, position, .. } => {
                 write!(
                     f,
-                    "{node}'s constraint {constraint} carries a non-finite alignment coordinate"
+                    "{node}'s constraint {position} carries a non-finite alignment coordinate"
                 )?;
                 tail.recourse(
                     f,
@@ -5528,9 +5532,16 @@ fn check_written_node<P: crate::ProfilePayload>(
     // place a node is asked whether its constraints' alignment data
     // are decidable, which the load door's walk asks too.
     if let Some(constraint) = node.non_finite_alignment() {
+        let position = crate::mate::solve::bundle_of(node)
+            .and_then(|bundle| bundle.iter().position(|c| c.id == constraint))
+            .map_or_else(
+                || unreachable!("a non-finite alignment is one of the node's constraints"),
+                |k| k + 1,
+            );
         return Err(EditError::NonFiniteAlignment {
             node: spoken(),
             constraint,
+            position,
         });
     }
     // A constraint's admission composes its frame offsets, so their

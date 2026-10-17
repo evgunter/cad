@@ -517,10 +517,6 @@ pub(crate) fn spaces_with<P: crate::ProfilePayload>(
         // constraint reads across spaces by design, so its reads are
         // no input here.
         let inputs = match node {
-            Node::World => {
-                out.space.insert(id, Space::World);
-                continue;
-            }
             Node::InstantiatePart { .. } => Vec::new(),
             Node::Place { shapes, .. } => shapes
                 .iter()
@@ -1237,6 +1233,21 @@ impl Side {
     }
 }
 
+/// **Whether `placement`'s operand row `(seat, read)` is a constraint
+/// side on the placement's own copy** ([`reads_own_copy`] at a side
+/// seat): `Doc::upstream`'s one exemption, the content key's, and the
+/// split between the sides an evaluation resolves before its op and
+/// those it resolves in the copy's own table. The one spelling every
+/// such reader asks.
+pub(crate) fn own_copy_side<P>(
+    doc: &Doc<P>,
+    placement: RecipeNodeId,
+    seat: crate::OperandSlot,
+    read: crate::VarId,
+) -> bool {
+    matches!(seat, crate::OperandSlot::Side { .. }) && reads_own_copy(doc, placement, read)
+}
+
 /// **Whether `read`, a face read of a constraint of `placement`, is the
 /// copy side read through the placement's own copy** — the one read a
 /// placement makes of what it defines, and so the one read
@@ -1325,10 +1336,9 @@ fn copy_and_target(mate: MateRef, a: &Side, b: &Side) -> Result<(MateSide, MateS
 }
 
 /// **The per-reference prefix of a mate's admission**, after its two
-/// sides are read: the checks that need a number ([`check_reference`])
-/// on each walked side, then the pair as two DISTINCT members
-/// ([`MateFault::SelfMate`]). Two COPIES of one pattern are two
-/// members and pass: what a mate cannot relate is a member to itself.
+/// sides are read and split into copy and target ([`copy_and_target`],
+/// which already refuses a pair standing on one member): the checks
+/// that need a number ([`check_reference`]) on each walked side.
 fn check_references<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
     env: &VarEnv<S>,
@@ -1340,12 +1350,6 @@ fn check_references<P: crate::ProfilePayload, S>(
         if let Some(walk) = &read.walk {
             check_reference(doc, env, mate, side, walk)?;
         }
-    }
-    if a.member == b.member {
-        return Err(MateFault::SelfMate {
-            mate,
-            instance: a.member.instance,
-        });
     }
     Ok(())
 }
@@ -1453,8 +1457,9 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
 ///
 /// # Errors
 ///
-/// [`MateFault::TargetsDiffer`], [`MateFault::Overconstrained`], or the
-/// fold's own refusal of the bundle as it stands with the constraint.
+/// [`MateFault::Overconstrained`] where the held bundle already pins the
+/// copy, then [`MateFault::TargetsDiffer`] (B2); a refusal of the held
+/// bundle's own fold is the solve's, not this door's.
 pub(crate) fn admit_constraint<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     placement: RecipeNodeId,

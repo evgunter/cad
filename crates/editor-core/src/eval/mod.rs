@@ -4069,10 +4069,7 @@ where
     let reads: Vec<(RecipeNodeId, u8)> = node
         .operand_rows()
         .into_iter()
-        .filter(|&(seat, var)| {
-            !(matches!(seat, crate::OperandSlot::Side { .. })
-                && crate::mate::solve::reads_own_copy(doc, id, var))
-        })
+        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
         .flat_map(|(_, var)| doc.read_ports(var))
         .collect();
     let key_of = |at: &RecipeNodeId| {
