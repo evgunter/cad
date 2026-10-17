@@ -1,15 +1,10 @@
-//! **An emitter refusal an ordinary union reaches, and what
-//! the author is told when it does — and one it no longer reaches.**
+//! **Ordinary unions over merged faces, and what they name.**
 //!
-//! `NamingError::Emission` means a mint-time fact disagreed with the
-//! result body — a kernel bug. The refusal pinned here is not one: the
-//! recipe is well formed, every member is an ordinary solid, and the
-//! bodies the fold builds are sound. What is missing is a naming RULE
-//! for the construction the fold produced, and the row pins that the
-//! refusal says so rather than sending the author to file a bug against
-//! the kernel. The next two rows are constructions that once refused
-//! and now name: a merged wall whose edges are pieces of member edges,
-//! and a rim in several pieces. The last three run members whose
+//! The first row is a union whose seam chords the chord rule names and
+//! whose end pass still refuses it: two faces of one member glued in one
+//! finished face. The next two are constructions that once refused and
+//! now name: a merged wall whose edges are pieces of member edges, and a
+//! rim in several pieces. The last three run members whose
 //! coincident faces overlap in area, under a covering block, in every
 //! member order: no fold step may refuse a contact the pairwise
 //! judgement passed.
@@ -22,35 +17,31 @@ use crate::docm8_flat_merged::split_fixture;
 use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
-/// The sentence every emission-bug refusal opens with, written out
-/// because what this suite is about is a reader meeting it: a refusal
-/// reached from a legal recipe must NOT read as a kernel bug report.
-const BUG_FRAMING: &str =
-    "name emission found a kernel bug — an invariant it relies on does not hold";
-
 fn volume(body: &topo::Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness())
         .expect("mass")
         .volume
 }
 
-/// **A merged face no rule reads a seam chord through refuses as a
-/// missing rule.**
+/// **A bar through a sunk boss passes the chord rule and refuses at the
+/// union's parents.**
 ///
 /// A plate and a cylinder boss sunk into it, its wall drawn as two
-/// semicircular pieces, joined by a pair union; a slab subtracted across
-/// the boss along y. The slab cuts each wall piece in two, and the
-/// subtract merges the two cosurface pieces on each side of the slot, so
-/// each merged wall face holds both boss pieces. The chord where a slab
-/// wall meets it is a join's own and reads through to its A-side
-/// constituent, of which there are two. Nothing picks the one the chord
-/// lies on.
-///
-/// Nothing is wrong with this document: the boss joins the plate, and
-/// the slot along x across the same boss names
-/// (`emit_union_borders::a_slot_along_x_across_a_sunk_boss_names`).
+/// semicircular pieces, joined by a union; a bar along y through the
+/// boss, joined to them by a second union. The bar's walls cut each wall
+/// piece in two, and the judgement of the two members merges the two
+/// cosurface pieces on each side of the bar, so each merged wall face
+/// holds both boss pieces. The chord where a bar wall meets it reads
+/// through to the piece that holds it, as the sunk-boss slot's does
+/// (`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`).
+/// The union's end pass then links member faces only across the two
+/// members a judgement holds, so the two faces of the first member it
+/// merged are two parents in one finished face, and that refuses as an
+/// emission bug. Owned by
+/// `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`,
+/// whose fix flips this row.
 #[test]
-fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() {
+fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
@@ -60,41 +51,30 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
         [0.0, 1.0, 0.0],
         1.0,
     );
-    let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let (doc, bar) = block(doc, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
     let (doc, joined) = crate::fixture::insert(
         doc,
         editor_core::Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
         },
     );
-    let (doc, cut) = crate::fixture::insert(
+    let (doc, barred) = crate::fixture::insert(
         doc,
-        editor_core::Node::Subtract {
-            from: joined.into(),
-            tool: slab.into(),
+        editor_core::Node::Union {
+            members: editor_core::Bodies::Spelled(vec![joined.into(), bar.into()]),
         },
     );
     let ev = run(&doc);
     assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
-    // Rendered at the NODE boundary, which is the only route by which an
-    // emitter refusal reaches a human.
-    let shown = match failure(&ev, cut) {
-        Some(
-            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents { several: 2, .. }),
-        ) => e.to_string(),
-        other => panic!("wanted the merged-chord refusal, got {other:?}"),
-    };
     assert!(
-        !shown.contains(BUG_FRAMING),
-        "a legal document was told the kernel is broken: {shown}"
-    );
-    assert!(
-        shown.contains("merged face"),
-        "the refusal must name the construction: {shown}"
-    );
-    assert!(
-        !shown.contains("  "),
-        "prose a human reads has no padded run in it: {shown}"
+        matches!(
+            failure(&ev, barred),
+            Some(NodeErrorKind::Naming(NamingError::Emission {
+                what: "a union's face descends from member faces no judged pair links"
+            }))
+        ),
+        "the union's parents do not link the boss's two pieces: {:?}",
+        failure(&ev, barred)
     );
 }
 

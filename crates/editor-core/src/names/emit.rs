@@ -250,12 +250,13 @@ pub enum NamingError {
     /// its subject is the merged face's constituents, not a rim.
     ///
     /// A chord between a merged face and an unmerged one is read
-    /// through to the merged face's one constituent on the other side.
-    /// A declared union can merge several faces of ONE operand into one
-    /// face — two members of an assembly glued across a declared wall,
-    /// say — and then nothing says which of them the chord lies on. The
-    /// body is sound; what is missing is a rule that picks the
-    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
+    /// through to the merged face's constituent on the other side, and
+    /// where the merge glued several faces of that operand, to the one
+    /// whose operand face holds the chord's middle strictly inside it.
+    /// This is the chord that none does: its middle lies on a
+    /// constituent's boundary, or on a face whose in-face door gives no
+    /// reading. The body is sound; what is missing is a rule for a
+    /// chord no constituent holds inside it.
     MergedChordConstituents {
         /// The result-body edge.
         edge: EdgeKey,
@@ -550,7 +551,7 @@ impl crate::spoken::Say for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
                  holds {several} faces of the operand the chord reads through to, and no rule \
-                 picks the one it lies on"
+                 picks one: the chord's middle lies strictly inside none of them"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
