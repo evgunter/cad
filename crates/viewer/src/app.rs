@@ -6137,8 +6137,10 @@ mod properties_pane_tests {
             "Place \"plinth\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
+        // Both picks are caps of the one copy, so the commit refuses
+        // the pair as one member, naming that member's placement.
         assert!(
-            said.contains(&format!("pick a is on {plinth}")),
+            said.contains(&format!("(head: {plinth})")),
             "the refusal says the kept label: {said}"
         );
     }
