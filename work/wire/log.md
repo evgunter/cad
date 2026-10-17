@@ -5838,3 +5838,33 @@ in one unit. Review tier: FULL single review — it deletes a door and
 moves refusals across layers, but is reversible (one predicate arm).
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — FORK-PINCHNAME converged; the rule goes to Ev as PR 5258
+
+Both designers converged in round 1, measuring rather than arguing:
+- **The union half is stale.** PR 4881's vertex-run rule and TANG's PR
+  5178 made the pinch name order-free: one 99-row table in all six
+  member orders. `a-pinch-vertexs-name-depends-on-the-unions-member-order`
+  is re-priced `E`; it closes with a pinning test.
+- **The split half is a gap in N2.** Both propose that a corner one
+  Split half holds as several vertices is `OnToolVertex{of} +
+  Fragment(Keeps)` over the corner's own edges each copy ends. That
+  extends a ratified N2 sentence and binds future naming, so it is
+  Ev's: `[ev]` PR 5258 edits N2 and carries both `For Ev` sections as
+  A and B; design-fork log row 156. `needs_ev` is set on the row there.
+
+Acted on from the `For the orchestrator` sections:
+- filed `a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex`
+  (WIRE, rides with the split row: the runs-below mirror refuses
+  `Emission` before the naming question is reached);
+- filed `on-tool-vertex-may-be-a-segment-n1-already-makes-redundant`
+  (WIRETAIL, a design question on N1);
+- `work/issues/a-split-touching-at-a-notch-apex-mints-a-vertex-twice`
+  was the same naming defect on a smaller fixture: its naming half is
+  cited on the split row (on PR 5258's branch, so the two edits don't
+  collide), and the file moved to BIND retitled to its pncad-py half
+  (the prose gate panics on a `Debug`-rendered refusal).
+
+WIRE reads 31/30 until the union pin closes its row.
+
+Signed (WIRE orchestrator).
