@@ -24,7 +24,7 @@
 //! presentation metadata, not this layer's concern.
 
 use geom_core::Real;
-use geom_core::predicate::{Band, Decide, Sign};
+use geom_core::predicate::Decide;
 
 use crate::doc::VarName;
 use crate::node::{RecipeNodeId, SlotId};
@@ -1870,10 +1870,17 @@ pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalErro
 }
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
-/// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
-/// value and NaN or refused (NaN / empty / Trv) otherwise, so any valid
-/// band classifies it identically — Zero passes, everything else is a
-/// non-finite result.
+/// FINAL evaluated value: it passes the value exactly when it is
+/// bounded ([`geom_core::Real::is_bounded`]), and refuses it as a
+/// non-finite result otherwise. At a point scalar that is
+/// "finite"; at an enclosure it asks that both endpoints are finite,
+/// so `[MAX, ∞]`, `[0, ∞]` and `[−∞, ∞]` all refuse.
+///
+/// It used to ask `value · 0` for a Zero, which is right at a point
+/// (`∞ · 0` is NaN) but wrong at an enclosure: an unbounded interval
+/// times zero is the finite `[0, 0]`, so an expression whose value ran
+/// to infinity passed. Boundedness is not a band decision, so the
+/// check decides nothing and records no K sample.
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only
 /// evaluator of this crate's expression arithmetic: the measurement
@@ -1882,31 +1889,11 @@ pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalErro
 /// which is exactly what happened, and what shipped a
 /// `Holds { measured: inf }` verdict. Any evaluator that produces a
 /// value a caller will believe passes it through here.
-///
-/// Band construction with these constants cannot fail; the `else` arm
-/// is unreachable but typed (no panic paths in this crate).
-///
-/// **Named, through the funnel.** This decision used to call
-/// `sign_within` directly, outside any named `classify` — and because
-/// the recorder's name channel was never reset, every K sample it
-/// recorded was charged to whichever predicate had classified LAST
-/// (1,054 samples in the corpus sweep at ε = 1e-6, found when M10-8
-/// scoped the name). It goes through the recorder's named evaluator
-/// door now (`k_stats::check_unlogged`) — its samples carry its own
-/// name, and it stays out of the VERDICT log, which is the verdict-diff
-/// engine's row-for-row comparison of certification predicates between
-/// the witness and a leaf: this check fires once per expression
-/// evaluation, a count the two lanes do not share, and logging it
-/// refused every M10-6 min-clearance box on a vector mismatch with no
-/// geometry changed. The ledger row says why no `Margin` door fits:
-/// `value · 0` carries `value`'s dimension, whatever that is.
 pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
-    let Ok(band) = Band::new(1e-100, 1e-50) else {
-        return Err(EvalError::NonFiniteResult);
-    };
-    match geom_core::k_stats::check_unlogged("expr_non_finite", value * T::zero(), band, "F18") {
-        Ok(Sign::Zero) => Ok(value),
-        _ => Err(EvalError::NonFiniteResult),
+    if value.is_bounded() {
+        Ok(value)
+    } else {
+        Err(EvalError::NonFiniteResult)
     }
 }
 
@@ -2300,6 +2287,37 @@ mod tests {
     use super::*;
 
     use crate::tree::raw_chain;
+
+    /// **The final check refuses an unbounded enclosure.** `[MAX, ∞]`,
+    /// `[0, ∞]` and `[−∞, ∞]` each refuse as a non-finite result, where
+    /// the old `value · 0` read `[0, 0]` and passed them; a finite
+    /// enclosure and a finite point pass, and NaN and ∞ at a point
+    /// refuse. Red if the check goes back to a product with zero.
+    #[test]
+    fn the_final_check_refuses_an_unbounded_enclosure() {
+        use geom_core::Interval;
+        for (lo, hi) in [
+            (f64::MAX, f64::INFINITY),
+            (0.0, f64::INFINITY),
+            (f64::NEG_INFINITY, f64::INFINITY),
+        ] {
+            assert!(
+                matches!(
+                    refuse_non_finite(Interval::from_bounds(lo, hi)),
+                    Err(EvalError::NonFiniteResult)
+                ),
+                "[{lo}, {hi}] is unbounded"
+            );
+        }
+        assert!(refuse_non_finite(Interval::from_bounds(-1.0, 2.0)).is_ok());
+        assert!(refuse_non_finite(3.0_f64).is_ok());
+        for v in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(
+                matches!(refuse_non_finite(v), Err(EvalError::NonFiniteResult)),
+                "{v} is not finite"
+            );
+        }
+    }
 
     /// A negation over `e`, built past the constructors, which refuse
     /// it past the bound.

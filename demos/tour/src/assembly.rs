@@ -857,6 +857,14 @@ struct Bench {
 /// centre. The crate is an instance with an empty bundle and the mate
 /// is its one constraint, so it is placed on the shelf: it swings with
 /// the stand and follows any edit of the shelf or the posts under it.
+/// The bench's `run_checks` reports three `unproven-coincidence`
+/// findings, one against each mate (the stand's two and the crate's), and
+/// the viewer's status line shows them as `checks: 3 finding(s)`. They
+/// are expected: each is the at-rest census's row for its mate's own seat,
+/// which D10 makes structural ("a mate-placed face is"), but no rung
+/// proves it yet. The rung is INTENT stage 4 PR H
+/// (`work/intent/placed-carriers-compare-through-their-frames.md`), and the
+/// three go quiet when it lands.
 fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, instance(parts.crate_ref, None), tol);

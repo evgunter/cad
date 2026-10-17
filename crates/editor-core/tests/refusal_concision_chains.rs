@@ -2556,6 +2556,12 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
+        ("ArcWeightNotAPoint", E::ArcWeightNotAPoint { section: 1 }),
+        (
+            "IncompatibleAtEnclosure",
+            E::IncompatibleAtEnclosure { section: 1 },
+        ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
@@ -2608,8 +2614,8 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
-        ("PlacementNotAPoint", E::PlacementNotAPoint { section: 1 }),
-        ("SectionNotAPoint", E::SectionNotAPoint { section: 1 }),
+        ("PlacementNotFinite", E::PlacementNotFinite { section: 1 }),
+        ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
@@ -2982,6 +2988,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
+        ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),

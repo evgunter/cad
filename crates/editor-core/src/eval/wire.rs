@@ -1685,7 +1685,10 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
             };
-            pre.validated_f64.clone().lift_onto(plane)
+            pre.validated_f64
+                .clone()
+                .lift_onto(plane)
+                .map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
@@ -4284,8 +4287,8 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// sections' Profile values at `T` ([`section_value`]): a section that
 /// is a function of the document's variables lofts into walls that are
 /// functions of them, and the structure is selected on the sections'
-/// value channel (`sweep::loft_profiles`). A section wider than a point
-/// refuses typed (`LoftError::SectionNotAPoint`).
+/// value channel (`sweep::loft_profiles`). At `Interval` a section wider
+/// than a point lofts the family it spans.
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],

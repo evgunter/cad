@@ -2,10 +2,11 @@
 id: probe-sweep-prepass-reds-on-assemble-one-local-battery
 kind: issue
 title: the probe sweep's plain pre-pass reds on assemble_one_local_battery (EmptyProduct), so k-lint (dev-probe) never reaches the lint
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: E
+closed: 2026-10-16
 ---
 
 
@@ -79,3 +80,23 @@ red. 41 suites ran and two are red. This row's assertion is unchanged
 filed on FLUX as
 `geom-brep-open-split-rim-probe-refuses-chart-loop-open-not-props-loop-closed`.
 `topo::rim_dim_review_probes` is green.
+
+## 2026-10-16 — closed (INTENT, `intent/j-follow-up-reds`)
+
+The red is J's design, not a defect. Since #4733 the gather runs tier 3
+and tier 3′'s census and keeps both verdicts on the product, and
+`assemble_gathered` reads the kept census and runs no predicate. The
+assembly gate therefore records 0 samples, and the old equality ("gate
+plus one tier-3 battery equals tier 3′") could no longer hold.
+
+The row is restated on the gather. The gather's samples equal one
+standalone tier-3′ pass over the assembled body, sample for sample, and
+the assembly gate records none. Renamed to
+`the_gather_pays_tier_3_prime_once_and_the_assembly_gate_nothing`; green
+at ε 1e-9 under `--features probe`.
+
+The one other red in the pre-pass's census (2026-10-15),
+`geom-brep::rim_dim_review_probes::small_body_rims_50eps_apart_refuse`,
+is FLUX's row
+`geom-brep-open-split-rim-probe-refuses-chart-loop-open-not-props-loop-closed`.
+The pre-pass reaches the lint once that row is green.

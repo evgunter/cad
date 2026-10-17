@@ -4,8 +4,12 @@
 //! the `f64` skin was lifted through: it re-values with the variable to
 //! the `f64` build's own bits, and the arc rim's weight margin, which
 //! reads the wall's boundary column against the rim's own sweep
-//! (`geom_brep`'s arc-rim class), is a symbolic Zero.
+//! (`geom_brep`'s arc-rim class), is a symbolic Zero. At `Interval` a
+//! loft over a section or placement wider than a point encloses the
+//! family it spans, and what a carrier cannot hold refuses typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::enclosure::{assert_encloses, box_about};
 
 use geom::Surface;
 use geom_core::sym::revalue::{record, revalue};
@@ -132,28 +136,341 @@ fn a_lofted_arc_walls_weight_carries_the_bulges_derivative() {
     );
 }
 
-/// At `Interval` the loft encloses the `f64` skin of its sections'
-/// value channel, so a section wider than a point has no skin to
-/// enclose: it refuses at the structure pass, rather than standing for
-/// the nominal surface over the family it spans.
+/// The quadrilateral `(−1, −1), (1, −1), (h, 1), (−1, 1)`, run
+/// counterclockwise: every side a line, and only one corner moving.
+fn quad<T: Real>(h: T) -> Vec<ProfileLoop<T>> {
+    let corner = |x: T, y: f64| (Point2::new(x, T::from_f64(y)), T::zero());
+    vec![bulge_loop(vec![
+        corner(T::from_f64(-1.0), -1.0),
+        corner(T::one(), -1.0),
+        corner(h, 1.0),
+        corner(T::from_f64(-1.0), 1.0),
+    ])]
+}
+
+/// **At `Interval` a loft over a box encloses the family the box
+/// spans.** A [`quad`] whose moving corner is at `x` in [`box_about`]`(1.2)`, at
+/// heights `0`, `1` and `2` (its middle section the wide one), lofts
+/// at v-degree 2 in `T`: its middle section's v-parameter is wider
+/// than a point and enters only the collocation matrix, over the one
+/// v-span a three-section Bezier skin has. Every wall value holds the
+/// `f64` loft's at each end of the box and its middle.
 #[test]
-fn a_loft_over_a_section_wider_than_a_point_refuses_at_interval() {
+fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
     use geom_core::Interval;
-    let b = Interval::from_bounds(0.19, 0.21);
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    let wide = Interval::from_bounds(lo, hi);
+    let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
+    let enclosing = loft_body::<Interval>(
+        &[quad(ends), quad(wide), quad(ends)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("the boxed square lofts at Interval");
+    use geom_core::Bounds;
+    use geom_core::spline::SpanLocate;
+    let middle = enclosing.section_params[1];
+    assert!(
+        middle.point_value().is_none(),
+        "the middle section's parameter is no single point: {middle:?}"
+    );
+    for h in [lo, 1.2, hi] {
+        let sample = loft_body::<f64>(
+            &[quad(1.2), quad(h), quad(1.2)],
+            &[0.0, 1.0, 2.0].map(at_height),
+            2,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("h = {h}"), &enclosing, &sample);
+        let p = sample.section_params[1];
+        assert!(
+            middle.lo() <= p && p <= middle.hi(),
+            "h = {h}: the member's middle parameter {p} lies outside {middle:?}"
+        );
+    }
+}
+
+/// **A placement over a box encloses the family too**: the top quad
+/// at a height in [`box_about`]`(1)` lofts at `Interval`, and its walls
+/// hold the `f64` loft's at each end of the box and its middle.
+#[test]
+fn a_loft_over_a_wide_placement_encloses_its_family_at_interval() {
+    use geom_core::Interval;
+    let corner = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.0);
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
-            Interval::zero(),
-            Interval::zero(),
-            Interval::one(),
-        )),
+        at_height(Interval::zero()),
+        at_height(Interval::from_bounds(lo, hi)),
     ];
-    match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-        Err(sweep::LoftError::Skin(sweep::SkinError::SectionProfile { section: 0, .. })) => {}
+    let enclosing =
+        loft_body::<Interval>(&[quad(corner), quad(corner)], &places, 1, Tol::witness())
+            .expect("the square lofts over a wide placement at Interval");
+    for z in [lo, 1.0, hi] {
+        let sample = loft_body::<f64>(
+            &[quad(1.2), quad(1.2)],
+            &[at_height(0.0), at_height(z)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("z = {z}"), &enclosing, &sample);
+    }
+}
+
+/// **A sweep from a start frame over a box encloses its family**: the
+/// start frame's offset along `x` in [`box_about`]`(0)`, three stations
+/// along the elbow at v-degree 2, and every member's `f64` sweep held.
+#[test]
+fn a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval() {
+    use geom_core::Interval;
+    use sweep::sweep_body;
+    use sweep::test_support::elbow_path;
+    let shift =
+        |x: Interval| Affine3::translation(Vec3::new(x, Interval::zero(), Interval::zero()));
+    let (lo, hi) = box_about(0.0);
+    let enclosing = sweep_body::<Interval>(
+        &quad(Interval::from_f64(1.2)),
+        shift(Interval::from_bounds(lo, hi)),
+        &elbow_path(),
+        3,
+        2,
+        Tol::witness(),
+    )
+    .expect("the quad sweeps from a wide start frame at Interval");
+    for x in [lo, 0.0, hi] {
+        let sample = sweep_body::<f64>(
+            &quad(1.2),
+            Affine3::translation(Vec3::new(x, 0.0, 0.0)),
+            &elbow_path(),
+            3,
+            2,
+            Tol::witness(),
+        )
+        .expect("each member sweeps at f64");
+        assert_encloses(&format!("x = {x}"), &enclosing, &sample);
+    }
+}
+
+/// **A control row whose motion is not decided over the box refuses.**
+/// Three lines whose start is pinned at the origin in the end sections
+/// and boxed about it in the middle one: whether that row moves is not
+/// the same for every member, and a member whose row moves counts it in
+/// the chord-length average where one whose row is pinned does not. The
+/// skin refuses rather than parameterize by the members that abstain.
+#[test]
+fn a_row_whose_motion_is_undecided_over_the_box_refuses() {
+    use core::num::NonZeroUsize;
+    use geom::NurbsCurve3;
+    use geom_core::spline::{Knots, SpanLocate};
+    use geom_core::{Interval, Point3};
+    use sweep::{SkinError, skin};
+    fn line<T: SpanLocate>(a: Point3<T>, b: Point3<T>) -> NurbsCurve3<T> {
+        let two = NonZeroUsize::new(2).expect("two");
+        NurbsCurve3::new(
+            Knots::new(vec![(T::zero(), two), (T::one(), two)], 1).expect("clamped line knots"),
+            vec![a, b],
+            vec![T::one(); 2],
+        )
+        .expect("a line")
+    }
+    fn sections<T: SpanLocate>(x: T) -> Vec<NurbsCurve3<T>> {
+        let p = |x: f64, z: f64| Point3::new(T::from_f64(x), T::zero(), T::from_f64(z));
+        vec![
+            line(p(0.0, 0.0), p(1.0, 0.0)),
+            line(Point3::new(x, T::zero(), T::zero()), p(1.0, 1.0)),
+            line(p(0.0, 0.0), p(1.0, 3.0)),
+        ]
+    }
+    skin::<f64>(&sections(1e-6), 2).expect("a member whose row moves skins");
+    match skin::<Interval>(&sections(Interval::from_bounds(-1e-6, 1e-6)), 2) {
+        Err(SkinError::RowMotionUndecided { row: 0 }) => {}
+        other => panic!("expected row 0's refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// **An enclosure reaching an infinity is not finite**: a corner in
+/// `[1.2, ∞]` refuses as the section, and a height in `[1, ∞]` as the
+/// placement, before any skin.
+#[test]
+fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
+    use geom_core::Interval;
+    use sweep::LoftError;
+    let corner = Interval::from_f64(1.2);
+    let points = [0.0, 1.0].map(|z| at_height(Interval::from_f64(z)));
+    match loft_body::<Interval>(
+        &[
+            quad(corner),
+            quad(Interval::from_bounds(1.2, f64::INFINITY)),
+        ],
+        &points,
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::SectionNotFinite { section: 1 }) => {}
+        other => panic!("expected section 1's refusal, got {:?}", other.map(|_| ())),
+    }
+    match loft_body::<Interval>(
+        &[quad(corner), quad(corner)],
+        &[
+            at_height(Interval::zero()),
+            at_height(Interval::from_bounds(1.0, f64::INFINITY)),
+        ],
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
         other => panic!(
-            "expected section 0's profile refusal, got {:?}",
+            "expected section 1's placement refusal, got {:?}",
             other.map(|_| ())
         ),
+    }
+}
+
+/// **What the enclosure skin cannot carry refuses typed.** A carrier's
+/// weights and knots are points at every scalar
+/// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`):
+/// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
+///   wide bulge or from rounding alone, so an arc section refuses;
+/// - three sections at v-degree 1 put their middle parameter in the
+///   knot vector, where a wide one is no knot.
+#[test]
+fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
+    use geom_core::Interval;
+    use geom_core::spline::SplineError;
+    use sweep::{LoftError, SkinError};
+    let places = [0.0, 1.0].map(|z| at_height(Interval::from_f64(z)));
+    for (what, b) in [
+        ("a wide bulge", {
+            let (lo, hi) = box_about(0.2);
+            Interval::from_bounds(lo, hi)
+        }),
+        (
+            "a point bulge, its sweep widened by `atan`",
+            Interval::from_f64(0.2),
+        ),
+    ] {
+        match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
+            Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+            other => panic!(
+                "{what}: expected section 0's arc refusal, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    match loft_body::<Interval>(
+        &[quad(ends), quad(Interval::from_bounds(lo, hi)), quad(ends)],
+        &[0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z))),
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
+            SplineError::KnotNotAPoint { index: 1 },
+        )))) => {}
+        other => panic!(
+            "expected the wide interior knot's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **Point inputs keep the lifted `f64` skin.** Where every input to
+/// the skin is a point, the loft at `Interval` is the `f64` loft lifted,
+/// bit for bit: an arc section (lifted from `f64`, so its sweep is a
+/// point), and three sections at v-degree 1, whose interior knot is a
+/// computed parameter. That is the status quo, not an enclosure claim
+/// over a box: the family is one member. Widening one section of the
+/// second loft refuses (`what_a_carrier_cannot_hold_refuses_typed_at_interval`).
+#[test]
+fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
+    use geom_core::Interval;
+    let lift = |s: Vec<ProfileLoop<f64>>| -> Vec<ProfileLoop<Interval>> {
+        s.iter()
+            .map(|lp| lp.map_scalar(Interval::from_f64))
+            .collect()
+    };
+    let cases = [
+        (
+            "an arc section",
+            vec![section(0.2), section(0.2)],
+            vec![0.0, 1.0],
+        ),
+        (
+            "three sections at v-degree 1",
+            vec![quad(1.2), quad(1.3), quad(1.2)],
+            vec![0.0, 1.0, 2.0],
+        ),
+    ];
+    for (what, sections, zs) in cases {
+        let places: Vec<Affine3<f64>> = zs.iter().map(|z| at_height(*z)).collect();
+        let nominal =
+            loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the f64 loft builds");
+        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
+        let lifted_places: Vec<Affine3<Interval>> =
+            places.iter().map(|p| p.map(Interval::from_f64)).collect();
+        let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
+        assert_eq!(
+            points(&enclosed.section_params),
+            nominal
+                .section_params
+                .iter()
+                .map(|u| Some(*u))
+                .collect::<Vec<_>>(),
+            "{what}"
+        );
+        assert_eq!(wall_bits(&enclosed), wall_bits(&nominal), "{what}");
+    }
+}
+
+/// At an enclosure scalar curves that differ in degree are not made
+/// compatible: degree elevation is the projective knot algebra, which
+/// `Interval` does not run, so the second curve refuses by name. Curves
+/// already compatible come back as themselves.
+#[test]
+fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
+    use core::num::NonZeroUsize;
+    use geom::NurbsCurve3;
+    use geom_core::spline::Knots;
+    use geom_core::{Interval, Point3};
+    use sweep::{SketchSegment, SkinError, make_compatible, segment_curve};
+    let i = Interval::from_f64;
+    let p = |x: f64, y: f64| Point2::new(i(x), i(y));
+    let line = segment_curve::<Interval>(
+        0,
+        SketchSegment::Line {
+            a: p(0.0, 0.0),
+            b: p(1.0, 0.0),
+        },
+        Affine3::identity(),
+    )
+    .expect("a line converts at Interval");
+    let three = NonZeroUsize::new(3).expect("three");
+    let quadratic = NurbsCurve3::new(
+        Knots::new(vec![(i(0.0), three), (i(1.0), three)], 2).expect("clamped quadratic knots"),
+        vec![
+            Point3::new(i(0.0), i(0.0), i(1.0)),
+            Point3::new(i(0.5), i(0.5), i(1.0)),
+            Point3::new(i(1.0), i(0.0), i(1.0)),
+        ],
+        vec![i(1.0); 3],
+    )
+    .expect("an integral quadratic");
+    match make_compatible(&[line.clone(), quadratic]) {
+        Err(SkinError::IncompatibleAtEnclosure { section: 1 }) => {}
+        other => panic!("expected section 1's refusal, got {:?}", other.map(|_| ())),
+    }
+    let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");
+    for c in &same {
+        assert_eq!(
+            (c.knots().knots(), c.control().len()),
+            (line.knots().knots(), 2),
+            "a compatible line comes back as itself"
+        );
     }
 }
 
@@ -216,30 +533,15 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
         tol,
     )
     .expect("the elbow sweeps at Interval");
-    assert_eq!(enclosed.section_params, nominal.section_params);
+    assert_eq!(
+        points(&enclosed.section_params),
+        nominal
+            .section_params
+            .iter()
+            .map(|u| Some(*u))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(wall_bits(&enclosed), wall_bits(&nominal));
-}
-
-/// A placement wider than a point refuses by name, before any skin.
-#[test]
-fn a_placement_wider_than_a_point_refuses_by_name() {
-    use geom_core::Interval;
-    let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
-            Interval::zero(),
-            Interval::zero(),
-            Interval::from_bounds(0.99, 1.01),
-        )),
-    ];
-    let b = Interval::from_f64(0.2);
-    match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-        Err(sweep::LoftError::PlacementNotAPoint { section: 1 }) => {}
-        other => panic!(
-            "expected section 1's placement refusal, got {:?}",
-            other.map(|_| ())
-        ),
-    }
 }
 
 /// Every value of every wall a loft built, in face order: poles,
@@ -445,4 +747,9 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
             "every swept pole moves one for one with the start frame's height: {d:?}"
         );
     }
+}
+
+/// Each parameter's one `f64`, `None` where it has none.
+fn points<T: geom_core::spline::SpanLocate>(params: &[T]) -> Vec<Option<f64>> {
+    params.iter().map(|u| u.point_value()).collect()
 }
