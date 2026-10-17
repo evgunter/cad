@@ -196,9 +196,11 @@ Copies(CopyRef { var: VarId(MintId { ordinal: 161, digest: 11985731595432761167 
 ## cut_cylinder
 solids=2 faces=8 edges=12 vertices=8
 assemble: Err(AtRest)
-census: 12 findings
+census: 14 findings
 UnrecordedContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(0.5, 0.0, 0.3453318751951884)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 UnrecordedContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(-0.5, 0.0, 0.6546681248048116)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(5v1), b: EdgeKey(11v1) }, witness: "(0.0, -0.5, 0.5)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(6v1), b: EdgeKey(12v1) }, witness: "(0.0, 0.5, 0.5)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(6v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(7v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
