@@ -1341,7 +1341,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
-        | NodeErrorKind::ProfileAnchor { .. }
+        | NodeErrorKind::ProfileAnchor
         | NodeErrorKind::ProfilePieces { .. }
         | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::Extrude(_)

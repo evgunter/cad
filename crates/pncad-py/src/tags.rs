@@ -1134,7 +1134,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
-        NodeErrorKind::ProfileAnchor { .. } => None,
+        NodeErrorKind::ProfileAnchor => None,
         NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
         NodeErrorKind::ProfileRecordMissing { .. } => None,
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),

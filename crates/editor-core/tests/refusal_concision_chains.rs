@@ -983,7 +983,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
         row(
             "ProfileRecordMissing(None)",
             NodeErrorKind::ProfileRecordMissing { loop_: None },

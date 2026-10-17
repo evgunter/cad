@@ -12,10 +12,10 @@
 //! move, enumerated off their own bodies. `wire_blend` writes exactly
 //! three things — the name table the emitter returns, the body the
 //! kernel verb returns, and (on the refusal path) a typed error.
-//! `wire_swept` writes the same three. `wire_boolean` writes the first
-//! two plus the
+//! `wire_swept` writes the same three. The pair lowerings
+//! (`wire_subtract`, `wire_combine`) write the first two plus the
 //! boolean VALUE's other halves — the result classification, the
-//! surviving declared contacts, and the typed empty success — fed by
+//! surviving contacts, and the typed empty success — fed by
 //! the `Boolean` arm, each with a pinned input on which it actually
 //! VARIES (the contacts through `kiss_carry`, the empty token through
 //! the disjoint intersect; both were measured fed-but-dead before those

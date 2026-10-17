@@ -296,7 +296,7 @@ impl NodeErrorKind {
             Self::Profile(_) => C::Profile,
             Self::ProfileReplay { .. } => C::ProfileReplay,
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
-            Self::ProfileAnchor { .. } => C::ProfileAnchor,
+            Self::ProfileAnchor => C::ProfileAnchor,
             Self::ProfilePieces { .. } => C::ProfilePieces,
             Self::ProfileRecordMissing { .. } => C::ProfileRecordMissing,
             Self::Extrude(_) => C::Extrude,
@@ -729,7 +729,7 @@ mod tests {
                 step: 2,
                 structure: None,
             },
-            C::ProfileAnchor => K::ProfileAnchor { loop_: 0 },
+            C::ProfileAnchor => K::ProfileAnchor,
             C::ProfilePieces => K::ProfilePieces {
                 fault: crate::PiecesFault::Length {
                     loop_: 0,

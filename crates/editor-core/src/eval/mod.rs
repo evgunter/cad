@@ -973,7 +973,7 @@ pub type EscalationLog = Vec<geom_core::k_stats::Escalation>;
 
 /// The sketch solver's solved-assignment slot, as a type stub (spec
 /// D2): no solver is in the tree, and `docs/DESIGN.md`
-/// `[open.sketch-solver]` re-opens one when constraint-driven sketches
+/// `[open.sketch-solver]` adopts one when constraint-driven sketches
 /// have a consumer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WitnessSlot {}
@@ -1723,11 +1723,9 @@ pub enum NodeErrorKind {
     /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
-    /// input), surfaced typed rather than panicking.
-    ProfileAnchor {
-        /// The canonical loop index that failed to match.
-        loop_: u32,
-    },
+    /// input), surfaced typed rather than panicking. It names no loop:
+    /// the derivation reports only that it failed.
+    ProfileAnchor,
     /// The naming anchor, the replay record and the program's minted
     /// step ids do not describe one program, so the profile's pieces
     /// have no names — an internal invariant break, surfaced typed.
@@ -2478,9 +2476,9 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfileReplay { loop_, error } => {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
-            Self::ProfileAnchor { loop_ } => write!(
+            Self::ProfileAnchor => write!(
                 f,
-                "profile loop {loop_} did not match back to a loop of the program. {}",
+                "a loop of the validated profile did not match back to a loop of the program. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::ProfilePieces { fault } => {
@@ -4975,8 +4973,8 @@ mod tag {
             NORMAL = 9,
             DIRECTION = 10,
         }
-        /// A union's or an intersect's argument form, read before its
-        /// declared pairs: a family read whole, or reads spelled.
+        /// A union's or an intersect's argument form: a family read
+        /// whole, or reads spelled.
         bodies {
             FAMILY = 1,
             SPELLED = 2,

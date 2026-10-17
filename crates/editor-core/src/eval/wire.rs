@@ -1617,11 +1617,9 @@ pub(crate) fn prepare_profile(
     let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated_f64, replayed.loops()).ok_or({
-        // A canonical loop matched no program loop: an internal break.
-        // The loop coordinate is not recoverable; 0 names the walk.
-        NodeErrorKind::ProfileAnchor { loop_: 0 }
-    })?;
+    // A canonical loop matched no program loop: an internal break.
+    let naming = anchor::derive_naming(&validated_f64, replayed.loops())
+        .ok_or(NodeErrorKind::ProfileAnchor)?;
     // The records above and the program's minted ids describe one
     // program, so a disagreement is an internal break.
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
@@ -1782,7 +1780,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
 /// correspondence ([`crate::verbs::sweep`]) rather than written twice.
 ///
-/// It shares a SHAPE with `wire_blend` and `wire_boolean` — build the
+/// It shares a SHAPE with `wire_blend` and `wire_subtract` — build the
 /// verb, run it through its own door, read the birth record, emit
 /// names — but no code, because the operand differs at every step.
 ///
@@ -2137,8 +2135,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply. Three
-/// rungs remain, in the order the ONE-TABLE doors ask them
-/// ([`ladder::resolve_in`]):
+/// rungs remain, asked in this order by [`ladder::resolve_in`], the walk
+/// every door takes:
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
 ///    document. Ids are never reused, so an id the mint log holds was
@@ -2151,12 +2149,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///    [`ladder::vanished`]: there is no evidence to weigh
 ///    mid-evaluation.
 ///
-/// Rungs 2 and 3 are ordered by the DOOR; the one-table doors ask 1,
-/// 2, 3.
-///
-/// A door supplies [`ladder::Landing`]s, one per table, and keeps its
-/// own arity (which table, what a multi-table hit means, which kind it
-/// accepts). Every refusal PAYLOAD is [`mod@crate::resolve`]'s, minted
+/// A door names the ONE table its name is read against and keeps its
+/// own arity (which kind it accepts). Every refusal PAYLOAD is [`mod@crate::resolve`]'s, minted
 /// by one constructor each ([`crate::resolve::ResolveError::node_gone`],
 /// [`crate::resolve::ResolveError::ambiguous`],
 /// [`crate::resolve::ResolveError::vanished_fallback`]); what is this
@@ -2210,8 +2204,7 @@ mod ladder {
 
     /// **The single-table walk**, all three rungs: rung 1 against the
     /// document, rungs 2 and 3 against ONE table, every refusal
-    /// through `refuse` in the caller's own vocabulary. The declare
-    /// door walks the rungs itself because it reads TWO tables.
+    /// through `refuse` in the caller's own vocabulary.
     pub(super) fn resolve_in(
         name: &StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
@@ -2244,9 +2237,6 @@ mod ladder {
     }
 
     /// Rung 3's payload, from the one home that mints it.
-    ///
-    /// Split out of [`resolve`] for the declare door, which reaches this
-    /// rung on its own.
     pub(super) fn vanished(live: &Live<'_>) -> Box<ResolveError> {
         Box::new(ResolveError::vanished_fallback(live.0))
     }
@@ -3557,25 +3547,19 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// contacts are decided.
 ///
 /// Each pair of members whose closed boxes meet
-/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
-/// only the declared pairs between `m` and `n`: it glues what its
-/// margins decide one carrier, refuses a sliver, and refuses a
-/// contradicted declaration as the pair boolean does. A pair
-/// carrying a declaration is run whatever its boxes: the declaration is
-/// a claim to verify, and verifying it here keeps the verdict
-/// independent of whether the fold fed the pair or consumed its face
-/// (`drop_consumed`), and tells a mistyped name from a consumed one.
+/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`: it
+/// glues what its margins decide one carrier and refuses a sliver, as
+/// the pair boolean does. A pair whose boxes do not meet is not run.
 ///
 /// **Whether it refuses depends on the members, never on their
-/// order**: every pair that touches or carries a declaration is judged,
-/// in the author's list order (#4323: the list is the author's stated
-/// order, and nothing here sorts it away), the listed-first member as
-/// operand A. So the rows come out in that order, and where two pairs
+/// order**: every pair whose boxes meet is judged, in the author's list
+/// order (#4323: the list is the author's stated order, and nothing
+/// here sorts it away), the listed-first member as operand A. So the rows come out in that order, and where two pairs
 /// would refuse, the one the list reaches first is the one named.
 ///
-/// `judge(p, q, decls)` runs the pair verb on members `p` (operand A)
-/// and `q` (operand B) and hands back its record; this function decides
-/// which pairs are judged and with what, and nothing about geometry.
+/// `judge(p, q)` runs the pair verb on members `p` (operand A) and `q`
+/// (operand B) and hands back its record; this function decides which
+/// pairs are judged, and nothing about geometry.
 ///
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
@@ -4312,14 +4296,26 @@ fn section_value<T: Decide>(
 }
 
 /// A structural (Count) slot read as a `usize`, refused typed when
-/// absent, negative, or past what a `usize` holds.
-fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, NodeErrorKind> {
+/// absent or outside `least..=most`: the slot's own domain, which the
+/// caller states (pass `usize::MAX` for a domain with no upper end).
+/// The refusal carries that domain as the slot admits it, clamped to
+/// what an `i64` holds, so `admits` always names values that evaluate.
+fn need_count(
+    vals: &SlotValues<impl Decide>,
+    slot: SlotId,
+    least: usize,
+    most: usize,
+) -> Result<usize, NodeErrorKind> {
     let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    usize::try_from(n).map_err(|_| NodeErrorKind::CountOutOfRange {
-        slot,
-        count: n,
-        admits: 0..=i64::try_from(usize::MAX).unwrap_or(i64::MAX),
-    })
+    let wide = |u: usize| i64::try_from(u).unwrap_or(i64::MAX);
+    usize::try_from(n)
+        .ok()
+        .filter(|u| (least..=most).contains(u))
+        .ok_or(NodeErrorKind::CountOutOfRange {
+            slot,
+            count: n,
+            admits: wide(least)..=wide(most),
+        })
 }
 
 /// The Loft node: the §10.3 walls and their solid assembly, over its
@@ -4335,11 +4331,20 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let v_degree = need_count(vals, SlotId::VDegree)?;
     let values = profiles
         .iter()
         .map(|pid| section_value(results, *pid))
         .collect::<Result<Vec<_>, _>>()?;
+    // The v degree admits `1 ..= sections − 1` (`Node::Loft`). Fewer
+    // than two sections admit no degree at all, and what is wrong then
+    // is the section count, which the skin's own door names.
+    if profiles.len() < 2 {
+        return Err(NodeErrorKind::Skin(sweep::SkinError::TooFewSections {
+            have: profiles.len(),
+            need: 2,
+        }));
+    }
+    let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
     let sections: Vec<profile::ValidatedProfile<T>> =
         values.iter().map(|v| v.validated.clone()).collect();
     let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
@@ -4373,8 +4378,9 @@ fn wire_sweep<T: Decide>(
 ) -> OpResult<T> {
     // Each door runs for its refusal alone; what it answers has no
     // reader, because the geometry that would read it does not exist.
-    need_count(vals, SlotId::Stations)?;
-    need_count(vals, SlotId::VDegree)?;
+    // `Node::Sweep`: stations ≥ 2, and 1 ≤ v degree ≤ stations − 1.
+    let stations = need_count(vals, SlotId::Stations, 2, usize::MAX)?;
+    need_count(vals, SlotId::VDegree, 1, stations - 1)?;
     section_value(results, profile)?;
     section_value(results, path)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
