@@ -514,11 +514,17 @@ the site that knows the decision appends the one ending
 compose). (iii) [import]'s ε_in is an instance of ε_input, not a separate
 concept. (iv) **The rule binds a predicate's DEFINITE arms too**: a
 new definite outcome a user could reach by moving geometry tells the
-same one story with the same one recourse as its in-band sibling. A
-surface reading a body at rest may end a definite contradiction
-between a stored description and its stored geometry as a defect —
-no move of the geometry reaches it — and never names a lever the
-decision does not.
+same one story with the same one recourse as its in-band sibling.
+"Definite" means the reading certainly lies on a refused side,
+whether the band, a number or a proof decided it, so a proved zero
+tells the story of its exact and in-band siblings. Each decision
+says what its refused side is, and every definite reading of it ends
+by that at each door: a side the lever reaches tells the lever story
+everywhere; a contradiction between a stored description and its
+stored geometry tells the lever story at a build and, over a body at
+rest, ends as a defect — no move of the geometry reaches it; a side
+no kernel construction produces ends as a defect at every door. No
+refusal names a lever the decision does not.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
