@@ -19,7 +19,7 @@ use geom_core::interval::certification::Certification;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve, chart_pcurve_over};
 use geom_core::{Point2, Point3, Vec2, Vec3};
 
 /// **Deliberately not `shared::surf::sphere`.** This sphere is placed
@@ -73,7 +73,7 @@ fn probe_pole_crossing_meridian_arc_certifies() {
         radius: r,
         u_ref: Vec3::unit_x(),
     };
-    let p = chart_pcurve(&carrier, &s, band()).unwrap();
+    let p = chart_pcurve_over(&carrier, FRAC_PI_4, 3.0 * FRAC_PI_4, &s, band()).unwrap();
     let Pcurve::Harmonic { p0, pl, .. } = p else {
         panic!("harmonic expected")
     };

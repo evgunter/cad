@@ -98,6 +98,18 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
+///
+/// **PCERT's placement unit (C4: a row is its image placed over the
+/// edge's span in the chart's principal window) moved two rows**, on
+/// every spelling:
+///
+/// - `pcurve_chart_azimuth_frame` 12/0/0/26 -> 0/0/0/26: a cylinder's
+///   meridian azimuth is read only on a meridian, so a rim circle
+///   centred on the axis no longer reads the frame of its zero radial
+///   offset (the 12 the tier proved zero).
+/// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
+///   azimuths reads its two half-period marks about the window's
+///   centre ([`geom_brep::Period::decide`]), each decided numerically.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -105,6 +117,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **Placement named per frame** (PR 5225's revalue fix): a placement
+/// whose azimuth the frame lane read as `atan2(−y, −x) + π` decides its
+/// marks under `pcurve_chart_placement_turned`, the gap built on that
+/// formula, and one read as `atan2(y, x)` under `pcurve_chart_placement`,
+/// so each name is one expression. The 52 numeric decisions split by
+/// the frame each azimuth read: the d-tab 34 + 18, the boss 30 + 22. No
+/// decision is added or taken, and no proof moves.
 ///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
@@ -179,8 +199,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("path_junction_turn", [0, 4]),
     ("pcurve_azimuth_period", [0, 12]),
     ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
+    ("pcurve_chart_azimuth_frame", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 34]),
+    ("pcurve_chart_placement_turned", [0, 18]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
@@ -307,8 +329,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("path_junction_turn", [0, 2]),
             ("pcurve_azimuth_period", [0, 12]),
             ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [12, 26]),
+            ("pcurve_chart_azimuth_frame", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 30]),
+            ("pcurve_chart_placement_turned", [0, 22]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),

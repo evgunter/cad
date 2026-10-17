@@ -46,3 +46,26 @@ two `EdgeEdgeOverlap` findings, and nothing else moved from that cause.
 Both rows fail identically at that PR's merge base (`4760a784b2`),
 built and run in place. §2 (boss_union's Interval census) is untouched,
 and stays this item's.
+
+## 3. Two sweep rows at ε 1e-12, the same reader
+
+Seen on PCERT's PR 5225 (`pcert/azimuth-placement`, merged with main).
+PCERT's delta verifier ran both on `origin/main` alone and found them
+failing identically there, so they are pass 5′'s too. Both stop at
+tier 3′ with the same finding on two curved edges:
+`CensusUnsupported { …, cause: ContactLane(NotCertifiable { what: "the meeting reading of two curved edges could not settle a count" }) }`.
+
+- `crates/sweep/tests/band_turn_overrun_fillet.rs`'s
+  `the_needle_builds_then_refuses_at_the_turn_as_it_flattens`: "the
+  needle at 1°: tier 3′", on edges `3v3` and `28v3`.
+- `crates/sweep/tests/band_ruled_cap_ring.rs`'s
+  `a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`:
+  "Interval: tier 3′", on edges `1v3`, `16v1` and `17v1`.
+
+A third row, in the first file, fails the same way at ε 1e-12, and it is
+main's too: it fails identically on main alone, as PCERT's orchestrator
+reported (2026-10-17), not only on PR 5225's merge:
+`band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
+("lean -2 scale 100 r 0.05 order [0, 1]: tier 3′", edges `8v3` and
+`20v1`). The full ε matrix runs nightly, so these show there, not in
+per-PR CI, unless a diff touches the rows' files.

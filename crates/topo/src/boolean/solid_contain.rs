@@ -2462,7 +2462,8 @@ fn torus_chart_windows<T: Decide>(
             // without breaking the chain, as the join lane's walk does.
             continue;
         };
-        let pcurve = match geom_brep::chart_pcurve(curve.carrier(), &surf, band) {
+        let (t0, t1) = curve.params();
+        let pcurve = match geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, &surf, band) {
             Ok(p) => p,
             // An escalation is this door's to report; every other
             // refusal says the edge is not one the torus chart has a
@@ -2492,7 +2493,6 @@ fn torus_chart_windows<T: Decide>(
                 return Ok(None);
             }
         }
-        let (t0, t1) = curve.params();
         let (entry_t, exit_t) = if edge.he_plus == he {
             (t0, t1)
         } else {
