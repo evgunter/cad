@@ -8711,8 +8711,9 @@ fn derive_class<T: Decide>(
                     // the parameter starts moves no stored image). On the
                     // far half the same meridian reads with `d̂` negated,
                     // `σ` negated and `δ` at `π − δ`. A midpoint on the
-                    // pole is on neither (the twin joint reads it) and
-                    // keeps `d̂`, a tie-break.
+                    // pole, or within the band of it, is on neither half
+                    // decidedly (the twin joint reads it) and keeps `d̂`,
+                    // a tie-break (D9): either half names the edge there.
                     let (s_m, c_m) = place.mid().sin_cos();
                     let at_mid = radial(form.a * c_m + form.b * s_m);
                     let far = matches!(
@@ -8720,9 +8721,8 @@ fn derive_class<T: Decide>(
                             "pcurve_sphere_chart_meridian_side",
                             Margin::of(at_mid.dot(d_hat)),
                             band,
-                        )
-                        .map_err(esc)?,
-                        Sign::Negative
+                        ),
+                        Ok(Sign::Negative)
                     );
                     let (d_hat, sigma, reach) = if far {
                         let flipped = match sigma {
