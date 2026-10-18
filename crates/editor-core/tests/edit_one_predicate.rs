@@ -397,20 +397,13 @@ fn saved_mate(label: &str) -> (String, MateRef) {
 }
 
 /// Retypes the name one side of a saved mate selects — its KIND and
-/// nothing else — returning the side's selection variable too.
-fn retype_head(
-    text: &str,
-    mate: MateRef,
-    side: &str,
-    kind: EntityKind,
-) -> (String, editor_core::VarId) {
-    let mut select = None;
-    let doctored = doctored(text, |wire| {
+/// nothing else.
+fn retype_head(text: &str, mate: MateRef, side: &str, kind: EntityKind) -> String {
+    doctored(text, |wire| {
         let read: editor_core::VarId = serde_json::from_value(
             constraint_on_the_wire(wire, mate)["mate"][side]["face"].clone(),
         )
         .expect("a mate side is a face read of a variable id");
-        select = Some(read);
         let field =
             &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0]["kind"];
         assert_eq!(
@@ -419,34 +412,37 @@ fn retype_head(
             "the surgery is aimed at a face side"
         );
         *field = serde_json::json!(format!("{kind:?}"));
-    });
-    (doctored, select.expect("the side was read"))
+    })
 }
 
-/// **A saved mate side that selects no face resolves to no head.**
+/// **A saved mate side that selects no face refuses at load.**
 ///
 /// A side is a `Face` selection, and what each of its names denotes is
-/// asked where the name resolves (`Select::fault` leaves it to
-/// evaluation's `SelectKind`). The member walk asks it first, in the
-/// side's head (`editor_core::head_of`, through the one face-name
-/// constructor), so a file whose side names a body, an edge or a vertex
-/// loads, and the solve refuses the mate (`MateFault::SideUnresolved`)
-/// rather than walking a name that is not a face.
+/// the name's own kind, so the load door holds it as it holds any
+/// selection's (`Select::fault`'s per-name arm): a file whose side names
+/// a body, an edge or a vertex is not one a door writes.
 ///
 /// Both sides and all three non-face kinds.
 #[test]
-fn a_saved_mate_side_that_is_not_a_face_resolves_to_no_head() {
+fn a_saved_mate_side_that_is_not_a_face_refuses_at_load() {
     for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
         for side in ["a", "b"] {
-            let (text, _mate) = saved_mate("onepred-matehead");
-            let (corrupt, read) = retype_head(&text, _mate, side, kind);
-            let loaded = load(&corrupt, Tol::witness())
-                .unwrap_or_else(|e| panic!("a {kind:?} side loads: {e:?}"));
-            assert_eq!(
-                editor_core::head_of(&loaded.doc, read),
-                None,
-                "a {kind:?} side on {side} is no face head"
-            );
+            let (text, mate) = saved_mate("onepred-matehead");
+            let corrupt = retype_head(&text, mate, side, kind);
+            match load(&corrupt, Tol::witness()) {
+                Err(PersistError::Snapshot(SnapshotError::SelectionShape { fault, .. })) => {
+                    assert_eq!(
+                        fault,
+                        editor_core::SelectionFault::Kind {
+                            at: 0,
+                            found: kind,
+                            expected: EntityKind::Face,
+                        },
+                        "a {kind:?} side on {side}"
+                    );
+                }
+                other => panic!("a {kind:?} side on {side} refuses at load, got {other:?}"),
+            }
         }
     }
 }
