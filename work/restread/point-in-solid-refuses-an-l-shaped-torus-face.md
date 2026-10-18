@@ -4,8 +4,9 @@ kind: issue
 title: point_in_solid refuses a body whose torus wall is L-shaped in the chart, which the plane x torus boolean now mints
 status: open
 opened: 2026-10-12
-priority: P2
+priority: P1
 cost: M
+rides_with: torus-face-bounded-by-an-oblique-circle-refuses-point-classification
 ---
 
 
@@ -70,3 +71,11 @@ bar `[−3, 3] × [0.2, 1.2] × [0, 3]` against the donut. Both are pinned
 in `crates/sweep/tests/germ_plane_torus_chord.rs`
 (`holds_to_the_truth_but`, `PARTIAL`), and go red when containment
 reads such a wall.
+
+## 2026-10-17 — rides the torus region reading (RESTREAD)
+
+Moved from INSIDE by `git mv`: it and
+`torus-face-bounded-by-an-oblique-circle-refuses-point-classification`
+are one defect (the torus arm reads only chart rectangles), weighed by
+two designers and decided there. One unit closes both. Raised to P1
+with its carrier: the shell sort refuses whole ops on it.
