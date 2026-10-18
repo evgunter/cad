@@ -5812,6 +5812,88 @@ pub(crate) mod tests {
         }
     }
 
+    /// REVIEW (PR 5308): **the unrounded spiric box, padded by the
+    /// sweep's own pad, misses the arc near the fold.** `f_min =
+    /// √(ρ_min² − d²)` is a square root of a cancelling difference, so
+    /// the radicand's half-ulp rounding at `ρ²` scale reaches `f_min`
+    /// amplified by `ρ²·u / (2·f_min)` — not "a few ulps of the box's
+    /// scale". On a spiric the deciding door admits (`ρ_min − |d|` is
+    /// 1.05·`escalate` at the default ε, far above it at 1e-12; every
+    /// coordinate inside the session box), the arc's inner-equator point
+    /// `center + u_ref·d + m·f_min` (`v = π`, inside the run) lies below
+    /// `edge_box(…, sweep_pad).min_y`. `geom`'s outward-rounded door,
+    /// which the box lane read before this PR, holds it.
+    ///
+    /// The reference `f_min` is taken with `ρ = R − r` split exactly
+    /// (two-sum) and the radicand factored as `(ρ − d)(ρ + d)`, whose
+    /// first factor is exact (Sterbenz), so it is accurate to a few
+    /// ulps of `f_min` itself (cross-checked at 60 digits: 1.7e-19 off).
+    #[test]
+    fn review_the_unrounded_spiric_box_misses_the_arc_near_the_fold() {
+        let (big_r, r, d) = (
+            788.172_981_855_614_4,
+            5.350_502_372_890_727,
+            782.822_479_472_187_4,
+        );
+        let band = witness_band();
+        let carrier = Curve3::spiric(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            big_r,
+            r,
+            d,
+            band,
+        )
+        .expect("the deciding door admits it");
+        // A hand-built sector body near the fold fails `mev`'s witness
+        // certification, so the row enters `edge_box`'s own spiric path
+        // directly: the rule, the `f64` bracket closures and the pad, as
+        // `edge_box` does past its body lookup.
+        let (t0, t1) = (2.0, 4.2);
+        let ends = (carrier.eval(t0), carrier.eval(t1));
+        let boxed = aabb_of(
+            edge_rule_box(
+                EdgeBoxRule::Spiric {
+                    center: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                    major_radius: big_r,
+                    minor_radius: r,
+                    offset: d,
+                },
+                (bracket_point(ends.0), bracket_point(ends.1)),
+                bracket_point,
+                bracket_vector,
+                |x: f64| Span { lo: x, hi: x },
+                |_: &ConicArc<'_, f64>| unreachable!("a spiric rule"),
+            )
+            .unwrap(),
+        )
+        .padded(pad());
+
+        // The true f_min: ρ = s + e exactly, ρ − d = (s − d) + e.
+        let s = big_r - r;
+        let bb = s - big_r;
+        let e = (big_r - (s - bb)) + (-r - bb);
+        let f_min = (((s - d) + e) * (s + d)).sqrt();
+
+        let door = geom::curves::boxes::spiric_arc_aabb(&carrier, ends.0, ends.1).unwrap();
+        assert!(
+            door.min_y <= f_min,
+            "geom's outward door holds the arc's inner equator: {:e} vs {f_min:e}",
+            door.min_y
+        );
+        assert!(
+            boxed.min_y <= f_min,
+            "edge_box(…, sweep_pad) must hold the arc's inner-equator point (v = π, y = \
+             {f_min:e}); its min_y is {:e}, {:e} m inside it (sweep_pad {:e})",
+            boxed.min_y,
+            boxed.min_y - f_min,
+            pad()
+        );
+    }
+
     /// The conic's frame as `(centre, a·û, b·v̂)`: coordinate `i` of a
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
