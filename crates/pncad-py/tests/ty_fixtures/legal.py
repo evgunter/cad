@@ -10,7 +10,6 @@ from pncad import (
     Var,
     IndexedRead,
     MeasurePrimitive,
-    Placement,
     Measured,
     Measurement,
     AssertionRelation,

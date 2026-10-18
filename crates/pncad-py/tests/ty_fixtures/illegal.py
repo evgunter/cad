@@ -64,7 +64,6 @@ from pncad import (
     import_step,
     run_checks,
     subject_body,
-    Coord,
     ContactClass,
     Mate,
     Placement,

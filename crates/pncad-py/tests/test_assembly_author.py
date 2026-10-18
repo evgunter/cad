@@ -86,7 +86,6 @@ from bench_scene import (
     PATTERN_COUNT,
     PATTERN_SPACING,
     POST_HEIGHT,
-    POST_SEAT,
     POST_SECTION,
     POST_VOLUME,
     SEAT_A,
@@ -523,7 +522,7 @@ class TestBenchStand(BenchWorkspace):
         # `apply`: removing a mate records no frame. Its values go
         # first, and the mate's poses and selections go with it, each a
         # silent retirement of an anonymous variable.
-        for ref, held in doc.bundle(post_b)[1:]:
+        for ref, _held in doc.bundle(post_b)[1:]:
             doc.apply(DocEdit.remove_constraint(ref), resolver=self.ws)
         doc.apply(DocEdit.remove_constraint(mate_2), resolver=self.ws)
         retired = [m.variant for m in doc.last_maintenance]
@@ -858,7 +857,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        at_transform, _ = rest(
+        _at_transform, _ = rest(
             doc, post_a, (post_a, a_top), (lifted, s_bottom), (0.0, 0.0), resolver=self.ws
         )
         # The transform is invisible to NAMING (the name resolves

@@ -150,7 +150,7 @@ class WorldPins(unittest.TestCase):
         self.assertEqual(doc.bundle(shelf), [])
         self.assertEqual(evaluate(doc, resolver=self.ws).loose, [shelf])
         # The other copy's bundle is untouched.
-        self.assertEqual([ref for ref, _ in doc.bundle(post)][0], pin)
+        self.assertEqual(next(ref for ref, _ in doc.bundle(post)), pin)
         # A mate no value names goes alone.
         bare = doc.constrain(
             shelf,
