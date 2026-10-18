@@ -90,8 +90,9 @@ layer whose types it serves (`topo/src/query.rs`):
   `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
   honest `Margin` door and a typed indeterminate in band, and it lives in
   `editor-core`'s `pose.rs` beside the type it measures against, whose
-  kinds are `editor-core`'s `VarKind`s (D10). Datum-node resolution —
-  `RecipeNodeId` → `PoseValue` — is `editor-core`'s `prepare`.
+  kinds are `editor-core`'s `VarKind`s (D10). Resolving the plane a
+  selection measures against — a face of the selected body, read as its
+  plane — is `editor-core`'s `prepare`.
 - One further decision this seat names but does not house, because it is
   not a selection question: `geom_core::decide_unit_direction`, the
   workspace's one `Margin::norm3` decide-then-normalize body under

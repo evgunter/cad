@@ -37,9 +37,8 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   world a node and spaces as kinds, with gauges, offsets and the
   mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
   and the boolean declare surface retired (stage 4 E and F).
-- **Not built:** the rest of placement (stage 3 — `Transform` and
-  `Datum` still exist in the tree, and a constraint is still a mate's
-  payload); the rest of the coincidence door and its lint (stage 4);
+- **Not built:** the rest of placement (stage 3 — a constraint is
+  still a mate's payload); the rest of the coincidence door and its lint (stage 4);
   assertions and the at-rest lints (stage 5); tangency constructions
   (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
@@ -1201,8 +1200,7 @@ reads, not a list literal), and a bundle of constraints — mates and
 values — and defining a copy of each shape under the one rigid motion
 its constraints pin. Two placements of a part are two copies. Nothing
 moves a body: a copy is defined by its one placement and never moved
-after, and an operation that would move one (today's `Transform`) is a
-placement. A pattern is a placement whose reads reach an index
+after, and an operation that would move one is a placement. A pattern is a placement whose reads reach an index
 (FORK-PAT, [repetition]): one copy per value, the index entering as a
 value or through a mate's target. A copy is pinned when its mates and
 values together leave
@@ -2033,7 +2031,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
 | `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb `Verb` declaration, the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face placed against its plane, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and why the four grep gates stay greps (the S13 evaluation of lint alternatives) |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, CC1–CC5: a check owed on what a file says goes at the reading boundary and only there (CC1), and speaks in the harness voice (CC5); CC2–CC4 are the per-column admissions table's own |

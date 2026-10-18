@@ -251,23 +251,17 @@ replay bitwise (`tests/m10_p_fence.rs`,
   encloses the family its sections stand for: sections and planes whose
   values are points loft as the `f64` skin of that value channel,
   enclosed, and wider ones (a box over the section, or under the guided
-  lift values a few ulps wide with no box at all, as the plane of a rotated
-  or derived frame) are skinned at the lane scalar. An arc's weight is no
+  lift values a few ulps wide with no box at all, as a station turned by
+  an angle the lane rounds) are skinned at the lane scalar. An arc's weight is no
   point at `Interval`, so an arc section there refuses typed
   (`SkinError::ArcWeightNotAPoint`) rather than standing for the nominal
   over its box. Under the pinned lift a section's values are its `f64` form
   lifted, so neither a seed nor a box reaches them.
-- **The sketch plane, by frame kind.** An authored frame's plane is the f64
-  plane embedded under the pinned lift (`mint_frame_placement`, from the frame
-  node's own slots, carried on its value and read by `profile_plane_f64`), so
-  its profile's placed coordinates are exact points there; under the guided
-  lift it is placed at the lane scalar's own reading of those slots
-  (`frame_plane_lane`). A derived frame (`Datum::FaceFrame`, REFERENCES.md DM1)
-  has no document elaboration — its value is read off the evaluated body — so
-  its profile is placed at the lane scalar through `frame_plane_lane` under
-  every lift, and its placed coordinates at `Interval` are enclosures, which is
-  what a derived frame is at that scalar. The 2-D structure record (PP1) stays
-  f64-pinned; the placement is the one thing that moves to `T`.
+- **The sketch plane.** A profile is drawn on its own `xy` (D10): its
+  placed coordinates are its 2-D ones with `z = 0`, exact at every scalar,
+  and a loft's later section stands at its station, the first section's
+  plane carried by slides and spins of the lane scalar. The 2-D structure
+  record (PP1) stays f64-pinned.
 - **Out of scope:** naming, persistence, the sketch solver.
 
 ## Open

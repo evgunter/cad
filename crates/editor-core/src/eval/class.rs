@@ -174,10 +174,6 @@ pub enum NodeErrorClass {
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
     ShellLaneUnsupported,
-    /// [`NodeErrorKind::FaceFrameNotPlanar`].
-    FaceFrameNotPlanar,
-    /// [`NodeErrorKind::FaceFrameReadback`].
-    FaceFrameReadback,
     /// [`NodeErrorKind::WitnessBifurcation`].
     WitnessBifurcation,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::NoResolver`].
@@ -328,8 +324,6 @@ impl NodeErrorKind {
             }
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
-            Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
-            Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,
             Self::Part { fault, .. } => match fault {
                 PartFault::NoResolver => C::PartNoResolver,
@@ -500,8 +494,6 @@ mod tests {
         ChamferSelectionEmpty,
         Shell,
         ShellLaneUnsupported,
-        FaceFrameNotPlanar,
-        FaceFrameReadback,
         WitnessBifurcation,
         PartNoResolver,
         PartPinMismatch,
@@ -824,12 +816,6 @@ mod tests {
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },
-            C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom::SurfaceKind::Cylinder,
-            },
-            C::FaceFrameReadback => K::FaceFrameReadback {
-                error: topo::readback::ReadbackError::NoCarrier,
-            },
             C::WitnessBifurcation => K::WitnessBifurcation(crate::WitnessBifurcation {
                 kind: crate::BifurcationKind::FoldProximity,
                 margin: crate::BranchMarginEvidence {

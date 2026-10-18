@@ -141,14 +141,13 @@ one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1).
 
 The wire shape is `ProfileProgram`'s own serde derive with
-`deny_unknown_fields`, which denies an unknown KEY and nothing else: a
-`plane` written in the pre-node shape refuses at `plane_ref`'s own
-visitor instead. The format carries no schema version and no migration,
-and a file this build cannot read refuses `PersistError::Unreadable`
-with the regenerate recourse. `plane` references a frame node
-(`Datum::Frame`, or `Datum::FaceFrame` derived from a face), so a profile
-has a DAG input; evaluation resolves the frame at f64 for structure
-selection (`eval/wire.rs::profile_plane_f64`).
+`deny_unknown_fields`, which denies an unknown KEY: a `plane` written by
+an older build refuses. The format carries no schema version and no
+migration, and a file this build cannot read refuses
+`PersistError::Unreadable` with the regenerate recourse. A profile is
+2-D: it reads no plane and has no DAG input, and a construction over it
+computes in the profile's own coordinates (D10); a placement puts the
+construction where it stands.
 
 Raw loop data stays kernel vocabulary through the `RawLoop` trait
 (`new`, which takes the canonical form, and `polygon`) and the

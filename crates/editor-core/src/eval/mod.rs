@@ -2005,22 +2005,6 @@ pub enum NodeErrorKind {
         /// The scalar that has no door ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// A derived frame's face is not planar (DM1b): a sketch frame
-    /// needs a plane, and the carrier found is named so a headless
-    /// author gets the same answer the chrome pre-empts. A tag read,
-    /// not a predicate — the carrier's own kind, copied out.
-    FaceFrameNotPlanar {
-        /// The carrier kind the face actually has.
-        carrier: geom::SurfaceKind,
-    },
-    /// A derived frame's face resolved to a key its own body could not
-    /// read back — an evaluation-internal inconsistency between the
-    /// emitted table and the body, surfaced typed rather than guessed
-    /// around.
-    FaceFrameReadback {
-        /// The kernel-side refusal, unaltered.
-        error: topo::readback::ReadbackError,
-    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed while no
@@ -2593,17 +2577,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
-            ),
-            Self::FaceFrameNotPlanar { carrier } => write!(
-                f,
-                "the derived frame's face lies on {} {} carrier, not a plane — a sketch frame \
-                 needs a planar face",
-                crate::sentence::article(carrier.name()),
-                carrier.name()
-            ),
-            Self::FaceFrameReadback { error } => write!(
-                f,
-                "the derived frame's face resolved to a key its body could not read back: {error}"
             ),
             Self::MeasureRefUnreadable {
                 slot,
