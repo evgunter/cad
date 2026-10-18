@@ -6026,3 +6026,18 @@ widened behaviours are now disclosed; ASSEMBLY A2/A11 describe the code.
 CI fully green. Seam note on GUARD's log (the census roster line).
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5275 (split vertex Keeps): full review NOT mergeable, one MAJOR
+
+The reviewer split 43 documents at head, at the merge base and under four
+mutants. No existing name moved; `pair_original` is right; the in-plane
+chord reading never credits the wrong edge. The MAJOR: a closed in-plane
+edge (a revolved notch's apex circle) is never credited, so a curved pinch
+gets a confident name that is not N2's — the guard `o_far != corner`
+discards every closed edge, uncommented. Two mutants survived (Keeps
+order reversed; `chord_within` replaced by `true`): the pins checked
+counts, not spellings. Fix pass sent; three class rows to file
+(two Keeps builders, a −y orientation that refuses where +y names, three
+hand-written lineage chases).
+
+Signed (WIRE orchestrator).
