@@ -35,13 +35,16 @@
 //! [`Proof::Unproven`]: it holds at the current values, and the door
 //! has not shown that it holds across the family.
 //!
-//! **A row at rest** is read off the replay's copies. A placed copy is
-//! the construction its bundle states (D10, `[placement.placement]`),
-//! so the replay folds each bundle at `Sym` like any other operation,
-//! and the carrier verdict on the two copies' faces reads a mate-placed
-//! face, or a face built on one, as the construction it is. The census
-//! itself is not re-run, so a row at rest between anything but two
-//! faces has no form the door reads.
+//! **A row at rest** is read off the replay's copies, where
+//! [`REPLAYS_PLACED_COPIES`] is on. A placed copy is the construction
+//! its bundle states (D10, `[placement.placement]`), so the replay folds
+//! each bundle at `Sym` like any other operation, and the carrier
+//! verdict on the two copies' faces reads a mate-placed face, or a face
+//! built on one, as the construction it is. The census itself is not
+//! re-run, so a row at rest between anything but two faces has no form
+//! the door reads, and neither does one whose replay reads no verdict
+//! of the row's relation. Off (today), an at-rest row is not replayed,
+//! and the replay resolves no part.
 
 use core::fmt;
 
@@ -54,7 +57,7 @@ use crate::node::{Node, RecipeNodeId};
 
 mod replay;
 
-pub use replay::with_replay_session;
+pub use replay::{REPLAYS_PLACED_COPIES, with_replay_session};
 
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
@@ -176,12 +179,15 @@ pub enum Unreplayed {
     /// tell.
     Numeric,
     /// The row stands on a part instance the replay resolves no part
-    /// for: the evaluation the door was handed resolved none.
+    /// for: the evaluation the door was handed resolved none, or the
+    /// replay builds no placed copies ([`REPLAYS_PLACED_COPIES`]).
     ThroughAPart,
-    /// The row is not replayed: an at-rest census row between cells
-    /// other than two faces, which no carrier verdict reads (the census
-    /// itself is not re-run), and every row of a document of a payload
-    /// the evaluator does not read.
+    /// The row is not replayed: an at-rest census row while the replay
+    /// builds no placed copies ([`REPLAYS_PLACED_COPIES`]), or one the
+    /// replay reads no carrier verdict of the row's relation on (cells
+    /// other than two faces, a verdict that decides otherwise; the
+    /// census itself is not re-run), and every row of a document of a
+    /// payload the evaluator does not read.
     NotReplayed,
 }
 

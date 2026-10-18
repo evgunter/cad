@@ -969,11 +969,9 @@ struct Bench {
 /// mate (the stand's two and the crate's), and the viewer's status line
 /// shows them as `checks: 3 finding(s)`. They are expected: each is the
 /// at-rest census's row for its mate's own seat, which D10 makes
-/// structural ("a mate-placed face is"). The door replays each seat
-/// through its bundle and does not prove it within its budget while
-/// the parts' frames hold component symbols
-/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`);
-/// the three go quiet when that row closes.
+/// structural ("a mate-placed face is"), but the door does not prove a
+/// mated seat yet
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
 fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);

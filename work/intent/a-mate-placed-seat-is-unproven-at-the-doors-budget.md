@@ -13,15 +13,32 @@ blocked_on: [transform-retires-into-a-placement]
 
 ## What
 
-Since stage 4 H the door reads an at-rest census row off the replay's
-copies (`crates/editor-core/src/coincide/replay.rs` `prove_row`, the
-`CensusAtRest` arm): each bundle folds at `Sym`, and the kernel's carrier
-verdict runs on the two copies' faces. A mated seat is now `Numeric`, not
-`NotReplayed`, but it is not proven. D10 says it is structural ("a
-mate-placed face is"). Pinned unproven by
-`mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_replays`,
-and visible as the tour bench's three `unproven-coincidence` findings
-(`demos/tour/src/assembly.rs` `bench`).
+D10 says a mate-placed face is structural. The door does not prove one.
+Stage 4 H (PR 5300) built the replay that would read it: each bundle
+folds at `Sym`, and the kernel's carrier verdict runs on the two copies'
+faces (`crates/editor-core/src/coincide/replay.rs` `prove_row`, the
+`CensusAtRest` arm, with parts resolved at `Sym`). That replay is behind
+`coincide::REPLAYS_PLACED_COPIES`, which is off. Switched on, a mated
+seat is `Numeric`, not proven, at a cost the door cannot pay for nothing
+(below). Pinned off and unproven by
+`mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`.
+It is visible as the tour bench's three `unproven-coincidence` findings
+(`demos/tour/src/assembly.rs` `bench`). The same holds for contacts
+between patterned copies, which stage 4 §9 also expected to shrink.
+
+## The cost the fix must also beat
+
+Measured with the switch on, locally (debug), against main:
+
+| viewer row | main | switch on |
+|---|---|---|
+| `tree_badges::a_union_over_a_chained_copy_points_at_the_refused_placement` | 0.28 s | 4.3 s |
+| `story_assembly::the_windmill_story` | 1.07 s | 19.1 s |
+
+About 4 s is resolving the parts at `Sym`. About 15 s more on the
+windmill is the carrier verdicts on its seats, whose forms freeze past
+the budget and pay the retry ladder. Turning the switch on is part of
+this row's fix, and it must not cost that.
 
 ## Measured (H lane, 2026-10-18)
 
@@ -48,14 +65,24 @@ and the renormalisation at every hop. It is not the fold's structure.
 
 ## First step
 
-Re-measure after D, on mate6's stand and on the tour bench: does a
-mated seat prove at the door's 256 terms once frames are `Slide`/`Spin`
-chains? The probe is
+Re-measure after D, with the switch on, on mate6's stand and on the
+tour bench: does a mated seat prove at the door's 256 terms once frames
+are `Slide`/`Spin` chains, and at what cost? The identity probe is
 `intent_s4_h_placed::measure_a_mated_seat_at_sym` (`#[ignore]`d; its
-run command is in its doc). Weigh the routes below only if it still
-does not prove.
+run command is in its doc). If a seat still does not prove, run the
+part-variable fork (route 0) through designers (orchestrator,
+2026-10-18), then weigh the other routes.
 
 ## Routes (a design question, weigh before building)
+
+0. **A part's variables as constants of the assembly.** This is a fork
+   between D10's "every variable a symbol" and AQ4's "instantiation
+   takes no arguments". H binds each document version's variables as
+   its own symbols. R1 of H's review measured the other reading: with a
+   part's variables bound as numbers, mate6's mated seat proves at 256
+   terms and the lint reports nothing. The cost is that it would also
+   cut tolerance stack-ups across parts, which is the main thing
+   symbols buy, so it is not free.
 
 1. Frames from slides and spins, with no component slots (FORK-MOVE).
    Stage 3 D (`transform-retires-into-a-placement`) retires `Datum`

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-mate-placed-seat-is-unproven-at-the-doors-budget]
+blocked_on: [placed-carriers-compare-through-their-frames]
 ---
 
 INTENT stage 4, PR I. Spec: `docs/INTENT-STAGE4-SPEC.md` §9.

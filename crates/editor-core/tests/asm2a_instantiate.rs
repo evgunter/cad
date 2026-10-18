@@ -1642,29 +1642,32 @@ fn two_cubes_glued_on_a_wall() -> (
     (doc, union, rows, opts)
 }
 
-/// **The coincidence door replays a row on a part through the
-/// evaluation's resolver.** Handed no resolver, the replay builds no
-/// part, and each row says so and names an assertion as its recourse.
-/// Handed the evaluation's own, it builds both cubes, each part's
-/// variables symbols of the part's document, and reads the two walls:
-/// one cube's far wall stands at the part's width and the other's near
-/// wall at the pin's slide, two symbols, so the row is a coincidence of
-/// values whose recourse is one construction.
+/// **A symbolic run builds a part, and the door does not ask it to.**
+/// Evaluated at `Sym` with every variable a symbol and the evaluation's
+/// resolver, the two cube instances and their union build: each part's
+/// variables are symbols of the part's own pinned version, so nothing
+/// across the seam refuses. The door's replay builds no placed copies
+/// ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until the seat
+/// item turns it on), so handed the evaluation's resolver or none, each
+/// row on a part says the replay resolved no part and names an
+/// assertion as its recourse.
 #[test]
-fn the_doors_replay_reads_a_row_on_a_part_through_the_evaluations_resolver() {
+fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
     let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
-    for (resolver, replay, recourse) in [
-        (
-            None,
-            editor_core::Unreplayed::ThroughAPart,
-            editor_core::coincide::Recourse::Assert,
-        ),
-        (
-            opts.resolver.as_ref(),
-            editor_core::Unreplayed::Numeric,
-            editor_core::coincide::Recourse::OneConstruction,
-        ),
-    ] {
+    let symbols = EvalOptions {
+        symbols: true,
+        ..opts.clone()
+    };
+    let ((), _) = editor_core::coincide::with_replay_session(symbols, |o| {
+        let ev: editor_core::Evaluation<geom_core::Sym<f64>> =
+            editor_core::evaluate(&doc, None, &CancelToken::new(), o, Tol::witness());
+        assert!(
+            ev.value(union).is_some(),
+            "the union over two part instances builds at Sym: {:?}",
+            ev.result(union)
+        );
+    });
+    for resolver in [None, opts.resolver.as_ref()] {
         let proofs = editor_core::coincide::prove(
             &doc,
             &[(union, &rows[..])],
@@ -1677,8 +1680,9 @@ fn the_doors_replay_reads_a_row_on_a_part_through_the_evaluations_resolver() {
             assert!(
                 matches!(
                     &proof,
-                    editor_core::Proof::Unproven { residual, recourse: r }
-                        if residual.replay == replay && *r == recourse
+                    editor_core::Proof::Unproven { residual, recourse }
+                        if residual.replay == editor_core::Unreplayed::ThroughAPart
+                            && *recourse == editor_core::coincide::Recourse::Assert
                 ),
                 "with a resolver {}: {proof:?}",
                 resolver.is_some()

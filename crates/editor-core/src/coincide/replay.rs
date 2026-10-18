@@ -50,6 +50,18 @@ use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
+/// **Whether the replay builds placed copies to read them**: resolving
+/// the parts a document instances at `Sym`, and reading an at-rest row
+/// off the replay's copies by the carrier verdict. Off: an at-rest row
+/// is [`Unreplayed::NotReplayed`] and a row on a part
+/// [`Unreplayed::ThroughAPart`]. Measured on, it costs the viewer's
+/// door 10–20× on mated assemblies (about 4 s building the parts, about
+/// 15 s more reading the windmill's seats) and proves no mated seat
+/// within [`BUDGET`] while frames hold component symbols
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`,
+/// whose fix turns it on).
+pub const REPLAYS_PLACED_COPIES: bool = false;
+
 /// **The door's one strength**: the tier's budget, with the drive's
 /// retry ladder. A margin whose form outgrows it is not proved, and
 /// fails fast. Measured in release: a filleted disc's two coaxial
@@ -112,7 +124,7 @@ pub(super) fn rungs(
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let symbols = EvalOptions {
         symbols: true,
-        resolver: resolver.cloned(),
+        resolver: resolver.filter(|_| REPLAYS_PLACED_COPIES).cloned(),
         ..EvalOptions::default()
     };
     let (out, _) = with_replay_session(symbols, |opts| {
@@ -153,6 +165,9 @@ fn prove_row(
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
+        if !REPLAYS_PLACED_COPIES {
+            return left(Unreplayed::NotReplayed);
+        }
         // The census is not re-run: its row is read off the copies.
         if cancel.is_canceled() {
             return Err(Canceled);

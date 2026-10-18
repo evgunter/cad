@@ -48,6 +48,6 @@ naming H. The montage's red clears when H lands. The release-budget
 sweep's `enforce_checks refuses: 1 check finding(s) at Error severity`
 on an assembly scene is likely the same class, but it was not read here.
 
-## 2026-10-18 — after stage 4 H
+## 2026-10-18 — after stage 4 H's infrastructure (PR 5300)
 
-The door now replays each seat (H, `placed-carriers-compare-through-their-frames`): the three findings report replay `Numeric`, not `NotReplayed`, and recourse `OneConstruction`. They are still expected. A mated seat stays unproven within the door's budget while the parts' frames hold component symbols, so the montage's red clears with `a-mate-placed-seat-is-unproven-at-the-doors-budget`, not with H. The mate6 row is now `a_mated_record_cites_the_census_row_the_lint_replays`.
+Unchanged: the three findings report replay `NotReplayed` and recourse `Assert`. The replay that would read a seat is built, but it is behind `coincide::REPLAYS_PLACED_COPIES`, which is off, and switched on it proves no seat within the door's budget. The montage's red clears with `a-mate-placed-seat-is-unproven-at-the-doors-budget`.

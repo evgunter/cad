@@ -2,13 +2,13 @@
 id: placed-carriers-compare-through-their-frames
 kind: issue
 title: D10 stage 4 PR H: a placed carrier's canonical form reads its placement's frame, so a mate-placed face is structural
-status: closed
+status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-closed: 2026-10-18
 branch: intent/s4-h-placed-carriers-compare-through-their-frames
 pr: 5300
+blocked_on: [a-mate-placed-seat-is-unproven-at-the-doors-budget]
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. FORK-S4-5 is settled by FORK-S3O (fork log row 96, PR 4325), below.
@@ -29,12 +29,13 @@ After the stage 3 re-spec (2026-10-09), H waits on stage 3 C (`a-mate-relates-tw
 
 - 2026-10-16 (INTENT): when H lands, two things should change. The tour bench's three `unproven-coincidence` findings (one per mate's seat, the viewer's `checks: 3 finding(s)`, `gui-gauge-assembly-shows-three-check-findings`) should go quiet. And `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`, which pins today's unproven state, turns red and is re-pinned to the proof. Update the comment beside `bench` in `demos/tour/src/assembly.rs` too.
 
-## Closed
+## 2026-10-18 — infrastructure landed by PR 5300; parked on the seat item
 
-H's mechanism has landed. The door replays a placed copy as the construction its bundle states (D10 `[placement.placement]`, FORK-S3O). On main, before H, `GeomSource` and `compose_placed` were already gone and there was no `PoseForm`. The rungs were the `Sym` replay, and at-rest rows were `NotReplayed`, so this is what H changed:
+PR 5300 lands what the replay needs. It does not switch on reading placed copies, because that costs the door 10–20× on mated assemblies and proves no seat today (orchestrator's ruling, option 2).
 
-- **At-rest rows are read off the replay's copies.** A mated pair's census row names each face in its copy, as the unattributed rows already did (`assembly.rs` `mint`, `checks/at_rest.rs` `copy_cell`). The door reads it by the kernel's carrier verdict on the two copies' faces, each bundle folded at `Sym` (`coincide/replay.rs` `prove_row`).
-- **Parts cross the `Sym` seam.** A symbolic run binds each document's variables as its own symbols, keyed by document and id (`analysis::AxisScalar::axis_of_in`), so `ParamBoxError::SymbolsAcrossAPartSeam` retires. `Evaluation::resolver` is the run's resolver, and the door replays with it (`DoorJob`, `coincide::prove`'s `resolver`).
-- **The fold's map is a function of its poses alone.** The line two planes meet in, and both step arms, carry no lever arm (`mate/coset.rs` `parallel`, `UnitVec3::new_scaled`). A pose's frame is the decided shortest turn, inverted by transpose (`mate/solve.rs` `frame_of`), with no guard the tier keeps as an atom.
+- **The fold's map is a function of its poses alone.** The line two planes meet in, and both anchor steps, carry no lever arm (`mate/coset.rs` `parallel`, `UnitVec3::new_scaled`). A pose's frame is the decided shortest turn, inverted by transpose (`mate/solve.rs` `frame_of`).
+- **A symbolic run resolves parts.** Each document version's variables are its own symbols, keyed by document, pin and id (`analysis::symbol_scope`, `var_env_symbolic_pinned`), so `SymbolsAcrossAPartSeam` retires. `Evaluation::resolver` is the run's resolver, and `DoorJob` and `coincide::prove` carry it.
+- **A mated census row names each face in its copy** (`checks/at_rest.rs` `copy_cell`).
+- **One switch for the rest.** `coincide::REPLAYS_PLACED_COPIES` is off. Turning it on resolves parts in the door's replay and reads an at-rest row by the carrier verdict on the copies' faces. The code is in `coincide/replay.rs` `prove_row`. Pinned off by `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports` and `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed`.
 
-The outcome this row named is not reached. The tour bench's three findings and mate6's row are replayed but unproven, because the fold's frames hold component symbols renormalised at every hop. The measurement and the routes are in `a-mate-placed-seat-is-unproven-at-the-doors-budget` (P0), and `mates-declare-no-contact` now waits on that row.
+What remains is the row's outcome: a mated seat proven, so the tour bench's three findings go quiet. That waits on `a-mate-placed-seat-is-unproven-at-the-doors-budget`, which carries the measurement and the cost its fix must beat.

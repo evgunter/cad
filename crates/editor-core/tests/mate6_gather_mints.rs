@@ -829,26 +829,22 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 
 // ---- What a record cites ----
 
-/// **A mated record cites the census's row, and the lint replays it.**
-/// Two cubes of one part, the second rested on the first by a plane
-/// mate and its three values: the product holds one face–face record,
-/// citing its row 0, the at-rest census's decision that the two seated
-/// caps rest on one carrier, kept beside the mate whose pair it
-/// decided. The row names each cap in its copy, as that instance's
-/// output names it. `unproven-coincidence` reports the row against the
-/// mate: the door replays both copies at `Sym`, the fold placing the
-/// second, and reads the carrier verdict on the two caps, which the
-/// tier does not prove within the door's budget while each cap's frame
-/// holds six component symbols
-/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`),
-/// so the row is a coincidence of values as far as the door can tell.
+/// **A mated record cites the census's row, named in its copies, and
+/// the lint reports it.** Two cubes of one part, the second rested on
+/// the first by a plane mate and its three values: the product holds one
+/// face–face record, citing its row 0, the at-rest census's decision that
+/// the two seated caps rest on one carrier, kept beside the mate whose
+/// pair it decided. The row names each cap in its copy, as that
+/// instance's output names it. `unproven-coincidence` reports the row
+/// against the mate, not replayed: the door builds no placed copies at
+/// `Sym` ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until
+/// `work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`),
+/// so it has no form of the row and its recourse is an assertion.
 ///
 /// Red if the mint makes a record citing nothing the product holds,
-/// names a cap anywhere but in its copy, or the door leaves the row
-/// unreplayed (no part across the seam, or no census row read off the
-/// replay's copies).
+/// names a cap anywhere but in its copy, or the lint stays silent.
 #[test]
-fn a_mated_record_cites_the_census_row_the_lint_replays() {
+fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cites-cube"), Tol::witness());
     let (stand, ids, mate) = stand("mate6-cites-stand", part, body, 0.0, &store);
@@ -907,12 +903,12 @@ fn a_mated_record_cites_the_census_row_the_lint_replays() {
             &f.evidence,
             editor_core::CheckEvidence::UnprovenCoincidence {
                 residual,
-                recourse: editor_core::coincide::Recourse::OneConstruction,
+                recourse: editor_core::coincide::Recourse::Assert,
                 ..
-            } if residual.replay == editor_core::Unreplayed::Numeric
+            } if residual.replay == editor_core::Unreplayed::NotReplayed
         ) && f.subject
             == editor_core::FindingSubject::Node(mate.placement)),
-        "the census's row is reported against its mate, replayed and not proven: {report}"
+        "the census's row is reported against its mate, not replayed: {report}"
     );
 }
 
