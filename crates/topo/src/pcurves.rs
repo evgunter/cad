@@ -1841,12 +1841,15 @@ pub(crate) fn shift_polar_branch<T: Real>(
 /// chart mints takes exactly ([`Pcurve::map_affine`]).
 ///
 /// `None` off a sphere chart — the torus has no such twin (R > 0 breaks
-/// the symmetry), and neither does the cone (cos α > 0) — and for a
-/// spiric image, which no sphere chart mints and whose wall form has no
-/// image of a map negating one channel. The walk reads `None` as no
-/// second candidate, the lift as an element that does not apply.
+/// the symmetry), and neither does the cone (cos α > 0) — and where
+/// [`Pcurve::map_affine`] refuses the involution: a spiric wall image,
+/// which no sphere chart mints and whose form has no image of a map
+/// negating one channel (`WallReflected`), and a harmonic row whose
+/// polar count has no negation in `i32` (`WindingUnnegatable`), which
+/// no derivation mints. The walk reads `None` as no second candidate,
+/// the lift as an element that does not apply.
 pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
-    if !matches!(surface, Surface::Sphere { .. }) || matches!(pcurve, Pcurve::Spiric { .. }) {
+    if !matches!(surface, Surface::Sphere { .. }) {
         return None;
     }
     pcurve

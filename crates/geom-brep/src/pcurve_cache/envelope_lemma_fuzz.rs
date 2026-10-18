@@ -745,37 +745,35 @@ fn jittered(image: &Pcurve<f64>, mut jitter: impl FnMut(f64) -> f64) -> Pcurve<f
     Pcurve::Harmonic { u, v }
 }
 
-/// `image` with `du`, `dv` added to its channels' constants, and each
-/// channel's slope negated where `flip` asks: an angle's windings, a
-/// free channel's linear coefficient.
+/// `image` translated by `du`, `dv`, with each channel's slope negated
+/// where `flip` asks. An angle's windings are negated through
+/// [`Channel::mapped`], by the reflection about its own phase, which
+/// keeps the phase; a free channel's linear coefficient is a number,
+/// negated as one.
 fn restated(image: &Pcurve<f64>, du: f64, dv: f64, flip: [bool; 2]) -> Pcurve<f64> {
-    let Pcurve::Harmonic { u, v } = *image else {
+    let Pcurve::Harmonic { u, v } = image.translate(du, dv) else {
         unreachable!("the rows store harmonic images")
     };
-    let mv = |c: Channel<f64>, d: f64, f: bool| match c {
-        Channel::Angle { phase, winding } => Channel::Angle {
-            phase: phase + d,
-            winding: if f { -winding } else { winding },
-        },
-        Channel::Free { c, a, b, l } => Channel::Free {
-            c: c + d,
-            a,
-            b,
-            l: if f { -l } else { l },
-        },
+    let mv = |c: Channel<f64>, f: bool| match c {
+        _ if !f => c,
+        Channel::Angle { phase, .. } => c
+            .mapped(AxisMap::reflect_about(2.0 * phase))
+            .expect("a derived winding has a negation"),
+        Channel::Free { c, a, b, l } => Channel::Free { c, a, b, l: -l },
     };
     Pcurve::Harmonic {
-        u: mv(u, du, flip[0]),
-        v: mv(v, dv, flip[1]),
+        u: mv(u, flip[0]),
+        v: mv(v, flip[1]),
     }
 }
 
-/// The twin map of a sphere chart, `(u + π + shift, π − v)`.
-fn twin(shift: f64) -> ChartMap<f64> {
-    ChartMap {
-        u: AxisMap::shift(PI + shift),
-        v: AxisMap::reflect_about(PI),
-    }
+/// `image`'s twin on a sphere chart ([`ChartMap::sphere_involution`]),
+/// then `shift` along `u`: `(u + π + shift, π − v)`.
+fn twin(image: &Pcurve<f64>, shift: f64) -> Pcurve<f64> {
+    image
+        .map_affine(ChartMap::sphere_involution())
+        .expect("a derived row has a twin")
+        .translate(shift, 0.0)
 }
 
 /// One row the sweeps read: the arm the derivation selected and each
@@ -855,7 +853,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     };
     stored = stored.shift_branch(k, Period::new(TAU));
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
-        stored = stored.map_affine(twin(0.0)).unwrap();
+        stored = twin(&stored, 0.0);
     }
     let form = carrier_harmonic(&carrier).unwrap();
     let context = || {
@@ -1115,9 +1113,9 @@ fn the_envelope_dominates_where_no_circle_reaches() {
 /// an unlucky one). On a pinned stream of rows of every class, each
 /// row's dominance is asserted (as in the sweep above), and for every
 /// arm `derive_harmonic` selects, each of its terms is over the row's
-/// noise in at least one row. So a table that drops or under-states any
-/// term is met by a row where that term is load-bearing, at `f64` and
-/// at `Interval`, whatever seed the counterexample search draws.
+/// noise in at least one row. What it checks is that much: every term
+/// is exercised by a row where it is not negligible. It does not assert
+/// that dropping the term there breaks dominance.
 #[test]
 fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
     let mut s = fuzz::pinned(
@@ -1139,6 +1137,15 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
+    // The pairs the stream reaches only through a move, written down
+    // (`zero_winding_axis_circle`).
+    for (row, _) in axis_charts().map(|(chart, _)| zero_winding_axis_circle(&chart, 4.0)) {
+        for term in EnvelopeTerm::ALL {
+            if row.terms[term.slot()] > row.noise {
+                seen.insert((row.arm, term.slot()));
+            }
+        }
+    }
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
@@ -1148,6 +1155,143 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
         missing.is_empty(),
         "no row carried these (arm, term) pairs over the noise: {missing:?}"
     );
+}
+
+/// **A zero-winding axis circle with its centre off the axis**, written
+/// down (implementer discipline §8, shape 2): a circle inside the band
+/// about a chart's axis (its winding reads Zero at its own radius), its
+/// plane ⊥ the axis, its centre `floors` noise floors off the axis. On a
+/// cone it is the zero-winding rim, on a torus the zero-winding parallel.
+/// The row's dominance is asserted at `f64` and at `Interval`, as the
+/// sweep's are. Returned with the row: its `Centre` term's lower end at
+/// `Interval`, which the row that pins the witness reads.
+fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
+    let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
+    let on_axis = circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let offset = floors * 64.0 * f64::EPSILON * scale(chart, &on_axis, reach);
+    let carrier = circle(
+        Point3::new(offset, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let (stored, _) = derive_harmonic(
+        &carrier,
+        chart,
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let (_, derivation) = derive_harmonic(
+        &carrier,
+        &orthonormal_chart(chart),
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let noise = 64.0 * f64::EPSILON * scale(chart, &carrier, reach);
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        carrier_harmonic(&carrier).unwrap(),
+        chart,
+        (0.0, TAU),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at f64: {e}"));
+    let sup = sampled_sup(&stored, chart, &carrier, 0.0, TAU);
+    assert!(
+        terms.total() >= sup - noise,
+        "{floors} floors: envelope {:e} under the sampled sup {sup:e}",
+        terms.total()
+    );
+    let lift = Interval::from_f64;
+    let carrier_i = carrier.map_scalar(lift);
+    let at_iv = periodic_envelope(
+        channels_of(&lift_harmonic(&stored)),
+        &carrier_i,
+        carrier_harmonic(&carrier_i).unwrap(),
+        &chart.map_scalar(lift),
+        (lift(0.0), lift(TAU)),
+        lift(reach),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at Interval: {e}"));
+    assert!(
+        at_iv.total().hi() >= sup - noise,
+        "{floors} floors: the Interval envelope {:e} under the sampled sup {sup:e}",
+        at_iv.total().hi()
+    );
+    (
+        Row {
+            arm: arm(derivation),
+            terms: terms.0,
+            noise,
+        },
+        at_iv.0[EnvelopeTerm::Centre.slot()].lo(),
+    )
+}
+
+/// **A zero-winding cone rim's and torus parallel's `Centre` are
+/// load-bearing at every ε row.** The pinned sweep's stream reached
+/// these pairs only through a move that carried an axis circle's centre
+/// off the axis, in three or four rows, and at ε 1e-12 a reshuffled
+/// stream lost the cone's; the witnesses are written down instead
+/// ([`zero_winding_axis_circle`]), at two, four and eight noise
+/// floors: at ε 1e-12 a floor is a few hundredths of the band, so the
+/// offset and the radius together keep the winding inside it.
+#[test]
+fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
+    for ((chart, want), floors) in axis_charts()
+        .into_iter()
+        .flat_map(|c| [2.0, 4.0, 8.0].map(move |f| (c.clone(), f)))
+    {
+        let (row, centre_iv) = zero_winding_axis_circle(&chart, floors);
+        assert_eq!(row.arm, want, "{floors} floors");
+        assert!(
+            centre_iv > row.noise,
+            "{want}, {floors} floors: Centre's lower end {centre_iv:e} is not over the noise {:e} at Interval",
+            row.noise
+        );
+        let centre = row.terms[EnvelopeTerm::Centre.slot()];
+        assert!(
+            centre > row.noise,
+            "{want}, {floors} floors: Centre {centre:e} is not over the noise {:e}",
+            row.noise
+        );
+    }
+}
+
+/// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
+/// selects.
+fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
+    [
+        (
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            "cone rim, zero winding",
+        ),
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            "torus parallel, zero winding",
+        ),
+    ]
 }
 
 /// **A corrupted stored image refuses at `Interval` as at `f64`**
@@ -1247,22 +1391,32 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             band(),
         )
         .unwrap();
-        let Some((_, _, _, pl)) = image.harmonic_form() else {
-            unreachable!()
+        let Pcurve::Harmonic {
+            u: u_channel,
+            v: v_channel,
+        } = image
+        else {
+            unreachable!("the fixtures derive harmonic images")
         };
         let h = |du: f64, dv: f64| restated(&image, du, dv, [false, false]);
         // A slope negated: a winding's is structure, refused as the
         // windings' mismatch (`Err(true)`); a free channel's linear
         // coefficient is a number, refused as a residual (`Err(false)`).
-        let flipped = |slope: f64, angle: bool| match (slope == 0.0, angle) {
-            (true, _) => Ok(()),
-            (false, true) => Err(true),
-            (false, false) => Err(false),
+        let flipped = |c: Channel<f64>, structural: bool| {
+            let still = match c {
+                Channel::Angle { winding, .. } => winding == 0,
+                Channel::Free { l, .. } => l == 0.0,
+            };
+            match (still, structural) {
+                (true, _) => Ok(()),
+                (false, true) => Err(true),
+                (false, false) => Err(false),
+            }
         };
         // Off a sphere the twin map is no renaming: it negates a winding
         // polar channel (a torus meridian's), a structural refusal, and
         // reflects a free one, a residual.
-        let off_sphere_twin = if angular_v && pl.y != 0.0 {
+        let off_sphere_twin = if v_channel.winding().is_some_and(|w| w != 0) {
             Err(true)
         } else {
             Err(false)
@@ -1283,7 +1437,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             (
                 "slope u flipped",
                 restated(&image, 0.0, 0.0, [true, false]),
-                flipped(pl.x, true),
+                flipped(u_channel, true),
             ),
             // On a sphere meridian a polar winding negated is the
             // twin's, so the row reads as the twin with its azimuth a
@@ -1291,19 +1445,19 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             (
                 "slope v flipped",
                 restated(&image, 0.0, 0.0, [false, true]),
-                flipped(pl.y, angular_v && !sphere),
+                flipped(v_channel, angular_v && !sphere),
             ),
             ("u + π, v kept (half a twin)", h(PI, 0.0), Err(false)),
             (
                 "the involution twin",
-                image.map_affine(twin(0.0)).unwrap(),
+                twin(&image, 0.0),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
             // The twin a whole period on is a lifted copy of the twin,
             // no row (C4).
             (
                 "the twin, a period on",
-                image.map_affine(twin(TAU)).unwrap(),
+                twin(&image, TAU),
                 if sphere { Err(false) } else { off_sphere_twin },
             ),
         ];

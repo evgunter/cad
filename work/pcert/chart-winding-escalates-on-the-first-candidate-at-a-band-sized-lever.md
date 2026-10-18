@@ -6,19 +6,18 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: M
-branch: pcert/windings-structure
 ---
 
 
 Found on branch `pcert/cone-singular-gate-lever`, when the
 loop walk's joint stopped escalating near a narrow cone's apex.
 
-`geom_brep::pcurve_cache`'s chart-winding classifier
-(`crates/geom-brep/src/pcurve_cache.rs:3636`) reads the candidates in
-`Winding::ALL` order (`Neg, Zero, Pos`, `:3363`), each as
-`(slope − β)·arm` (`pcurve_chart_winding`), and returns on the first
-escalation. On a cone the arm is `azimuth_lever(surface, v_sup)`
-(`:3617`), the row's own lever. A ruling's child row near a narrow
+Before PCERT B2a, `geom_brep::pcurve_cache`'s chart-winding classifier
+read the candidate windings in the order `−1, 0, 1`, each as
+`(slope − β)·arm` (`pcurve_chart_winding`), and returned on the first
+escalation. On a cone the arm was `azimuth_lever(surface, v_sup)`, the
+row's own lever. B2a removed the classifier: windings are stored and
+compared exactly. What stays is the rim's orientation sign, below. A ruling's child row near a narrow
 apex has a band-sized lever: in
 `topo/tests/cone_apex_sector_joints.rs`'s split at slant `1.5·K·ε` on
 a 0.1-rad cone, the arm is `1.5e-9`, so `Neg`'s margin, `1·arm`, is in

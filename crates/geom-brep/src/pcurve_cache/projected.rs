@@ -2200,6 +2200,11 @@ pub(super) fn run_projected_checks<T: Decide>(
     if curved {
         // The period gate reads the sweep on a cover finer than the
         // pieces (`ProjectedImage::sweep_box`); the arms read the box.
+        // This lane keeps the gate the closed-form lanes dropped: their
+        // span past a period is bounded by the edge certificate's
+        // `interval_span_winding`, which counts a carrier's turns, and a
+        // spline carrier's parameter is no angle, so it has no turns to
+        // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
         let (u_arm, _) = super::chart_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
         let mut gates = vec![(

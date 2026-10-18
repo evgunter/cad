@@ -300,10 +300,13 @@ impl<T: Real> Channel<T> {
 
 /// **A winding as a slope**: `winding` whole periods of the chart's
 /// angle per period of its carrier, read through the two periods it is
-/// counted in ([`Period::rate`]). Every analytic chart's angle has
-/// period `τ` (the spline charts carry no harmonic image), and so does
-/// every carrier with a harmonic form (a circle, an ellipse; a line
-/// winds 0).
+/// counted in ([`Period::rate`]). Both periods are `τ` here, by
+/// assumption rather than read: every analytic chart's angle has period
+/// `τ` (the spline charts carry no harmonic image), and so does every
+/// carrier with a harmonic form (a circle, an ellipse; a line winds 0).
+/// A channel holds no chart, so there is no chart `Period` to read at
+/// this site; a chart whose angle had another period would have to pass
+/// its own.
 pub fn angle_rate<T: Real>(winding: i32) -> T {
     let tau = Period::new(T::tau());
     tau.rate(winding, tau)
@@ -1332,15 +1335,6 @@ impl<T: Real> Pcurve<T> {
     /// refusals). Every other image answers `Some`, exactly.
     #[must_use]
     pub fn mirror_v(&self) -> Option<Self> {
-        if matches!(
-            self,
-            Pcurve::Spiric {
-                image: SpiricImage::Wall { .. },
-                ..
-            }
-        ) {
-            return None;
-        }
         self.map_affine(ChartMap {
             u: AxisMap::identity(),
             v: AxisMap::reflect(),
@@ -1635,8 +1629,8 @@ pub enum PcurveCheck {
     ChartWinding,
     /// The pcurve's azimuth extent against one period.
     AzimuthPeriod,
-    /// A focal section's tube-angle extent against one period on a
-    /// torus chart.
+    /// A projected image's tube-angle extent against one period on a
+    /// torus chart (the projected lane's own gate).
     TubePeriod,
     /// A curved chart's incidence test, or a class gate it leads to
     /// (`chart_incidence`, the Villarceau gates).
@@ -2100,9 +2094,10 @@ pub enum PcurveCertifyError {
     /// turns away than an `i32` counts (`Placement::turns`): its image
     /// names no copy the kernel can store.
     PlacementTurnsExceeded,
-    /// A focal-section image's tube angle definitely sweeps more than
-    /// one period on a torus chart: more than one turn of a Villarceau
-    /// circle.
+    /// A projected image's tube angle definitely sweeps more than one
+    /// period on a torus chart. Only the projected lane emits it: the
+    /// focal-section and spiric-wall lanes leave a span past a period to
+    /// the edge certificate's `interval_span_winding`.
     TubePeriodExceeded,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
@@ -2284,7 +2279,7 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::TubePeriodExceeded => write!(
                 f,
-                "pcurve certification: the focal-section image's tube angle sweeps more than \
+                "pcurve certification: the projected image's tube angle sweeps more than \
                  one full period of the torus — split the edge first (the winding gate, tube \
                  side)"
             ),
@@ -3855,9 +3850,16 @@ impl Nappe {
     }
 }
 
-/// The winding a decided orientation names, sign for sign: `−1`, `0`
-/// or `1` whole periods per carrier period, the only counts a
-/// closed-form table derives.
+/// **The windings a closed-form table derives**: `−1`, `0` or `1` whole
+/// periods of the chart's angle per carrier period. Its one home: a
+/// decided orientation names a count in it ([`winding_of`]), and a
+/// stored count is read against it ([`angle_windings`]).
+const WINDING_TABLE: core::ops::RangeInclusive<i32> = -1..=1;
+
+/// The winding a decided orientation names, sign for sign, in
+/// [`WINDING_TABLE`]: the one place a sign becomes a count. A count
+/// reversed is the reversed sign's (`Sign::flip`), or, on a stored
+/// channel, [`Channel::mapped`]'s.
 fn winding_of(sign: Sign) -> i32 {
     match sign {
         Sign::Negative => -1,
@@ -3874,7 +3876,7 @@ fn winding_of(sign: Sign) -> i32 {
 /// carrier period, which no closed-form table holds. Structure, read
 /// with no decision.
 fn angle_windings<T: Real>(u: Channel<T>, v: Channel<T>) -> Option<ChartWindings> {
-    let in_table = |w: i32| (-1..=1).contains(&w).then_some(w);
+    let in_table = |w: i32| WINDING_TABLE.contains(&w).then_some(w);
     Some(ChartWindings {
         u: in_table(u.winding()?)?,
         v: match v.winding() {
@@ -4267,8 +4269,9 @@ fn run_harmonic_checks<T: Decide>(
         Surface::Plane { .. } => (false, false),
         Surface::Cylinder { .. } | Surface::Cone { .. } => (true, false),
         Surface::Sphere { .. } | Surface::Torus { .. } => (true, true),
+        // A spline chart has no closed-form lane (refused above too).
         Surface::Nurbs(_) | Surface::Approx(_) => {
-            unreachable!("a spline chart was refused as no analytic lane above")
+            return Err(PcurveCertifyError::UnsupportedChart { chart });
         }
     };
     if (angle(u), angle(v)) != (want_u, want_v) {
@@ -4966,10 +4969,20 @@ fn incidence<T: Decide>(
                     };
                     let pair = harmonic_sup(cos_part, jb * k + (jb - b));
                     #[cfg(test)]
-                    let read = match (far, sigma) {
-                        (false, _) => sigma,
-                        (true, 1) => -1,
-                        (true, _) => 1,
+                    // The derivation's own σ, before the far half reversed
+                    // it: reversed back through `Channel::mapped`, the one
+                    // place a reflection touches a stored count.
+                    let read = if far {
+                        Channel::<T>::Angle {
+                            phase: T::zero(),
+                            winding: sigma,
+                        }
+                        .mapped(AxisMap::reflect())
+                        .and_then(Channel::winding)
+                        // A table winding always has a negation.
+                        .unwrap_or(sigma)
+                    } else {
+                        sigma
                     };
                     #[cfg(test)]
                     let pair = mutants::sphere_meridian(
@@ -5757,8 +5770,11 @@ fn fidelity<T: Decide>(
     // and in band neither, read as `P_d` (D9), where an offset that
     // mattered refuses as its term.
     let sphere = matches!(surface, Surface::Sphere { .. });
+    let involution = ChartMap::sphere_involution();
     let named_twin = match (sv.winding(), dv.winding()) {
-        (Some(stored), Some(derived)) if sphere && derived != 0 => Some(stored == -derived),
+        (Some(stored), Some(derived)) if sphere && derived != 0 => {
+            Some(Some(stored) == dv.mapped(involution.v).and_then(Channel::winding))
+        }
         _ => None,
     };
     let twin = match named_twin {
@@ -5780,8 +5796,11 @@ fn fidelity<T: Decide>(
     // by, channel by channel as `Pcurve::map_affine` maps it), so
     // `Channel::mapped` is the one place its reflection touches a
     // winding.
+    // The derived counts are `winding_of`'s, in `WINDING_TABLE`, so the
+    // reflection always has a negation; a count without one would be a
+    // count no closed-form table holds, which is what
+    // `ChartWindingUnsupported` names.
     let (nu, nv) = if twin {
-        let involution = ChartMap::sphere_involution();
         du.mapped(involution.u)
             .zip(dv.mapped(involution.v))
             .ok_or(PcurveCertifyError::ChartWindingUnsupported)?
@@ -8956,15 +8975,14 @@ fn derive_class<T: Decide>(
                     } else {
                         T::zero() - b_r.dot(d_hat) * aa / radius
                     };
-                    let sigma = match decide(
+                    let sigma_sign = match decide(
                         "pcurve_sphere_chart_polar_rate",
                         Margin::of(sigma_margin),
                         band,
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => 1,
-                        Sign::Negative => -1,
+                        sign @ (Sign::Positive | Sign::Negative) => sign,
                         // A great circle in a plane holding the axis
                         // moves along the meridian at every point, at
                         // rate `r`: a zero rate is no such circle.
@@ -8975,6 +8993,7 @@ fn derive_class<T: Decide>(
                             ));
                         }
                     };
+                    let sigma = winding_of(sigma_sign);
                     // The half of the great circle the edge lies on is
                     // the one its span's midpoint is on, never the one its
                     // carrier's `t = 0` point happens to be on (C4: where
@@ -9016,10 +9035,7 @@ fn derive_class<T: Decide>(
                     );
                     let far = turned != other;
                     let (d_hat, sigma, reach) = if far {
-                        let flipped = match sigma {
-                            1 => -1,
-                            _ => 1,
-                        };
+                        let flipped = winding_of(sigma_sign.flip());
                         (
                             d_hat * (T::zero() - T::one()),
                             flipped,
@@ -9195,8 +9211,7 @@ fn derive_class<T: Decide>(
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => 1,
-                        Sign::Negative => -1,
+                        sign @ (Sign::Positive | Sign::Negative) => winding_of(sign),
                         // A meridian circle moves along the meridian at
                         // every point, at rate `r`: a zero rate is no
                         // meridian.
