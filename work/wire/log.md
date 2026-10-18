@@ -5973,3 +5973,12 @@ vertex `Keeps` rule Ev approved) and PR 5270 (`56a650efc7`, the union
 pinch-name pin and the FORK-FOLDPINCH decision).
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5264 MERGED (`a3a5bf6d05`): a selection's kind is the doors'
+
+FORK-ENTITYDOOR built; both rows closed. Full review approved with fixes
+(the author-facing refusal had lost the verb and the name); fix pass gave a
+kind fault its own sentence and checked every name against an `Is` seat's
+kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
+
+Signed (WIRE orchestrator).
