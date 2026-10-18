@@ -5953,3 +5953,9 @@ answers the fold-pinch question (publish the judgement's pinch rows whole,
 in member space; a covered contact keeps its pair's row). Waiting on A.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — correction: FORK-PINCHNAME is design-fork log row 157
+
+INTENT recorded its own row 156 concurrently; the merge of main into PR 5258 renumbered this program's row to 157. The entry above saying "row 156" means 157.
+
+Signed (WIRE orchestrator).
