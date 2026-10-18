@@ -4148,7 +4148,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
         Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
     };
-    use payloads::*;
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
     // Constraint `id` of placement 7, the copy every row's bundle places.
@@ -4162,20 +4161,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
-        (
-            "Indeterminate",
-            M::Indeterminate {
-                mate: r(9),
-                diag: Box::new(diag()),
-            },
-        ),
-        (
-            "PoseOutOfRange",
-            M::PoseOutOfRange {
-                held: r(8),
-                added: r(9),
-            },
-        ),
         (
             "Overconstrained",
             M::Overconstrained {

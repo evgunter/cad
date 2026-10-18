@@ -5996,12 +5996,6 @@ class MateFault:
     does not carry it, so `getattr` never raises and a caller need not
     branch on `variant` first.
 
-    The classifier's words are the frame door's words: `margin`,
-    `margin_low`, `margin_high`, `zero`, `escalate` and `predicate`
-    are spelled here exactly as `FrameError` spells
-    them, because an escalation a mate reports and one a frame
-    constructor reports are the same value.
-
     `cause` is the refusal the fault CARRIES, typed: on
     `mate_side_unevaluated`, the `EvaluationError` the pose's own
     evaluation raises, which `str(fault)` points at (`error` is its
@@ -6050,15 +6044,6 @@ class MateFault:
     def free(self) -> Optional[int]:
         """How many of the copy's six freedoms an over-constrained
         bundle leaves (`mate_overconstrained`)."""
-    @property
-    def held(self) -> Optional[MateRef]:
-        """The mate already folded, for a pair meeting out of range."""
-    @property
-    def added(self) -> Optional[MateRef]:
-        """The mate whose meeting named the point."""
-    @property
-    def predicate(self) -> Optional[str]:
-        """The predicate an escalation could not decide."""
 
     @property
     def on_kind(self) -> Optional[str]: ...
@@ -6095,38 +6080,8 @@ class MateFault:
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the
         pair's lever rather than one body, with neither), or the world
-        read's on `mate_world_read`. `None` on an
-        arm whose payload is a struct rather than an enum — an
-        escalation has no inner word, and its shape is which margin
-        attribute is set."""
-
-    @property
-    def margin(self) -> Optional[Length]:
-        """The in-band margin the classifier saw, when it saw a
-        value. For error text only, not a decision input: what the
-        escalation contract forbids is recovering the margin to make
-        the sign decision the classifier refused."""
-
-    @property
-    def margin_low(self) -> Optional[Length]:
-        """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value. For error
-        text only, not a decision input."""
-
-    @property
-    def margin_high(self) -> Optional[Length]:
-        """Its upper bound. For error text only, not a decision
-        input."""
-
-    @property
-    def zero(self) -> Optional[float]:
-        """The coincidence threshold of the band a margin was
-        classified against. A plain real, as the frame door answers it: a band's
-        thresholds are whatever its predicate measures in."""
-
-    @property
-    def escalate(self) -> Optional[float]:
-        """Its escalation threshold."""
+        read's on `mate_world_read`. `None` on an arm with no nested
+        refusal."""
 
 
 class SolvedPoses:

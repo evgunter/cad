@@ -741,7 +741,13 @@ where
             crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
         );
     }
-    match crate::mate::solve::solve_bundle(id, &mates, &values, &charts, arm, b)? {
+    match crate::mate::solve::solve_bundle(
+        id,
+        &crate::mate::solve::equations_of(doc, constraints),
+        &mates,
+        &values,
+        &charts,
+    )? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep) => {
             // The one at-rest verdict, decided once (fork C-5).
