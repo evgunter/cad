@@ -7,6 +7,7 @@ opened: 2026-09-30
 priority: P1
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -39,3 +40,9 @@ No row pins it. The first step is a row that names `Piece(0)` of a
 name resolves to and what the edit reported. Whether the fix is a
 ruling that N1 means this (a piece is its index, not its place), a
 report row, or something else is WIRE's call, with N1's text.
+
+## FORK-CIRCLEPHASE (2026-10-18): converged; the N1 sentence is Ev's
+
+Both designers, briefed with the problem only, rejected the row's premise: N1 says a name "denotes a construction role, not a point set", and the phase is a value N1 says cannot move a locator, so `Piece(k)` is the k-th arc from vertex k at `phase + 2πk/n`; a phase edit moves it continuously, and a shift by a whole number of arcs is that motion ending where a neighbour began (the same as rotating a chain's vertices). Not a re-aim; no report (a report at the coincidence would be a float equality over a continuous parameter). The row closes with a pinning row once N1 states the reading; the `[ev]` PR adds that sentence to N1's `circle_split` bullet. Design-fork log row 158.
+
+Signed (WIRE orchestrator).
