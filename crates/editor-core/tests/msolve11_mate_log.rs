@@ -414,12 +414,10 @@ fn on_the_world(s: &Scene, h: f64) -> Mate<Formula> {
 /// through the fold.** A rest against the base at a standoff of
 /// `1e154` m is a finite datum, and so is its distance from the
 /// target's origin; the lever the bundle forms over it — the copy's
-/// reach plus that distance — has a sixteenfold square that overflows,
-/// and a plane mate beside it would have the fold decide the bundle's
-/// angular splits over that lever. The fold forms the lever through
-/// `Arm::of`, which refuses it typed — against the bundle's first
-/// mate, carrying both halves and the range recourse — so no predicate
-/// is handed it, and no escalation names the parallelism predicate.
+/// reach plus that distance — has a sixteenfold square that overflows.
+/// The fold forms the lever through `Arm::of`, which refuses it typed —
+/// against the bundle's first mate, carrying both halves and the range
+/// recourse — so no predicate is handed it, and nothing escalates.
 ///
 /// *Breaks if* an angle is decided over a lever the format cannot
 /// square, or the refusal drops either half.
@@ -434,7 +432,6 @@ fn a_lever_out_of_range_refuses_typed_through_the_fold() {
             ContactClass::Rest,
         ),
     );
-    s.add(s.other, on_the_world(&s, BASE_HEIGHT));
     let ev = fixture::run(&s.doc, &s.opts);
     let fault = mate_fault(&ev, s.other);
     assert!(

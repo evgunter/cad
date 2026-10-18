@@ -50,22 +50,6 @@ fn length(m: f64) -> Length {
     Length(pncad::quantity::Length::from_meters(m))
 }
 
-/// Metres out.
-fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
-    (length(v[0]), length(v[1]), length(v[2]))
-}
-
-/// A kernel point as three lengths.
-fn point(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
-    lengths(p.to_array())
-}
-
-/// A kernel vector as three plain numbers — a DIRECTION carries no
-/// dimension, the `PatternKind.linear` convention.
-fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
-    (v.x, v.y, v.z)
-}
-
 /// Which pose of a mate a diagnostic is about: `On`, the copy's, or
 /// `To`, the pose it is equated with.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]

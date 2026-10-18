@@ -1136,7 +1136,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     assert_eq!(payload.predicate, Some("mate_axes_parallel"));
     assert_eq!((payload.margin_low, payload.margin_high), (None, None));
-
 }
 
 /// **Each door keeps its word for each standing**, the two absent

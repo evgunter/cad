@@ -224,8 +224,8 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
     assert!(tree::has_faults(&rows), "the shelf refused: {rows:?}");
     let status_of = |id| common::status_of(&rows, id);
 
-    // The shelf, whose bundle holds the pair, is the cause, and the only
-    // row that is.
+    // The shelf, whose bundle refused, is the cause, and the only row
+    // that is.
     let RowStatus::Failed { message, .. } = status_of(bench.shelf_i) else {
         panic!(
             "the refused placement carries the cause: {:?}",
@@ -233,7 +233,7 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
         );
     };
     assert!(
-        message.contains(pncad::document::CONTRADICTORY_RECOURSE),
+        message.contains("did not evaluate, so the bundle is not folded"),
         "the kernel's own words on the placement's row: {message}"
     );
     let causes: Vec<_> = rows
@@ -261,7 +261,7 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
             assert!(
                 !message
                     .unwrap_or_default()
-                    .contains(pncad::document::CONTRADICTORY_RECOURSE),
+                    .contains("did not evaluate, so the bundle is not folded"),
                 "post_b must not recite the refusal a user reads once, on the shelf"
             );
         }
@@ -274,25 +274,21 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
-/// **A contradiction inside one bundle blames its placement, whichever
-/// constraint evaluated first.**
+/// **A refused bundle blames its placement though it evaluated before.**
 ///
-/// Two rests on ONE bundle at incompatible offsets: the fold names
-/// `held` and `added` together, because neither is the wrong one on the
-/// fault's own telling, and both are the shelf's. `held` EVALUATED
-/// before `added` broke the bundle, and the shelf's row still reports
-/// the refusal: a placement's content key carries the solve's answer,
-/// so the memo cannot serve last evaluation's `Ok` into the run whose
-/// fault names it.
+/// A rest leaves the shelf loose and EVALUATES — the memo now holds an
+/// `Ok` for the shelf — and then the rest is taken off and a mate the
+/// evaluation refuses put in its place. The shelf's row reports the
+/// refusal: a placement's content key carries its bundle, so the memo
+/// cannot serve last evaluation's `Ok` into the run whose fault names
+/// it.
 #[test]
-fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
+fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.shelf_i);
 
-    // The first rest lands and EVALUATES — the memo now holds an `Ok`
-    // for the shelf — and only then does the second one contradict it.
     let held = common::commit_mate(
         &mut session,
         common::asm::shelf_rest_op(&bench, bench.post_a, 0.0),
@@ -302,11 +298,13 @@ fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
         RowStatus::Ok,
         "the premise: one rest leaves the shelf loose, which is no refusal"
     );
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: held });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let added = common::commit_mate(
         &mut session,
-        common::asm::shelf_rest_op(&bench, bench.post_a, 0.01),
+        common::asm::no_centre_op(&bench, bench.post_a),
     );
-    assert_eq!(held.placement, added.placement, "one bundle holds the pair");
+    assert_eq!(held.placement, added.placement, "one bundle held each");
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
@@ -318,7 +316,7 @@ fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
     assert_eq!(
         failing,
         vec![bench.shelf_i],
-        "the placement holding the pair is the one cause: {rows:?}"
+        "the placement whose bundle refused is the one cause: {rows:?}"
     );
     // The posts are in no chain from the shelf: independent subgraphs
     // complete, exactly as GQ2 says.
