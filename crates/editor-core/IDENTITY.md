@@ -156,11 +156,11 @@ Consequences:
 
 - Keeping a relation means stating it: a placement's mates read poses off
   geometry and its values are numbers the user types. No edit reads the
-  display frame, and no gesture writes one into the document.
-- A reopened document draws its shown spaces at a default pose, since
-  display state ends with the session. If that layout is ever kept, it is
-  viewer data outside the canonical bytes, never hashed into a `ContentPin`
-  and never read by evaluation.
+  display frame, and no gesture writes one into the model.
+- A free-move may write display metadata (Ev, PR 5312), so a layout can
+  outlive the session. It is viewer data outside the canonical bytes, never
+  hashed into a `ContentPin` and never read by evaluation; without it, a
+  reopened document draws its shown spaces at a default pose.
 - G3's "hiding and free-move are display state, never persisted" stands,
   over shown spaces.
 

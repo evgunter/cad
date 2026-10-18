@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-18
 priority: P0
 cost: M
-needs_ev: true
 refs: [transform-retires-into-a-placement, intent-stage3-is-built]
 ---
 
