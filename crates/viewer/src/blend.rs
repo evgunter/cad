@@ -571,6 +571,15 @@ impl BlendTool {
         }
     }
 
+    /// **The held edges' names re-seated** after an operation that
+    /// moved them ([`crate::session::Renamed`]).
+    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
+        self.edges = core::mem::take(&mut self.edges)
+            .into_iter()
+            .map(|name| renamed.name(&name).unwrap_or(name))
+            .collect();
+    }
+
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
     ///

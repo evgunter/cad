@@ -103,7 +103,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Renamed, Selection, Standing};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1560,6 +1560,7 @@ impl DocSession {
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         let outcome = self.perform_op(op);
+        outcome.renamed.selection(&mut self.derived.selection);
         // Every document change is an operation, so this is the one
         // place the kept nodes follow the newest document that holds
         // them. A landing changes only the landed run, an earlier
@@ -2738,7 +2739,7 @@ impl DocSession {
                 distance,
                 spin,
             )?;
-            repoint(run, over, sketched.union)
+            repoint(run, over, sketched.union).map(drop)
         })
     }
 
@@ -2981,7 +2982,7 @@ impl DocSession {
         };
         let over = self.placements_of(&input);
         let (opts, tol) = (self.eval_options(), self.tol);
-        self.commit_placing(|run| {
+        let staged = self.stage_run(|run| {
             let placed = pncad::document::place_against(run.doc(), &input, &input, &at, &opts, tol);
             let placement = run.insert(Node::place(vec![pncad::document::BodyRead::plain(
                 input.clone(),
@@ -3000,9 +3001,17 @@ impl DocSession {
                     by: Err(refusal),
                 },
             };
-            repoint(run, over, placement)?;
-            Ok(vec![report])
-        })
+            let copies = repoint(run, over, placement)?;
+            Ok((vec![report], Renamed::through(copies, placement)))
+        });
+        match staged {
+            Ok((staged, (placed, renamed))) => OpOutcome {
+                placed,
+                renamed,
+                ..self.record_run(staged)
+            },
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -3184,7 +3193,7 @@ impl DocSession {
     fn feature_over(&mut self, over: Vec<RecipeNodeId>, node: AuthoredNode) -> OpOutcome {
         self.commit_run(|run| {
             let result = run.insert(node)?;
-            repoint(run, over, result)
+            repoint(run, over, result).map(drop)
         })
     }
 
@@ -3610,12 +3619,12 @@ impl DocSession {
 /// 1): the slot door on each shape of each placement that copies the
 /// output of a node `result` reads, in the action that authored
 /// `result` — so a placement of the target copies the result in its
-/// place.
+/// place. Answers the placements it re-pointed, each once.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
     result: RecipeNodeId,
-) -> Result<(), EditError> {
+) -> Result<Vec<RecipeNodeId>, EditError> {
     let doc = run.doc();
     let read = doc.upstream(result);
     let copies_read = |var: VarId| doc.operation_of(var).is_some_and(|at| read.contains(&at));
@@ -3633,6 +3642,7 @@ fn repoint(
             shapes.into_iter().map(move |index| (placement, index))
         })
         .collect();
+    let mut repointed: Vec<RecipeNodeId> = Vec::new();
     for (placement, index) in edits {
         run.apply(DocEdit::SetParam {
             node: placement,
@@ -3640,8 +3650,11 @@ fn repoint(
             value: pncad::document::SlotValue::Read(result.into()),
             fresh: Vec::new(),
         })?;
+        if !repointed.contains(&placement) {
+            repointed.push(placement);
+        }
     }
-    Ok(())
+    Ok(repointed)
 }
 
 /// **The body `node` defines, as a read**: its first `Body` output (a

@@ -593,7 +593,8 @@ fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
         );
     }
 
-    // (b) A PLACED COPY of a PATTERN over the base. The seat names a
+    const PROBE_COPY: u32 = 1;
+// (b) A PLACED PROBE_COPY of a PATTERN over the base. The seat names a
     // pattern copy under the placement's layer and is read at the
     // placement: the copy stands at T ∘ M(1), the seat pins the top,
     // and the document GATHERS — a placement copies every body of its
@@ -622,13 +623,13 @@ fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
             std::f64::consts::FRAC_PI_2,
             &opts,
         );
-        let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
+        let a = in_copy(pattern, PROBE_COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| head_at(xf, placed(xf, in_copy(pattern, COPY, n))),
+            &|n| head_at(xf, placed(xf, in_copy(pattern, PROBE_COPY, n))),
             &base_part,
             base,
         );

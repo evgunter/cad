@@ -95,6 +95,61 @@ impl EdgeSelection {
     }
 }
 
+/// **The names an operation moved one placement deeper**: each world
+/// copy `copy` it re-pointed to a new placement `place` of the body the
+/// copy drew, so what the copy spelled as `n.in_copy(copy)` it now
+/// spells as `n.in_copy(place).in_copy(copy)`.
+///
+/// The one door every holder of a picked name — the selection, the
+/// add-profile form's held face, an open tool's picks — re-seats its
+/// names through after an operation, so a pick on a copy follows the
+/// copy onto the placement that moved its body.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Renamed {
+    deeper: Vec<(RecipeNodeId, RecipeNodeId)>,
+}
+
+impl Renamed {
+    /// Each of `copies` re-pointed to `place`.
+    pub(crate) fn through(copies: impl IntoIterator<Item = RecipeNodeId>, place: RecipeNodeId) -> Self {
+        Self {
+            deeper: copies.into_iter().map(|copy| (copy, place)).collect(),
+        }
+    }
+
+    /// Whether the operation moved no name.
+    pub fn is_empty(&self) -> bool {
+        self.deeper.is_empty()
+    }
+
+    /// **`name` as the document now spells it**: a copy's name one
+    /// placement deeper where its copy was re-pointed, `None` where it
+    /// is unchanged.
+    pub fn name(&self, name: &StableName) -> Option<StableName> {
+        let (copy, own) = name.copy_of()?;
+        self.deeper
+            .iter()
+            .find(|(at, _)| *at == copy)
+            .map(|&(_, place)| own.in_copy(place).in_copy(copy))
+    }
+
+    /// [`Self::name`] written over `name` in place.
+    pub fn rename(&self, name: &mut StableName) {
+        if let Some(moved) = self.name(name) {
+            *name = moved;
+        }
+    }
+
+    /// The selection's picked name, re-seated ([`Self::rename`]).
+    pub fn selection(&self, selection: &mut Selection) {
+        match selection {
+            Selection::Face(face) => self.rename(&mut face.name),
+            Selection::Edge(edge) => self.rename(&mut edge.name),
+            Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
+        }
+    }
+}
+
 /// What the cursor is over — the one transient pick, whichever kind of
 /// entity it landed on.
 ///

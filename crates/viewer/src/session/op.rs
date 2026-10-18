@@ -27,7 +27,7 @@ use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
-use crate::session::select::{FaceSelection, Hovered, Selection};
+use crate::session::select::{FaceSelection, Hovered, Renamed, Selection};
 
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
@@ -1694,6 +1694,10 @@ pub struct OpOutcome {
     /// none, or left loose with the reason. Empty for every other
     /// operation.
     pub placed: Vec<PlaceReport>,
+    /// **The picked names this operation moved** ([`Renamed`]): what
+    /// every holder of a pick re-seats its names through. Empty for
+    /// every operation that re-pointed no copy to a new placement.
+    pub renamed: Renamed,
 }
 
 /// **How the "place part" gesture placed one copy**

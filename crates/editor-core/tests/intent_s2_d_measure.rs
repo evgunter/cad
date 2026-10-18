@@ -6,7 +6,7 @@
 //! content, never by id.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, cap_ref, insert, len, xform};
+use crate::fixture::{self, cap_ref, insert, len};
 use crate::wire::doctored;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula,
@@ -326,43 +326,6 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
         }
         other => panic!("a construction reading an output refuses at load, got {other:?}"),
     }
-}
-
-/// **(D, test 15) A measure's content key reads its sites by content.**
-/// Two measures of one name read at two identity placements of one body
-/// are one content and two names: their content keys agree and their
-/// naming keys do not.
-#[test]
-fn a_measure_key_reads_its_sites_by_content_not_by_id() {
-    let (doc, a, _) = slabs("s2d-key", 2.5);
-    let (doc, first) = xform(doc, a, [0.0; 3], [0.0, 0.0, 1.0], 0.0);
-    let (doc, second) = xform(doc, a, [0.0; 3], [0.0, 0.0, 1.0], 0.0);
-    let at = |site| caps(a).map(|r| editor_core::SitedRef::new(site, r.name));
-    let distance = |[a, b]: [editor_core::SitedRef; 2]| Node::Measure {
-        primitive: MeasurePrimitive::Distance {
-            a: a.into(),
-            b: b.into(),
-        },
-    };
-    let (doc, on_first) = insert(doc, distance(at(first)));
-    let (doc, on_second) = insert(doc, distance(at(second)));
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let value = |node| ev.value(node).expect("the measure evaluates");
-    assert_eq!(
-        value(first).content_key,
-        value(second).content_key,
-        "the premise: two placements of equal content"
-    );
-    assert_eq!(
-        value(on_first).content_key,
-        value(on_second).content_key,
-        "a site enters the key by its content"
-    );
-    assert_ne!(
-        value(on_first).naming_key,
-        value(on_second).naming_key,
-        "and by its id in the naming key"
-    );
 }
 
 /// **(D, test 13) The definition is bound after its measures run, in

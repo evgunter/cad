@@ -5963,6 +5963,35 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         reach.insert(at);
         Some(reach)
     };
+    // A copy's name (`Placed { of }`) is in reach through the shapes its
+    // placement copies, never through its mates' reads: a re-pointed
+    // shape takes the copied body's names out of the copy, though a
+    // mate may still read that body.
+    let copied = |doc: &Doc<P>, placement: RecipeNodeId| match doc.nodes.get(&placement) {
+        Some(Node::Place { shapes, .. }) => Some(
+            shapes
+                .iter()
+                .filter_map(|shape| doc.read_operation(shape.read))
+                .flat_map(|at| {
+                    let mut reach = crate::doc::strict_ancestors(doc, at);
+                    reach.insert(at);
+                    reach
+                })
+                .collect::<std::collections::BTreeSet<RecipeNodeId>>(),
+        ),
+        _ => None,
+    };
+    let stranded = |was: &std::collections::BTreeSet<RecipeNodeId>,
+                    after: &std::collections::BTreeSet<RecipeNodeId>,
+                    name: &StableName| {
+        taken_out_of_reach(was, after, name)
+            || name.copy_of().is_some_and(|(placement, inner)| {
+                match (copied(before, placement), copied(new, placement)) {
+                    (Some(was), Some(after)) => taken_out_of_reach(&was, &after, inner),
+                    _ => false,
+                }
+            })
+    };
     let mut selections: Vec<VarId> = Vec::new();
     let mut rows = Vec::new();
     for (&carrier, node) in &new.nodes {
@@ -5976,7 +6005,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         }
         let was = crate::doc::strict_ancestors(before, carrier);
         for name in names {
-            if taken_out_of_reach(&was, &after, name) {
+            if stranded(&was, &after, name) {
                 rows.push(Maintenance::Strand {
                     node: before.spoken(carrier),
                     name: before.spoken_name(name),
@@ -6039,7 +6068,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             continue;
         };
         for name in &select.names {
-            if taken_out_of_reach(&was, &after, name) {
+            if stranded(&was, &after, name) {
                 rows.push(Maintenance::StrandedSelection {
                     var: new.spoken_var(var),
                     readers: selection_readers(before, new, var),
@@ -6061,7 +6090,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             continue;
         };
         if (at == id || crate::doc::strict_ancestors(new, at).contains(&id))
-            && taken_out_of_reach(&was, &after, &key.name)
+            && stranded(&was, &after, &key.name)
         {
             rows.push(Maintenance::StrandedAppearance {
                 body: new.spoken_var(key.at),

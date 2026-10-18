@@ -65,7 +65,22 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             },
             tol,
         );
-        asm = common::placed_read(&asm, copy.into(), &bench.opts(), tol).0;
+        let placement;
+        (asm, placement) = common::inserted(
+            &asm,
+            Node::place(vec![pncad::document::BodyRead::plain(copy.into())]),
+            tol,
+        );
+        asm = common::pin(
+            &asm,
+            placement,
+            &pncad::document::Frame {
+                translation: [0.0, 1.0, 0.0],
+                ..pncad::document::Frame::IDENTITY
+            },
+            &bench.opts(),
+            tol,
+        );
     }
     // The shelf's bottom as the lifted copy names it: the instance's
     // name, under the placement that copies it.

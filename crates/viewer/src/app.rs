@@ -1189,6 +1189,8 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
+            self.drafts.rename(&outcome.renamed);
+            self.tools.rename(&outcome.renamed);
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody
@@ -5444,7 +5446,8 @@ mod properties_pane_tests {
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
         use crate::test_support::{ang, len, scl};
-        let (mut driven, _top) = Driven::holding_the_top_cap();
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        driven.select(Selection::Face(top));
         driven.perform(SessionOp::AddTransform {
             input: extrude().into(),
             translation: [len(0.05), len(0.0), len(0.0)],
@@ -5456,6 +5459,11 @@ mod properties_pane_tests {
             held,
             crate::pickindex::IdMap::NOTHING,
             "the moved copy still draws the held face"
+        );
+        assert_eq!(
+            driven.marks().highlight().selected,
+            held,
+            "the selection follows the face onto the moved copy"
         );
         let moved = *driven
             .app

@@ -1473,6 +1473,7 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         withdrawn,
         maintenance,
         placed,
+        renamed: _,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())

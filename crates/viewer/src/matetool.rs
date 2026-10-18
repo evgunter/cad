@@ -561,6 +561,19 @@ impl MateTool {
         crate::seats::respeak_each(&mut self.said, doc);
     }
 
+    /// **The held picks' names re-seated** after an operation that
+    /// moved them ([`crate::session::Renamed`]).
+    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
+        match &mut self.state {
+            MateToolState::Idle => {}
+            MateToolState::One(on) => renamed.rename(&mut on.name),
+            MateToolState::Two { on, to } => {
+                renamed.rename(&mut on.name);
+                renamed.rename(&mut to.name);
+            }
+        }
+    }
+
     /// **`side`'s pick's node as a refusal says it**: by the label the
     /// tool kept, re-spoken from the shown document after every
     /// operation; as `doc` holds it only when nothing named was kept.

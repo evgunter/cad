@@ -908,6 +908,14 @@ impl Drafts {
         &self.sketch_face_said
     }
 
+    /// **The held face's name re-seated** after an operation that moved
+    /// it ([`crate::session::Renamed`]).
+    pub(crate) fn rename(&mut self, renamed: &crate::session::Renamed) {
+        if let Some(face) = &mut self.sketch_face {
+            renamed.rename(&mut face.name);
+        }
+    }
+
     /// **The held picks' nodes, spoken again from `doc`**, the session's
     /// shown document after an operation (`SpokenNode::respoken`'s
     /// rule): a node `doc` holds takes its label now, and one it no
