@@ -737,6 +737,51 @@ impl<T: Decide> TorusFaceRegion<T> {
         };
         let mut out = Vec::new();
         match (edge.carrier, leg.kind) {
+            (
+                Carrier::Circle {
+                    center,
+                    radius,
+                    axis: e_axis,
+                    u_ref: e_u,
+                },
+                LegKind::Meridian { radial },
+            ) if matches!(
+                decide(
+                    "bool_torus_region_component",
+                    Margin::of(e_axis.cross(self.axis).norm() * radius),
+                    band
+                ),
+                Ok(Sign::Zero)
+            ) && matches!(
+                decide(
+                    "bool_torus_region_component",
+                    Margin::of((radius - self.major).abs() - self.minor * T::from_f64(0.5)),
+                    band
+                ),
+                Ok(Sign::Positive)
+            ) =>
+            {
+                // R1 EXPERIMENT: a non-rim parallel on a meridian leg, read in the
+                // leg's parameter against the parallel's plane.
+                let _ = radial;
+                let roots = found(self.plane_roots(leg, e_axis, center, band))?;
+                let v_ref = e_axis.cross(e_u);
+                let mid = (edge.t0 + edge.t1) * T::from_f64(0.5);
+                for s in roots {
+                    let y = leg.at(s);
+                    let w = y - center;
+                    let theta = (w.dot(v_ref).atan2(w.dot(e_u)) - mid)
+                        .reduce_periodic_centred(T::tau())
+                        + mid;
+                    match row("bool_torus_region_component", w.norm() - radius)? {
+                        Sign::Zero => {}
+                        _ => continue,
+                    }
+                    if let Some(sideless) = span(theta, radius)? {
+                        out.push((y, theta, sideless));
+                    }
+                }
+            }
             (Carrier::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
                 let thetas = match self.circle_roots(edge, leg, band) {
                     // The edge in the leg's plane: on the leg's own
