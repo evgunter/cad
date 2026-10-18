@@ -8,6 +8,7 @@ priority: P1
 cost: M
 design: true
 refs: [a-merged-face-with-several-same-side-constituents-has-no-chord-rule]
+needs_ev: true
 ---
 
 
@@ -35,5 +36,11 @@ Two questions, for designers before anything is built:
   `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`;
   `crates/editor-core/src/names/README.md` N2 has no clause for it, so a
   clause would be new ratified naming text, which is Ev's.
+
+Signed (WIRE orchestrator).
+
+## FORK-SPANCHORD (2026-10-18): converged; the N3 widening is Ev's
+
+Both designers, briefed with the problem only, rejected the premise that a spanning chord needs its own rule: the pair boolean spells one merged face two ways today (its `Borders` walls cite the parent `Merged` set; its seam pass descends to a constituent), and N3 (Ev, PR 3222) already says a union's seam cites the parent. The recommendation: at every boolean a seam cites the parent of the face beside it, so a spanning or along-the-boundary chord is a piece of `Seam(Merged{…}, f)` told apart by `Ends`, stable as the cut moves; the chord descent PR 5263 built, `constituent_holding` and `MergedChordConstituents` are deleted. `[ev]` PR edits N3; design-fork log row 159.
 
 Signed (WIRE orchestrator).
