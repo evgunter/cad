@@ -335,7 +335,8 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 /// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
 ///   wide bulge or from rounding alone, so an arc section refuses;
 /// - three sections at v-degree 1 put their middle parameter in the
-///   knot vector, where a wide one is no knot.
+///   knot vector; the held knots take a wide one, and the surface
+///   built on them refuses it.
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     use geom_core::Interval;
@@ -368,9 +369,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         1,
         Tol::witness(),
     ) {
-        Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
-            SplineError::KnotNotAPoint { index: 1 },
-        )))) => {}
+        Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierKnotNotAPoint {
+            index: 1,
+        }))) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())

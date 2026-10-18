@@ -331,13 +331,16 @@ impl<T: Real> Knots<T> {
     #[track_caller]
     #[allow(clippy::panic)]
     pub fn structure_f64_interim(&self) -> &KnotVector {
-        self.point.as_ref().unwrap_or_else(|| {
-            panic!(
+        // A `match`, not `unwrap_or_else`: `Location::caller()` inside a
+        // closure names this file, not the reader.
+        match &self.point {
+            Some(kv) => kv,
+            None => panic!(
                 "a reader at {} took the f64 knot vector of a carrier whose knots are not \
                  all points (C6: its positions are its held values)",
                 core::panic::Location::caller()
-            )
-        })
+            ),
+        }
     }
 
     /// Whether every breakpoint is a point, so that
@@ -548,6 +551,7 @@ mod tests {
     /// the read loud. Red where the interim answers for a wide carrier.
     #[test]
     fn the_interim_f64_vector_reads_points_and_refuses_a_wide_carrier() {
+        use test_utils::panic_capture::caught;
         let k = Knots::new(vec![(0.0, m(2)), (0.5, m(1)), (1.0, m(2))], 1).unwrap();
         assert_eq!(
             k.structure_f64_interim().knots(),
@@ -563,14 +567,24 @@ mod tests {
             1,
         )
         .unwrap();
-        let read = std::panic::catch_unwind(|| wide.structure_f64_interim().knots().len());
-        assert!(read.is_err(), "a wide carrier's f64 vector was read");
+        // The refusal names the reader: this file at the reading line,
+        // not the accessor's body.
+        let names_the_reader = |message: Option<String>, line: u32| {
+            let message = message.expect("a wide carrier's f64 vector was read");
+            let at = format!("a reader at {}:{line}:", file!());
+            assert!(message.contains(&at), "{message:?} does not name {at}");
+        };
+        let line = line!() + 2;
+        let read = caught(|| {
+            wide.structure_f64_interim();
+        });
+        names_the_reader(read, line);
         let span = wide.span(1).expect("a nonempty span").span();
-        let through_span = std::panic::catch_unwind(|| span.knots_f64_interim().knots().len());
-        assert!(
-            through_span.is_err(),
-            "a wide carrier's span read an f64 vector"
-        );
+        let line = line!() + 2;
+        let through_span = caught(|| {
+            span.knots_f64_interim();
+        });
+        names_the_reader(through_span, line);
     }
 
     /// Two runs that read as one number refuse rather than merge: the

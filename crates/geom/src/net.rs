@@ -12,7 +12,7 @@
 
 use core::ops::{Mul, Sub};
 
-use geom_core::spline::{SpanLocate, SplineError};
+use geom_core::spline::{Knots, SpanLocate, SplineError};
 use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
@@ -215,6 +215,22 @@ pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, S
             None => Err(SplineError::WeightNotAPoint { index }),
         })
         .collect()
+}
+
+/// A carrier's knots are all points: its evaluation, span reads and
+/// knot algebra read them through their `f64` vector
+/// ([`Knots::structure_f64_interim`]), which knots wider than a point
+/// do not have.
+///
+/// # Errors
+///
+/// [`SplineError::CarrierKnotNotAPoint`] for the first run whose value
+/// is an enclosure wider than a point.
+pub(crate) fn carrier_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<(), SplineError> {
+    match knots.runs().position(|(v, _)| v.point_value().is_none()) {
+        Some(index) => Err(SplineError::CarrierKnotNotAPoint { index }),
+        None => Ok(()),
+    }
 }
 
 /// The weights at another scalar under a LIFT `f`, one that keeps

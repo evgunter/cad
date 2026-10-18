@@ -418,9 +418,11 @@ pub fn interpolate_columns(
 /// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
-/// interior parameter may be wider than a point. The averaged knots are
-/// a carrier's, and one wider than a point refuses
-/// ([`SplineError::KnotNotAPoint`]). The arithmetic is [`interpolate_columns`]'s
+/// interior parameter may be wider than a point, and so may the
+/// averaged knots: they are held, and their order is certified for
+/// every member ([`Knots::new`]). A carrier built on them refuses a
+/// breakpoint wider than a point ([`SplineError::CarrierKnotNotAPoint`]).
+/// The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///

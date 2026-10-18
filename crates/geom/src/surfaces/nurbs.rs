@@ -604,7 +604,9 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
 impl<T: SpanLocate> NurbsSurface<T> {
     /// Validated construction: `control.len()` must equal
     /// `knots_u.control_count() · knots_v.control_count()` (row-major
-    /// layout, module docs), weights match, each is one point, and they
+    /// layout, module docs), every breakpoint is one point
+    /// ([`SplineError::CarrierKnotNotAPoint`]), weights match, each is
+    /// one point, and they
     /// are strictly positive and finite on their value channel. Knots
     /// and weights are held in `T` (at `f64` a [`KnotVector`]
     /// converts), as [`crate::curves::NurbsCurve3::new`] holds them.
@@ -619,6 +621,8 @@ impl<T: SpanLocate> NurbsSurface<T> {
         weights: Vec<T>,
     ) -> Result<Self, SplineError> {
         let (knots_u, knots_v) = (knots_u.into(), knots_v.into());
+        net::carrier_knots(&knots_u)?;
+        net::carrier_knots(&knots_v)?;
         let weight_channel = net::weight_channel(&weights)?;
         let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         net::validate_counts(expected, control.len(), &weight_channel)?;
@@ -814,8 +818,8 @@ impl<T: Real> NurbsSurface<T> {
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
         (
-            self.knots_u_f64_interim().control_count(),
-            self.knots_v_f64_interim().control_count(),
+            self.knots_u.structure().control_count(),
+            self.knots_v.structure().control_count(),
         )
     }
 

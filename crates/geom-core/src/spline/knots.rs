@@ -106,6 +106,15 @@ pub enum SplineError {
         /// The step from the previous breakpoint, as read.
         margin: crate::MarginDiag,
     },
+    /// A curve or surface was built over knots one of whose breakpoints
+    /// is an enclosure wider than a point. The knots hold such a value
+    /// (C6), but a carrier's evaluation, its span reads and its knot
+    /// algebra still read its knots as `f64` points, so the carrier's
+    /// door refuses it rather than hand them a vector they cannot read.
+    CarrierKnotNotAPoint {
+        /// Index of the offending run.
+        index: usize,
+    },
     /// A weight held in the scalar is an enclosure wider than a point
     /// (`SpanLocate::point_value` reads none, and it is not poison,
     /// which refuses as a non-positive weight). The weights' value
@@ -176,6 +185,12 @@ impl core::fmt::Display for SplineError {
                  the values they stand for: the step between them is {margin}, which \
                  straddles zero, so some members' runs would merge or cross. Recourse: \
                  supply those breakpoints from inputs narrow enough that the step clears zero"
+            ),
+            SplineError::CarrierKnotNotAPoint { index } => write!(
+                f,
+                "breakpoint {index} is an enclosure wider than a point, and a curve or \
+                 surface reads its knots as single numbers. Recourse: supply that breakpoint \
+                 from inputs narrow enough that it is a single number there"
             ),
             SplineError::WeightNotAPoint { index } => write!(
                 f,
@@ -817,13 +832,16 @@ impl<'a> Span<'a> {
     #[track_caller]
     #[allow(clippy::panic)]
     pub fn knots_f64_interim(self) -> &'a KnotVector {
-        self.kv.unwrap_or_else(|| {
-            panic!(
+        // A `match`, not `unwrap_or_else`: `Location::caller()` inside a
+        // closure names this file, not the reader.
+        match self.kv {
+            Some(kv) => kv,
+            None => panic!(
                 "a reader at {} took the f64 knot vector of a carrier whose knots are not \
                  all points (C6: its positions are its held values)",
                 core::panic::Location::caller()
-            )
-        })
+            ),
+        }
     }
 
     /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
@@ -2244,6 +2262,7 @@ mod tests {
                 index: 2,
                 margin: crate::MarginDiag::enclosure(-0.25, 0.5),
             },
+            SplineError::CarrierKnotNotAPoint { index: 1 },
             SplineError::WeightNotAPoint { index: 1 },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
@@ -2259,10 +2278,11 @@ mod tests {
                 | SplineError::KnotNotAPoint { .. }
                 | SplineError::KnotRunsNotIncreasing { .. }
                 | SplineError::KnotRunsUndecided { .. }
+                | SplineError::CarrierKnotNotAPoint { .. }
                 | SplineError::WeightNotAPoint { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        assert_eq!(arms.len(), 11, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.
