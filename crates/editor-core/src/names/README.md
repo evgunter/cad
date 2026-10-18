@@ -263,6 +263,12 @@ The qualifier depends on what was split:
   face (an inner loop, a non-convex face) cuts several chords that
   `SectionEdge{face}` spells alike, and each takes `Ends` like any other
   edge piece (Ev, PR 3553). Pieces with equal pairs are N4's tie.
+  An operand edge lying in the tool plane is read as a union reads a flush
+  edge (below): an edge of a half along it is that edge, or a piece of it,
+  only when both its faces descend from that edge's two faces. One with a
+  section face beside it is a chord of the operand face on its other side,
+  `SectionEdge{face}`. A split finishes each half with maximal faces (N3),
+  so no edge of a half lies between two section faces.
 - **Vertices** cite the edges they lie on by their lines, never by a piece's
   qualifier at any depth, so vertices are named before edge pieces are
   qualified, and
@@ -309,8 +315,7 @@ The qualifier depends on what was split:
   there, read as a face piece's walls are (`borders.rs`). At a Split, where
   one half holds the corner as several vertices, it is `Fragment(Keeps)`:
   the sorted set of the operand corner's own edges, cited by their lines,
-  that the vertex is an end of a piece of in that half, an edge lying in the
-  tool plane included. Equal sets tie, and a corner the result holds as one
+  that the vertex is an end of a piece of in that half. Equal sets tie, and a corner the result holds as one
   vertex (in a Split, one per half) is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
@@ -364,7 +369,8 @@ piece. One that covers several operand edges whole is the `Merged` set of
 their names, flat and in name order: the shell's survivors as `From` of
 their names and its cavity twins as `Inner` of theirs, a set among them listed by its
 constituents. A split's section chords, joined, stay a chord of the face they
-cross. A join with no such reading, a chord with an operand edge's piece or
+cross, and a join over section chords and whole operand edges, across a
+merged face, is named from its two faces, as a seam is. A join with no such reading, a chord with an operand edge's piece or
 pieces of several operand edges, is refused, not named.
 
 A blend names an edge its closing join made the same way. Each trim the blend
@@ -437,7 +443,11 @@ and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A `Merged` whose set has one element is that
+at `RoleSeg::Merged`). A split's section faces are constituents like any
+other face: a split finishes each half with maximal faces, and a group that
+holds section faces is `Merged` of its constituents' names, each
+`SectionFace { k }` numbered in the completion order it had before the
+merge, so no section is renumbered. A `Merged` whose set has one element is that
 element: a face glued to its twin, the same read spelled twice (REFERENCES
 DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
