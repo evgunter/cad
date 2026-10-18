@@ -1003,3 +1003,87 @@ fn found<T: Decide>(
         Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
+    use slotmap::KeyData;
+
+    const R: f64 = 2.0;
+    const MINOR: f64 = 0.5;
+
+    /// The parallel at minor angle `v` of the torus `(R, r)` about `z`,
+    /// run with the major angle (`forward`) or against it.
+    fn parallel(v: f64, forward: bool, key: u64) -> RegionEdge<f64> {
+        RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(key)),
+            carrier: Carrier::Circle {
+                center: Point3::new(0.0, 0.0, MINOR * v.sin()),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: R + MINOR * v.cos(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            t0: 0.0,
+            t1: TAU,
+            forward,
+        }
+    }
+
+    /// The band of the torus between the minor angles `v0 < v1`, every
+    /// major angle: its loops run CCW in the chart, so it lies to their
+    /// left under the outward normal.
+    fn band(v0: f64, v1: f64) -> TorusFaceRegion<f64> {
+        TorusFaceRegion {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: R,
+            minor: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            sense: true,
+            outer: LoopKey::default(),
+            edges: vec![parallel(v0, true, 1), parallel(v1, false, 2)],
+        }
+    }
+
+    /// The point at chart `(u, v)`.
+    fn at(u: f64, v: f64) -> Point3<f64> {
+        let rho = R + MINOR * v.cos();
+        Point3::new(rho * u.cos(), rho * u.sin(), MINOR * v.sin())
+    }
+
+    /// **A fillet's band reads across the tube's top circle.** The band
+    /// from the top circle (`v = π/2`) to the inner equator (`v = π`), a
+    /// fillet's shape: the top circle's plane is tangent to the torus
+    /// along it, so no leg meets it at a simple root of that plane's
+    /// residual, and a meridian leg reads it in the circle's own
+    /// parameter. Every point of a lattice over the chart reads its side,
+    /// on the top circle itself the boundary, and a micron either side of
+    /// it its side.
+    #[test]
+    fn a_fillets_band_reads_across_the_top_circle() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let region = band(FRAC_PI_2, PI);
+        for i in 0..12 {
+            let u = f64::from(i) * TAU / 12.0 + 0.1;
+            for j in 0..16 {
+                let v = f64::from(j) * TAU / 16.0 + 0.05 - PI;
+                let inside = (FRAC_PI_2..PI).contains(&v);
+                assert_eq!(region.contains(at(u, v), b), Ok(Some(inside)), "({u}, {v})");
+            }
+            assert_eq!(
+                region.contains(at(u, FRAC_PI_2), b),
+                Ok(None),
+                "u {u}: on the rim"
+            );
+            for (off, inside) in [(1e-6, true), (-1e-6, false)] {
+                assert_eq!(
+                    region.contains(at(u, FRAC_PI_2 + off), b),
+                    Ok(Some(inside)),
+                    "u {u}: {off:e} off the rim"
+                );
+            }
+        }
+    }
+}
