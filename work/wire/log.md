@@ -6164,3 +6164,9 @@ Signed (WIRE orchestrator).
   Class note: canonicalising a spelling to make rows order-free can
   merge distinct facts unless the dedup key keeps what told them apart.
   (WIRE orchestrator)
+
+- 2026-10-18 — PR 5298 (refusals state their recourse) merged on green
+  with main merged in. Dispatched `wire/seam-cites-parent`: N3's seam
+  sentence, approved on PR 5279, is built, and chord descent with
+  `MergedChordConstituents` is deleted. It gets a FULL single review.
+  (WIRE orchestrator)

@@ -2,7 +2,8 @@
 id: a-chord-spanning-two-merged-constituents-has-no-name
 kind: issue
 title: A seam chord that crosses the merged-away boundary between two same-side constituents of a merged face has no naming rule, and N2 states no chord-descent rule at all
-status: open
+status: dispatched
+branch: wire/seam-cites-parent
 opened: 2026-10-17
 priority: P1
 cost: M
