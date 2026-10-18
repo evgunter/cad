@@ -497,7 +497,7 @@ pub(crate) fn piece_controls<T: SpanLocate>(
     piece: ParamRange,
 ) -> Vec<(Vec3<T>, T)> {
     let ends = (piece.start(), piece.end());
-    let (span, _) = net.knots().span_range(piece);
+    let (span, _) = net.knots_f64_interim().span_range(piece);
     let held = net.knot_values().values();
     let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
     let homogeneous: Vec<(Vec3<T>, T)> = span
@@ -586,7 +586,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 // A part may cross the net's knots (a plane chart's one
                 // piece is the whole net): each span it crosses is
                 // restricted on its own, never extended past its knots.
-                let Some(stretches) = span_stretches(net.knots(), part) else {
+                let Some(stretches) = span_stretches(net.knots_f64_interim(), part) else {
                     let poison = poison_from(t0 + t1);
                     return FrameBox {
                         x: (poison, poison),
@@ -1127,7 +1127,11 @@ pub(crate) fn project<T: Decide>(
     // The top-level pieces: a net's knot spans (a piece's hull is one
     // span's Bézier restriction), a circle's one interval.
     let tops: Vec<f64> = match &image.carrier {
-        FramedCarrier::Net(net) => net.knots().knot_runs().map(|(k, _)| k).collect(),
+        FramedCarrier::Net(net) => net
+            .knots_f64_interim()
+            .knot_runs()
+            .map(|(k, _)| k)
+            .collect(),
         FramedCarrier::Circle { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {
@@ -1765,7 +1769,11 @@ pub(crate) fn net_offset_sup<T: Decide>(
     };
     let framed = FramedCarrier::Net(Arc::new(framed_net(net, origin, &e)));
     let chart = chart_of(surface, &framed, band)?;
-    let runs: Vec<f64> = net.knots().knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = net
+        .knots_f64_interim()
+        .knot_runs()
+        .map(|(k, _)| k)
+        .collect();
     let pieces = runs.len() - 1;
     let image = ProjectedImage {
         chart,
@@ -2124,7 +2132,9 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
+            if net.knots_f64_interim() != c.knots_f64_interim()
+                || net.weight_channel() != c.weight_channel()
+            {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));
@@ -2137,7 +2147,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 ));
             }
             if curved {
-                let kv = net.knots();
+                let kv = net.knots_f64_interim();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
                     let Some(span) = kv.span_at(0.5 * (a + z)) else {

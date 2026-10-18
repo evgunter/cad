@@ -523,10 +523,14 @@ macro_rules! nurbs_curve {
         }
 
         impl<T: Real> $Curve<T> {
-            /// The validated clamped knot vector: the held knots' value
-            /// channel, the structure every `f64` reader reads.
-            pub fn knots(&self) -> &KnotVector {
-                self.knots.structure()
+            /// **C6's interim**: the `f64` knot vector, where every held
+            /// knot is a point ([`Knots::structure_f64_interim`], which
+            /// refuses loud, by the reader's location, on a carrier with
+            /// a knot wider than a point). Counted by
+            /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+            #[track_caller]
+            pub fn knots_f64_interim(&self) -> &KnotVector {
+                self.knots.structure_f64_interim()
             }
 
             /// The knots held in `T`, with their structure.
@@ -561,7 +565,7 @@ macro_rules! nurbs_curve {
             /// The parameter domain (first knot at multiplicity
             /// `p + 1` to last), on the value channel.
             pub fn domain(&self) -> (f64, f64) {
-                self.knots().domain()
+                self.knots_f64_interim().domain()
             }
 
             /// Construction from parts whose invariants are ALREADY
@@ -676,7 +680,7 @@ macro_rules! nurbs_curve {
             /// [`KnotVector::span_at`] locates it (out-of-domain clamps
             /// to an end span).
             pub fn span_at(&self, t: f64) -> Option<$Window<'_, T>> {
-                self.span(self.knots().span_at(t)?.index())
+                self.span(self.knots_f64_interim().span_at(t)?.index())
             }
 
             /// The one primitive constructor, behind [`Self::span`] and
@@ -744,7 +748,7 @@ macro_rules! nurbs_curve {
             /// inserted weight rounds out of the positive regime (both
             /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::insert_knot_plan(self.knots(), &self.weight_channel, u, times)?;
+                let plans = spline::algebra::insert_knot_plan(self.knots_f64_interim(), &self.weight_channel, u, times)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
             }
 
@@ -772,7 +776,7 @@ macro_rules! nurbs_curve {
                 if !u.is_finite() || !(u > d0 && u < d1) {
                     return Err(KnotAlgebraError::ParameterOutsideDomain { u });
                 }
-                let have = self.knots().multiplicity_of(u).map_or(0, |(m, _)| m);
+                let have = self.knots_f64_interim().multiplicity_of(u).map_or(0, |(m, _)| m);
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
@@ -781,7 +785,7 @@ macro_rules! nurbs_curve {
                 // First occurrence of `u` in the saturated vector
                 // (multiplicity is exactly `p` there). Present by
                 // construction; `ok_or` keeps the path total.
-                let knots = full.knots().knots();
+                let knots = full.knots_f64_interim().knots();
                 let f = knots
                     .iter()
                     .position(|k| *k == u)
@@ -823,7 +827,7 @@ macro_rules! nurbs_curve {
             /// As [`Self::insert_knot`], against the cumulative
             /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::refine_plan(self.knots(), &self.weight_channel, add)?;
+                let plans = spline::algebra::refine_plan(self.knots_f64_interim(), &self.weight_channel, add)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
             }
 
@@ -851,7 +855,7 @@ macro_rules! nurbs_curve {
                 T: 'a,
             {
                 let curves: Vec<&Self> = curves.into_iter().collect();
-                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots()).collect();
+                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots_f64_interim()).collect();
                 curves
                     .iter()
                     .zip(spline::algebra::union_refinements(&vectors))
@@ -884,7 +888,7 @@ macro_rules! nurbs_curve {
             /// removal chain writes, or one its reinsertion writes,
             /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
-                let steps = spline::algebra::remove_knot_plan(self.knots(), &self.weight_channel, u, times)?;
+                let steps = spline::algebra::remove_knot_plan(self.knots_f64_interim(), &self.weight_channel, u, times)?;
                 let mut cur = self.clone();
                 let mut bound = T::zero();
                 for step in &steps {
@@ -1170,7 +1174,7 @@ macro_rules! nurbs_curve {
                 if p == 0 || self.control.len() < 2 {
                     return geom_core::InfSpeed::new(poison);
                 }
-                let knots = self.knots().knots();
+                let knots = self.knots_f64_interim().knots();
                 let held = self.knots.values();
                 // Derivative coefficients, once for the curve, with
                 // every knot difference checked POSITIVE on f64
@@ -1210,9 +1214,9 @@ macro_rules! nurbs_curve {
                 // (`i ∈ span−p .. span`), folded over spans. ----
                 let perspan = {
                     let mut acc: Option<T> = None;
-                    for index in self.knots().first_span()..=self.knots().last_span() {
+                    for index in self.knots_f64_interim().first_span()..=self.knots_f64_interim().last_span() {
                         // Emptiness check and span validation are one step.
-                        let Some(span) = self.knots().span(index) else {
+                        let Some(span) = self.knots_f64_interim().span(index) else {
                             continue;
                         };
                         // The window's base, subtracted once inside
@@ -1377,7 +1381,7 @@ macro_rules! nurbs_curve {
             /// a fabricated bound. Crate-internal: the fitting stack's
             /// deviation measurements (M5 PR 4) ride it.
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
-                if self.knots() != other.knots() || self.control.len() != other.control.len() {
+                if self.knots_f64_interim() != other.knots_f64_interim() || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);
                 }
                 net::removal_pass_bound(
@@ -1404,7 +1408,7 @@ macro_rules! nurbs_curve {
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {
-                    let plans = spline::algebra::elevate_plan(cur.knots(), &cur.weight_channel)?;
+                    let plans = spline::algebra::elevate_plan(cur.knots_f64_interim(), &cur.weight_channel)?;
                     cur = cur.apply_plans(&plans, &Self::inserted);
                 }
                 Ok(cur)
@@ -1623,7 +1627,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
     /// as `[x, y, z]` channels of certification enclosures. Pair with
-    /// [`Self::knots`] and [`Self::weights`] to build a `CurveCertData`
+    /// [`Self::knots_f64_interim`] and [`Self::weights`] to build a `CurveCertData`
     /// for composite bounds. The bracket seam this reads the net
     /// through is the shared one (`net::certified_coords`).
     pub fn certified_coords(&self) -> Vec<Vec<Interval>> {

@@ -2762,7 +2762,7 @@ mod tests {
         let Curve3::Nurbs(n) = c else {
             panic!("fixture is a NURBS");
         };
-        let knots = n.knots().knots();
+        let knots = n.knots_f64_interim().knots();
         let mut ps: Vec<f64> = knots.to_vec();
         ps.extend(
             knots
@@ -2791,8 +2791,8 @@ mod tests {
             panic!("a described NURBS lifted to another variant");
         };
         assert_eq!(
-            lifted.knots(),
-            source.knots(),
+            lifted.knots_f64_interim(),
+            source.knots_f64_interim(),
             "knots must be carried verbatim"
         );
         assert_eq!(
@@ -3142,8 +3142,8 @@ mod tests {
                 panic!("a described NURBS lifted to another variant");
             };
             assert_eq!(
-                lifted.knots(),
-                source.knots(),
+                lifted.knots_f64_interim(),
+                source.knots_f64_interim(),
                 "knots must be carried verbatim"
             );
             assert_eq!(

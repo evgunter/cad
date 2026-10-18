@@ -567,7 +567,8 @@ impl<T: SpanLocate> ProjectiveSplit<T> for Compatible<'_, T> {
     fn enclosure(self) -> Self::Out {
         let first = &self.0[0];
         match self.0.iter().position(|c| {
-            c.degree() != first.degree() || c.knots().knots() != first.knots().knots()
+            c.degree() != first.degree()
+                || c.knots_f64_interim().knots() != first.knots_f64_interim().knots()
         }) {
             Some(section) => Err(SkinError::IncompatibleAtEnclosure { section }),
             None => Ok(self.0.to_vec()),
@@ -788,10 +789,10 @@ pub fn skin<T: SpanLocate>(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knots_f64_interim().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n || c.knots_f64_interim().knots() != knots_u.knots() {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -830,7 +831,9 @@ pub fn skin_on<T: SpanLocate>(
     let knots_u = sections[0].knot_values().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.structure().knots() {
+        if c.control().len() != n
+            || c.knots_f64_interim().knots() != knots_u.structure_f64_interim().knots()
+        {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,

@@ -891,6 +891,11 @@ impl crate::spline::SpanLocate for Interval {
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
 
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (!self.is_poison() && lo <= hi).then_some((lo, hi))
+    }
+
     fn structure_positive(self) -> bool {
         Bounds::lo(self) > 0.0 && !self.is_poison()
     }

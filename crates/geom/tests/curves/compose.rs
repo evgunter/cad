@@ -88,7 +88,7 @@ fn exact_line(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
 fn on_unit_interval(curve: &NurbsCurve3<f64>) -> Vec<f64> {
     let (lo, hi) = curve.domain();
     curve
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .map(|k| (k - lo) / (hi - lo))
@@ -102,7 +102,7 @@ fn xz_circle_frame() -> (Vec3<f64>, Vec3<f64>) {
 /// The composed curve's distinct interior knot values — its seams.
 fn interior_seams(curve: &NurbsCurve3<f64>) -> Vec<f64> {
     let mut seams: Vec<f64> = curve
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .copied()
@@ -116,7 +116,7 @@ fn interior_seams(curve: &NurbsCurve3<f64>) -> Vec<f64> {
 /// span on each side and evaluate its own polynomial piece at the knot.
 /// No finite differences (R2's review construction).
 fn one_sided(curve: &NurbsCurve3<f64>, seam: f64) -> (Vec3<f64>, Vec3<f64>) {
-    let ks = curve.knots().knots().to_vec();
+    let ks = curve.knots_f64_interim().knots().to_vec();
     let left = (0..ks.len() - 1)
         .rfind(|&i| ks[i] < seam && ks[i + 1] == seam)
         .expect("a span ends at the seam");
@@ -167,7 +167,7 @@ fn compose_two_quarter_arcs_is_the_exact_half_arc() {
         "the rational-quadratic degree survives"
     );
     assert_eq!(
-        composed.knots().knots(),
+        composed.knots_f64_interim().knots(),
         on_unit_interval(&half).as_slice(),
         "knots agree bit for bit with the half arc's own chain on [0, 1]"
     );
@@ -200,13 +200,13 @@ fn compose_two_half_arcs_is_the_exact_full_circle_chain() {
     let h2 = exact_arc(c, axis, 1.0, u_ref, pi, 2.0 * pi);
     let full = exact_arc(c, axis, 1.0, u_ref, 0.0, 2.0 * pi);
     assert!(
-        h1.knots().knots().len() > 2 * (h1.degree() + 1),
+        h1.knots_f64_interim().knots().len() > 2 * (h1.degree() + 1),
         "the legs really do carry interior knots"
     );
 
     let composed = compose_chain(&[h1, h2], band()).expect("the two half arcs compose");
     assert_eq!(
-        composed.knots().knots(),
+        composed.knots_f64_interim().knots(),
         on_unit_interval(&full).as_slice(),
         "knots agree bit for bit with the full circle's own chain on [0, 1]"
     );
@@ -241,7 +241,12 @@ fn the_exactness_pin_bites_on_a_one_ulp_mutation() {
 
     let mut weights = q2.weights().to_vec();
     weights[1] = f64::from_bits(weights[1].to_bits() + 1);
-    let mutated = NurbsCurve3::new(q2.knots().clone(), q2.control().to_vec(), weights).unwrap();
+    let mutated = NurbsCurve3::new(
+        q2.knots_f64_interim().clone(),
+        q2.control().to_vec(),
+        weights,
+    )
+    .unwrap();
     let composed = compose_chain(&[q1.clone(), mutated], band()).unwrap();
     assert_ne!(
         composed.weights(),
@@ -251,7 +256,12 @@ fn the_exactness_pin_bites_on_a_one_ulp_mutation() {
 
     let mut control = q2.control().to_vec();
     control[1].x = f64::from_bits(control[1].x.to_bits() + 1);
-    let mutated = NurbsCurve3::new(q2.knots().clone(), control, q2.weights().to_vec()).unwrap();
+    let mutated = NurbsCurve3::new(
+        q2.knots_f64_interim().clone(),
+        control,
+        q2.weights().to_vec(),
+    )
+    .unwrap();
     let composed = compose_chain(&[q1, mutated], band()).unwrap();
     assert!(
         composed
@@ -287,7 +297,7 @@ fn the_seam_knot_keeps_full_multiplicity() {
     )
     .unwrap();
     let (mult, last) = composed
-        .knots()
+        .knots_f64_interim()
         .multiplicity_of(0.5)
         .expect("the seam knot is present");
     assert!(last > composed.degree(), "the seam is interior");

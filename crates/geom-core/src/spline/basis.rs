@@ -11,7 +11,7 @@
 //!
 //! **Structural.** A [`Span`] borrows the knot vector it is a proof
 //! about, and every entry point below reads its knots from that
-//! borrow — [`Span::knots`] — and takes no second vector. So there is
+//! borrow — [`Span::knots_f64_interim`] — and takes no second vector. So there is
 //! no pairing to check and no refusal to answer: the span's own
 //! invariants are invariants of the very knots being read.
 //!

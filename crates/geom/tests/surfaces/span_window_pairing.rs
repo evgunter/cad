@@ -53,8 +53,8 @@ fn perturbed(base: &NurbsSurface<f64>, moved: usize) -> NurbsSurface<f64> {
     let mut control = base.control().to_vec();
     control[moved] = control[moved] + Vec3::new(1.0, -2.0, 3.0);
     NurbsSurface::new(
-        base.knots_u().clone(),
-        base.knots_v().clone(),
+        base.knots_u_f64_interim().clone(),
+        base.knots_v_f64_interim().clone(),
         control,
         base.weights().to_vec(),
     )
@@ -250,8 +250,14 @@ fn a_window_answers_for_its_own_surface() {
     assert!(core::ptr::eq(wb.surface(), &b));
     let indexed = a.window(2, 2).expect("nonempty span pair");
     assert!(core::ptr::eq(indexed.surface(), &a));
-    assert!(core::ptr::eq(indexed.span_u().knots_f64_interim(), a.knots_u()));
-    assert!(core::ptr::eq(indexed.span_v().knots_f64_interim(), a.knots_v()));
+    assert!(core::ptr::eq(
+        indexed.span_u().knots_f64_interim(),
+        a.knots_u_f64_interim()
+    ));
+    assert!(core::ptr::eq(
+        indexed.span_v().knots_f64_interim(),
+        a.knots_v_f64_interim()
+    ));
 }
 
 /// **Both knot vectors and the stride come from the one borrow.** The
@@ -278,8 +284,14 @@ fn the_stride_and_both_vectors_come_from_the_windows_surface() {
     assert_ne!(ww.stride(), wn.stride());
     assert_eq!(ww.stride(), wide.control_counts().1);
     assert_eq!(wn.stride(), narrow.control_counts().1);
-    assert!(core::ptr::eq(ww.span_u().knots_f64_interim(), wide.knots_u()));
-    assert!(core::ptr::eq(ww.span_v().knots_f64_interim(), wide.knots_v()));
+    assert!(core::ptr::eq(
+        ww.span_u().knots_f64_interim(),
+        wide.knots_u_f64_interim()
+    ));
+    assert!(core::ptr::eq(
+        ww.span_v().knots_f64_interim(),
+        wide.knots_v_f64_interim()
+    ));
     // Both evaluate finitely, each on its own net; nothing indexes out
     // of the other's row.
     assert!(!is_poison_point(ww.eval_in_span(1.5, 1.5)));

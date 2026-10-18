@@ -656,7 +656,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self {
             surface,
             grid: None,
-            nets: CellNets::over((surface.knots_u(), surface.knots_v())),
+            nets: CellNets::over((surface.knots_u_f64_interim(), surface.knots_v_f64_interim())),
             knots: OnceCell::new(),
             point_knots: OnceCell::new(),
         }
@@ -678,7 +678,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     fn cell_knots(&self) -> (&'a KnotVector, &'a KnotVector) {
         match self.grid {
             Some(g) => (&g.ku, &g.kv),
-            None => (self.surface.knots_u(), self.surface.knots_v()),
+            None => (
+                self.surface.knots_u_f64_interim(),
+                self.surface.knots_v_f64_interim(),
+            ),
         }
     }
 
@@ -714,8 +717,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// has no finite bound, `u` before `v`.
     pub(crate) fn chart_speeds(&self) -> Result<ChartSpeeds, SsiError> {
         let domain = UvWindow {
-            u: self.surface.knots_u().domain_range(),
-            v: self.surface.knots_v().domain_range(),
+            u: self.surface.knots_u_f64_interim().domain_range(),
+            v: self.surface.knots_v_f64_interim().domain_range(),
         };
         let speed = |axis: ChartAxis| {
             let m = self.speed_sup(domain, axis == ChartAxis::U);
@@ -765,8 +768,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The window clamped to the knot domains.
     fn clamped(&self, w: UvWindow) -> UvWindow {
         UvWindow {
-            u: w.u.clamp_to(self.surface.knots_u().domain_range()),
-            v: w.v.clamp_to(self.surface.knots_v().domain_range()),
+            u: w.u
+                .clamp_to(self.surface.knots_u_f64_interim().domain_range()),
+            v: w.v
+                .clamp_to(self.surface.knots_v_f64_interim().domain_range()),
         }
     }
 
@@ -1085,7 +1090,7 @@ impl CellGrid {
         new_u: &[f64],
         new_v: &[f64],
     ) -> Option<Self> {
-        let (ku, kv) = (surface.knots_u(), surface.knots_v());
+        let (ku, kv) = (surface.knots_u_f64_interim(), surface.knots_v_f64_interim());
         let ref_u = RingRefinement::new(ku, new_u).ok()?;
         let ref_v = RingRefinement::new(kv, new_v).ok()?;
         let homogeneous: Vec<[Interval; 4]> = surface
@@ -1693,7 +1698,7 @@ pub(super) mod tests {
     #[test]
     fn a_skipped_empty_span_cell_leaves_the_derivative_box_seeded() {
         let s = multiplicity_2_patch();
-        let ku = s.knots_u();
+        let ku = s.knots_u_f64_interim();
         // Anti-slack: the fixture must really present an empty cell, or
         // this row covers nothing.
         let empty: Vec<usize> = (ku.first_span()..=ku.last_span())
@@ -2255,7 +2260,7 @@ pub(super) mod tests {
         nets.push(("two-span patch", multiplicity_2_patch()));
         let n = 16;
         for (name, s) in &nets {
-            let (ku, kv) = (s.knots_u(), s.knots_v());
+            let (ku, kv) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());
             for su in ku.first_span()..=ku.last_span() {
                 for sv in kv.first_span()..=kv.last_span() {
                     let Some(win) = s.window(su, sv) else {

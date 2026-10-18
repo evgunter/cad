@@ -1219,7 +1219,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // compares control nets over it), and to a line in both, whose
         // class reads no net.
         let row_space = match &carrier {
-            geom::Curve3::Nurbs(spline) => RowSpace::of(spline.knots(), wall.knots_u()),
+            geom::Curve3::Nurbs(spline) => {
+                RowSpace::of(spline.knots_f64_interim(), wall.knots_u_f64_interim())
+            }
             geom::Curve3::Line { .. } => RowSpace {
                 forward: true,
                 backward: true,

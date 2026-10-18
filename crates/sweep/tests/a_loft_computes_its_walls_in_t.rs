@@ -467,8 +467,8 @@ fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
     let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");
     for c in &same {
         assert_eq!(
-            (c.knots().knots(), c.control().len()),
-            (line.knots().knots(), 2),
+            (c.knots_f64_interim().knots(), c.control().len()),
+            (line.knots_f64_interim().knots(), 2),
             "a compatible line comes back as itself"
         );
     }

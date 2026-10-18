@@ -24,7 +24,7 @@ use sweep::skin::make_compatible;
 fn retired_skin_union(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>> {
     let mut union: Vec<(f64, usize)> = Vec::new();
     for c in elevated {
-        for (value, mult) in c.knots().interior_knots() {
+        for (value, mult) in c.knots_f64_interim().interior_knots() {
             match union.iter_mut().find(|(v, _)| *v == value) {
                 Some((_, m)) => *m = (*m).max(mult),
                 None => union.push((value, mult)),
@@ -35,7 +35,7 @@ fn retired_skin_union(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>> {
     let merged: Vec<NurbsCurve3<f64>> = elevated
         .iter()
         .map(|c| {
-            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
+            let own: Vec<(f64, usize)> = c.knots_f64_interim().interior_knots().collect();
             let mut add: Vec<f64> = Vec::new();
             for (value, want) in &union {
                 let have = own
@@ -63,7 +63,7 @@ fn retired_fit_pair(
     reference: &NurbsCurve3<f64>,
 ) -> (NurbsCurve3<f64>, NurbsCurve3<f64>) {
     let mut need: Vec<(f64, usize)> = Vec::new();
-    for kv in [this.knots(), reference.knots()] {
+    for kv in [this.knots_f64_interim(), reference.knots_f64_interim()] {
         for (u, m) in kv.interior_knots() {
             match need.iter_mut().find(|(v, _)| *v == u) {
                 Some(entry) => entry.1 = entry.1.max(m),
@@ -72,7 +72,7 @@ fn retired_fit_pair(
         }
     }
     let refine_to = |c: &NurbsCurve3<f64>| -> NurbsCurve3<f64> {
-        let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
+        let own: Vec<(f64, usize)> = c.knots_f64_interim().interior_knots().collect();
         let mut add: Vec<f64> = Vec::new();
         for (u, m) in &need {
             let have = own.iter().find(|(v, _)| *v == *u).map_or(0, |(_, s)| *s);
@@ -90,8 +90,13 @@ fn retired_fit_pair(
 }
 
 fn bits(c: &NurbsCurve3<f64>) -> Vec<u64> {
-    let mut v: Vec<u64> = c.knots().knots().iter().map(|x| x.to_bits()).collect();
-    v.push(c.knots().degree() as u64);
+    let mut v: Vec<u64> = c
+        .knots_f64_interim()
+        .knots()
+        .iter()
+        .map(|x| x.to_bits())
+        .collect();
+    v.push(c.knots_f64_interim().degree() as u64);
     for p in c.control() {
         v.extend([p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
     }
@@ -219,8 +224,8 @@ fn n3r1_d31_bit_identity_against_both_retired_spellings() {
         // Every output shares one bit-identical knot vector.
         for y in &b {
             assert_eq!(
-                y.knots().knots(),
-                b[0].knots().knots(),
+                y.knots_f64_interim().knots(),
+                b[0].knots_f64_interim().knots(),
                 "{what}: not on one vector"
             );
         }
@@ -234,7 +239,10 @@ fn n3r1_d31_bit_identity_against_both_retired_spellings() {
     let head = make_compatible(&mixed).unwrap();
     let elevated: Vec<NurbsCurve3<f64>> = mixed
         .iter()
-        .map(|c| c.elevate_degree(3 - c.knots().degree()).unwrap())
+        .map(|c| {
+            c.elevate_degree(3 - c.knots_f64_interim().degree())
+                .unwrap()
+        })
         .collect();
     let retired = retired_skin_union(&elevated);
     for (x, y) in head.iter().zip(&retired) {

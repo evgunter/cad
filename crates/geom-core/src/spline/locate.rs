@@ -240,6 +240,55 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// beyond its value.
     fn plain_constant(self) -> Option<f64>;
 
+    /// **The closed bracket of every value this scalar stands for**, or
+    /// `None` for poison: `(v, v)` at a point, the enclosure's ends at
+    /// `Interval`, the value part's at the wrappers. A structure
+    /// refusal carries it as its margin (C6), so a refinement of the
+    /// inputs that narrows the bracket can lift the refusal.
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.point_value().map(|v| (v, v))
+    }
+
+    /// **The spans of a carrier whose knots are held in the scalar** and
+    /// may be wider than a point (C6): every nonempty span some member's
+    /// parameter can lie in, for some member's knots, hulled as the
+    /// first and the last. Span `i` can hold the parameter when its
+    /// lower knot's bracket starts at or below the parameter's top and
+    /// the parameter's bottom lies below its upper knot's bracket top;
+    /// the first span is closed below and the last above, as
+    /// [`KnotVector::span_at`] clamps. At point knots and a point
+    /// parameter that is the `f64` tie-break, the span starting at a
+    /// knot. `None` for a poison parameter or a poison knot.
+    ///
+    /// The spans it answers are over `structure` alone, so their
+    /// [`Span::knots_f64_interim`] refuses: their positions are `held`.
+    fn locate_held<'a>(
+        self,
+        structure: &'a super::knots::KnotStructure,
+        held: &[Self],
+    ) -> Option<SpanSet<'a>> {
+        let (t_lo, t_hi) = self.structure_bracket()?;
+        let mut brackets = Vec::with_capacity(held.len());
+        for k in held {
+            brackets.push(k.structure_bracket()?);
+        }
+        let (first_span, last_span) = (structure.first_span(), structure.last_span());
+        let possible = (first_span..=last_span).filter(|&i| {
+            structure.span_is_nonempty(i)
+                && (i == first_span || brackets[i].0 <= t_hi)
+                && (i == last_span || t_lo < brackets[i + 1].1)
+        });
+        let (mut first, mut last) = (None, None);
+        for i in possible {
+            first = first.or(Some(i));
+            last = Some(i);
+        }
+        Some(SpanSet {
+            first: structure.span(first?)?,
+            last: structure.span(last?)?,
+        })
+    }
+
     /// [`SpanLocate::point_value`], or NaN where there is none: the
     /// `f64` a structure decision reads, so that a value with no point
     /// (poison, an enclosure wider than a point) takes every

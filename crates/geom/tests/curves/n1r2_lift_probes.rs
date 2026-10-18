@@ -35,7 +35,7 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
             matches!(&ed, Curve3::Nurbs(n) if !n.is_placeholder()),
             "{name}"
         );
-        for t in params(c.knots()) {
+        for t in params(c.knots_f64_interim()) {
             let p = ed.eval(Dual::variable(t));
             let q = e.eval(t);
             let d1 = e.deriv(t);
@@ -71,10 +71,14 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
             }
         }
         // Finite differences away from knots, as an independent oracle.
-        let (lo, hi) = c.knots().domain();
+        let (lo, hi) = c.knots_f64_interim().domain();
         for i in 1..40 {
             let t = lo + (hi - lo) * (i as f64 + 0.37) / 41.0;
-            if c.knots().knots().iter().any(|k| (k - t).abs() < 1e-3) {
+            if c.knots_f64_interim()
+                .knots()
+                .iter()
+                .any(|k| (k - t).abs() < 1e-3)
+            {
                 continue;
             }
             let h = 1e-6;
@@ -101,7 +105,7 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
 fn n1r2_curve2_dual_lift_evaluates_to_source() {
     for (name, c) in curves2() {
         let cd = c.map_scalar(Dual::constant);
-        for t in params(c.knots()) {
+        for t in params(c.knots_f64_interim()) {
             let p = cd.eval(Dual::variable(t));
             let q = c.eval(t);
             let d = c.deriv(t);
@@ -121,7 +125,10 @@ fn n1r2_curve2_dual_lift_evaluates_to_source() {
             );
         }
         assert_eq!(cd.weight_channel(), c.weight_channel());
-        assert_eq!(cd.knots().knots(), c.knots().knots());
+        assert_eq!(
+            cd.knots_f64_interim().knots(),
+            c.knots_f64_interim().knots()
+        );
     }
 }
 
@@ -134,8 +141,8 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
             matches!(&ed, Surface::Nurbs(n) if !n.is_placeholder()),
             "{name}"
         );
-        let us = params(s.knots_u());
-        let vs = params(s.knots_v());
+        let us = params(s.knots_u_f64_interim());
+        let vs = params(s.knots_v_f64_interim());
         for &u in &us {
             for &v in &vs {
                 let q = e.eval(u, v);
@@ -235,8 +242,8 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
     let SurfaceDescription::Offset { base, d } = l.description();
     assert_eq!(d.value.to_bits(), 0.5f64.to_bits());
     assert_eq!(base.weight_channel(), fit.weight_channel());
-    for u in params(fit.knots_u()) {
-        for v in params(fit.knots_v()) {
+    for u in params(fit.knots_u_f64_interim()) {
+        for v in params(fit.knots_v_f64_interim()) {
             let p = sd.eval(Dual::constant(u), Dual::constant(v));
             let q = s.eval(u, v);
             assert_eq!(p.x.value.to_bits(), q.x.to_bits());
@@ -351,7 +358,7 @@ fn retired_ders_in_span(
 fn n1r2_c24_bit_identity_against_the_retired_spelling() {
     let mut n = 0usize;
     for (name, c) in curves3() {
-        let kv = c.knots();
+        let kv = c.knots_f64_interim();
         for t in params(kv) {
             for idx in 0..kv.knots().len() {
                 let Some(span) = c.span(idx) else { continue };

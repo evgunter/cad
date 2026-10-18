@@ -79,10 +79,10 @@ pub enum SplineError {
         /// The requested upper end.
         hi: f64,
     },
-    /// A breakpoint held in the scalar reads as no single `f64` point
-    /// (`SpanLocate::point_value`): poison, or an enclosure wider than a
-    /// point. The `f64` knot vector is the values' value channel, and
-    /// such a value names no knot structure.
+    /// A breakpoint held in the scalar is poison: it stands for no
+    /// value, so it names no place in the structure. (An enclosure wider
+    /// than a point is a breakpoint, C6: it is held, and its runs'
+    /// order is certified for every member.)
     KnotNotAPoint {
         /// Index of the offending run.
         index: usize,
@@ -94,6 +94,17 @@ pub enum SplineError {
     KnotRunsNotIncreasing {
         /// Index of the offending run.
         index: usize,
+    },
+    /// Whether a breakpoint lies above the one before it is not decided
+    /// for every value the two stand for: their enclosures overlap, so
+    /// some members' runs ascend and others' meet or cross (C6). The
+    /// margin is the enclosure of the step `b − a`; inputs refined so
+    /// that it clears zero lift the refusal.
+    KnotRunsUndecided {
+        /// Index of the offending run.
+        index: usize,
+        /// The step from the previous breakpoint, as read.
+        margin: crate::MarginDiag,
     },
     /// A weight held in the scalar is an enclosure wider than a point
     /// (`SpanLocate::point_value` reads none, and it is not poison,
@@ -149,9 +160,8 @@ impl core::fmt::Display for SplineError {
             ),
             SplineError::KnotNotAPoint { index } => write!(
                 f,
-                "breakpoint {index} is not one point (poison, or an enclosure wider than a \
-                 point), so it names no knot structure for the spans to be located in. \
-                 Recourse: supply a breakpoint that is a single number there"
+                "breakpoint {index} is poison, so it names no place for the spans to be \
+                 located in. Recourse: supply a breakpoint that is a number there"
             ),
             SplineError::KnotRunsNotIncreasing { index } => write!(
                 f,
@@ -159,6 +169,13 @@ impl core::fmt::Display for SplineError {
                  would merge into one run or reverse the vector. Recourse: supply one \
                  breakpoint with the summed multiplicity where the two are one knot, or \
                  breakpoints that increase"
+            ),
+            SplineError::KnotRunsUndecided { index, margin } => write!(
+                f,
+                "whether breakpoint {index} lies above the one before it is undecided over \
+                 the values they stand for: the step between them is {margin}, which \
+                 straddles zero, so some members' runs would merge or cross. Recourse: \
+                 supply those breakpoints from inputs narrow enough that the step clears zero"
             ),
             SplineError::WeightNotAPoint { index } => write!(
                 f,
@@ -603,7 +620,7 @@ impl InteriorKnot {
 /// for the vector it names is not a representable state — and neither
 /// is a span held beside a *different* vector: every door that
 /// consumes a `Span` reads its knots through the span
-/// ([`Span::knots`]) and takes no second [`KnotVector`] parameter to
+/// ([`Span::knots_f64_interim`]) and takes no second [`KnotVector`] parameter to
 /// disagree with it. [`super::basis`] and [`super::hull`] therefore
 /// index without a pairing guard and without a poison route for one.
 /// `geom` carries the shape one level further: `CurveWindow{2,3}`
@@ -798,6 +815,7 @@ impl<'a> Span<'a> {
     ///
     /// On a span over a carrier whose knots are not all points.
     #[track_caller]
+    #[allow(clippy::panic)]
     pub fn knots_f64_interim(self) -> &'a KnotVector {
         self.kv.unwrap_or_else(|| {
             panic!(
@@ -2222,6 +2240,10 @@ mod tests {
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
             SplineError::KnotNotAPoint { index: 1 },
             SplineError::KnotRunsNotIncreasing { index: 2 },
+            SplineError::KnotRunsUndecided {
+                index: 2,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
             SplineError::WeightNotAPoint { index: 1 },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
@@ -2236,10 +2258,11 @@ mod tests {
                 | SplineError::DomainInvalid { .. }
                 | SplineError::KnotNotAPoint { .. }
                 | SplineError::KnotRunsNotIncreasing { .. }
+                | SplineError::KnotRunsUndecided { .. }
                 | SplineError::WeightNotAPoint { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 9, "an arm was added without a row here");
+        assert_eq!(arms.len(), 10, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

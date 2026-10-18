@@ -359,7 +359,10 @@ enum CornerClass {
 impl Pass<'_> {
     /// The wall's `(u, v)` domain.
     fn domain(&self) -> ((f64, f64), (f64, f64)) {
-        (self.wall.knots_u().domain(), self.wall.knots_v().domain())
+        (
+            self.wall.knots_u_f64_interim().domain(),
+            self.wall.knots_v_f64_interim().domain(),
+        )
     }
 
     /// The side's curve ([`side_row`]).
@@ -399,8 +402,8 @@ impl Pass<'_> {
     /// net's corner control point, so this encloses it exactly.
     fn corner_distance(&self, c: ChartCorner) -> Interval {
         let (nu, nv) = (
-            self.wall.knots_u().control_count(),
-            self.wall.knots_v().control_count(),
+            self.wall.knots_u_f64_interim().control_count(),
+            self.wall.knots_v_f64_interim().control_count(),
         );
         let iu = match c.u {
             ChartEnd::Low => 0,
@@ -938,12 +941,15 @@ pub(crate) fn side_row_parts<T: CertifiedBounds>(
     let (knots, indices): (_, Vec<usize>) = match side.fixed {
         ChartAxis::U => {
             let base = if high { (nu - 1) * nv } else { 0 };
-            (wall.knots_v().clone(), (base..base + nv).collect())
+            (
+                wall.knots_v_f64_interim().clone(),
+                (base..base + nv).collect(),
+            )
         }
         ChartAxis::V => {
             let offset = if high { nv - 1 } else { 0 };
             (
-                wall.knots_u().clone(),
+                wall.knots_u_f64_interim().clone(),
                 (0..nu).map(|iu| iu * nv + offset).collect(),
             )
         }

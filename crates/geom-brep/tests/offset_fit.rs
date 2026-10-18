@@ -192,16 +192,16 @@ fn the_fit_lives_on_the_base_chart_window_bit_for_bit() {
     assert!(cert.hull_sup <= 3e-4, "certified sup {}", cert.hull_sup);
     let bits = |(a, b): (f64, f64)| (a.to_bits(), b.to_bits());
     assert_eq!(
-        bits(fit.knots_u().domain()),
+        bits(fit.knots_u_f64_interim().domain()),
         (ulo.to_bits(), uhi.to_bits()),
         "u domain: {:?}",
-        fit.knots_u().domain()
+        fit.knots_u_f64_interim().domain()
     );
     assert_eq!(
-        bits(fit.knots_v().domain()),
+        bits(fit.knots_v_f64_interim().domain()),
         (vlo.to_bits(), vhi.to_bits()),
         "v domain: {:?}",
-        fit.knots_v().domain()
+        fit.knots_v_f64_interim().domain()
     );
 }
 
@@ -570,8 +570,8 @@ fn a_nan_sample_refuses_at_the_on_locus_limb() {
     let mut control = exact.control().to_vec();
     control[0] = Point3::new(f64::NAN, 0.0, 0.0);
     let poisoned = NurbsSurface::new(
-        exact.knots_u().clone(),
-        exact.knots_v().clone(),
+        exact.knots_u_f64_interim().clone(),
+        exact.knots_v_f64_interim().clone(),
         control,
         exact.weights().to_vec(),
     )
@@ -1000,8 +1000,8 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
             .map(|p| Point3::new(p.x + shift, p.y + shift, p.z))
             .collect();
         NurbsSurface::new(
-            c.knots_u().clone(),
-            c.knots_v().clone(),
+            c.knots_u_f64_interim().clone(),
+            c.knots_v_f64_interim().clone(),
             control,
             c.weights().to_vec(),
         )
