@@ -828,7 +828,7 @@ pub fn reference_about<T: SolveScalar>(
     let d = axis.get();
     let (a, b, c) = (d.x, d.y, d.z);
     let one = T::one();
-    let across = a * a + b * b;
+    let across = a.powi(2) + b.powi(2);
     // Which formula is a choice of arithmetic, not a verdict: the two
     // are one number, and the first loses no digit near the antipode.
     let one_plus_c = if c.quoted() < 0.0 {
@@ -850,7 +850,7 @@ pub fn reference_about<T: SolveScalar>(
         return Ok(geom_core::linalg::Vec3::new(one, T::zero(), T::zero()));
     }
     Ok(geom_core::linalg::Vec3::new(
-        one - a * a / one_plus_c,
+        one - a.powi(2) / one_plus_c,
         T::zero() - a * b / one_plus_c,
         T::zero() - a,
     ))
@@ -1108,7 +1108,7 @@ impl<T: geom_core::Real> Lever<T> {
     /// the number the funnel decided are one value.
     pub fn margin(self) -> Margin<T> {
         match self {
-            Self::Residual { value, arm } => Margin::levered(value, T::from_computed(arm)),
+            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
         }
     }
 }

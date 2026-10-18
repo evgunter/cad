@@ -10,12 +10,8 @@ crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
-crates/editor-core/src/mate.rs	1	constant	radians	the authored clocking angle, f64 by type in the document
-crates/editor-core/src/mate.rs	2	launders(editor-core-keeps-computed-values-in-t)	arm	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
+crates/editor-core/src/mate.rs	1	launders(editor-core-keeps-computed-values-in-t)	arm	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
 crates/editor-core/src/mate/coset.rs	4	launders(editor-core-keeps-computed-values-in-t)	arm.get()	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
-crates/editor-core/src/mate/solve.rs	1	constant	offset	the authored planar-rest offset, f64 by type in the document
-crates/editor-core/src/mate/solve.rs	1	constant	theta	the authored clocking angle, f64 by type in the document
-crates/editor-core/src/mate/solve.rs	3	constant	<fn>	the identity's and the opposed flip's literal entries
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator

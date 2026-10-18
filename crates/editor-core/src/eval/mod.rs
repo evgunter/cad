@@ -3902,6 +3902,57 @@ fn spaces_of<T: Decide>(
     loose
 }
 
+/// **[`crate::mate::solve_document`] at a run's own scalar** — a box
+/// run's poses enclosing each copy's over the box, a seed run's
+/// carrying their tangents — under `opts`, whose box or seed the run
+/// reads. Here, at the evaluation seam, because it reads an evaluation
+/// at a run's scalar.
+pub fn solve_document_at<T>(
+    doc: &Doc<ProfileProgram>,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> crate::mate::SolvedPoses<T>
+where
+    T: crate::mate::SolveScalar + EvalScalar,
+{
+    let evaluation = evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
+    crate::mate::SolvedPoses::of(doc, &evaluation)
+}
+
+impl<T: crate::mate::SolveScalar + EvalScalar> crate::mate::SolvedPoses<T> {
+    /// **Every placement's answer in `evaluation`**, the evaluation of
+    /// `doc`: a placement that evaluated, its space and motion; one
+    /// that refused its bundle, the fault.
+    pub fn of(doc: &Doc<ProfileProgram>, evaluation: &Evaluation<T>) -> Self {
+        let mut placed = BTreeMap::new();
+        for id in doc.ids() {
+            if doc
+                .node(id)
+                .and_then(crate::mate::solve::bundle_of)
+                .is_none()
+            {
+                continue;
+            }
+            match evaluation.result(id) {
+                Some(NodeResult::Ok(value)) => {
+                    let space = value.space.unwrap_or(crate::mate::Space::World);
+                    placed.insert(id, Ok((space, value.motion.map(|m| m.to_affine()))));
+                }
+                Some(NodeResult::Failed(error)) => {
+                    if let NodeErrorKind::Mate(fault) = &error.kind {
+                        placed.insert(id, Err((**fault).clone()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Self {
+            document: doc.id(),
+            placed,
+        }
+    }
+}
+
 /// **A pose read bound against an evaluation, with no reader seat**
 /// — a report's read of a pose variable ([`crate::mate::unobservable`]).
 pub(crate) fn read_pose_in<T: EvalScalar>(

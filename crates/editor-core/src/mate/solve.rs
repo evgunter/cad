@@ -223,10 +223,12 @@ type Placed<T> = (Space, Option<Affine3<T>>);
 #[derive(Debug)]
 pub struct SolvedPoses<T: Decide = f64> {
     /// **Which document this is a solve OF** (DI3).
-    document: crate::ident::DocumentId,
+    pub(crate) document: crate::ident::DocumentId,
     /// Each placement's answer: its space and its motion in that
-    /// space's coordinates (`None` the identity), or its refusal.
-    placed: BTreeMap<RecipeNodeId, Result<Placed<T>, MateFault>>,
+    /// space's coordinates (`None` the identity), or its refusal —
+    /// read off an evaluation by `SolvedPoses::of`, at the evaluation
+    /// seam (`eval/mod.rs`).
+    pub(crate) placed: BTreeMap<RecipeNodeId, Result<Placed<T>, MateFault>>,
 }
 
 /// **Why the nominal world-pose door has no pose** for a placement
@@ -292,37 +294,6 @@ impl core::fmt::Display for PoseRefusal {
 impl core::error::Error for PoseRefusal {}
 
 impl<T: SolveScalar> SolvedPoses<T> {
-    /// **Every placement's answer in `evaluation`**, the evaluation of
-    /// `doc`: a placement that evaluated, its space and motion; one
-    /// that refused its bundle, the fault.
-    pub fn of(doc: &Doc<crate::ProfileProgram>, evaluation: &crate::eval::Evaluation<T>) -> Self
-    where
-        T: crate::eval::EvalScalar,
-    {
-        let mut placed = BTreeMap::new();
-        for id in doc.ids() {
-            if doc.node(id).and_then(bundle_of).is_none() {
-                continue;
-            }
-            match evaluation.result(id) {
-                Some(crate::eval::NodeResult::Ok(value)) => {
-                    let space = value.space.unwrap_or(Space::World);
-                    placed.insert(id, Ok((space, value.motion.map(|m| m.to_affine()))));
-                }
-                Some(crate::eval::NodeResult::Failed(error)) => {
-                    if let crate::eval::NodeErrorKind::Mate(fault) = &error.kind {
-                        placed.insert(id, Err((**fault).clone()));
-                    }
-                }
-                _ => {}
-            }
-        }
-        Self {
-            document: doc.id(),
-            placed,
-        }
-    }
-
     /// **Which document this solve is of** (DI3).
     pub fn document(&self) -> crate::ident::DocumentId {
         self.document
@@ -418,20 +389,10 @@ pub fn solve_document(
     solve_document_at(doc, opts, tol)
 }
 
-/// **[`solve_document`] at a run's own scalar** — a box run's poses
-/// enclosing each copy's over the box, a seed run's carrying their
-/// tangents — under `opts`, whose box or seed the run reads.
-pub fn solve_document_at<T>(
-    doc: &Doc<crate::ProfileProgram>,
-    opts: &crate::eval::EvalOptions,
-    tol: geom_core::Tol,
-) -> SolvedPoses<T>
-where
-    T: SolveScalar + crate::eval::EvalScalar,
-{
-    let evaluation = crate::eval::evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
-    SolvedPoses::of(doc, &evaluation)
-}
+/// **[`solve_document`] at a run's own scalar**: declared at the
+/// evaluation seam, whose scalar bound it needs
+/// ([`crate::eval::solve_document_at`]).
+pub use crate::eval::solve_document_at;
 
 /// **Whether a solved map stands at the identity** (stage 3 C, fork
 /// C-5), three ways: `Some(true)` decided at rest, `Some(false)`
