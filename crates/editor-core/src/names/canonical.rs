@@ -80,10 +80,14 @@ impl Seams {
     /// The order a PUBLISHED name's own seams are in, read off the name.
     ///
     /// A pair boolean's seam sides are its OPERANDS' names (N2), minted
-    /// by other nodes. A union's are its own member-space names, minted
-    /// by the union: the collapse rewrites every side into this node's
-    /// space. So a seam whose side is minted by the name's own node is
-    /// a union's.
+    /// by other nodes, but for a side beside a face the pair merged,
+    /// which cites that face's `Merged` parent, minted by the pair (N3);
+    /// a pair seam between two merged faces is no seam (`emit_topo`'s
+    /// `chord_kind`), so one side at least is an operand's. A union's
+    /// sides are its own member-space names, minted by the union: the
+    /// collapse rewrites every side into this node's space. So a seam
+    /// both of whose sides are minted by the name's own node is a
+    /// union's.
     ///
     /// Only published names are read this way. Inside a union's fold
     /// every row, a seam's sides included, is minted under the union's
@@ -92,7 +96,7 @@ impl Seams {
     /// a rewrite (the collapse publishes their rows).
     pub(crate) fn of_published(name: &StableName) -> Self {
         let union = name.path.iter().any(|seg| match seg {
-            RoleSeg::Seam { a, .. } => a.node == name.node,
+            RoleSeg::Seam { a, b } => a.node == name.node && b.node == name.node,
             RoleSeg::EdgeCrossing(run) => run.iter().any(|l| l.line.node == name.node),
             _ => false,
         });

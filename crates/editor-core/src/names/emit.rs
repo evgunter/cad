@@ -37,7 +37,7 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
-///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
+///    [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
 ///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
@@ -219,12 +219,12 @@ pub enum NamingError {
     },
     /// A boolean's chord between two MERGED faces that no rule names.
     ///
-    /// Each merged face has a constituent on both sides, so the faces
-    /// do not say which side the chord belongs to. The rule that exists
-    /// reads the chord through to the side its own key descends to and
-    /// names it as the rim that side's two constituents share — when
-    /// the chord lies within that rim, which is checked geometrically
-    /// (`emit_topo`'s `chord_within`). This is the refusal for a chord
+    /// Each merged face holds faces of both sides, so the faces do not
+    /// say which side the chord belongs to. The rule that exists reads
+    /// the chord on the side its own key descends to and names it as
+    /// the rim a face of that side in one merged face shares with one in
+    /// the other — when the chord lies within that rim, which is checked
+    /// geometrically (`emit_topo`'s `chord_within`). This is the refusal for a chord
     /// with no key side to read through to: a zip-listed edge, which
     /// the join minted. It does not say the body is wrong; what is
     /// missing is a rule for the chord.
@@ -243,30 +243,6 @@ pub enum NamingError {
         node: RecipeNodeId,
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
-    },
-    /// A boolean's chord from a MERGED face that holds SEVERAL
-    /// constituents on the side the chord reads through to, of which no
-    /// single one holds the whole chord — a sibling word of
-    /// [`Self::MergedChord`] and [`Self::MergedChordOffRim`] because its
-    /// subject is the merged face's constituents, not a rim.
-    ///
-    /// A chord between a merged face and an unmerged one is read
-    /// through to the merged face's constituent on the other side, and
-    /// where the merge glued several faces of that operand, to the one
-    /// that holds the chord whole: a chord the output stage never
-    /// joined, read at its middle. This is the chord that rule cannot
-    /// place in one: a chord the join made of several edges, which may
-    /// run across the glued faces' common rim, or one whose middle lies
-    /// on a constituent's boundary or on a face whose in-face door gives
-    /// no reading. The body is sound; what is missing is a rule for a
-    /// chord no single constituent holds.
-    MergedChordConstituents {
-        /// The result-body edge.
-        edge: EdgeKey,
-        /// The merged face, a result-body key.
-        face: FaceKey,
-        /// How many distinct constituents it holds on that side.
-        several: usize,
     },
     /// A **conventional vertex** (`topo::is_conventional_vertex`: its
     /// only edge is one closed edge, at both its ends) that a table
@@ -546,16 +522,6 @@ impl crate::spoken::Say for NamingError {
                  takes from its edge is not built yet \
                  (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
-            Self::MergedChordConstituents {
-                edge,
-                face,
-                several,
-            } => write!(
-                f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
-                 holds {several} faces of the operand the chord reads through to, and no rule \
-                 picks one: none of them is read to hold the whole chord"
-            ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
@@ -646,7 +612,6 @@ impl NamingError {
             | Self::SharedRim { .. }
             | Self::MergedChord { .. }
             | Self::MergedChordOffRim { .. }
-            | Self::MergedChordConstituents { .. }
             | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
@@ -1905,14 +1870,6 @@ mod display_tests {
                 vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
-                NamingError::MergedChordConstituents {
-                    edge: two_edges().0,
-                    face: FaceKey::default(),
-                    several: 2,
-                },
-                vec!["merged face", "holds 2 faces", "no rule picks"],
-            ),
-            (
                 NamingError::ClosedCarrierUnread {
                     edge: EdgeKey::default(),
                     carrier: geom::CurveKind::Nurbs,
@@ -2019,12 +1976,11 @@ mod display_tests {
                 NamingError::MergedChordOffRim { .. } => 10,
                 NamingError::Band(_) => 11,
                 NamingError::MemberEdgeTied { .. } => 12,
-                NamingError::MergedChordConstituents { .. } => 13,
-                NamingError::ConventionalVertex { .. } => 14,
-                NamingError::ClosedCarrierUnread { .. } => 15,
-                NamingError::Settle(_) => 16,
-                NamingError::CarrierUnplaced { .. } => 17,
-                NamingError::PartnerUnread { .. } => 18,
+                NamingError::ConventionalVertex { .. } => 13,
+                NamingError::ClosedCarrierUnread { .. } => 14,
+                NamingError::Settle(_) => 15,
+                NamingError::CarrierUnplaced { .. } => 16,
+                NamingError::PartnerUnread { .. } => 17,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

@@ -1170,15 +1170,17 @@ pub(crate) fn name_boolean<T: Decide>(
     // ---- Faces: merges first (N3), then descent groups. ----
     let mut tie = TieRows::default();
     let mut handled: BTreeSet<FaceKey> = BTreeSet::new();
-    // Kept face → constituent descents (M4 PR 5: the seam-edge walk
-    // reads THROUGH a merged face to its mint-time operand identity).
+    // Kept face → constituent descents: which operands a merged face
+    // holds faces of, and the faces a chord between two merged faces
+    // may lie along a rim of.
     let mut merged_descents: BTreeMap<FaceKey, Vec<OpSide<FaceKey>>> = BTreeMap::new();
     // Operand face → the merged faces it survives in: those faces
     // descend from it too, so they are members of its group
     // (`names::groups`).
     let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
-    // Merged face → its parent's name, the one a `Borders` wall cites.
-    let mut merged_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
+    // Merged face → its parent's name, the one a `Borders` wall and a
+    // seam cite (N3), and whether it descends from a tie.
+    let mut merged_names: BTreeMap<FaceKey, (NameRef, bool)> = BTreeMap::new();
     // The merged parents in the order the merges first list them, each
     // keyed by the operand faces its merges list: a parent is a set of
     // entities, never a name, so tied parents spelled alike stay apart.
@@ -1230,7 +1232,7 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         let merged =
             canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
-        merged_names.insert(*kept, merged.clone());
+        merged_names.insert(*kept, (NameRef::new(merged.clone()), from_tie));
         // Two merges that list the same operand faces hold one parent
         // between them (N2: a parent is a set of entities), so the
         // faces it is held as are named together below.
@@ -1271,8 +1273,8 @@ pub(crate) fn name_boolean<T: Decide>(
     // space the pair reads its operands in (a union's fold collapses it
     // like any other embedded name).
     let wall = |g: FaceKey| -> Result<StableName, NamingError> {
-        if let Some(n) = merged_names.get(&g) {
-            return Ok(n.clone());
+        if let Some((n, _)) = merged_names.get(&g) {
+            return Ok((**n).clone());
         }
         Ok((*operand_face_name(descend_face(g)?)?.name).clone())
     };
@@ -1385,6 +1387,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &descend_face,
         &operand_face_name,
         &merged_descents,
+        &merged_names,
         bnd,
     )?;
     name_boolean_vertices(
@@ -1492,6 +1495,7 @@ fn name_boolean_edges<T: Decide>(
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
     operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
     merged_descents: &BTreeMap<FaceKey, Vec<OpSide<FaceKey>>>,
+    merged_names: &BTreeMap<FaceKey, (NameRef, bool)>,
     bnd: geom_core::Band,
 ) -> Result<Vec<EdgeGroup>, NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -1517,55 +1521,71 @@ fn name_boolean_edges<T: Decide>(
         /// No rim, or several of which the chord lies within none.
         None(RimShare),
     }
+    /// The name a seam cites as one side, and whether it descends from
+    /// a tie.
+    struct SeamSide {
+        name: NameRef,
+        tied: bool,
+    }
     enum ChordKind {
-        /// A seam: its two faces' names, and the one operand both
-        /// descend from where they do.
-        Cross(Upstream, Upstream, Option<topo::Operand>),
+        /// A seam: the names its two sides cite, and the one operand both
+        /// faces descend from where they do.
+        Cross(SeamSide, SeamSide, Option<topo::Operand>),
         SameA(EdgeKey),
         SameB(EdgeKey),
     }
-    // A face's descent for CHORD purposes: a plain face descends as
-    // itself; a MERGED face (N3) reads through to its constituent on
-    // side `want` — the seam's mint-time operand identity survives the
-    // glue. Where the merge glued several faces of that operand, the
-    // chord descends to the one whose operand face holds it whole
-    // ([`constituent_holding`]); one that none holds whole refuses
-    // (`NamingError::MergedChordConstituents`).
-    let chord_descent =
-        |e: EdgeKey, f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
-            let Some(ds) = merged_descents.get(&f) else {
-                return descend_face(f);
-            };
-            // Constituent fragments of ONE operand face share a
-            // descent — dedup before the uniqueness demand.
-            let mut hits: Vec<OpSide<FaceKey>> =
-                ds.iter().filter(|d| d.operand() == want).copied().collect();
-            hits.sort_unstable();
-            hits.dedup();
-            match hits.as_slice() {
-                [] => Err(bug("merged face lacks the needed operand-side constituent")),
-                [one] => Ok(*one),
-                several => constituent_holding(body, e, &naming.edge_joins, several, a, b, bnd)?
-                    .ok_or(NamingError::MergedChordConstituents {
-                        edge: e,
-                        face: f,
-                        several: several.len(),
-                    }),
-            }
-        };
-    // **A chord between two MERGED faces.** Each face has a constituent
-    // on both sides, so neither face says which side to read through
-    // to. `own` is the side the chord's own key descends to, and the
-    // chord is read through to THAT side's two constituents and named
-    // as the rim they share — but the key is only where to look, not
-    // why the answer holds: the join mints keys on both sides, and a
-    // B-clone result keys every chord as B's. What makes the answer
-    // right is geometric. Two planar constituents of one operand meet
-    // along their shared rim's LINE, so a chord lying on both lies on
-    // that line; it is that rim's piece exactly when it also lies
-    // WITHIN the rim. [`chord_within`] checks both before the name is
-    // given, and a chord that fails it — or one with no key side, a
-    // zip-listed edge — refuses as the missing rule it is
+    let plain = |d: OpSide<FaceKey>| -> Result<SeamSide, NamingError> {
+        let up = operand_face_name(d)?;
+        Ok(SeamSide {
+            name: up.name,
+            tied: up.tied,
+        })
+    };
+    // A merged face's seam side is its parent, the `Merged` set, never a
+    // constituent (N3). It stands opposite the unmerged face across the
+    // chord, so it holds a face of that operand.
+    let merged_side = |f: FaceKey, on: topo::Operand| -> Result<SeamSide, NamingError> {
+        let holds = merged_descents
+            .get(&f)
+            .is_some_and(|ds| ds.iter().any(|d| d.operand() == on));
+        let (name, tied) = merged_names
+            .get(&f)
+            .filter(|_| holds)
+            .ok_or(bug("merged face lacks the needed operand-side constituent"))?;
+        Ok(SeamSide {
+            name: name.clone(),
+            tied: *tied,
+        })
+    };
+    // The faces of operand `side` a merged face holds, in key order.
+    let constituents_on = |f: FaceKey, side: topo::Operand| -> Result<Vec<FaceKey>, NamingError> {
+        let mut on: Vec<FaceKey> = merged_descents
+            .get(&f)
+            .into_iter()
+            .flatten()
+            .filter(|d| d.operand() == side)
+            .map(|d| d.of_operand().1)
+            .collect();
+        on.sort_unstable();
+        on.dedup();
+        if on.is_empty() {
+            return Err(bug("merged face lacks the needed operand-side constituent"));
+        }
+        Ok(on)
+    };
+    // **A chord between two MERGED faces** is a piece of an operand
+    // rim, or no rule's. Each face holds faces of both sides, so neither
+    // says which side to read; `own` is the side the chord's own key
+    // descends to, and the chord is named as the rim a face of that side
+    // in one merged face shares with one in the other — but the key is
+    // only where to look, not why the answer holds: the join mints keys
+    // on both sides, and a B-clone result keys every chord as B's. What
+    // makes the answer right is geometric. Two planar faces of one
+    // operand meet along their shared rim's LINE, so a chord lying on
+    // both lies on that line; it is that rim's piece exactly when it
+    // also lies WITHIN the rim. [`chord_within`] checks both before the
+    // name is given, and a chord within no such rim — or one with no key
+    // side, a zip-listed edge — refuses as the missing rule it is
     // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
     let chord_kind = |e: EdgeKey, own: Option<topo::Operand>| -> Result<ChordKind, NamingError> {
         // **One rule for a chord between two faces of ONE operand**,
@@ -1630,35 +1650,55 @@ fn name_boolean_edges<T: Decide>(
         if faces.len() != 2 {
             return Err(bug("seam edge without exactly two adjacent faces"));
         }
+        // A merged face beside an unmerged one: the unmerged face's
+        // operand is its side, and the merged face's parent the other.
+        let beside = |m: FaceKey, f: FaceKey| -> Result<ChordKind, NamingError> {
+            let d = descend_face(f)?;
+            let merged = merged_side(m, d.operand().other())?;
+            Ok(match d {
+                OpSide::A(_) => ChordKind::Cross(plain(d)?, merged, None),
+                OpSide::B(_) => ChordKind::Cross(merged, plain(d)?, None),
+            })
+        };
         let merged0 = merged_descents.contains_key(&faces[0]);
         let merged1 = merged_descents.contains_key(&faces[1]);
         let (d0, d1) = match (merged0, merged1) {
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
-            (true, false) => {
-                let d1 = descend_face(faces[1])?;
-                (chord_descent(e, faces[0], d1.operand().other())?, d1)
-            }
-            (false, true) => {
-                let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(e, faces[1], d0.operand().other())?)
-            }
+            (true, false) => return beside(faces[0], faces[1]),
+            (false, true) => return beside(faces[1], faces[0]),
             (true, true) => {
                 let Some(side) = own else {
                     return Err(NamingError::MergedChord { edge: e });
                 };
-                let (d0, d1) = (
-                    chord_descent(e, faces[0], side)?,
-                    chord_descent(e, faces[1], side)?,
-                );
-                let (op, f0) = d0.of(a, b);
-                let (_, f1) = d1.of(a, b);
-                let rim = rim_or_refuse(read_rim(op, f0, f1)?, op, f0, f1, &|rim| {
-                    NamingError::MergedChordOffRim {
-                        edge: e,
-                        node: op.node,
-                        rim,
+                let ctx = OpSide::on(side, ()).of(a, b).0;
+                let mut within = Vec::new();
+                let mut refused = None;
+                for f0 in constituents_on(faces[0], side)? {
+                    for f1 in constituents_on(faces[1], side)? {
+                        match read_rim(ctx, f0, f1)? {
+                            RimRead::Holds(rim) => within.push(rim),
+                            read => {
+                                refused.get_or_insert((read, f0, f1));
+                            }
+                        }
                     }
-                })?;
+                }
+                within.sort_unstable();
+                within.dedup();
+                let rim = match (within.as_slice(), refused) {
+                    ([rim], _) => *rim,
+                    ([], Some((read, f0, f1))) => {
+                        rim_or_refuse(read, ctx, f0, f1, &|rim| NamingError::MergedChordOffRim {
+                            edge: e,
+                            node: ctx.node,
+                            rim,
+                        })?
+                    }
+                    ([], None) => return Err(bug("a merged face pair offers no rim to read")),
+                    _ => {
+                        return Err(bug("a chord lies within two rims of one operand body"));
+                    }
+                };
                 return Ok(match side {
                     topo::Operand::A => ChordKind::SameA(rim),
                     topo::Operand::B => ChordKind::SameB(rim),
@@ -1666,12 +1706,8 @@ fn name_boolean_edges<T: Decide>(
             }
         };
         Ok(match (d0, d1) {
-            (OpSide::A(_), OpSide::B(_)) => {
-                ChordKind::Cross(operand_face_name(d0)?, operand_face_name(d1)?, None)
-            }
-            (OpSide::B(_), OpSide::A(_)) => {
-                ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?, None)
-            }
+            (OpSide::A(_), OpSide::B(_)) => ChordKind::Cross(plain(d0)?, plain(d1)?, None),
+            (OpSide::B(_), OpSide::A(_)) => ChordKind::Cross(plain(d1)?, plain(d0)?, None),
             // Two faces of one operand: the rim they share, where the
             // chord lies within one. A union's chord between two distinct
             // faces of one operand off every rim they share is where the
@@ -1683,7 +1719,7 @@ fn name_boolean_edges<T: Decide>(
                 let ctx = d0.of(a, b).0;
                 let read = read_rim(ctx, f0, f1)?;
                 if !matches!(read, RimRead::Holds(_)) && f0 != f1 && op == topo::BooleanOp::Union {
-                    let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
+                    let (n0, n1) = (plain(d0)?, plain(d1)?);
                     return Ok(if n1.name < n0.name {
                         ChordKind::Cross(n1, n0, Some(side))
                     } else {
@@ -1698,7 +1734,7 @@ fn name_boolean_edges<T: Decide>(
             }
         })
     };
-    type SeamPair = (Upstream, Upstream, Option<topo::Operand>);
+    type SeamPair = (SeamSide, SeamSide, Option<topo::Operand>);
     let seam_pair = |e: EdgeKey| -> Result<SeamPair, NamingError> {
         // A zip-listed seam edge is the join's own, so it has no side
         // to read a both-merged pair through to.
@@ -1715,8 +1751,8 @@ fn name_boolean_edges<T: Decide>(
     // One name pair is one seam, so its edges agree on whether both
     // faces are one operand's; a pair that disagrees is two seams
     // spelled alike, which the group cannot hold.
-    let mut add_seam = |fa: Upstream,
-                        fb: Upstream,
+    let mut add_seam = |fa: SeamSide,
+                        fb: SeamSide,
                         one: Option<topo::Operand>,
                         e: EdgeKey|
      -> Result<(), NamingError> {
@@ -3325,11 +3361,6 @@ impl<T: Decide> Track<T> {
         })
     }
 
-    /// The point at the middle of the edge's parameter span.
-    pub(super) fn middle(&self) -> Point3<T> {
-        self.carrier.eval(self.mid)
-    }
-
     fn sign(
         &self,
         x: T,
@@ -3684,160 +3715,6 @@ fn rim_holding<T: Decide>(
         [one] => Some(*one),
         _ => None,
     })
-}
-
-/// Of the several operand faces `constituents` one merged face holds on
-/// one side, the one that holds result edge `chord` WHOLE — `None`
-/// where none does.
-///
-/// A chord the output stage never joined
-/// (`topo::BooleanNaming::edge_joins`) is one edge of the body before
-/// the merge, and so a boundary edge of one face the merge glued: that
-/// face lies in one operand face, and so does the chord, end to end.
-/// Which constituent it is, its middle says: the one face whose
-/// in-face door places the middle strictly inside it. The constituents
-/// are distinct faces of one operand body, so their interiors are
-/// disjoint and at most one does; two that do are a body that is not
-/// one.
-///
-/// A chord the join made of several edges may have run through the
-/// glued faces' common rim, where a joined-away vertex stood: a point,
-/// its middle or any other, says nothing about the rest of it, and no
-/// carrier reading does either (the chord crosses a constituent's
-/// region, not along an edge of it, so [`chord_within`] has no rim to
-/// cover it by). It is `None`, as is a chord whose middle lies on a
-/// constituent's boundary or on a face whose door gives no reading:
-/// the caller refuses each typed (`NamingError::MergedChordConstituents`).
-fn constituent_holding<T: Decide>(
-    body: &Body<T>,
-    chord: EdgeKey,
-    joins: &[topo::EdgeJoin],
-    constituents: &[OpSide<FaceKey>],
-    a: &OperandCtx<'_, T>,
-    b: &OperandCtx<'_, T>,
-    bnd: geom_core::Band,
-) -> Result<Option<OpSide<FaceKey>>, NamingError> {
-    if joins.iter().any(|j| j.kept == chord) {
-        return Ok(None);
-    }
-    let p = Track::of_edge(body, chord)?.middle();
-    let mut holding = Vec::new();
-    for &d in constituents {
-        let (op, f) = d.of(a, b);
-        if face_holds_inside(op.body, f, p, bnd)? {
-            holding.push(d);
-        }
-    }
-    let one = match holding.as_slice() {
-        [] => return Ok(None),
-        [one] => *one,
-        _ => {
-            return Err(NamingError::Emission {
-                what: "two faces of one operand body both hold a point strictly inside them",
-            });
-        }
-    };
-    // The pick is sound only because an unjoined chord is one edge of
-    // the body before the merge: that holds while every vertex the
-    // output stage removes is an `EdgeJoin`'s (maximal edges, tier 3's
-    // no-joinable-vertex check). A stage that removed one without a
-    // join row would leave a chord running out of the face its middle
-    // lies in; its ends then read outside that face, and that refuses
-    // here rather than naming by the middle.
-    let (op, f) = one.of(a, b);
-    let (c0, c1) = edge_ends(body, chord)?;
-    for v in [c0, c1] {
-        if face_containment(op.body, f, vertex_point(body, v)?, bnd)?
-            == Some(topo::FaceContainment::Out)
-        {
-            return Err(NamingError::Emission {
-                what: "an unjoined chord's end lies outside the face that holds its middle",
-            });
-        }
-    }
-    Ok(Some(one))
-}
-
-/// Whether `face` of `body` holds `p` strictly inside it
-/// ([`face_containment`]'s `In`).
-fn face_holds_inside<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    p: Point3<T>,
-    bnd: geom_core::Band,
-) -> Result<bool, NamingError> {
-    Ok(face_containment(body, face, p, bnd)? == Some(topo::FaceContainment::In))
-}
-
-/// Where `face` of `body` holds `p`, by the in-face door for its kind:
-/// [`topo::contfp`] on a plane, [`topo::curved_face_containment`] on a
-/// curved carrier. `None` where the door has no verdict for it (a
-/// curved trim's remainder, no ray settling, a loop edge in every ray's
-/// way, a chart read refused, an arc end's band): the caller refuses
-/// that typed, as it does a boundary point.
-///
-/// topo's own dispatch of the two doors (`boolean::face_placement`,
-/// which the census's `face_holds` and the rim wedges read) is
-/// crate-private, and its public projection is test support only; this
-/// is the same dispatch on the public doors, minus the on-plane
-/// decision, which the point does not need: it is a point of a chord
-/// of the merged face, on its carrier by construction.
-///
-/// # Errors
-///
-/// [`NamingError::Escalated`] where a door's margin escalated, under
-/// the door's own predicate name where the diagnostic carries one and
-/// the door's name where it does not; an [`NamingError::Emission`]
-/// where the face, a loop of it or the face's chart does not read as
-/// one: a constituent the merge record names is a face of its operand.
-fn face_containment<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    p: Point3<T>,
-    bnd: geom_core::Band,
-) -> Result<Option<topo::FaceContainment>, NamingError> {
-    let surface = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .ok_or(NamingError::Emission {
-            what: "a merged face's constituent is not a face of its operand",
-        })?;
-    let (door, read) = match *surface {
-        geom::Surface::Plane { normal, .. } => (
-            "topo::contfp",
-            topo::contfp(body, face, normal, p, bnd).map(Some),
-        ),
-        _ => (
-            "topo::curved_face_containment",
-            topo::curved_face_containment(body, face, p, bnd),
-        ),
-    };
-    let broken = NamingError::Emission {
-        what: "a merged face's constituent does not read as a face of its operand",
-    };
-    match read {
-        Ok(at) => Ok(at),
-        Err(topo::ContainError::Escalated { diag, .. }) => Err(NamingError::Escalated {
-            predicate: diag.predicate.unwrap_or(door),
-            source: diag,
-        }),
-        Err(
-            topo::ContainError::StaleFace(_)
-            | topo::ContainError::EmptyLoop(_)
-            | topo::ContainError::LoopUnreadable(_)
-            | topo::ContainError::Curved(
-                topo::PointInSolidError::CorruptFace { .. }
-                | topo::PointInSolidError::Loop(topo::PointInLoopError::CorruptLoop { .. }),
-            ),
-        ) => Err(broken),
-        // An arc end's band is no verdict, as `rim_wedge.rs` reads it.
-        Err(topo::ContainError::ArcEndClearOfCorners(_)) => Ok(None),
-        Err(
-            topo::ContainError::RayExhausted
-            | topo::ContainError::Uncrossable(_)
-            | topo::ContainError::Curved(_),
-        ) => Ok(None),
-    }
 }
 
 /// Whether edge `e` of `body` is carried by a line: a tag read, no

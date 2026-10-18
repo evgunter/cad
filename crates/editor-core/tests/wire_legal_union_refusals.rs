@@ -3,9 +3,10 @@
 //! `NamingError::Emission` means a mint-time fact disagreed with the
 //! result body: a kernel bug. A legal recipe that reaches a missing
 //! naming rule must say so, not send the author to file a bug against
-//! the kernel. The first rows are cuts across a sunk boss whose chords no
-//! single glued face holds, which refuse as the missing rule; then a
-//! union whose seam chords the chord rule names and whose end pass still
+//! the kernel. The first rows are cuts across a sunk boss whose chords
+//! cross or run along the line where two glued wall faces met, which
+//! name as pieces of the seam their merged face's parent makes (N3), the
+//! same wherever the cut crosses it; then a union whose end pass still
 //! refuses under the bug's words, the one known exception, pinned with
 //! the row that owns it. The next two are constructions that once
 //! refused and now name: a merged wall whose edges are pieces of member
@@ -19,14 +20,12 @@ use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::docm8_flat_merged::split_fixture;
 
-use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId};
-use geom_core::Tol;
-
-/// The sentence every emission-bug refusal opens with, written out
-/// because what this suite is about is a reader meeting it: a refusal
-/// reached from a legal recipe must NOT read as a kernel bug report.
-const BUG_FRAMING: &str =
-    "name emission found a kernel bug — an invariant it relies on does not hold";
+use crate::fixture::{desc, frame, insert, len, point, step, table};
+use editor_core::{
+    Axis3, Bodies, DocEdit, EntityKey, Entry, ExtrudeSide, NamingError, Node, NodeErrorKind,
+    ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
+};
+use geom_core::{Point3, Tol};
 
 /// A block's x span, y span, base z and height, as [`block`] takes them.
 type Spans = ((f64, f64), (f64, f64), f64, f64);
@@ -34,136 +33,253 @@ type Spans = ((f64, f64), (f64, f64), f64, f64);
 /// A plate `[0,3]² × [0,1]` and a cylinder boss sunk into it, its wall
 /// drawn as two semicircular pieces either side of y = 1.5, joined by a
 /// two-member union, minus the union of `tool`'s blocks (or the one
-/// block). The boss joins the plate; the cut must refuse
-/// `MergedChordConstituents` with both boss pieces glued on the side its
-/// chord reads through to, at the chord whose ends are `chord` (either
-/// way round), and the refusal, rendered at the node boundary, must not
-/// read as a kernel bug. The refused edge is a key of the cut's body,
-/// which a refused node does not keep, so it is read off the same
-/// subtract run on the two operand bodies.
-fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 3]; 2]) {
-    let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, boss) = crate::emit_union_borders::cylinder(
-        doc,
-        [1.5, 1.5, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        1.0,
-    );
-    let mut doc = doc;
-    let mut blocks = Vec::new();
-    for &(x, y, z0, dz) in tool {
-        let (d, b) = block(doc, x, y, z0, dz);
-        doc = d;
-        blocks.push(b);
-    }
-    let (doc, tool) = match blocks.as_slice() {
-        [one] => (doc, *one),
-        several => crate::fixture::insert(
+/// block), each block on a frame of its own an edit can move.
+struct SunkBossCut {
+    doc: ProfileDoc,
+    joined: RecipeNodeId,
+    tool: RecipeNodeId,
+    cut: RecipeNodeId,
+    frames: Vec<RecipeNodeId>,
+}
+
+impl SunkBossCut {
+    fn new(tool: &[Spans]) -> Self {
+        let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+        let (doc, boss) = crate::emit_union_borders::cylinder(
             doc,
-            editor_core::Node::Union {
-                members: editor_core::Bodies::Spelled(several.iter().map(|&b| b.into()).collect()),
+            [1.5, 1.5, 0.5],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            1.0,
+        );
+        let mut doc = doc;
+        let mut blocks = Vec::new();
+        let mut frames = Vec::new();
+        for &((x0, x1), (y0, y1), z0, dz) in tool {
+            let (d, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+            let (d, p) = insert(
+                d,
+                Node::Profile(desc(
+                    plane,
+                    vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+                )),
+            );
+            let (d, b) = insert(
+                d,
+                Node::Extrude {
+                    profile: p.into(),
+                    distance: len(dz),
+                    side: ExtrudeSide::Along,
+                },
+            );
+            doc = d;
+            blocks.push(b);
+            frames.push(plane);
+        }
+        let (doc, tool) = match blocks.as_slice() {
+            [one] => (doc, *one),
+            several => insert(
+                doc,
+                Node::Union {
+                    members: Bodies::Spelled(several.iter().map(|&b| b.into()).collect()),
+                },
+            ),
+        };
+        let (doc, joined) = insert(
+            doc,
+            Node::Union {
+                members: Bodies::Spelled(vec![plate.into(), boss.into()]),
             },
-        ),
+        );
+        let (doc, cut) = insert(
+            doc,
+            Node::Subtract {
+                from: joined.into(),
+                tool: tool.into(),
+            },
+        );
+        Self {
+            doc,
+            joined,
+            tool,
+            cut,
+            frames,
+        }
+    }
+
+    /// The same document with block `k`'s frame moved to `y` along y:
+    /// an edit, so every node keeps its id.
+    fn moved(&self, k: usize, y: f64) -> Self {
+        let (doc, _) = step(
+            self.doc.clone(),
+            DocEdit::SetParam {
+                node: self.frames[k],
+                slot: SlotId::Origin(Axis3::Y),
+                value: len(y).into(),
+                fresh: Vec::new(),
+            },
+        );
+        Self {
+            doc,
+            frames: self.frames.clone(),
+            ..*self
+        }
+    }
+
+    /// The names of the cut's edges whose two ends `ends` accepts, the
+    /// cut having named.
+    fn edges(
+        &self,
+        label: &str,
+        ends: impl Fn(Point3<f64>, Point3<f64>) -> bool,
+    ) -> Vec<StableName> {
+        let ev = run(&self.doc);
+        assert!(
+            failure(&ev, self.joined).is_none(),
+            "{label}: the boss joins the plate"
+        );
+        assert!(
+            failure(&ev, self.tool).is_none(),
+            "{label}: the tool builds"
+        );
+        assert!(
+            failure(&ev, self.cut).is_none(),
+            "{label}: the cut names: {:?}",
+            failure(&ev, self.cut)
+        );
+        let body = body_of(&ev, self.cut);
+        let mut named = Vec::new();
+        for (name, entry) in table(&ev, self.cut).iter() {
+            let Entry::Unique(ent) = entry else { continue };
+            let EntityKey::Edge(e) = ent.key else {
+                continue;
+            };
+            let [p0, p1] = crate::fixture::ends(body, e).map(|v| point(body, v));
+            if ends(p0, p1) || ends(p1, p0) {
+                named.push(name.clone());
+            }
+        }
+        named
+    }
+
+    /// The name of the cut's one edge from `chord[0]` to `chord[1]`
+    /// (either way round): a seam between the boss wall's merged face,
+    /// cited by its `Merged` parent holding both wall pieces, and a face
+    /// of the tool — never by one wall piece alone.
+    fn chord(&self, label: &str, chord: [[f64; 3]; 2]) -> StableName {
+        let named = self.edges(label, |p0, p1| near(p0, chord[0]) && near(p1, chord[1]));
+        let [name] = named.as_slice() else {
+            panic!("{label}: one named edge runs {chord:?}: {named:?}");
+        };
+        assert_cites_the_merged_wall(label, name);
+        name.clone()
+    }
+}
+
+fn near(p: Point3<f64>, q: [f64; 3]) -> bool {
+    (p.x - q[0]).abs() < 1e-3 && (p.y - q[1]).abs() < 1e-3 && (p.z - q[2]).abs() < 1e-3
+}
+
+/// `name` is a seam, one of whose sides is the boss wall's `Merged`
+/// parent over both wall pieces.
+fn assert_cites_the_merged_wall(label: &str, name: &StableName) {
+    let Some(RoleSeg::Seam { a, b }) = name.path.first() else {
+        panic!("{label}: the chord is a seam: {name}");
     };
-    let (doc, joined) = crate::fixture::insert(
-        doc,
-        editor_core::Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-        },
-    );
-    let (doc, cut) = crate::fixture::insert(
-        doc,
-        editor_core::Node::Subtract {
-            from: joined.into(),
-            tool: tool.into(),
-        },
-    );
-    let ev = run(&doc);
-    assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
-    assert!(failure(&ev, tool).is_none(), "the tool builds");
-    let (shown, edge) = match failure(&ev, cut) {
-        Some(
-            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents {
-                several: 2, edge, ..
-            }),
-        ) => (e.to_string(), *edge),
-        other => panic!("wanted the merged-chord refusal, got {other:?}"),
-    };
-    assert!(
-        !shown.contains(BUG_FRAMING),
-        "a legal document was told the kernel is broken: {shown}"
-    );
-    assert!(
-        shown.ends_with(geom_core::NOT_YET_ENDING)
-            && !shown.contains(geom_core::KERNEL_DEFECT_ENDING),
-        "a legal document was not told the rule is missing, or was asked for a defect \
-         report: {shown}"
-    );
-    let at_rest = |n| topo::AtRestBody::validate(body_of(&ev, n).clone(), Tol::witness()).unwrap();
-    let topo::BooleanResult::Body(cut_body) =
-        topo::subtract(&at_rest(joined), &at_rest(tool), Tol::witness()).expect("the cut builds")
-    else {
-        panic!("the cut is not empty");
-    };
-    let got = crate::fixture::ends(&cut_body.body, edge)
-        .map(|v| crate::fixture::point(&cut_body.body, v));
-    let near = |p: geom_core::Point3<f64>, q: [f64; 3]| {
-        (p.x - q[0]).abs() < 1e-3 && (p.y - q[1]).abs() < 1e-3 && (p.z - q[2]).abs() < 1e-3
-    };
-    assert!(
-        (near(got[0], chord[0]) && near(got[1], chord[1]))
-            || (near(got[0], chord[1]) && near(got[1], chord[0])),
-        "the refused chord is {edge:?} from {:?} to {:?}, not {chord:?}",
-        got[0],
-        got[1]
+    let merged: Vec<usize> = [a, b]
+        .into_iter()
+        .filter_map(|side| match side.path.as_slice() {
+            [RoleSeg::Merged(set)] => Some(set.len()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        merged,
+        [2],
+        "{label}: one side of the seam is the merged wall's parent, over both wall \
+         pieces: {name}"
     );
 }
 
-/// **A chord across the glued boss pieces' common rim refuses as the
-/// missing rule.**
+/// **A chord across the glued pieces' common line names, the same
+/// wherever the cut crosses it.**
 ///
 /// A slab along y through the boss, and a box on the boss's left wall
 /// beside it whose floor at z = 1.3 cuts the left merged wall in one
 /// chord, from (1.217, 1.4) to (1.4, 1.783): across y = 1.5, where the
-/// two boss pieces met before the merge glued them. No one piece holds
-/// it, and its middle alone would pick the upper piece.
+/// two boss pieces met before the merge glued them. Moving the box 0.2
+/// along y leaves its chord on the upper piece alone, under the same
+/// name; the box running the other way along y, whose chord crosses
+/// y = 1.5 from above, names the same way.
 #[test]
-fn a_chord_across_the_glued_pieces_rim_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(
-        &[
-            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-            ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
-        ],
-        [[1.2172, 1.4, 1.3], [1.4, 1.7828, 1.3]],
+fn a_chord_across_the_glued_pieces_line_names_wherever_the_cut_crosses() {
+    let slab = ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let fixture = SunkBossCut::new(&[slab, ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7)]);
+    let across = fixture.chord("across", [[1.2172, 1.4, 1.3], [1.4, 1.7828, 1.3]]);
+    let upper = fixture
+        .moved(1, 0.2)
+        .chord("upper", [[1.2172, 1.6, 1.3], [1.4, 1.7828, 1.3]]);
+    assert_eq!(
+        across, upper,
+        "a chord across the glued line and one clear of it are one name"
     );
+    SunkBossCut::new(&[slab, ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7)])
+        .chord("the other way", [[1.2764, 1.7, 1.3], [1.4, 1.2172, 1.3]]);
 }
 
-/// **The same chord, its middle on the lower piece.** The box runs the
-/// other way along y, so its floor's chord on the left wall crosses
-/// y = 1.5 from above; its middle alone would pick the lower piece.
-#[test]
-fn a_chord_across_the_glued_pieces_rim_the_other_way_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(
-        &[
-            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-            ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
-        ],
-        [[1.2764, 1.7, 1.3], [1.4, 1.2172, 1.3]],
-    );
-}
-
-/// **A chord along the glued pieces' common rim refuses as the missing
-/// rule.** A block whose wall at y = 1.5 is the boss's split plane cuts
+/// **A chord along the glued pieces' common line names as one beside
+/// it.** A block whose wall at y = 1.5 is the boss's split plane cuts
 /// the boss's right wall in a chord along the line the two pieces met
-/// on: both hold it on their boundary, and neither inside.
+/// on; the same block moved 0.1 along y cuts a chord on the upper piece
+/// alone, under the same name.
 #[test]
-fn a_chord_along_the_glued_pieces_rim_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(
-        &[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)],
-        [[1.8, 1.5, 1.0], [1.8, 1.5, 1.5]],
+fn a_chord_along_the_glued_pieces_line_names_as_one_beside_it() {
+    let fixture = SunkBossCut::new(&[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)]);
+    let along = fixture.chord("along", [[1.8, 1.5, 1.0], [1.8, 1.5, 1.5]]);
+    let beside = fixture
+        .moved(0, 0.1)
+        .chord("beside", [[1.7828, 1.6, 1.0], [1.7828, 1.6, 1.5]]);
+    assert_eq!(
+        along, beside,
+        "the chord along the glued line and one beside it"
     );
+}
+
+/// **Two chords of one seam are told apart by their ends.** The slab's
+/// wall at x = 1.4 cuts the boss's left merged wall twice, once on each
+/// wall piece: two edges between the same two faces, so two pieces of
+/// one seam that cites the merged wall's parent, each qualified by its
+/// `Ends` (N2), never by the piece it lies on.
+#[test]
+fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
+    let fixture = SunkBossCut::new(&[((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2)]);
+    let on_wall = |p: Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
+    let chords = fixture.edges("x = 1.4", |p0, p1| {
+        on_wall(p0)
+            && on_wall(p1)
+            && (p0.x - 1.4).abs() < 1e-9
+            && (p1.x - 1.4).abs() < 1e-9
+            && (p0.y - p1.y).abs() < 1e-9
+    });
+    let [c0, c1] = chords.as_slice() else {
+        panic!("two chords run up the left wall at x = 1.4: {chords:?}");
+    };
+    for c in [c0, c1] {
+        assert_cites_the_merged_wall("x = 1.4", c);
+        assert!(
+            matches!(
+                c.path.as_slice(),
+                [RoleSeg::Seam { .. }, RoleSeg::Fragment(Qualifier::Ends(_))]
+            ),
+            "a chord is a piece of the seam, told apart by its ends: {c}"
+        );
+    }
+    assert_eq!(
+        c0.path[0], c1.path[0],
+        "the two chords are pieces of one seam"
+    );
+    assert_ne!(c0, c1, "and their ends tell them apart");
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -237,9 +353,7 @@ fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
 /// `a`'s and `s`'s own edges whose split lineage runs through the
 /// stretches the fold killed, so they are named as those pieces, and
 /// every order fuses to the volume the geometry says with every member
-/// edge it names lying on its source. Folding `a` in last refused
-/// `MergedChordConstituents` while the lineage stopped at the killed
-/// stretches and the edges were read as chords through the merged wall.
+/// edge it names lying on its source.
 #[test]
 fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("wire_seam_vertex", Tol::witness());
