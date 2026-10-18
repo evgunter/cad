@@ -439,8 +439,12 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         node = Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad))
         with self.assertRaises(EditError) as caught:
             self.doc.insert(node)
-        self.assertEqual(caught.exception.variant, "selection_shape")
-        self.assertEqual(caught.exception.inner_variant, "seat")
+        refused = caught.exception
+        self.assertEqual(refused.variant, "selection_name_kind")
+        self.assertEqual(refused.first, 0)
+        self.assertEqual(refused.found_kind, EntityKind.Edge)
+        self.assertEqual(refused.expected_kind, EntityKind.Face)
+        self.assertEqual(refused.name, edge)
 
     def test_a_curved_carrier_refuses_face_frame_not_planar(self):
         """A sketch frame wants a plane. The refusal's prose names the

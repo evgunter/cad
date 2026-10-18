@@ -190,6 +190,21 @@ pub enum OperandSlot {
 }
 
 impl OperandSlot {
+    /// **Name `reference` of the selection read at this seat, as a
+    /// person reads it**: `edge 2`, `open face 0`, `face`, `reference
+    /// 1`, `3 side a`; `None` for a seat that reads no selection.
+    #[must_use]
+    pub(crate) fn selection_entry(self, reference: usize) -> Option<String> {
+        match self {
+            Self::Selection => Some(format!("edge {reference}")),
+            Self::Open => Some(format!("open face {reference}")),
+            Self::Face => Some("face".to_owned()),
+            Self::Measured(_, i) => Some(format!("reference {i}")),
+            Self::Side { constraint, side } => Some(format!("{constraint} side {}", side.name())),
+            _ => None,
+        }
+    }
+
     /// The field as a reader says it.
     #[must_use]
     pub fn label(self) -> String {

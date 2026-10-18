@@ -2295,7 +2295,9 @@ pub(super) struct Selected<K> {
 ///
 /// [`NodeErrorKind::UnresolvedRead`] for a body read no live operation
 /// defines, [`NodeErrorKind::SelectResolve`] for a name the ladder
-/// refuses.
+/// refuses, and [`NamingError::Emission`](names::NamingError::Emission)
+/// for a caller whose `K` is not the selection's kind (a wiring bug,
+/// [`resolve_selection`]).
 fn select<T: Decide, K: names::interrogate::Denoted>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -2359,6 +2361,25 @@ fn resolve_selection<K: names::interrogate::Denoted>(
     let Some(selection) = doc.selection(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
+    // The key kind each caller asks for restates the seat's entity, so
+    // it is checked once here against the variable's own kind — which
+    // the edit and load doors hold to the seat's — rather than trusted
+    // at every call site. A mismatch is this module's wiring, never the
+    // author's: loud in a debug build, typed in a release one.
+    let held = doc
+        .var(var)
+        .and_then(|held| held.kind().selection())
+        .map(|(entity, _)| entity);
+    if held != Some(K::KIND) {
+        debug_assert!(
+            false,
+            "the {slot:?} seat is wired to read {} keys from a selection of {held:?}",
+            K::KIND.noun()
+        );
+        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a seat is wired to read another entity kind than its selection holds",
+        }));
+    }
     let ents = selection
         .names
         .iter()

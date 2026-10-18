@@ -49,7 +49,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 26] {
+) -> [(&'static str, Py<PyAny>); 28] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -83,6 +83,8 @@ fn edit_fields(
         ("kind", word(payload.kind)),
         ("from_kind", kind(payload.from_kind)),
         ("to_kind", kind(payload.to_kind)),
+        ("found_kind", kind(payload.found_kind)),
+        ("expected_kind", kind(payload.expected_kind)),
         (
             "count",
             num(payload.count.map(|n| infallible(n.into_pyobject(py)))),
@@ -2739,7 +2741,7 @@ impl Node {
     /// the underside of a plate faces out of the plate.
     ///
     /// An edge or vertex name refuses at the insert
-    /// (`EditError` `selection_shape`). The rest refuse typed at
+    /// (`EditError` `selection_name_kind`). The rest refuse typed at
     /// `evaluate`, never here: `select_resolve` for a name that stopped
     /// denoting (the repair is `DocEdit.rebind`),
     /// `face_frame_not_planar` for a curved carrier — a
@@ -2895,7 +2897,7 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. A
     /// name of the wrong kind refuses at the insert (`EditError`
-    /// `selection_shape`). An EMPTY selection (`fillet_selection_empty`),
+    /// `selection_name_kind`). An EMPTY selection (`fillet_selection_empty`),
     /// a name that resolves to nothing (`select_resolve`), a tangential
     /// edge the roller cannot enter (`fillet`) — every one of those is
     /// the kernel's own typed refusal at `evaluate`.
@@ -2940,7 +2942,7 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. A
     /// name of the wrong kind refuses at the insert (`EditError`
-    /// `selection_shape`). An EMPTY selection (`chamfer_selection_empty`),
+    /// `selection_name_kind`). An EMPTY selection (`chamfer_selection_empty`),
     /// a name that resolves to nothing (`select_resolve`), an edge
     /// whose two supports are not both planes (`chamfer`) — every one
     /// of those is the kernel's own typed refusal at `evaluate`.
@@ -2995,7 +2997,7 @@ impl Node {
     /// designation FREEZES in the sense `Node.fillet` states.
     ///
     /// A name of the wrong kind refuses at the insert (`EditError`
-    /// `selection_shape`). A name that resolves to nothing
+    /// `selection_name_kind`). A name that resolves to nothing
     /// (`select_resolve`), a non-positive wall or a wall two facing
     /// faces cannot both afford, a rim the kernel cannot build or read
     /// (`shell`) — every one of those is the kernel's own typed refusal

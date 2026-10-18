@@ -473,7 +473,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
 
     // (b) a name of the wrong KIND: an edge that really is there,
-    // refused at the insert as the seat's kind, before anything
+    // refused at the insert against the seat's kind, before anything
     // resolves.
     let d = cup::document();
     let blank = blank_of(&d.doc);
@@ -482,10 +482,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert!(
         matches!(
             &err,
-            editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::Seat {
-                    entity: EntityKind::Edge
-                },
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Edge,
+                expected: EntityKind::Face,
                 ..
             }
         ),

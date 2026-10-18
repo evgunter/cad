@@ -3122,7 +3122,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "slot", "first"],
     );
-    // A name of another kind than the selection's: one position too.
+    // A name of another kind than the selection's: one position too,
+    // and the two entity kinds.
     carries(
         &E::SelectionShape {
             node: sp(1),
@@ -3133,7 +3134,41 @@ fn every_edit_arm_projects_the_payload_it_carries() {
                 expected: pncad::select::EntityKind::Edge,
             },
         },
-        &["node", "slot", "first"],
+        &["node", "slot", "found_kind", "expected_kind", "first"],
+    );
+    // A seat that reads no selection of the names' kind: that kind.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Measured(
+                pncad::document::MeasureVerb::MinClearance,
+                0,
+            )),
+            fault: pncad::document::SelectionFault::Seat {
+                entity: pncad::select::EntityKind::Edge,
+            },
+        },
+        &["node", "slot", "found_kind"],
+    );
+    // The insert door's own arm for that name: the name itself, where
+    // it sits, and the two kinds.
+    carries(
+        &E::SelectionNameKind {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            at: 1,
+            name: named(),
+            found: pncad::select::EntityKind::Face,
+            expected: pncad::select::EntityKind::Edge,
+        },
+        &[
+            "node",
+            "slot",
+            "name",
+            "found_kind",
+            "expected_kind",
+            "first",
+        ],
     );
 
     // ---- names, kinds and appearance ----
@@ -5204,6 +5239,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "selection_name_kind",
             "selection_shape",
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",

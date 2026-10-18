@@ -336,8 +336,13 @@ pub enum SelectionFault {
         /// The kind.
         kind: VarKind,
     },
-    /// The seat reads no selection of this entity kind (a blend reads
-    /// edges, a shell faces; a whole body is read as the body).
+    /// The seat reads no selection of this entity kind, at a seat that
+    /// admits several and takes the kind from the names (a pose read
+    /// off geometry admitting only some kinds; a whole body is read as
+    /// the body). At a seat of one selection kind (a blend's edges, a
+    /// shell's faces) a name of another kind is that name's own refusal,
+    /// [`Self::Kind`], which the edit door speaks as
+    /// [`crate::EditError::SelectionNameKind`].
     ///
     /// This arm and [`Self::OtherBody`] are the edit door's, which
     /// knows the seat and the read; [`Select::fault`] answers the

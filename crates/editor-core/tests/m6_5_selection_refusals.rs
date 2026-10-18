@@ -374,10 +374,10 @@ fn a_selection_naming_a_face_refuses_on_kind_at_the_insert() {
     assert!(
         matches!(
             err,
-            editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::Seat {
-                    entity: EntityKind::Face
-                },
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Face,
+                expected: EntityKind::Edge,
                 ..
             }
         ),
@@ -406,10 +406,10 @@ fn a_tied_name_of_another_kind_refuses_on_kind_at_the_insert() {
     assert!(
         matches!(
             err,
-            editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::Seat {
-                    entity: EntityKind::Face
-                },
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Face,
+                expected: EntityKind::Edge,
                 ..
             }
         ),

@@ -3,18 +3,26 @@
 //!
 //! What a name denotes is its own `kind`, and the name table makes every
 //! entity answering to it agree, so a selection's kind is a fact about
-//! the document. The edit door (the seat's selection kind, and
-//! `Select::fault`'s per-name arm) and the load door
-//! (`SnapshotError::SelectionShape`) hold a selection of kind K to names
-//! of kind K; evaluation then resolves into keys of that kind and has
-//! nothing left to say about it.
+//! the document. The edit door (`EditError::SelectionNameKind`, from
+//! `Select::fault`'s per-name arm held to the seat's kind) and the load
+//! door (`SnapshotError::SelectionShape`) hold a selection of kind K to
+//! names of kind K; evaluation then resolves into keys of that kind and
+//! has nothing left to say about it.
 //!
-//! The rows pin each reader of a selection — a shell's open faces, a
-//! blend's edges, a derived frame's face, a measure's reference — and
-//! vary what was named under a fixed reader, so a door that answered a
-//! constant kind goes red. Two more rows pin what moved with the
-//! question: a TIED name of the wrong kind refuses its kind rather than
-//! its tie, and a saved document holding one refuses at load.
+//! The rows pin each reader of a selection a name can be authored at —
+//! a shell's open faces, a blend's edges, a derived frame's face — and
+//! under each fixed reader vary what was named across both wrong kinds,
+//! so a door that answered a constant kind goes red. Two rows pin the
+//! position: the first name of another kind is the one reported,
+//! wherever in the list it sits. A saved document holding one refuses
+//! at load. The tied name of the wrong kind, which refuses its kind
+//! rather than its tie, is `m6_5_selection_refusals.rs`'s row, beside
+//! the tie it is told apart from.
+//!
+//! The measure row is FORK-VTX's (`EditError::SlotVarKind`, the seat's
+//! kind refusing the singleton the reference mints), which this suite
+//! did not move: it is kept here as the remaining reader's door row, so
+//! every reader of a selection has one in this file.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,15 +72,52 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
     (doc, body, face, edge, vertex)
 }
 
-/// The seat and fault an insert refused a selection with.
-fn shape(err: &EditError) -> (OperandSlot, &SelectionFault) {
+/// The refusal an insert gave a name of another kind: the seat, the
+/// name's position, what it denotes and what the seat reads.
+fn name_kind(err: &EditError) -> (OperandSlot, usize, EntityKind, EntityKind) {
     match err {
-        EditError::SelectionShape {
+        EditError::SelectionNameKind {
             slot: editor_core::SlotId::Operand(slot),
-            fault,
+            at,
+            found,
+            expected,
             ..
-        } => (*slot, fault),
-        other => panic!("expected a selection-shape refusal, got {other:?}"),
+        } => (*slot, *at, *found, *expected),
+        other => panic!("expected a selection name-kind refusal, got {other:?}"),
+    }
+}
+
+/// **The sentence an author reads**, with its node and its name spoken
+/// from the refusal itself: the reader's position, the name, what it is
+/// and what the seat reads, then the recourse naming the seat's kind.
+fn sentence(err: &EditError, entry: &str) -> String {
+    let EditError::SelectionNameKind {
+        node,
+        name,
+        found,
+        expected,
+        ..
+    } = err
+    else {
+        panic!("expected a selection name-kind refusal, got {err:?}")
+    };
+    format!(
+        "{node}'s {entry} names {name}, which is {}, not {}. Recourse: name {} of the body the \
+         selection reads",
+        an(*found),
+        an(*expected),
+        an(*expected)
+    )
+}
+
+/// One entity of `kind`, as the sentence says it — written out here
+/// rather than borrowed from the crate, so the pin is a second reading.
+fn an(kind: EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Body => "a body",
+        EntityKind::Face => "a face",
+        EntityKind::Edge => "an edge",
+        EntityKind::Vertex => "a vertex",
     }
 }
 
@@ -81,17 +126,9 @@ fn shape(err: &EditError) -> (OperandSlot, &SelectionFault) {
 /// answered a constant kind.
 #[test]
 fn a_shell_designation_of_another_kind_refuses_at_the_insert() {
-    for (what, designate, said) in [
-        (
-            "an edge",
-            EntityKind::Edge,
-            "the seat reads no selection of an edge",
-        ),
-        (
-            "a vertex",
-            EntityKind::Vertex,
-            "the seat reads no selection of a vertex",
-        ),
+    for (what, designate) in [
+        ("an edge", EntityKind::Edge),
+        ("a vertex", EntityKind::Vertex),
     ] {
         let (doc, body, _, edge, vertex) = solid();
         let name = if designate == EntityKind::Edge {
@@ -100,15 +137,18 @@ fn a_shell_designation_of_another_kind_refuses_at_the_insert() {
             vertex
         };
         let err = insert_refused(&doc, Node::shell(body, len(0.1), vec![name]));
-        let (slot, fault) = shape(&err);
-        assert_eq!(slot, OperandSlot::Open, "{what}: the shell's open faces");
-        assert_eq!(*fault, SelectionFault::Seat { entity: designate }, "{what}");
-        assert_eq!(fault.to_string(), said, "{what}");
+        assert_eq!(
+            name_kind(&err),
+            (OperandSlot::Open, 0, designate, EntityKind::Face),
+            "{what}"
+        );
+        assert_eq!(err.to_string(), sentence(&err, "open face 0"), "{what}");
     }
 }
 
-/// **A blend's selection names an EDGE**: a face refuses at the insert,
-/// under the blend's own seat.
+/// **A blend's selection names an EDGE**: a face or a vertex refuses at
+/// the insert, under each blend's own seat, and the sentence speaks the
+/// face it was handed.
 #[test]
 fn a_blend_selection_of_another_kind_refuses_at_the_insert() {
     for (what, node) in [
@@ -121,77 +161,111 @@ fn a_blend_selection_of_another_kind_refuses_at_the_insert() {
             Node::chamfer as fn(RecipeNodeId, editor_core::Formula, Vec<StableName>) -> _,
         ),
     ] {
+        for designate in [EntityKind::Face, EntityKind::Vertex] {
+            let (doc, body, face, _, vertex) = solid();
+            let name = if designate == EntityKind::Face {
+                face
+            } else {
+                vertex
+            };
+            let err = insert_refused(&doc, node(body, len(0.1), vec![name]));
+            assert_eq!(
+                name_kind(&err),
+                (OperandSlot::Selection, 0, designate, EntityKind::Edge),
+                "{what} over {designate:?}"
+            );
+            assert_eq!(
+                err.to_string(),
+                sentence(&err, "edge 0"),
+                "{what} over {designate:?}"
+            );
+        }
+        // Byte-pinned once, so the spoken forms the helper reads off the
+        // refusal are pinned too and not only agreed with.
         let (doc, body, face, _, _) = solid();
         let err = insert_refused(&doc, node(body, len(0.1), vec![face]));
-        let (slot, fault) = shape(&err);
-        assert_eq!(slot, OperandSlot::Selection, "{what}: the blend's edges");
-        assert_eq!(
-            *fault,
-            SelectionFault::Seat {
-                entity: EntityKind::Face
-            },
-            "{what}"
+        let EditError::SelectionNameKind { node: blend, .. } = &err else {
+            panic!("{what}: {err:?}")
+        };
+        let (blend, body) = (
+            test_utils::refusal::tag(blend.id().0.digest()),
+            test_utils::refusal::tag(body.0.digest()),
         );
+        let verb = if what == "fillet" {
+            "Fillet"
+        } else {
+            "Chamfer"
+        };
         assert_eq!(
-            fault.to_string(),
-            "the seat reads no selection of a face",
+            err.to_string(),
+            format!(
+                "{verb} {blend}'s edge 0 names the side wall over loop 0 step 3 of Extrude {body}, \
+                 which is a face, not an edge. Recourse: name an edge of the body the selection \
+                 reads"
+            ),
             "{what}"
-        );
-        let said = err.to_string();
-        assert!(
-            said.contains("the seat reads no selection of a face")
-                && said.contains("name entities of the kind the seat reads"),
-            "{what}: the sentence an author reads carries the fault and its recourse: {said}"
         );
     }
 }
 
-/// **A name of another kind AFTER the first** is the per-name arm's:
-/// the first name decides the selection's kind, and every other is held
-/// to it, so an edge set holding a face refuses at the face's place.
+/// **The first name of another kind is the one reported, wherever it
+/// sits**: the seat decides the selection's kind, not its first name,
+/// so a face before an edge refuses at 0 and a face after one at 1.
 #[test]
 fn a_set_holding_one_name_of_another_kind_refuses_at_its_place() {
-    let (doc, body, face, edge, _) = solid();
-    let err = insert_refused(
-        &doc,
-        Node::Fillet {
-            radius: len(0.1),
-            selection: editor_core::Operand::select(body, vec![edge, face]),
-        },
-    );
-    let (slot, fault) = shape(&err);
-    assert_eq!(slot, OperandSlot::Selection);
-    assert_eq!(
-        *fault,
-        SelectionFault::Kind {
-            at: 1,
-            found: EntityKind::Face,
-            expected: EntityKind::Edge,
-        }
-    );
-    assert_eq!(fault.to_string(), "name 1 is a face, not an edge");
+    for (face_first, at) in [(false, 1), (true, 0)] {
+        let (doc, body, face, edge, _) = solid();
+        let names = if face_first {
+            vec![face, edge]
+        } else {
+            vec![edge, face]
+        };
+        let err = insert_refused(
+            &doc,
+            Node::Fillet {
+                radius: len(0.1),
+                selection: editor_core::Operand::select(body, names),
+            },
+        );
+        assert_eq!(
+            name_kind(&err),
+            (
+                OperandSlot::Selection,
+                at,
+                EntityKind::Face,
+                EntityKind::Edge
+            ),
+            "the face at {at}"
+        );
+        assert_eq!(err.to_string(), sentence(&err, &format!("edge {at}")));
+    }
 }
 
 /// **A derived frame's face name names a FACE** — the same wanted kind
-/// as the shell's row at another seat.
+/// as the shell's rows at another seat, and the same two wrong kinds.
 #[test]
 fn a_derived_frame_named_on_another_kind_refuses_at_the_insert() {
-    let (doc, body, _, edge, _) = solid();
-    let err = insert_refused(
-        &doc,
-        Node::Datum(Datum::FaceFrame {
-            face: editor_core::Operand::select(body, vec![edge]),
-            spin: ang(0.0),
-        }),
-    );
-    let (slot, fault) = shape(&err);
-    assert_eq!(slot, OperandSlot::Face);
-    assert_eq!(
-        *fault,
-        SelectionFault::Seat {
-            entity: EntityKind::Edge
-        }
-    );
+    for designate in [EntityKind::Edge, EntityKind::Vertex] {
+        let (doc, body, _, edge, vertex) = solid();
+        let name = if designate == EntityKind::Edge {
+            edge
+        } else {
+            vertex
+        };
+        let err = insert_refused(
+            &doc,
+            Node::Datum(Datum::FaceFrame {
+                face: editor_core::Operand::select(body, vec![name]),
+                spin: ang(0.0),
+            }),
+        );
+        assert_eq!(
+            name_kind(&err),
+            (OperandSlot::Face, 0, designate, EntityKind::Face),
+            "{designate:?}"
+        );
+        assert_eq!(err.to_string(), sentence(&err, "face"), "{designate:?}");
+    }
 }
 
 /// **A saved selection holding a name of another kind refuses at load**,

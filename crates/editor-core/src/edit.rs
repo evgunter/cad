@@ -1563,7 +1563,21 @@ fn mint_selection<P: crate::ProfilePayload>(
         .selection_kind(entity)
         .ok_or_else(|| shape(crate::var::SelectionFault::Seat { entity }))?;
     if let Some(fault) = crate::var::Select::fault(kind, names) {
-        return Err(shape(fault));
+        return Err(match fault {
+            crate::var::SelectionFault::Kind {
+                at,
+                found,
+                expected,
+            } => EditError::SelectionNameKind {
+                node: spoken(),
+                slot,
+                at,
+                name: doc.spoken_name(&names[at]),
+                found,
+                expected,
+            },
+            fault => shape(fault),
+        });
     }
     for name in names {
         if !doc.nodes.contains_key(&name.node) {
@@ -1586,13 +1600,16 @@ fn mint_selection<P: crate::ProfilePayload>(
 }
 
 /// **The entity kind a selection of `names` at a seat of `expected`
-/// is minted for**: its first name's, which [`crate::var::Select::fault`]
-/// holds the others to, or for no names the seat's own.
+/// is minted for**, which [`crate::var::Select::fault`] then holds
+/// every name to: at a seat of one selection kind ([`crate::SlotKind::Is`])
+/// that kind's, whatever the names say, so the first name of another
+/// kind is the one reported; at a seat admitting several (a measure's
+/// reference) its first name's, the seat answering for that kind.
 fn selection_entity(expected: crate::SlotKind, names: &[StableName]) -> EntityKind {
-    match (names.first(), expected) {
-        (Some(name), _) => name.kind,
-        (None, crate::SlotKind::Is(kind)) => kind.selection().map_or(EntityKind::Face, |(e, _)| e),
-        (None, _) => EntityKind::Face,
+    match (expected, names.first()) {
+        (crate::SlotKind::Is(kind), _) if let Some((entity, _)) = kind.selection() => entity,
+        (_, Some(name)) => name.kind,
+        (_, None) => EntityKind::Face,
     }
 }
 
@@ -2160,6 +2177,28 @@ pub enum EditError {
         slot: SlotId,
         /// Why.
         fault: crate::var::SelectionFault,
+    },
+    /// A name this edit authors into a selection at `slot` denotes
+    /// another entity kind than the seat reads (a face among a blend's
+    /// edges, an edge as a shell's open face): what a name denotes is
+    /// its own kind ([`crate::var::SelectionFault::Kind`]), so this is
+    /// refused here rather than discovered when the selection resolves.
+    /// Its own arm, not a [`Self::SelectionShape`], because the
+    /// sentence speaks the offending name, which a stored selection's
+    /// form fault does not carry.
+    SelectionNameKind {
+        /// The node whose seat the selection is authored at.
+        node: SpokenNode,
+        /// The seat.
+        slot: SlotId,
+        /// The name's position in the selection.
+        at: usize,
+        /// The name, spoken.
+        name: SpokenName,
+        /// The entity kind the name denotes.
+        found: EntityKind,
+        /// The entity kind the seat reads.
+        expected: EntityKind,
     },
     /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
     /// not one the document can store ([`crate::pose::PoseFault`]): a
@@ -3406,6 +3445,17 @@ impl EditError {
             | Self::RebindMetadataCollision { name, key: _ } => {
                 *name = name.respoken(doc);
             }
+            Self::SelectionNameKind {
+                node,
+                slot: _,
+                at: _,
+                name,
+                found: _,
+                expected: _,
+            } => {
+                *node = node.respoken(doc);
+                *name = name.respoken(doc);
+            }
             Self::MateRefused {
                 node,
                 held,
@@ -3548,17 +3598,48 @@ impl EditError {
                     ),
                 )
             }
-            Self::SelectionShape { slot, fault, .. } => {
+            Self::SelectionNameKind {
+                node,
+                slot,
+                at,
+                name,
+                found,
+                expected,
+            } => {
+                match slot {
+                    SlotId::Operand(seat) => match seat.selection_entry(*at) {
+                        Some(entry) => write!(f, "{node}'s {entry} names {name}")?,
+                        None => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                    },
+                    _ => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                }
                 write!(
                     f,
-                    "the selection at {slot} is not one a document stores: {fault}"
+                    ", which is {} {}, not {} {}",
+                    found.article(),
+                    found.noun(),
+                    expected.article(),
+                    expected.noun()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "name {} {} of the body the selection reads",
+                        expected.article(),
+                        expected.noun()
+                    ),
+                )
+            }
+            Self::SelectionShape { node, slot, fault } => {
+                write!(
+                    f,
+                    "{node}'s {slot} is not a selection a document stores: {fault}"
                 )?;
                 tail.recourse(
                     f,
                     format_args!(
                         "author the names in the stored order (an edge set sorted, a face set \
-                         naming each face once), as the fillet, chamfer and shell builders do, \
-                         or name entities of the kind the seat reads"
+                         naming each face once), as the fillet, chamfer and shell builders do"
                     ),
                 )
             }

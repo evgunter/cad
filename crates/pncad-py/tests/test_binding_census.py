@@ -3685,6 +3685,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::SelectionNameKind": "EditError.variant",
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
