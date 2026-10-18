@@ -567,8 +567,10 @@ impl CensusTrace {
 /// from the exact sweep, the same one the boolean sweep names for its
 /// tree (`boolean/reduce.rs`'s module docs: a pair whose boxes are
 /// disjoint can still escalate the brute path on a face's infinite
-/// plane; pruning drops only such spurious escalations), pinned as
-/// such by the differential suites, never absorbed.
+/// plane; pruning drops only such spurious escalations), admitted as
+/// such by the differential suites, never absorbed. No row exhibits a
+/// member of the class
+/// (`work/restread/the-census-filters-named-difference-has-no-witness-row.md`).
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is
@@ -10814,20 +10816,16 @@ mod tests {
     }
 
     #[test]
-    fn a_carrier_stage_outcome_on_separated_entities_is_the_filters_to_answer() {
+    fn separated_cubes_on_in_band_edge_lines_read_apart_in_both_sweeps() {
         // The second cube 10 m along x and 5e-9 along y — inside the
         // band's escalation zone (`zero` 1e-9, `escalate` 1e-8) of the
         // first cube's x-parallel edge LINES, and metres from its
-        // edges. The exact sweeps escalate on the carrier questions
-        // (a vertex or an edge's end against a face's plane, a boundary
-        // vertex against an edge's line) and can decide nothing else;
-        // the edge pairs read as segments, apart. A vertex metres past an edge's
-        // span reads past it, whatever its distance from the line. The
-        // filter answers the entity question by separation.
-        // This is the named class of `Trees`'s contract, pinned as the
-        // ONE difference: every exact error is a carrier-stage
-        // escalation, the realized census is silent, and the realized
-        // examination is the exact one restricted.
+        // edges. The exact sweep reads every pair by where the entities
+        // lie, not by their carriers: the edge pairs as segments, a
+        // vertex metres past an edge's span as past it, and a straight
+        // edge against a face's boundary edge on one line by the gap
+        // along that line. So it decides what the filter answers by
+        // separation, and neither sweep raises anything.
         let body = two_cubes(Vec3::new(10.0, 5e-9, 0.0));
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(
@@ -10846,23 +10844,8 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
-        assert!(real_errors.is_empty(), "{real_errors:?}");
-        assert!(!ideal_errors.is_empty());
-        let mut predicates = BTreeSet::new();
-        for e in &ideal_errors {
-            let ValidationError::CensusEscalated { cause } = e else {
-                panic!("a non-escalation on separated cubes: {e:?}");
-            };
-            predicates.insert(cause.predicate.expect("a named predicate"));
-        }
-        assert!(
-            predicates.contains("curve_pair_pose_offset"),
-            "{predicates:?}"
-        );
-        assert!(
-            !predicates.iter().any(|p| p.starts_with("pm_census_ee_")),
-            "an edge pair escalated: {predicates:?}"
-        );
+        assert!(real_errors.is_empty(), "realized: {real_errors:?}");
+        assert!(ideal_errors.is_empty(), "exact: {ideal_errors:?}");
         restricted_and_silent(&real, &ideal);
     }
 

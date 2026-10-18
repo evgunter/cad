@@ -449,6 +449,21 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
     );
 
+    // An arm that speaks more than one sentence, by a guard, is sampled
+    // once per sentence: two samples under one ordinal that say the same
+    // thing would leave a sentence the census never read.
+    let moved: std::collections::BTreeSet<String> = every_cause()
+        .iter()
+        .filter(|cause| matches!(cause, AdmissionFault::MovedSpace { .. }))
+        .map(ToString::to_string)
+        .map(|sentence| sentence.replace(char::is_numeric, ""))
+        .collect();
+    assert_eq!(
+        moved.len(),
+        2,
+        "MovedSpace's two sentences, a join and a split, are both sampled: {moved:?}"
+    );
+
     for cause in every_cause() {
         let sentence = cause.to_string();
         assert!(
@@ -458,6 +473,32 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
              has: {sentence}"
         );
     }
+}
+
+/// **"Not evaluated yet" ranks with the gesture-order faults, below a
+/// real failure** (`Refusal::rank`): it is a wait on a landing, not a
+/// decision about what the user tried, so a batch that meets both keeps
+/// the decision.
+#[test]
+fn a_space_not_known_yet_ranks_below_a_space_that_refuses() {
+    let admission = |fault| Refusal::Display(DisplayFault::Admission(fault));
+    let waiting = admission(AdmissionFault::NotEvaluated {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+    });
+    let refused = admission(AdmissionFault::InTheWorld {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
+    });
+    assert!(waiting.rank() > refused.rank());
+    let kept = Refusal::preferred(Some(waiting), refused);
+    assert!(
+        matches!(
+            kept,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::InTheWorld { .. }
+            )))
+        ),
+        "the real failure replaces the wait: {kept:?}"
+    );
 }
 
 /// **A withdrawal's cause list splits back into the causes it joined.**

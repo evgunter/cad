@@ -444,11 +444,14 @@ or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
 constituents retire. In a union no face publishes under a constituent's
 name: every piece of a member face a merge links is a piece of its parent
-(N2), including a piece that never itself merged. A seam cites, as each
-side, the parent of the face beside it, and a `Borders` wall cites its
-parent. Two edges of one seam between the same two faces are two pieces of
-that seam, told apart by their ends (N2), never by citing a
-retired constituent. Referencing a constituent fails with the merged name
+(N2), including a piece that never itself merged. At every boolean, a
+pair as much as a union, a seam cites, as each side, the parent of the face
+beside it (a merged face's `Merged` set, an unmerged face's own name), and a
+`Borders` wall cites its parent: a seam never descends to a constituent, so
+a seam along a merged face is named the same wherever the cut crosses it.
+Two edges of one seam between the same two faces are two pieces of that
+seam, told apart by their ends (N2), never by citing a retired
+constituent. Referencing a constituent fails with the merged name
 offered, and when an edit removes the coincidence the merged name vanishes with
 its constituents offered. Numeric coplanarity never merges, so merges change
 only at recipe edits, structural parameters, or recorded flips; nothing rebinds

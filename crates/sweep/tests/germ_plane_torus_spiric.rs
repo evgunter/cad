@@ -8,15 +8,10 @@
 //! three ways (its volume against a closed-form oracle of the analytic
 //! operands, itself held to a Monte Carlo of them; tier 3; and
 //! `point_in_solid` at sampled points against the analytic memberships
-//! under the op), or stops past the join at one of two doors, each named
-//! per op and filed on its owner:
-//!
-//! - the result's shells are sorted by `point_in_solid`, which refuses a
-//!   torus face that is not a chart rectangle
-//!   (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`);
-//! - the result's volume does not read a torus face holding a ring
-//!   bounded by ovals
-//!   (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`).
+//! under the op), or stops past the join where the result's volume does
+//! not read a torus face holding a ring bounded by ovals
+//! (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`),
+//! named per op.
 //!
 //! No op returns a wrong body. The poses run on the donut, the one-face
 //! torus (its vertex at three phases), the torus seamed on `y = 0`, and,
@@ -171,9 +166,6 @@ fn the_box_oracle_reads_the_closed_forms() {
 /// Where an op stops past the join, short of a body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Stop {
-    /// The shells' sort reads `point_in_solid`, which refuses a torus
-    /// face that is not a chart rectangle (`PartialTorusFace`).
-    Sort,
     /// The result's volume does not read a torus face holding a ring
     /// (`RingOnCurvedFace`).
     Volume,
@@ -182,10 +174,6 @@ enum Stop {
 /// The stop an op's refusal names, or `None` for any other refusal.
 fn stop(e: &BooleanError) -> Option<Stop> {
     match e {
-        BooleanError::Pieces(topo::PieceSortError::Probe {
-            source: topo::PointInSolidError::PartialTorusFace { .. },
-            ..
-        }) => Some(Stop::Sort),
         BooleanError::ResultInvalid { errors } if !errors.is_empty() => errors
             .iter()
             .all(|e| {
@@ -210,8 +198,8 @@ pub(crate) fn stops_past_the_join(e: &BooleanError) -> bool {
 /// **Each of the six ops of `t` against `p` answers as `want` says**,
 /// one letter per op in [`SIX`]'s order: `B` a body, held to the truth
 /// (its volume and tier 3, and `point_in_solid` wherever it answers:
-/// [`volume_and_points`]), `s` the sort's stop and `v` the volume's
-/// ([`Stop`]); where `tie`, any op may instead escalate the matcher's
+/// [`volume_and_points`], at one sampled point at least), and `v` the
+/// volume's stop ([`Stop`]); where `tie`, any op may instead escalate the matcher's
 /// ranking (`bool_join_nearest`, [`tie_in_band`]). `meet` is first held
 /// to the Monte Carlo. Each op's body, and the sampled points
 /// `point_in_solid` read over them all.
@@ -241,12 +229,16 @@ fn answers(
                     .unwrap_or_else(|| panic!("{what}: empty"))
                     .body
                     .clone();
-                read += volume_and_points(&what, (op, swap), (t, p), meet, &b, within, true);
+                let n = volume_and_points(&what, (op, swap), (t, p), meet, &b, within, true);
+                assert!(
+                    n > 0,
+                    "{what}: point_in_solid reads no sampled point of the body"
+                );
+                read += n;
                 bodies.push(Some(b));
             }
-            ('s' | 'v', Err(e)) => {
-                let want = if w == 's' { Stop::Sort } else { Stop::Volume };
-                assert_eq!(stop(&e), Some(want), "{what}: {e:?}");
+            ('v', Err(e)) => {
+                assert_eq!(stop(&e), Some(Stop::Volume), "{what}: {e:?}");
                 bodies.push(None);
             }
             (w, r) => panic!(
@@ -308,26 +300,20 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
         assert_eq!(*pose, named, "{name}: the poses in order");
         let what = format!("{name}, {pose}");
         let tie = *pose == "the tie bar" && tie_in_band();
-        let (_, read) = answers(
+        answers(
             &what,
             (&t, p),
             *meet,
             about_the_tube(2.0, 0.5),
             (answer, tie),
         );
-        if read == 0 && answer.contains('B') {
-            test_utils::vacuity::stood_down(
-                &what,
-                "point_in_solid: it refuses PartialTorusFace on every built body",
-            );
-        }
     }
 }
 
 /// **The donut's spiric poses build their true bodies, or stop past the
-/// join**: S1, M3 and P4 build in every op; the box between two ovals'
-/// planes, B1 and B2 stop where a result's torus face is not a chart
-/// rectangle or holds a ring.
+/// join**: S1, M3, P4 and the box between two ovals' planes build in
+/// every op; B1, B2 and the tie bar stop where a result's torus face
+/// holds a ring.
 #[test]
 fn the_donuts_spiric_poses_build_their_true_bodies_or_stop_past_the_join() {
     donut_poses_answer(
@@ -337,10 +323,10 @@ fn the_donuts_spiric_poses_build_their_true_bodies_or_stop_past_the_join() {
             ("S1", "BBBBBB"),
             ("M3", "BBBBBB"),
             ("P4", "BBBBBB"),
-            ("the spiric box", "BBsssB"),
-            ("B1", "vvssvB"),
-            ("B2", "vvBBvs"),
-            ("the tie bar", "vvssvB"),
+            ("the spiric box", "BBBBBB"),
+            ("B1", "vvBBvB"),
+            ("B2", "vvBBvB"),
+            ("the tie bar", "vvBBvB"),
         ],
     );
 }
@@ -352,25 +338,26 @@ fn the_donuts_spiric_poses_build_their_true_bodies_or_stop_past_the_join() {
 /// cross both faces. Measured: S1 and M3 build in every op on all four;
 /// P4 builds in every op on the one-face torus with its vertex off the
 /// equators and keeps a ring the volume does not read on the other three;
-/// B1 builds in four ops where the torus has an edge on its inner equator
-/// (the one-face torus with its vertex there, and the seamed torus), and
-/// so does the tie bar.
+/// B1 and the tie bar build in every op where the torus has an edge on its
+/// inner equator (the one-face torus with its vertex there, and the
+/// seamed torus); elsewhere B1, B2 and the tie bar keep a ring the volume
+/// does not read where the result holds the torus less the bar.
 #[test]
 fn the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts() {
     let ring_stops = [
         ("S1", "BBBBBB"),
         ("M3", "BBBBBB"),
         ("P4", "vvBBvB"),
-        ("the spiric box", "BBsssB"),
-        ("B1", "vvssvB"),
-        ("B2", "vvBBvs"),
-        ("the tie bar", "vvssvB"),
+        ("the spiric box", "BBBBBB"),
+        ("B1", "vvBBvB"),
+        ("B2", "vvBBvB"),
+        ("the tie bar", "vvBBvB"),
     ];
     let mut off_equator = ring_stops;
     off_equator[2] = ("P4", "BBBBBB");
     let mut across = ring_stops;
-    across[4] = ("B1", "BBssBB");
-    across[6] = ("the tie bar", "BBssBB");
+    across[4] = ("B1", "BBBBBB");
+    across[6] = ("the tie bar", "BBBBBB");
     for (name, t) in tori_of_one_face_pair(2.0, 0.5) {
         let want = if name.ends_with("vertex at 1") {
             &off_equator
@@ -589,9 +576,8 @@ fn the_corner_bars_lens_is_well_above_the_rows_tolerance() {
 /// oval's arc between the corners, through the arc rule every curved
 /// chord takes. A body is held to the truth, carries the eight oval arcs
 /// on its end squares and sides (or more, where a torus's own edge
-/// splits them), and is held to `point_in_solid`
-/// at the lens's points wherever it answers; every other op stops past
-/// the join. Red against the mutant that chords the end square along its
+/// splits them), and is held to `point_in_solid` at every lens point;
+/// every other op stops past the join. Red against the mutant that chords the end square along its
 /// own edges, skipping the oval arcs between the corners: its bodies
 /// miss the lens.
 #[test]
@@ -601,9 +587,9 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
         let t = ring(body, (big_r, r));
         let want =
             if name.ends_with("vertex at 3.141592653589793") || name.ends_with("seamed torus") {
-                "BBssBB"
+                "BBBBBB"
             } else {
-                "vvssvB"
+                "vvBBvB"
             };
         for (pose, w) in [("B5", 0.1), ("B5′", 0.3)] {
             let (bar, meet) = corner(big_r, r, w);
@@ -659,25 +645,15 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
                     let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
                         panic!("{what}: a lens point on a boundary: {q:?}");
                     };
-                    match contains(b, q) {
-                        Err(topo::PointInSolidError::PartialTorusFace { .. }) => {}
-                        got => {
-                            assert_eq!(
-                                got.ok(),
-                                Some(kept(op, a, c)),
-                                "{what}, {label}: point_in_solid in the lens at {q:?}"
-                            );
-                            read += 1;
-                        }
-                    }
+                    assert_eq!(
+                        contains(b, q),
+                        Ok(kept(op, a, c)),
+                        "{what}, {label}: point_in_solid in the lens at {q:?}"
+                    );
+                    read += 1;
                 }
             }
-            if read == 0 {
-                test_utils::vacuity::stood_down(
-                    &what,
-                    "point_in_solid in the lens: it refuses PartialTorusFace on every built body",
-                );
-            }
+            assert!(read > 0, "{what}: point_in_solid reads no lens point");
         }
     }
 }

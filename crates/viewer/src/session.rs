@@ -1557,19 +1557,20 @@ impl DocSession {
         // **The second prune** (DI5): spaces exist only after the solve,
         // so whether a free-move's root still names a loose space is
         // asked here, of the evaluation and the document it answers,
-        // rather than when the edit committed. Only of a COMMITTED
-        // document: a value gesture's scratch shares the committed
-        // graph, so all its landing could newly answer is a placement
-        // a previewed value refuses, and a preview the user may still
-        // cancel does not discard committed display state. The
-        // gesture's commit lands the committed document, which prunes.
-        if *self.requested_doc == *self.history.doc() {
-            let eval = self
-                .derived
-                .landed
-                .as_ref()
-                .map(|run| run.evaluation.as_ref());
-            let report = self.display.prune(&self.requested_doc, eval);
+        // rather than when the edit committed. A landing of a value
+        // gesture's scratch shares the committed graph but not its
+        // values, so it prunes on what the graph decides alone
+        // (`DisplayState::prune_structural`): a committed pin whose own
+        // landing the scratch's overtook takes effect now, mid-drag,
+        // and a placement a previewed value refuses — which the user may
+        // still cancel — discards nothing committed.
+        if let Some(run) = self.derived.landed.as_ref() {
+            let eval = run.evaluation.as_ref();
+            let report = if *self.requested_doc == *self.history.doc() {
+                self.display.prune(&self.requested_doc, Some(eval))
+            } else {
+                self.display.prune_structural(&self.requested_doc, eval)
+            };
             if !report.is_empty() {
                 self.landed_withdrawals.push(report);
             }
@@ -3410,12 +3411,13 @@ impl DocSession {
     }
 
     /// **The one door an edit enters the document through**: apply,
-    /// record, re-evaluate — and reconcile the display state, which is
-    /// where a free-move probe is superseded by the mate that
-    /// constrains its instance (the prune DISCARDS the value; see
-    /// `display`'s module docs for why discard and not zero) and where
-    /// a hide the picture can no longer honour is dropped. Both are
-    /// reported on the outcome, each with the fault that caused it.
+    /// record, re-evaluate — and reconcile the display state against
+    /// what the document alone says: a free-move frame whose root is
+    /// gone is discarded (see `display`'s module docs for why discard
+    /// and not zero), and a hide the picture can no longer honour is
+    /// dropped, each reported on the outcome with the fault that caused
+    /// it. A frame a placement now pins goes when the edit's evaluation
+    /// lands (`DocSession::land`'s second prune).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         self.commit_action(vec![edit])
     }
