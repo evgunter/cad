@@ -504,3 +504,32 @@ fn an_arc_tube_stands_against_its_target_by_frames() {
     let (doc, placed) = fixture::slid(doc, b, bend, [0.5, 0.5, 3.0]);
     assert_near(&vertices(&doc, placed), &shifted(&own, [0.5, 0.5, 3.0]));
 }
+
+/// **An instance stands on its part's base**: the face it is stood by
+/// is the start cap of the part's construction, as the part's copy and
+/// the instance carry it, not the end cap the part's height moves. So
+/// a part grown taller keeps its base where it stands.
+#[test]
+fn an_instance_stands_on_its_parts_base() {
+    use fixture::resolver::{PartStore, in_part, with_resolver};
+    let mut store = PartStore::new();
+    let part = ProfileDoc::empty(editor_core::DocumentId::derive("d-post"), Tol::witness());
+    let (part, post) = unit_box(part);
+    let (post_ref, post) = store.insert_part((part, post), Tol::witness());
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive("d-host"), Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(post_ref));
+    let copies = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+    let stood = editor_core::stand(&doc, &copies, &opts, Tol::witness())
+        .expect("the instance stands over its part's geometry");
+    let names: Vec<_> = fixture::selections_in(&stood.mate.on)
+        .into_iter()
+        .flat_map(fixture::authored_names)
+        .collect();
+    assert_eq!(
+        names,
+        [in_part(instance, post, editor_core::CapEnd::Start)],
+        "stood on the part's start cap: {:?}",
+        stood.mate
+    );
+}

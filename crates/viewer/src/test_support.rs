@@ -53,7 +53,7 @@ pub fn len_mm(metres: f64) -> Formula {
         .expect("a finite length")
 }
 
-/// Three length literals — a datum origin, a translation.
+/// Three length literals — a point, a translation.
 pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
@@ -270,6 +270,36 @@ pub fn pinned(
         Err(refusal) => panic!("the copy stands over its geometry: {refusal}"),
     };
     constrained(doc, placement, mate, values, tol)
+}
+
+/// **`body`'s copy placed against `target`'s own geometry at `at`**
+/// ([`pncad::document::place_against`]), its mate and values written,
+/// evaluated under `opts` — a document whose bodies read a store
+/// (an instance's part) is placed under the options that reach it.
+/// Answers the document and the placement.
+///
+/// # Panics
+///
+/// If the door refuses: a fixture's bug.
+pub fn against_in(
+    doc: &Doc<ProfileProgram>,
+    target: pncad::document::Operand,
+    body: pncad::document::Operand,
+    at: &pncad::document::Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let placed = pncad::document::place_against(doc, &target, &body, at, opts, tol)
+        .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+    let (doc, placement) = inserted(
+        doc,
+        Node::place(vec![pncad::document::BodyRead::plain(body)]),
+        tol,
+    );
+    (
+        constrained(&doc, placement, placed.mate, placed.values, tol),
+        placement,
+    )
 }
 
 /// The read of the copy `placement` defines: a `Place` through its first

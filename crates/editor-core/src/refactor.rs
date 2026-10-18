@@ -4379,10 +4379,18 @@ pub fn inline(
     )?;
     for (old, at) in &repinned {
         let placement = node_map[old];
-        let Some(Node::Place { shapes, .. }) = current.doc().node(placement) else {
-            unreachable!("a re-pinned part placement is carried as a placement")
+        // The copy as the placement's constraints read it: a `Place`
+        // through its one shape, an instance through its own copies.
+        let copy = match current.doc().node(placement) {
+            Some(Node::Place { shapes, .. }) => crate::Operand::Var(shapes[0].read),
+            Some(Node::InstantiatePart { .. }) => crate::Operand::Var(
+                current
+                    .doc()
+                    .output(placement, 0)
+                    .unwrap_or_else(|| unreachable!("an instance defines its copies")),
+            ),
+            _ => unreachable!("a re-pinned part placement is carried as a placement"),
         };
-        let copy = crate::Operand::Var(shapes[0].read);
         let mate = crate::mate::pin_at(
             current.doc(),
             &copy,

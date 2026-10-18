@@ -83,7 +83,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// |---|---|---|
 /// | 8 | `From(cube, RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
 /// | 4 | `From(cube, LateralEdge(vertex))` | the cube's four vertical struts |
-/// | 2 | `Seam { Cap(End), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
+/// | 2 | `Seam { Cap(End), Placed(Band(0) \| BandPi(0)) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
 /// | *2 excluded* | `From(ball, Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
 ///
 /// **Why the meridians are excluded, and why this document exists.**
@@ -125,10 +125,24 @@ pub fn selection(
         node: cube,
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
+    // The ball's band face as the pip's placement copies it: the
+    // ball's own name, qualified by the placement.
+    let pip = match doc.node(pipped) {
+        Some(Node::Subtract { tool, .. }) => doc
+            .operation_of(tool.read)
+            .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement")),
+        other => panic!("{pipped} is the die's subtract, got {other:?}"),
+    };
     let ball_face = |seg: RoleSeg| StableName {
         kind: EntityKind::Face,
-        node: ball,
-        path: vec![seg],
+        node: pip,
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(StableName {
+                kind: EntityKind::Face,
+                node: ball,
+                path: vec![seg],
+            }),
+        }],
     };
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
@@ -161,9 +175,10 @@ pub fn selection(
 ///    four struts). Saying "a box edge carried through" is exactly the
 ///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was the
 ///    P10 relocation.
-/// 2. `Seam { a: Cap(End), b: Band | BandPi }` — the pip rim, the two
+/// 2. `Seam { a: Cap(End), b: Placed(Band | BandPi) }` — the pip rim, the two
 ///    arcs the zip minted where the cube's end cap crosses the ball's
-///    lower band. A full revolve's band is two half-faces split at the
+///    lower band, which the pip's placement copies (`Placed`). A full
+///    revolve's band is two half-faces split at the
 ///    seam meridians, so the rim is two arcs and the band role has two
 ///    variants; the union says both.
 ///
@@ -177,7 +192,13 @@ pub fn selection(
 /// (`crates/editor-core/src/names/select.rs` module docs).
 pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
-    let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
+    // A face of the pip: the ball's, as its placement copies it.
+    let face = |tag: SegTag| {
+        NamePat::of_kind(EntityKind::Face).seg(
+            SegPat::tag(SegTag::Placed)
+                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag))]),
+        )
+    };
     let cap_top =
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let pip_rim =

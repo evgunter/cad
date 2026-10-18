@@ -2924,11 +2924,14 @@ impl DocSession {
         })
     }
 
-    /// **A pose read off `body`'s own geometry**: the frame standing at
-    /// `origin` with `z` along `direction` (in `body`'s own coordinates,
-    /// at the numbers' nominal values in the committed document), read
-    /// through `role` — a split's plane through `xy`, a circular
-    /// pattern's axis through `z`.
+    /// **A pose read off the geometry of `body`'s space**: the frame
+    /// standing at `origin` with `z` along `direction` (in the
+    /// coordinates of the space `body` lives in, at the numbers' nominal
+    /// values in the committed document), read through `role` — a
+    /// split's plane through `xy`, a circular pattern's axis through
+    /// `z`. A placement's copy has no coordinates of its own to read a
+    /// frame in, so a placement joining a body's space is read through
+    /// that space's root ([`crate::world::loose_root`]).
     fn read_off(
         &self,
         body: &Operand,
@@ -2941,6 +2944,11 @@ impl DocSession {
         let origin = nominals(doc, what, origin, Dimension::Length)?;
         let direction = nominals(doc, what, direction, Dimension::Scalar)?;
         let at = frame_along(origin, direction, what, self.tol)?;
+        let root = crate::world::read_output(doc, body)
+            .filter(|&(node, _)| matches!(doc.node(node), Some(Node::Place { .. })))
+            .and_then(|(node, _)| crate::world::loose_root(doc, node).filter(|&r| r != node))
+            .map(|root| body_of(doc, root));
+        let body = root.as_ref().unwrap_or(body);
         let frame = pncad::document::frame_at(doc, body, &at, &self.eval_options(), self.tol)
             .map_err(|refusal| Refusal::Frame(Box::new(GestureFrameFault::Geometry(refusal))))?;
         Ok(RoleRead::through(frame, role))

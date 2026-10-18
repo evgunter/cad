@@ -74,7 +74,7 @@ fn extruded(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let (doc, profile) = common::inserted(
-        &doc,
+        doc,
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),

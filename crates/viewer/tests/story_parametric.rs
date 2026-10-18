@@ -89,24 +89,38 @@ fn drive(session: &mut DocSession, node: RecipeNodeId, slot: SlotId, text: &str)
 /// **Drives the lift of the moved copy `placement`** by `text`, a
 /// height up the copy's own z that today is `lift`.
 ///
-/// The lift is the one world-read slide of the placement's mate: the
-/// copy's start cap on the target's, slid along the target cap's
-/// outward normal — the target's −z — so the slot holds `-lift` and is
-/// driven by the expression's negation.
+/// The lift is the slide of the mate's target: the copy's start cap on
+/// the target's, slid along the target cap's outward normal — the
+/// target's −z — so the slide's variable holds `-lift` and is defined
+/// as the expression's negation.
 fn drive_lift(session: &mut DocSession, placement: RecipeNodeId, lift: f64, text: &str) {
-    let rows: Vec<props::SlotRow> = props::slot_rows(session.committed_doc(), placement)
-        .into_iter()
-        .filter(|row| matches!(row.slot, SlotId::WorldSlide { .. }))
-        .collect();
-    let [row] = rows.as_slice() else {
-        panic!("one lift on {placement}: {rows:?}");
+    use pncad::document::pose::PoseDef;
+    use pncad::document::{Node, Target, VarDef};
+    let doc = session.committed_doc();
+    let Some(Node::Place { constraints, .. }) = doc.node(placement) else {
+        panic!("{placement} is a placement");
     };
+    let slid = constraints
+        .iter()
+        .filter_map(|c| c.mate())
+        .find_map(|mate| match &mate.to {
+            Target::Pose(var) => match doc.var(*var).map(|v| v.def()) {
+                Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(*by),
+                _ => None,
+            },
+            Target::World(_) => None,
+        })
+        .unwrap_or_else(|| panic!("{placement}'s mate reads a slid target"));
     assert_eq!(
-        row.value,
-        Ok(SlotValue::Continuous(-lift)),
+        props::variable_value(doc, slid),
+        Some(SlotValue::Continuous(-lift)),
         "the lift stands where the move put it"
     );
-    drive(session, placement, row.slot, &format!("-({text})"));
+    let outcome = session.perform(SessionOp::SetVariableText {
+        var: slid,
+        text: format!("-({text})"),
+    });
+    assert!(outcome.refusal.is_none(), "{text:?}: {:?}", outcome.refusal);
 }
 
 /// The one slot row `node` carries for `slot`.

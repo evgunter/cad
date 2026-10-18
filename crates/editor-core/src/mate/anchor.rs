@@ -74,8 +74,14 @@ impl<'a> Anchors<'a> {
             // the coplanar faces it merged.
             [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => self.fixed(of),
             [RoleSeg::Merged(merged)] => merged.iter().any(|n| self.fixed(n)),
+            // An instance's entity stands where its part's product put
+            // it. The part's recipe is not this document's to read, so
+            // the name's shape answers: a construction's start cap,
+            // copied by the part's placements and carried unmoved,
+            // reads nothing in the part either.
+            [RoleSeg::InPart { of }] => self.carried_unmoved(name.node) && part_start_cap(of),
             // A copy's entity stands where its placement moved it, and a
-            // pattern's or an instance's where its rule did.
+            // pattern's where its rule did.
             [RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. }, ..] => {
                 false
             }
@@ -233,5 +239,20 @@ impl<'a> Anchors<'a> {
         };
         self.vars.borrow_mut().insert(var, reads);
         reads
+    }
+}
+
+/// **Whether a name of a part's product is a construction's start cap**
+/// under the part's copies and the operations that carry an entity
+/// unmoved: the one face of a part an instance can stand on without
+/// reading the part's recipe (a part placement that slides its copy by
+/// a variable is not seen, `work/intent/a-stand-on-an-instance-reads-its-part-by-the-names-shape.md`).
+fn part_start_cap(name: &StableName) -> bool {
+    match name.path.as_slice() {
+        [RoleSeg::Placed { of } | RoleSeg::InPart { of }]
+        | [RoleSeg::From { of, .. }]
+        | [RoleSeg::SplitFragment { parent: of }] => part_start_cap(of),
+        [RoleSeg::Cap(CapEnd::Start)] => true,
+        _ => false,
     }
 }

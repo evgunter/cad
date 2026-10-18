@@ -29,7 +29,17 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let shelf = asm::instance_at(&mut asm, bench.shelf, [0.0; 3], &bench.opts(), tol);
-    let (moved, lifted) = crate::fixture::xform(asm, shelf, [0.0, 0.0, 0.1], [0.0, 0.0, 1.0], 0.0);
+    let (moved, lifted) = common::against_in(
+        &asm,
+        shelf.into(),
+        shelf.into(),
+        &pncad::document::Frame {
+            translation: [0.0, 0.0, 0.1],
+            ..pncad::document::Frame::IDENTITY
+        },
+        &bench.opts(),
+        tol,
+    );
     asm = moved;
     // The second copy clears the post and the first copy.
     let pattern = insert_into(

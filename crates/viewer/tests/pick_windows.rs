@@ -48,8 +48,8 @@ fn delta() -> scene::DisplayTolerance {
 /// copies (A10).
 ///
 /// - a linear pattern of three blocks, each copy projected and placed;
-/// - two `Transform`s over one extrude, each placed — one body's names
-///   under two copies' wraps;
+/// - two world placements of one extrude, each at its own pose — one
+///   body's names under two copies' wraps;
 /// - a bare extrude, placed — the last part.
 fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("chrome-pick-windows", tol);

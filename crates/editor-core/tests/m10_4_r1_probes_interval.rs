@@ -998,12 +998,14 @@ fn r1_seed_env_refuses_a_foreign_name() {
         seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId::new(0, 0)).is_err(),
         "an unknown name refuses"
     );
-    // And the bindings it does produce carry exactly one unit tangent.
+    // And the free bindings it does produce carry exactly one unit
+    // tangent (a definition reading `h1` carries its chain rule's).
     let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
+    let free = |id: &editor_core::VarId| a.var(*id).is_some_and(|v| v.def().free().is_some());
     let mut ones = 0_usize;
     let mut zeros = 0_usize;
-    for v in env.bindings.values() {
+    for (_, v) in env.bindings.iter().filter(|(id, _)| free(id)) {
         if let ParamValue::Continuous { value, .. } = v {
             if value.deriv.to_bits() == 1.0f64.to_bits() {
                 ones += 1;
@@ -1016,8 +1018,8 @@ fn r1_seed_env_refuses_a_foreign_name() {
     }
     let continuous = env
         .bindings
-        .values()
-        .filter(|v| matches!(v, ParamValue::Continuous { .. }))
+        .iter()
+        .filter(|(id, v)| free(id) && matches!(v, ParamValue::Continuous { .. }))
         .count();
     assert_eq!(ones, 1, "exactly one seeded lift");
     assert_eq!(

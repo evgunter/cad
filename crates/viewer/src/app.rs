@@ -4690,7 +4690,8 @@ mod properties_pane_tests {
     #[test]
     fn each_driven_vector_component_edits_its_own_source() {
         let axes = [Axis3::X, Axis3::Y, Axis3::Z];
-        let sources = ["1 + 1", "2 + 1", "3 + 1"];
+        // Decimal, so each reads as a scalar and not a count.
+        let sources = ["1.5 + 0.5", "2.5 + 0.5", "3.5 + 0.5"];
         let mut pane = Driven::with(vec![SessionOp::AddPattern {
             input: extrude().into(),
             count: 2,

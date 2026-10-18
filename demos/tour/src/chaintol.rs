@@ -915,11 +915,3 @@ mod tests {
         );
     }
 }
-
-#[cfg(test)]
-mod zz_d_probe {
-    #[test]
-    fn chain_certified() {
-        super::narration(pncad::geom_core::Tol::witness());
-    }
-}

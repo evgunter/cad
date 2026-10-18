@@ -55,8 +55,6 @@ pub fn document() -> CorpusDoc {
         }),
     });
 
-    // Plate and holes are sketched on the SAME plane, so they name
-    // one frame node between them.
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
@@ -88,6 +86,10 @@ pub fn document() -> CorpusDoc {
         profile: pb.into(),
         distance: len(0.1),
     });
+    // Each hole is a construction of its own: the second, placed
+    // against the first where it was drawn, joins its space, so the
+    // distance between them is a distance in one space.
+    let hole_b = r.against(hole_a, hole_b, &editor_core::Frame::IDENTITY);
 
     // The wall names come from the SELECTION door, the way a user gets
     // them — evaluate what is built so far, then ask each hole for its
@@ -95,9 +97,8 @@ pub fn document() -> CorpusDoc {
     // sharing one cylinder carrier, and the closed form reads the
     // carrier, so the first in canonical order answers for the hole.
     //
-    // Read AT the extrude that owns it: nothing places this geometry,
-    // so the reading site is the minting node — spelled explicitly
-    // rather than assumed.
+    // Read AT the node that holds it: the first hole's own extrude, and
+    // the second's copy — spelled explicitly rather than assumed.
     let ev = editor_core::evaluate::<f64>(
         &r.doc,
         None,

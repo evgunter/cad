@@ -444,8 +444,8 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
     // A transform between the instance and the pattern: the pattern's
-    // input is a `Transform`, not an `InstantiatePart`, which is one
-    // of the heads `member_of` declines.
+    // input is the move's `Place`, not an `InstantiatePart`, which is
+    // one of the heads `member_of` declines.
     let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {

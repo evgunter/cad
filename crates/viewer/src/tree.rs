@@ -692,7 +692,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// **What `id`'s value says in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
 /// whether there is one. `None` for a payload whose `Ok` is the whole
-/// of it: a body, a datum, a profile, a pattern's instances (its
+/// of it: a body, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
 /// placement's copies, the world.
 fn readout_of(

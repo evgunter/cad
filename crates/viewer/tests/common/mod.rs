@@ -763,7 +763,7 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 
 /// **The node `node`'s body is drawn under**: its one world placement
 /// when the world places it once ([`copy_of`]), `node` itself
-/// otherwise — so a row can aim at a datum or an unplaced node the way
+/// otherwise — so a row can aim at a profile or an unplaced node the way
 /// it aims at a placed body.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
     match viewer::world::placements_of(doc, node)[..] {

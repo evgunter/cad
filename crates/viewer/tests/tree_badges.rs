@@ -847,10 +847,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     };
     let (doc, near) = block(&doc, 0.0);
     let (doc, far) = block(&doc, 0.1);
+    // The far block in the near one's space, where it was drawn: the
+    // operand every combine below reads for it.
+    let (doc, far_placed) = crate::fixture::slid(doc, near, far, [0.0; 3]);
     let (doc, apart) = common::inserted(
         &doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![near.into(), far.into()]),
+            members: Bodies::Spelled(vec![near.into(), far_placed.into()]),
         },
         tol,
     );
@@ -889,7 +892,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         common::inserted(
             doc,
             Node::Pattern {
-                input: input.into(),
+                input,
                 count: pncad::document::Formula::count(2),
                 kind: PatternKind::Linear {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -909,7 +912,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Split {
             target: near.into(),
-            tool: tool.into(),
+            tool,
         },
         tol,
     );
@@ -924,7 +927,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Subtract {
             from: near.into(),
-            tool: far.into(),
+            tool: far_placed.into(),
         },
         tol,
     );
@@ -934,7 +937,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Split {
             target: near.into(),
-            tool: through.into(),
+            tool: through,
         },
         tol,
     );

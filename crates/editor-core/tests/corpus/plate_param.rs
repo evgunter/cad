@@ -30,7 +30,7 @@
 use super::PlacePart;
 use editor_core::{
     Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, VarName,
+    ProgramTarget, SlotId, VarName,
 };
 
 use crate::fixture::len;

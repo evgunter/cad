@@ -97,12 +97,13 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 /// ([`crate::m10_5_clearance_interval::slid_by`]).
 fn translated(
     r: &mut Recorder,
+    target: RecipeNodeId,
     input: RecipeNodeId,
     dx: Formula,
     dy: Formula,
     dz: Formula,
 ) -> RecipeNodeId {
-    crate::m10_5_clearance_interval::slid_by(r, input, input, [dx, dy, dz])
+    crate::m10_5_clearance_interval::slid_by(r, target, input, [dx, dy, dz])
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
@@ -164,6 +165,7 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = translated(&mut r, 
         solid,
+        solid,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
@@ -212,6 +214,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         0.1,
     );
     let placed = translated(&mut r, 
+        solid,
         probe,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),
@@ -231,8 +234,9 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let b = translated(&mut r, a, len(1.0 + gap), len(0.0), len(0.0));
+    let b = translated(&mut r, a, a, len(1.0 + gap), len(0.0), len(0.0));
     let _ = translated(&mut r, 
+        a,
         a,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),

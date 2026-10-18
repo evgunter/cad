@@ -19,10 +19,15 @@
 use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, Target, VarId};
 use pncad::prelude::StableName;
 
-/// **The body `placement` places**, or `None` for a node that is not a
-/// live `Place` of one shape. An instance places its part's world and
-/// reads no body of this document, so it answers `None` too.
+/// **The body the world copy `placement` places**, or `None` for a node
+/// that is not a live world copy ([`is_world_copy`]) of one shape. An
+/// instance places its part's world and reads no body of this
+/// document, so it answers `None` too; so does a placement that joins
+/// a body's space, which is itself the body a seat reads.
 pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<VarId> {
+    if !is_world_copy(doc, placement) {
+        return None;
+    }
     match doc.node(placement)? {
         Node::Place { shapes, .. } => match shapes.as_slice() {
             [shape] => Some(shape.read),
@@ -47,7 +52,7 @@ fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId>
 /// world is the world's, one whose mates read a pose joins the space of
 /// the body the pose is read off; a construction is the root of its
 /// own space, and any other node joins the first loose space among the
-/// bodies it reads.
+/// operands it reads.
 pub fn loose_root(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RecipeNodeId> {
     let read_space = |var: VarId| {
         doc.read_ports(var)
@@ -72,9 +77,9 @@ pub fn loose_root(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Recip
         | Node::Loft { .. }
         | Node::Sweep { .. } => Some(node),
         other => other
-            .body_reads()
+            .operand_rows()
             .into_iter()
-            .find_map(|(_, read)| read_space(read.read)),
+            .find_map(|(_, read)| read_space(read)),
     }
 }
 

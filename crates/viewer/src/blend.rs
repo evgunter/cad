@@ -112,9 +112,9 @@ impl BlendTarget {
     ///
     /// A door of its own rather than a destructure inside
     /// [`Self::of_selection`], because a face pick reaches this scope
-    /// from more than that one place: the add-datum form's
-    /// frame-on-face row holds a [`FaceSelection`] and names the same
-    /// scope in the same sentence.
+    /// from more than that one place: the add-profile form's
+    /// on-the-picked-face row holds a [`FaceSelection`] and names the
+    /// same scope in the same sentence.
     pub fn of_face(face: &FaceSelection) -> Self {
         Self {
             node: face.node,

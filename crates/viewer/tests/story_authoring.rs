@@ -101,15 +101,18 @@ const MERLON_OFF: f64 = 0.009;
 /// profile is drawn on its own plane, so each body the rook stacks
 /// above the plinth is moved up its axis before it is combined.
 const CARVED_STATES: usize = 22;
-/// The world's own edits among the carving actions (A10), each riding
-/// in the action that caused it: five extrudes each placed — the
-/// placement, then the mate and three values that place it (25); the
-/// chamfer re-pointing the plinth's placement (1); four booleans each
-/// re-pointing their first operand's placement and deleting the
-/// second's (8); the transform of the cutter that boolean already
-/// withdrew, which places nothing (0); and the last boolean, whose
-/// second operand nothing places, re-pointing only (1).
-const WORLD_EDITS: usize = 35;
+/// The world's own edits among the carving actions (A10, D10), each
+/// riding in the action that caused it: five extrudes each placed —
+/// the placement, then the mate and three values that place it (25);
+/// the chamfer re-pointing the plinth's placement (1); five moves each
+/// writing its mate and three values (20), four of them re-pointing the
+/// world placement of what they moved (4); five booleans each placing
+/// its moved second operand against the plinth where it stands — its
+/// mate and three values taken off and written again (40); four of
+/// them re-pointing their first operand's placement and deleting the
+/// second's (8); and the last, whose second operand nothing places,
+/// re-pointing only (1).
+const WORLD_EDITS: usize = 99;
 /// Edits on the FINAL saved path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`

@@ -248,11 +248,7 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     session.pump();
 
     let rows = session.tree_rows();
-    assert_eq!(
-        rows.len(),
-        4,
-        "sketch frame, profile, revolve and its placement"
-    );
+    assert_eq!(rows.len(), 3, "profile, revolve and its placement");
     assert!(
         !viewer::tree::has_faults(&rows),
         "a gallery document evaluates clean: {:?}",

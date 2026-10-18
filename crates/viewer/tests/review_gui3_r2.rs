@@ -8,8 +8,8 @@
 //! every assertion below is written from the PR's prose, so a fixture
 //! read from the shipped rows' own constants would make the oracle and
 //! the subject one thing. The sugar that carries no oracle is shared
-//! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
-//! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
+//! from `tests/common`: `edited`, `inserted`, `len`, `rectangle`,
+//! `scl`, `tempdir`. This file's own slab
 //! dimensions and variable name stay here, where the expectations
 //! that read them are; the profile's shape is not an oracle here, so
 //! it is drawn with the shared rectangle.

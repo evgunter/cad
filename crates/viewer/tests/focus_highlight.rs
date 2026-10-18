@@ -298,8 +298,8 @@ struct Die {
     cube: RecipeNodeId,
     /// The master ball's revolve — every pip cavity's origin.
     ball: RecipeNodeId,
-    /// One pip placement: a `Transform`, which mints nothing and
-    /// contributes no role segment to any name.
+    /// One pip placement: a `Place` of the master ball, which mints
+    /// nothing.
     pip: RecipeNodeId,
 }
 
@@ -322,7 +322,7 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let [copy] = doc.placements()[..] else {
+    let [copy] = viewer::world::world_copies(&doc)[..] else {
         panic!("the die is placed once")
     };
     let composed = viewer::world::seat_of(&doc, copy);
@@ -434,9 +434,8 @@ fn each_die_face_is_marked_by_the_feature_that_made_it() {
 /// cut, out of it, and a name records what an op carried, not what was
 /// later built on top.
 ///
-/// A pip placement is a `Transform`, which contributes no role segment
-/// at all, so no name mentions it and the recipe answers instead: what
-/// it carries is what was minted below it. That is the master ball's
+/// A pip placement is a `Place` of the master ball, which mints
+/// nothing: what it carries is what was minted below it. That is the master ball's
 /// cavities — every pip's, not this pip's, because all twenty-one
 /// placements copy ONE ball and a copy belongs to the master.
 #[test]

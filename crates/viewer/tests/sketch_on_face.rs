@@ -6,8 +6,8 @@
 //!
 //! The face is a PICK, and what it is read through is the node whose
 //! body the ray met — never the feature that minted the face: a flat
-//! swept by an extrude and shrunk by a later fillet is drawn on the
-//! FILLET's body, and reading it through the extrude would name a face
+//! swept by an extrude and shrunk by a later chamfer is drawn on the
+//! CHAMFER's body, and reading it through the extrude would name a face
 //! of a different size.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -125,14 +125,14 @@ fn a_sketch_on_a_face_is_one_action_and_one_body() {
 
 /// **The face is read through the body the ray met, not through the
 /// feature that minted it.** A flat swept by the extrude and shrunk by
-/// the fillet is picked on the FILLET's body; the pick's `feature()`
+/// the chamfer is picked on the CHAMFER's body; the pick's `feature()`
 /// answers the extrude, so the two are demonstrably different values
-/// here — and the union the gesture writes reads the fillet, and
+/// here — and the union the gesture writes reads the chamfer, and
 /// evaluates.
 #[test]
 fn the_face_is_read_through_the_body_the_ray_met_and_not_the_feature() {
     let tol = Tol::witness();
-    let doc = Doc::empty_derived("sketch-on-face-filleted", tol);
+    let doc = Doc::empty_derived("sketch-on-face-chamfered", tol);
     let (doc, profile) = inserted(&doc, common::square(SIDE), tol);
     let (doc, cube) = inserted(
         &doc,
@@ -145,32 +145,32 @@ fn the_face_is_read_through_the_body_the_ray_met_and_not_the_feature() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let edges = pncad::select::all_edges(session.evaluation().expect("the box evaluated"), cube);
-    assert!(!edges.is_empty(), "the box has edges to blend");
-    let (doc, fillet) = inserted(
+    assert!(!edges.is_empty(), "the box has edges to bevel");
+    let (doc, chamfer) = inserted(
         session.committed_doc(),
-        Node::fillet(cube, len(0.001), edges),
+        Node::chamfer(cube, len(0.001), edges),
         tol,
     );
-    let (doc, _) = common::placed(&doc, fillet, tol);
+    let (doc, _) = common::placed(&doc, chamfer, tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let flat = {
-        let ev = session.evaluation().expect("the fillet evaluated");
-        all_faces(ev, fillet)
+        let ev = session.evaluation().expect("the chamfer evaluated");
+        all_faces(ev, chamfer)
             .into_iter()
             .find(|name| {
-                face_carrier_kind(ev, fillet, name).is_ok_and(|kind| kind == SurfaceKind::Plane)
+                face_carrier_kind(ev, chamfer, name).is_ok_and(|kind| kind == SurfaceKind::Plane)
                     && attribute(name).minted_by() == Some(cube)
                     && name
                         .path
                         .iter()
                         .any(|seg| matches!(seg, RoleSeg::From { .. }))
             })
-            .expect("a flat of the box, shrunk by the fillet")
+            .expect("a flat of the box, shrunk by the chamfer")
     };
     let picked = FaceSelection {
         name: flat,
-        node: fillet,
+        node: chamfer,
         body: 0,
     };
     assert_eq!(
@@ -178,7 +178,10 @@ fn the_face_is_read_through_the_body_the_ray_met_and_not_the_feature() {
         cube,
         "the flat is still the extrude's face"
     );
-    assert_ne!(cube, fillet, "and the two questions have different answers");
+    assert_ne!(
+        cube, chamfer,
+        "and the two questions have different answers"
+    );
     let out = session.perform(boss_on(picked));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let union = {
@@ -189,7 +192,7 @@ fn the_face_is_read_through_the_body_the_ray_met_and_not_the_feature() {
             .expect("the union landed")
     };
     assert!(
-        session.committed_doc().upstream(union).contains(&fillet),
+        session.committed_doc().upstream(union).contains(&chamfer),
         "the union reads the body the ray met"
     );
     session.pump();

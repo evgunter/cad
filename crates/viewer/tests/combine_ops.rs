@@ -225,9 +225,10 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 /// **Nothing places as a side effect, and the combine gesture takes its
 /// operands' place in the world** (spec §9 row 9, the viewer's half).
 ///
-/// Two placed bodies `a`, `b`: the combine gesture leaves the world
-/// `[c]` — `a`'s placement re-pointed to `c` through the slot door and
-/// `b`'s deleted, in ONE recorded action — and one undo restores
+/// Two placed bodies `a`, `b` (`b` moved): the combine gesture leaves
+/// the world `[c]` — `b` placed against `a` where it stands, `a`'s
+/// placement re-pointed to `c` through the slot door and `b`'s
+/// deleted, in ONE recorded action — and one undo restores
 /// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
 /// unplaced (the world stays `[a, b]`), places it beside them, or
 /// records the world edits as a second action.
@@ -238,8 +239,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = before.placements()[..] else {
-        panic!("two placements: {:?}", before.placements());
+    let [a_placement, b_placement] = viewer::world::world_copies(&before)[..] else {
+        panic!("two copies: {:?}", viewer::world::world_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -250,6 +251,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
         matches!(
             &outcome.committed[..],
             [
+                replaced @ ..,
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
@@ -258,13 +260,26 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                     ..
                 },
                 DocEdit::DeleteNode { id },
-            ] if *node == a_placement && *read == union && *id == b_placement
+            ] if *node == a_placement
+                && *read == union
+                && *id == b_placement
+                && replaced.iter().all(|edit| matches!(
+                    edit,
+                    DocEdit::RemoveConstraint { placement, .. }
+                        | DocEdit::AddConstraint { placement, .. }
+                        | DocEdit::AddValue { placement, .. } if *placement == b
+                ))
         ),
-        "the boolean, a's placement re-pointed to it, b's deleted: {:?}",
+        "b, moved, placed against a where it stands; the boolean; a's \
+         placement re-pointed to it, b's deleted: {:?}",
         outcome.committed
     );
     let doc = session.committed_doc();
-    assert_eq!(doc.placements(), [a_placement], "a's placement stands");
+    assert_eq!(
+        viewer::world::world_copies(doc),
+        [a_placement],
+        "a's placement stands"
+    );
     assert_eq!(common::world(doc), [union], "and places the boolean");
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
@@ -351,10 +366,20 @@ fn a_feature_re_points_each_placement_of_its_target() {
         rotation_angle: ang(0.0),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "the body is no longer placed, so its second transform places nothing"
+    assert!(
+        matches!(
+            &outcome.committed[..],
+            [
+                DocEdit::InsertNode { .. },
+                DocEdit::AddConstraint { .. },
+                DocEdit::AddValue { .. },
+                DocEdit::AddValue { .. },
+                DocEdit::AddValue { .. },
+            ]
+        ),
+        "the body is no longer placed, so its second transform re-points nothing: \
+         its placement, its mate and its values: {:?}",
+        outcome.committed
     );
     assert_eq!(common::world(session.committed_doc()), world);
 }
@@ -2556,7 +2581,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         near(both, one * 2.0),
         "both copies are still drawn after one of them moved: {both}",
     );
-    // And the two are apart in SPACE, not merely in the tree: a datum
+    // And the two are apart in SPACE, not merely in the tree: a
     // plane between them cuts each entirely to one side. `split` is
     // the probe because it is a door this suite already drives, and
     // an empty side is a typed value rather than a number to compare.

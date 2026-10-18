@@ -1104,7 +1104,7 @@ pub(crate) fn vec3_row_ops(
 }
 
 /// One labeled row of three draggable components — every creation
-/// form's vector fields (a datum's origin and normal, a placement's
+/// form's vector fields (a split's origin and normal, a placement's
 /// translation and rotation axis, a pattern's direction).
 ///
 /// **The speed is the caller's** because the unit is: a metre field

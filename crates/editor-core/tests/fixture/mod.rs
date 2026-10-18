@@ -690,6 +690,8 @@ pub fn band() -> geom_core::Band {
 /// frame a sketch is drawn on — `editor_core::test_support`'s, which the
 /// crate's own unit-test modules read too, re-exported so a suite
 /// imports them from here beside the rest of its authoring doors.
+// Not every suite that mounts the fixture reads each one.
+#[allow(unused_imports)]
 pub use editor_core::test_support::{
     against, ang, axis_on, frame_at, in_world, len, len2, plane_on, scl,
 };
@@ -1579,10 +1581,18 @@ impl Recorder {
                 (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
             })
             .expect("the cube has a vertex at the origin");
+        // The copy's vertex is the cube's, qualified by the copy.
+        let copied = StableName {
+            kind: vertex.kind,
+            node: copy,
+            path: vec![RoleSeg::Placed {
+                of: editor_core::NameRef::new(vertex.clone()),
+            }],
+        };
         self.insert(Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
-                a: editor_core::SitedRef::new(cube, vertex.clone()).into(),
-                b: editor_core::SitedRef::new(copy, vertex).into(),
+                a: editor_core::SitedRef::new(cube, vertex).into(),
+                b: editor_core::SitedRef::new(copy, copied).into(),
             },
         })
     }
@@ -1900,7 +1910,7 @@ pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
 /// names. Returns the subtract node.
 ///
 /// One home for a document a row needs when it needs a REAL tie
-/// rather than a hand-planted one. The same four-node shape is
+/// rather than a hand-planted one. The same shape is
 /// hand-copied across this tree; `work/wire` carries the row for
 /// re-pointing those copies here.
 pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
@@ -1920,7 +1930,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, u_profile) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -1940,6 +1950,14 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
             profile: u_profile.into(),
             distance: len(2.0),
         },
+    );
+    // The cutter, a construction of its own, placed against the block
+    // one up its height.
+    let (doc, cutter) = against(
+        doc,
+        target,
+        cutter,
+        &frame_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
     insert(
         doc,
@@ -2673,39 +2691,43 @@ pub fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R 
 ///
 /// The blocks overlap in all three axes and share no plane, so the union
 /// is a generic one and decides at every scalar the evaluator runs.
-/// Inserted as frame, profile, extrude, frame, profile, extrude, union,
-/// so the serial order (Kahn, least id first) finishes the first block
-/// before starting the second, while the levels are the two frames, the
-/// two profiles, the two extrudes, then the union: every level but the
-/// last holds two independent nodes, and a fold that recorded level by
-/// level would interleave the blocks. Returns the document and the
-/// union's id.
+/// Inserted as profile, extrude, profile, extrude, the second block's
+/// placement against the first, union, so the serial order (Kahn, least
+/// id first) finishes the first block before starting the second, while
+/// the levels are the two profiles, the two extrudes, the placement,
+/// then the union: the first two levels hold two independent nodes, and
+/// a fold that recorded level by level would interleave the blocks.
+/// Returns the document and the union's id.
 pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
-    let block = |doc: ProfileDoc, [x, y, z]: [f64; 3]| {
-        let (doc, p) = on_frame(
-            doc,
-            [0.0, 0.0, z],
+    let mut r = Recorder {
+        doc: ProfileDoc::empty_derived(label, Tol::witness()),
+        ..Recorder::new()
+    };
+    let block = |r: &mut Recorder, [x, y]: [f64; 2]| {
+        let p = r.profile(
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(x, y, 0.5)],
         );
-        insert(
-            doc,
-            Node::Extrude {
-                profile: p.into(),
-                distance: len(1.0),
-            },
-        )
+        r.insert(Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        })
     };
-    let doc = ProfileDoc::empty_derived(label, Tol::witness());
-    let (doc, a) = block(doc, [0.0, 0.0, 0.0]);
-    let (doc, b) = block(doc, [0.5, 0.25, 0.5]);
-    insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        },
-    )
+    let a = block(&mut r, [0.0, 0.0]);
+    let b = block(&mut r, [0.5, 0.25]);
+    // The second block, a construction of its own, placed against the
+    // first half way up it: one space, so the union reads both.
+    let b = r.against(
+        a,
+        b,
+        &frame_at([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+    });
+    (r.doc, union)
 }
 
 /// **The names an authored selection names** ([`editor_core::Operand::Select`]).
