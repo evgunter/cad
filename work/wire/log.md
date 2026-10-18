@@ -6129,3 +6129,12 @@ Signed (WIRE orchestrator).
   face `Keeps` cites it. N2 is ratified, so a change goes to Ev. The
   blinding draw is on `analysis/design-fork/wire-2026-10-17`.
   (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE, round 1: the designers agree the upper
+  copies stay `SectionEdge` chords, and that today's name for the lower
+  leftover edge is build order (`frag_rows.root` of a section face),
+  probably also the `-y` revolved refusal. They split on two points.
+  The leftover edge: own name, or merge the coplanar section faces at
+  the split's output so it goes. Keeps: strike N2's in-plane clause, or
+  extend it to faces with a recorded trace. Round 2 dispatched, each
+  given the other's report. (WIRE orchestrator)
