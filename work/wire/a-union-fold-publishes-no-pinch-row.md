@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-12
 priority: P2
 cost: M
-design: true
 ---
 
 
@@ -82,3 +81,38 @@ fold step, and on the node:
 - `Union [prism, cube, far]` and `Intersect [prism, cube, big]` refuse
   in naming before any row is published
   (`work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md`).
+
+## Decided (2026-10-18, FORK-FOLDPINCH, designers converged): DM4 already answers it
+
+Both designers, briefed with the problem only, rejected the brief's
+criterion ("the coincidences true of the finished body") and found the
+answer already ratified: `crates/editor-core/REFERENCES.md` DM4 (PR 4323,
+Ev-approved, fork-log row 94) — "its rows, in member space, are the
+union's coincidence rows"; "a contact a third member covers is still its
+pair's, recorded"; "No row names a cell the fold minted"; "drop a fold row
+only when a judged row states it". A row records a decision the kernel took
+from values, not a feature of the body: a covered pinch routed the build
+and a replay refuses at it, so its `unproven-coincidence` finding is true.
+`wire_combine`'s `VertexFusion` filter departs from DM4 for one site, and
+its justifying comment is unratified agent text.
+
+**The build:** drop the filter, so the judgement's rows are published
+whole, `VertexFusion` included, in member space; spell each fold row by
+member cells (the `From { read, of }` head of its collapsed name, piece
+qualifiers stripped, as `NamedCell::Entity { input: read, name: of }`; a
+cell the fold minted stays in the node's space under its canonical head);
+and before publishing a fold row, cite the judged row that states the same
+two member cells and relation instead of publishing it twice. A step's
+`inherited` pinch stays silent (topo's `pinch_rows` is right). This also
+fixes `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+(no row is named against an intermediate fold table), which lands in the
+same unit and closes with it. Pin: the rows are one multiset across
+member orders (extend `union_member_orders_decide_alike`), for the orders
+that build today; REFS's `a-pinch-carried-through-a-later-fold-step-refuses-naming`
+blocks the rest and is independent.
+
+Not Ev's: no ratified text changes. One designer flagged an unmeasured
+gap for intersect (three-member rows may not be order-free once a fourth
+member covers them), filed separately.
+
+Signed (WIRE orchestrator).
