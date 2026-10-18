@@ -5452,6 +5452,89 @@ mod properties_pane_tests {
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
+    /// **The Properties pane reads the spaces the op does**, so between
+    /// an edit and its landing it says what the probe would refuse —
+    /// the space is not known yet — rather than offer the control off
+    /// the older landing's spaces. The instance's placement comes back
+    /// by an undo whose run the [`Gated`] seam holds: the landed run
+    /// still says the copy is loose, and the pane must not ask it.
+    #[test]
+    fn the_pane_does_not_offer_the_probe_off_an_older_landing() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("pane older landing", tol);
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![
+            SessionOp::NewDocument {
+                name: "pane-older-landing".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instance = doc
+            .ids()
+            .iter()
+            .copied()
+            .find(|id| {
+                matches!(
+                    doc.node(*id),
+                    Some(pncad::document::Node::InstantiatePart { .. })
+                )
+            })
+            .expect("the instance went in");
+        let mate = match doc.node(instance) {
+            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
+                let mates: Vec<_> = constraints
+                    .iter()
+                    .filter(|constraint| constraint.mate().is_some())
+                    .collect();
+                let [placed] = mates.as_slice() else {
+                    panic!("the instance is placed by one mate: {constraints:?}")
+                };
+                pncad::document::MateRef::new(instance, placed.id)
+            }
+            other => panic!("not an instance: {other:?}"),
+        };
+        driven.perform(SessionOp::RemoveConstraint { mate });
+        driven.select(Selection::Node(instance));
+        let painted = driven.quiet();
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run.starts_with("free-move probe (")),
+            "the loose copy is offered the probe: {painted:?}"
+        );
+
+        // The placement back, its run held: the landing still says loose.
+        open.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![
+            SessionOp::Undo,
+            SessionOp::Select(Selection::Node(instance)),
+        ]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let painted = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.session.space_evaluation().is_none(),
+            "the held run leaves no landing that answers the document"
+        );
+        let text: String = painted
+            .iter()
+            .map(|(run, _)| run.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            text.contains("not known yet"),
+            "the pane says the space is not known yet: {text}"
+        );
+        assert!(
+            !text.contains("free-move probe ("),
+            "and offers no probe control: {text}"
+        );
+        open.store(true, std::sync::atomic::Ordering::SeqCst);
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// **An instance from the part chooser takes the label its field
     /// holds**: the chooser proposes `InstantiatePart N` above its
     /// listing, a text typed over the proposal is kept in the field, and
