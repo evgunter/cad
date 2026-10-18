@@ -111,3 +111,14 @@ These were not measured. They sit on multi-mate bundles; the measured case was o
 - `mate/coset.rs` `ball_pair`: `chord.orthonormal_basis()` (min/max/select atoms) in the antipode arm.
 - `mate/coset.rs` `candidate_rotation`, `clocking_about`, `ball_on_line`, `ball_pair`: `Mat3::rotation_about`, which renormalises a unit axis, over a `solve_atan2` angle.
 - `mate/coset.rs` `clocking_about`, `ball_on_line`, `ball_pair`: a representative inverted by `Affine3::inverse` (the adjugate over the determinant) where the map is rigid by construction.
+
+## Owed when `coincide::REPLAYS_PLACED_COPIES` turns on (H's review, both reviewers)
+
+The switched-off code in `coincide/replay.rs` was reviewed but has no row. Both reviewers' mutants survived on it:
+
+- **A positive row:** an at-rest row the carrier verdict proves `Structural`. R2 measured one constructible today: two copies of one part at their identity pins.
+- **The relation guard:** a verdict of another relation proves nothing (`carrier_verdict`'s `relation == wanted`).
+- **`at_rest_unread`:** a copy the replay did not build says `ThroughAPart`/`Refused`, not `NotReplayed`. A replay that decides the pair otherwise needs a reason of its own, not "not two faces".
+- **Cancellation:** the census arm stops canceled.
+- **The band:** a band that fails reports as a band failure, not as no verdict (the arm's `Option<Option<…>>`).
+- **The recourse:** a mated seat that is only over the budget is `Undischarged::Otherwise`, so its recourse reads "build the two cells as one construction". The user already built it as one construction, so the recourse must name the budget, not ask for a construction.
