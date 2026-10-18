@@ -641,3 +641,247 @@ pub fn stand(
         anchor: Anchor::Fixed,
     })
 }
+
+/// **A frame read off `body`'s own geometry, standing at `at` in its
+/// own coordinates** (spec §5, the restate ladder's second rung): the
+/// frame [`pin_at`] reads (`Through` an axis-bearing edge and a vertex
+/// off it, preferring an anchor no variable reaches), spun about that
+/// frame's own x, y and z and slid along them to `at` — the angles taken
+/// once by `atan2` and the lengths by projection, as [`moved_by`] takes
+/// a world read's. Read through a plane role it is a split's tool or a
+/// mate's target at an absolute pose of the body's own.
+///
+/// # Errors
+///
+/// [`PinRefusal`], as [`pin_at`]'s.
+pub fn frame_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Operand, PinRefusal> {
+    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
+    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
+    let anchors = super::anchor::Anchors::of(doc, node);
+    let picked = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)))
+        .or_else(|| picked_frame(&solid, band, &name));
+    let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
+    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
+    let base = Operand::Pose(Box::new(PoseDef::Through {
+        axis: read(PoseDef::Axis {
+            of: Operand::select(body.clone(), vec![edge_name]),
+        }),
+        point: read(PoseDef::Point {
+            of: Operand::select(body.clone(), vec![vertex_name]),
+        }),
+    }));
+    let rel = frame.to_affine().inverse() * at.affine();
+    Ok(moved_pose(base, rel.linear, rel.translation))
+}
+
+/// **`base`, a frame read, moved by the rigid motion `(linear,
+/// translation)` written in its own axes**: spun about its x, then y,
+/// then z — `linear = Rz(γ)·Ry(β)·Rx(α)` — and slid along them, each
+/// move about the base frame's own fixed axes, so the moves compose as
+/// [`moved_by`]'s about the world's. A move by exactly zero is no move
+/// written.
+fn moved_pose(
+    base: Operand,
+    linear: Mat3<f64>,
+    translation: geom_core::linalg::Vec3<f64>,
+) -> Operand {
+    let r = |i: usize, j: usize| {
+        let c = [linear.c0, linear.c1, linear.c2][j];
+        [c.x, c.y, c.z][i]
+    };
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > f64::EPSILON {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    let axis = |role| RoleRead::through(base.clone(), role);
+    let mut pose = base.clone();
+    for (role, angle) in [
+        (PoseRole::X, alpha),
+        (PoseRole::Y, beta),
+        (PoseRole::Z, gamma),
+    ] {
+        if angle != 0.0 {
+            pose = Operand::Pose(Box::new(PoseDef::Spin {
+                pose: RoleRead::plain(pose),
+                about: axis(role),
+                by: written(angle, Dimension::Angle),
+            }));
+        }
+    }
+    for (role, length) in [
+        (PoseRole::X, translation.x),
+        (PoseRole::Y, translation.y),
+        (PoseRole::Z, translation.z),
+    ] {
+        if length != 0.0 {
+            pose = Operand::Pose(Box::new(PoseDef::Slide {
+                pose: RoleRead::plain(pose),
+                along: axis(role),
+                by: written(length, Dimension::Length),
+            }));
+        }
+    }
+    pose
+}
+
+/// **The copy read through `body` placed against `target`'s geometry at
+/// `at`** — `at` the copy's own frame in `target`'s own coordinates
+/// (spec §5: a construction combined with another body is placed
+/// against that body's root). A plane mate on the copy's face that lies
+/// on its own `xy` and reads no variable (an extrude's start cap) to
+/// the target's such face, slid along its normal to where the copy's
+/// face stands at `at` — or, where `at` tilts the face off the target's
+/// normal, a frame read off the target ([`frame_at`]) through its `xy`
+/// — and the three values that put the copy at `at` in the mate's
+/// chart, computed once.
+///
+/// # Errors
+///
+/// [`PinRefusal`]: either body has no value or no face on its own
+/// `xy`, or the target offers no frame for a tilted face.
+pub fn place_against(
+    doc: &crate::ProfileDoc,
+    target: &Operand,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    use geom_core::linalg::{Point3, Vec3};
+    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
+    let own_plane = |shape: &Operand| -> Result<(crate::StableName, f64, f64), PinRefusal> {
+        let (node, solid, table) = copy_of(doc, shape, opts, tol)?;
+        let anchors = super::anchor::Anchors::of(doc, node);
+        let reach = super::part_reach(&solid).map_err(|_| PinRefusal::NoFrame { node })?;
+        solid
+            .faces()
+            .find_map(|(face, _)| {
+                let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+                if kind != geom::SurfaceKind::Plane {
+                    return None;
+                }
+                let name = table.name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Face(face),
+                })?;
+                if !anchors.fixed(name) {
+                    return None;
+                }
+                let at = topo::readback::face_pose(&solid, face).ok()?;
+                let n = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+                let o = at.origin - Point3::origin();
+                [o.x, o.y, o.z, n.x, n.y]
+                    .into_iter()
+                    .all(|c| c == 0.0)
+                    .then(|| (name.clone(), n.z.signum(), reach))
+            })
+            .ok_or(PinRefusal::NoFrame { node })
+    };
+    let (copy_face, copy_z, copy_reach) = own_plane(body)?;
+    let (target_face, target_z, _) = own_plane(target)?;
+    let plane = |shape: &Operand, face: crate::StableName| {
+        Operand::Pose(Box::new(PoseDef::Plane {
+            face: Operand::select(shape.clone(), vec![face]),
+        }))
+    };
+    let flip = |pose: Operand| {
+        Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(pose),
+        }))
+    };
+    let placed = at.affine::<f64>();
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    // The copy's face's normal where `at` puts it, in the target's
+    // coordinates.
+    let m = placed.linear * (z * copy_z);
+    let untilted = m.x == 0.0 && m.y == 0.0;
+    let (on, to, to_normal) = if untilted {
+        // The target's face slid along its own normal onto the copy's.
+        let along = target_z * placed.translation.z * -1.0;
+        let to_plane = plane(target, target_face);
+        let to = if along == 0.0 {
+            to_plane
+        } else {
+            Operand::Pose(Box::new(PoseDef::Slide {
+                pose: RoleRead::plain(to_plane.clone()),
+                along: RoleRead::through(to_plane, PoseRole::Normal),
+                by: written(along, Dimension::Length),
+            }))
+        };
+        let on = plane(body, copy_face);
+        let on = if m.z == target_z { on } else { flip(on) };
+        (on, to, z * target_z)
+    } else {
+        // A frame read off the target, standing where the copy's face
+        // stands with its `z` the face's normal.
+        let turn = if copy_z > 0.0 {
+            Frame::IDENTITY
+        } else {
+            Frame {
+                columns: [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]],
+                translation: [0.0; 3],
+            }
+        };
+        let frame = frame_at(doc, target, &at.compose(&turn), opts, tol)?;
+        let to = Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::through(frame.clone(), PoseRole::Xy),
+            along: RoleRead::through(frame, PoseRole::Z),
+            by: Formula::zero(Dimension::Length),
+        }));
+        (plane(body, copy_face), to, m)
+    };
+    let unit = |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+    let on_value = crate::pose::PoseValue::Plane {
+        origin: Point3::origin(),
+        normal: unit(placed.linear.transpose() * to_normal)?,
+    };
+    let to_value = crate::pose::PoseValue::Plane {
+        origin: Point3::origin() + placed.translation,
+        normal: unit(to_normal)?,
+    };
+    let datum = placed.translation.norm();
+    let arm = super::coset::Arm::of(copy_reach, datum).map_err(|_| PinRefusal::Band)?;
+    let chart = super::value::Chart::of(
+        &on_value,
+        &to_value,
+        false,
+        &geom_core::Affine3::identity(),
+        arm,
+        band,
+    )
+    .map_err(|_| PinRefusal::Band)?
+    .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
+    Ok(Placed {
+        mate: Mate {
+            on,
+            to: Target::Pose(to),
+            class: super::ContactClass::Rest,
+        },
+        values: vec![
+            (
+                super::Coord::Slide(super::SlideAxis::X),
+                written(chart.slide_at(&placed, super::SlideAxis::X), Dimension::Length),
+            ),
+            (
+                super::Coord::Slide(super::SlideAxis::Y),
+                written(chart.slide_at(&placed, super::SlideAxis::Y), Dimension::Length),
+            ),
+            (
+                super::Coord::Spin,
+                written(chart.spin_at(&placed), Dimension::Angle),
+            ),
+        ],
+        by: PlacedBy::PlanarFace,
+        anchor: Anchor::Fixed,
+    })
+}

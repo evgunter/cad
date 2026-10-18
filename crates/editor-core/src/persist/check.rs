@@ -2766,7 +2766,6 @@ mod tests {
         let (doc, profile) = insert(
             doc,
             Box::new(Node::Profile(crate::program::ProfileProgram {
-                frame: plane.into(),
                 loops: vec![triangle],
                 ids: Vec::new(),
             })),

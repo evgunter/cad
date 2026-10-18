@@ -1746,13 +1746,6 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// the input's names come through.
 #[derive(Debug)]
 pub(crate) enum VerbatimEdge<'a> {
-    /// Every body of `input`, body `k` in to body `k` out, moved: a
-    /// [`Node::Transform`](crate::node::Node::Transform). A selection
-    /// in effect above it rides through to `input` unchanged.
-    Whole {
-        /// The read of the value placed.
-        input: crate::VarId,
-    },
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
@@ -1768,28 +1761,28 @@ pub(crate) enum VerbatimEdge<'a> {
     Intact,
 }
 
-/// **The name-carrying edge `node` is, if any**: a transform, a part's
-/// projection, a split's intact entities (N1's pass-through ops).
-/// Every other node is classified as re-minting what it carries.
+/// **The name-carrying edge `node` is, if any**: a part's projection,
+/// a split's intact entities (N1's pass-through ops). Every other node
+/// is classified as re-minting what it carries.
 ///
 /// Two walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`, which follows
-/// `Whole` edges alone) and the mate member walk (`mate::member::walk`);
-/// they differ only in where each stops. The
-/// compiler holds the three together: this match is exhaustive, so a
-/// new node kind does not compile until it is classified here, and
-/// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
-/// of edge does not compile until each decides what to do with it.
+/// copy carries a name (`refactor::split`'s `in_world`) and the mate
+/// member walk (`mate::member::walk`); they differ only in where each
+/// stops. The compiler holds the three together: this match is
+/// exhaustive, so a new node kind does not compile until it is
+/// classified here, and both walks match [`VerbatimEdge`] without a
+/// wildcard, so a new kind of edge does not compile until each decides
+/// what to do with it.
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
-/// `wire_transform`, `wire_part`, `wire_split`) — is held at runtime
-/// by `tests/names_verbatim_edge_evaluator.rs`, per edge over an
-/// evaluated corpus: a `Whole` or `Selected` node publishes only names
-/// headed by other nodes, an `Intact` one publishes both kinds, and a
-/// `None` node heads every row itself. Every node kind the corpus can
-/// evaluate is sampled with rows, except the kinds that publish none
-/// at all, which that suite names and holds at zero.
+/// `wire_part`, `wire_split`) — is held at runtime by
+/// `tests/names_verbatim_edge_evaluator.rs`, per edge over an evaluated
+/// corpus: a `Selected` node publishes only names headed by other
+/// nodes, an `Intact` one publishes both kinds, and a `None` node heads
+/// every row itself. Every node kind the corpus can evaluate is sampled
+/// with rows, except the kinds that publish none at all, which that
+/// suite names and holds at zero.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {

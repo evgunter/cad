@@ -43,7 +43,7 @@ pub struct Member {
     /// from.
     pub instance: RecipeNodeId,
     /// **The placing nodes the walk passed**, OUTERMOST first: each
-    /// pattern with the copy the name says, and each transform. Empty
+    /// pattern with the copy the name says. Empty
     /// for a reference read at its instance, or through nothing but
     /// `Part` selections and unions, which move nothing.
     pub chain: Vec<Placing>,
@@ -59,8 +59,6 @@ pub enum Placing {
         /// The copy index.
         index: u32,
     },
-    /// A transform.
-    Transform(RecipeNodeId),
 }
 
 impl Placing {
@@ -69,7 +67,6 @@ impl Placing {
     pub fn node(self) -> RecipeNodeId {
         match self {
             Self::Copy { pattern, .. } => pattern,
-            Self::Transform(node) => node,
         }
     }
 }
@@ -82,9 +79,8 @@ impl Member {
     pub fn copy(&self) -> Vec<(RecipeNodeId, u32)> {
         self.chain
             .iter()
-            .filter_map(|p| match *p {
-                Placing::Copy { pattern, index } => Some((pattern, index)),
-                Placing::Transform(_) => None,
+            .map(|p| match *p {
+                Placing::Copy { pattern, index } => (pattern, index),
             })
             .collect()
     }
@@ -120,12 +116,9 @@ enum Placer {
         /// The copy index the NAME says.
         i: u32,
     },
-    /// A transform: the one production node that moves a body and
-    /// mints no name.
-    Transform(RecipeNodeId),
 }
 
-/// The member's view of a placer: which copy or which transform, with
+/// The member's view of a placer: which copy, with
 /// the walk's own bookkeeping (the `Part` a check reads) left behind.
 impl From<Placer> for Placing {
     fn from(p: Placer) -> Self {
@@ -134,7 +127,6 @@ impl From<Placer> for Placing {
                 pattern: node,
                 index: i,
             },
-            Placer::Transform(node) => Self::Transform(node),
         }
     }
 }
@@ -193,24 +185,15 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     loop {
         if at != name.node {
             // Not the head yet: only a name-carrying edge
-            // ([`crate::names::verbatim_edge`]) that places or projects
-            // this body may stand between an operand and the material
-            // it speaks about. A whole edge moves the body and
-            // contributes no `RolePath` segment; a `Part` selecting an
-            // instance moves nothing at all and carries every name
+            // ([`crate::names::verbatim_edge`]) that projects this body
+            // may stand between an operand and the material it speaks
+            // about: a `Part` selecting an instance moves nothing at
+            // all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
             // pass-through — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
-                // A whole edge is shape-preserving over the value —
-                // body `k` in, body `k` out — so a `Part` above it
-                // still selects body `k` of whatever stands below,
-                // and is carried down to the pattern it checks against.
-                Some(VerbatimEdge::Whole { input }) => {
-                    chain.push(Placer::Transform(at));
-                    at = doc.operation_of(input).ok_or(at)?;
-                }
                 Some(VerbatimEdge::Selected {
                     of,
                     select: PartSelect::Instance(_),

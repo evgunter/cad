@@ -4586,7 +4586,7 @@ mod tests {
             &profile,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )
@@ -5362,9 +5362,9 @@ mod split_carries_candidates {
     use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
     use crate::ident::DocumentId;
     use crate::names::table::{EntityRef, Entry, NameTable};
-    use crate::node::{Datum, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{frame, len, scl};
+    use crate::test_support::{against, frame_at, len, plane_on};
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
@@ -5382,12 +5382,10 @@ mod split_carries_candidates {
         (a.doc, a.record.minted.expect("a node"))
     }
 
-    fn prism(doc: ProfileDoc, z0: f64, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    fn prism(doc: ProfileDoc, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -5397,7 +5395,6 @@ mod split_carries_candidates {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -5411,13 +5408,11 @@ mod split_carries_candidates {
         );
         let (doc, a) = prism(
             doc,
-            0.0,
             4.0,
             &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
         );
         let (doc, b) = prism(
             doc,
-            1.0,
             2.0,
             &[
                 (2.0, 1.0),
@@ -5430,25 +5425,26 @@ mod split_carries_candidates {
                 (2.0, 1.5),
             ],
         );
+        // The cutter stands one unit up the block's own z.
+        let (doc, cutter) = against(
+            doc,
+            a,
+            b,
+            &frame_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        );
         let (doc, sub) = ins(
             doc,
             Node::Subtract {
                 from: a.into(),
-                tool: b.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)),
             },
         );
-        let (doc, tool) = ins(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.0), len(y), len(0.0)],
-                normal: [scl(0.0), scl(ny), scl(0.0)],
-            }),
-        );
+        let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0]);
         let (doc, split) = ins(
             doc,
             Node::Split {
                 target: sub.into(),
-                tool: tool.into(),
+                tool,
             },
         );
         let ev = evaluate::<f64>(
@@ -5689,7 +5685,6 @@ mod crossings_rank_along_the_line {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5699,7 +5694,6 @@ mod crossings_rank_along_the_line {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -5902,7 +5896,6 @@ mod nurbs_crossings_rank_by_parameter {
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -6261,7 +6254,6 @@ mod edge_pieces_of_one_line_tie {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -6271,7 +6263,6 @@ mod edge_pieces_of_one_line_tie {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
             },
         )
     }

@@ -874,7 +874,7 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
+/// [`GeomPred::PlaneDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
 /// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,
@@ -907,7 +907,7 @@ pub fn select_where<T: Decide>(
     let Some(table) = ev.table(var) else {
         return Ok(Vec::new());
     };
-    let atoms = geompred::prepare(ev, geom, params)?;
+    let atoms = geompred::prepare(ev, var, geom, params)?;
     let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in table.iter() {

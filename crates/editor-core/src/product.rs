@@ -668,8 +668,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
         // had without one.
-        ValuePayload::Datum(_)
-        | ValuePayload::Profile(_)
+        ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

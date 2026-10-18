@@ -186,9 +186,6 @@ fn output<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
     match (&value.payload, doc.node(node)) {
-        (ValuePayload::Datum(pose), _) if !matches!(admits, crate::SlotKind::Is(kind) if kind != pose.kind()) => {
-            Ok(pose.clone())
-        }
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
             let at = super::super::read_at(doc, OperandSlot::Profile, *profile)?;
             let ValuePayload::Profile(drawn) = &value_of(results, at)?.payload else {

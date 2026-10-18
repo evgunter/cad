@@ -34,22 +34,21 @@
 //!   but declared/structured as a spline does not tag-match; that is
 //!   #256's intended semantics, not a defect (the recipe said spline,
 //!   the selector believes the recipe).
-//! - **DECIDED** — [`GeomPred::DatumDistance`] is a real numeric
+//! - **DECIDED** — [`GeomPred::PlaneDistance`] is a real numeric
 //!   comparison and therefore a `k_stats::decide` site with a named
 //!   `sel_*` predicate, an honest [`geom_core::Margin`] door,
 //!   and a typed refusal on an in-band candidate. It participates in
 //!   the K census exactly like a kernel site (GS-Q1 ruled (a): the
 //!   naming convention does the separating, not a second funnel).
 //!
-//! # Position is DATUM-RELATIVE, never world-frame (GS-Q6)
+//! # Position is relative to the body's own geometry, never world-frame (GS-Q6)
 //!
 //! A raw "z ≈ 1" filter bakes an absolute frame into a selection rule,
 //! which the margins discipline's intrinsic-quantities preference
-//! forbids. [`GeomPred::DatumDistance`] instead references a datum
-//! NODE like every other input, so the rule commutes with rigid
-//! motions: move the datum with the part and the selection is
-//! unchanged. Every document has an origin datum, so the cost is one
-//! explicit argument.
+//! forbids. [`GeomPred::PlaneDistance`] instead measures from a planar
+//! face of the body selected from (D10: a pose is read off geometry),
+//! so the rule commutes with rigid motions: the body and its face move
+//! together and the selection is unchanged.
 //!
 //! # Reserved, unbuilt: convexity (GS-Q2)
 //!
@@ -66,12 +65,11 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{Evaluation, NodeStanding, PoseValue, ValuePayload};
+use crate::eval::{Evaluation, PoseValue};
 use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
-use crate::node::RecipeNodeId;
 
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
@@ -79,7 +77,7 @@ use crate::node::RecipeNodeId;
 pub use crate::pose::SEL_DATUM_DISTANCE;
 pub use topo::query::{CurveKind, CurveKindSet, SurfaceKindSet};
 
-/// The comparison a [`GeomPred::DatumDistance`] makes against its
+/// The comparison a [`GeomPred::PlaneDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.
 ///
 /// `Approx` is the funnel's `Zero` arm — "within the document's
@@ -135,14 +133,14 @@ pub enum GeomPred {
     /// what makes the atom equivariant under a reflection that swaps
     /// the sides. Non-edge names never match.
     AdjacentKinds(SurfaceKindSet, SurfaceKindSet),
-    /// DECIDED: the entity's distance to a datum, compared against a
-    /// stated length.
+    /// DECIDED: the entity's signed distance from the plane of one of
+    /// the body's own planar faces, along its outward normal, compared
+    /// against a stated length.
     ///
-    /// `datum` is a [`crate::Node::Datum`] node reference like every
-    /// other input (GS-Q6), which is what keeps the rule equivariant:
-    /// move the datum with the part and the selection commutes. The
-    /// distance is SIGNED against a datum plane (along its normal) and
-    /// UNSIGNED to a datum axis or point.
+    /// `face` names a face of the body selected from, read as a plane
+    /// (D10: a face reads as a plane), which is what keeps the rule
+    /// equivariant: the face moves with the body and the selection
+    /// commutes.
     ///
     /// **Where an entity IS** (the design under-specifies this; the
     /// reading here is the smallest one that invents no convention):
@@ -155,9 +153,9 @@ pub enum GeomPred {
     /// result. (The corpus demand agrees — the boss-plate's
     /// hand-written find tests a CIRCLE edge carrier's centre `z`,
     /// which is exactly this point.)
-    DatumDistance {
-        /// The datum node measured against.
-        datum: RecipeNodeId,
+    PlaneDistance {
+        /// The planar face measured from, as the selected body names it.
+        face: StableName,
         /// Which side of the value a candidate must land on.
         cmp: Cmp,
         /// The stated length, as written: a quantity, or a formula
@@ -189,8 +187,8 @@ pub enum GeomPred {
 /// outcome, and reported rather than swallowed. [`Band`](Self::Band)
 /// answers the ambient tolerance, which `select_where` asks about
 /// unconditionally before it reads a single candidate. The static
-/// faults of a malformed query — [`NotADatum`](Self::NotADatum),
-/// [`DatumHasNoValue`](Self::DatumHasNoValue),
+/// faults of a malformed query — [`NotAPlane`](Self::NotAPlane),
+/// [`FaceUnresolved`](Self::FaceUnresolved),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
 /// are about the query, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
@@ -232,19 +230,17 @@ pub enum SelectRefusal {
         /// Why.
         error: InterrogateError,
     },
-    /// The referenced datum node evaluated to something other than a
-    /// datum.
-    NotADatum {
-        /// The node referenced by [`GeomPred::DatumDistance`].
-        datum: RecipeNodeId,
-        /// What that node produced instead (`ValuePayload::kind_name`).
-        found: &'static str,
+    /// The face a distance is measured from is not planar.
+    NotAPlane {
+        /// The face, as the query named it.
+        face: Box<StableName>,
     },
-    /// The referenced datum node has no value in this evaluation.
-    DatumHasNoValue(
-        /// The datum node's standing.
-        NodeStanding,
-    ),
+    /// The face a distance is measured from names no face of the body
+    /// selected from, or its plane could not be read back.
+    FaceUnresolved {
+        /// The face, as the query named it.
+        face: Box<StableName>,
+    },
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -332,18 +328,15 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(error, by)
                 )
             }
-            Self::NotADatum { datum, found } => write!(
-                f,
-                "select: the query measures from {}, which produced {found} rather than \
-                 a datum — point a distance query at an evaluated datum",
-                by.node(*datum)
-            ),
-            Self::DatumHasNoValue(standing) => {
-                write!(
-                    f,
-                    "select: the distance query's datum has no value: {}",
-                    crate::spoken::Said(standing, by)
-                )
+            Self::NotAPlane { face } => {
+                f.write_str("select: the query measures from ")?;
+                named(f, face)?;
+                f.write_str(", which is not planar — point a distance query at a planar face")
+            }
+            Self::FaceUnresolved { face } => {
+                f.write_str("select: the query measures from ")?;
+                named(f, face)?;
+                f.write_str(", which names no readable face of the body selected from")
             }
             Self::NotALength { dim } => write!(
                 f,
@@ -409,17 +402,17 @@ impl From<BandError> for SelectRefusal {
 /// An atom with its recipe references already resolved against the
 /// evaluation: the datum read once and the value expression evaluated
 /// once, rather than per candidate.
-pub(crate) enum Prepared<'a, T: Decide> {
+pub(crate) enum Prepared<T: Decide> {
     /// [`GeomPred::CurveKind`].
     Curve(CurveKindSet),
     /// [`GeomPred::SurfaceKind`].
     Surface(SurfaceKindSet),
     /// [`GeomPred::AdjacentKinds`].
     Adjacent(SurfaceKindSet, SurfaceKindSet),
-    /// [`GeomPred::DatumDistance`], resolved.
+    /// [`GeomPred::PlaneDistance`], resolved.
     Distance {
-        /// The datum's evaluated geometry.
-        datum: &'a PoseValue<T>,
+        /// The face's plane.
+        plane: PoseValue<T>,
         /// Which side of `value` a candidate must land on.
         cmp: Cmp,
         /// The stated length, evaluated.
@@ -432,39 +425,59 @@ pub(crate) enum Prepared<'a, T: Decide> {
 ///
 /// # Errors
 ///
-/// [`SelectRefusal::NotADatum`], [`SelectRefusal::DatumHasNoValue`],
+/// [`SelectRefusal::NotAPlane`], [`SelectRefusal::FaceUnresolved`],
 /// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
 /// of the query's own references, so they surface before a single
 /// margin is taken.
 pub(crate) fn prepare<'a, T: Decide>(
     ev: &'a Evaluation<T>,
+    var: crate::VarId,
     geom: &[GeomPred],
     params: &VarEnv<T>,
-) -> Result<Vec<Prepared<'a, T>>, SelectRefusal> {
+) -> Result<Vec<Prepared<T>>, SelectRefusal> {
     geom.iter()
         .map(|atom| match atom {
             GeomPred::CurveKind(s) => Ok(Prepared::Curve(*s)),
             GeomPred::SurfaceKind(s) => Ok(Prepared::Surface(*s)),
             GeomPred::AdjacentKinds(a, b) => Ok(Prepared::Adjacent(*a, *b)),
-            GeomPred::DatumDistance { datum, cmp, value } => {
+            GeomPred::PlaneDistance { face, cmp, value } => {
                 if value.dim() != Dimension::Length {
                     return Err(SelectRefusal::NotALength { dim: value.dim() });
                 }
-                let v = ev.usable(*datum).map_err(SelectRefusal::DatumHasNoValue)?;
-                match &v.payload {
-                    ValuePayload::Datum(d) if !matches!(d, PoseValue::Direction { .. }) => {
-                        Ok(Prepared::Distance {
-                            datum: d,
-                            cmp: *cmp,
-                            value: crate::expr::eval(value, params)
-                                .map_err(SelectRefusal::BadValue)?,
-                        })
-                    }
-                    other => Err(SelectRefusal::NotADatum {
-                        datum: *datum,
-                        found: other.kind_name(),
-                    }),
+                let unresolved = || SelectRefusal::FaceUnresolved {
+                    face: Box::new(face.clone()),
+                };
+                let Some(super::table::Entry::Unique(at)) =
+                    ev.table(var).and_then(|t| t.lookup(face))
+                else {
+                    return Err(unresolved());
+                };
+                let EntityKey::Face(f) = at.key else {
+                    return Err(unresolved());
+                };
+                let body = match ev.read_body(var, at.body) {
+                    Ok(Ok(body)) => body,
+                    _ => return Err(unresolved()),
+                };
+                let kind = topo::readback::face_carrier_kind(body, f).map_err(|_| unresolved())?;
+                if kind != geom::SurfaceKind::Plane {
+                    return Err(SelectRefusal::NotAPlane {
+                        face: Box::new(face.clone()),
+                    });
                 }
+                let at = topo::readback::face_pose(body, f).map_err(|_| unresolved())?;
+                let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+                let band = Band::linear(geom_core::Tol::witness())?;
+                let normal = geom_core::UnitVec3::new(normal, query::DATUM_UNIT_NORM, band)
+                    .map_err(|_| unresolved())?;
+                Ok(Prepared::Distance {
+                    plane: PoseValue::Plane {
+                        origin: at.origin,
+                        normal,
+                    },
+                    cmp: *cmp,
+                    value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
+                })
             }
         })
         .collect()
@@ -485,7 +498,7 @@ pub(crate) fn prepare<'a, T: Decide>(
 pub(crate) fn candidate_matches<T: Decide>(
     body: &Body<T>,
     key: EntityKey,
-    atoms: &[Prepared<'_, T>],
+    atoms: &[Prepared<T>],
     band: Band,
     name: &StableName,
 ) -> Result<bool, SelectRefusal> {
@@ -507,14 +520,14 @@ pub(crate) fn candidate_matches<T: Decide>(
                 EntityKey::Edge(e) => query::edge_adjacent_matches(body, e, *a, *b),
                 EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
-            Prepared::Distance { datum, cmp, value } => {
+            Prepared::Distance { plane, cmp, value } => {
                 let point = super::interrogate::entity_point(body, key).map_err(|error| {
                     SelectRefusal::Unreadable {
                         name: Box::new(name.clone()),
                         error,
                     }
                 })?;
-                let sign = crate::pose::datum_distance_sign(datum, point, *value, band)
+                let sign = crate::pose::datum_distance_sign(plane, point, *value, band)
                     .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
                 match sign {
                     Ok(sign) => match cmp {
@@ -565,8 +578,8 @@ mod census {
             InBand,
             TiedDisagrees,
             Unreadable,
-            NotADatum,
-            DatumHasNoValue,
+            NotAPlane,
+            FaceUnresolved,
             NotALength,
             BadValue,
             Band,
@@ -607,14 +620,8 @@ mod census {
                 name: name(),
                 error: InterrogateError::WholeBody,
             },
-            SelectRefusal::NotADatum {
-                datum: RecipeNodeId::new(0, 9),
-                found: "a body",
-            },
-            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
-                node: RecipeNodeId::new(0, 9),
-                through: RecipeNodeId::new(0, 4),
-            }),
+            SelectRefusal::NotAPlane { face: name() },
+            SelectRefusal::FaceUnresolved { face: name() },
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },

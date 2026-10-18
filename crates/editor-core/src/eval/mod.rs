@@ -910,7 +910,6 @@ impl NodeValue<f64> {
             parts: 1,
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
-            placement: None,
             motion: None,
             space: None,
             witness: WitnessSlot::default(),
@@ -993,9 +992,6 @@ pub struct WitnessSlot {}
 /// family; spec D3 fixes each node's semantics).
 #[derive(Debug, Clone)]
 pub enum ValuePayload<T: Decide> {
-    /// A datum evaluated to geometry values (D3: frames/axes as
-    /// values; directions normalized, degenerate refused).
-    Datum(PoseValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
     /// its naming anchor, and the radius expression each
@@ -1229,7 +1225,6 @@ impl<T: Decide> ValuePayload<T> {
     /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
         match self {
-            Self::Datum(_) => family::DATUM,
             Self::Profile(_) => family::PROFILE,
             Self::Body(_) => family::BODY,
             Self::Boolean(_) => family::BOOLEAN,

@@ -27,7 +27,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach,
 };
 
@@ -230,55 +230,196 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
         .expect("a loop the document can answer lowers")
 }
 
-/// The stored placement `placement` lowers to in `doc` ([`stored`]).
+// --- placing a construction ------------------------------------------
+
+/// **`doc` with `placed`'s mate and values added to `placement`**.
 ///
 /// # Panics
 ///
-/// If `placement` does not lower in `doc`.
-pub fn stored_placement(
-    doc: &mut ProfileDoc,
-    placement: &crate::Placement<Formula>,
-) -> crate::Placement {
-    placement
-        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
-        .expect("a placement the document can answer lowers")
-}
-
-// --- the frame a sketch is drawn on ---------------------------------
-
-/// The frame datum a profile is drawn on, as a node to insert: an
-/// origin, and the two directions sketch +x and +y point.
-///
-/// # Panics
-///
-/// If a component is not finite.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::AuthoredNode {
-    Node::Datum(Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
+/// If a door refuses one.
+fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) -> ProfileDoc {
+    let tol = geom_core::Tol::witness();
+    let step = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
+        crate::apply(doc, &edit, tol, &RefusingReach).expect("a placement's constraint applies")
+    };
+    let mated = step(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = *mated
+        .record
+        .minted_constraints
+        .first()
+        .expect("a mate mints its id");
+    placed.values.into_iter().fold(mated.doc, |doc, (coord, by)| {
+        step(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(crate::mate::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .doc
     })
 }
 
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-pub fn xy_frame() -> crate::AuthoredNode {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+/// **A placement of `body`**, inserted with no constraint yet.
+fn place_of(doc: ProfileDoc, body: crate::Operand) -> (ProfileDoc, RecipeNodeId) {
+    let tol = geom_core::Tol::witness();
+    let applied = crate::apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::place(vec![crate::BodyRead::plain(body)])),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("a placement inserts");
+    let placement = applied.record.minted.expect("an insert mints a node");
+    (applied.doc, placement)
+}
+
+/// **The body a node defines, as a placement reads it**: a revolve's
+/// `body` port, any other node itself.
+#[must_use]
+pub fn body_of(doc: &ProfileDoc, node: RecipeNodeId) -> crate::Operand {
+    match doc.node(node) {
+        Some(Node::Revolve { .. }) => crate::Operand::output(node, 0),
+        _ => crate::Operand::Node(node),
+    }
+}
+
+/// **A copy of `body` standing in the world at `at`** (D10: a body has
+/// no location, so where it stands is its placement's): where it
+/// stands at the identity ([`crate::stand`]), elsewhere by the "place
+/// part" gesture ([`crate::place_at`]). Returns the document and the
+/// placement; its copy is the placement's output.
+///
+/// # Panics
+///
+/// If the copy offers no geometry to place it by, or a door refuses.
+pub fn in_world(
+    doc: ProfileDoc,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    let tol = geom_core::Tol::witness();
+    let body = body.into();
+    let opts = crate::EvalOptions::default();
+    let placed = if *at == crate::Frame::IDENTITY {
+        crate::stand(&doc, &body, &opts, tol)
+    } else {
+        crate::place_at(&doc, &body, at, &opts, tol)
+    }
+    .expect("the copy places over its geometry");
+    let (doc, placement) = place_of(doc, body);
+    (constrained(doc, placement, placed), placement)
+}
+
+/// **A copy of `body` placed against `target`'s geometry at `at`** —
+/// `at` the copy's own frame in `target`'s own coordinates
+/// ([`crate::place_against`]): how a construction combined with another
+/// body joins that body's space. Returns the document and the
+/// placement; its copy is the placement's output.
+///
+/// # Panics
+///
+/// If either offers no geometry to place by, or a door refuses.
+pub fn against(
+    doc: ProfileDoc,
+    target: impl Into<crate::Operand>,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    let tol = geom_core::Tol::witness();
+    let (target, body) = (target.into(), body.into());
+    let placed =
+        crate::place_against(&doc, &target, &body, at, &crate::EvalOptions::default(), tol)
+            .expect("the copy places against its target's geometry");
+    let (doc, placement) = place_of(doc, body);
+    (constrained(doc, placement, placed), placement)
+}
+
+/// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
+/// to `u`, both normalised), the normal `u × v` — a construction's own
+/// frame where a test places it.
+///
+/// # Panics
+///
+/// If `u` and `v` span no plane.
+#[must_use]
+pub fn frame_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
+    use geom_core::linalg::Vec3 as V;
+    let u = V::new(u[0], u[1], u[2]);
+    let v = V::new(v[0], v[1], v[2]);
+    let x = u * (1.0 / u.norm());
+    let y = v - x * v.dot(x);
+    assert!(y.norm() > 0.0, "the frame's axes span a plane");
+    let y = y * (1.0 / y.norm());
+    let z = x.cross(y);
+    crate::Frame {
+        columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
+        translation: origin,
+    }
+}
+
+/// **The plane through `origin` with normal `normal`, read off `body`'s
+/// own geometry** ([`crate::frame_at`] through its `xy`): a split's tool
+/// or a plane target where a test writes one in the body's own
+/// coordinates.
+///
+/// # Panics
+///
+/// If `normal` is zero or `body` offers no frame to read.
+#[must_use]
+pub fn plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> crate::pose::RoleRead<crate::Operand> {
+    use geom_core::linalg::Vec3 as V;
+    let n = V::new(normal[0], normal[1], normal[2]);
+    // Any axis off the normal starts the plane's own `x`.
+    let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
+        V::new(1.0, 0.0, 0.0)
+    } else {
+        V::new(0.0, 1.0, 0.0)
+    };
+    let u = seed - n * (seed.dot(n) / n.dot(n));
+    let v = n.cross(u);
+    let at = frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = crate::frame_at(
+        doc,
+        &body.into(),
+        &at,
+        &crate::EvalOptions::default(),
+        geom_core::Tol::witness(),
+    )
+    .expect("the body offers a frame to read the plane off");
+    crate::pose::RoleRead::through(frame, crate::pose::PoseRole::Xy)
 }
 
 // --- recipes ---------------------------------------------------------
 
 /// **A cylinder split through a rim arc twice**: `circle(0, 0, 0.5)`
 /// extruded 1.0, split by the plane through `(0, 0.2, 0)` with normal
-/// `(0, 1, -1)`. The plane crosses the start rim arc twice and leaves
-/// the wall and the start cap one piece per side, under `tol`. Returns the document
-/// and the ids of the extrude, the plane datum and the split. No
+/// `(0, 1, -1)`, read off the cylinder's own geometry
+/// ([`crate::frame_at`]). The plane crosses the start rim arc twice and
+/// leaves the wall and the start cap one piece per side, under `tol`.
+/// Returns the document and the ids of the extrude and the split. No
 /// oracle: the rows that read it state what it must evaluate to.
 ///
 /// # Panics
 ///
 /// If a door refuses an insert.
-pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
+pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
         let a = crate::apply(
             &doc,
@@ -293,11 +434,9 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         (a.doc, a.record.minted.expect("an insert mints a node"))
     };
     let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);
-    let (doc, plane) = ins(doc, xy_frame());
     let (doc, profile) = ins(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -307,24 +446,17 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: crate::ExtrudeSide::Along,
         },
     );
-    let (doc, tool) = ins(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.2), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(-1.0)],
-        }),
-    );
+    let tool = plane_on(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0]);
     let (doc, split) = ins(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
-    (doc, [ext, tool, split])
+    (doc, [ext, split])
 }
 
 // --- the pick door --------------------------------------------------
@@ -430,8 +562,6 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Whole`: every body of the input, moved.
-    Whole,
     /// `VerbatimEdge::Selected`: one body of the input, projected.
     Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
@@ -451,7 +581,6 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Whole { .. } => VerbatimKind::Whole,
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact => VerbatimKind::Intact,
     })

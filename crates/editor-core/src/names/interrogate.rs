@@ -337,7 +337,7 @@ pub fn vertex_position<T: Decide>(
 
 /// **Where an entity IS**, in ONE point, for any entity kind — the
 /// position the geometric selector's decided
-/// [`DatumDistance`](super::GeomPred::DatumDistance) atom measures.
+/// [`PlaneDistance`](super::GeomPred::PlaneDistance) atom measures.
 ///
 /// It nominates nothing new: a vertex answers with its stored
 /// position, an edge and a face with their carrier frame ORIGIN —
@@ -637,8 +637,7 @@ pub(crate) fn output_body<T: Decide>(
         // measurement or its verdict. The word is the payload's own
         // family word, so this arm cannot drift from the vocabulary
         // `ValuePayload::kind_name` speaks.
-        ValuePayload::Datum(_)
-        | ValuePayload::Profile(_)
+        ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => none(payload.kind_name()),

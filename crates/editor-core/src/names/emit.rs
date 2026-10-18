@@ -1292,7 +1292,7 @@ mod pattern_tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )
@@ -2201,7 +2201,7 @@ mod walk_tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             geom_core::Tol::witness(),
         )

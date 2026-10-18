@@ -2847,7 +2847,6 @@ pub fn split(
                     return picked.is_none_or(|k| copy_of_name == Some(k));
                 }
                 at = match doc.node(node).and_then(crate::names::verbatim_edge) {
-                    Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
                     Some(crate::names::VerbatimEdge::Selected {
                         of,
                         select: crate::node::PartSelect::Instance(index),
