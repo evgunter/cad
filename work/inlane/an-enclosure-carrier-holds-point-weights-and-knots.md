@@ -128,7 +128,13 @@ Option A, framed as a correction rather than a permission (fork-log row
   - `map` certifies what it does not keep, and the span read hulls.
   - The interim: `*_f64_interim` accessors and the ratchet gate `scripts/gates/knots-f64-interim.sh`.
   - A carrier and the fit refuse a wide breakpoint typed (`CarrierKnotNotAPoint`) until their readers move.
-- **S2, weights:** held weights, `WeightNotAPoint` retired.
+- **S2, weights (staged as S1, the orchestrator's ruling (A)):**
+  - `Weights<T>` holds weights, certified strictly positive for every member (`WeightSignUndecided` with its margin).
+  - `weights_f64_interim` refuses loud, and the gate counts it.
+  - The carrier door refuses a wide weight as `CarrierWeightNotAPoint` (renamed from `WeightNotAPoint`) until S4/S5 move the knot algebra and the certificates.
+  - Also in S2:
+    - the gate counts the f64 knot and weight holders;
+    - `Knots::value_at` refuses wide knots typed. Its callers carry the message "a carrier's door admits only point knots (`CarrierKnotNotAPoint`)", which S4/S5 grep for.
 - **S3, arcs:** the η sub-arc rule and `T::pi()` (Q1, Q2).
 - **S4, the homogeneous knot algebra:** `apply_certified`'s elevation and removal.
 - **S5, fit and skin:** the collocation's typed refusal. S5 deletes the interim accessors and their gate.
