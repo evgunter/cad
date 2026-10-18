@@ -10366,6 +10366,75 @@ mod tests {
         assert!(off.is_empty(), "lying off the face: {off:?}");
     }
 
+    /// Review 2 (PR 5261): one edge-face pair read alone against the unit
+    /// cube's top, its escalated predicates.
+    fn review2_pair_reads(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<&'static str> {
+        let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
+        let geo = snapshot(&body);
+        let top = geo
+            .faces
+            .iter()
+            .find(|f| f.normal.z > 0.5)
+            .expect("the top");
+        let e = segment((
+            Point3::new(p0[0], p0[1], p0[2]),
+            Point3::new(p1[0], p1[1], p1[2]),
+        ));
+        let mut declared = Declared::index(&geo, &ContactRecords::default());
+        if backed {
+            declared.vf.insert((e.v0, top.key));
+        }
+        let mut errors = Vec::new();
+        pair_edge_face(
+            &body,
+            &geo,
+            &declared,
+            band(),
+            Some(RegionLane::certified()),
+            &e,
+            top,
+            &mut errors,
+        );
+        escalated(&errors)
+    }
+
+    /// Review 2: tilted through the top from `+4e-9` to `-4e-9`, the
+    /// residuals' difference `8e-9` is in the band's edge, so the lever
+    /// escalates. Pins the lever's `Err` arm (green at the head; red
+    /// under a mutant that returns silently there).
+    #[test]
+    fn review2_an_undecided_lever_escalates() {
+        let found = review2_pair_reads([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], true);
+        assert!(found.contains(&"pm_census_ef_pierce_lever"), "{found:?}");
+    }
+
+    /// Review 2: the same pair, counting. `[P, N]` and `[N, P]` decide
+    /// the one lever twice and push its escalation twice (red at the
+    /// head: the refusal carries one cause two times).
+    #[test]
+    fn review2_an_undecided_lever_escalates_once() {
+        let found = review2_pair_reads([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], true);
+        let lever = found
+            .iter()
+            .filter(|p| **p == "pm_census_ef_pierce_lever")
+            .count();
+        assert_eq!(lever, 1, "{found:?}");
+    }
+
+    /// Review 2: an edge descending toward the top's plane from `3e-8`
+    /// above at `x = -1` to `5e-9` above at `x = -0.1`, wholly outside the
+    /// face. No reading of the undecided end touches the face: read
+    /// `Zero` it is a vertex outside the face (pass 3), read on its
+    /// computed side nothing crosses. Only the hypothetical `[P, N]`,
+    /// whose pierce point is placed from the computed residuals at
+    /// `r0 / (r0 - r1) = 1.2`, lands at `x = 0.08`, inside the face, and
+    /// escalates the residual (red at the head).
+    #[test]
+    fn review2_an_extrapolated_pierce_escalates_no_residual() {
+        let found = review2_pair_reads([-1.0, 0.5, 1.0 + 3e-8], [-0.1, 0.5, 1.0 + 5e-9], false);
+        assert!(found.is_empty(), "{found:?}");
+    }
+
     #[test]
     fn flush_and_far_cubes_decide_identically_through_either_strategy() {
         // Flush: the second cube's x = 1 face on the first's, unrecorded
