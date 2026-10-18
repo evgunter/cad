@@ -106,8 +106,6 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 struct Names {
     lateral: Vec<StableName>,
     corner: Vec<StableName>,
-    foot_rim: StableName,
-    top_rim: StableName,
 }
 
 impl Names {
@@ -120,8 +118,6 @@ impl Names {
             corner: (0..4)
                 .map(|k| fixture::cap_vertex(body, CapEnd::End, v(k)))
                 .collect(),
-            foot_rim: fixture::rim_edge(body, CapEnd::Start, fixture::piece(doc, body, 0, 0)),
-            top_rim: fixture::rim_edge(body, CapEnd::End, fixture::piece(doc, body, 0, 0)),
         }
     }
 }
