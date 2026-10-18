@@ -10,3 +10,9 @@ crates/step-import 45
 crates/sweep 138
 crates/topo 31
 demos/tour 2
+# Fields holding f64 knots or weights, by crate (src/ only): the copies an
+# interim read leaves behind. A ratchet too; S5 states where it ends.
+holders:crates/geom 1
+holders:crates/geom-brep 14
+holders:crates/geom-core 31
+holders:crates/step-import 5

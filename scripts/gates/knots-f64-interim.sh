@@ -33,6 +33,20 @@
 # `|c| c.knots_f64_interim()` is still the text and is counted; a call
 # through a function pointer `Curve::knots_f64_interim` with no `(` is
 # not. None exists.
+#
+# HOLDERS, a second ratchet beside the calls. A vector copied out at an
+# interim read lives on in a field, past the call the first count sees:
+# `SplineCoeffs`, `TensorNet`, `Collocation`, `projected::breaks`, the ssi
+# refinement's `ku`/`kv`, a certificate's weights. So the gate also
+# counts, by crate, every struct field that holds `f64` knots or weights:
+#   - a field of type `KnotVector`, `&'a KnotVector` or `Option<KnotVector>`;
+#   - a field named for knots or breaks (`knots*`, `breaks*`, `ku`, `kv`)
+#     or for weights (`weights*`) of type `Vec<f64>` or `&'a [f64]`.
+# Only `src/` is counted: a test's fixture holding the `f64` numbers it
+# builds a carrier from is an input, not a copy. Counted under the key
+# `holders:<crate>` in the same baseline file. Not
+# every holder goes in S5: a STEP entity's knots are the file's `f64`
+# numbers. The count only goes down, and S5 states where it ends.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -50,6 +64,13 @@ baseline_path = sys.argv[1]
 NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim)"
 CALL = re.compile(r"\b" + NAMES + r"\s*\(")
 DECL = re.compile(r"\bfn\s+" + NAMES + r"\b")
+VIS = r"^\s*(?:pub(?:\([a-z:]+\))?\s+)?"
+HOLD = re.compile(
+    VIS + r"[a-z_][a-z0-9_]*\s*:\s*(?:&'[a-z]+\s+)?(?:KnotVector|Option<KnotVector>)\s*,\s*$"
+    + r"|" + VIS + r"(?:knots[a-z0-9_]*|breaks[a-z0-9_]*|ku|kv|weights[a-z0-9_]*)\s*:\s*"
+    + r"(?:Vec<f64>|&'[a-z]+\s+\[f64\])\s*,\s*$",
+    re.M,
+)
 
 counts = {}
 for path in sorted(glob.glob("crates/*/**/*.rs", recursive=True)
@@ -60,6 +81,9 @@ for path in sorted(glob.glob("crates/*/**/*.rs", recursive=True)
     n = len(CALL.findall(text)) - len(DECL.findall(text))
     if n:
         counts[crate] = counts.get(crate, 0) + n
+    h = len(HOLD.findall(text)) if "/src/" in path else 0
+    if h:
+        counts["holders:" + crate] = counts.get("holders:" + crate, 0) + h
 
 base = {}
 with open(baseline_path, encoding="utf-8") as fh:
@@ -77,15 +101,22 @@ for crate in sorted(set(counts) | set(base)):
         rose.append(f"{crate}: {was} -> {now}")
     elif now < was:
         fell.append(f"{crate}: {was} -> {now}")
-total = sum(counts.values())
+total = sum(v for k, v in counts.items() if not k.startswith("holders:"))
+held = sum(v for k, v in counts.items() if k.startswith("holders:"))
 for r in rose:
     print("ROSE " + r)
 for f in fell:
     print("FELL " + f)
 print(f"TOTAL {total}")
+print(f"HELD {held}")
 PY
   ); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
+    exit 1
+  fi
+  if grep -q '^ROSE holders:' <<<"$report"; then
+    grep '^ROSE holders:' <<<"$report"
+    gate_error "C6 interim f64 knot or weight holders rose — a new field keeps a copy of a carrier's f64 knots or weights past the interim read. Hold the knots (\`Knots<T>\`) or the structure, not an f64 copy"
     exit 1
   fi
   if grep -q '^ROSE ' <<<"$report"; then
@@ -98,7 +129,7 @@ PY
     gate_error "C6 interim f64 knot vector callers fell — lower $BASELINE to the new counts, so the ratchet holds them there"
     exit 1
   fi
-  gate_ok "C6 interim f64 knot vector callers at their baseline ($(sed -n 's/^TOTAL //p' <<<"$report") in all)"
+  gate_ok "C6 interim f64 knot vector callers at their baseline ($(sed -n 's/^TOTAL //p' <<<"$report") in all; $(sed -n 's/^HELD //p' <<<"$report") f64 knot or weight holders)"
 }
 
 gate_plant_clean() {
@@ -126,12 +157,20 @@ plant_at_baseline() {
     >> "$1/crates/clean/src/lib.rs"
 }
 
+plant_new_holder() {
+  printf 'pub struct Copy {\n    knots: KnotVector,\n    weights: Vec<f64>,\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+  printf 'pub struct Held {\n    pub(crate) ku: Vec<f64>,\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+
 gate_selftest() {
   gate_selftest_clean
+  gate_selftest_case "holders rose" plant_new_holder
   gate_selftest_case "callers rose" plant_new_caller
   gate_selftest_case "callers fell" plant_lowered_unrecorded
   gate_selftest_passes "a caller at its baseline beside the accessor's declaration" plant_at_baseline
-  printf '%s selftest OK: passes a clean fixture and one at its baseline, fires on a rise and on an unrecorded fall\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and one at its baseline, fires on a rise of callers or of f64 holders and on an unrecorded fall\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
