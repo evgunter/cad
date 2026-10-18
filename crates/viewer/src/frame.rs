@@ -1289,16 +1289,18 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the mate that landed answers it better,
+        /// does this part go", and the pin that landed answers it better,
         /// so the probe steps aside and the picture keeps the part.
         ///
-        /// [`crate::display::PruneReport::superseded`], carried to the
-        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
-        /// instances whose COMMITTED free-move placement an operation's document
-        /// transition discarded — the G3 supersession, reported by the
-        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
-        /// where it happens, and [`crate::display::free_move_check`] is the
-        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// [`crate::display::PruneReport::superseded`] names, by their
+        /// roots, the loose spaces whose COMMITTED free-move frame a prune
+        /// discarded — the G3 supersession, reported by the session rather
+        /// than inferred. Most arrive with a landing, which is when a space
+        /// is known (`DocSession::take_landed_withdrawals`), and the rest
+        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::DisplayState::prune`] is where it happens, and
+        /// [`crate::display::space_check`] is the condition. A killed
+        /// in-flight gesture is NOT in that list, so
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.
         ///

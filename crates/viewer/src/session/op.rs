@@ -1291,8 +1291,12 @@ impl SessionOp {
     /// structural, which mates name which copies and which name the
     /// world, so a landing of either document answers both. The one
     /// space answer a value can move is a placement the evaluation
-    /// refuses ([`crate::display::AdmissionFault::NoSpace`]), and that
-    /// is read off whichever of the two landed last. So the previewed
+    /// refuses ([`crate::display::AdmissionFault::NoSpace`]): admission
+    /// reads it off whichever of the two landed last, and a scratch
+    /// landing's prune acts on the graph's answers alone
+    /// ([`crate::display::DisplayState::prune_structural`]), so a
+    /// committed pin a preview overtook still lands mid-drag and a
+    /// previewed refusal discards nothing committed. So the previewed
     /// document and the committed one agree on every display question,
     /// at every point of a drag.
     /// Break that — let a gesture's edit change the graph — and

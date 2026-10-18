@@ -18,7 +18,7 @@ use crate::common;
 use pncad::document::Bodies;
 
 use common::asm;
-use pncad::document::{Frame, RecipeNodeId, product};
+use pncad::document::{Frame, RecipeNodeId, SlotId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
@@ -27,7 +27,8 @@ use viewer::marks;
 use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
 use viewer::session::{
-    DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
+    DocSession, FaceFrameFault, PatternRuleSpec, Refusal, Selection, SessionOp,
+    face_frame_seat_drawn,
 };
 use viewer::tree::RowStatus;
 
@@ -969,6 +970,14 @@ fn a_gesture_whose_copy_leaves_the_space_dies_at_the_landing() {
         "{}",
         killed.cause
     );
+    assert!(
+        killed
+            .cause
+            .to_string()
+            .contains("is a loose space of its own now"),
+        "a split is worded as a split, not a join: {}",
+        killed.cause
+    );
     assert!(session.display().probing().is_none());
     assert!(matches!(
         session
@@ -1044,6 +1053,141 @@ fn a_replacement_takes_the_landings_untaken_report() {
     assert!(
         session.take_landed_withdrawals().is_empty(),
         "the outgoing document's report is not the incoming one's"
+    );
+}
+
+/// **A pin's landing that a value gesture overtakes still prunes, mid-
+/// drag.** An undo pins post_b again under its committed frame; before
+/// that edit lands, a value gesture opens and previews, so the edit's
+/// own landing is stale and the next one to arrive is the scratch's.
+/// The scratch shares the committed graph, so it knows the pin: its
+/// landing drops the frame and says so then, not after the drag ends.
+#[test]
+fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmovertaken", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // A slot to drag: a pattern over post_a, whose spacing a value
+    // gesture writes. It places nothing, so no picture changes.
+    let pattern = common::session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: bench.post_a.into(),
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: common::scl3([1.0, 0.0, 0.0]),
+                spacing: common::len(0.03),
+            },
+        },
+    );
+    session.pump();
+    asm::unpin(&mut session, bench.post_b);
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.0, 0.0, 0.05]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+
+    // The pin back, and before it lands, a drag.
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    for op in [
+        SessionOp::BeginGesture {
+            node: pattern,
+            slot: SlotId::Spacing,
+        },
+        SessionOp::PreviewGesture {
+            node: pattern,
+            slot: SlotId::Spacing,
+            value: 0.04,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    session.pump();
+    assert_ne!(
+        session.landed_pair().map(|(doc, _)| doc),
+        Some(session.committed_doc()),
+        "the landing is the scratch's: the pin's own was overtaken"
+    );
+    let superseded: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect();
+    let [withdrawn] = &superseded[..] else {
+        panic!("the scratch landing drops the pinned frame mid-drag: {superseded:?}")
+    };
+    assert_eq!(withdrawn.instance, bench.post_b);
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+    session.pump();
+    assert!(
+        session.take_landed_withdrawals().is_empty(),
+        "and the cancel's landing has nothing left to say"
+    );
+}
+
+/// **Between an edit and its landing the space is not known**, so the
+/// probe refuses typed rather than read the older document's spaces
+/// (the ruling: DI3, an evaluation names its document). post_b's pin
+/// comes back by an undo that has not landed: the last landing still
+/// says loose, and must not be asked.
+#[test]
+fn the_probe_refuses_while_the_document_has_not_landed() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmunlanded", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.space_evaluation().is_none(),
+        "nothing answers the undone document"
+    );
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::BeginFreeMove {
+                    instance: bench.post_b
+                })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotEvaluated { instance }
+            ))) if instance.id() == bench.post_b
+        ),
+        "the probe refuses NotEvaluated"
+    );
+    session.pump();
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::BeginFreeMove {
+                    instance: bench.post_b
+                })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::InTheWorld { .. }
+            )))
+        ),
+        "and once it lands, the pinned post is in the world"
     );
 }
 

@@ -59,7 +59,8 @@
 //! # Supersession: the frame goes when its root stops naming a loose space
 //!
 //! When an edit pins a free-moved space to the world, puts its root in
-//! another space, or removes its root, its frame is **discarded** —
+//! another space, leaves its placement refused, or removes its root,
+//! its frame is **discarded** —
 //! removed outright, not zeroed and kept — by [`DisplayState::prune`].
 //! Discard rather than zero because the value's LEGALITY is derived
 //! from the document and the evaluation that answers it: a frame for a
@@ -98,7 +99,7 @@
 //! history: the plan's undo note governs document state only, and no
 //! layer-3 history exists in v1. Undo/redo therefore never change what is hidden or probed;
 //! they can only DISCARD a probe by pinning its space, joining it to
-//! another, or removing its root.
+//! another, leaving its placement refused, or removing its root.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -402,7 +403,8 @@ impl From<AdmissionFault> for DisplayFault {
 ///
 /// The families are apart because one of them is joined into a list
 /// and the other is not: [`DisplayState::prune`] fills every
-/// [`Withdrawn`] from [`display_check`] and [`space_check`], so a
+/// [`Withdrawn`] from [`display_check`], [`space_check`] and the
+/// gesture's own check, so a
 /// withdrawal's cause is an [`AdmissionFault`] by signature rather than
 /// by a property of those functions' error sets, and
 /// [`AdmissionFault`]'s own docs carry what the join then needs of its
@@ -741,20 +743,7 @@ pub fn space_check(
             node: doc.spoken(root),
         });
     }
-    let Some(eval) = eval else { return Ok(()) };
-    match loose_root(eval, root) {
-        Ok(found) if found == root => Ok(()),
-        Ok(found) => Err(AdmissionFault::MovedSpace {
-            instance: doc.spoken(root),
-            into: doc.spoken(found),
-        }),
-        Err(Unplaced::World) => Err(AdmissionFault::InTheWorld {
-            instance: doc.spoken(root),
-        }),
-        Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
-            instance: doc.spoken(root),
-        }),
-    }
+    eval.map_or(Ok(()), |eval| in_space(doc, eval, root, root, Answers::All))
 }
 
 /// **Whether a held gesture still moves the space its instance lives
@@ -769,6 +758,7 @@ fn gesture_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
     probe: Probe,
+    answers: Answers,
 ) -> Result<(), AdmissionFault> {
     let Probe { root, instance } = probe;
     if doc.node(instance).is_none() {
@@ -777,18 +767,43 @@ fn gesture_check(
         });
     }
     space_check(doc, None, root)?;
-    let Some(eval) = eval else { return Ok(()) };
-    match loose_root(eval, instance) {
+    eval.map_or(Ok(()), |eval| in_space(doc, eval, instance, root, answers))
+}
+
+/// **Which of an evaluation's space answers a prune acts on.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Answers {
+    /// Every one: a landing of the committed document.
+    All,
+    /// Those the node graph decides — a pin, a join, a split — and not
+    /// a refused placement, which a value can decide: a landing of a
+    /// value gesture's scratch, which shares the committed graph but
+    /// not its values ([`DisplayState::prune_structural`]).
+    Structural,
+}
+
+/// **Whether `asked`'s copy lives in the loose space `root` roots**, by
+/// `eval`: the one mapping from a space answer to a fault, for a frame
+/// (asked about its root) and a gesture (asked about its own copy).
+fn in_space(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    asked: RecipeNodeId,
+    root: RecipeNodeId,
+    answers: Answers,
+) -> Result<(), AdmissionFault> {
+    match loose_root(eval, asked) {
         Ok(found) if found == root => Ok(()),
         Ok(found) => Err(AdmissionFault::MovedSpace {
-            instance: doc.spoken(instance),
+            instance: doc.spoken(asked),
             into: doc.spoken(found),
         }),
         Err(Unplaced::World) => Err(AdmissionFault::InTheWorld {
-            instance: doc.spoken(instance),
+            instance: doc.spoken(asked),
         }),
+        Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
-            instance: doc.spoken(instance),
+            instance: doc.spoken(asked),
         }),
     }
 }
@@ -905,8 +920,9 @@ pub struct Withdrawn {
     /// Why the document no longer admits it.
     ///
     /// **[`AdmissionFault`] and not [`DisplayFault`]**, because the
-    /// causes a prune can withdraw on are exactly what its two tests
-    /// ([`display_check`], [`space_check`]) answer — and because
+    /// causes a prune can withdraw on are exactly what its tests
+    /// ([`display_check`], [`space_check`] and the gesture's, which
+    /// asks its own copy the same space question) answer — and because
     /// [`crate::frame::Withdrawal`] joins several of these into one
     /// sentence with [`crate::frame::LIST_SEPARATOR`], which is a
     /// claim about what those sentences can say. A field typed as the
@@ -1283,18 +1299,51 @@ impl DisplayState {
         doc: &Doc<ProfileProgram>,
         eval: Option<&Evaluation<f64>>,
     ) -> PruneReport {
+        self.prune_with(doc, eval, Answers::All)
+    }
+
+    /// [`DisplayState::prune`] against a value gesture's scratch and the
+    /// evaluation of it that landed, acting only on what the node graph
+    /// decides — a pin, a join, a split, a node gone — and not on a
+    /// placement the scratch's values refuse: the scratch shares the
+    /// committed graph, so its landing answers the committed document's
+    /// structure, and a preview the user may still cancel discards no
+    /// committed display state over a value.
+    ///
+    /// The session runs it when a scratch landing overtakes a committed
+    /// edit's own landing (a pin committed, then a drag previewed before
+    /// the pin landed), so the pin takes effect mid-drag rather than
+    /// after the drag ends.
+    pub fn prune_structural(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> PruneReport {
+        self.prune_with(doc, Some(eval), Answers::Structural)
+    }
+
+    /// [`DisplayState::prune`]'s body, over which answers it acts on.
+    fn prune_with(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: Option<&Evaluation<f64>>,
+        answers: Answers,
+    ) -> PruneReport {
         let mut superseded = Vec::new();
-        self.moves
-            .retain(|&root, _| match space_check(doc, eval, root) {
-                Ok(()) => true,
-                Err(cause) => {
-                    superseded.push(Withdrawn {
-                        instance: root,
-                        cause,
-                    });
-                    false
-                }
-            });
+        let frame_check = |root| match doc.node(root) {
+            None => space_check(doc, None, root),
+            Some(_) => eval.map_or(Ok(()), |eval| in_space(doc, eval, root, root, answers)),
+        };
+        self.moves.retain(|&root, _| match frame_check(root) {
+            Ok(()) => true,
+            Err(cause) => {
+                superseded.push(Withdrawn {
+                    instance: root,
+                    cause,
+                });
+                false
+            }
+        });
         let dropped_hides: Vec<Withdrawn> = self
             .hidden
             .iter()
@@ -1311,7 +1360,7 @@ impl DisplayState {
         // throw away the one value that says why the drag under the
         // user's hand stopped, at the instant it is computed.
         let killed_gesture = self.free_move.held().and_then(|probe| {
-            gesture_check(doc, eval, *probe)
+            gesture_check(doc, eval, *probe, answers)
                 .err()
                 .map(|cause| Withdrawn {
                     instance: probe.instance,
