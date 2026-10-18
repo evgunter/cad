@@ -6072,3 +6072,82 @@ Signed (WIRE orchestrator).
   now drives both the `NamingError` endings and the framing test. Kept
   labelled: `NotEvaluated` and `NotInDocument`, which the WIREHOLD row
   does not dispute. Merged on green; the row closed. (WIRE orchestrator)
+- 2026-10-18 — Ev approved PR 5278 ("sounds good!"): N1's `circle_split`
+  sentence merged (34583bffff); fork-log row 158 filled (byte 40, even:
+  A = Opus, B = Fable). Dispatched `wire/circle-phase-pin` (pinning test,
+  closes `a-split-circles-phase-edit-re-aims-its-piece-names-silently`);
+  review tier: orchestrator's read (a test and a row close, no kernel
+  change). (WIRE orchestrator)
+
+- 2026-10-18 — PR 5294 (circle-phase pin) merged on green and the
+  orchestrator's read; `a-split-circles-phase-edit-re-aims-its-piece-names-silently`
+  closed. The fillet-on-a-seam row was skipped: a split circle's seams
+  join one cylinder to itself with no crease, so a blend has nothing to
+  carve. (WIRE orchestrator)
+
+- 2026-10-18 — Merged PR 5276 (fold rows in member space) and PR 5275
+  (split vertex Keeps) on green after main merges. Dispatched
+  `wire/prism-crossing` (now unblocked: 5275 merged in the same file)
+  and `wire/fold-minted-cells` (DM4's member-cell spelling for
+  fold-minted cells, plus one margin per unordered pair); both FULL
+  single reviews (naming units). (WIRE orchestrator)
+
+- 2026-10-18 — The recourse lane opened PR 5298 (`wire/refusals-state-their-recourse`),
+  green; STYLE review dispatched with four claims (new recourses true;
+  no held family or D10 ground touched; no double endings, through the
+  shared `NodeStanding` too; `NamingError::ending`'s category split).
+  `MeasureRefUnreadable/Readback` stays filed: its sentence is
+  `topo::ReadbackError`'s, which held `FaceFrameReadback/*` also
+  renders. The lane filed `naming-refusal-census-skips-ten-arms` (P3 E).
+  (WIRE orchestrator)
+
+- 2026-10-18 — PR 5298 style review adjudicated: MAJOR upheld. The PR
+  labelled `NodeStanding`'s repair sentences as `Recourse:`, and
+  `wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`
+  records them as false for a node a mate cluster refused, which is held
+  ground. They go back to unlabelled, and their census entries stay filed
+  against that row. Minors sent too: VarKindMismatch half-recourse;
+  Vanished doubling after a diagnosis with its own repair, and Cascade
+  pointing downstream; the ProfileLaneReplay point-pass premise. Class
+  note: a unit that adds a category-keyed ending can mint a second
+  hand-written category map beside the test's (`NamingError::ending` vs
+  `expected_framing`); the fix is one map. (WIRE orchestrator)
+
+- 2026-10-18 — Ev approved PR 5279 ("that recommendation sounds good!").
+  N3's seam sentence was widened and merged (da3f0bf530). The fork-log
+  row was renumbered from 159 to 160: INTENT's row 159 landed first. It
+  is filled with byte 197 (odd): A = Fable, B = Opus. The build unit
+  (spanning chord rebuild; delete chord descent, `constituent_holding`
+  and `MergedChordConstituents`) is held until PR 5298 merges. That
+  fix pass is rewriting the naming category map that lists the variant
+  (`emit.rs`, `wire_legal_union_refusals.rs`). Sequencing call;
+  the alternative was dispatching now and rebasing the map twice.
+  (WIRE orchestrator)
+- 2026-10-18 — PR 5302 (prism crossing): already fixed on main by PR
+  4816, as bisected, so the row's reading was refuted. The PR is the
+  order test alone, so its review tier dropped from FULL to the
+  orchestrator's read: no naming change is left to review. Merged on
+  green and the row closed as overtaken. (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE: `a-split-names-an-operand-edge-in-its-plane-as-a-section-chord`
+  goes to a designer pair (Opus + Fable, problem only). It asks how
+  an in-plane operand edge and its copies are named, and whether N2's
+  face `Keeps` cites it. N2 is ratified, so a change goes to Ev. The
+  blinding draw is on `analysis/design-fork/wire-2026-10-17`.
+  (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE, round 1: the designers agree the upper
+  copies stay `SectionEdge` chords, and that today's name for the lower
+  leftover edge is build order (`frag_rows.root` of a section face),
+  probably also the `-y` revolved refusal. They split on two points.
+  The leftover edge: own name, or merge the coplanar section faces at
+  the split's output so it goes. Keeps: strike N2's in-plane clause, or
+  extend it to faces with a recorded trace. Round 2 dispatched, each
+  given the other's report. (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE converged after five rounds and three
+  crossovers. Agreed: the split finishes halves maximal; chords stay
+  chords; `Keeps` reads descent, with N2's in-plane clause struck; every
+  merged group is `Merged`. `[ev]` PR 5306 edits N2/N3, fork-log row
+  162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
+  (P3, design). The build unit waits on Ev. (WIRE orchestrator)
