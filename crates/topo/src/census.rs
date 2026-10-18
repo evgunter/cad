@@ -4721,6 +4721,8 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// source row states that blind spot.
 mod curved;
 mod point;
+#[cfg(test)]
+mod review_probes;
 
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
