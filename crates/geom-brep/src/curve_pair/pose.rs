@@ -294,6 +294,7 @@ mod row {
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
+    pub(super) const BRANCH: &str = "curve_pair_pose_branch";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -394,6 +395,37 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<Conic<T>, MeetFault> {
 /// `v` scaled to unit length.
 fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
+}
+
+/// **The angle of `(x, y)`, read clear of its branch cut**: `atan2(y, x)`
+/// where `x` does not read negative, and otherwise the same angle a
+/// turn on, `atan2(−y, −x) + π`, whose cut lies half a turn from it. An
+/// enclosure of a direction near the negative `x` axis then stays as
+/// narrow as the direction, where the principal value would wrap the
+/// whole turn. Every reader takes the angle modulo a turn, so either
+/// branch serves.
+fn angle<T: Decide>(y: T, x: T) -> T {
+    if super::compare(row::BRANCH, x, T::zero()) == Some(Sign::Negative) {
+        (T::zero() - y).atan2(T::zero() - x) + T::pi()
+    } else {
+        y.atan2(x)
+    }
+}
+
+/// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
+/// clear of the reduction's cut: from `at` where it reads within a
+/// quarter turn of it, and otherwise as half a turn less how far it
+/// lies from `at + π`. An enclosure about the antipode then stays as
+/// narrow as `theta`, where the reduction about `at` would read the
+/// whole half turn.
+fn separation<T: Decide>(theta: T, at: T) -> T {
+    let from = |anchor: T| (theta - anchor).reduce_periodic_centred(T::tau()).abs();
+    let near = from(at);
+    if super::compare(row::BRANCH, near, T::pi() / T::from_f64(2.0)) == Some(Sign::Negative) {
+        near
+    } else {
+        T::pi() - from(at + T::pi())
+    }
 }
 
 /// The metres a span runs at most: its parameter run at the carrier's
@@ -828,7 +860,7 @@ fn line_conic<T: Decide>(
             pose: "a conic the band reads as thin as the line it lies beside",
         });
     }
-    let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
     let place = |theta: T| {
         let point = k.point(theta);
         Candidate {
@@ -960,7 +992,10 @@ pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
 /// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`) and
 /// then by the rotation that best matches the two, which maximizes
-/// `tr(Qᵀ·L_fᵀ·L_e)`.
+/// `tr(Qᵀ·L_fᵀ·L_e)`. The square is the larger eigenvalue of a Gram
+/// matrix, never negative, so its enclosure is clamped at zero: two
+/// coincident conics' `d1` and `d2` enclose zero, and their self-dots
+/// read as interval products reach below it.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
     let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
     let up = e1.cross(e2).dot(f1.cross(f2));
@@ -975,7 +1010,9 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
         (d1.dot(d1) + d2.dot(d2)) * half,
         (d1.dot(d1) - d2.dot(d2)) * half,
     );
-    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt())
+        .max(T::from_f64(0.0))
+        .sqrt()
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
@@ -989,7 +1026,7 @@ fn transverse<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -1091,7 +1128,7 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = w.dot(ka.v_ref()).atan2(w.dot(ka.u_ref));
+    let toward = angle(w.dot(ka.v_ref()), w.dot(ka.u_ref));
     let range = Range {
         lo,
         hi,
@@ -1292,7 +1329,7 @@ impl<T: Decide> Range<T> {
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
         let e = T::from_f64(band.escalate()) + self.noise;
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = (theta - self.at_hi).reduce_periodic_centred(T::tau()).abs();
+        let phi = separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();
         let outer = unit_cos((T::zero() - e - c0) / swing).acos();
         (phi - inner).abs().max((outer - phi).abs())
