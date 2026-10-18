@@ -371,3 +371,139 @@ fn the_closed_forms_enclosures_hold_the_exact_values() {
         bad[..bad.len().min(8)].join("\n")
     );
 }
+
+/// **Each single reading's error stays inside its charge** (review 1 of PR
+/// 5297), over regimes the PR's enclosure test does not sample: coordinates
+/// near 1e4, edges up to 1e3 long, ends up to 1e3 lengths off the crossing,
+/// φ down to 1e-14. Prints the worst ratio of error to
+/// charge per regime.
+#[test]
+fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
+    let mut r = test_utils::fuzz::start("review_charge_ratio");
+    let count = test_utils::fuzz::scaled(4000);
+    for (regime, scale, lmax, far, gmax) in [
+        ("unit", 2.0, 3.0, 2.0, 1.0),
+        ("coords1e4", 1e4, 3.0, 2.0, 1.0),
+        ("coords1e4_long", 1e4, 1e3, 2.0, 1e2),
+        ("ends_far", 2.0, 3.0, 100.0, 1.0),
+        ("coords1e4_ends_far", 1e4, 30.0, 1000.0, 1e3),
+    ] {
+        let mut worst = [(0.0f64, String::new()), (0.0, String::new())];
+        let mut over = 0usize;
+        for _ in 0..count {
+            let x = [0, 1, 2].map(|_| r.range(-scale, scale));
+            let a = unit(&mut r);
+            let phi = r.log_uniform(1e-14, 1.0);
+            let b = turned(&mut r, a, phi);
+            let off = cross(a, b);
+            let g = if r.unit() < 0.3 {
+                0.0
+            } else {
+                r.log_uniform(1e-15, gmax)
+            };
+            let x_b = add(x, off, g / norm(off));
+            let la = r.log_uniform(1e-6, lmax);
+            let lb = r.log_uniform(1e-6, lmax);
+            let sa = r.range(-far * la, far * la);
+            let sb = r.range(-far * lb, far * lb);
+            let ea = (add(x, a, -sa), add(x, a, la - sa));
+            let eb = (add(x_b, b, -sb), add(x_b, b, lb - sb));
+            let exact = Exact::of(ea, eb);
+            if exact.nn == BigInt::from(0) {
+                continue;
+            }
+            let [ta, tb] = exact.fractions();
+            let real_gap = exact.gap();
+            let p = |v: V| Point3::new(v[0], v[1], v[2]);
+            let (ga, gb) = (segment((p(ea.0), p(ea.1))), segment((p(eb.0), p(eb.1))));
+            let n = ga.dir.cross(gb.dir);
+            let nn = n.norm_squared();
+            let s = nn.sqrt();
+            let mut hi = f64::INFINITY;
+            for (pp, qq) in [
+                (ga.p0, gb.p0),
+                (ga.p0, gb.p1),
+                (ga.p1, gb.p0),
+                (ga.p1, gb.p1),
+            ] {
+                let e = qq - pp;
+                let gg = e.dot(n).abs() / s;
+                let charge = geom_brep::rounding_charge(e.norm() * (1.0 + s)) / s;
+                hi = hi.min(gg + charge);
+                let ratio = (gg - real_gap).abs() / charge;
+                if ratio > worst[0].0 {
+                    worst[0] = (ratio, format!("phi {phi:e} g {g:e} la {la:e} sa {sa:e}"));
+                }
+                over += usize::from(ratio > 1.0);
+            }
+            for (side, (xx, yy, t)) in [(&ga, &gb, ta), (&gb, &ga, tb)].into_iter().enumerate() {
+                let w = yy.dir.cross(xx.dir.cross(yy.dir)) / nn;
+                for (k, pp) in [xx.p0, xx.p1].into_iter().enumerate() {
+                    let real = t[k] * xx.len;
+                    for qq in [yy.p0, yy.p1] {
+                        let e = qq - pp;
+                        let rr = if k == 1 { -e.dot(w) } else { e.dot(w) };
+                        let charge = geom_brep::rounding_charge(e.norm() + rr.abs() + hi / s) / s;
+                        let ratio =
+                            ((rr - real).abs() - 4.0 * f64::EPSILON * real.abs()).max(0.0) / charge;
+                        if ratio > worst[1].0 {
+                            worst[1] = (
+                                ratio,
+                                format!(
+                                    "side {side} k {k} phi {phi:e} g {g:e} la {la:e} lb {lb:e} sa {sa:e} sb {sb:e}"
+                                ),
+                            );
+                        }
+                        over += usize::from(ratio > 1.0);
+                    }
+                }
+            }
+        }
+        println!(
+            "[review] {regime}: worst gap ratio {:.3} ({}), worst reach ratio {:.3} ({}), over {over}",
+            worst[0].0, worst[0].1, worst[1].0, worst[1].1
+        );
+        assert_eq!(over, 0, "{regime}: a reading's error exceeded its charge");
+    }
+}
+
+/// **A reach whose enclosure straddles the band is never read as
+/// interior** (review 1 of PR 5297): two nearly parallel segments
+/// whose lines cross `2Kε` before `a`'s start, `b`'s far end beside
+/// `a`'s far end (so the gap's enclosure is tight and reads Zero),
+/// while `a`'s start stands half a metre from both of `b`'s ends (so
+/// its reach's enclosure straddles the band). The crossing is outside
+/// `a`'s span: a definite yes is wrong; an escalation is right.
+#[test]
+fn a_span_straddle_past_an_end_is_never_a_crossing() {
+    let eps = 1e-12;
+    let band = Band::new(eps, K * eps).unwrap();
+    let x = [0.3, 0.2, 0.1];
+    let a = [1.0, 0.0, 0.0];
+    for phi in [1e-5, 2e-5, 4e-5] {
+        let b = [phi.cos(), phi.sin(), 0.0];
+        let o = 2.0 * K * eps;
+        let ea = (add(x, a, o), add(x, a, o + 1.0));
+        let eb = (add(x, b, -0.5), add(x, b, o + 1.0));
+        let exact = Exact::of(ea, eb);
+        assert!(
+            exact.fractions()[0][0] < 0.0,
+            "φ {phi:e}: the crossing is before a's start"
+        );
+        for (p, q) in [(ea, eb), (eb, ea)] {
+            let f = meets::<f64>(p, q, band);
+            let iv = meets::<Interval>(p, q, band);
+            println!("[review] φ {phi:e}: f64 {f:?}, Interval {iv:?}");
+            assert_ne!(
+                f,
+                Some(true),
+                "φ {phi:e}: f64 read a crossing past a's start"
+            );
+            assert_ne!(
+                iv,
+                Some(true),
+                "φ {phi:e}: Interval read a crossing past a's start"
+            );
+        }
+    }
+}
