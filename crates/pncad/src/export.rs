@@ -145,14 +145,19 @@ impl core::error::Error for ExportError {}
 ///
 /// Every arm of [`ExportError`]: the evaluation-side refusals above,
 /// [`ExportError::Loose`] for a node that lives in a loose copy's
-/// space, or [`ExportError::Step`] carrying the writer's own refusal.
+/// space (a construction's is its own coordinates, written as they
+/// are), or [`ExportError::Step`] carrying the writer's own refusal.
 pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    if let Some(root) = evaluation.space(node).loose() {
+    // A construction's space is its own coordinates, which its body is
+    // written in; a loose copy's has no place to write it at.
+    if let Some(root) = evaluation.space(node).loose()
+        && evaluation.loose_copies.contains(&root)
+    {
         return Err(ExportError::Loose { copies: vec![root] });
     }
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;

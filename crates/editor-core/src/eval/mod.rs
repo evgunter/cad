@@ -121,12 +121,17 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
-    /// **Every node whose value lives in a loose copy's space** (D10,
-    /// Spaces), with the loose copy's placement. A node absent here
-    /// lives in the world's space, or denotes no geometry.
-    /// [`crate::product::product`] gathers the world's alone, and the
-    /// at-rest census checks each space by itself.
+    /// **Every node whose value lives in a space other than the
+    /// world's** (D10, Spaces), with that space's root: a construction,
+    /// or a loose copy's placement. A node absent here lives in the
+    /// world's space, or denotes no geometry.
+    /// [`crate::product::product`] gathers the world's alone.
     pub loose: BTreeMap<RecipeNodeId, RecipeNodeId>,
+    /// **The roots of [`Self::loose`] that are loose copies**: a
+    /// placement whose bundle pins less than its body needs. The
+    /// at-rest census checks each such space by itself; a construction's
+    /// space holds the bodies combined into it, which no census reads.
+    pub loose_copies: std::collections::BTreeSet<RecipeNodeId>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a part the
@@ -330,15 +335,10 @@ impl<T: Decide> Evaluation<T> {
             })
     }
 
-    /// **Every loose copy**, by its placement, in id order: a loose
-    /// copy lives in its own space, so each is its own row of
-    /// [`Evaluation::loose`].
+    /// **Every loose copy**, by its placement, in id order
+    /// ([`Evaluation::loose_copies`]).
     pub fn loose_roots(&self) -> Vec<RecipeNodeId> {
-        self.loose
-            .iter()
-            .filter(|&(node, root)| node == root)
-            .map(|(_, &root)| root)
-            .collect()
+        self.loose_copies.iter().copied().collect()
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -949,6 +949,7 @@ impl Evaluation<f64> {
         Self {
             epoch: crate::Epoch::mint(),
             loose: BTreeMap::new(),
+            loose_copies: std::collections::BTreeSet::new(),
             document,
             prior_refused: None,
             recomputed: order.len(),
@@ -3994,6 +3995,17 @@ where
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     let loose = spaces_of(doc, &order, &nodes);
+    let loose_copies = loose
+        .iter()
+        .filter(|&(node, root)| {
+            node == root
+                && matches!(
+                    doc.node(*node),
+                    Some(crate::node::Node::Place { .. } | crate::node::Node::InstantiatePart { .. })
+                )
+        })
+        .map(|(&node, _)| node)
+        .collect();
 
     Evaluation {
         epoch: opts.epoch,
@@ -4005,6 +4017,7 @@ where
         recomputed,
         reused,
         loose,
+        loose_copies,
         part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
@@ -4128,6 +4141,7 @@ where
         recomputed: 0,
         reused: 0,
         loose: BTreeMap::new(),
+        loose_copies: std::collections::BTreeSet::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),

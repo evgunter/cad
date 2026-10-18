@@ -2079,24 +2079,8 @@ fn len(metres: f64) -> pncad::document::Formula {
     Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
-/// A dimensionless literal — a direction component — as [`len`].
-fn scl(value: f64) -> pncad::document::Formula {
-    use pncad::document::{Dimension, Formula};
-    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// The world xy frame — the plane the box document sketches on.
-fn xy_frame() -> pncad::document::AuthoredNode {
-    use pncad::document::{Datum, Node};
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
-/// A square profile-program node, `[0,s]²` on `plane`.
-fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
+/// A square profile-program node, `[0,s]²` on its own plane.
+fn square(s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
@@ -2110,30 +2094,80 @@ fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::Auth
     })
 }
 
+/// Apply an edit the doors admit.
+fn applied(
+    doc: &pncad::document::ProfileDoc,
+    edit: pncad::document::DocEdit<pncad::document::ProfileProgram>,
+) -> pncad::document::Applied<pncad::document::ProfileProgram> {
+    pncad::document::apply(
+        doc,
+        &edit,
+        pncad::tolerance::Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("the edit is accepted: {e}"))
+}
+
 /// Insert a node, returning the (document, minted id) pair.
 fn insert(
     doc: pncad::document::ProfileDoc,
     node: pncad::document::AuthoredNode,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    let applied = pncad::document::apply(
+    let applied = applied(
         &doc,
-        &pncad::document::DocEdit::InsertNode {
+        pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
             fresh: Vec::new(),
         },
-        pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the edit is accepted");
+    );
     let minted = applied.record.minted.expect("an insert mints an id");
     (applied.doc, minted)
 }
 
+/// `placement`'s one copy standing where its body stands
+/// ([`pncad::document::stand`]): the mate and its values, added.
+fn stood(
+    doc: pncad::document::ProfileDoc,
+    placement: pncad::document::RecipeNodeId,
+) -> pncad::document::ProfileDoc {
+    use pncad::document::{DocEdit, Node, Operand, Value};
+    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+        panic!("{placement} is a placement");
+    };
+    let copy = Operand::Var(shapes[0].read);
+    let placed = pncad::document::stand(
+        &doc,
+        &copy,
+        &pncad::document::EvalOptions::default(),
+        pncad::tolerance::Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
+    let added = applied(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = added.record.minted_constraints[0];
+    placed.values.into_iter().fold(added.doc, |doc, (coord, by)| {
+        applied(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .doc
+    })
+}
+
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// at the identity, pinned over its own geometry. Returns (doc,
-/// profile id, body id) — the MINTED ids, so no caller couples to mint
-/// order.
+/// standing where it stands. Returns (doc, profile id, body id) — the
+/// MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
 ) -> (
@@ -2143,8 +2177,7 @@ fn box_doc(
 ) {
     use pncad::document::{Node, ProfileDoc};
     let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, square(plane, 2.0));
+    let (doc, profile) = insert(doc, square(2.0));
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -2156,36 +2189,63 @@ fn box_doc(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
-    let doc = pncad::document::apply(
-        &doc,
-        &pncad::document::DocEdit::PinWhereItStands { placement },
-        pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the world pin is admitted")
-    .doc;
-    (doc, profile, body)
+    (stood(doc, placement), profile, body)
 }
 // END box-document fixture twin
 
-/// Place one copy of `body` in the world where it stands — a loose
-/// placement, then the named interim's world pin
-/// (`DocEdit::PinWhereItStands`), which reads nothing — returning the
-/// placement's id.
+/// Place one copy of `body` in the world where it stands ([`stood`]),
+/// returning the placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
     body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{DocEdit, Node};
+    use pncad::document::Node;
     let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
-    let doc = pncad::document::apply(
+    (stood(doc, placement), placement)
+}
+
+/// **A copy of `body` placed against `target`'s geometry at `at`** (the
+/// copy's own frame in `target`'s coordinates,
+/// [`pncad::document::place_against`]): how a construction combined
+/// with another joins its space. Returns the placement, whose output is
+/// the copy.
+fn placed_against(
+    doc: pncad::document::ProfileDoc,
+    target: pncad::document::RecipeNodeId,
+    body: pncad::document::RecipeNodeId,
+    at: &pncad::document::Frame,
+) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    use pncad::document::{DocEdit, Node, Operand, Value};
+    let placed = pncad::document::place_against(
         &doc,
-        &DocEdit::PinWhereItStands { placement },
+        &Operand::from(target),
+        &Operand::from(body),
+        at,
+        &pncad::document::EvalOptions::default(),
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
-    .unwrap_or_else(|e| panic!("the world pin is admitted: {e}"))
-    .doc;
+    .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
+    let (doc, placement) = insert(doc, Node::place(vec![pncad::document::BodyRead::plain(body)]));
+    let added = applied(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = added.record.minted_constraints[0];
+    let doc = placed.values.into_iter().fold(added.doc, |doc, (coord, by)| {
+        applied(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .doc
+    });
     (doc, placement)
 }
 
@@ -2421,11 +2481,7 @@ fn the_export_door_serves_the_one_shot_journey() {
 }
 
 /// A square of side `s` on `plane`, lower-left corner at `x`.
-fn square_at(
-    plane: pncad::document::RecipeNodeId,
-    s: f64,
-    x: f64,
-) -> pncad::document::AuthoredNode {
+fn square_at(s: f64, x: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
@@ -2447,8 +2503,7 @@ fn square_at(
 fn the_document_export_door_ships_the_multi_solid_product() {
     use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty_derived("world-doc-export", Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, p0) = insert(doc, square_at(plane, 2.0, 0.0));
+    let (doc, p0) = insert(doc, square_at(2.0, 0.0));
     let (doc, b0) = insert(
         doc,
         Node::Extrude {
@@ -2456,8 +2511,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: len(1.5),
         },
     );
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, p1) = insert(doc, square_at(plane, 1.0, 10.0));
+    let (doc, p1) = insert(doc, square_at(1.0, 10.0));
     let (doc, b1) = insert(
         doc,
         Node::Extrude {
@@ -2501,8 +2555,7 @@ fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
     use pncad::document::{Node, ProductError};
     use pncad::export::ExportError;
     let doc = pncad::document::ProfileDoc::empty_derived("world-doc-export-empty", Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, p0) = insert(doc, square_at(plane, 2.0, 0.0));
+    let (doc, p0) = insert(doc, square_at(2.0, 0.0));
     let refuses = |doc: &pncad::document::ProfileDoc| {
         let ev = doors_evaluate(doc);
         match pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
@@ -2524,7 +2577,7 @@ fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
         distance: len(1.0),
     };
     let (doc, b0) = insert(doc, extrude(p0));
-    let (doc, p1) = insert(doc, square_at(plane, 1.0, 10.0));
+    let (doc, p1) = insert(doc, square_at(1.0, 10.0));
     let (doc, b1) = insert(doc, extrude(p1));
     assert_eq!(
         refuses(&doc),
@@ -2573,21 +2626,19 @@ fn the_export_door_refuses_typed_not_vaguely() {
     // A failing Boolean and its downstream: the second box's floor
     // stands 2ε off the first's, inside the ambiguity band at every ε.
     let sliver = 2.0 * pncad::geom_core::Tol::witness().eps();
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(pncad::document::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(sliver)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
-    let (doc, second_profile) = insert(doc, square(plane, 1.0));
+    let (doc, second_profile) = insert(doc, square(1.0));
     let (doc, second_box) = insert(
         doc,
         Node::Extrude {
             profile: second_profile.into(),
             distance: len(1.0),
         },
+    );
+    let (doc, second_box) = placed_against(
+        doc,
+        first_box,
+        second_box,
+        &pncad::document::Frame::translation([0.0, 0.0, sliver]),
     );
     let (doc, cut) = insert(
         doc,
@@ -2707,16 +2758,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             distance: len(0.5),
         },
     );
-    // The tab sits inside the plate's slab: its own plane, so its own
-    // frame.
-    let (doc, tab_plane) = insert(
-        doc,
-        Node::Datum(pncad::document::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.125)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
     let (doc, tab_p) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -2733,6 +2774,13 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             profile: tab_p.into(),
             distance: len(0.25),
         },
+    );
+    // The tab is placed against the plate, inside its slab.
+    let (doc, tab) = placed_against(
+        doc,
+        plate,
+        tab,
+        &pncad::document::Frame::translation([0.0, 0.0, 0.125]),
     );
     let (doc, solid) = insert(
         doc,
@@ -2936,8 +2984,7 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
     );
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, square(plane, 2.0));
+    let (doc, profile) = insert(doc, square(2.0));
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -3745,8 +3792,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     // after the assembly pinned it" state.
     let edited = {
         let doc = pncad::document::ProfileDoc::empty(doc_ref.id, Tol::witness());
-        let (doc, plane) = insert(doc, xy_frame());
-        let (doc, profile) = insert(doc, square(plane, 3.0));
+        let (doc, profile) = insert(doc, square(3.0));
         let (doc, _) = insert(
             doc,
             pncad::document::Node::Extrude {
@@ -4356,8 +4402,7 @@ fn asm4_workspace_create_and_resave() {
 
     // Resave rewrites in place; the old pin no longer holds and the
     // stale reference is a typed PinMismatch (A4 — never retargeted).
-    let (moved, plane) = insert(doc.clone(), xy_frame());
-    let (moved, _) = insert(moved, square(plane, 3.0));
+    let (moved, _) = insert(doc.clone(), square(3.0));
     let resaved = ws
         .resave(&moved, Tol::witness())
         .expect("the resave writes");
@@ -6510,69 +6555,29 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 }
 
 /// A user's program through the façade, holding the unit-vector
-/// witness: datum nodes evaluate, their `PoseValue` fields ARE the
-/// witnesses, and the doors that take or mint the type are reached
-/// without naming a second crate.
+/// witness: a `PoseValue`'s fields ARE witnesses, and the doors that
+/// take or mint the type are reached without naming a second crate.
 mod unit_vector_witness_through_the_facade {
-    use pncad::document::{
-        CancelToken, Datum, Doc, EvalOptions, Node, NodeResult, PoseValue, ProfileProgram,
-        RecipeNodeId, ValuePayload, evaluate,
-    };
-    use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+    use pncad::document::PoseValue;
     use pncad::geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
     use pncad::topo::DATUM_UNIT_NORM;
 
-    type ProfileDoc = Doc<ProfileProgram>;
-
-    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> PoseValue<f64> {
-        let ev = evaluate::<f64>(
-            doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
-            panic!("the datum evaluated: {:?}", ev.nodes.get(&node));
-        };
-        let ValuePayload::Datum(d) = &v.payload else {
-            panic!("a datum payload");
-        };
-        d.clone()
-    }
     fn bits(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
     }
 
-    /// The witnesses a datum frame evaluates to are the normalized
-    /// values, they reach the witness doors as the type, and the frame
-    /// doors that still take a bare vector decide the same direction a
-    /// second time to the same bits.
+    /// Witnesses minted from UNNORMALIZED vectors, as a user types
+    /// them, are the normalized values; they reach the witness doors as
+    /// the type, and the frame doors that still take a bare vector
+    /// decide the same direction a second time to the same bits.
     #[test]
-    fn a_users_datum_frame_hands_its_witnesses_to_the_doors() {
-        let doc = ProfileDoc::empty_derived("unit_vector_witness_e2e", Tol::witness());
-        // An UNNORMALIZED plane normal and axis direction, as a user
-        // types them.
-        let (doc, plane) = super::insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [super::len(1.0), super::len(2.0), super::len(3.0)],
-                normal: [super::scl(0.0), super::scl(0.0), super::scl(2.5)],
-            }),
-        );
-        let (doc, axis) = super::insert(
-            doc,
-            Node::Datum(Datum::Axis {
-                origin: [super::len(0.0), super::len(0.0), super::len(0.0)],
-                direction: [super::scl(3.0), super::scl(4.0), super::scl(0.0)],
-            }),
-        );
-        let PoseValue::Plane { origin, normal } = datum_of(&doc, plane) else {
-            panic!("a plane datum");
-        };
-        let PoseValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
-            panic!("an axis datum");
-        };
+    fn a_users_witnesses_reach_the_doors() {
+        use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let origin = Point3::new(1.0, 2.0, 3.0);
+        let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), DATUM_UNIT_NORM, band).unwrap();
+        let ao = Point3::origin();
+        let dir = UnitVec3::new(Vec3::new(3.0, 4.0, 0.0), DATUM_UNIT_NORM, band).unwrap();
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(bits(dir.get()), bits(Vec3::new(0.6, 0.8, 0.0)));
 
@@ -6638,7 +6643,7 @@ mod unit_vector_witness_through_the_facade {
 /// node alone, with every other node green.
 mod the_hollowed_box_through_the_facade {
     use pncad::document::{
-        CancelToken, EvalOptions, Evaluation, ExtrudeSide, LoopProgram, Node, NodeErrorKind,
+        CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind,
         NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::Tol;
@@ -6951,33 +6956,31 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
 #[test]
 fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     use pncad::document::{
-        Axis3, Datum, Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, SlotId, VarName,
-    };
-    let point = |x: Formula| DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point {
-            position: [
-                x,
-                Formula::literal(0.0, Dimension::Length).unwrap(),
-                Formula::literal(0.0, Dimension::Length).unwrap(),
-            ],
-        })),
-        fresh: Vec::new(),
+        Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, RecipeNodeId, SlotId, VarName,
     };
     let apply = |doc: &ProfileDoc, edit: &DocEdit<_>| {
         pncad::document::apply(doc, edit, Tol::witness(), &pncad::document::RefusingReach)
     };
     let doc = ProfileDoc::empty_derived("facade-fork7", Tol::witness());
+    let (doc, profile) = insert(doc, square(1.0));
+    let extrude = |profile: RecipeNodeId, distance: Formula| DocEdit::InsertNode {
+        node: Box::new(Node::Extrude {
+            profile: profile.into(),
+            distance,
+        }),
+        fresh: Vec::new(),
+    };
     let first = apply(
         &doc,
-        &point(Formula::literal(0.5, Dimension::Length).unwrap()),
+        &extrude(profile, Formula::literal(0.5, Dimension::Length).unwrap()),
     )
-    .expect("a typed point");
+    .expect("a typed distance");
     let a = first.record.minted.expect("minted");
     let x = first
         .doc
-        .slot(a, SlotId::Origin(Axis3::X))
-        .expect("a reads x");
-    let second = point(Formula::var(x, Dimension::Length));
+        .slot(a, SlotId::Distance)
+        .expect("a reads its distance");
+    let second = extrude(profile, Formula::var(x, Dimension::Length));
     match apply(&first.doc, &second) {
         Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), x),
         other => panic!("an unnamed variable's second reader refuses, got {other:?}"),
@@ -6993,5 +6996,5 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     .doc;
     let shared = apply(&named, &second).expect("a named variable is shared");
     let b = shared.record.minted.expect("minted");
-    assert_eq!(shared.doc.slot(b, SlotId::Origin(Axis3::X)), Some(x));
+    assert_eq!(shared.doc.slot(b, SlotId::Distance), Some(x));
 }

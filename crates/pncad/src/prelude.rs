@@ -700,11 +700,9 @@ pub use stl::{
 // what a document stores; a node an edit carries is an `AuthoredNode`.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (`crate::document`). `Datum` and `VarEnv` ride here
-// because a datum node is the frame a
-// `GeomPred::DatumDistance` selection is written against, and
-// `select_where` takes a `VarEnv`, so both are needed to write a
-// position filter at all.
+// surface (`crate::document`). `VarEnv` rides here because
+// `select_where` takes one, so it is needed to write a position filter
+// at all.
 // `VarName`, `FreeVar` and `VarDecl` ride here because they are what
 // `DocEdit::DeclareVar` and `Formula::named` take, and `VarDef` because it
 // is what a document's variable reads back as, so a prelude user
@@ -720,7 +718,7 @@ pub use stl::{
 // read out of a file gets. `VarNameFault` is the same thing for
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
+    AuthoredNode, CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
     Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
     PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,

@@ -1058,8 +1058,10 @@ pub fn place_against_in(
     let m = placed.linear * (z * copy_z);
     let untilted = m.x == 0.0 && m.y == 0.0;
     let (on, to, to_normal) = if untilted {
-        // The target's face slid along its own normal onto the copy's.
-        let along = target_z * placed.translation.z * -1.0;
+        // The target's face slid along its own normal onto the copy's:
+        // the copy's face stands `t.z` up the target's own z, which is
+        // `target_z · t.z` along the face's normal.
+        let along = target_z * placed.translation.z;
         let to_plane = plane(target, target_face);
         let to = if along == 0.0 {
             to_plane

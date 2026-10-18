@@ -110,9 +110,10 @@ pub use editor_core::cascade_delete_order;
 // `CopyKey`; a placement's constraints are addressed by their
 // `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, Datum, ExtrudeSide, InputFault,
-    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, InputFault, ListFault,
+    LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow,
+    VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -127,10 +128,6 @@ pub use editor_core::{
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.
 pub use editor_core::{Label, LabelFault};
-
-// Placement: the chain a `Node::Transform` holds — rigid steps of
-// expressions and literal frames — and its steps.
-pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
 // A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
@@ -321,7 +318,7 @@ pub use editor_core::DocParamField;
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
+    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, ProfileLift,
     SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
@@ -386,8 +383,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the rigid motion a `Placement`
-// evaluates to;
+// Instantiated parts. `Frame` is the rigid motion a placement solves
+// to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -437,13 +434,14 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Anchor, CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal,
+    CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal,
     Lever, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy,
     OVERCONSTRAINED_RECOURSE, PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
     ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
-    Unobservable, Value, WorldPin, WorldRead, WorldReadFault, head_face, head_of, mate_reach,
-    member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
-    relative_freedom_components, solve_document, unobservable,
+    Unobservable, Value, WorldRead, WorldReadFault, frame_at, frame_at_in, head_face, head_of,
+    mate_reach, member_of, member_reading, pin_at, pin_at_in, place_against, place_against_in,
+    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
+    stand_in, unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

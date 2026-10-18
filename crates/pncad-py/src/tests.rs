@@ -45,24 +45,8 @@ fn len(metres: f64) -> pncad::document::Formula {
     Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
-/// A dimensionless literal — a direction component — as [`len`].
-fn scl(value: f64) -> pncad::document::Formula {
-    use pncad::document::{Dimension, Formula};
-    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// The world xy frame — the plane the box document sketches on.
-fn xy_frame() -> pncad::document::AuthoredNode {
-    use pncad::document::{Datum, Node};
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
-/// A square profile-program node, `[0,s]²` on `plane`.
-fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
+/// A square profile-program node, `[0,s]²` on its own plane.
+fn square(s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
@@ -76,30 +60,80 @@ fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::Auth
     })
 }
 
+/// Apply an edit the doors admit.
+fn applied(
+    doc: &pncad::document::ProfileDoc,
+    edit: pncad::document::DocEdit<pncad::document::ProfileProgram>,
+) -> pncad::document::Applied<pncad::document::ProfileProgram> {
+    pncad::document::apply(
+        doc,
+        &edit,
+        pncad::tolerance::Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("the edit is accepted: {e}"))
+}
+
 /// Insert a node, returning the (document, minted id) pair.
 fn insert(
     doc: pncad::document::ProfileDoc,
     node: pncad::document::AuthoredNode,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    let applied = pncad::document::apply(
+    let applied = applied(
         &doc,
-        &pncad::document::DocEdit::InsertNode {
+        pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
             fresh: Vec::new(),
         },
-        pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the edit is accepted");
+    );
     let minted = applied.record.minted.expect("an insert mints an id");
     (applied.doc, minted)
 }
 
+/// `placement`'s one copy standing where its body stands
+/// ([`pncad::document::stand`]): the mate and its values, added.
+fn stood(
+    doc: pncad::document::ProfileDoc,
+    placement: pncad::document::RecipeNodeId,
+) -> pncad::document::ProfileDoc {
+    use pncad::document::{DocEdit, Node, Operand, Value};
+    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+        panic!("{placement} is a placement");
+    };
+    let copy = Operand::Var(shapes[0].read);
+    let placed = pncad::document::stand(
+        &doc,
+        &copy,
+        &pncad::document::EvalOptions::default(),
+        pncad::tolerance::Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
+    let added = applied(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = added.record.minted_constraints[0];
+    placed.values.into_iter().fold(added.doc, |doc, (coord, by)| {
+        applied(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .doc
+    })
+}
+
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// at the identity, pinned over its own geometry. Returns (doc,
-/// profile id, body id) — the MINTED ids, so no caller couples to mint
-/// order.
+/// standing where it stands. Returns (doc, profile id, body id) — the
+/// MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
 ) -> (
@@ -109,8 +143,7 @@ fn box_doc(
 ) {
     use pncad::document::{Node, ProfileDoc};
     let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, square(plane, 2.0));
+    let (doc, profile) = insert(doc, square(2.0));
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -122,17 +155,15 @@ fn box_doc(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
-    let doc = pncad::document::apply(
-        &doc,
-        &pncad::document::DocEdit::PinWhereItStands { placement },
-        pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the world pin is admitted")
-    .doc;
-    (doc, profile, body)
+    (stood(doc, placement), profile, body)
 }
 // END box-document fixture twin
+
+/// A dimensionless literal — a direction component — as [`len`].
+fn scl(value: f64) -> pncad::document::Formula {
+    use pncad::document::{Dimension, Formula};
+    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
 
 #[test]
 fn dimension_tags_are_stable() {
