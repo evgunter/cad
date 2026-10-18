@@ -1,14 +1,12 @@
-//! MATE-1 acceptance — issue 945's member-vocabulary rider (A11),
-//! implemented: a mate reference head is a live `InstantiatePart` OR a
-//! pattern-placed instance (`Pattern` node + `Instance(i)` qualifier)
-//! at its pattern-derived pose.
+//! MATE-1 acceptance — issue 945's member-vocabulary rider (A11): a
+//! mate may read a face of a pattern-placed copy (`Pattern` node +
+//! `Instance(i)` qualifier) at its pattern-derived pose.
 //!
-//! The rows, in the spec's order: the red-first four-legs-one-top
-//! document (refused `DanglingHead` before this unit); the
+//! The rows, in the spec's order: the four-legs-one-top document; the
 //! pattern-derived pose asserted against hand-composed frames
 //! (translation AND rotation, from the pattern's own parameters); the
 //! ratified pin that mates never solve pattern parameters; and the
-//! fence of heads the vocabulary still refuses.
+//! fence of mates the vocabulary refuses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -16,13 +14,13 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Frame, MateFrame,
-    MatePrimitive, MateRef, Node, PatternKind, ProfileDoc, RecipeNodeId, Space, StableName,
+    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide,
+    NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
-    ang, at_the_door_of, constrain, door_refusal, in_copy, insert, len, on_frame, run, scl, solve,
-    step,
+    ang, at_the_door_of, constrain, head, in_copy, insert, insert_pinned, len, on_frame, plane,
+    rest, run, scl, solve, step,
 };
 use geom_core::Tol;
 
@@ -55,73 +53,126 @@ fn block_part(
     )
 }
 
-/// The unit cube `[0,1]³` — the leg.
+/// The unit cube `[0,1]³` — the leg, and the top seated on it.
 fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
+/// **A stored unit-cube part**: its reference, its body, and the
+/// part's own names for its walls 0 (`y = 0`) and 1 (`x = 1`), as the
+/// part's placement carries them.
+struct Cube {
+    doc_ref: editor_core::DocRef,
+    body: RecipeNodeId,
+    walls: [RoleSeg; 2],
 }
 
-/// A pinning `Rest` mate by frame coincidence: `b`'s bottom frame
-/// onto the `a`-side frame at `origin` (one coincidence, which pins
-/// the copy it places outright).
-fn seat_mate(
-    a: StableName,
-    b: StableName,
-    origin: [f64; 3],
-    sense: AxisSense,
-) -> editor_core::Mate<Formula> {
-    primitive_mate(a, b, origin, sense, MatePrimitive::FrameCoincidence)
+fn cube(store: &mut PartStore, label: &str) -> Cube {
+    let (doc, body) = leg_part(label);
+    let walls = [fixture::wall(&doc, body, 0), fixture::wall(&doc, body, 1)];
+    let (doc_ref, body) = store.insert_part((doc, body), Tol::witness());
+    Cube {
+        doc_ref,
+        body,
+        walls,
+    }
 }
 
-/// [`seat_mate`] under any primitive.
-fn primitive_mate(
-    a: StableName,
-    b: StableName,
-    origin: [f64; 3],
-    sense: AxisSense,
-    primitive: MatePrimitive,
-) -> editor_core::Mate<Formula> {
-    fixture::mate(
-        fixture::head(a),
-        fixture::head(b),
-        ContactClass::Rest,
-        Alignment {
-            a: frame(origin, [0.0, 0.0, 1.0]),
-            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            primitive,
-            sense,
-            clocking: None,
-        },
-    )
+impl Cube {
+    /// The cap `end` of this part as `instance` places it.
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+        in_part(instance, self.body, end)
+    }
+
+    /// Wall `k` of this part as `instance` places it — the part's own
+    /// name under its placement's copy, worn inside the instance's
+    /// `InPart`.
+    fn wall(&self, instance: RecipeNodeId, k: usize) -> StableName {
+        let placed = StableName {
+            kind: EntityKind::Face,
+            node: placement_of(self.body),
+            path: vec![RoleSeg::Placed {
+                of: NameRef::new(StableName {
+                    kind: EntityKind::Face,
+                    node: self.body,
+                    path: vec![self.walls[k].clone()],
+                }),
+            }],
+        };
+        fixture::face(placed).in_part(instance).into_name()
+    }
+}
+
+/// **`face`'s plane slid `by` along its own normal**: a standoff, which
+/// places and declares no contact — what a flush wall is mated to.
+fn standoff(face: impl Into<editor_core::Operand>, by: f64) -> editor_core::Operand {
+    let p = plane(face);
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
+        pose: editor_core::pose::RoleRead::plain(p.clone()),
+        along: editor_core::pose::RoleRead::through(p, editor_core::pose::PoseRole::Normal),
+        by: len(by),
+    }))
+}
+
+/// **The seat**: the top's start cap resting on `copy`'s end cap, and
+/// its walls 0 and 1 flush with the copy's (a standoff of zero, so
+/// only the rest declares a contact) — three plane mates whose normals
+/// span space, so together they pin the top with no value: it stands on
+/// the copy exactly as the copy's own coordinates lifted by one,
+/// whatever pose the copy has.
+fn seat(
+    doc: ProfileDoc,
+    top: RecipeNodeId,
+    top_part: &Cube,
+    copy: impl Fn(StableName) -> StableName,
+    copy_part: &Cube,
+    copy_at: RecipeNodeId,
+) -> (ProfileDoc, MateRef) {
+    let (doc, m) = constrain(
+        doc,
+        rest(
+            head(top_part.cap(top, CapEnd::Start)),
+            head(copy(copy_part.cap(copy_at, CapEnd::End))),
+            ContactClass::Rest,
+        ),
+    );
+    let doc = (0..2).fold(doc, |doc, k| {
+        constrain(
+            doc,
+            fixture::mate(
+                plane(head(top_part.wall(top, k))),
+                standoff(head(copy(copy_part.wall(copy_at, k))), 0.0),
+                ContactClass::Rest,
+            ),
+        )
+        .0
+    });
+    (doc, m)
 }
 
 /// The four-legs-one-top document, the issue's own shape: ONE leg
-/// instance, a linear pattern of it (count 4, `spacing` along +x), a
-/// top instance, and a seat mate placing the top on pattern copy `i`.
-/// Returns (doc, leg, pattern, top, mate, store).
+/// instance pinned in the world, a linear pattern of it (count 4,
+/// `spacing` along +x), a top instance, and the seat placing the top
+/// on pattern copy `i`. Returns (doc, leg, pattern, top, rest mate,
+/// options reaching the parts).
 fn four_legs(
     label: &str,
-    top_part: (ProfileDoc, RecipeNodeId),
     spacing: f64,
     i: u32,
-    sense: AxisSense,
 ) -> (
     ProfileDoc,
     RecipeNodeId,
     RecipeNodeId,
     RecipeNodeId,
     MateRef,
-    PartStore,
+    editor_core::EvalOptions,
 ) {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(top_part, Tol::witness());
+    let leg_part = cube(&mut store, &format!("{label}-leg"));
+    let top_part = cube(&mut store, &format!("{label}-top"));
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -133,54 +184,47 @@ fn four_legs(
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = constrain(
+    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    let (doc, mate) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, i, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            sense,
-        ),
+        top,
+        &top_part,
+        |n| in_copy(pattern, i, n),
+        &leg_part,
+        leg,
     );
-    (doc, leg, pattern, top, mate, store)
+    (doc, leg, pattern, top, mate, o)
 }
 
-// ---- The red-first row: four legs, one top ----
+// ---- The headline row: four legs, one top ----
 
-/// INVARIANT (the rider's headline): a mate may name a pattern-placed
-/// instance, and the OTHER member solves to the copy's pattern-derived
-/// pose composed with the mate's own relation. Before this unit the
-/// same document refused `MateFault::DanglingHead` at the pattern head
-/// (the red half, demonstrated against main in the PR).
+/// INVARIANT (the rider's headline): a mate may read a face of a
+/// pattern-placed copy, and the copy it places solves to the copy's
+/// pattern-derived pose composed with the mates' own relation.
 ///
 /// The solved pose is asserted against a frame composed BY HAND from
 /// the pattern's own parameters — translation from `spacing × i`, the
-/// rotation the OPPOSED sense promises — never from the solver's own
-/// output (the ASM-DEMO precedent).
+/// seat's lift of one — never from the solver's own output (the
+/// ASM-DEMO precedent).
+///
+/// *Breaks if* a pattern copy's face is read at its master's pose (the
+/// top lands at `x = 0`), or the seat's lift is lost (`z = 0`).
 #[test]
 fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     let spacing = 2.0;
-    let (doc, leg, _pattern, top, mate, store) = four_legs(
-        "mate1-red-first",
-        leg_part("mate1-red-first-top"),
-        spacing,
-        2,
-        AxisSense::Opposed,
-    );
+    let (doc, leg, _pattern, top, mate, o) = four_legs("mate1-red-first", spacing, 2);
 
-    // The mate's sides: the pattern-member side reads through the
+    // The mate's poses: the pattern-member pose reads through the
     // pattern's INPUT instance, the copy the top is placed against.
     assert_eq!(mate.placement, top, "the mate is in the top's bundle");
-    assert_eq!(
-        crate::fixture::mate_members(&doc),
-        vec![(mate, leg), (mate, top)],
-        "a pattern-placed side lands on the pattern's input instance"
+    assert!(
+        fixture::mate_members(&doc).contains(&(mate, leg)),
+        "a pattern-placed pose lands on the pattern's input instance: {:?}",
+        fixture::mate_members(&doc)
     );
 
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(top), None, "the mate solves — no fault");
+    assert_eq!(poses.fault(top), None, "the mates solve — no fault");
     assert_eq!(
         poses.space(top),
         Some(Space::World),
@@ -188,21 +232,16 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     );
 
     // Hand-composed: copy 2 sits at `translation(spacing·2 · x̂)` (the
-    // pattern's own parameters, nothing read back from the solve); the
-    // OPPOSED coincidence at the a-frame `origin [0,0,1], axis +z,
-    // reference +x` turns the top half a turn IN the seat plane —
-    // about `axis × reference = ŷ` (the flip is about the mate
-    // frame's local X, and `point_at` lays the roll reference along
-    // local +Y, so local X is `reference × axis`; a half-turn about
-    // `−ŷ` and `ŷ` are the same map) — rotation diag(-1, 1, -1).
+    // pattern's own parameters, nothing read back from the solve), and
+    // the seat lifts the top one unit onto the copy's end cap.
     let expected = Frame {
-        columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]],
+        columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [spacing * 2.0, 0.0, 1.0],
     };
     let got = poses.relative(top).expect("the top has a pose");
     assert!(
         near(got, expected, 1e-12),
-        "the top's solved pose is the copy's derived pose composed with the mate:\n\
+        "the top's solved pose is the copy's derived pose composed with the mates:\n\
          got      {got:?}\n expected {expected:?}"
     );
 
@@ -218,18 +257,22 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 /// The rotational half of the derived pose: a CIRCULAR pattern's copy
 /// carries a rotation, and the solved member pose carries it too —
 /// asserted against sin/cos composed in the test from the pattern's
-/// own step angle.
+/// own step angle and axis.
+///
+/// *Breaks if* the copy's rotation is dropped from the face it reads
+/// (the top stays axis-aligned), or turned about the wrong line.
 #[test]
 fn a_circular_pattern_copy_rotates_the_solved_member() {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-circ-leg"), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(leg_part("mate1-circ-top"), Tol::witness());
+    let leg_part = cube(&mut store, "mate1-circ-leg");
+    let top_part = cube(&mut store, "mate1-circ-top");
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
     let (doc, axis) = insert(
         doc,
         Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
+            origin: [len(2.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
@@ -240,39 +283,36 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Circular {
-                axis: axis.into(),
+                axis: editor_core::pose::RoleRead::plain(axis),
                 step: ang(theta),
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = constrain(
+    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    let (doc, mate) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.5, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        top,
+        &top_part,
+        |n| in_copy(pattern, 1, n),
+        &leg_part,
+        leg,
     );
 
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(mate.placement),
         None,
-        "the mate solves — no fault"
+        "the mates solve — no fault"
     );
 
-    // Hand-composed from θ alone: copy 1 is the master rotated θ about
-    // the z axis through the origin, so the member frame — an aligned
-    // coincidence at `[0.5, 0, 1]` in the master's coordinates — lands
-    // rotated and swung around: R_z(θ) as the linear part,
-    // R_z(θ)·[0.5, 0, 1] as the translation.
+    // Hand-composed from θ and the axis alone: copy 1 is the master
+    // turned θ about the z-parallel line through `(2, 0, 0)`, and the
+    // top stands one unit up the copy: R_z(θ) as the linear part, and
+    // R_z(θ)·((0, 0, 1) − (2, 0, 0)) + (2, 0, 0) as the translation.
     let (s, c) = theta.sin_cos();
     let expected = Frame {
         columns: [[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.5 * c, 0.5 * s, 1.0],
+        translation: [2.0 - 2.0 * c, -2.0 * s, 1.0],
     };
     let got = poses.relative(top).expect("the top has a pose");
     assert!(
@@ -280,7 +320,6 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         "the circular copy's rotation reaches the solved member:\n\
          got      {got:?}\n expected {expected:?}"
     );
-    let _ = store;
 }
 
 /// Whether two frames agree to `tol` in every stored coordinate.
@@ -300,17 +339,18 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 /// of a spacing-3 pattern sits at the AUTHORED spacing, the document's
 /// spacing expression is untouched by the solve, and an EDIT of the
 /// parameter — the one road that moves a copy — moves the top with it.
+///
+/// *Breaks if* the solve writes the spacing, or the top does not follow
+/// an edit of it.
 #[test]
 fn mates_never_solve_pattern_parameters() {
     let mut store = PartStore::default();
     let label = "mate1-pin-spacing";
-    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(
-        block_part(&format!("{label}-top"), (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
-        Tol::witness(),
-    );
+    let leg_part = cube(&mut store, &format!("{label}-leg"));
+    let top_part = cube(&mut store, &format!("{label}-top"));
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -322,17 +362,15 @@ fn mates_never_solve_pattern_parameters() {
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = constrain(
+    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    let (doc, mate) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        top,
+        &top_part,
+        |n| in_copy(pattern, 1, n),
+        &leg_part,
+        leg,
     );
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
     let at = poses.placement(&doc, top).expect("the top places");
@@ -380,19 +418,24 @@ fn mates_never_solve_pattern_parameters() {
 
 /// INVARIANT: the literal CONTRADICTORY refusal is reachable through a
 /// pattern-member pair — two mates on the SAME copy whose cosets
-/// cannot meet (a coaxial about the copy's seat axis, then a seat half
-/// a unit off it) die in the bundle's fold with the measured clash,
-/// exactly as a plain pair's would: the door admits each, its pin not
-/// yet whole, and the solve folds the bundle and refuses it. The
-/// derived offset is a static left factor OUTSIDE the fold, so it
-/// cannot absorb the clash.
+/// cannot meet (the top's start cap resting on the copy's end cap,
+/// then the top's own end cap flush with that same cap: parallel
+/// planes a unit apart) die in the bundle's fold with the measured
+/// clash, exactly as a plain pair's would. The door admits each — it
+/// decides structure alone — and the solve folds the bundle and
+/// refuses it. The derived offset is a static left factor OUTSIDE the
+/// fold, so it cannot absorb the clash.
+///
+/// *Breaks if* the fold admits two parallel planes at different
+/// heights, or names the mates the other way round.
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-contra-leg"), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(leg_part("mate1-contra-top"), Tol::witness());
+    let leg_part = cube(&mut store, "mate1-contra-leg");
+    let top_part = cube(&mut store, "mate1-contra-top");
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -404,31 +447,25 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let seat = |origin, primitive| {
-        primitive_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            origin,
-            AxisSense::Aligned,
-            primitive,
-        )
-    };
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, m0) = fixture::constrain_through(
+    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    let copy_end = head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)));
+    let (doc, m0) = constrain(
         doc,
-        &reach,
-        top,
-        seat([0.0, 0.0, 1.0], MatePrimitive::Coaxial),
+        rest(
+            head(top_part.cap(top, CapEnd::Start)),
+            copy_end.clone(),
+            ContactClass::Rest,
+        ),
     );
-    let (doc, _) = fixture::constrain_through(
+    let (doc, _) = constrain(
         doc,
-        &reach,
-        top,
-        seat([0.5, 0.0, 1.0], MatePrimitive::FrameCoincidence),
+        fixture::mate(
+            plane(head(top_part.cap(top, CapEnd::End))),
+            plane(copy_end),
+            ContactClass::Rest,
+        ),
     );
-    let poses = editor_core::solve_document(&doc, &reach, Tol::witness());
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses
         .fault(top)
         .cloned()
@@ -439,23 +476,27 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             editor_core::MateFault::Contradictory { held, added, .. }
                 if held == m0 && added.placement == top && added != m0
         ),
-        "two seats on one copy that cannot both hold die in the fold: {fault:?}"
+        "two mates on one copy that cannot both hold die in the fold: {fault:?}"
     );
 }
 
-// ---- The fence: what the vocabulary still refuses ----
+// ---- The fence: what the vocabulary refuses ----
 
 /// INVARIANT: the member vocabulary admits exactly what the rider
-/// names. A copy index at or past the count resolves to no member, and
-/// refuses `DanglingHead` at the PATTERN node, exactly as every out-of-
-/// vocabulary head does.
+/// names. A copy index at or past the count reads no face: the door
+/// admits the mate (it decides structure alone), and the placement
+/// refuses where it evaluates, its `to` pose unevaluated.
+///
+/// *Breaks if* a copy past the count resolves to some face, or its
+/// refusal is laid on the `on` pose.
 #[test]
-fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
+fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-fence-leg"), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(leg_part("mate1-fence-top"), Tol::witness());
+    let leg_part = cube(&mut store, "mate1-fence-leg");
+    let top_part = cube(&mut store, "mate1-fence-top");
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -467,39 +508,40 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
             },
         },
     );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // Copy 5 of a count-2 pattern: no such member. A head that
-    // resolves to no member is a fact about the mate alone, so the
-    // edit door refuses it where it is authored, with the solve's own
-    // fault: the walk's, naming the pattern.
-    let fault = door_refusal(
-        &doc,
-        seat_mate(
-            in_copy(pattern, 5, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
+    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    // Copy 5 of a count-2 pattern: no such member.
+    let (doc, mate) = constrain(
+        doc,
+        rest(
+            head(top_part.cap(top, CapEnd::Start)),
+            head(in_copy(pattern, 5, leg_part.cap(leg, CapEnd::End))),
+            ContactClass::Rest,
         ),
     );
+    let poses = solve(&doc, &o, Tol::witness());
+    let fault = poses.fault(top).cloned().expect("the placement refuses");
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+            editor_core::MateFault::SideUnevaluated { mate: m, side: MateSide::To, .. }
+                if m == mate
         ),
-        "a copy index past the count is a dangling head at the pattern: {fault:?}"
+        "a copy index past the count leaves the mate's `to` pose unevaluated: {fault:?}"
     );
-    let _ = store;
 }
 
-/// INVARIANT: one copy named on BOTH sides is the self-mate refusal,
-/// a fact about the mate alone, met at the edit door with the solve's
-/// own fault — whichever placement the mate is offered to.
+/// INVARIANT: a mate whose `on` reads a copy of the instance's
+/// pattern, rather than the instance's own output, pins nothing of the
+/// instance — a fact about the mate alone, met at the edit door.
+///
+/// *Breaks if* the door takes a pattern copy's face for the copy the
+/// instance defines.
 #[test]
-fn one_copy_twice_is_a_self_mate() {
+fn one_copy_twice_is_not_on_the_copy() {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-selfpair-leg"), Tol::witness());
+    let leg_part = cube(&mut store, "mate1-selfpair-leg");
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-selfpair"), Tol::witness());
-    let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
+    let (doc, leg) = insert(doc, fixture::mated_instance(leg_part.doc_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -511,40 +553,38 @@ fn one_copy_twice_is_a_self_mate() {
             },
         },
     );
+    let copy_end = || head(in_copy(pattern, 2, leg_part.cap(leg, CapEnd::End)));
     let refusal = at_the_door_of(
         &doc,
         &editor_core::RefusingReach,
         leg,
-        seat_mate(
-            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
-            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        rest(copy_end(), copy_end(), ContactClass::Rest),
     );
     assert!(
         matches!(
             refusal,
-            Err((_, editor_core::MateFault::SelfMate { instance, .. })) if instance == leg
+            Err((at, editor_core::MateFault::NotOnTheCopy { mate })) if at == leg && mate.placement == leg
         ),
-        "one member on both sides is the self-mate refusal: {:?}",
+        "a mate reading one pattern copy on both poses is not on the instance's copy: {:?}",
         refusal.err()
     );
-    let _ = store;
 }
 
 /// INVARIANT: two DISTINCT copies of one instance's pattern both stand
-/// on that instance, so a constraint of the instance reading copy 0 on
-/// one side and copy 1 on the other relates the copy to itself: the
-/// same self-mate refusal, met at the edit door. (A pattern of a copy
-/// moves with the copy, so no bundle of the copy can pin one of its
+/// on that instance, so a constraint of the instance reading copy 0 as
+/// `on` and copy 1 as `to` reads no face of the instance's own copy:
+/// the same refusal, met at the edit door. (A pattern of a copy moves
+/// with the copy, so no bundle of the copy can pin one of its
 /// pattern's copies against another.)
+///
+/// *Breaks if* the door takes a pattern copy's face for the copy the
+/// instance defines.
 #[test]
-fn sibling_copies_of_one_instances_pattern_are_a_self_mate() {
+fn sibling_copies_of_one_instances_pattern_are_not_on_the_copy() {
     let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-siblings-leg"), Tol::witness());
+    let leg_part = cube(&mut store, "mate1-siblings-leg");
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-siblings"), Tol::witness());
-    let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
+    let (doc, leg) = insert(doc, fixture::mated_instance(leg_part.doc_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -560,20 +600,18 @@ fn sibling_copies_of_one_instances_pattern_are_a_self_mate() {
         &doc,
         &editor_core::RefusingReach,
         leg,
-        seat_mate(
-            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
+        rest(
+            head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End))),
+            head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End))),
+            ContactClass::Rest,
         ),
     );
     assert!(
         matches!(
             refusal,
-            Err((_, editor_core::MateFault::SelfMate { instance, .. })) if instance == leg
+            Err((at, editor_core::MateFault::NotOnTheCopy { mate })) if at == leg && mate.placement == leg
         ),
-        "sibling copies of one instance's pattern are one member: {:?}",
+        "sibling copies of one instance's pattern are not its copy: {:?}",
         refusal.err()
     );
-    let _ = store;
 }

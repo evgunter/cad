@@ -5053,32 +5053,183 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                 "Node": "261:0ea46419d705a54c"
               }
             ],
-            "constraints": [
-              {
-                "id": "0:0000000000000000",
-                "mate": {
-                  "a": "world",
-                  "b": "copy",
-                  "class": "rest",
-                  "alignment": {
-                    "a": {
-                      "base": "World",
-                      "offset": {
-                        "steps": []
-                      }
+            "constraints": []
+          }
+        }
+      }
+    },
+    {
+      "AddConstraint": {
+        "placement": "263:63aef0db706484f3",
+        "mate": {
+          "on": {
+            "Pose": {
+              "Plane": {
+                "face": {
+                  "Select": {
+                    "body": {
+                      "Var": "262:6ac240a9023ce056"
                     },
-                    "b": {
-                      "base": "Part",
-                      "offset": {
-                        "steps": []
+                    "names": [
+                      {
+                        "kind": "Face",
+                        "node": "261:0ea46419d705a54c",
+                        "path": [
+                          {
+                            "From": {
+                              "read": "258:23b1ad85ae6aeda4",
+                              "of": {
+                                "kind": "Face",
+                                "node": "257:8696b14d225dd58c",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "254:185609c8a4cf239f",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "253:a9a9e49fc7cb4d18",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "29:9117322ce802f579",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "28:065cfa8f90376363",
+                                                "path": [
+                                                  {
+                                                    "Cap": "End"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
                       }
-                    },
-                    "primitive": "frame_coincidence",
-                    "sense": "aligned"
+                    ]
                   }
                 }
               }
-            ]
+            }
+          },
+          "to": {
+            "world": {
+              "role": {
+                "pose": {
+                  "slide": {
+                    "pose": {
+                      "slide": {
+                        "pose": {
+                          "slide": {
+                            "pose": "frame",
+                            "along": {
+                              "role": {
+                                "pose": "frame",
+                                "role": "X"
+                              }
+                            },
+                            "by": {
+                              "Quantity": {
+                                "value": 0.5,
+                                "dim": "Length",
+                                "unit": "m"
+                              }
+                            }
+                          }
+                        },
+                        "along": {
+                          "role": {
+                            "pose": "frame",
+                            "role": "Y"
+                          }
+                        },
+                        "by": {
+                          "Quantity": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        }
+                      }
+                    },
+                    "along": {
+                      "role": {
+                        "pose": "frame",
+                        "role": "Z"
+                      }
+                    },
+                    "by": {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  }
+                },
+                "role": "Xy"
+              }
+            }
+          },
+          "class": "rest"
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:63aef0db706484f3",
+        "value": {
+          "mate": "270:5b2c19068ee338ad",
+          "coord": {
+            "slide": "x"
+          },
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:63aef0db706484f3",
+        "value": {
+          "mate": "270:5b2c19068ee338ad",
+          "coord": {
+            "slide": "y"
+          },
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:63aef0db706484f3",
+        "value": {
+          "mate": "270:5b2c19068ee338ad",
+          "coord": "spin",
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Angle",
+              "unit": "rad"
+            }
           }
         }
       }

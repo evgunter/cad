@@ -77,8 +77,8 @@ fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
             let Some(Surface::Nurbs(payload)) = body.get_surface(face.surface) else {
                 continue;
             };
-            let (u0, u1) = payload.knots_u().domain();
-            let (v0, v1) = payload.knots_v().domain();
+            let (u0, u1) = payload.knots_u_f64_interim().domain();
+            let (v0, v1) = payload.knots_v_f64_interim().domain();
             let n = 24;
             for i in 0..=n {
                 for j in 0..=n {

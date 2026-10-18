@@ -431,7 +431,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     // The world: every body the document builds and nothing builds on,
     // in document order — the chamfered prism, the two tubes and the
-    // shell.
+    // shell — each placed and pinned at the identity.
     let placed: Vec<editor_core::RecipeNodeId> = doc
         .ids()
         .into_iter()
@@ -448,7 +448,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         })
         .collect();
     for body in placed {
-        doc = push(&doc, &DocEdit::place_in_world(body, None));
+        doc = fixture::place(doc, body).0;
     }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4
@@ -465,8 +465,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     (doc, edits)
 }
 
+/// The frozen bytes, built at the golden's own pinned ε. Its placements
+/// are pinned by the gesture (`pin_at`), which reads each copy's
+/// geometry off an evaluation at the process ε, so a matrix row at
+/// another ε builds another document — one the load door refuses
+/// (`ToleranceConflict`, [`golden_bytes_load`]) — and skips.
 #[test]
 fn golden_bytes_are_frozen() {
+    if geom_core::Tol::witness().get().eps.to_bits() != 1e-9f64.to_bits() {
+        return;
+    }
     let (doc, edits) = golden();
     let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {

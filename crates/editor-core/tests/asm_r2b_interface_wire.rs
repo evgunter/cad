@@ -14,11 +14,11 @@
 
 use crate::fixture;
 use crate::wire::{doctored, wire_body};
+use editor_core::pose::PoseRole;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, Mate, MateFrame, MatePrimitive, Node,
-    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace,
-    StableName, apply, load, save,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
+    InterfaceCrossing, InterfaceRecord, Mate, Node, PersistError, ProfileDoc, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -58,34 +58,20 @@ fn doc_with_a_crossing() -> ProfileDoc {
         .expect("the fixture's nodes insert")
         .doc
     };
-    host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
+    host = push(&host, Box::new(fixture::mated_instance(doc_ref)));
     host = push(&host, Box::new(fixture::mated_instance(doc_ref)));
     let (first, second) = (host.ids()[0], host.ids()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame");
     let (host, _) = fixture::constrain_at(
         host,
         second,
-        fixture::mate(
-            sited(first, CapEnd::End),
+        fixture::rest(
             sited(second, CapEnd::Start),
+            sited(first, CapEnd::End),
             ContactClass::Rest,
-            Alignment {
-                a: frame.clone(),
-                b: frame,
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
         ),
     );
     let record = InterfaceRecord {
@@ -101,13 +87,23 @@ fn doc_with_a_crossing() -> ProfileDoc {
             inner: face(RecipeNodeId::new(0, 7), CapEnd::Start),
         }],
     };
-    // Pinned to the world at the identity, as a split's instance is.
+    // Related to the world by a mate, as a split's instance is: its
+    // start cap rests on the world's xy plane.
     let host = push(
         &host,
         Box::new(Node::instantiate_part_with(doc_ref, record)),
     );
     let instance = *host.ids().last().expect("the record's instance is live");
-    fixture::constrain_at(host, instance, Mate::world_pin(Placement::IDENTITY)).0
+    fixture::constrain_at(
+        host,
+        instance,
+        Mate {
+            on: fixture::plane(sited(instance, CapEnd::Start)),
+            to: Target::World(WorldRead::through(PoseRole::Xy)),
+            class: ContactClass::Rest,
+        },
+    )
+    .0
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

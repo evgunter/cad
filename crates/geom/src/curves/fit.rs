@@ -420,7 +420,9 @@ pub fn interpolate_columns(
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
 /// interior parameter may be wider than a point. The averaged knots are
 /// a carrier's, and one wider than a point refuses
-/// ([`SplineError::KnotNotAPoint`]). The arithmetic is [`interpolate_columns`]'s
+/// ([`SplineError::CarrierKnotNotAPoint`]) before the collocation rows
+/// are formed: a row is one span's basis, and over a wide knot the
+/// members' spans differ. The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
@@ -497,7 +499,13 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
         _ => runs.push((T::one(), end)),
     }
-    Knots::new(runs, degree).map_err(FitError::Structure)
+    let knots = Knots::new(runs, degree).map_err(FitError::Structure)?;
+    if let Some(index) = knots.runs().position(|(v, _)| v.point_value().is_none()) {
+        return Err(FitError::Structure(SplineError::CarrierKnotNotAPoint {
+            index,
+        }));
+    }
+    Ok(knots)
 }
 
 /// [`rational_row`] at unit weights, in `T`: the basis values alive at
@@ -847,7 +855,7 @@ macro_rules! nurbs_fit {
                         // Collected: the body replaces `cur`, so the
                         // candidate list must outlive the borrow.
                         let candidates: Vec<f64> =
-                            cur.knots().interior_knots().map(|(u, _)| u).collect();
+                            cur.knots_f64_interim().interior_knots().map(|(u, _)| u).collect();
                         for u in candidates {
                             if attempts >= budget {
                                 return Err(FitError::BudgetExhausted {
@@ -929,7 +937,7 @@ macro_rules! nurbs_fit {
                 bound: f64,
                 tolerance: f64,
             ) -> Result<(Self, f64, Option<RefitSkip>), FitError> {
-                let n_ctrl = cur.knots().control_count();
+                let n_ctrl = cur.knots_f64_interim().control_count();
                 let n_data = points.len();
                 if n_ctrl > n_data || n_ctrl < 3 || n_data < 3 {
                     return Ok((cur, bound, Some(RefitSkip::StructureRicherThanData)));
@@ -938,7 +946,7 @@ macro_rules! nurbs_fit {
                 // in this vector and evaluates the basis through it, so
                 // the vector the span names should be the curve's own
                 // rather than a copy of it.
-                let kv = cur.knots();
+                let kv = cur.knots_f64_interim();
                 let weights = cur.weights().to_vec();
                 let q0 = points[0];
                 let qm = points[n_data - 1];
@@ -1080,7 +1088,11 @@ mod tests {
 
                 let collocation = Collocation::new(&params, degree).unwrap();
                 let on = NurbsCurve3::interpolate_on(&pts, &collocation).unwrap();
-                assert_eq!(on.knots(), curve.knots(), "factor-once knots, n = {n}");
+                assert_eq!(
+                    on.knots_f64_interim(),
+                    curve.knots_f64_interim(),
+                    "factor-once knots, n = {n}"
+                );
                 let on_bits: Vec<Vec<f64>> =
                     on.control().iter().map(|q| vec![q.x, q.y, q.z]).collect();
                 assert_eq!(bits(&on_bits), bits(&dense), "factor-once door, n = {n}");
@@ -1355,7 +1367,11 @@ mod tests {
         for degree in 1..=3 {
             let (kv, plain) = interpolate_columns(&params, degree, &rows).unwrap();
             let (held, in_t) = interpolate_columns_in(&params, degree, &rows).unwrap();
-            assert_eq!(held.structure().knots(), kv.knots(), "degree {degree}");
+            assert_eq!(
+                held.structure_f64_interim().knots(),
+                kv.knots(),
+                "degree {degree}"
+            );
             assert_eq!(bits(&in_t), bits(&plain), "degree {degree}");
         }
         // Averages that round onto one value: one run, repeated, as the
@@ -1365,7 +1381,11 @@ mod tests {
         let rows: Vec<Vec<f64>> = params.iter().map(|u| vec![*u, 1.0 - u]).collect();
         let (kv, plain) = interpolate_columns(&params, 2, &rows).unwrap();
         let (held, in_t) = interpolate_columns_in(&params, 2, &rows).unwrap();
-        assert_eq!(held.structure().knots(), kv.knots(), "a repeated average");
+        assert_eq!(
+            held.structure_f64_interim().knots(),
+            kv.knots(),
+            "a repeated average"
+        );
         assert_eq!(bits(&in_t), bits(&plain), "a repeated average");
     }
 }

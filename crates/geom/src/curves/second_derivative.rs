@@ -41,7 +41,7 @@ pub fn nonrational_second_derivative_sup(
     let control = curve.control();
     let mut sum_sq = <Interval as Certification>::zero();
     for comp in 0..3 {
-        let hull = curve.knots().with_coeffs_from_fn(
+        let hull = curve.knots_f64_interim().with_coeffs_from_fn(
             |i| {
                 let pt = control[i];
                 Interval::point(match comp {

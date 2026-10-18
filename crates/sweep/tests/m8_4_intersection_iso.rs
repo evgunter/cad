@@ -266,7 +266,7 @@ fn posture(
     match out {
         Ok(p @ Pcurve::IsoLine { p0, pl }) => {
             assert_eq!(pl.x, 0.0, "{row}: a seam image holds u constant: {pl:?}");
-            let (du0, du1) = chart.knots_u().domain();
+            let (du0, du1) = chart.knots_u_f64_interim().domain();
             assert!(
                 p0.x == du0 || p0.x == du1,
                 "{row}: on the chart's OWN boundary column, u = {} of [{du0}, {du1}]",
@@ -323,7 +323,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     // The moving channel is the chart's own `v`, traversed with the
     // carrier: an affine map of the carrier's interval onto the v
     // domain, not an assumed identity.
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
         (pl.y - (dv1 - dv0)).abs() < 1e-12,
         "the seam traverses the chart's whole v domain: {pl:?} on [{dv0}, {dv1}]"
@@ -382,7 +382,11 @@ fn the_operand_order_is_not_a_fact_about_the_locus() {
 /// chart's opinion of where its boundary is does.
 fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
     let (mut control, mut weights) = (Vec::new(), Vec::new());
     for i in 0..4 {
@@ -398,7 +402,7 @@ fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -495,7 +499,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
     let key = rechart(&mut body, bowed, widened);
     let chart = chart_of(&body, key);
     assert_eq!(
-        chart.knots_u().domain(),
+        chart.knots_u_f64_interim().domain(),
         (0.0, 3.0),
         "the widened chart's own domain"
     );
@@ -520,7 +524,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
             "a column holds u constant at the chart's own interior knot: {p:?}"
         );
     }
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     let (a, b) = image.domain();
     for (t, want) in [(a, dv0), (b, dv1)] {
         assert!(
@@ -741,8 +745,8 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     let n = chart_of(&body, bowed);
     let imported = Surface::Nurbs(Arc::new(
         NurbsSurface::new(
-            rescaled(n.knots_u(), 0.0, wide),
-            rescaled(n.knots_v(), 0.0, 2.5),
+            rescaled(n.knots_u_f64_interim(), 0.0, wide),
+            rescaled(n.knots_v_f64_interim(), 0.0, 2.5),
             n.control().to_vec(),
             n.weights().to_vec(),
         )
@@ -784,7 +788,11 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
 /// carries is gone.
 fn widened_u_chart_deg2(n: &NurbsSurface<f64>) -> Surface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     assert!(
         n.weights().iter().all(|w| *w == 1.0),
         "linear precision places the columns of a POLYNOMIAL net; a rational \
@@ -800,7 +808,7 @@ fn widened_u_chart_deg2(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -1068,7 +1076,11 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
 /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`.
 fn off_dyadic_u_chart(n: &NurbsSurface<f64>) -> NurbsSurface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     assert!(
         n.weights().iter().all(|w| *w == 1.0),
         "a polynomial wall, so the new row lies on the old rows' segments"
@@ -1080,7 +1092,7 @@ fn off_dyadic_u_chart(n: &NurbsSurface<f64>) -> NurbsSurface<f64> {
     control.extend_from_slice(first);
     let (w_first, w_last) = (&n.weights()[..nv], &n.weights()[nv..]);
     let weights = [w_last, w_last, w_first].concat();
-    NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap()
+    NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap()
 }
 
 /// The point a vertex sits at.
@@ -1132,7 +1144,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     let chart = off_dyadic_u_chart(&chart_of(&body, bowed));
     let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
     let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
-    let (u_lo, u_hi) = chart.knots_u().domain();
+    let (u_lo, u_hi) = chart.knots_u_f64_interim().domain();
     let (start, end) = (row.eval(u_lo), row.eval(u_hi));
     assert!(
         start.z == 2.0 && end.z == 2.0,
@@ -1148,7 +1160,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     // The row run back by the kernel's own door, and the row on its
     // exact reflection about `[0.1, 0.3]`.
     let exact = KnotVector::clamped(vec![0.1, 0.1, 0.15, 0.3, 0.3], 1).unwrap();
-    assert!(chart.knots_u().is_reflection_of(&exact));
+    assert!(chart.knots_u_f64_interim().is_reflection_of(&exact));
     let mirrored = geom::NurbsCurve3::new(
         exact,
         row.control().iter().rev().copied().collect(),
@@ -1206,12 +1218,22 @@ fn composite_sup(
     use geom_core::spline::compose::CurveCertData;
     use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
     let (t0, t1) = carrier.domain();
-    let interior: Vec<f64> = carrier.knots().interior_knots().map(|(k, _)| k).collect();
+    let interior: Vec<f64> = carrier
+        .knots_f64_interim()
+        .interior_knots()
+        .map(|(k, _)| k)
+        .collect();
     let extra = geom_core::spline::algebra::range_grid_points(t0, t1, spans, &interior);
     let sc = wall.certified_coords();
-    let sd = SurfaceCertData::new(wall.knots_u(), wall.knots_v(), wall.weights(), &sc).unwrap();
+    let sd = SurfaceCertData::new(
+        wall.knots_u_f64_interim(),
+        wall.knots_v_f64_interim(),
+        wall.weights(),
+        &sc,
+    )
+    .unwrap();
     let cc = carrier.certified_coords();
-    let cd = CurveCertData::new(carrier.knots(), carrier.weights(), &cc).unwrap();
+    let cd = CurveCertData::new(carrier.knots_f64_interim(), carrier.weights(), &cc).unwrap();
     let (kv, coords) = image;
     let lifted: Vec<Vec<Interval>> = coords
         .iter()
@@ -1254,7 +1276,7 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
     };
     let column = geom_brep::boundary_iso_u(&wall, true).unwrap();
     assert!(
-        column.knots().knots() == carrier.knots().knots()
+        column.knots_f64_interim().knots() == carrier.knots_f64_interim().knots()
             && column.weights() == carrier.weights()
             && column
                 .control()
@@ -1264,8 +1286,8 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
         "the fixture's premise: the carrier is the wall's u = 1 column, bit for bit"
     );
     let (t0, t1) = carrier.domain();
-    let (_, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
+    let (_, u1) = wall.knots_u_f64_interim().domain();
+    let (v0, v1) = wall.knots_v_f64_interim().domain();
     let line = KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap();
     let exact = |spans| {
         composite_sup(
@@ -1343,8 +1365,13 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
     let mut control = last.to_vec();
     control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.5));
     control.extend_from_slice(first);
-    let chart =
-        NurbsSurface::new(ku.clone(), n.knots_v().clone(), control, vec![1.0; 3 * nv]).unwrap();
+    let chart = NurbsSurface::new(
+        ku.clone(),
+        n.knots_v_f64_interim().clone(),
+        control,
+        vec![1.0; 3 * nv],
+    )
+    .unwrap();
     let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
     let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
     let (edge, he, cap) = top_rim(&body, wall);

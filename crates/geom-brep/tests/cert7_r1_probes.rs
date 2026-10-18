@@ -156,8 +156,8 @@ fn a_global_weight_scale_does_not_move_the_certificate() {
     let mut first = f64::NAN;
     for k in [1.0_f64, 1e-6, 1.0e6, 1.0e12] {
         let scaled = NurbsSurface::new(
-            fit.knots_u().clone(),
-            fit.knots_v().clone(),
+            fit.knots_u_f64_interim().clone(),
+            fit.knots_v_f64_interim().clone(),
             fit.control().to_vec(),
             fit.weights().iter().map(|w| w * k).collect(),
         )
@@ -224,8 +224,8 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
     ];
     for (name, w) in spreads {
         let Ok(hostile) = NurbsSurface::new(
-            fit.knots_u().clone(),
-            fit.knots_v().clone(),
+            fit.knots_u_f64_interim().clone(),
+            fit.knots_v_f64_interim().clone(),
             fit.control().to_vec(),
             w,
         ) else {

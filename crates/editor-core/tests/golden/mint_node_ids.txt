@@ -21,8 +21,8 @@ Intersect 1:f70bb7a0dd0873e4
 Transform 8:d6db91cbf9fbbd1d
 Transform 15:290e34a337ad0034
 Transform 1:ec3e03a281b7e37b
-Place 1:017d1c5a36324012
-Place 8:c6ba7090d447d479
+Place 3:338a3d24f064db21
+Place 5:466973eed233bf8f
 World 1:e7e7ed757f3906a3
 Pattern 6:d5158f2607a02303
 PlacedUnion 6:049d615c1d87fe03
@@ -34,7 +34,7 @@ Pattern 2:49bc34b89b22839b
 PlacedUnion 2:e4ddac107275f47e
 PlacedUnion 1:150544a5320c3e58
 Part 2:ea12db188ebe4622
-InstantiatePart 8:71ca0942014438c6
-Place 17:e9a163dc83a93ca7
+InstantiatePart 4:298e28c2c85ad7fc
+Place 11:ec3e38ad62de5f6e
 Measure 3:c56a63f809c915d7
 Assertion 3:5e435f9e700dd9cf

@@ -140,8 +140,8 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     let mut control = fit.control().to_vec();
     control[0] = control[0] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -287,8 +287,16 @@ fn approx_face_surface(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurfa
 /// coordinates are compared one by one.
 fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>, what: &str) {
     assert_eq!(a.weights(), b.weights(), "{what}: weights are invariants");
-    assert_eq!(a.knots_u().knots(), b.knots_u().knots(), "{what}: knots u");
-    assert_eq!(a.knots_v().knots(), b.knots_v().knots(), "{what}: knots v");
+    assert_eq!(
+        a.knots_u_f64_interim().knots(),
+        b.knots_u_f64_interim().knots(),
+        "{what}: knots u"
+    );
+    assert_eq!(
+        a.knots_v_f64_interim().knots(),
+        b.knots_v_f64_interim().knots(),
+        "{what}: knots v"
+    );
     assert_eq!(a.control().len(), b.control().len(), "{what}: net size");
     for (i, (p, q)) in a.control().iter().zip(b.control()).enumerate() {
         assert!(
@@ -524,8 +532,8 @@ fn a_degraded_fit_does_not_survive_the_map() {
     let mut control = fit.control().to_vec();
     control[0] = control[0] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -701,8 +709,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
     let eps = Tol::witness().eps();
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 10.0 * eps);
     let nudged = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )

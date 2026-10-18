@@ -112,8 +112,8 @@ fn r2_hostile_uniform_weight_scales_contain_or_refuse() {
     let worst = sampled_residual(&base, &exact, d);
     for k in [1.0, 1.0e3, 1.0e-3, 1.0e150, 1.0e-150] {
         let scaled = NurbsSurface::new(
-            exact.knots_u().clone(),
-            exact.knots_v().clone(),
+            exact.knots_u_f64_interim().clone(),
+            exact.knots_v_f64_interim().clone(),
             exact.control().to_vec(),
             exact.weights().iter().map(|w| w * k).collect(),
         )
@@ -145,8 +145,8 @@ fn r2_hostile_alternating_weights_contain_or_refuse() {
         .map(|i| if i % 2 == 0 { 0.1 } else { 10.0 })
         .collect();
     let hostile = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         fit.control().to_vec(),
         weights,
     )

@@ -3,6 +3,7 @@ id: chord-join-serves-lines-where-the-whole-turn-reach-refuses
 kind: issue
 title: the agreement-gate fuzz finds chord_join serving parallel lines where the whole-turn reach refuses (eps 1e-12, seed 0x80e3604cc0517565)
 status: open
+priority: P3
 opened: 2026-10-09
 ---
 

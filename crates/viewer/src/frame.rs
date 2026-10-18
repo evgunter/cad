@@ -1473,10 +1473,30 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
+        placed,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(placed.iter().filter_map(place_notice))
+}
+
+/// **How a place gesture placed its copy, as a notice**, or `None` for
+/// the gesture's ordinary answer: a plane mate on the copy's planar
+/// face, whose values move it. A copy with no planar face is pinned,
+/// with no value to move it by, and one that could not be read stands
+/// loose; each says so, in [`editor_core::PinRefusal`]'s own words for
+/// the second. Nothing else says it again ([`Retold::Never`]): the
+/// tree row says what the bundle holds, not why.
+pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
+    let text = match &report.by {
+        Ok(editor_core::PlacedBy::PlanarFace) => return None,
+        Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
+                                          stands, with no values to move it by"
+            .to_owned(),
+        Err(refusal) => format!("the copy stands loose, placed by nothing: {refusal}"),
+    };
+    Some(Message::new(Subject::Document, text, Retold::Never))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line

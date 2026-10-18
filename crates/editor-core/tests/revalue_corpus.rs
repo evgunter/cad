@@ -51,15 +51,22 @@ use geom_core::{ParamSymbol, Sym, Tol};
 use crate::corpus;
 
 /// The relative move a variable takes at `p1`: small enough that the
-/// two builds take the same decisions (asserted).
-const MOVE: f64 = 1.0e-7;
+/// two builds take the same decisions (asserted). It is `100·ε`, `1e-7`
+/// at the default ε, so it stands where it does against the predicates'
+/// zero bands at every ε the CI runs: those bands scale with ε, and a
+/// move fixed in meters would sit inside a wide band at a coarse ε (an
+/// exact zero moved by it no longer flips) and outside a narrow one at a
+/// fine ε, so what a row pins would hold at one ε only.
+fn step() -> f64 {
+    1.0e-7 * (Tol::witness().eps() / geom_core::tolerance::DEFAULT_EPS)
+}
 
 /// How the variables move from `p0` to `p1`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Move {
-    /// Each by its own multiple of [`MOVE`], so no two move in step.
+    /// Each by its own multiple of [`step`], so no two move in step.
     Apart,
-    /// All by the same relative [`MOVE`], a zero one not at all: two
+    /// All by the same relative [`step`], a zero one not at all: two
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
     /// The fallback for a document whose branches [`Move::Apart`]
@@ -119,10 +126,11 @@ fn offsets(vars: &[(VarId, f64)], mode: Move) -> BTreeMap<VarId, f64> {
     vars.iter()
         .enumerate()
         .map(|(i, &(id, value))| {
+            let step = step();
             let d = match mode {
-                Move::Apart if value == 0.0 => MOVE,
-                Move::Apart => MOVE * value.abs() * (1.0 + 0.37 * i as f64),
-                Move::InStep => MOVE * value,
+                Move::Apart if value == 0.0 => step,
+                Move::Apart => step * value.abs() * (1.0 + 0.37 * i as f64),
+                Move::InStep => step * value,
             };
             (id, d)
         })
@@ -304,10 +312,16 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 ///
 /// `flips` is the same for a decision the builds answer with different
 /// signs: the flipping decisions' predicates IN ORDER, each with its
-/// item, and `after` the predicates re-valued away after them. Both are
-/// held exactly, given or not: the row reds when an owed flip goes and
-/// when any other decision flips, under any name, so a row that names
-/// none owes none.
+/// item. They are held exactly, given or not: the row reds when an owed
+/// flip goes and when any other decision flips, under any name, so a row
+/// that names none owes none.
+///
+/// `after` names the predicates that may re-value away from the `p1`
+/// build after an owed flip. It is an upper bound: a named after-flip
+/// predicate may be absent, because its re-valued bits depend on the step
+/// (past a flip `p1` builds on the other branch, and a rounding-level
+/// margin there matches `p1`'s bits or not as [`step`], and so ε, moves);
+/// an unnamed one fails.
 fn holds(
     name: &str,
     mode: Move,
@@ -363,11 +377,12 @@ fn holds(
          ones, in order ({flips:?}) — a row owes none unless it names them — {found:?}"
     );
     let want_after: BTreeSet<&str> = after.iter().copied().collect();
-    assert_eq!(
-        found.after_flip, want_after,
+    let unnamed: BTreeSet<&str> = found.after_flip.difference(&want_after).copied().collect();
+    assert!(
+        unnamed.is_empty(),
         "{name}: a margin re-values away from the p1 build after a decision the builds answered \
-         with different signs — a laundering, or two margins decided under one name; read which \
-         with REVALUE_DETAIL=1 ({found:?})"
+         with different signs, under {unnamed:?}, which the row does not name — a laundering, or \
+         two margins decided under one name; read which with REVALUE_DETAIL=1 ({found:?})"
     );
 }
 
@@ -422,13 +437,15 @@ rows! {
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
     // Apart: two chart frames on an azimuth exactly zero at the nominal
-    // flip, and nothing re-values away after them, owed below.
+    // flip, owed below. After the first, the chart's map residuals (a few
+    // ulps) are computed in the other frame at `p1`; at ε 1e-6 they
+    // re-value to other bits, at 1e-9 and 1e-12 to the same.
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
         flips [
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP)
         ],
-        after [];
+        after ["pcurve_map_residual"];
 }
 
 /// The census over the whole corpus, one document per run with

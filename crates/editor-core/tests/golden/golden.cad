@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "cd025bd7612ded14478317330bb173d650d12c12f75c7062bab326cffbcdebb0",
+      "chain": "b55e676ae3e3b9e4a6ca7fb25355e2c306be9556d2f0a476eaebf3b04bc0bf83",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -474,40 +474,40 @@ id: 7ddec231df0049f879136a2f7624647d
           "var": "156:a77fbde1ef59c01d"
         },
         {
-          "node": "157:9e7f2dbab8fb287a"
+          "node": "157:19ff913dcf194889"
         },
         {
-          "var": "158:689b3b2bc5290671"
+          "var": "158:7a2ebbafdeedf1a5"
         },
         {
-          "constraint": "159:043d53731f4e3c96"
+          "constraint": "159:da2e2f70c96f4e5d"
         },
         {
-          "node": "160:010a17294e008804"
+          "node": "160:457c295c5cb813f5"
         },
         {
-          "var": "161:d88bbf4b914fb9e9"
+          "var": "161:ef535be08f2b7c23"
         },
         {
-          "constraint": "162:3deb91222ca26a11"
+          "constraint": "162:b12527bfd8764162"
         },
         {
-          "node": "163:f28852c469899359"
+          "node": "163:8e5f4b43c8b3bd65"
         },
         {
-          "var": "164:9c87161053e305c6"
+          "var": "164:d9a641d1290ddc3a"
         },
         {
-          "constraint": "165:f12c1b1b07619461"
+          "constraint": "165:5625080c99f351f8"
         },
         {
-          "node": "166:b0caedf18c4feefe"
+          "node": "166:7b8d31122e6200b9"
         },
         {
-          "var": "167:dc731c2d1d7f6f28"
+          "var": "167:3531b80d2081814a"
         },
         {
-          "constraint": "168:cd025bd7612ded14"
+          "constraint": "168:b55e676ae3e3b9e4"
         }
       ]
     },
@@ -947,133 +947,61 @@ id: 7ddec231df0049f879136a2f7624647d
           "open": "153:45372b2ee4a25576"
         }
       },
-      "157:9e7f2dbab8fb287a": {
+      "157:19ff913dcf194889": {
         "Place": {
           "shapes": [
             "104:29cc5b9699919985"
           ],
           "constraints": [
             {
-              "id": "159:043d53731f4e3c96",
-              "mate": {
-                "a": "world",
-                "b": "copy",
-                "class": "rest",
-                "alignment": {
-                  "a": {
-                    "base": "World",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "b": {
-                    "base": "Part",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "primitive": "frame_coincidence",
-                  "sense": "aligned"
-                }
+              "id": "159:da2e2f70c96f4e5d",
+              "kind": {
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "160:010a17294e008804": {
+      "160:457c295c5cb813f5": {
         "Place": {
           "shapes": [
             "127:2ca140c425f1bff8"
           ],
           "constraints": [
             {
-              "id": "162:3deb91222ca26a11",
-              "mate": {
-                "a": "world",
-                "b": "copy",
-                "class": "rest",
-                "alignment": {
-                  "a": {
-                    "base": "World",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "b": {
-                    "base": "Part",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "primitive": "frame_coincidence",
-                  "sense": "aligned"
-                }
+              "id": "162:b12527bfd8764162",
+              "kind": {
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "163:f28852c469899359": {
+      "163:8e5f4b43c8b3bd65": {
         "Place": {
           "shapes": [
             "134:be4267bdc0cb9ad7"
           ],
           "constraints": [
             {
-              "id": "165:f12c1b1b07619461",
-              "mate": {
-                "a": "world",
-                "b": "copy",
-                "class": "rest",
-                "alignment": {
-                  "a": {
-                    "base": "World",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "b": {
-                    "base": "Part",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "primitive": "frame_coincidence",
-                  "sense": "aligned"
-                }
+              "id": "165:5625080c99f351f8",
+              "kind": {
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "166:b0caedf18c4feefe": {
+      "166:7b8d31122e6200b9": {
         "Place": {
           "shapes": [
             "156:a77fbde1ef59c01d"
           ],
           "constraints": [
             {
-              "id": "168:cd025bd7612ded14",
-              "mate": {
-                "a": "world",
-                "b": "copy",
-                "class": "rest",
-                "alignment": {
-                  "a": {
-                    "base": "World",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "b": {
-                    "base": "Part",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "primitive": "frame_coincidence",
-                  "sense": "aligned"
-                }
+              "id": "168:b55e676ae3e3b9e4",
+              "kind": {
+                "world_pin": "identity"
               }
             }
           ]
@@ -2535,38 +2463,38 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "158:689b3b2bc5290671": {
+      "158:7a2ebbafdeedf1a5": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "157:9e7f2dbab8fb287a",
+            "node": "157:19ff913dcf194889",
             "port": 0
           }
         }
       },
-      "161:d88bbf4b914fb9e9": {
+      "161:ef535be08f2b7c23": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "160:010a17294e008804",
+            "node": "160:457c295c5cb813f5",
             "port": 0
           }
         }
       },
-      "164:9c87161053e305c6": {
+      "164:d9a641d1290ddc3a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "163:f28852c469899359",
+            "node": "163:8e5f4b43c8b3bd65",
             "port": 0
           }
         }
       },
-      "167:dc731c2d1d7f6f28": {
+      "167:3531b80d2081814a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "166:b0caedf18c4feefe",
+            "node": "166:7b8d31122e6200b9",
             "port": 0
           }
         }

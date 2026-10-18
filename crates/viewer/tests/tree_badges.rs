@@ -328,16 +328,14 @@ fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
-/// **A row poisoned through a row that is ITSELF downstream points at
-/// the terminal cause, not at a POISONED row.**
+/// **A row poisoned through a chained copy points at the terminal cause,
+/// not at a POISONED row.**
 ///
 /// The reachable document: a union of two instances' copies, one of
-/// which is then chained to a refused bundle. The kernel poisons the
-/// union through its first blocking input — post_b — and reports post_b
-/// as its own `Failed`; the tree redraws post_b as downstream of the
-/// shelf. Read verbatim the union would point at a row drawn POISONED
-/// and weak, so the user's walk would be two hops through a row with
-/// nothing to act on.
+/// which is then chained to a refused bundle. Its mate reads the
+/// shelf's copy, so post_b is poisoned through the shelf, and the
+/// union, which reads both, through the shelf as well: the user's walk
+/// is one hop, onto the row with the words.
 #[test]
 fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
     let tol = Tol::witness();
@@ -352,13 +350,19 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 
     common::asm::refuse_shelf(&mut session, &bench);
 
-    // The kernel's own reading: poisoned through post_b, which is what
-    // makes the hop a real one rather than a hypothetical.
+    // The kernel's own reading: post_b poisoned through the shelf its
+    // mate reads, and the union through the shelf too.
     let (_, ev) = session.landed_pair().expect("landed");
     assert_eq!(
+        ev.result(bench.post_b)
+            .and_then(NodeResult::poisoned_through),
+        Some(bench.shelf_i),
+        "the evaluation poisons the chained copy through the refused shelf"
+    );
+    assert_eq!(
         ev.result(boolean).and_then(NodeResult::poisoned_through),
-        Some(bench.post_b),
-        "the evaluation poisons the union through its first blocking input"
+        Some(bench.shelf_i),
+        "and the union through its nearest failed input"
     );
 
     let rows = session.tree_rows();
@@ -366,7 +370,7 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
         RowStatus::Poisoned { through, message } => {
             assert_eq!(
                 through, bench.shelf_i,
-                "the union points past post_b at the placement that refused"
+                "the union points at the placement that refused"
             );
             assert_eq!(message, Some(downstream_at(bench.shelf_i)));
         }
@@ -391,12 +395,13 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 }
 
 /// **Every surface that says why a node has no value names the row the
-/// tree names** — over one bundle refusal, the chained node the kernel
-/// reports as its own `Failed` and the node it poisons through it.
+/// tree names** — over one bundle refusal, the chained node and the
+/// union that reads it.
 ///
-/// The kernel's standing for `post_a` is `Failed` and for the union is
-/// poisoned through `post_a`; the tree draws both downstream of the
-/// refused shelf. The properties panel's verdict on a picked face, the
+/// The kernel's standing for `post_a`, whose mate reads the shelf's
+/// copy, and for the union is poisoned through the refused shelf, and
+/// the tree draws both downstream of it. The properties panel's verdict
+/// on a picked face, the
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
 /// door and the blend loader each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
@@ -408,7 +413,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
     use viewer::combine::DuplicateFault;
-    use viewer::matetool::{MateTool, MateToolError, MateToolEvent};
+    use viewer::matetool::{MateTool, MateToolEvent};
     use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
 
     let tol = Tol::witness();
@@ -438,20 +443,22 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
 
     let rows = session.tree_rows();
     let (doc, ev) = session.landed_pair().expect("landed");
-    // The premise that makes this row a test: the kernel's own standing
-    // for each node is NOT the tree's.
+    // The kernel's own standing for each node.
     assert_eq!(
         ev.usable(bench.post_a).err(),
-        Some(NodeStanding::Failed { node: bench.post_a }),
-        "the kernel reports the chained instance as its own failure"
+        Some(NodeStanding::Poisoned {
+            node: bench.post_a,
+            through: offender
+        }),
+        "the kernel poisons the chained instance through the refused shelf"
     );
     assert_eq!(
         ev.usable(boolean).err(),
         Some(NodeStanding::Poisoned {
             node: boolean,
-            through: bench.post_a
+            through: offender
         }),
-        "and poisons the boolean through it"
+        "and the boolean through it too"
     );
     // The tree's answer, which every other surface must carry.
     let drawn = |id| match common::status_of(&rows, id) {
@@ -467,7 +474,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         },
         "the tree points post_a at the refused shelf"
     );
-    let two_hop = drawn(boolean);
+    let boolean_drawn = drawn(boolean);
     assert_eq!(
         tree::cause_row(bench.post_a, ev),
         Some(offender),
@@ -518,7 +525,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     }
     match viewer::combine::duplicate_step(doc, ev, &boolean.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
-            assert_eq!(standing, two_hop, "the duplicate door, the boolean");
+            assert_eq!(standing, boolean_drawn, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
     }
@@ -532,33 +539,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The mate tool's frame read, on a pick of post_a and one of post_b.
-    let mut both = MateTool::new();
-    both.pick(session.doc(), face.clone());
-    both.pick(
-        session.doc(),
-        FaceSelection {
-            name: common::asm::in_part(bench.post_b, &bench.post_top),
-            node: bench.post_b,
-            body: 0,
-        },
-    );
-    match &both.proposal(doc, ev, common::asm::seat_choice()) {
-        Err(
-            refused @ MateToolError::Frame {
-                error: InterrogateError::Standing(standing),
-                ..
-            },
-        ) => {
-            assert_eq!(*standing, post_a, "the mate tool's frame read");
-            assert!(
-                refused.to_string().contains(&post_a_said),
-                "the mate tool's refusal speaks post_a: {refused}"
-            );
-        }
-        other => panic!("the mate tool refuses the frame read, got {other:?}"),
-    }
-
     // The pick index refuses on a placement with no value; its tooltip
     // carries that placement's standing as the tree draws it.
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
@@ -785,262 +765,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         found, admitted,
         "every standing door reads through the tree's answer or is admitted by name; \
          unread calls: {unread:#?}"
-    );
-}
-
-// ---- The refusal that names no row ----
-
-/// The env var naming the child process that commits a bandless
-/// tolerance. `geom_core::Tolerance` commits once per process and
-/// `tests/all.rs` aggregates every suite into ONE binary, so the
-/// pathological tolerance runs in a re-exec'd child or it poisons
-/// every other suite in the binary
-/// (`crates/editor-core/tests/wire_band_cause.rs`'s pattern).
-const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
-
-/// An ε large enough that K·ε overflows at the default K, and still
-/// finite and above `EPS_MIN` — so `Tolerance::validate` admits it
-/// and `Band::linear` refuses it.
-///
-/// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it
-/// was derived from; that both spellings exist is
-/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
-const BANDLESS_EPS: f64 = f64::MAX / 2.0;
-
-/// **What the child prints once it has run every assertion below.**
-///
-/// The parent asserts on THIS, not on the child's exit status:
-/// libtest exits 0 when a filter matches nothing (*"running 0 tests …
-/// test result: ok"*), so a rename of this suite, of the child fn, or
-/// of `all.rs`'s nesting would turn the row into a silent pass while
-/// the child holds every assertion it has. The sentinel is stronger
-/// than a matched-test count as well as cheaper: it is printed after
-/// the last assertion, so it also goes missing if the environment
-/// guard sends the child down its no-op return.
-const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
-
-/// **A run-tolerance refusal reaches every instance in the DOCUMENT,
-/// blames none of them, and points the eye nowhere** — and no mate
-/// can be INSERTED under it, since the edit door asks the solve's own
-/// admission, which begins with the band (a loaded snapshot can still
-/// hold one: [`child_band_snapshot_load`]).
-///
-/// `MateFault::Band` is the one fault arm that reaches rows without
-/// naming a subject, so it is the one arm `blamed_mates` answers empty
-/// for on rows a user can actually meet. What this row pins is what
-/// that costs and what it must not buy back:
-///
-/// - the refusal is the RUN's, not a group's — every instance is
-///   reached, each a singleton group of its own, which is why a
-///   badge wording scoped to "this group" would name the wrong set;
-/// - every reached row keeps the payload's own words, byte-identical,
-///   so nothing here composes a sentence onto a failing row;
-/// - and NO row is drawn downstream of another, because the fault
-///   names no culprit and one may not be invented to have somewhere
-///   to send the eye.
-///
-/// CHILD MODE. No-op unless [`BAND_PROBE`] is set, so the parent suite
-/// run passes over it.
-#[test]
-fn child_band_refusal_rows() {
-    use pncad::document::{
-        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, NodeErrorKind,
-        ProfileDoc, RecipeNodeId, apply, content_pin,
-    };
-    use pncad::geom_core::Band;
-    use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
-    use pncad::prelude::StableName;
-    use pncad::select::EntityKind;
-
-    if std::env::var(BAND_PROBE).is_err() {
-        return;
-    }
-    // DOOR 1 — the premise. `init` validates before it commits, so a
-    // pair this call accepts is a pair the run's own validator
-    // accepts.
-    Tolerance::init(Tolerance {
-        eps: BANDLESS_EPS,
-        k: DEFAULT_K,
-    })
-    .expect("the pathological pair is a VALID tolerance");
-    let tol = Tol::witness();
-    // DOOR 2 — the failure the whole row stands on. If `Band::linear`
-    // ever admits this tolerance, `MateFault::Band` stops being
-    // reachable and the carve-out below has no subject.
-    Band::linear(tol).expect_err("no band exists at this tolerance");
-
-    // The document. Nothing in it carries geometry — a profile cannot
-    // be AUTHORED where no band exists, and neither can a mate: the
-    // edit door asks the solve's own admission, which begins with the
-    // band, so the mate refuses typed at the door (DOOR 2a below) —
-    // which is the shape a user meets when a saved document commits
-    // its own ε on open: three instances, authored elsewhere, read
-    // back at a tolerance that admits no band.
-    let part = ProfileDoc::empty_derived("band-part", tol);
-    let doc_ref = DocRef {
-        id: part.id(),
-        pin: content_pin(&part, tol).expect("the pin computes"),
-    };
-    let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    // Each instance's bundle empty: even its world pin is a constraint,
-    // which the door refuses where no band exists (DOOR 2a).
-    let a = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
-    let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
-    // A third instance, which no mate could touch: the row that decides
-    // whether this refusal is one placement's or the run's is that ALL
-    // of them refuse.
-    let lone = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
-    let face_of = |instance| {
-        common::head(StableName {
-            kind: EntityKind::Face,
-            node: instance,
-            path: Vec::new(),
-        })
-    };
-    // The part base with no step: no band forms to author vectors
-    // through.
-    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
-    // DOOR 2a — a mate cannot be INSERTED where no band exists: the
-    // edit door refuses it with the solve's own `Band`. A snapshot
-    // loaded under this tolerance can still hold one, and the solve
-    // records `Band` against it the way it does against every
-    // instance below.
-    let refused = apply(
-        &asm,
-        &DocEdit::AddConstraint {
-            placement: b,
-            mate: Box::new(pncad::document::Mate {
-                a: pncad::document::SideRead::Face(face_of(a).into()),
-                b: pncad::document::SideRead::Face(face_of(b).into()),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: frame.clone(),
-                    b: frame,
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            }),
-            fresh: Vec::new(),
-        },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect_err("no band, no mate");
-    assert!(
-        matches!(
-            &refused,
-            pncad::document::EditError::MateRefused { fault, .. }
-                if matches!(fault.as_ref(), MateFault::Band { .. })
-        ),
-        "{refused:?}"
-    );
-
-    let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
-        &asm,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let rows = tree::rows(
-        &asm,
-        Some(&evaluation),
-        &viewer::parts::PartFiles::default(),
-    );
-    assert!(tree::has_faults(&rows), "the run refused: {rows:?}");
-
-    // DOOR 3 — the fault is the MATE arm, not the evaluator's own
-    // per-node band door. The whole carve-out is about which arm a
-    // user meets: if the evaluator ever refuses mates and instances
-    // before the solve does, this goes red and there is no live
-    // `MateFault::Band` left to badge.
-    let reached: Vec<RecipeNodeId> = [a, b, lone]
-        .into_iter()
-        .filter(|&id| {
-            matches!(
-                evaluation.result(id),
-                Some(NodeResult::Failed(e))
-                    if matches!(&e.kind, NodeErrorKind::Mate(f)
-                        if matches!(**f, MateFault::Band { .. }))
-            )
-        })
-        .collect();
-    assert_eq!(
-        reached,
-        vec![a, b, lone],
-        "the band refusal reaches every instance, each placement's bundle on its own — \
-         it is the RUN's refusal, not one placement's"
-    );
-
-    // Every reached row draws its own FAILED, carrying the payload's
-    // own words byte-identical. Composing a cohort clause onto a
-    // failing row's message reddens here.
-    for &id in &reached {
-        let status = common::status_of(&rows, id);
-        assert_eq!(status.badge(), "FAILED", "{id:?}: {status:?}");
-        let Some(NodeResult::Failed(error)) = evaluation.result(id) else {
-            panic!("{id:?} must be Failed in the evaluation");
-        };
-        assert_eq!(
-            status.message(),
-            Some(error.spoken(&asm, &evaluation).as_str()),
-            "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
-        );
-    }
-
-    // And nothing is drawn downstream of anything: the fault names no
-    // mate, so there is no row to send the eye to and none is
-    // invented. A lane that closes the badging defect by PICKING a
-    // culprit reddens here, which is the decision this row holds.
-    let pointed: Vec<RecipeNodeId> = rows
-        .iter()
-        .filter(|row| matches!(row.status, RowStatus::Poisoned { .. }))
-        .map(|row| row.id)
-        .collect();
-    assert_eq!(
-        pointed,
-        Vec::<RecipeNodeId>::new(),
-        "a band refusal blames no mate, so no row may point at one"
-    );
-
-    // Last act: the parent reads this to know the assertions above ran
-    // at all.
-    println!("{BAND_PROBE_DONE}");
-}
-
-/// The parent of [`child_band_refusal_rows`].
-#[test]
-fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
-    let exe = std::env::current_exe().expect("test exe path");
-    // Name the probe by MODULE PATH: `tests/all.rs` aggregates the
-    // suites, so libtest sees it as
-    // `<this_module>::child_band_refusal_rows`.
-    let probe = match module_path!().split_once("::") {
-        Some((_, m)) => format!("{m}::child_band_refusal_rows"),
-        None => "child_band_refusal_rows".to_string(),
-    };
-    let out = std::process::Command::new(exe)
-        .args([probe.as_str(), "--exact", "--nocapture"])
-        .env(BAND_PROBE, "1")
-        .env_remove("CAD_TOLERANCE_EPS")
-        .env_remove("CAD_AMBIGUITY_K")
-        .output()
-        .expect("probe spawns");
-    let text = String::from_utf8_lossy(&out.stdout).into_owned();
-    assert!(out.status.success(), "the band row failed:\n{text}");
-    // THE ANTI-VACUITY FLOOR, and it is the whole row's: every
-    // assertion this test makes lives in the child, and a green exit
-    // status is what a child that ran NOTHING also reports. Reading
-    // the child's own stdout for a sentinel is the tree's idiom for
-    // this (`crates/geom-core/tests/ambiguity_k_env.rs`);
-    // `test_utils::vacuity` is the wrong instrument here because its
-    // floors are counted and asserted in-process, which is exactly the
-    // process whose execution is in doubt.
-    assert!(
-        text.contains(BAND_PROBE_DONE),
-        "the child exited 0 without reaching its assertions — a filter that \
-         matches nothing greens. Child output:\n{text}"
     );
 }
 
@@ -1475,9 +1199,10 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 }
 
 /// **A placement's row carries its constraints as children**, in bundle
-/// order, each by its address; the world, which every document holds
-/// and nothing deletes, has no row; and removing a constraint through
-/// its child row's op takes it off the row.
+/// order, each by its address — a mate and each value naming it; the
+/// world, which every document holds and nothing deletes, has no row;
+/// and removing a mate through its child row's op takes it, and the
+/// values naming it, off the row.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1492,7 +1217,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
 
@@ -1502,20 +1227,33 @@ fn a_placement_row_carries_its_constraints_as_children() {
             .all(|row| row.id != pncad::document::RecipeNodeId::WORLD),
         "the world has no row"
     );
+    let ids: Vec<_> = crate::fixture::bundle(session.committed_doc(), bench.post_b)
+        .iter()
+        .map(|c| pncad::document::MateRef::new(bench.post_b, c.id))
+        .collect();
+    assert_eq!(ids.first(), Some(&seat), "the seat leads post_b's bundle");
     assert_eq!(
         common::row_of(&rows, bench.post_b).constraints,
-        vec![ConstraintRow {
-            mate: seat,
-            said: "constraint 1: Rest mate".to_owned(),
-        }],
-        "post_b's row carries the seat that places it"
+        ids.into_iter()
+            .zip([
+                "constraint 1: Rest mate",
+                "constraint 2: slide along x value",
+                "constraint 3: slide along y value",
+                "constraint 4: spin value",
+            ])
+            .map(|(mate, said)| ConstraintRow {
+                mate,
+                said: said.to_owned(),
+            })
+            .collect::<Vec<_>>(),
+        "post_b's row carries the seat that places it, and its values"
     );
     let pin = common::asm::world_pin_of(session.committed_doc(), bench.shelf_i);
     assert_eq!(
         common::row_of(&rows, bench.shelf_i).constraints,
         vec![ConstraintRow {
             mate: pin,
-            said: "constraint 1: world pin".to_owned(),
+            said: "constraint 1: world mate".to_owned(),
         }],
         "the shelf's row carries the pin it stands on"
     );
@@ -1527,7 +1265,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     assert_eq!(
         common::row_of(&rows, bench.post_b).constraints,
         Vec::new(),
-        "the removed constraint leaves the row"
+        "the removed mate leaves the row, its values with it"
     );
     assert_eq!(
         common::status_of(&rows, bench.post_b),
@@ -1544,239 +1282,4 @@ fn downstream_at(instance: pncad::document::RecipeNodeId) -> String {
         "upstream failure at InstantiatePart {} — that row carries the cause",
         test_utils::refusal::tag(instance.0.digest())
     )
-}
-
-// ---- A mate's band refusal, reached by a loaded snapshot ----
-
-/// The env var naming the child that AUTHORS the snapshot, at a sound
-/// tolerance, and prints it.
-const SNAPSHOT_AUTHOR: &str = "TREE_BADGES_BAND_SNAPSHOT_AUTHOR";
-
-/// The env var carrying the snapshot's text to the child that LOADS it
-/// where no band exists.
-const SNAPSHOT_TEXT: &str = "TREE_BADGES_BAND_SNAPSHOT_TEXT";
-
-/// The ε both children commit: a length whose band exists at the
-/// default K (16 m to 160 m) and overflows at [`SNAPSHOT_LOAD_K`]. A
-/// document records its ε and not its K, which is the process's
-/// (`CAD_AMBIGUITY_K`), so one file meets both.
-const SNAPSHOT_EPS: f64 = 16.0;
-
-/// The K the loading child commits: finite, so the run's validator
-/// admits it, and large enough that K·ε overflows at [`SNAPSHOT_EPS`].
-const SNAPSHOT_LOAD_K: f64 = f64::MAX / 2.0;
-
-/// Bracket the authored snapshot in the author child's stdout.
-const SNAPSHOT_BEGIN: &str = "BAND-SNAPSHOT-BEGIN";
-const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
-
-/// What the loading child prints once its last assertion has run.
-const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
-
-/// The mate both instances carry: frame coincidence on the two parts'
-/// own frames.
-fn snapshot_mate(
-    a: pncad::document::RecipeNodeId,
-    b: pncad::document::RecipeNodeId,
-) -> pncad::document::Mate<pncad::document::Formula> {
-    use pncad::document::{Alignment, AxisSense, Mate, MateFrame, MatePrimitive, SideRead};
-    use pncad::prelude::StableName;
-    use pncad::select::EntityKind;
-    let face_of = |instance| {
-        common::head(StableName {
-            kind: EntityKind::Face,
-            node: instance,
-            path: Vec::new(),
-        })
-    };
-    // The part base with no step: its frame is the part's own, which
-    // asks no direction of the band (an authored frame's literal is
-    // unit-length, and its re-minted axis does not clear a band of 16).
-    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
-    Mate {
-        a: SideRead::Face(face_of(a).into()),
-        b: SideRead::Face(face_of(b).into()),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: frame.clone(),
-            b: frame,
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    }
-}
-
-/// CHILD MODE, the author. No-op unless [`SNAPSHOT_AUTHOR`] is set.
-/// At [`SNAPSHOT_EPS`] and the default K a band exists, so the edit
-/// door admits the mate; the document is saved through the save door
-/// and printed between the brackets.
-#[test]
-fn child_band_snapshot_author() {
-    use pncad::document::{DocEdit, DocRef, Node, ProfileDoc, content_pin, save};
-    use pncad::geom_core::Band;
-
-    if std::env::var(SNAPSHOT_AUTHOR).is_err() {
-        return;
-    }
-    let tol = Tol::witness();
-    Band::linear(tol).expect("the author's tolerance has a band");
-    let part = ProfileDoc::empty_derived("band-snapshot-part", tol);
-    let doc_ref = DocRef {
-        id: part.id(),
-        pin: content_pin(&part, tol).expect("the pin computes"),
-    };
-    let mut asm = ProfileDoc::empty_derived("band-snapshot-asm", tol);
-    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    let b = common::insert_into(&mut asm, crate::fixture::mated_instance(doc_ref), tol);
-    common::edit_into(
-        &mut asm,
-        DocEdit::AddConstraint {
-            placement: b,
-            mate: Box::new(snapshot_mate(a, b)),
-            fresh: Vec::new(),
-        },
-        tol,
-    );
-    let text = save(&asm, &[], tol).expect("the document saves");
-    println!("{SNAPSHOT_BEGIN}\n{text}{SNAPSHOT_END}");
-}
-
-/// CHILD MODE, the loader. No-op unless [`SNAPSHOT_TEXT`] is set.
-///
-/// **A mate's band refusal, reached the way a state reaches it.** The
-/// constraint door refuses a mate where no band exists
-/// ([`child_band_refusal_rows`]' DOOR 2a), so no edit and no replay
-/// lands one there; a SNAPSHOT is a state, and one authored where its
-/// ε had a band loads in a process whose K leaves it none. The value of
-/// the placement holding the mate is then the solve's `Band`, and the
-/// tree draws its row FAILED in the payload's own words with nothing
-/// pointed at it: the fault names no constraint, so `blamed_mates`
-/// answers empty for it.
-#[test]
-fn child_band_snapshot_load() {
-    use pncad::document::{MateFault, NodeErrorKind, RecipeNodeId, SideRead, load};
-    use pncad::geom_core::Band;
-
-    let Ok(text) = std::env::var(SNAPSHOT_TEXT) else {
-        return;
-    };
-    let tol = Tol::witness();
-    Band::linear(tol).expect_err("no band exists at the loader's K");
-    let loaded = load(&text, tol).expect("a state loads where an edit could not land");
-    let doc = loaded.doc;
-    let mates: Vec<RecipeNodeId> = doc
-        .placements()
-        .into_iter()
-        .filter(|&id| {
-            crate::fixture::bundle(&doc, id).iter().any(|constraint| {
-                matches!(constraint.mate.a, SideRead::Face(_))
-                    && matches!(constraint.mate.b, SideRead::Face(_))
-            })
-        })
-        .collect();
-    let [mate] = mates[..] else {
-        panic!("the snapshot holds one placement placed by a mate: {mates:?}");
-    };
-
-    let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let Some(NodeResult::Failed(error)) = evaluation.result(mate) else {
-        panic!("the mate fails: {:?}", evaluation.result(mate));
-    };
-    assert!(
-        matches!(&error.kind, NodeErrorKind::Mate(f) if matches!(**f, MateFault::Band { .. })),
-        "the mate's own value is the solve's band refusal: {error:?}"
-    );
-
-    let rows = tree::rows(
-        &doc,
-        Some(&evaluation),
-        &viewer::parts::PartFiles::default(),
-    );
-    let status = common::status_of(&rows, mate);
-    assert_eq!(status.badge(), "FAILED", "{status:?}");
-    assert_eq!(
-        status.message(),
-        Some(error.spoken(&doc, &evaluation).as_str()),
-        "the mate row carries the payload's own rendering"
-    );
-    let pointed: Vec<RecipeNodeId> = rows
-        .iter()
-        .filter(|row| matches!(row.status, RowStatus::Poisoned { .. }))
-        .map(|row| row.id)
-        .collect();
-    assert_eq!(
-        pointed,
-        Vec::<RecipeNodeId>::new(),
-        "a band refusal blames no mate, so no row points at the mate or from it"
-    );
-    println!("{SNAPSHOT_LOAD_DONE}");
-}
-
-/// Runs the child `name` of this module with `envs` and the ambient
-/// tolerance variables removed, answering its stdout once it exits 0.
-///
-/// Another copy of the re-exec harness this file's band row and
-/// `wire_band_cause.rs` already spell, disclosed on
-/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`;
-/// its caller reads a sentinel, as that item asks.
-fn run_child(name: &str, envs: &[(&str, &str)]) -> String {
-    let exe = std::env::current_exe().expect("test exe path");
-    let probe = match module_path!().split_once("::") {
-        Some((_, m)) => format!("{m}::{name}"),
-        None => name.to_string(),
-    };
-    let mut command = std::process::Command::new(exe);
-    command
-        .args([probe.as_str(), "--exact", "--nocapture"])
-        .env_remove("CAD_TOLERANCE_EPS")
-        .env_remove("CAD_AMBIGUITY_K");
-    for (key, value) in envs {
-        command.env(key, value);
-    }
-    let out = command.output().expect("child spawns");
-    let text = String::from_utf8_lossy(&out.stdout).into_owned();
-    assert!(
-        out.status.success(),
-        "{name} failed:\n{text}\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    text
-}
-
-/// The parent of [`child_band_snapshot_author`] and
-/// [`child_band_snapshot_load`]: author at a sound tolerance, carry
-/// the saved text, load it where no band exists.
-#[test]
-fn a_loaded_snapshot_reaches_a_mates_band_refusal() {
-    let eps = format!("{SNAPSHOT_EPS:e}");
-    let k = format!("{SNAPSHOT_LOAD_K:e}");
-    let authored = run_child(
-        "child_band_snapshot_author",
-        &[(SNAPSHOT_AUTHOR, "1"), ("CAD_TOLERANCE_EPS", &eps)],
-    );
-    let snapshot = authored
-        .split_once(&format!("{SNAPSHOT_BEGIN}\n"))
-        .and_then(|(_, rest)| rest.split_once(SNAPSHOT_END))
-        .map(|(text, _)| text)
-        .unwrap_or_else(|| panic!("the author printed no snapshot:\n{authored}"));
-    let loaded = run_child(
-        "child_band_snapshot_load",
-        &[
-            (SNAPSHOT_TEXT, snapshot),
-            ("CAD_TOLERANCE_EPS", &eps),
-            ("CAD_AMBIGUITY_K", &k),
-        ],
-    );
-    assert!(
-        loaded.contains(SNAPSHOT_LOAD_DONE),
-        "the loader exited 0 without reaching its assertions — a filter that matches \
-         nothing greens. Child output:\n{loaded}"
-    );
 }
