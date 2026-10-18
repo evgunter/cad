@@ -30,6 +30,7 @@ pub fn document() -> CorpusDoc {
     let mut r = crate::fixture::Recorder {
         doc: d.doc,
         edits: d.edits,
+        last: None,
     };
     r.place_part(d.final_node);
     CorpusDoc {

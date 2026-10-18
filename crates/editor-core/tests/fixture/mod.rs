@@ -1437,6 +1437,10 @@ pub struct Recorder {
     pub doc: ProfileDoc,
     /// The recorded log.
     pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
+    /// The last evaluation a placement read, the next one's prior: the
+    /// nodes it already holds are reused, so placing a body costs its
+    /// new nodes alone.
+    pub last: Option<Evaluation<f64>>,
 }
 
 impl Default for Recorder {
@@ -1451,7 +1455,21 @@ impl Recorder {
         Self {
             doc: ProfileDoc::empty_derived("mod", Tol::witness()),
             edits: Vec::new(),
+            last: None,
         }
+    }
+
+    /// **The document as edited so far, evaluated**, the last such
+    /// evaluation its prior: what a placement reads its bodies off.
+    pub fn evaluated(&mut self) -> &Evaluation<f64> {
+        let ev = editor_core::evaluate::<f64>(
+            &self.doc,
+            self.last.as_ref(),
+            &editor_core::CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        self.last.insert(ev)
     }
 
     /// Applies an edit (the doors refusing is a loud test failure)
@@ -1603,7 +1621,9 @@ impl Recorder {
     /// body stands ([`editor_core::stand`]), returning the placement.
     pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
-        let stood = editor_core::stand(&self.doc, &read, &EvalOptions::default(), Tol::witness())
+        self.evaluated();
+        let ev = self.last.as_ref().expect("just evaluated");
+        let stood = editor_core::stand_in(&self.doc, ev, &read, Tol::witness())
             .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.constrain(placement, stood.mate, stood.values);
@@ -1623,9 +1643,10 @@ impl Recorder {
             return self.place(body);
         }
         let read = body_read(&self.doc, body.into());
-        let placed =
-            editor_core::place_at(&self.doc, &read, at, &EvalOptions::default(), Tol::witness())
-                .unwrap_or_else(|refusal| panic!("the copy places at its frame: {refusal}"));
+        self.evaluated();
+        let ev = self.last.as_ref().expect("just evaluated");
+        let placed = editor_core::place_at_in(&self.doc, ev, &read, at, Tol::witness())
+            .unwrap_or_else(|refusal| panic!("the copy places at its frame: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.constrain(placement, placed.mate, placed.values);
         placement
@@ -1643,15 +1664,10 @@ impl Recorder {
     ) -> RecipeNodeId {
         let target = body_read(&self.doc, target.into());
         let read = body_read(&self.doc, body.into());
-        let placed = editor_core::place_against(
-            &self.doc,
-            &target,
-            &read,
-            at,
-            &EvalOptions::default(),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+        self.evaluated();
+        let ev = self.last.as_ref().expect("just evaluated");
+        let placed = editor_core::place_against_in(&self.doc, ev, &target, &read, at, Tol::witness())
+            .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.constrain(placement, placed.mate, placed.values);
         placement

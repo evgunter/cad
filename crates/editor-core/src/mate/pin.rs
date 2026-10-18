@@ -95,9 +95,8 @@ impl core::error::Error for PinRefusal {}
 /// placement**: its node, its first solid and its name table.
 fn copy_of(
     doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
     body: &Operand,
-    opts: &EvalOptions,
-    tol: Tol,
 ) -> Result<
     (
         RecipeNodeId,
@@ -111,8 +110,6 @@ fn copy_of(
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
         _ => return Err(PinRefusal::NoNode),
     };
-    let evaluation: Evaluation<f64> =
-        crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
@@ -171,22 +168,22 @@ fn copy_of(
 /// `pose`**: `on` a frame read off the copy's geometry by the module's
 /// rule, `to` the world's frame spun and slid to where that frame sits
 /// at `pose`. `body` is the operand the copy is read through (a
-/// placement's shape, an instance's own output), evaluated in `doc`
-/// under `opts` as it stands, before placement.
+/// placement's shape, an instance's own output), read off `ev`, an
+/// evaluation of `doc`, as it stands before placement.
 ///
 /// # Errors
 ///
 /// [`PinRefusal`]: the copy has no value, no body, is placed already,
 /// or offers no frame.
-pub fn pin_at(
+pub fn pin_at_in(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
     pose: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Mate<Formula>, PinRefusal> {
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
-    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let no_frame = PinRefusal::NoFrame { node };
     let anchors = super::anchor::Anchors::of(doc, node);
@@ -424,16 +421,16 @@ pub struct Placed {
 /// # Errors
 ///
 /// [`PinRefusal`], as [`pin_at`]'s.
-pub fn place_at(
+pub fn place_at_in(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
     pose: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
     use geom_core::linalg::Point3;
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
-    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
     let anchors = super::anchor::Anchors::of(doc, node);
     // The first planar face by id whose definition reaches no document
     // variable, else the first planar face by id.
@@ -458,7 +455,7 @@ pub fn place_at(
     };
     let pinned = || {
         Ok(Placed {
-            mate: pin_at(doc, body, pose, opts, tol)?,
+            mate: pin_at_in(doc, ev, body, pose, tol)?,
             values: Vec::new(),
             by: PlacedBy::Pin,
         })
@@ -469,7 +466,7 @@ pub fn place_at(
         Some(fixed) => Some(fixed),
         None => {
             if own_axis(doc, body, &solid, &table, &anchors).is_some() {
-                return axis_in_world(doc, body, pose, opts, tol);
+                return axis_in_world(doc, ev, body, pose, tol);
             }
             planar(false)
         }
@@ -562,13 +559,13 @@ pub fn place_at(
 /// # Errors
 ///
 /// [`PinRefusal`], as [`place_at`]'s.
-pub fn stand(
+pub fn stand_in(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
-    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
     let anchors = super::anchor::Anchors::of(doc, node);
     let on_its_plane = solid.faces().find_map(|(face, _)| {
         let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
@@ -596,7 +593,7 @@ pub fn stand(
         if let Some(placed) = on_its_axis(doc, body, &solid, &table, &anchors) {
             return Ok(placed);
         }
-        return place_at(doc, body, &Frame::IDENTITY, opts, tol);
+        return place_at_in(doc, ev, body, &Frame::IDENTITY, tol);
     };
     let plane = Operand::Pose(Box::new(PoseDef::Plane {
         face: Operand::select(body.clone(), vec![face]),
@@ -737,14 +734,14 @@ fn own_axis(
 /// about it) that put the copy at `at` in the mate's chart.
 fn axis_against(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     target: &Operand,
     body: &Operand,
     at: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
-    axis_placed(doc, body, at, opts, tol, &|line: &Frame| {
-        let frame = frame_at(doc, target, line, opts, tol)?;
+    axis_placed(doc, ev, body, at, tol, &|line: &Frame| {
+        let frame = frame_at_in(doc, ev, target, line, tol)?;
         Ok(Target::Pose(Operand::Pose(Box::new(PoseDef::Slide {
             pose: RoleRead::through(frame.clone(), PoseRole::Z),
             along: RoleRead::through(frame, PoseRole::Z),
@@ -759,12 +756,12 @@ fn axis_against(
 /// that axis on ([`moved_by`]), read through its `z`.
 fn axis_in_world(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
     at: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
-    axis_placed(doc, body, at, opts, tol, &|line: &Frame| {
+    axis_placed(doc, ev, body, at, tol, &|line: &Frame| {
         let line = line.affine::<f64>();
         Ok(Target::World(WorldRead::Role {
             pose: Box::new(world_at(line.linear, line.translation)),
@@ -778,15 +775,15 @@ fn axis_in_world(
 /// axis stands on at `at`.
 fn axis_placed(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
     at: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
     target: &dyn Fn(&Frame) -> Result<Target<Formula>, PinRefusal>,
 ) -> Result<Placed, PinRefusal> {
     use geom_core::linalg::{Point3, Vec3};
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
-    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
     let anchors = super::anchor::Anchors::of(doc, node);
     let no_frame = PinRefusal::NoFrame { node };
     let (construction, on, _) =
@@ -795,9 +792,7 @@ fn axis_placed(
     // output as the evaluation reads it, a ring's own `z`.
     let (origin, dir) = match doc.output(construction, 1) {
         Some(axis) => {
-            let evaluation: Evaluation<f64> =
-                crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
-            match crate::eval::read_pose_in(doc, &evaluation, RoleRead::plain(axis), tol) {
+            match crate::eval::read_pose_in(doc, ev, RoleRead::plain(axis), tol) {
                 Ok(crate::pose::PoseValue::Axis { origin, dir }) => (origin, dir),
                 _ => return Err(no_frame),
             }
@@ -906,15 +901,15 @@ fn revolve_axis(
 /// # Errors
 ///
 /// [`PinRefusal`], as [`pin_at`]'s.
-pub fn frame_at(
+pub fn frame_at_in(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     body: &Operand,
     at: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Operand, PinRefusal> {
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
-    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let anchors = super::anchor::Anchors::of(doc, node);
     let picked = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)))
@@ -1002,18 +997,18 @@ fn moved_pose(
 ///
 /// [`PinRefusal`]: either body has no value or no face on its own
 /// `xy`, or the target offers no frame for a tilted face.
-pub fn place_against(
+pub fn place_against_in(
     doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
     target: &Operand,
     body: &Operand,
     at: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
     use geom_core::linalg::{Point3, Vec3};
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
     let own_plane = |shape: &Operand| -> Result<(crate::StableName, f64, f64), PinRefusal> {
-        let (node, solid, table) = copy_of(doc, shape, opts, tol)?;
+        let (node, solid, table) = copy_of(doc, ev, shape)?;
         let anchors = super::anchor::Anchors::of(doc, node);
         let reach = super::part_reach(&solid).map_err(|_| PinRefusal::NoFrame { node })?;
         solid
@@ -1042,7 +1037,7 @@ pub fn place_against(
     let (copy_face, copy_z, copy_reach) = match own_plane(body) {
         Ok(plane) => plane,
         Err(refusal) => {
-            return axis_against(doc, target, body, at, opts, tol).map_err(|_| refusal);
+            return axis_against(doc, ev, target, body, at, tol).map_err(|_| refusal);
         }
     };
     let (target_face, target_z, _) = own_plane(target)?;
@@ -1089,7 +1084,7 @@ pub fn place_against(
                 translation: [0.0; 3],
             }
         };
-        let frame = frame_at(doc, target, &at.compose(&turn), opts, tol)?;
+        let frame = frame_at_in(doc, ev, target, &at.compose(&turn), tol)?;
         let to = Operand::Pose(Box::new(PoseDef::Slide {
             pose: RoleRead::through(frame.clone(), PoseRole::Xy),
             along: RoleRead::through(frame, PoseRole::Z),
@@ -1140,4 +1135,84 @@ pub fn place_against(
         ],
         by: PlacedBy::PlanarFace,
     })
+}
+
+/// [`pin_at_in`], over an evaluation of `doc` under `opts` made here.
+///
+/// # Errors
+///
+/// As [`pin_at_in`]'s.
+pub fn pin_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Mate<Formula>, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    pin_at_in(doc, &ev, body, pose, tol)
+}
+
+/// [`place_at_in`], over an evaluation of `doc` under `opts` made here.
+///
+/// # Errors
+///
+/// As [`place_at_in`]'s.
+pub fn place_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    place_at_in(doc, &ev, body, pose, tol)
+}
+
+/// [`stand_in`], over an evaluation of `doc` under `opts` made here.
+///
+/// # Errors
+///
+/// As [`stand_in`]'s.
+pub fn stand(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    stand_in(doc, &ev, body, tol)
+}
+
+/// [`frame_at_in`], over an evaluation of `doc` under `opts` made here.
+///
+/// # Errors
+///
+/// As [`frame_at_in`]'s.
+pub fn frame_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Operand, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    frame_at_in(doc, &ev, body, at, tol)
+}
+
+/// [`place_against_in`], over an evaluation of `doc` under `opts` made here.
+///
+/// # Errors
+///
+/// As [`place_against_in`]'s.
+pub fn place_against(
+    doc: &crate::ProfileDoc,
+    target: &Operand,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    place_against_in(doc, &ev, target, body, at, tol)
 }

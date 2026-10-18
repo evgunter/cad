@@ -805,6 +805,7 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
             let r = Recorder {
                 doc: d.doc,
                 edits: d.edits,
+                last: None,
             };
             (d.name.to_string(), r)
         })

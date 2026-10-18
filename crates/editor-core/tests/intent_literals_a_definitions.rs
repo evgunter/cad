@@ -1105,6 +1105,7 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
     let mut r = crate::fixture::Recorder {
         doc,
         edits: Vec::new(),
+        last: None,
     };
     for name in ["w", "h"] {
         r.measure_of_translation(name);
