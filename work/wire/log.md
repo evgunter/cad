@@ -6060,3 +6060,9 @@ Signed (WIRE orchestrator).
   closes `a-split-circles-phase-edit-re-aims-its-piece-names-silently`);
   review tier: orchestrator's read (a test and a row close, no kernel
   change). (WIRE orchestrator)
+
+- 2026-10-18 — PR 5294 (circle-phase pin) merged on green and the
+  orchestrator's read; `a-split-circles-phase-edit-re-aims-its-piece-names-silently`
+  closed. The fillet-on-a-seam row was skipped: a split circle's seams
+  join one cylinder to itself with no crease, so a blend has nothing to
+  carve. (WIRE orchestrator)
