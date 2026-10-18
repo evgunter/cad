@@ -491,14 +491,15 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 467 is
+    // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part: its pin's fold off the
-    // identity (the two datum normals, and the at-rest predicate
-    // decided twice, by the fold's snap and by the at-identity read),
-    // then placement and validation of the placed body; 731 is the part's, on its own nodes — its profile's
-    // pre-pass on the Profile node's log, decided once (the pinned lift
-    // reuses the pre-pass's validated form), and its placement's pin.
-    assert_eq!(first.len(), 467, "the instantiate op's own decisions");
+    // identity (the two datum normals, and the at-rest predicate,
+    // decided once by the fold's snap), then placement and validation
+    // of the placed body; 731 is the part's, on its own
+    // nodes — its profile's pre-pass on the Profile node's log, decided
+    // once (the pinned lift reuses the pre-pass's validated form), and
+    // its placement's pin.
+    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
     assert_eq!(direct_total, 731, "the part's decisions on its own nodes");
 }
 

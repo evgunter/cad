@@ -729,33 +729,25 @@ where
         .map_err(|f| fault(*f))?
     {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
-        crate::mate::solve::Folded::Pinned(rep) if crate::mate::solve::at_rest(&rep, reach, b) => {
-            Ok((None, target_space.unwrap_or(Space::World)))
-        }
-        crate::mate::solve::Folded::Pinned(rep)
-            if crate::mate::solve::rests_in_value(&rep, reach, b)
-                && let Some(snapped) = T::identity_varying_as(&rep) =>
-        {
+        crate::mate::solve::Folded::Pinned(rep) => {
+            // The one at-rest verdict, decided once (fork C-5).
+            let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
+                Some(true) if T::carries_no_variation(&rep) => None,
+                Some(true) => T::identity_varying_as(&rep).or(Some(rep)),
+                // A box the band cannot decide at rest spans points the
+                // value lane snaps and points it keeps: its map holds
+                // both.
+                None => T::with_rest(&rep).or(Some(rep)),
+                Some(false) => Some(rep),
+            };
             Ok((
-                crate::mate::solve::marked(snapped).rigid(b)?,
+                match placed {
+                    Some(map) => crate::mate::solve::marked(map).rigid(b)?,
+                    None => None,
+                },
                 target_space.unwrap_or(Space::World),
             ))
         }
-        // A box the band cannot decide at rest spans points the value
-        // lane snaps and points it keeps: its map holds both.
-        crate::mate::solve::Folded::Pinned(rep)
-            if crate::mate::solve::rest_verdict(&rep, reach, b).is_none()
-                && let Some(spanned) = T::with_rest(&rep) =>
-        {
-            Ok((
-                crate::mate::solve::marked(spanned).rigid(b)?,
-                target_space.unwrap_or(Space::World),
-            ))
-        }
-        crate::mate::solve::Folded::Pinned(rep) => Ok((
-            crate::mate::solve::marked(rep).rigid(b)?,
-            target_space.unwrap_or(Space::World),
-        )),
     }
 }
 

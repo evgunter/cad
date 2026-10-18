@@ -326,7 +326,10 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef, Kit) {
 #[test]
 fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
     let (doc, ids, kit, coaxial) = determined_pair();
-    assert_eq!(coaxial.placement, ids[1], "the constraint places instance 1");
+    assert_eq!(
+        coaxial.placement, ids[1],
+        "the constraint places instance 1"
+    );
     let o = kit.opts();
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "the pair solves");

@@ -93,7 +93,7 @@ pub trait SolveScalar: Decide {
     /// **Whether `map` carries no variation of the run's own** — no
     /// tangent a seed run's parameter gives it, no symbol a symbolic
     /// run records in it — so a map decided at the identity can be the
-    /// identity without losing what the run reads ([`at_rest`]). A
+    /// identity without losing what the run reads ([`rest_verdict`]). A
     /// value lane's and a box lane's answer `true`.
     fn carries_no_variation(map: &Affine3<Self>) -> bool;
 
@@ -353,7 +353,7 @@ impl<T: SolveScalar> SolvedPoses<T> {
 impl SolvedPoses {
     /// **Whether `placement`'s copy stands at the identity of the
     /// world's coordinates**: the fold's own verdict, read off its
-    /// answer — a copy the fold decided at rest ([`at_rest`], at the
+    /// answer — a copy the fold decided at rest ([`rest_verdict`], at the
     /// evaluation's band and the unplaced copy's reach) was placed by no
     /// map, and one pinned straight to the world's coordinates by the
     /// stored identity. A copy that is loose, refused or unplaced does
@@ -433,35 +433,22 @@ where
     SolvedPoses::of(doc, &evaluation)
 }
 
-/// **Whether a solved map is the identity at rest** (stage 3 C, fork
-/// C-5): no point of the copy moves further than the band's zero — its
+/// **Whether a solved map stands at the identity** (stage 3 C, fork
+/// C-5), three ways: `Some(true)` decided at rest, `Some(false)`
+/// decided apart, `None` where the band cannot decide. At rest, no
+/// point of the copy moves further than the band's zero — its
 /// translation's length plus its turn's departure from the identity
 /// levered over the copy's `reach` (D4 ¶1), each bounded above by a sum
-/// of magnitudes, decided as
-/// [`SolvedPoses::at_identity`] decides it — and the run carries no
-/// variation in it ([`SolveScalar::carries_no_variation`]). A copy
-/// pinned over its geometry at the identity stands there to rounding;
-/// so decided, it is placed by no map, in every lane alike. A margin
-/// the band cannot decide is not guessed: the map is kept, as it is for
-/// one decided apart from the identity. The one predicate the fold's
-/// snap and [`SolvedPoses::at_identity`] both read.
-pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
-    T::carries_no_variation(map) && rests_in_value(map, reach, band)
-}
-
-/// **Whether a solved map's value stands at the identity**, its
-/// variation aside: [`at_rest`]'s decision, which a seed run's value
-/// channel makes as the value lane makes it, so a map the value lane
-/// snaps has the value lane's bits in a seed run too, its tangent kept
-/// ([`SolveScalar::identity_varying_as`]).
-pub(crate) fn rests_in_value<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
-    rest_verdict(map, reach, band) == Some(true)
-}
-
-/// **[`rests_in_value`]'s verdict, three ways**: `Some(true)` decided
-/// at rest, `Some(false)` decided apart, `None` where the band cannot
-/// decide — a box lane whose enclosure spans the band's zero, some of
-/// its points at rest and some not ([`SolveScalar::with_rest`]).
+/// of magnitudes. A copy pinned over its geometry at the identity
+/// stands there to rounding; so decided, the fold places it by no map
+/// where the run carries no variation in it
+/// ([`SolveScalar::carries_no_variation`]), by the identity's value
+/// channel with the map's own tangent where it does
+/// ([`SolveScalar::identity_varying_as`]), and a box spanning the band
+/// by a map holding both ([`SolveScalar::with_rest`]). A margin the
+/// band cannot decide is not guessed. The one predicate the fold's snap
+/// reads, decided once per placement; [`SolvedPoses::at_identity`]
+/// reads the snap's answer.
 pub(crate) fn rest_verdict<T: SolveScalar>(
     map: &Affine3<T>,
     reach: f64,

@@ -934,10 +934,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// value and a pose construction rather than a placer, and the clocked
 /// shaft is gone with the rider; every instance is pinned over its
 /// geometry, so its pose is the identity to that pin's rounding.
+///
+/// And again when a slide value became the least translation the
+/// residual holds (all three rows): only the pinned chain moved, its two
+/// seats on the turned slab by a few ulps of translation, where the
+/// plane's normal and the chart's axes are not the coordinate axes and
+/// the divisor of the slide's share is not exactly one. Each document's
+/// own digest measured equal on the tree before and on this one at all
+/// three ε but for that one; its seats' values are listed in the one
+/// order the solve takes them, so no reordering moved it.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xc428_4898_86f3_c0ac),
-    (1e-6, 0xbbbf_0157_83ff_383e),
-    (1e-12, 0x6188_63eb_60b8_a4ee),
+    (1e-9, 0x136f_a292_c983_3e42),
+    (1e-6, 0x529d_f2e3_617f_70ea),
+    (1e-12, 0x64be_0e25_5803_fbc5),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1786,24 +1795,30 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 /// lane's rounding, so at a fine enough ε it escalates with no box at
 /// all (the spec's §5 (b),
 /// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`).
-/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12, the pinned
-/// chain's axes-parallel margin does at 1e-12.
+/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12: the pinned
+/// chain's second seat at 1e-12, where the placed copy's edges certify
+/// against their carriers over an enclosure about five times the
+/// band's zero (`carrier_endpoint_start`) — its slide placed
+/// by the least translation its residual holds, on a turned chart.
 const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
-    [(1e-12, "pinned-chain", "mate_axes_parallel")];
+    [(1e-12, "pinned-chain", "carrier_endpoint_start")];
 
 /// The escalation `id` fails with in `ev`, if its fault is one: a mate
-/// fault `Indeterminate`.
+/// fault `Indeterminate` (the solve could not decide), or the first
+/// escalation its own log carries where it failed downstream of the
+/// solve (certifying the placed copy's edges).
 fn escalation<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
     use editor_core::{MateFault, NodeErrorKind};
-    match &ev.node_error(id)?.kind {
+    let error = ev.node_error(id)?;
+    match &error.kind {
         NodeErrorKind::Mate(fault) => match &**fault {
             MateFault::Indeterminate { diag, .. } => Some(**diag),
             _ => None,
         },
-        _ => None,
+        _ => error.escalations.first().map(|e| e.source),
     }
 }
 

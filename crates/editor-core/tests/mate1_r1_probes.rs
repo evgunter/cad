@@ -480,7 +480,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
 
     // Three shapes: a plain seat, a seat on a base pinned at a
     // non-identity frame, and a three-instance chain whose second seat
-    // slides along its free direction by a value.
+    // is one rest with its freedoms set by values.
     for (tag, chain, fr) in [
         ("seat-identity", false, Frame::IDENTITY),
         (
@@ -520,8 +520,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
         };
         let (doc, _m0) = seat(doc, b, &b_part, |n| n, &a_part, a);
         let doc = if chain {
-            // `c` rests on `b` with wall 0 flush, which leaves a slide
-            // along `b`'s x; a value sets it to a quarter.
+            // `c` rests on `b`, its three freedoms set by values: a
+            // quarter along `b`'s x, none along its y, no turn.
             let (doc, m1) = constrain(
                 doc,
                 rest(
@@ -530,20 +530,19 @@ fn r1_pattern_free_solves_are_bit_identical() {
                     ContactClass::Rest,
                 ),
             );
-            let (doc, _) = constrain(
-                doc,
-                fixture::mate(
-                    plane(head(c_part.wall(c, 0))),
-                    standoff(head(b_part.wall(b, 0)), 0.0),
-                    ContactClass::Rest,
+            [
+                (editor_core::Coord::Spin, ang(0.0)),
+                (
+                    editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                    len(0.25),
                 ),
-            );
-            add_value(
-                doc,
-                m1,
-                editor_core::Coord::Slide(editor_core::SlideAxis::X),
-                len(0.25),
-            )
+                (
+                    editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                    len(0.0),
+                ),
+            ]
+            .into_iter()
+            .fold(doc, |doc, (coord, by)| add_value(doc, m1, coord, by))
         } else {
             doc
         };

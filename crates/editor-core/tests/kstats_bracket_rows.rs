@@ -115,8 +115,9 @@ const EXTRUDE_LOG: usize = 655;
 /// A placement pinned to the world by one mate read off its copy's
 /// geometry ([`fixture::pin`]): the decisions its fold makes reading
 /// the copy's frame at the identity. An instance pinned off the
-/// identity carries its own pin fold on top of its op's log: four
-/// decisions, as its fold measures it.
+/// identity carries its own pin fold on top of its op's log: three
+/// decisions — the two datum normals, and the at-rest predicate decided
+/// once by the fold's snap.
 const PIN_LOG: usize = 3;
 
 /// Two instances, both pinned to the world, so both ops do the same
@@ -156,7 +157,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [467, 467]);
+    assert_eq!(seq, [466, 466]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -185,7 +186,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        seq[0], 923,
+        seq[0], 922,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(
@@ -217,7 +218,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [467, 467]);
+    assert_eq!(logs(&again, &ids), [466, 466]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -319,7 +320,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [467, 467]);
+    assert_eq!(logs(&ev, &ids), [466, 466]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"
