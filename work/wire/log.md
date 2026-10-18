@@ -5982,3 +5982,8 @@ kind fault its own sentence and checked every name against an `Is` seat's
 kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
 
 Signed (WIRE orchestrator).
+
+- 2026-10-18 — PR 5276 fix pass adjudicated by the orchestrator's delta
+  read (dedup runs before any record cites a row index; `fold_cell`
+  refuses an unstripped minted head as it does a member head); merged on
+  green; `a-union-fold-publishes-no-pinch-row` closed. (WIRE orchestrator)
