@@ -13,7 +13,7 @@
 use core::num::NonZeroUsize;
 
 use geom::NurbsCurve3;
-use geom_core::spline::{KnotAlgebraError, Knots};
+use geom_core::spline::{KnotAlgebraError, Knots, SplineError};
 use geom_core::{Bounds, Interval, Point3, Real};
 
 fn m(n: usize) -> NonZeroUsize {
@@ -205,11 +205,13 @@ fn a_removal_bound_at_interval_encloses_the_f64_bound() {
     );
 }
 
-/// **A removal whose ratio's enclosure reaches 1 refuses, typed.** Knots
-/// a few ulps apart (`1.1358116413770405`, `…412`, `…420`) make the
-/// backward unblend divide by an enclosure of `1 − a` that reaches
-/// zero; the pole it writes is `[−∞, +∞]`, which the door's poison test
-/// does not see. Red where an unbounded pole is admitted.
+/// **A removal whose ratio's enclosure reaches 1 refuses, typed, at the
+/// carrier's door.** Knots a few ulps apart (`1.1358116413770405`,
+/// `…412`, `…420`) make the backward unblend divide by an enclosure of
+/// `1 − a` that reaches zero; the pole it writes is `[−∞, +∞]`, which
+/// is no poison, and the door refuses it (`PoleUnbounded`, C6 S5; an
+/// unbounded weight is `NonFiniteWeight`). Red where an unbounded pole
+/// is admitted.
 #[test]
 fn a_removal_whose_ratio_reaches_one_refuses_typed() {
     let i = Interval::from_f64;
@@ -230,7 +232,9 @@ fn a_removal_whose_ratio_reaches_one_refuses_typed() {
         .collect();
     let c = NurbsCurve3::new(knots, control, vec![i(1.0); n]).unwrap();
     match c.remove_knot(u, 1) {
-        Err(KnotAlgebraError::UnboundedAtEnclosure { .. }) => {}
+        Err(KnotAlgebraError::Structure(
+            SplineError::PoleUnbounded { .. } | SplineError::NonFiniteWeight { .. },
+        )) => {}
         other => panic!("a removal whose ratio reaches 1: {:?}", other.map(|_| ())),
     }
 }
@@ -270,4 +274,64 @@ fn an_uncertified_pole_stays_uncertified_through_the_knot_algebra() {
             );
         }
     }
+}
+
+/// **The carrier's door refuses an unbounded pole (C6 S5).** At
+/// `Interval`, a curve and a surface whose control point reaches `+∞`
+/// for some member refuse `PoleUnbounded` at that point; a poison pole
+/// (the placeholder's reading) and every bounded one are admitted, and
+/// at `f64` the door does not read a point coordinate, so nothing there
+/// moves. Red where the door reads only poison.
+#[test]
+fn the_carriers_door_refuses_an_unbounded_pole() {
+    use geom::NurbsSurface;
+    let i = Interval::from_f64;
+    let wide = Interval::from_bounds(1.0, f64::INFINITY);
+    let knots = || Knots::new(vec![(i(0.0), m(2)), (i(1.0), m(2))], 1).unwrap();
+    let curve = |p: Point3<Interval>| {
+        NurbsCurve3::new(
+            knots(),
+            vec![Point3::new(i(0.0), i(0.0), i(0.0)), p],
+            vec![i(1.0); 2],
+        )
+    };
+    match curve(Point3::new(wide, i(0.0), i(0.0))) {
+        Err(SplineError::PoleUnbounded { index: 1 }) => {}
+        other => panic!("an unbounded pole: {:?}", other.map(|_| ())),
+    }
+    let poison = Interval::from_f64(f64::NAN);
+    assert!(
+        curve(Point3::new(poison, i(0.0), i(0.0))).is_ok(),
+        "a poison pole is the placeholder's"
+    );
+    assert!(curve(Point3::new(Interval::from_bounds(1.0, 2.0), i(0.0), i(0.0))).is_ok());
+    let surface = |p: Point3<Interval>| {
+        NurbsSurface::new(
+            knots(),
+            knots(),
+            vec![
+                Point3::new(i(0.0), i(0.0), i(0.0)),
+                Point3::new(i(1.0), i(0.0), i(0.0)),
+                Point3::new(i(0.0), i(1.0), i(0.0)),
+                p,
+            ],
+            vec![i(1.0); 4],
+        )
+    };
+    match surface(Point3::new(i(1.0), i(1.0), wide)) {
+        Err(SplineError::PoleUnbounded { index: 3 }) => {}
+        other => panic!("an unbounded surface pole: {:?}", other.map(|_| ())),
+    }
+    assert!(
+        NurbsCurve3::new(
+            Knots::new(vec![(0.0, m(2)), (1.0, m(2))], 1).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(f64::INFINITY, 0.0, 0.0)
+            ],
+            vec![1.0; 2],
+        )
+        .is_ok(),
+        "at f64 the door does not read a point coordinate"
+    );
 }

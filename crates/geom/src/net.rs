@@ -236,6 +236,32 @@ pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, S
     Err(SplineError::CarrierWeightNotAPoint { index })
 }
 
+/// A carrier's control points are bounded where they are wider than a
+/// point (C6 S5): a coordinate that reaches `±∞` for some member, though
+/// not poison, would be carried by evaluation as a number. A point
+/// coordinate is not read here, so a point scalar's door is unchanged;
+/// poison is the placeholder net's own reading (crate docs).
+///
+/// # Errors
+///
+/// [`SplineError::PoleUnbounded`] at the first control point with such a
+/// coordinate.
+pub(crate) fn carrier_poles<T: SpanLocate, P: ControlPoint<T, Channels = C>, C>(
+    control: &[P],
+) -> Result<(), SplineError>
+where
+    C: IntoIterator<Item = T>,
+{
+    let unbounded = |v: T| v.point_value().is_none() && !v.is_poison() && !v.is_bounded();
+    match control
+        .iter()
+        .position(|p| p.channels().into_iter().any(unbounded))
+    {
+        Some(index) => Err(SplineError::PoleUnbounded { index }),
+        None => Ok(()),
+    }
+}
+
 /// A carrier's knots have their `f64` vector: its evaluation, span
 /// reads and knot algebra read them through it
 /// ([`Knots::structure_f64_interim`]). The test is the vector itself

@@ -124,6 +124,17 @@ pub enum SplineError {
         /// Index of the offending weight.
         index: usize,
     },
+    /// A curve or surface was built with a control point one of whose
+    /// coordinates is an enclosure wider than a point and not bounded:
+    /// it reaches `±∞` for some member, though not poison, which a
+    /// carrier's evaluation would carry as a number (C6 S5: the door,
+    /// not each caller, refuses it; a knot operation's unblend at an
+    /// enclosure scalar can write one, from a removal whose ratio's
+    /// enclosure reaches `0` or `1`).
+    PoleUnbounded {
+        /// Index of the offending control point.
+        index: usize,
+    },
     /// Whether a weight is strictly positive is not decided for every
     /// value it stands for: its enclosure reaches zero or below for some
     /// members and lies above zero for others (C6). The margin is the
@@ -204,6 +215,13 @@ impl core::fmt::Display for SplineError {
                  inputs need not lift it. Recourse: supply the carrier built at a point \
                  scalar (`f64`) and lifted, so its breakpoints stay the numbers it was \
                  built on"
+            ),
+            SplineError::PoleUnbounded { index } => write!(
+                f,
+                "control point {index} reaches an infinity for some of the values it stands \
+                 for. Recourse: supply control points that are bounded there — at an \
+                 enclosure scalar a knot removal over knots within rounding of each other can \
+                 write one; evaluate that removal at a point scalar, or keep the knot"
             ),
             SplineError::CarrierWeightNotAPoint { index } => write!(
                 f,
@@ -2310,6 +2328,7 @@ mod tests {
             },
             SplineError::CarrierKnotNotAPoint { index: 1 },
             SplineError::CarrierWeightNotAPoint { index: 1 },
+            SplineError::PoleUnbounded { index: 1 },
             SplineError::WeightSignUndecided {
                 index: 1,
                 margin: crate::MarginDiag::enclosure(-0.25, 0.5),
@@ -2328,6 +2347,7 @@ mod tests {
                 | SplineError::KnotIsPoison { .. }
                 | SplineError::KnotRunsNotIncreasing { .. }
                 | SplineError::KnotRunsUndecided { .. }
+                | SplineError::PoleUnbounded { .. }
                 | SplineError::CarrierKnotNotAPoint { .. }
                 | SplineError::CarrierWeightNotAPoint { .. }
                 | SplineError::WeightSignUndecided { .. } => {}

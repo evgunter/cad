@@ -497,6 +497,7 @@ macro_rules! nurbs_curve {
                 net::carrier_knots(&knots)?;
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
+                net::carrier_poles(&control)?;
                 let weights = Weights::from_point_parts(weights, weight_channel);
                 Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
@@ -785,14 +786,8 @@ macro_rules! nurbs_curve {
                     hom.into_iter().map(|(v, w)| (origin + v / w, w)).unzip();
                 // A removal's ratio read from knots within rounding of each
                 // other can reach 0 or 1, and its unblend divides by it: an
-                // unbounded enclosure, which the door's poison test does not
-                // see. Refused here, typed; a poison value is the door's.
-                let unbounded = |v: &T| !v.is_poison() && !v.is_bounded();
-                if let Some(index) = control.iter().zip(&weights).position(|(p, w)| {
-                    unbounded(w) $(|| unbounded(&p.$c))+
-                }) {
-                    return Err(KnotAlgebraError::UnboundedAtEnclosure { index });
-                }
+                // unbounded pole or weight, which the door refuses
+                // (`PoleUnbounded`, `NonFiniteWeight`).
                 $Curve::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
             }
         }

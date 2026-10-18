@@ -623,6 +623,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
         let weight_channel = net::weight_channel(&weights)?;
         let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         net::validate_counts(expected, control.len(), &weight_channel)?;
+        net::carrier_poles(&control)?;
         Ok(Self {
             knots_u,
             knots_v,

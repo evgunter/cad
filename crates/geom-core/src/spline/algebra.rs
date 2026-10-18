@@ -108,16 +108,6 @@ pub enum KnotAlgebraError {
         /// the writer, the reinserted polygon's slot.
         index: usize,
     },
-    /// At an enclosure scalar, a control point or weight a plan wrote
-    /// is not bounded: a removal's ratio, read from knots within
-    /// rounding of each other, has an enclosure reaching `0` or `1`, and
-    /// the unblend divides by it (C6 S4). Refused rather than handed to
-    /// the carrier as an unbounded enclosure.
-    UnboundedAtEnclosure {
-        /// Index of the control point in the polygon the operation
-        /// wrote.
-        index: usize,
-    },
 }
 
 impl core::fmt::Display for KnotAlgebraError {
@@ -160,12 +150,6 @@ impl core::fmt::Display for KnotAlgebraError {
                 "the knot operation wrote weight {index} out of the positive regime. \
                  Recourse: drop this operation — the curve it would leave is not a \
                  valid rational one, so keep the curve as it is"
-            ),
-            KnotAlgebraError::UnboundedAtEnclosure { index } => write!(
-                f,
-                "the knot operation wrote control point {index} unbounded over the values it \
-                 stands for: a removal's ratio, read from knots within rounding of each other, \
-                 reaches 0 or 1. Recourse: evaluate at a point scalar, or keep the knot"
             ),
         }
     }

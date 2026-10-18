@@ -309,6 +309,7 @@ impl CarrierDomainRefusal {
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
             | SplineError::CarrierWeightNotAPoint { .. }
+            | SplineError::PoleUnbounded { .. }
             | SplineError::WeightSignUndecided { .. }
             | SplineError::KnotIsPoison { .. }
             | SplineError::KnotRunsUndecided { .. }
