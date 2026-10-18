@@ -1363,7 +1363,10 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                 );
                 // The reinsertion puts back the knot the removal took out:
                 // its held value (the curve's `remove_knot` says why).
-                let held = |v: f64| cur.knots_u.value_at(v).unwrap_or_else(|| T::from_f64(v));
+                let held = |v: f64| match cur.knots_u.value_at(v) {
+                    Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
+                    Err(e) => unreachable!("a carrier's knots are points (`net::carrier_knots`): {e}"),
+                };
                 let (reinserted, _) = Column {
                     points: removed.points.clone(),
                     weights: removed.weights.clone(),

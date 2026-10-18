@@ -208,6 +208,30 @@ impl<T: SpanLocate> Knots<T> {
         })
     }
 
+    /// The held value of the breakpoint whose value channel is `v`
+    /// (bit-equal), or `None` when no breakpoint reads as `v`.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::CarrierKnotNotAPoint`] at the first wide run, where
+    /// the knots are not all points: they have no value channel to
+    /// match `v` against, and answering `None` there would enter `v` as
+    /// a fresh value beside a breakpoint it may name.
+    pub fn value_at(&self, v: f64) -> Result<Option<T>, SplineError> {
+        let Some(point) = self.point.as_ref() else {
+            let index = self
+                .runs()
+                .position(|(value, _)| value.point_value().is_none())
+                .unwrap_or(0);
+            return Err(SplineError::CarrierKnotNotAPoint { index });
+        };
+        Ok(self
+            .runs()
+            .zip(point.knot_runs())
+            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
+            .map(|((value, _), _)| value))
+    }
+
     /// The spans the parameter `t` overlaps: the first and the last, or
     /// `None` for a poison `t`. Point knots locate on their `f64`
     /// vector ([`SpanLocate::locate_spans`]); knots wider than a point
@@ -397,17 +421,6 @@ impl<T: Real> Knots<T> {
     pub fn domain(&self) -> (T, T) {
         let (n, p) = (self.values.len(), self.structure.degree());
         (self.values[p], self.values[n - 1 - p])
-    }
-
-    /// The held value of the breakpoint whose value channel is `v`
-    /// (bit-equal), or `None` when no breakpoint reads as `v`, or the
-    /// knots are not all points (they have no value channel).
-    pub fn value_at(&self, v: f64) -> Option<T> {
-        let point = self.point.as_ref()?;
-        self.runs()
-            .zip(point.knot_runs())
-            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
-            .map(|((value, _), _)| value)
     }
 
     /// The degree `p`.
@@ -623,6 +636,40 @@ mod tests {
             .expect("midpoints ascend");
         assert!(mid.is_point(), "point knots hold their vector");
         assert_eq!(mid.values(), &[0.0, 0.0, 0.5, 1.0, 1.0]);
+    }
+
+    /// **`value_at` tells "no breakpoint reads as `v`" from "no value
+    /// channel"**: on point knots a breakpoint's value answers and any
+    /// other `v` is `None`, the caller's cue to enter it fresh; on knots
+    /// with a wide breakpoint it refuses at that run, rather than a
+    /// `None` that would enter `v` beside a breakpoint it may name. Red
+    /// where wide knots answer `None`.
+    #[test]
+    fn value_at_refuses_wide_knots_rather_than_answering_none() {
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let point = Knots::new(vec![(pt(0.0), m(2)), (pt(0.5), m(1)), (pt(1.0), m(2))], 1).unwrap();
+        assert_eq!(
+            point
+                .value_at(0.5)
+                .map(|k| k.map(|v| (crate::real::Bounds::lo(v), crate::real::Bounds::hi(v)))),
+            Ok(Some((0.5, 0.5)))
+        );
+        assert!(matches!(point.value_at(0.25), Ok(None)));
+        let wide = Knots::new(
+            vec![
+                (pt(0.0), m(2)),
+                (Interval::from_bounds(0.25, 0.75), m(1)),
+                (pt(1.0), m(2)),
+            ],
+            1,
+        )
+        .unwrap();
+        for v in [0.5, 0.0] {
+            match wide.value_at(v) {
+                Err(SplineError::CarrierKnotNotAPoint { index }) => assert_eq!(index, 1),
+                other => panic!("{v}: wide knots answered {other:?}"),
+            }
+        }
     }
 
     /// **A breakpoint past the finite numbers refuses on every path**:

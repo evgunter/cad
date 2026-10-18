@@ -236,7 +236,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     }
 }
 
-impl<T: Real> FramedCarrier<T> {
+impl<T: SpanLocate> FramedCarrier<T> {
     /// The carrier parameters of the piece parameters `a`, `b`. On a
     /// net a piece end that is one of its breakpoints is that
     /// breakpoint's held value; any other is a break the partition
@@ -471,10 +471,11 @@ pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<P
 /// that breakpoint's held value; any other is a point the caller
 /// chose (a partition or halving break, or the `f64` end of an edge's
 /// certified parameter enclosure), entered as the constant it is.
-fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
-    net.knot_values()
-        .value_at(v)
-        .unwrap_or_else(|| T::from_f64(v))
+fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
+    match net.knot_values().value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
+        Err(e) => unreachable!("a carrier's knots are points (`net::carrier_knots`): {e}"),
+    }
 }
 
 /// The control points and weights of a net's restriction to `piece`

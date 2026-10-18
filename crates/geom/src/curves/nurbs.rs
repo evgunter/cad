@@ -904,7 +904,10 @@ macro_rules! nurbs_curve {
                     // The reinsertion puts back the knot the removal took
                     // out: its held value, so the bound reads the curve's
                     // own knot rather than a constant copy of it.
-                    let held = |v: f64| cur.knots.value_at(v).unwrap_or_else(|| Self::inserted(v));
+                    let held = |v: f64| match cur.knots.value_at(v) {
+                        Ok(k) => k.unwrap_or_else(|| Self::inserted(v)),
+                        Err(e) => unreachable!("a carrier's knots are points (`net::carrier_knots`): {e}"),
+                    };
                     let reinserted =
                         removed.apply_plans(core::slice::from_ref(&step.reinsert), &held);
                     bound = bound + net::removal_pass_bound(
