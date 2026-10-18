@@ -10,12 +10,6 @@ crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
-crates/editor-core/src/mate.rs	1	constant	radians	the authored clocking angle, f64 by type in the document
-crates/editor-core/src/mate.rs	2	launders(editor-core-keeps-computed-values-in-t)	arm	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
-crates/editor-core/src/mate/coset.rs	4	launders(editor-core-keeps-computed-values-in-t)	arm.get()	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
-crates/editor-core/src/mate/solve.rs	1	constant	offset	the authored planar-rest offset, f64 by type in the document
-crates/editor-core/src/mate/solve.rs	1	constant	theta	the authored clocking angle, f64 by type in the document
-crates/editor-core/src/mate/solve.rs	3	constant	<fn>	the identity's and the opposed flip's literal entries
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
@@ -77,7 +71,7 @@ crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interva
 crates/geom-core/src/real.rs	1	constant	k	scale_pow2's default: the power of two a subdivision's 2^-r scale names, a constant of the cut
 crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
-crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
+crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots_f64_interim().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/derivative.rs	2	constant	p as f64	the degree, a derivative coefficient's factor over the held knots (and a Bézier axis's degree, the r-th derivative's scale)
 crates/geom-core/src/spline/derivative.rs	1	constant	p.checked_sub(r)? as f64	the degree of a Bézier axis's r-th derivative, its scale's factor
 crates/geom-core/src/spline/derivative.rs	2	constant	k	an exact binomial integer (the quotient bound's Bernstein product and elevation weights; QUOTIENT_MAX_DEGREE keeps every one below 2^53)
@@ -134,6 +128,7 @@ crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/boolean/torus_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule

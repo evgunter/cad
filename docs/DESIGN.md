@@ -49,13 +49,13 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   mate's `ContactClass`, C6's `Fit` as a class); the
   undeclared-coincidence, undeclared-contact and undeclared-tangency
   refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; DISCIPLINES
-  DS2's identification grade; the axis declaration channel;
+  ASSEMBLY A5's hard error on an unattributed contact; the axis
+  declaration channel;
   `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
   `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
   stored tangent-joint flags; ASSEMBLY A3, A10's sink rule and A12's
   reading edges; and A5's at-rest gate (`assemble` and its refusal), whose
-  census becomes a check, with DISCIPLINES DS6's product-separation
+  census becomes a check, with CHECKS DS6's product-separation
   resident (`Separation`).
 
 The program's exit walk checks that list against the code
@@ -487,67 +487,48 @@ arm. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
-**The two-tolerance principle.** `[tolerance.recourse]`
-Two roles are kernel-wide
-vocabulary: **ε_precision** (this ε — certification residuals, what
-gets built) and **ε_input** — the least precision a user might care
-about: what counts as too-close-to-a-coincidence when interpreting
-input. ε_input IS K·ε, a synonym, not a third dial; K stays the one
-knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`). Binding consequences:
-(i) user-facing messages and recourse never fork on exactly-on vs
-in-band below ε_input — ONE message, ONE recourse per **decision**
-(the one question a site asks), written once in the decision's own
-levers and shared by all its refused arms, with the margin riding
-the payload as data; kernel semantics keep the distinction (message
-policy, not predicate policy). The recourse follows from the
-decision and its verdict: *make the two one construction* ([coincidence])
-only where the refused side is a coincidence a shared construction
-would decide; *move the geometry*, phrased as the decision's own lever, always;
-*tighten the tolerance* only where the refused margin is a size the
-user may intend and a smaller ε decides it — the band-decided arms
-(in band, or Zero where Zero does not pass) of a decision that passes
-on a nonzero sign — phrased conditionally and with the value the
-margin gives ("if this size is intended, tighten the tolerance below
-m/K"); never on a sign-certain arm, and never on a decision that
-passes only at Zero (a residual), whose refused margin is a miss,
-not a size. No refusal advises loosening ε, with one exception: a
-refusal that would otherwise name no recourse at all (a kernel
-approximation limit — an offset fit that stalls, a quadrature budget
-spent, a built curve's residual) names loosening the tolerance as a
-last resort and says the refusal may indicate a kernel bug worth
-reporting. At adoption, certification runs at ε and a refusal reads
-as at rest. ε_in is the file's own coincidence distance ([import]): it
-governs interpretation — what the file's data is evidence of, where
-healing may move geometry by up to O(ε_in) — and its refusals are
-the import door's, named in ε_in with the value the margin gives; a
-size below ε_in is not one the file intends, so no refusal offers to
-keep it. Until adoption rebuilds its caches from the file's
-descriptions ([import]), a certification refusal whose miss lies within
-ε_in but beyond ε (the file's data agrees to its own declared
-coincidence distance, not to this run's) names setting ε to ε_in as
-a stopgap, beside re-exporting the file more precisely. A change to
-a document's ε reports what it flips at the change itself. The
-three-arm sentence (make them one construction / move the geometry
-/ tighten the tolerance) is thus the recourse of a decision whose
-refused side is a coincidence a construction could decide; an
-`unproven-coincidence` finding refuses nothing, and its recourse is
-one construction or an assertion at its site ([assertions]). The decision is a closed type at its site (as
-`CertCheck` is), so its recourse is an exhaustive match, never a
-lookup by predicate name. (ii) Error variants may stay distinct as
-data; their user stories converge per decision. `Indeterminate`
-carries data, not a recourse: its Display renders the payload, and
-the site that knows the decision appends the one ending
-(`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
-compose). (iii) [import]'s ε_in is an instance of ε_input, not a separate
-concept. (iv) **The rule binds a predicate's DEFINITE arms too**: a
+**The two-tolerance principle.** `[tolerance.recourse]` Two roles are
+kernel-wide vocabulary: **ε_precision**, this ε (certification
+residuals, what gets built), and **ε_input**, the least precision a
+user might care about (what counts as too close to a coincidence when
+interpreting input). ε_input *is* K·ε, a synonym and not a third dial:
+K stays the one knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`), and
+[import]'s ε_in is an instance of ε_input (iii). Binding consequences:
+
+- **(i) One message, one recourse per decision.** User-facing messages
+  and recourse never fork on exactly-on vs in-band below ε_input: each
+  **decision** (the one question a site asks) has one story, written
+  once in its own levers and shared by all its refused arms, with the
+  margin riding the payload as data. Kernel semantics keep the
+  distinction; this is message policy, not predicate policy.
+- **The recourse follows from the decision and its verdict.** *Make the
+  two one construction* ([coincidence]) only where the refused side is
+  a coincidence a shared construction would decide; *move the
+  geometry*, phrased as the decision's own lever, always; *tighten the
+  tolerance* only where the refused margin is a size the user may
+  intend and a smaller ε decides it, phrased conditionally and with the
+  value the margin gives, never on a sign-certain arm and never on a
+  decision that passes only at Zero. No refusal advises loosening ε,
+  except one that would otherwise name no recourse at all (a kernel
+  approximation limit), which names it as a last resort and says the
+  refusal may indicate a kernel bug. An `unproven-coincidence` finding
+  refuses nothing; its recourse is one construction or an assertion at
+  its site ([assertions]).
+- **(ii) The decision is a closed type at its site**, so its recourse is
+  an exhaustive match, never a lookup by predicate name. Error variants
+  may stay distinct as data; their user stories converge per decision.
+- (iv) **The rule binds a predicate's DEFINITE arms too**: a
 new definite outcome a user could reach by moving geometry tells the
 same one story with the same one recourse as its in-band sibling. A
 surface reading a body at rest may end a definite contradiction
 between a stored description and its stored geometry as a defect —
 no move of the geometry reaches it — and never names a lever the
 decision does not.
-Review checklist form: for every arm added to a decision, name which
-ε_input story it belongs to, or say why it belongs to none.
+
+How each door applies these (the import door's ε_in sentences and its
+stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
+checklist) is `crates/geom-core/README.md`, "The recourse rules at each
+door".
 
 
 **Chordal tolerance δ is not a tolerance in this sense.**
@@ -839,22 +820,17 @@ name — and its schedule is the tracker.
 *From:* [intent.stored], [one-way], [loud-failure].
 
 Topology and geometry live in separate arenas: faces reference
-surfaces, edges reference curves, vertices reference points.
+surfaces, edges reference curves, vertices reference points. How
+`geom-brep` keeps the rules below (the pcurve background, the
+derivations behind each validity predicate, the witness contract) is
+`crates/geom-brep/README.md`, "Edge descriptions".
 
-**Background: pcurves.** A surface is a map `S(u,v) → ℝ³`. A face is a
-region of that surface's parameter plane, and each boundary edge is
-therefore also a curve `P(t) → (u,v)` in that plane — the *pcurve*. An
-edge shared by two faces classically carries three representations: a
-3-D curve plus one pcurve per adjacent face, with the consistency
-requirement `Sᵢ(Pᵢ(t)) ≈ C(t)`. Pcurves are not optional — trimming,
-tessellation and intersection marching happen in (u,v) — and the
-redundancy among peer representations is a classic bug farm.
-
-**Our rule:** an edge's geometry is stored as an *intensional
-description* of what the locus **is**; every concrete representation
+**An edge stores what its locus is.** An edge's geometry is an
+*intensional description* of the locus; every concrete representation
 (the 3-D carrier, both pcurves) is a derived cache carrying a certified
-residual bound against the described locus ([tolerance.residuals]). The type is
-`EdgeDescription<T>` (`crates/geom-brep/src/description.rs`):
+residual bound against it ([tolerance.residuals]), never a peer of the
+description. The type is `EdgeDescription<T>`
+(`crates/geom-brep/src/description.rs`):
 
 ```text
 EdgeDescription =
@@ -876,125 +852,46 @@ EdgeDescription =
                                              -- lower-dim entity; never at rest
 ```
 
-A two-surface edge is always a curve of the two surfaces' intersection,
-and its selector says which: no two-surface edge is conventional. The
-selector follows one question, asked of the geometry and never of where
-the body came from: **is the curve known in advance?** Where it is —
-the surfaces' contact or crossing has a closed form (a ruling where a
-plane meets a cylinder or a swept wall, a circle where coaxial surfaces
-of revolution meet, a row or column of a swept or skinned wall), or the
-curve was chosen to lie in a region where the two surfaces overlap in
-2-D — the selector is **structural**: that closed form, picking the
-curve exactly whatever the contact order, certified by its own meter and
-incidence on each surface, each read through that surface's own
-chart-image certificate (the one meter every pcurve carries). A
-construction that knows the curve (a profile vertex swept, a section
-placed, a section vertex skinned through a loft's sections) states that
-closed form directly, and an import recovers the same closed form from
-the same geometry, so a native body and its imported copy carry the same
-selector: the closed form is a property of the surfaces, not of the
-history. Where the curve must be derived numerically from the geometry
-— a crossing or tangency with no closed form — the selector is a
-**witness**, the branch through a point, admitted only where its margin
-certifies: transversality for a crossing, the order-k jet system's
-margin for a tangency of order k, each taken across the locus, over the
-faces, never along the edge. A construction therefore never classifies
-its own joins by measurement, and the sketch's joint class is the one
-reading of their kind. A curve no lane can yet select refuses typed,
-naming the lane, native or imported alike; a coincidence of two surfaces
-in band is refused at the structural act that made them adjacent. A locus one chart defines
-(parameterization seams — infinite-order contact, the seam's position
-pure convention; iso-lines; splits whose two faces share one surface;
-two records that read as one carrier) is `Chart`: one (surface,
-`Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
-classes stay as certification lanes, not variants. A `MappedCurve`
-survives as the `Scaffold` payload, as a structural selector and as the
-`EdgeAuthority` record — one authoritative source, never two peer
-representations needing cross-reconciliation.
-
-**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as
-an unconditional challenge: every edge must have an intensional
-description — there is no escape hatch, so it cannot be reached for
-when not absolutely necessary. This holds for imported geometry ([import]):
-the intrinsic variants are checkable properties of the geometry as it
-now stands, and a closed-form selector is a property of the surfaces,
-so extensional input is *adopted* by recovering the selector a native
-body would carry, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
-taxonomy (imported fillets force `TangentIntersection`), not the need
-for a fallback.
-
-**Validity predicates with margins.** `Intersection` requires
-*transversality*: normals of S₁, S₂ linearly independent along the
-locus, so the implicit function theorem makes S₁∩S₂ locally a
-1-manifold; the margin (angle between normals) governs the conditioning
-of every derived cache. A branch may end at a *node*, a point where
-it crosses another branch of the same pair and the two surfaces are
-tangent (two equal cylinders with intersecting axes: their section is
-two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
-connected set, so the witness selects the branch, and transversality
-holds on the open edge, which is where certification samples it. A tangency's validity sits one
-differential order up: surfaces coincident within ε and normal-parallel
-within the derived angular threshold ε·κ_rel ([tolerance.epsilon]: lever arm
-r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
-to it (relative normal curvature bounded away from zero — otherwise the
-surfaces osculate over a patch and the "locus" is not a curve).
-Reconstructing a tangency locus is well-conditioned *despite* the
-tangency because its defining system includes the first-order
-normal-alignment equations: the normal angle grows linearly with
-transverse distance, and the second-order margin is the
-implicit-function-theorem denominator for that jet system. Order-k
-contact generalizes: defining equations from the k-jet, margin at order
-k+1, so a curvature-continuous join (k = 3) is read as a tangency where
-its third-order separation certifies, not left under-determined. In the intrinsic variants "the locus lies on both surfaces" holds
-*by definition*; only the caches need certification. Vertices
-generalize the same way (three surfaces / endpoint of a locus, with a
-witness). A locus in the ambiguous band — a dihedral within a few
-derived angular thresholds of tangent, certifiable as neither — fails
-loudly at construction exactly as at import; a conventional description
-is not an escape hatch from ill-conditioned geometry. An edge whose
-stations read definitely transverse at some and definitely smooth at
-others is such a locus: the dihedral is continuous along it, so the two
-readings bracket an in-band point the schedule did not sample, and it
-refuses typed, naming the two stations.
-
-**Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
-intrinsic, and its selector is decided by the geometry alone: a closed
-form where one exists, a witness where the curve must be derived. A
-fillet we build carries its rolling ball's contact rail; a sweep carries
-the ruling its profile vertex sweeps out, whatever the joint's contact
-order; an imported copy of either recovers the same closed form. A
-closed form that selects the curve is description, not history; [identity]
-provenance stays the record of who built the edge, and native and
-imported bodies carry identical descriptions. At rest, a witness
-selector must certify its reading:
-a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
-otherwise), a jet-determinate tangency as `TangentIntersection`
-(`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
-admits the class). The rule needs two surfaces and a definite reading, so
-a wrap edge (one surface) and an edge whose dihedral is not read
-definitely (in band, or beside a spline face) fall outside it.
-An unenforced preference drifts silently — exactly the failure shape this
-document exists to kill.
-
-**Witness contract.** "Selected by the witness point" is verifiable only
-if the witness is *pinned*: the stored witness IS the carrier's
-mid-parameter point, enforced by certification (`WitnessMidpoint`).
-Pinning removes the aliasing freedom that let any point on the
-component certify, including points encoding a wrong winding; residual
-freedom is documented where it is geometrically invisible (circles:
-whole-period translation). Every op that mints an `Intersection`
-computes the witness as carrier(mid) in the certification schedule's
-own association order.
-
-This makes [identity]'s provenance load-bearing rather than bookkeeping: the
-intensional description largely *is* the provenance.
-
+- **A two-surface edge is always a curve of the two surfaces'
+  intersection**, and its selector says which. The selector follows one
+  question, asked of the geometry and never of where the body came
+  from: *is the curve known in advance?* Where it is (a closed form of
+  the surfaces' contact or crossing, or a curve chosen to lie where they
+  overlap in 2-D) the selector is **structural**, that closed form,
+  certified through each surface's chart-image certificate; a native
+  body and its imported copy carry the same one. Where the curve must
+  be derived numerically, the selector is a **witness**, the branch
+  through a point, admitted only where its margin certifies
+  (transversality for a crossing, the order-k jet system's margin for a
+  tangency of order k). A construction never classifies its own joins by
+  measurement, and a curve no lane can yet select refuses typed, naming
+  the lane.
+- **A locus one chart defines is `Chart`**: seams, iso-lines, splits on
+  one surface, one (surface, `Pcurve`) form for all of them
+  (PCURVE-UNIFY-DESIGN). A `MappedCurve` is the `Scaffold` payload, a
+  structural selector and the `EdgeAuthority` record: one authoritative
+  source, never two peer representations.
+- **No extensional variant.** There is no `Explicit` escape hatch, for
+  native or imported geometry: import adopts extensional input by
+  recovering the selector a native body would carry, or refuses typed
+  where no lane recovers one ([import]).
+- **Validity is margined.** `Intersection` requires transversality along
+  the locus; a tangency of order k is read through its k-jet, with its
+  margin at order k+1, transverse to the locus. A locus in the ambiguous
+  band, certifiable as neither, fails loudly at construction exactly as
+  at import, and so does an edge read definitely transverse at some
+  stations and definitely smooth at others.
+- **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
+  intrinsic and its selector is decided by the geometry alone; at rest a
+  witness selector must certify its reading (`TransverseNotIntrinsic`,
+  `TangentNotIntrinsic`). An unenforced preference drifts silently.
+  Since the closed form is description and not history, the intensional
+  description largely *is* the provenance ([identity]).
 - **SSI completeness is an interval obligation, not a marching
-  property.** Residual certification audits only *found* branches; the
-  missed small loop is the classic silent disaster. **Marching finds,
-  subdivision certifies exhaustiveness**; the outcome is "every branch
-  found" or a typed failure, never silence. Certification is an
-  at-rest/tier obligation; preview may march uncertified.
+  property.** Marching finds, subdivision certifies exhaustiveness: the
+  outcome is "every branch found" or a typed failure, never silence.
+  Certification is an at-rest obligation; preview may march
+  uncertified.
 
 ### Surfaces `[surfaces]`
 
@@ -1139,7 +1036,8 @@ suits the slot.
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's slant, held to one side of the
   profile's plane) or a point and a heading (a revolve's axis line),
-  never a frame.
+  never a frame. A loft reads its sections and, for each after the
+  first, a station: slides and spins in the first section's own axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -2027,10 +1925,19 @@ framing because that is what they still cost.
 
 The checks that report findings (the `unproven-coincidence` lint, the
 at-rest census's interference and could-not-look findings, and checks
-from outside the tree, DISCIPLINES DS9) are meant to be pluggable. How
-their findings relate to [pure-model]'s function is open: the central
-pipeline should not know which checks are in place, and findings
-should not travel through a side channel.
+from outside the tree, CHECKS DS9) are meant to be pluggable: the
+central pipeline should not know which checks are in place, and
+findings should not travel through a side channel. Today a report is a
+second pure function, `run_checks(document, evaluation, config)`, over
+an evaluation that knows nothing of which checks exist; reports are
+never persisted and enter no content keys (DS9). What keeps this open is
+what the evaluation carries for the checks: each node's value holds the
+coincidences its op decided from values (`NodeValue::coincidences`).
+Those a contact record cites are part of the body's own validity, but
+some (a merge's glue, a split's ON verdict) back no record, and the
+`unproven-coincidence` lint is their only reader. Whether that record is
+part of the model's output, or lint evidence the pipeline should not be
+producing, is the question.
 
 ### The sketch constraint solver: build or bind `[open.sketch-solver]`
 
@@ -2108,9 +2015,9 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: the evaluation seam, the pairing doors, pins and split/inline, mirror, the product, the constructive solve; the pre-refactor clauses (A3, A5) gathered until INTENT stages 3–5 retire them |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
-| `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a `Span` borrows the `KnotVector` it indexes, a `CurveWindow` its curve and a `SurfaceWindow` its surface, so every span-restricted door takes one structure and reads everything from it and the mismatch is unrepresentable; one level down a `SplineCoeffs` borrows the `KnotVector` its coefficients were fitted against and `hull`'s doors read through it, `InteriorKnot` the deliberate crate-private exception |
+| `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
@@ -2118,19 +2025,19 @@ is the board and `work/README.md` its contract.
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |
-| `docs/DISCIPLINES-DESIGN.md` | WIP, provisionally accepted | Disciplines/checks registry DS1–DS9: identification criterion, severity invariant, the four grades, the recording dial, out-of-tree checks; residents live in `editor_core::checks` |
+| `crates/editor-core/CHECKS.md` | Ratified (2026-10-18) | Checks, DISCIPLINES-DESIGN DS3, DS6, DS8, DS9: no knob changes a body, certified vs heuristic, `error` only where a finding can be quieted, out-of-tree checks |
 | `docs/PCURVE-UNIFY-DESIGN.md` | Ratified (#514); executed | Pcurve unification: the conventional edge variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record. P-2 residue stays open |
-| `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs: `Node::Chamfer` is `Node::Fillet`'s twin; `Node::Tube` and `Node::HollowTube` (wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary); `Node::Shell { target, thickness, open }` (D5) with `open` ORDERED — the first designated face carries its chart's rim — resolved through the N5 ladder to the seat's `Verb::Shell` |
+| `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs, D2–D5: `Node::Chamfer` beside `Node::Fillet`, `Node::Tube`/`HollowTube`, and `Node::Shell` with its ordered open faces |
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
-| `crates/editor-core/VARIABLES.md` | Ratified (designer pair, converged); built | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
-| `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the parameter→field flow |
+| `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
+| `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb `Verb` declaration, the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor until 2026-10-02, then RECIPE (`docs/doc-ledger/edit-leaves-the-tracker.md`) until 2026-10-11, then DOCTAIL (`docs/doc-ledger/recipe-leaves-the-tracker.md`) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
-| `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04); DOCM closed 2026-09-13 | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
-| `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and the greps-vs-lints evaluation `S13` commissioned — `dylint`, `clippy::disallowed_*`, a proc-macro and a `syn` binary against the four grep gates. The four stay greps and the compound-bound-through-alias gap stays registered where it is disclosed. **The first design page outside `crates/<crate>/README.md`**: it sits beside the code it governs, which for these invariants is `scripts/gates/` and not a crate |
-| `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, clauses `CC1`–`CC5`: where a check owed on what a file says belongs, and in which voice it speaks. The subject is the **reading boundary** — Ev's scope ruling at ratification — of which the cross-column admission is the largest instance: `tess-lint` and `k-lint` both police a CSV column by column, and a property spanning two columns has no entry to live in; the class had eight instances in the tree and no statement. `CC1` (the check goes at the reading boundary and only there) and `CC5` (the harness voice, and the owed-test forwarded to `tess_lint::Report` and on to its module docs — the forwarding is what licenses a citation across cargo roots) are stated over readings generally; `CC2`, `CC3` and `CC4` are labelled as the per-column admissions table's own and do not generalise past it, `CC4` being that a producer-side entailment is **not** a disposition — this page once stated its opposite, and the row proving it wrong is now a test. **The second design page outside `crates/<crate>/README.md`**, and the first governing two sibling crates rather than one directory of scripts |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
+| `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |
+| `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and why the four grep gates stay greps (the S13 evaluation of lint alternatives) |
+| `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, CC1–CC5: a check owed on what a file says goes at the reading boundary and only there (CC1), and speaks in the harness voice (CC5); CC2–CC4 are the per-column admissions table's own |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with prerequisites, and the "present today" inventory. The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (K = 10 permanent) |
 | `work/perf/plan.md` | Merged-and-advisory ([determinism], deterministic parallelism) | Performance plan and Q-P answers |

@@ -32,6 +32,7 @@
 //! docs): a dual has no shell door, and registry membership requires
 //! every document green at `Dual64`.
 
+use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
@@ -113,7 +114,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         len(WALL),
         open,
     ));
-    r.place(vessel);
+    r.place_part(vessel);
 
     CorpusDoc {
         name: "vessel",

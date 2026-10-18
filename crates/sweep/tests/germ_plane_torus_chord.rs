@@ -170,24 +170,6 @@ pub(crate) fn holds_to_the_truth(
     meet: f64,
     within: (Point3<f64>, Point3<f64>),
 ) {
-    holds_to_the_truth_but(pose, t, p, meet, within, &[]);
-}
-
-/// [`holds_to_the_truth`], but for the ops labelled in `partial`, whose
-/// torus walls are no chart rectangle or band, so that `point_in_solid`
-/// refuses `PartialTorusFace` at every point
-/// (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`):
-/// those bodies are held to their volume and tier 3, and the refusal is
-/// pinned at every sampled point, which goes red when containment reads
-/// such a wall.
-fn holds_to_the_truth_but(
-    pose: &str,
-    t: &Solid,
-    p: &Solid,
-    meet: f64,
-    within: (Point3<f64>, Point3<f64>),
-    partial: &[&str],
-) {
     meet_is_the_monte_carlo(pose, t, p, meet, within);
     for ((label, r), &(_, op, swap)) in six(&t.body, &p.body).into_iter().zip(&SIX) {
         let r = r.unwrap_or_else(|e| panic!("{pose}, {label}: refused {e:?}"));
@@ -195,20 +177,14 @@ fn holds_to_the_truth_but(
             .body()
             .unwrap_or_else(|| panic!("{pose}, {label}: empty"))
             .body;
-        let what = format!("{pose}, {label}");
-        if !partial.contains(&label) {
-            body_holds(&what, (op, swap), (t, p), meet, b, within);
-            continue;
-        }
-        volume_and_points(&what, (op, swap), (t, p), meet, b, within, true);
-        let (lo, hi) = within;
-        for q in points(lo, hi, 48) {
-            let got = contains(b, q);
-            assert!(
-                matches!(got, Err(topo::PointInSolidError::PartialTorusFace { .. })),
-                "{what}: point_in_solid at {q:?} reads {got:?}"
-            );
-        }
+        body_holds(
+            &format!("{pose}, {label}"),
+            (op, swap),
+            (t, p),
+            meet,
+            b,
+            within,
+        );
     }
 }
 
@@ -255,11 +231,12 @@ pub(crate) fn body_holds(
 }
 
 /// [`body_holds`]'s volume and tier 3, and its `point_in_solid` reading
-/// at every sampled point where it answers: a refusal at a point is
-/// `PartialTorusFace` where `torus_chart_trimmed` (a torus face of the
-/// body is not a chart rectangle,
-/// `work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`), and
-/// reads nothing; any other refusal fails. The points read.
+/// at every sampled point the operands' memberships place. A refusal at
+/// a point is `VolumeUncertified` where `probe_gap` (the at-infinity
+/// probe measures in closed form only, and a spiric-trimmed torus wall
+/// has none: `work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
+/// and reads nothing, at no more points than it reads; any other refusal
+/// fails. The points read.
 pub(crate) fn volume_and_points(
     what: &str,
     (op, swap): (BooleanOp, bool),
@@ -267,7 +244,7 @@ pub(crate) fn volume_and_points(
     meet: f64,
     b: &topo::Body<f64>,
     (lo, hi): (Point3<f64>, Point3<f64>),
-    torus_chart_trimmed: bool,
+    probe_gap: bool,
 ) -> usize {
     let (x, y) = if swap { (p, t) } else { (t, p) };
     let want = match op {
@@ -287,23 +264,23 @@ pub(crate) fn volume_and_points(
         (v - want).abs() <= volume_tol(want),
         "{what}: volume {v} against the truth {want}"
     );
-    let mut read = 0usize;
+    let (mut read, mut gaps) = (0usize, 0usize);
     for q in points(lo, hi, 48) {
         let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
             continue;
         };
         match contains(b, q) {
-            Err(topo::PointInSolidError::PartialTorusFace { .. }) if torus_chart_trimmed => {}
+            Err(topo::PointInSolidError::VolumeUncertified) if probe_gap => gaps += 1,
             got => {
-                assert_eq!(
-                    got.ok(),
-                    Some(kept(op, a, c)),
-                    "{what}: point_in_solid at {q:?}"
-                );
+                assert_eq!(got, Ok(kept(op, a, c)), "{what}: point_in_solid at {q:?}");
                 read += 1;
             }
         }
     }
+    assert!(
+        gaps <= read,
+        "{what}: the at-infinity probe refuses {gaps} points, more than the {read} read"
+    );
     read
 }
 
@@ -668,10 +645,6 @@ fn a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored() {
     }
 }
 
-/// The ops whose result keeps the torus less a box corner: its wall is
-/// no chart rectangle, and containment refuses it.
-const PARTIAL: [&str; 3] = ["T ∪ P", "P ∪ T", "T ∖ P"];
-
 /// **A box edge piercing a torus face leaves a ring the join homes**,
 /// in all six ops: the box `x ≥ 0 ∧ y ≥ h` against the one-face torus
 /// with its vertex on the inner equator, `h = −0.1, −0.3, −0.45`, whose
@@ -681,21 +654,18 @@ const PARTIAL: [&str; 3] = ["T ∪ P", "P ∪ T", "T ∖ P"];
 /// box face's parallels), and the face's outer loop on the carriers of
 /// the other two (the wrap edges), so every path between them runs
 /// along an arc's plane. The meet is half the torus above `h`.
-/// Containment reads ∩ and `P ∖ T`, and refuses the rest typed
-/// ([`holds_to_the_truth_but`]).
 #[test]
 fn a_box_edge_piercing_a_one_face_torus_builds_its_true_body() {
     let (big_r, r) = (2.0, 0.5);
     for h in [-0.1, -0.3, -0.45] {
         let t = ring(one_face_torus(big_r, r, PI), (big_r, r));
         let p = boxed((0.0, 6.0), (h, h + 12.0), (-6.0, 6.0));
-        holds_to_the_truth_but(
+        holds_to_the_truth(
             &format!("x ≥ 0 ∧ y ≥ {h}"),
             &t,
             &p,
             cap(big_r, r, h) / 2.0,
             about_the_tube(big_r, r),
-            &PARTIAL,
         );
     }
 }
@@ -704,20 +674,18 @@ fn a_box_edge_piercing_a_one_face_torus_builds_its_true_body() {
 /// pierces**, in all six ops: `[−3, 3] × [0.2, 1.2] × [0, 3]`, whose
 /// edges `y = 0.2, z = 0` pierce the tube in point rings on the
 /// meridian plane `z = 0`, which holds the run's two arcs on the plane's
-/// other loop. The meet is half the donut above `y = 0.2`. Containment
-/// reads ∩ and `P ∖ T`, and refuses the rest typed.
+/// other loop. The meet is half the donut above `y = 0.2`.
 #[test]
 fn a_bar_on_the_donuts_meridian_plane_builds_its_true_body() {
     let (big_r, r) = (2.0, 0.5);
     let t = ring(torus(big_r, r), (big_r, r));
     let p = boxed((-3.0, 3.0), (0.2, 1.2), (0.0, 3.0));
-    holds_to_the_truth_but(
+    holds_to_the_truth(
         "the bar on z = 0",
         &t,
         &p,
         cap(big_r, r, 0.2) / 2.0,
         about_the_tube(big_r, r),
-        &PARTIAL,
     );
 }
 
@@ -736,12 +704,11 @@ fn a_one_face_torus_whose_vertex_lies_on_the_box_face_builds_its_true_body() {
     let (big_r, r, h) = (2.0, 0.5, -0.3);
     let t = ring(one_face_torus(big_r, r, PI + (0.6f64).asin()), (big_r, r));
     let p = boxed((0.0, 6.0), (h, h + 12.0), (-6.0, 6.0));
-    holds_to_the_truth_but(
+    holds_to_the_truth(
         "the vertex on y = −0.3",
         &t,
         &p,
         cap(big_r, r, h) / 2.0,
         about_the_tube(big_r, r),
-        &PARTIAL,
     );
 }

@@ -122,10 +122,10 @@ fn review_compat_mixed_degrees_dense_vs_sparse_knots_rational() {
     let raw = vec![line, quartic, dense];
     let compat = make_compatible(&raw).expect("compatible");
     let d = compat[0].degree();
-    let kn = compat[0].knots().knots().to_vec();
+    let kn = compat[0].knots_f64_interim().knots().to_vec();
     for (i, c) in compat.iter().enumerate() {
         assert_eq!(c.degree(), d, "section {i}");
-        assert_eq!(c.knots().knots(), &kn[..], "section {i}");
+        assert_eq!(c.knots_f64_interim().knots(), &kn[..], "section {i}");
     }
     assert_eq!(d, 4, "common degree is the max");
     for (i, (before, after)) in raw.iter().zip(&compat).enumerate() {

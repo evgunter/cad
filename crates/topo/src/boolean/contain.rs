@@ -17,7 +17,7 @@ use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::sphere_region::RegionRefusal;
+use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
@@ -938,9 +938,14 @@ fn curved_interior_placement<T: Decide>(
 ) -> Result<CurvedPlacement, ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let surface = body.face_surface_linked(face, face_data);
-    // The sphere's region reading takes rings in its stride; the chart
-    // trims below do not model them.
-    if !face_data.rings.is_empty() && !matches!(surface, geom::Surface::Sphere { .. }) {
+    // The sphere's and torus's region readings take rings in their
+    // stride; the chart trims below do not model them.
+    if !face_data.rings.is_empty()
+        && !matches!(
+            surface,
+            geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }
+        )
+    {
         return Ok(CurvedPlacement::Trim(None));
     }
     let (origin, axis, radius, u_ref) = match surface {
@@ -958,17 +963,16 @@ fn curved_interior_placement<T: Decide>(
             axis,
             major_radius,
             minor_radius,
-            u_ref,
+            ..
         } => {
             return torus_face_containment(
                 body,
                 face,
-                TorusChart {
+                TorusCarrier {
                     center,
                     axis,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 },
                 q,
                 band,
@@ -1111,7 +1115,17 @@ fn sphere_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match region.contains(q, band) {
+    region_placement(face, region.contains(q, band))
+}
+
+/// A region reading's verdict ([`super::sphere_region`],
+/// [`super::torus_region`]) as this door states it: `None` on the
+/// region's boundary, which the boundary walk did not place.
+fn region_placement(
+    face: FaceKey,
+    reading: Result<Option<bool>, RegionRefusal>,
+) -> Result<CurvedPlacement, ContainError> {
+    match reading {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
@@ -1121,66 +1135,49 @@ fn sphere_face_containment<T: Decide>(
             diag,
         }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
+        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
+            Err(solid_err(e.of_face(face)))
+        }
     }
 }
 
-/// One torus carrier's chart data, as [`torus_face_containment`] reads it.
-struct TorusChart<T: geom_core::Real> {
+/// One torus carrier's data, as [`torus_face_containment`] reads it.
+struct TorusCarrier<T: geom_core::Real> {
     center: Point3<T>,
     axis: Vec3<T>,
     major_radius: T,
     minor_radius: T,
-    u_ref: Vec3<T>,
 }
 
 /// The TORUS chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk and the ring test.
+/// the shared boundary walk.
 ///
-/// The same three steps as the cylinder and sphere arms, in the same
-/// order and for the same reasons: the CARRIER first (the point's
-/// elevation off the tube, `√((ρ − R)² + h²) − r`, which is exact
-/// distance to a ring torus), then the chart trim, then membership in
-/// it. The trim and the membership test are the solid door's own
-/// ([`super::solid_contain::torus_face_windows`],
-/// [`super::solid_contain::point_on_torus_in_face`]), so the face-level
-/// and solid-level doors cannot disagree about which chart points a
-/// torus face holds.
+/// The same steps as the sphere arm, in the same order and for the same
+/// reasons: the CARRIER first (the point's elevation off the tube,
+/// `√((ρ − R)² + h²) − r`, which is exact distance to a ring torus), then
+/// the face's region, read from its boundary edges by the one reading the
+/// ray lane takes too ([`super::torus_region`]). This door is asked about
+/// ONE face, so it reads that face's own region whatever group it sits
+/// in: a donut's two faces are each bounded by the parallels they share,
+/// and a face closed on its own surface has only seams, so its region is
+/// the whole torus.
 ///
-/// **What differs from the solid door is the question.** The solid door
-/// asks about a closed group's UNION and lets its representative answer
-/// for every member; this door is asked about ONE face, so it reads
-/// that face's own windows whatever group it sits in — a donut's two
-/// faces each wrap the major azimuth and split the minor angle, and
-/// each window answers for its own face alone.
-///
-/// The remainder, per case:
-///
-/// - A face whose own windows the walk **cannot pin**, or cannot take at
-///   all, is the honest remainder rather than corruption of the
-///   caller's query, as in the cylinder arm. `None`.
-/// - A coordinate the face ALONE wraps
-///   ([`super::surface_group::wrap_rims`], the structural test every
-///   chart shares) is NOT a remainder, as it is not on the cylinder
-///   arm's full-turn band: there is no window in it to trim by. A window
-///   that reads a whole period on a face that does not wrap alone is
-///   refused, as is a face wrapping BOTH.
-/// - A **graze** on a window edge that the boundary walk did not place
-///   ON a vertex or an edge is `None`, as everywhere in this door.
+/// `None` is the honest remainder: a boundary edge that lies in no plane,
+/// or a point on the region's boundary that the walk above did not place.
+/// A region no path settles refuses as a planar face's does.
 fn torus_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    chart: TorusChart<T>,
+    carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    let TorusChart {
+    let TorusCarrier {
         center,
         axis,
         major_radius,
         minor_radius,
-        u_ref,
-    } = chart;
+    } = carrier;
     let elevation =
         super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
@@ -1188,37 +1185,12 @@ fn torus_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
-    let (u_win, v_win) = match super::solid_contain::torus_face_windows(
-        body,
-        face,
-        major_radius,
-        minor_radius,
-        band,
-    ) {
-        Ok(w) => w,
-        Err(
-            super::solid_contain::PointInSolidError::PartialTorusFace { .. }
-            | super::solid_contain::PointInSolidError::CorruptFace { .. },
-        ) => return Ok(CurvedPlacement::Trim(None)),
+    let region = match super::torus_region::torus_face_region(body, face) {
+        Ok(Some(region)) => region,
+        Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match super::solid_contain::point_on_torus_in_face(
-        face,
-        center,
-        axis,
-        major_radius,
-        minor_radius,
-        u_ref,
-        u_win,
-        v_win,
-        q,
-        band,
-    ) {
-        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
-        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
-        Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(e) => Err(solid_err(e)),
-    }
+    region_placement(face, region.contains(q, band))
 }
 
 /// One cone carrier's chart data, as [`cone_face_containment`] reads it.

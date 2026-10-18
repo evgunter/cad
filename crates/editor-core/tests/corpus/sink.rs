@@ -32,6 +32,7 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
@@ -340,7 +341,7 @@ pub fn document() -> CorpusDoc {
     super::place_instances(&mut r, circular, 2);
     super::place_halves(&mut r, split);
     super::place_instances(&mut r, linear, 3);
-    r.place(revolve);
+    r.place_part(revolve);
 
     CorpusDoc {
         name: "kitchen_sink",

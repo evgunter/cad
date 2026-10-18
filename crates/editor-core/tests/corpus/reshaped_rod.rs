@@ -30,6 +30,7 @@
 //! D2 bump: the extrude's `Distance` (mid-DAG — its cone is the extrude
 //! and the fillet; the frame and the profile are reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
@@ -146,7 +147,7 @@ pub fn document() -> CorpusDoc {
         fresh: Vec::new(),
     });
 
-    r.place(fillet);
+    r.place_part(fillet);
 
     CorpusDoc {
         name: "reshaped_rod",

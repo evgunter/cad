@@ -8,15 +8,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{flip, head, len, plane};
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EntityKind, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    apply, load, save,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Mate, Operand,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, WorldRead, apply, load, save,
 };
 use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
-/// door bit for bit, and the mate's class rides its stable spelling.
+/// door bit for bit — a world read, a flip and a standoff among its
+/// poses — and the mate's class rides its stable spelling.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {
@@ -25,10 +27,10 @@ fn a_mate_bearing_document_round_trips() {
     };
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2a-schema"), Tol::witness());
     let mut ids = Vec::new();
-    // The first instance is pinned to the world; the second sits where
-    // the mate puts it, so the mate is its bundle.
+    // The first instance rests on the world's xy plane; the second
+    // sits where the mate puts it, so the mate is its bundle.
     for node in [
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         crate::fixture::mated_instance(doc_ref),
     ] {
         let applied = apply(
@@ -56,36 +58,46 @@ fn a_mate_bearing_document_round_trips() {
             .into(),
         }],
     };
-    let f = MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame");
-    let doc = apply(
+    let add = |doc: &ProfileDoc, placement, mate| {
+        apply(
+            doc,
+            &DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(mate),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a mate inserts")
+        .doc
+    };
+    let doc = add(
         &doc,
-        &DocEdit::AddConstraint {
-            placement: ids[1],
-            mate: Box::new(crate::fixture::mate(
-                crate::fixture::head(name(ids[0])),
-                crate::fixture::head(name(ids[1])),
-                ContactClass::Rest,
-                Alignment {
-                    a: f.clone(),
-                    b: f,
-                    primitive: MatePrimitive::PlanarRest { offset: 0.5 },
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            )),
-            fresh: Vec::new(),
+        ids[0],
+        Mate {
+            on: plane(head(name(ids[0]))),
+            to: Target::World(WorldRead::through(PoseRole::Xy)),
+            class: ContactClass::Rest,
         },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a mate inserts")
-    .doc;
+    );
+    // The second's start cap rests half a unit off the first's: the
+    // first's plane slid along its own normal, flipped to face it.
+    let a = plane(head(name(ids[0])));
+    let standoff = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(a.clone()),
+        along: RoleRead::through(a, PoseRole::Normal),
+        by: len(0.5),
+    }));
+    let doc = add(
+        &doc,
+        ids[1],
+        crate::fixture::mate(
+            plane(head(name(ids[1]))),
+            flip(standoff),
+            ContactClass::Rest,
+        ),
+    );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
         text.contains("\"rest\""),

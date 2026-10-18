@@ -34,8 +34,9 @@ use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, ValuePayload, apply, evaluate, split,
+    Frame, LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, RefusingReach, Value, ValuePayload, apply, evaluate, place_at,
+    split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -108,6 +109,42 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
+}
+
+/// One copy of `body` placed in the world where it stands — the
+/// "place part" gesture: a loose `Node::place`, then `place_at`'s mate
+/// and the values naming it, each added to the placement's bundle.
+fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
+    let placement = insert(doc, Node::place(vec![body.into()]), tol);
+    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+        panic!("a placement was inserted")
+    };
+    let placed = place_at(
+        doc,
+        &Operand::Var(shapes[0].read),
+        &Frame::IDENTITY,
+        &EvalOptions::default(),
+        tol,
+    )
+    .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
+    let mut step = |edit: DocEdit<ProfileProgram>| {
+        let applied = apply(doc, &edit, tol, &RefusingReach)
+            .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
+        *doc = applied.doc;
+        applied.record.minted_constraints
+    };
+    let mate = step(DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(placed.mate),
+        fresh: Vec::new(),
+    })[0];
+    for (coord, by) in placed.values {
+        step(DocEdit::AddValue {
+            placement,
+            value: Box::new(Value { mate, coord, by }),
+            fresh: Vec::new(),
+        });
+    }
 }
 
 /// A fresh document carrying the sharp ANNULAR lid, and that node's id.
@@ -700,15 +737,10 @@ fn a_split_carries_a_held_slits_band() {
         Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
         tol,
     );
-    // The lid is the document's product; a cut carries what it places.
-    doc = apply(
-        &doc,
-        &DocEdit::place_in_world(holder, None),
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the held lid places")
-    .doc;
+    // The rolled lid is the document's product; a cut carries what it
+    // places. The holder only holds the selection: its blend refuses
+    // (the slit is tangential), so it has no geometry to place by.
+    place_in_world(&mut doc, rolled, tol);
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
         doc.ids().iter().copied().filter(|&n| n != lead).collect();

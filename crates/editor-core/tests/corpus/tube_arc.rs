@@ -29,6 +29,7 @@
 //! `f64` rounding of an irrational rather than the geometry. The
 //! `die_chamfer` disposition, and both siblings'.
 
+use super::PlacePart;
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{ang, len, scl};
@@ -70,7 +71,7 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
-    r.place(bend);
+    r.place_part(bend);
 
     CorpusDoc {
         name: "tube_arc",

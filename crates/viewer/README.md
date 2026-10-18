@@ -582,8 +582,8 @@ the two drags refuse different sets, and one table could serve both
 only by refusing the union. A value gesture refuses every operation
 that moves the document, because it previews against a snapshot of it;
 a free move does not, because a commit landing under a probe is pruned
-against the new document and REPORTED, which is a better answer than a
-refusal.
+against the new document, and again against its evaluation when that
+lands, and REPORTED, which is a better answer than a refusal.
 
 **What the two tables agree on is exactly these two doors.** `Open` and
 `NewDocument` REPLACE the document rather than moving it, and
@@ -837,7 +837,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -957,7 +957,7 @@ it had. The face-frame form's held face keeps its own
 does the open tool for each node it holds (`ViewerApp::respeak_held`
 after every operation): a seat's drop, the blend tool's lost target,
 and the mate tool's drop say a node the document no longer holds by the
-last label it had. The mate tool's instance-pick refusal says the label
+last label it had. The mate tool's same-copy refusal says the label
 the tool kept even while the landed document it is judged against
 still holds the node, since what the tool kept is never older. A
 document that replaces this one drops what both hold
@@ -1578,7 +1578,7 @@ own.
 
 Two gestures implement G1's preview/commit shape — the value drag
 `DocSession` owns over a slot or a document variable, and the
-free-move probe `DisplayState` owns over an instance's frame — and
+free-move probe `DisplayState` owns over a loose space's frame — and
 their three transition rules are one value, `g1::Slot`:
 
 - a **begin** refuses when one is already in flight, and validates its
@@ -1592,15 +1592,12 @@ their three transition rules are one value, `g1::Slot`:
 **They are not one type and this is not a step toward making them
 one.** They own different value kinds (a `SlotValue` against a
 `Frame`), different validation (a slot's driver and dimension against a
-rigid-motion check on an unmated instance) and different side effects
-(a scratch `Doc` and an evaluation request against a display revision).
-What is shared is the transitions, and a generic over the rest would be
-a type nobody has a use for. DI5 changes what a probe's commit LANDS
-(`crates/editor-core/IDENTITY.md`: a document edit rather than a
-`moves` entry) and changes none of the three rules, which is why
-holding them once did not wait for it — after DI5 the landing step that
-moves is the caller's, and the machine it must not break is one
-function rather than two.
+rigid-motion check on a loose space's frame) and different side
+effects (a scratch `Doc` and an evaluation request against a display
+revision). What is shared is the transitions, and a generic over the
+rest would be a type nobody has a use for. DI5
+(`crates/editor-core/IDENTITY.md`) keeps a probe's commit a `moves`
+entry, keyed by the space's root, and writes nothing to the document.
 
 **What the shape makes impossible**: `g1::Slot`'s in-flight state is
 private to its module, so no caller can read it, take it or replace it
@@ -1659,13 +1656,13 @@ same reason — `DocSession` holds `gesture` and `DisplayState` holds
 `free_move` — so a reader who greps `self.gesture` gets one concept
 back. What the value table's four `*FreeMove` rows permit, and the
 identity that makes the overlap sound, is stated at
-`permitted_during_value_gesture` itself, scoped to the tree DI5 has not
-yet changed.
+`permitted_during_value_gesture` itself, DI5's spaces included.
 
 **The second table refuses two rows and has a name for them**:
 `Open` and `NewDocument`, the operations that REPLACE the document
 rather than move it. The asymmetry with the first table is the point —
-a commit that lands under a probe is pruned and reported, and only a
+a commit that lands under a probe is pruned and reported (at the edit,
+and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
 free-move table is checked against the property rather than against a
@@ -1706,9 +1703,10 @@ field's number. The subject of a driving operation is the field the
 user has hold of, and naming it is what makes the mismatch refusable.
 
 **The probe's target is the instance, and that is the same rule rather
-than a coarser one.** `PreviewFreeMove` names an instance because an
-instance has exactly one probe, the way `PreviewGesture` names a slot
-because a slot has exactly one drag. Each names the SUBJECT whose
+than a coarser one.** `PreviewFreeMove` names the instance the probe
+was opened on because at most one probe is in flight and it was opened
+on one copy of its space, the way `PreviewGesture` names a slot because
+a slot has exactly one drag. Each names the SUBJECT whose
 gesture it drives, and how fine that subject is follows from what state
 exists, not from how finely a chrome cuts the subject up: the three
 boxes the panel draws are one chrome's decomposition of one
@@ -1923,29 +1921,44 @@ document; the door's only per-operand check is the node kind
 
 A copy is made by a placement — a `Node::Place`, or an instance, which
 is a placement of its part's world — and a placement's constraints are
-its mates. So the mate tool's one committed edit is
-`DocEdit::AddConstraint` on the placement the mate places
-(`session::mate_placement`): of the two picked sides' placements, the
-one whose bundle is still empty; else the one not standing on the
-world; else side `b`'s. Across two unrelated spaces that places one
-copy relative to the other. A side's placement is the node its face
-is read at when that node is a placement, and the instance its member
-walk ends on otherwise.
+its mates and the values that set their freedoms. A mate is two poses
+of one kind: the first pick is `on`, read off the copy the mate
+places, and the second is `to`, read where it was picked; each is the
+picked face read as its plane or its carrier's axis
+(`matetool::MATE_KINDS`), and `to` is flipped where the faces rest
+against each other (a plain plane mate equates outward normals). So
+the mate tool's one committed action is `DocEdit::AddConstraint` on the
+`on` pick's placement, then one `DocEdit::AddValue` per freedom the
+person set (`matetool::MateFreedom`, those the kind leaves), naming
+the mate's minted id. A pick on a `Place`'s copy reads `on` off the
+shape it copies; a pick elsewhere is read through the member walk to
+the instance it places.
 
-**A mate beyond the pin refuses, typed.** An instance enters standing
-on one world pin, so a mate between two pinned copies joins a bundle
-the pin already fixes, and the edit door refuses it (as
-`Refusal::Edit`) — `MateFault::Overconstrained`, or `TargetsDiffer`
-while a bundle relates its copy to one target and its pin reads the
-world — committing nothing; the mate is never dropped. Taking a pin off is
-`SessionOp::RemoveConstraint`, one `DocEdit::RemoveConstraint`; a copy
-its bundle no longer pins is a loose copy in its own space, which is
-no refusal.
+**"Place part" is a mate and its values.** Every gesture that puts a
+body or a part in the world — a creation, a duplicate, an inserted
+instance — inserts the placement loose and writes
+`editor_core::place_at`'s constraints at the identity: a plane mate on
+the copy's first planar face to the world plane it lies in, and the
+three values that put it there, so the copy can then be moved by its
+numbers. A copy with no planar face is pinned (`PlacedBy::Pin`), and
+one `place_at` cannot read stands loose; `OpOutcome::placed` carries
+which, and the status line says so (`frame::place_notice`).
+
+**A mate beyond the pin refuses, typed.** The edit door's admission is
+structural and measures nothing, so a mate added to a bundle that
+already pins its copy commits, and the evaluation refuses the
+placement typed — `MateFault::Overconstrained`, `Contradictory` where
+it disagrees with the pin, or `TargetsDiffer` while a bundle relates
+its copy to one target and its pin reads the world; the mate is never
+dropped, and undo takes it off. Taking a mate off is
+`SessionOp::RemoveConstraint`, which removes the values naming it in
+the same action; a copy its bundle no longer pins is a loose copy in
+its own space, which is no refusal.
 
 **The rule reads the document alone.** The mate reads poses off
-geometry and the numbers in its alignment are values the user
-supplies; the viewer's display state — a hidden instance, a free-move
-probe, where a copy is drawn — never enters a bundle.
+geometry and its values are numbers the person supplies; the viewer's
+display state — a hidden instance, a free-move probe, where a copy is
+drawn — never enters a bundle.
 
 **The tree shows a placement's constraints as its children**
 (`tree::ConstraintRow`, on `TreeRow::constraints`): one line per
@@ -2069,8 +2082,8 @@ rather than an exception:
 - **A deliberately partial list** claims no completeness, so forcing it
   would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
   two of five `Subject`s, each tool's seat list names its own seats,
-  and `MATE_PRIMITIVES` offers three of four mate primitives because
-  the fourth exists to be refused. Each says why in its own doc.
+  and `MATE_KINDS` offers the two pose kinds one face pick reads. Each
+  says why in its own doc.
 
 **A partial MIRROR is told when the enum it mirrors grows**, which is
 the weaker thing that is true of it and the whole of what a mechanism
@@ -2078,8 +2091,8 @@ may force here. `src/vocab.rs`'s `partial_mirror!` holds a roster
 classifying every variant of the mirrored enum as offered or as
 deliberately absent WITH ITS REASON, over a match with no wildcard: a
 variant added to that enum is neither until someone writes one of the
-two, and the build says so. Three sites take it — `MATE_PRIMITIVES`
-over `MatePrimitive`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
+two, and the build says so. Three sites take it — `MATE_KINDS` over
+`VarKind`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
 and `forms::DatumKindChoice` over `session::DatumSpec` — in two shapes,
 because what a site OFFERS decides whether a seat of it can drift: a
 hand-written list gets a per-seat assertion and a count check, while an
@@ -2176,7 +2189,7 @@ is what covers it.
 
 | List | Module | Kind |
 |---|---|---|
-| `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
+| `MATE_KINDS` | `matetool` | A deliberately partial list |
 | `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
 | `Theme::ALL` | `theme` | A registry of struct constants |
 

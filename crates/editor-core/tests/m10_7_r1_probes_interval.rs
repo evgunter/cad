@@ -264,57 +264,6 @@ fn r1_max_leaves_zero_with_the_tier_on() {
     }
 }
 
-// ------------------------------------------------------ D2: the mate lever
-
-/// **The lever's datum term is pure and has no floor**: the sum of
-/// both origins' norms and every authored length, with no branch on
-/// whether a scale was named, no constant and no floor — the lever is
-/// completed in the solve by the two mated parts' own reach, which is
-/// never zero for a real part. A datum at the origin contributes
-/// nothing, a datum at a nanometre contributes a nanometre, and
-/// neither is a case the solve has to guard (`msolve6_part_extent`
-/// pins the whole lever, parts included).
-#[test]
-fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
-    use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    let frame = |origin: [f64; 3]| {
-        MateFrame::authored(
-            origin,
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame")
-    };
-    let at = |o: f64| Alignment {
-        a: frame([o, 0.0, 0.0]),
-        b: frame([0.0, 0.0, 0.0]),
-        primitive: MatePrimitive::Coaxial,
-        sense: AxisSense::Aligned,
-        clocking: None,
-    };
-    // The datum term over the two sides' resolved frames — both are
-    // authored vectors here, so resolution is the projection.
-    let lever = fixture::datum_lever;
-    // A datum at the origin contributes NOTHING — no metre stands in
-    // for the parts, which the solve adds from their own bodies.
-    assert_eq!(lever(&at(0.0)), 0.0);
-    // A datum at a nanometre contributes a nanometre: no floor, no
-    // refusal — the parts on either side carry the lever.
-    assert_eq!(lever(&at(1e-9)), 1e-9);
-    assert_eq!(lever(&at(1e-3)), 1e-3);
-    // Both origins and every authored length SUM: an upper bound on
-    // the datum's own extent, never the larger of them.
-    let rest = Alignment {
-        a: frame([3.0e-3, 0.0, 0.0]),
-        b: frame([0.0, 4.0e-3, 0.0]),
-        primitive: MatePrimitive::PlanarRest { offset: -2.0e-3 },
-        sense: AxisSense::Opposed,
-        clocking: None,
-    };
-    assert_eq!(lever(&rest), 3.0e-3 + 4.0e-3 + 2.0e-3);
-}
-
 // ------------------------------------------------------------ e2e
 
 /// **R1's own study**: a bracket plate of width `w` (Uniform ±0.5 mm on

@@ -540,8 +540,8 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let Some(Surface::Nurbs(base)) = body.get_surface(body.get_face(wall).unwrap().surface) else {
         panic!("the wall carries a spline")
     };
-    let seed_degree = base.knots_v().degree();
-    let seed_knots = base.knots_v().knots().to_vec();
+    let seed_degree = base.knots_v_f64_interim().degree();
+    let seed_knots = base.knots_v_f64_interim().knots().to_vec();
 
     let approx = geom_brep::approx_offset_surface_at(base.clone(), d, ENGINE_FIT_TARGET, band())
         .expect("the wall's own offset fits");
@@ -551,13 +551,13 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let row = geom_brep::boundary_iso_u(a.fit(), false).expect("the fit's u = 0 row extracts");
 
     assert_eq!(
-        row.knots().degree(),
+        row.knots_f64_interim().degree(),
         FIT_DEGREE,
         "the row carries the fit's degree"
     );
     assert_eq!(
-        row.knots().knots(),
-        a.fit().knots_v().knots(),
+        row.knots_f64_interim().knots(),
+        a.fit().knots_v_f64_interim().knots(),
         "the row carries the fit's knot vector, interior knots included"
     );
     assert!(
@@ -566,10 +566,10 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
          (seed degree {seed_degree})"
     );
     assert!(
-        row.knots().knots().len() > seed_knots.len(),
+        row.knots_f64_interim().knots().len() > seed_knots.len(),
         "the fit refined past the seed grid, so refinement is a real step too (seed {seed_knots:?}, \
          fit {:?})",
-        row.knots().knots()
+        row.knots_f64_interim().knots()
     );
 }
 

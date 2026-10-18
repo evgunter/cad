@@ -18,11 +18,11 @@
 //! # Why this walk runs on a FIXTURE, and where the real gallery is
 //! exercised
 //!
-//! The walk needs, in one document: unconstrained instances (to hide
-//! and probe), two matable faces, and no pre-existing mate. **No
-//! single real gallery document has that shape** — the tour's stand
-//! has all three instances mate-constrained (the free-move stage is
-//! unreachable there), and its flat-pack has no second part to mate
+//! The walk needs, in one document: an instance to hide and one to
+//! probe, loose once its world pin is off, two matable faces, and no
+//! pre-existing mate. **No single real gallery document has that
+//! shape** — the tour's stand has all three instances in the world's
+//! space (the free-move stage is unreachable there), and its flat-pack has no second part to mate
 //! the patterned posts to. So the walk authors a gallery-SHAPED
 //! workspace through the same public doors the tour uses (parts
 //! beside the assembly, id-named files, `Workspace::create`) and
@@ -41,7 +41,7 @@ use crate::common;
 
 use common::asm;
 use pncad::document::{ClassAdmission, Frame};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Tol, Vec3};
 use pncad::select::{ContactClass, face_frame};
 use viewer::display::AdmissionFault;
 use viewer::matetool::{MateTool, MateToolState, admitted_classes};
@@ -114,17 +114,20 @@ fn the_exit_demo_walk() {
         "so does the document"
     );
 
-    // ── 5. FREE-MOVE the completely-unconstrained post_b: the G3 fit
-    // probe. Eligibility is derived from the document (no mate names
-    // it); the gesture is preview-stream + one committed value; the
-    // probed part is drawn DISPLACED and MARKED — the honesty
-    // treatment, asserted as a value in the scene rows.
+    // ── 5. FREE-MOVE post_b: the G3 fit probe over a loose space (DI5).
+    // Its world pin comes off first, so it is a loose space, read off
+    // the landed evaluation; the gesture is preview-stream + one
+    // committed value; the probed part is drawn DISPLACED and MARKED —
+    // the honesty treatment, asserted as a value in the scene rows. The
+    // probe draws the loose post where its pin stood it, displaced.
+    asm::unpin(&mut session, bench.post_b);
+    let index = asm::index_of(&session);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::translation([0.03, 0.0, 0.0]),
+        frame: asm::where_b_stood(Frame::translation([0.03, 0.0, 0.0])),
     });
     let outcome = session.perform(SessionOp::CommitFreeMove {
         instance: bench.post_b,
@@ -170,39 +173,49 @@ fn the_exit_demo_walk() {
         ClassAdmission::NoAtRestRecord { .. }
     ));
 
-    // ── 8. ONE COMMITTED MATE EDIT. The proposal derives the
-    // alignment frames from the picked faces (world pose through
-    // `face_frame`, pulled into part coordinates through each
-    // instance's placement); the session commits exactly one edit —
-    // and the SAME outcome reports the free-move superseded:
-    // discarded, not zeroed.
-    // post_b's world pin comes off first, so the mate places post_b
-    // rather than refusing beside the pin; a copy no constraint names
-    // keeps its probe.
-    asm::unpin(&mut session, bench.post_b);
+    // ── 8. ONE COMMITTED MATE ACTION. The proposal reads each picked
+    // face as a plane — post_b's top cap `on`, the shelf's underside
+    // `to`, flipped — and the seat's values; the session commits the
+    // mate and its three values as one action — and the evaluation
+    // answering it reports the free-move superseded: discarded, not
+    // zeroed. post_b's world pin came off at step 5, so the mate places
+    // post_b rather than refusing beside the pin.
     assert!(session.display().free_move_of(bench.post_b).is_some());
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
+    assert_eq!(
+        outcome.committed.len(),
+        4,
+        "one committed mate and its three values"
+    );
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the edit alone does not pin the space: {:?}",
+        outcome.withdrawn
+    );
+    session.pump();
+    let landed = session.take_landed_withdrawals();
+    let [report] = &landed[..] else {
+        panic!("one landing withdrew something: {landed:?}")
+    };
+    let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+            report.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate's landing discards the probe, in the same outcome"
+        "the mate's landing discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -212,13 +225,11 @@ fn the_exit_demo_walk() {
     assert!(session.display().free_move_of(bench.post_b).is_none());
 
     // ── 9. The PLACEMENT IS SOLVED: the two picked FACES coincide in
-    // world space — the FULL frame, not origins alone: origins meet,
-    // chart axes oppose (the chosen sense), and the carriers' own
-    // roll references agree under the solve's opposed flip. The
-    // frames the mate carries are the faces' NAMES, so the poses read
-    // off the landed evaluation — each instance's body placed by the
-    // solve — are the one witness: what the alignment declares of
-    // the faces it names, the placed faces show.
+    // world space as the seat says — the planes rest: the faces' normals
+    // oppose and the cap lies in the underside's plane — and post_b
+    // stands where the values put it, unturned. The mate carries the
+    // faces' NAMES, so the poses read off the landed evaluation — each
+    // instance's body placed by the solve — are the one witness.
     session.pump();
     let (_, eval) = session.landed_pair().expect("landed");
     let pose_a = face_frame(eval, post_top.node, &post_top.name).expect("the cap has a pose");
@@ -233,23 +244,20 @@ fn the_exit_demo_walk() {
         );
     };
     let world_a = pose_a.origin;
-    let world_b = pose_b.origin;
-    close3(
-        world_a - Point3::new(0.0, 0.0, 0.0),
-        world_b - Point3::new(0.0, 0.0, 0.0),
-        "the mated faces' ORIGINS coincide",
-    );
     close3(
         pose_a.axis,
         pose_b.axis * -1.0,
-        "the chart AXES meet opposed, as the chosen sense declares",
+        "the faces' normals meet opposed: the target is flipped",
     );
-    close3(
-        pose_a.u_ref.expect("a cap fixes a reference"),
-        pose_b.u_ref.expect("a cap fixes a reference") * -1.0,
-        "the roll REFERENCES meet under the solve's opposed flip at zero \
-         clocking (the flip reverses reference and axis together, keeping \
-         the pair's handedness proper)",
+    assert!(
+        (pose_a.origin - pose_b.origin).dot(pose_b.axis).abs() < 1e-9,
+        "the cap lies in the underside's plane"
+    );
+    asm::assert_solved_at(
+        &session,
+        bench.post_b,
+        &asm::seated_at(asm::SHELF_LENGTH / 2.0),
+        "the values seat post_b under the shelf's middle",
     );
     let solved_index = asm::index_of(&session);
     let solved_scene = solved_index

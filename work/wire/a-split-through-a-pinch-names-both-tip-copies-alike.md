@@ -2,10 +2,12 @@
 id: a-split-through-a-pinch-names-both-tip-copies-alike
 kind: issue
 title: A split whose plane passes through a pinch vertex refuses Naming(Duplicate): both copies of the vertex on one side are OnToolVertex of it
-status: open
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
+pr: 5275
+closed: 2026-10-18
 ---
 
 
@@ -92,3 +94,11 @@ Signed (WIRE orchestrator).
 Ev approved the rule on PR 5258 ("ah ok, this sounds good!"), after asking why the vertex is duplicated (answered on the PR: one result vertex per piece of material at the point; a shared vertex would be non-manifold). N2 now carries it. Ready to build with `a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex` riding along.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-18)
+
+Closed by PR 5275, per N2's Split vertex sentence (Ev, PR 5258): each
+copy is `OnToolVertex{of} + Fragment(Keeps)` over the operand corner's
+own edges it ends a piece of in that half; pinned literally by
+`crates/editor-core/tests/split_pinch_keeps.rs` over the notched,
+mirrored and revolved fixtures.

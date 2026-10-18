@@ -54,3 +54,5 @@ The same fourteen sweep rows, and no others, fail under `--all-features` on main
 ## Repair shape
 
 Find the `mfkrh` call on these paths that ends with the face's surface unreferenced. Either the surface should be removed in the same op, or the op's precondition should forbid the state. Then the rows pass under the scalpel; the ciw row would keep them there.
+
+**Wider than ten rows** (seen 2026-10-18 at `683f44c3c0`'s parent, `cargo nextest run --workspace --all-features` locally, while landing PR #5267, which touches no crate below editor-core): 34 sweep rows panic at `crates/topo/src/surgery.rs:357` with this item's message, `mfkrh postcondition: result is not tier-1 valid (kernel bug)`, `OrphanGeometry { Surface }`. Beside the ten listed: `a_closed_conic_in_the_partners_face::*` (5), `an_annular_tube_through_a_plate::*` (8), `germ_plane_torus_chord::*` (6), `germ_plane_torus_frame::*` (2), `germ_plane_torus_spiric::*` (1), `pi_seam_and_kiss_through_the_boolean::*` (1) and `section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds` (1). CI, which does not build the workspace with `--all-features`, passes them all.

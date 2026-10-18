@@ -1034,7 +1034,7 @@ test_utils::f6_variants! {
         PlacementNonFinite,
         PlacementImproper,
         PlacementNonRigid,
-        MateAlignment,
+        MateRefused,
         PlacementRule,
         InputList,
         AssertionBound,
@@ -1423,18 +1423,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PlacementNonFinite {
-                node: held(5, "Place"),
-                at: editor_core::FrameSite::MateStep {
-                    constraint: editor_core::ConstraintId(editor_core::MintId::new(
-                        3,
-                        0x3fa9_c1d2_a0b1_c3d4,
-                    )),
-                    side: MateSide::B,
-                    index: 0,
-                },
+                node: held(5, "PlacedUnion"),
+                at: editor_core::FrameSite::Listed { index: 0 },
             },
             vec![
-                "step 1 of constraint #3 of Place 000000000005's b frame offset",
+                "placement 0 of PlacedUnion 000000000005",
                 "non-finite coordinate",
             ],
         ),
@@ -1462,16 +1455,28 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::MateAlignment {
+            SnapshotError::MateRefused {
                 node: held(5, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(
                     3,
                     0x3fa9_c1d2_a0b1_c3d4,
                 )),
+                fault: Box::new(editor_core::MateFault::KindsDiffer {
+                    mate: editor_core::MateRef::new(
+                        RecipeNodeId::new(0, tagged(5)),
+                        editor_core::ConstraintId(editor_core::MintId::new(
+                            3,
+                            0x3fa9_c1d2_a0b1_c3d4,
+                        )),
+                    ),
+                    on: editor_core::VarKind::Plane,
+                    to: editor_core::VarKind::Frame,
+                }),
             },
             vec![
-                "Place 000000000005's constraint #3's alignment datum",
-                "non-finite coordinate",
+                "Place 000000000005's constraint #3 is refused:",
+                "equates an `on` pose of kind plane with a `to` pose of kind frame; a mate's two poses \
+                 are of one kind",
             ],
         ),
         (
@@ -2075,7 +2080,7 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
 
     let reference = mint(MintRefusal::Reference {
         mate: mref(2),
-        side: MateSide::A,
+        side: MateSide::On,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
     });
@@ -2109,14 +2114,14 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
 
     let tied = mint(MintRefusal::Reference {
         mate: mref(2),
-        side: MateSide::A,
+        side: MateSide::On,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
     });
     assert_f6(
         &tied,
         &[
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
@@ -2214,7 +2219,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         refusals: vec![
             MintRefusal::Reference {
                 mate: mref(2),
-                side: MateSide::A,
+                side: MateSide::On,
                 name: Box::new(face_name()),
                 why: RefusedRef::Ambiguous { width: 2 },
             },
@@ -2236,7 +2241,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &raised,
         &[
             &counted,
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["Reference", "NoAtRestRecord"],
@@ -2253,7 +2258,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                 route: route.clone(),
                 refusal: MintRefusal::Reference {
                     mate: mref(2),
-                    side: MateSide::A,
+                    side: MateSide::On,
                     name: Box::new(face_name()),
                     why: RefusedRef::Ambiguous { width: 2 },
                 },
@@ -2282,7 +2287,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &carried,
         &[
             &counted,
-            "constraint #2 of node 000000000002's a reference",
+            "constraint #2 of node 000000000002's on reference",
             "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
@@ -2332,9 +2337,9 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     let itself = MateFault::Contradictory {
         held: mref(6),
         added: mref(6),
-        predicate: "mate_clocking_redundant",
-        clash: Clash::Levered(Lever::Roll {
-            radians: core::f64::consts::FRAC_PI_2,
+        predicate: "mate_member_rotation_identity",
+        clash: Clash::Levered(Lever::Residual {
+            value: 0.25,
             arm: 1.0,
         }),
     };
@@ -2342,7 +2347,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         &itself,
         &[
             "constraint #6 of node 000000000006 contradicts itself",
-            "the clocking disagrees with the roll the coincidence already pins",
+            "the relative rotation is not the identity",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
         &["Contradictory"],
@@ -2364,15 +2369,15 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
     let fault = MateFault::Contradictory {
         held: mref(6),
         added: mref(6),
-        predicate: "mate_clocking_redundant",
-        clash: Clash::Levered(Lever::Roll {
-            radians: core::f64::consts::FRAC_PI_2,
+        predicate: "mate_member_rotation_identity",
+        clash: Clash::Levered(Lever::Residual {
+            value: core::f64::consts::FRAC_PI_2,
             arm: 2.0,
         }),
     };
     let shown = fault.to_string();
     for want in [
-        "a roll of 1.5707963267948966 rad",
+        "a dimensionless residual of 1.5707963267948966",
         "on a 2 m arm",
         "a deviation of 3.141592653589793 m",
     ] {
@@ -2389,11 +2394,9 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
 }
 
 /// **A residual clash names its pure number, says it is one, and
-/// prints the product** — the second levered sentence, for the three
-/// membership margins that lever a sine, a Frobenius departure or a
-/// reach rather than an authored roll. It never borrows the roll's
-/// words: a Frobenius norm is not radians, and a reader who multiplies
-/// the halves back gets the metre figure.
+/// prints the product**, for the membership margins that lever a sine,
+/// a Frobenius departure or a reach: a reader who multiplies the
+/// halves back gets the metre figure.
 #[test]
 fn a_residual_clash_prints_its_pure_number_and_the_product() {
     let fault = MateFault::Contradictory {
@@ -2416,10 +2419,6 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     ] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
-    assert!(
-        !shown.contains("rad") && !shown.contains("roll"),
-        "a residual is a pure number, never a roll in radians: {shown:?}"
-    );
 }
 
 /// **A non-finite clash that is not the empty set does not claim to
@@ -2477,20 +2476,20 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         );
     }
 
-    // A lever whose roll is not finite is still levered: the sentence
-    // keeps its halves and prints the product they make.
+    // A lever whose residual is not finite is still levered: the
+    // sentence keeps its halves and prints the product they make.
     let levered = MateFault::Contradictory {
         held: mref(6),
         added: mref(6),
-        predicate: "mate_clocking_redundant",
-        clash: Clash::Levered(Lever::Roll {
-            radians: f64::INFINITY,
+        predicate: "mate_member_rotation_identity",
+        clash: Clash::Levered(Lever::Residual {
+            value: f64::INFINITY,
             arm: 1.0,
         }),
     };
     let shown = levered.to_string();
     assert!(
-        shown.contains("a roll of inf rad") && !shown.contains("empty set"),
+        shown.contains("a dimensionless residual of inf") && !shown.contains("empty set"),
         "a levered clash keeps its halves whatever they are: {shown:?}"
     );
     assert!(
@@ -2560,9 +2559,12 @@ fn a_lever_refusal_names_the_instance_and_why() {
         &["NoFiniteBound"],
     );
     assert_f6(
-        &LeverRefusal::NotAnInstance { node: instance },
-        &["node 000000000007", "is not an instance's copy"],
-        &["NotAnInstance"],
+        &LeverRefusal::Shape {
+            shape: instance,
+            refusal: ReachRefusal::NoExtent,
+        },
+        &["the body node 000000000007 copies", "no faces"],
+        &["Shape", "NoExtent"],
     );
     assert_f6(
         &LeverRefusal::OutOfRange {
@@ -3566,14 +3568,6 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                 node: held(4, "Measure"),
             },
             vec![held(4, "Measure")],
-        ),
-        (
-            EditError::NonFiniteAlignment {
-                node: held(6, "Place"),
-                constraint: editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
-                position: 1,
-            },
-            vec![held(6, "Place")],
         ),
         (
             EditError::UpdateOnNonInstance {

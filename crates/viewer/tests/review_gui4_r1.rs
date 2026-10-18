@@ -41,8 +41,8 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc, RecipeNodeId,
-    assemble, class_admission, parse_formula,
+    ClassAdmission, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, assemble,
+    class_admission, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, face_frame};
@@ -64,16 +64,16 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
 
 // ── 1. The mate tool's pull-back, re-derived ──────────────────────
 
-/// The alignment the tool mints must be the picked face's world pose
-/// carried into the instance's OWN coordinates — every component, for a
-/// translated instance and for a rotated one.
+/// The mate the tool mints reads each picked face by its part's own
+/// name, whatever the picked instance's placement is — a rotated one
+/// included — and, solved, the values seat the post where they say in
+/// the shelf's own coordinates, its pre-mate rotation gone.
 ///
-/// The rotated half is the load-bearing half: with a translation-only
-/// placement the inverse's linear part is the identity, so a missing or
-/// mis-directed inverse only moves the origin, and only in the axes the
-/// translation touches.
+/// The rotated half is the load-bearing half: a tool that read a number
+/// at the world spot would carry the rotation into the mate, and the
+/// seated post would come out turned.
 #[test]
-fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
+fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pullback", tol);
     // A second assembly document in the SAME store, whose post carries
@@ -95,8 +95,8 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
-    let rot_post = asm::instance_posed(&mut doc, bench.post, Placement::literal(&rotated), tol);
-    let rot_shelf = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, tol);
+    let rot_post = asm::instance_posed(&mut doc, bench.post, &rotated, &bench.opts(), tol);
+    let rot_shelf = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, &bench.opts(), tol);
     let path = ws.create(&doc, tol).expect("the rotated assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -135,24 +135,24 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
     // part's own face — the row the instance placed, whatever the
     // instance's placement is — and no number read at the world spot
-    // is pulled back into it.
+    // enters the mate.
     assert_eq!(
-        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        asm::side_face(doc, &proposal.on),
         Some(bench.post_top.clone()),
-        "side a is the post's own top cap"
+        "the on side is the post's own top cap"
     );
     assert_eq!(
-        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        asm::side_face(doc, &proposal.to),
         Some(bench.shelf_bottom.clone()),
-        "side b is the shelf's own underside"
+        "the to side is the shelf's own underside"
     );
 
     // The edit lands once, into the post's bundle once its world pin
@@ -164,33 +164,29 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     }
 
     // The independent check, on the SOLVED state: the two picked
-    // faces coincide in world, read through the same shipped door
-    // off the landed evaluation — the rotated post was re-placed so
-    // that its cap meets the shelf's underside, origins met and chart
-    // axes opposed (the chosen sense). The solve resolved each face
-    // in its part's own coordinates and the placement did the rest.
+    // faces rest, read through the same shipped door off the landed
+    // evaluation — the cap in the underside's plane, normals opposed
+    // (the flip) — and the post stands where the values put it in the
+    // shelf's coordinates, unturned.
     let (_, eval) = session.landed_pair().expect("landed");
     let pose_a = face_frame(eval, post_a_top.node, &post_a_top.name).expect("the cap has a pose");
     let pose_b =
         face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
-    close(
-        pose_a.origin.to_array(),
-        pose_b.origin.to_array(),
-        1e-9,
-        "the picked faces' origins coincide once solved",
+    assert!(
+        (pose_a.origin - pose_b.origin).dot(pose_b.axis).abs() < 1e-9,
+        "the cap lies in the underside's plane once solved"
     );
     close(
         pose_a.axis.to_array(),
         [-pose_b.axis.x, -pose_b.axis.y, -pose_b.axis.z],
         1e-9,
-        "the picked faces' chart axes meet opposed once solved",
+        "the picked faces' normals meet opposed once solved",
     );
-    // And the rotation is still the post's: the cap's world normal is
-    // vertical, so the quarter turn about z survived the seat.
-    assert!(
-        (pose_a.axis.z.abs() - 1.0).abs() < 1e-9,
-        "the seated post's cap normal is vertical: {:?}",
-        pose_a.axis
+    asm::assert_solved_at(
+        &session,
+        rot_post,
+        &asm::seated_at(asm::SHELF_LENGTH / 2.0),
+        "the values seat the post, the quarter turn gone",
     );
 }
 
@@ -204,6 +200,9 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     let tol = Tol::witness();
     let bench = asm::bench("r1rotprobe", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b's world pin off: a loose space the probe moves, the frame
+    // composed so it moves the post from where its pin stood it.
+    asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
     let s = asm::POST_SECTION;
 
@@ -219,7 +218,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     });
     let outcome = session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: probe,
+        frame: asm::where_b_stood(probe),
     });
     assert!(
         outcome.refusal.is_none(),
@@ -303,16 +302,18 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let tol = Tol::witness();
     let bench = asm::bench("r1compose", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let index = asm::index_of(&session);
     let s = asm::POST_SECTION;
 
-    // Probe, then hide the probed instance.
+    // Probe post_b — its world pin off, a loose space of its own, drawn
+    // where its pin stood it — then hide the probed instance.
+    asm::unpin(&mut session, bench.post_b);
+    let index = asm::index_of(&session);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::translation([0.05, 0.0, 0.0]),
+        frame: asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove {
         instance: bench.post_b,
@@ -360,37 +361,42 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         "unhiding restores the probe's drawn marking"
     );
 
-    // Mate it, its world pin off: the probe is discarded and reported in
-    // the same outcome.
-    asm::unpin(&mut session, bench.post_b);
+    // Mate it onto the shelf, which the world pins: the mate puts it
+    // in the world's space, and the landing discards the probe and
+    // reports it.
     let first = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
-    assert_eq!(first.committed.len(), 1);
-    let [superseded] = &first.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            first.withdrawn.superseded
-        )
+    assert_eq!(first.committed.len(), 4, "the mate and its three values");
+    assert!(
+        first.withdrawn.superseded.is_empty(),
+        "the space is known at the landing, not at the edit"
+    );
+    session.pump();
+    let [superseded] = &session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(superseded.instance, bench.post_b);
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
-        "and the outcome carries WHY it went, not only which went — the \
+        "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
          the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
-    session.pump();
 
     // A SECOND mate naming the same pair: whatever the document layer
     // decides, the session must not report success while the tree hides
@@ -400,7 +406,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     ));
     session.pump();
     let rows = session.tree_rows();
@@ -414,22 +420,24 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         second.refusal
     );
 
-    // Free-move now refuses on BOTH participants, listing the mates.
-    for constrained in [bench.post_b, bench.shelf_i] {
+    // Free-move now refuses on BOTH participants. The shelf lives in
+    // the world's space; post_b, under the two mates, is a placement
+    // the evaluation refuses, so it is in no space at all. Either way
+    // there is no loose space to move.
+    for (participant, in_the_world) in [(bench.post_b, false), (bench.shelf_i, true)] {
         match session
             .perform(SessionOp::BeginFreeMove {
-                instance: constrained,
+                instance: participant,
             })
             .refusal
         {
-            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
                 instance,
-                mates,
-            }))) => {
-                assert_eq!(instance.id(), constrained);
-                assert!(!mates.is_empty(), "the refusal names its mates");
-            }
-            other => panic!("a mated instance must refuse the probe, got {other:?}"),
+            }))) if in_the_world => assert_eq!(instance.id(), participant),
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::NoSpace {
+                instance,
+            }))) if !in_the_world => assert_eq!(instance.id(), participant),
+            other => panic!("{participant:?} must refuse the probe, got {other:?}"),
         }
     }
 }
@@ -638,7 +646,7 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
     for row in session.tree_rows() {
@@ -669,6 +677,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     let tol = Tol::witness();
     let bench = asm::bench("r1edges", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b's world pin off: a loose space of its own, which the probe
+    // moves, and which the mate below places.
+    asm::unpin(&mut session, bench.post_b);
 
     // Preview / commit / cancel with no gesture: typed, all three.
     for op in [
@@ -735,9 +746,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // because nothing substituted for a placement the document was
     // never asked for. The fault that killed it travels with it, so
     // the chrome can say why instead of the user learning it by
-    // starting another gesture and reading that refusal. post_b's world
-    // pin comes off first, so the mate places it.
-    asm::unpin(&mut session, bench.post_b);
+    // starting another gesture and reading that refusal. The mate's
+    // space is known when its evaluation lands, so the landing's prune
+    // is the one that kills it.
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -749,18 +760,25 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        outcome.withdrawn.superseded.is_empty(),
+        outcome.withdrawn.killed_gesture.is_none(),
+        "the edit alone does not know the mate's space"
+    );
+    session.pump();
+    let [report] = &session.take_landed_withdrawals()[..] else {
+        panic!("the landing reports one withdrawal")
+    };
+    assert!(
+        report.superseded.is_empty(),
         "an in-flight gesture's death is not a SUPERSESSION: nothing \
          substituted for it, and it committed nothing to substitute \
          for: {:?}",
-        outcome.withdrawn.superseded
+        report.superseded
     );
-    let killed = outcome
-        .withdrawn
+    let killed = report
         .killed_gesture
         .as_ref()
         .expect("the killed gesture is reported, with the fault that killed it");
@@ -768,11 +786,10 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && mates.len() == 1
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
-        "the cause is the landing mate, carried from the predicate that \
-         decided rather than re-derived: {}",
+        "the cause is the landing mate's space, carried from the predicate \
+         that decided rather than re-derived: {}",
         killed.cause
     );
     assert!(
@@ -824,8 +841,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), bottom);
-    let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, asm::seat_choice()) {
+    let (doc, _) = session.landed_pair().expect("landed");
+    match tool.proposal(doc, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head.id(), bench.post_b, "said as the picked copy");
         }
@@ -843,30 +860,35 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 
 // ── 8. An instance a `Pattern` consumes ──────────────────────────
 
-/// **Both G3 display operations PROPAGATE to an instance a `Pattern`
+/// **Both G3 display operations reach an instance a `Pattern`
 /// consumes** (the fix-pass rule; this row pinned the silent no-op as
 /// shipped and went red when propagation landed).
 ///
-/// Display state names the INSTANCE; the drawn scene is keyed by world
+/// A hide names the INSTANCE; the drawn scene is keyed by world
 /// placements; `display::drawn_targets` resolves one to the other.
 /// Hiding a patterned instance therefore hides every placed copy of the
-/// pattern, and probing it displaces and marks
-/// them — the pattern replicates the instance, and the display fact
-/// is the instance's. The `Pattern` node itself still has no display
-/// identity (`NotAnInstance`), which is right: the instance is the
-/// thing with an identity a user hides or probes.
+/// pattern — the pattern replicates the instance, and the display fact
+/// is the instance's. A free-move moves the picture of a loose space
+/// (DI5), so probing the loose instance displaces and marks the
+/// instance's own copy, and not the pattern's: each of those is a
+/// placement pinned to the world, in the world's space. The `Pattern`
+/// node itself still has no display identity (`NotAnInstance`), which
+/// is right: the instance is the thing with an identity a user hides or
+/// probes.
 ///
 /// The shape is the tour's flat-pack layout, where the original
 /// silent no-op was measured (`examples/r1_gallery_probe.rs`, which
 /// now asserts the propagated behaviour on the real gallery).
 #[test]
-fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
+fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pattern", tol);
     let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
-    let instance = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
+    // A loose instance — no world pin — so its space is what the probe
+    // moves; loose, it is drawn at the part's own coordinates.
+    let instance = common::insert_into(&mut doc, crate::fixture::mated_instance(bench.post), tol);
     let pattern = common::insert_into(
         &mut doc,
         Node::Pattern {
@@ -896,7 +918,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             },
             tol,
         );
-        doc = common::placed(&doc, copy, tol).0;
+        doc = common::placed_read(&doc, copy.into(), &bench.opts(), tol).0;
     }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
@@ -968,11 +990,13 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
         "unhiding restores every copy"
     );
 
-    // FREE-MOVE: eligible, committed, and every placed copy is drawn
-    // displaced and marked distinct under the one probe frame.
+    // FREE-MOVE: eligible, committed, and the instance's loose space —
+    // its own copy — is drawn displaced and marked distinct under the
+    // probe frame.
     assert!(
-        viewer::display::free_move_check(session.doc(), instance).is_ok(),
-        "the patterned instance is 'completely unconstrained' by the document test"
+        viewer::display::free_move_check(session.doc(), session.space_evaluation(), instance)
+            .is_ok(),
+        "the patterned instance is a loose space"
     );
     session.perform(SessionOp::BeginFreeMove { instance });
     session.perform(SessionOp::PreviewFreeMove {
@@ -993,9 +1017,9 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let probed = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(
         probed.stats().probe_parts,
-        4,
-        "the instance, a placement of its own, and every placed copy — one drawn \
-         part per projected pattern copy — are marked"
+        1,
+        "the instance, a placement of its own, is marked; the pattern's copies, \
+         pinned to the world, are not in its space"
     );
     assert!(
         probed.flags().contains(&SceneMesh::FLAG_PROBE),
@@ -1003,7 +1027,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     );
     assert!(
         probed.bounds().max_x > 0.5,
-        "…and the copies are DRAWN displaced by the probe: {:?}",
+        "…and the instance is DRAWN displaced by the probe: {:?}",
         probed.bounds()
     );
 

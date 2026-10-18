@@ -216,8 +216,8 @@ fn approx_on(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
 /// Two nets agree bit for bit — control points, weights and knots.
 fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
     a.weights() == b.weights()
-        && a.knots_u().knots() == b.knots_u().knots()
-        && a.knots_v().knots() == b.knots_v().knots()
+        && a.knots_u_f64_interim().knots() == b.knots_u_f64_interim().knots()
+        && a.knots_v_f64_interim().knots() == b.knots_v_f64_interim().knots()
         && a.control().len() == b.control().len()
         && a.control().iter().zip(b.control()).all(|(p, q)| {
             p.x.to_bits() == q.x.to_bits()
@@ -334,8 +334,8 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
     let mid = control.len() / 2;
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 10.0 * tol.eps());
     let nudged = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )

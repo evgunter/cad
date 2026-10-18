@@ -2,12 +2,12 @@
 id: a-face-base-puts-its-reference-on-local-y
 kind: issue
 title: A face base's in-plane axes put the carrier's reference on local +Y, so an offset along the face's reference is written along y
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -50,3 +50,7 @@ the first author who wrote an in-face offset.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: what a frame read off a face means (a Frame against a Plane pose that forgets in-plane motion) is stage 3's pose-kind work, which re-specifies face_base and point_at_frame. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires `FrameBase`: a value's reference direction is each body's own frame swung onto the mated direction (`reference_about`, ruling C-1), not a face base's local axis.

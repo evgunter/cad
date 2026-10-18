@@ -714,7 +714,14 @@ that was only a shortcut (equal weights, the integral test) takes the
 general route instead. No decision rule breaks where documents sit: the
 sub-arc count allows one sub-arc to reach `(π/2)(1+η)`, η a named
 structure constant, so an arc whose true sweep is a multiple of π/2
-counts the same for every member. A fit's structure (knot vectors,
+counts the same for every member. η is `1/16`: it keeps a sweep of
+`k·π/2` at `k` sub-arcs for every `k ≤ 4`, a full turn included (which
+needs `η < 1/3`), it is exact in binary, and a sub-arc's
+tangent-intersection point stays well conditioned
+(`cos(Δ/2) ≥ cos((π/4)(1+η))`). The arc's other decisions (that its sweep
+is not zero, whether it ends where it starts, and that it is short of a
+turn between two points or one turn back to its start) are certified over
+their brackets the same way. A fit's structure (knot vectors,
 degrees and control counts) is the deterministic `f64` pipeline's, and
 the certificate re-evaluates against it at any `Real`, so the interval
 lane proves what the f64 lane chose. A refinement made inside a
@@ -1168,6 +1175,160 @@ pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
 the `cylinder × torus` and `cone × torus` arms — its own two rims. The
 bulb has no cone-abutting-cylinder adjacency at all: its flare is
 bracketed by two tori, by construction.
+
+## Edge descriptions
+
+How `geom-brep` keeps DESIGN `[edges]`: the text DESIGN held before its
+rules and mechanics were split (2026-10-18), verbatim. Bracketed ids are
+`docs/DESIGN.md`'s clauses.
+
+**Background: pcurves.** A surface is a map `S(u,v) → ℝ³`. A face is a
+region of that surface's parameter plane, and each boundary edge is
+therefore also a curve `P(t) → (u,v)` in that plane — the *pcurve*. An
+edge shared by two faces classically carries three representations: a
+3-D curve plus one pcurve per adjacent face, with the consistency
+requirement `Sᵢ(Pᵢ(t)) ≈ C(t)`. Pcurves are not optional — trimming,
+tessellation and intersection marching happen in (u,v) — and the
+redundancy among peer representations is a classic bug farm.
+
+**Our rule:** an edge's geometry is stored as an *intensional
+description* of what the locus **is**; every concrete representation
+(the 3-D carrier, both pcurves) is a derived cache carrying a certified
+residual bound against the described locus ([tolerance.residuals]). The type is
+`EdgeDescription<T>` (`crates/geom-brep/src/description.rs`):
+
+```text
+EdgeDescription =
+  | Intersection        { pair, selector }   -- a curve of S₁∩S₂, `pair` the set
+                                             -- {S₁, S₂}, unordered; the selector
+                                             -- picks which curve: a witness
+                                             -- (the branch through a point, also
+                                             -- the marching seed) or a structural
+                                             -- selector (a construction's
+                                             -- pushforward); whether the surfaces
+                                             -- cross (read `Intersection`) or touch
+                                             -- to order k (read `TangentIntersection`)
+                                             -- is what the certificate reads, never
+                                             -- a second stored record
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
+                                             -- (surface, Pcurve) with a `wrap` flag
+                                             -- (iso-lines, seams, same-surface splits)
+  | Scaffold(MappedCurve)                    -- construction-time pushforward of a
+                                             -- lower-dim entity; never at rest
+```
+
+A two-surface edge is always a curve of the two surfaces' intersection,
+and its selector says which: no two-surface edge is conventional. The
+selector follows one question, asked of the geometry and never of where
+the body came from: **is the curve known in advance?** Where it is —
+the surfaces' contact or crossing has a closed form (a ruling where a
+plane meets a cylinder or a swept wall, a circle where coaxial surfaces
+of revolution meet, a row or column of a swept or skinned wall), or the
+curve was chosen to lie in a region where the two surfaces overlap in
+2-D — the selector is **structural**: that closed form, picking the
+curve exactly whatever the contact order, certified by its own meter and
+incidence on each surface, each read through that surface's own
+chart-image certificate (the one meter every pcurve carries). A
+construction that knows the curve (a profile vertex swept, a section
+placed, a section vertex skinned through a loft's sections) states that
+closed form directly, and an import recovers the same closed form from
+the same geometry, so a native body and its imported copy carry the same
+selector: the closed form is a property of the surfaces, not of the
+history. Where the curve must be derived numerically from the geometry
+— a crossing or tangency with no closed form — the selector is a
+**witness**, the branch through a point, admitted only where its margin
+certifies: transversality for a crossing, the order-k jet system's
+margin for a tangency of order k, each taken across the locus, over the
+faces, never along the edge. A construction therefore never classifies
+its own joins by measurement, and the sketch's joint class is the one
+reading of their kind. A curve no lane can yet select refuses typed,
+naming the lane, native or imported alike; a coincidence of two surfaces
+in band is refused at the structural act that made them adjacent. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface;
+two records that read as one carrier) is `Chart`: one (surface,
+`Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
+classes stay as certification lanes, not variants. A `MappedCurve`
+survives as the `Scaffold` payload, as a structural selector and as the
+`EdgeAuthority` record — one authoritative source, never two peer
+representations needing cross-reconciliation.
+
+**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as
+an unconditional challenge: every edge must have an intensional
+description — there is no escape hatch, so it cannot be reached for
+when not absolutely necessary. This holds for imported geometry ([import]):
+the intrinsic variants are checkable properties of the geometry as it
+now stands, and a closed-form selector is a property of the surfaces,
+so extensional input is *adopted* by recovering the selector a native
+body would carry, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
+taxonomy (imported fillets force `TangentIntersection`), not the need
+for a fallback.
+
+**Validity predicates with margins.** `Intersection` requires
+*transversality*: normals of S₁, S₂ linearly independent along the
+locus, so the implicit function theorem makes S₁∩S₂ locally a
+1-manifold; the margin (angle between normals) governs the conditioning
+of every derived cache. A branch may end at a *node*, a point where
+it crosses another branch of the same pair and the two surfaces are
+tangent (two equal cylinders with intersecting axes: their section is
+two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
+connected set, so the witness selects the branch, and transversality
+holds on the open edge, which is where certification samples it. A tangency's validity sits one
+differential order up: surfaces coincident within ε and normal-parallel
+within the derived angular threshold ε·κ_rel ([tolerance.epsilon]: lever arm
+r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
+to it (relative normal curvature bounded away from zero — otherwise the
+surfaces osculate over a patch and the "locus" is not a curve).
+Reconstructing a tangency locus is well-conditioned *despite* the
+tangency because its defining system includes the first-order
+normal-alignment equations: the normal angle grows linearly with
+transverse distance, and the second-order margin is the
+implicit-function-theorem denominator for that jet system. Order-k
+contact generalizes: defining equations from the k-jet, margin at order
+k+1, so a curvature-continuous join (k = 3) is read as a tangency where
+its third-order separation certifies, not left under-determined. In the intrinsic variants "the locus lies on both surfaces" holds
+*by definition*; only the caches need certification. Vertices
+generalize the same way (three surfaces / endpoint of a locus, with a
+witness). A locus in the ambiguous band — a dihedral within a few
+derived angular thresholds of tangent, certifiable as neither — fails
+loudly at construction exactly as at import; a conventional description
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
+
+**Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
+intrinsic, and its selector is decided by the geometry alone: a closed
+form where one exists, a witness where the curve must be derived. A
+fillet we build carries its rolling ball's contact rail; a sweep carries
+the ruling its profile vertex sweeps out, whatever the joint's contact
+order; an imported copy of either recovers the same closed form. A
+closed form that selects the curve is description, not history; [identity]
+provenance stays the record of who built the edge, and native and
+imported bodies carry identical descriptions. At rest, a witness
+selector must certify its reading:
+a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
+otherwise), a jet-determinate tangency as `TangentIntersection`
+(`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
+admits the class). The rule needs two surfaces and a definite reading, so
+a wrap edge (one surface) and an edge whose dihedral is not read
+definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
+document exists to kill.
+
+**Witness contract.** "Selected by the witness point" is verifiable only
+if the witness is *pinned*: the stored witness IS the carrier's
+mid-parameter point, enforced by certification (`WitnessMidpoint`).
+Pinning removes the aliasing freedom that let any point on the
+component certify, including points encoding a wrong winding; residual
+freedom is documented where it is geometrically invisible (circles:
+whole-period translation). Every op that mints an `Intersection`
+computes the witness as carrier(mid) in the certification schedule's
+own association order.
+
+This makes [identity]'s provenance load-bearing rather than bookkeeping: the
+intensional description largely *is* the provenance.
 
 ## Open
 

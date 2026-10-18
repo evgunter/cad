@@ -2,11 +2,11 @@
 id: placement-step-slots-are-spelled-three-ways
 kind: issue
 title: A placement step's slot is addressed three ways: step 0's own slots, PlacementStep, and MateFrameStep
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -64,3 +64,7 @@ Waits on `intent-stage3-is-built`, not on the whole program: two of the three sp
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to INTENT, parked as it was on `intent-stage3-is-built`.
+
+## Closed
+
+Stage 3 C retires `SlotId::MateFrameStep` and the mate-frame vector slots: world-read scalars are `SlotId::WorldSlide`/`WorldSpin` and value numbers `SlotId::ValueSlide`/`ValueSpin`, one spelling each.

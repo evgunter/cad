@@ -516,7 +516,12 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
         .chain(&bumped.control()[17..])
         .copied()
         .collect();
-    let carrier = NurbsCurve3::new(flat.knots().clone(), ctl, flat.weights().to_vec()).unwrap();
+    let carrier = NurbsCurve3::new(
+        flat.knots_f64_interim().clone(),
+        ctl,
+        flat.weights().to_vec(),
+    )
+    .unwrap();
     for k in 0..=64 {
         let t = 0.5 * f64::from(k) / 64.0;
         assert!(carrier.eval(t).z.abs() < 1e-15, "flat on [0, ½] at {t}");

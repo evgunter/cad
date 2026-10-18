@@ -8,7 +8,6 @@ priority: P1
 cost: M
 ---
 
-
 ## What
 
 `point_in_solid`'s no-hit arm reads the at-infinity side from the sign
@@ -115,7 +114,6 @@ body that battery builds refuses to unite with a far brick,
 `operand=false`): 1 151 runs on main, 1 817 once the join pairs the
 steep ellipses along the conic. The rod and the plate alone unite with
 the brick. Probed at θ = 30° and 70°, plate ∩ rod.
-
 
 ## Another witness (JOIN, the parallel cylinder arm)
 
@@ -311,3 +309,16 @@ FLUSH's `join3_r2_probes::j3r2_tilted_rod_operand`, re-run on
 tilted round rod and the tilted D at θ = 0.15 now unite with the far
 brick (`operand Ok(())`), along with every other row of the probe. The
 two batteries above were not re-run.
+
+## Evidence: spiric-trimmed torus walls reach it (2026-10-18)
+
+With torus faces read by their region (`restread/torus-region`), the
+plane × torus bodies whose torus walls an oval bounds reach this probe
+on a point whose rays all miss: `germ_plane_torus_spiric.rs`, the
+one-face tori under S1 and the spiric box (∩ both orders and `T ∖ P`),
+refuse `VolumeUncertified` at 9 to 24 of 48 sampled points, and
+`torus_region_probe.rs` counts it as the only refusal of its random
+queries. Both rows admit exactly this refusal and cite this item
+(`germ_plane_torus_chord::volume_and_points`'s `probe_gap`), so they go
+red on any other and read these points once the probe measures by
+quadrature.
