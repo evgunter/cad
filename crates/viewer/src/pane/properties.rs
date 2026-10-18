@@ -561,21 +561,25 @@ impl ViewerBehavior<'_> {
         if addressable.is_err() {
             return;
         }
-        match free_move_check(doc, node) {
+        // The evaluation the op reads (DI5: free-move moves a loose
+        // space, which only an evaluation names).
+        match free_move_check(doc, self.session.space_evaluation(), node) {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
                 // with. Advisory for every fault that reaches here: the
-                // admission faults end the section above, which leaves
-                // a mate placing the instance — the document working
-                // as written, which asks nothing of the reader.
+                // kind faults end the section above, which leaves a copy
+                // the document pins to the world (the document working
+                // as written) or a space not known yet (an evaluation
+                // still on its way), neither of which asks anything of
+                // the reader.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
             }
-            Ok(()) => {
+            Ok(root) => {
                 let current = self
                     .display
                     .moved
-                    .get(&node)
+                    .get(&root)
                     .map_or([0.0; 3], |frame| frame.translation);
                 free_move_probe(ui, node, current, *self.notation, self.ops);
             }

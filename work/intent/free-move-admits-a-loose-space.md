@@ -73,3 +73,27 @@ One thing the build should re-check: the value-gesture overlap argument at
 being a function of the node graph. A space is a function of the solve,
 which decides pinning by structure (A11's subgroup algebra), not by a
 slot's value. The argument should hold, but the build should state why.
+
+## Built
+
+`free_move_check` reads the space off an evaluation that answers the
+document, `DocSession::space_evaluation`: the landed one when it answers the
+committed document or the shown scratch. It refuses typed with `InTheWorld`,
+`NotEvaluated` or `NoSpace`, and `MateConstrained` is gone. `space_evaluation`
+accepts the scratch's landing too, because a value gesture leaves the node
+graph alone and pinning is structural (the overlap argument at
+`permitted_during_value_gesture` now says so). The one value-dependent answer
+is a refused placement.
+
+The probe slot and the `moves` map are keyed by root. `view` draws a frame over
+every placement in its space, so a pattern's copies pinned to the world no
+longer move with a probed instance, though a hide still reaches them.
+`prune(doc, eval)` runs at the edit with no evaluation and again at the landing
+with one. The landing's withdrawals wait in
+`DocSession::take_landed_withdrawals` until the app shows them as notices.
+
+The owed rows are `two_copies_mated_to_each_other_free_move_as_one`, which
+also drops the frame when a world pin goes back on, and
+`free_move_accepts_only_a_loose_space`, both in
+`crates/viewer/tests/assembly_display.rs`. The fixtures probe after
+`asm::unpin`, with `asm::where_b_stood` frames.

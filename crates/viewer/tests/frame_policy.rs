@@ -359,8 +359,10 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
     match cause {
         AdmissionFault::NoSuchNode { .. } => 0,
         AdmissionFault::NotAnInstance { .. } => 1,
-        AdmissionFault::MateConstrained { .. } => 2,
-        AdmissionFault::FusedGeometry { .. } => 3,
+        AdmissionFault::InTheWorld { .. } => 2,
+        AdmissionFault::NotEvaluated { .. } => 3,
+        AdmissionFault::NoSpace { .. } => 4,
+        AdmissionFault::FusedGeometry { .. } => 5,
     }
 }
 
@@ -374,18 +376,14 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::NotAnInstance {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
-        AdmissionFault::MateConstrained {
+        AdmissionFault::InTheWorld {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
-            mates: vec![
-                (
-                    SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
-                    pncad::document::ConstraintId(pncad::document::MintId::new(0, tagged(17))),
-                ),
-                (
-                    SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
-                    pncad::document::ConstraintId(pncad::document::MintId::new(0, tagged(18))),
-                ),
-            ],
+        },
+        AdmissionFault::NotEvaluated {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+        },
+        AdmissionFault::NoSpace {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
         },
         AdmissionFault::FusedGeometry {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
@@ -3368,19 +3366,23 @@ fn the_preferences_path_follows_the_xdg_rules() {
 /// frame loop drives it.**
 ///
 /// The value the session computes here is the one the chrome used to
-/// drop: `OpOutcome::superseded`, which nothing outside the test suite
-/// read. This row fails if it goes silent again, and it is built from
-/// a REAL outcome — a real mate landing on a real assembly — because a
-/// hand-made `OpOutcome` would assert about a shape rather than about
-/// the path.
+/// drop. This row fails if it goes silent again, and it is built from
+/// a REAL landing — a real mate on a real assembly — because a
+/// hand-made report would assert about a shape rather than about the
+/// path. Under DI5 a free-move moves a loose space, so the post is
+/// unpinned first, and a mate onto the shelf, which the world pins,
+/// moves the post into the world's space: the supersession arrives
+/// when the evaluation that pins it lands, not with the edit.
 #[test]
 fn a_superseded_free_move_is_news_the_ranking_shows() {
     let tol = Tol::witness();
     let bench = asm::bench("framepolicy-supersede", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // A loose copy: the only kind the probe moves.
+    asm::unpin(&mut session, bench.post_b);
 
-    // The user places the unconstrained post by hand and COMMITS it —
-    // only a committed placement is ever reported superseded.
+    // The user places the loose post by hand and COMMITS it — only a
+    // committed placement is ever reported superseded.
     for op in [
         SessionOp::BeginFreeMove {
             instance: bench.post_b,
@@ -3398,12 +3400,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     }
     assert!(
         session.display().free_move_of(bench.post_b).is_some(),
-        "the placement is held, so there is something to discard"
+        "the placement is held, keyed by the loose post's own root, so there is \
+         something to discard"
     );
 
-    // Then they take its world pin off and mate it, and that placement
-    // is discarded under them.
-    asm::unpin(&mut session, bench.post_b);
+    // Then they mate it onto the shelf, and that placement is discarded
+    // under them once the solve placing it lands.
     let mate = asm::seat_op(
         &bench,
         bench.post_b,
@@ -3412,26 +3414,32 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    // The mate the op landed, read off the document rather than off the
-    // fault under test.
-    let [landed] = common::mates_in(session.doc())[..] else {
-        panic!("one mate landed")
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the edit alone does not say the post's space is gone: spaces exist only \
+         after the solve, so the edit withdraws nothing: {:?}",
+        outcome.withdrawn
+    );
+    session.pump();
+    let landed = session.take_landed_withdrawals();
+    let [report] = &landed[..] else {
+        panic!("one landing withdrew something: {landed:?}")
     };
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
+    let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+            report.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate discards the hand placement"
+        "the mate discards the hand placement, keyed by the space's root"
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
+    let AdmissionFault::InTheWorld { instance } = &superseded.cause else {
         panic!(
-            "a mate landing supersedes with its own fault: {}",
+            "a mate pinning the space supersedes with its own fault: {}",
             superseded.cause
         )
     };
@@ -3440,31 +3448,19 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         bench.post_b,
         "the fault names the same instance"
     );
-    assert_eq!(
-        mates
-            .iter()
-            .map(|(placement, id)| pncad::document::MateRef::new(placement.id(), *id))
-            .collect::<Vec<_>>(),
-        vec![landed],
-        "and names the mate that landed, which is what the line then reads"
+    assert!(
+        session.take_landed_withdrawals().is_empty(),
+        "a landing's report is taken once"
     );
 
-    // What the chrome does with it, in `perform_batch`'s order. The
-    // app-gated loop no row can reach is now ONE call, and this is
-    // that call rather than a hand-written mirror of it — which is the
-    // point: the mirror stood here listing two of the three producers
-    // after a third was added beside it, and a half-mirror passes
-    // while the real loop drops a kind. There is no list here to fall
-    // behind any more.
-    let notices: Vec<frame::Message> = frame::Withdrawal::all(&outcome.withdrawn)
-        .map(|withdrawal| withdrawal.notice())
-        .collect();
+    // What the chrome does with it: the landing's notices, worded as an
+    // operation's are, through the one door the frame loop calls.
+    let notices: Vec<frame::Message> = frame::withdrawal_notices(report).collect();
     assert_eq!(
         notices.len(),
         1,
-        "a mate landing on a probed instance withdraws a placement and \
-         neither of the other two kinds, so they are silent here rather \
-         than absent"
+        "a mate pinning a probed space withdraws a placement and neither of the \
+         other two kinds, so they are silent here rather than absent"
     );
     let verdict = frame::frame_status(
         &notices,
@@ -3498,9 +3494,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // **A refusing sibling op does not take the sentence.** The same
     // frame also carries a drag the user started on the post — which
-    // the mate that just landed has made unmovable, so it refuses. The
-    // refusal is about an op that did nothing, and the same drag says
-    // it again; nothing will ever again say that the mate took the
+    // the mate that just landed has put in the world, so it refuses.
+    // The refusal is about an op that did nothing, and the same drag
+    // says it again; nothing will ever again say that the mate took the
     // placement. Both are on the line, the refusal first. The text is
     // written out, so a rule that drops the supersession, or reorders
     // the two, cannot pass by comparing the line with another
@@ -3512,8 +3508,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     let refusal = refused
         .refusal
         .as_ref()
-        .expect("the premise: a mated instance refuses a free move");
-    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome)
+        .expect("the premise: a copy in the world refuses a free move");
+    let notices: Vec<frame::Message> = notices
+        .into_iter()
         .chain(frame::outcome_notices(&refused))
         .collect();
     let RankedVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
@@ -3524,19 +3521,16 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
     let post = test_utils::refusal::tag(bench.post_b.0.digest());
-    let mate_node = format!(
-        "a constraint of InstantiatePart {}",
-        test_utils::refusal::tag(landed.placement.0.digest())
+    let in_the_world = format!(
+        "InstantiatePart {post} lives in the world's space: its placement pins it there (a \
+         world pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+         Free-move moves a loose space, a copy nothing pins to the world"
     );
     assert_eq!(
         line.text(),
         format!(
-            "InstantiatePart {post} is mate-constrained ({mate_node}): its pose is \
-             mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended \u{2022} free move: a committed placement was \
-             discarded — InstantiatePart {post} is mate-constrained ({mate_node}): its \
-             pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
-             free relative motion is intended"
+            "{in_the_world} \u{2022} free move: a committed placement was discarded — \
+             {in_the_world}"
         )
     );
 }

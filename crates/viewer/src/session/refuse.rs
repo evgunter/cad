@@ -388,7 +388,7 @@ pub enum Refusal {
     },
     /// A display-state operation refused (a display op on an id the
     /// document does not hold, hide on a non-instance, a free-move on
-    /// a mate-constrained instance, a gesture out of order) — the
+    /// a copy in the world's space, a gesture out of order) — the
     /// fault's own typed vocabulary, unaltered.
     Display(DisplayFault),
     /// A written-unit change refused — the panel model's own typed
@@ -572,8 +572,10 @@ impl Refusal {
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
             // twins, and the substantive ones rank with the real
-            // failures, because "this instance is mate-constrained" is
-            // a decision about what the user tried. `Edit` and
+            // failures, because "this instance lives in the world's
+            // space" is a decision about what the user tried; "no
+            // evaluation has landed" is not, and ranks with the
+            // gesture-order faults. `Edit` and
             // `SlotUnit` forward whole vocabularies at one rank each
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
@@ -585,9 +587,11 @@ impl Refusal {
                 | DisplayFault::WrongFreeMove => 2,
                 DisplayFault::NonRigidFrame { .. } => 1,
                 DisplayFault::Admission(fault) => match fault {
+                    AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
                     | AdmissionFault::NotAnInstance { .. }
-                    | AdmissionFault::MateConstrained { .. }
+                    | AdmissionFault::InTheWorld { .. }
+                    | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::FusedGeometry { .. } => 1,
                 },
             },
