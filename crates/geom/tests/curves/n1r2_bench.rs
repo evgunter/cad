@@ -31,7 +31,7 @@ fn n1r2_c24_timing() {
     let iters = 200_000u32;
     for (p, interior) in [(2usize, 3usize), (3, 8), (5, 8), (7, 8)] {
         let c = curve(p, interior);
-        let kv = c.knots();
+        let kv = c.knots_f64_interim();
         let spans: Vec<_> = (0..kv.knots().len()).filter_map(|i| c.span(i)).collect();
         let ts: Vec<f64> = (0..64).map(|i| (i as f64 + 0.5) / 64.0).collect();
         let pick = |i: u32| {

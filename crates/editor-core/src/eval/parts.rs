@@ -169,7 +169,7 @@ impl<T: Decide> Clone for PartValue<T> {
 /// (DESIGN.md Band 1, "Node labels"). Equality compares those labels
 /// too, deliberately: two faults with equal ids from parts labelled apart
 /// (two pins, since a label is in the pin) are unequal, here and in the
-/// refusals that hold a `PartFault` (`ReachRefusal`, `FacePoseRefusal`).
+/// refusals that hold a `PartFault` (`ReachRefusal`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartFault {
     /// The evaluation carries no resolver, so the document seam cannot

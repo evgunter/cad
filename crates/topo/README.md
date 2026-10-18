@@ -1010,7 +1010,7 @@ left).
 
 `docs/DESIGN.md` (`[topology]`, `[determinism]`); `crates/verbs/README.md`
 (VERB-SEAT-DESIGN, query doors at topo); `docs/MATE-7-TANGENCY-DESIGN.md`
-(rim tangency routing); `docs/DISCIPLINES-DESIGN.md`;
+(rim tangency routing); `crates/editor-core/CHECKS.md`;
 `crates/geom-brep/README.md` (curved geometry, offsets, shelling);
 `crates/editor-core/ASSEMBLY.md` (mates and the at-rest door);
 `docs/guide/assembly.md`.

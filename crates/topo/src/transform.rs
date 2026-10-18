@@ -796,8 +796,16 @@ mod tests {
             panic!("the variant changed under the map");
         };
         assert_eq!(a.weights(), b.weights(), "weights are rigid-invariant");
-        assert_eq!(a.knots_u(), b.knots_u(), "knots are rigid-invariant");
-        assert_eq!(a.knots_v(), b.knots_v(), "knots are rigid-invariant");
+        assert_eq!(
+            a.knots_u_f64_interim(),
+            b.knots_u_f64_interim(),
+            "knots are rigid-invariant"
+        );
+        assert_eq!(
+            a.knots_v_f64_interim(),
+            b.knots_v_f64_interim(),
+            "knots are rigid-invariant"
+        );
         for (p, q) in b.control().iter().zip(a.control()) {
             let want = map.transform_point(*p);
             assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
@@ -813,7 +821,11 @@ mod tests {
             panic!("the variant changed under the map");
         };
         assert_eq!(a.weights(), b.weights(), "weights are rigid-invariant");
-        assert_eq!(a.knots(), b.knots(), "knots are rigid-invariant");
+        assert_eq!(
+            a.knots_f64_interim(),
+            b.knots_f64_interim(),
+            "knots are rigid-invariant"
+        );
         for (p, q) in b.control().iter().zip(a.control()) {
             let want = map.transform_point(*p);
             assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));

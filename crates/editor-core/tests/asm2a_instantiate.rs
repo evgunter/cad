@@ -34,7 +34,7 @@ use geom_core::Tol;
 /// A resolver over an in-memory map, verifying the pin exactly as the
 /// document layer's does — the point of the stub is to have no FILES,
 /// not to have no gate.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct StubStore {
     docs: BTreeMap<DocumentId, ProfileDoc>,
     /// Documents this store hands back with a deliberately WRONG
@@ -177,8 +177,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
     crate::fixture::place(doc, body).0
 }
 
-/// An assembly document instantiating `refs`, in order, each pinned to
-/// the world at the identity.
+/// An assembly document instantiating `refs`, in order, each loose.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -190,14 +189,83 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, ids)
 }
 
-/// `placement`'s bundle replaced by one world pin at `pose`.
+/// [`assembly`] with each instance pinned to the world at the identity,
+/// `opts` resolving the parts.
+fn placed_assembly(
+    label: &str,
+    refs: &[DocRef],
+    opts: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, ids) = assembly(label, refs);
+    let doc = ids
+        .iter()
+        .fold(doc, |doc, &id| fixture::pinned(doc, id, opts));
+    (doc, ids)
+}
+
+/// `placement`'s bundle replaced by one world pin at `pose`, `opts`
+/// resolving its part.
 fn repinned(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    pose: editor_core::Placement<editor_core::Formula>,
+    pose: &Frame,
+    opts: &EvalOptions,
 ) -> ProfileDoc {
     let doc = unpinned(doc, placement);
-    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
+    fixture::pin(doc, placement, pose, opts)
+}
+
+/// **`placement` pinned to the world over a copy that never
+/// evaluates** — its part or its body refuses first, so no frame can be
+/// read off its geometry and none is asked for: a frame through an edge
+/// and a vertex the copy would name, equated with the world's own. The
+/// names are never resolved; the mate is the shape of a pin, so the
+/// copy is the world's by its recipe.
+fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
+    let copy = match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => {
+            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
+        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
+            doc.output(placement, 0)
+                .expect("an instance defines its copies"),
+        ),
+        other => panic!("node {placement} is a placement, got {other:?}"),
+    };
+    let named = |kind| StableName {
+        kind,
+        node: placement,
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
+    };
+    let read = |def: editor_core::pose::PoseDef<editor_core::Operand, editor_core::Formula>| {
+        editor_core::pose::RoleRead::plain(editor_core::Operand::Pose(Box::new(def)))
+    };
+    let mate = editor_core::Mate {
+        on: editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Through {
+            axis: read(editor_core::pose::PoseDef::Axis {
+                of: editor_core::Operand::select(
+                    copy.clone(),
+                    vec![named(editor_core::EntityKind::Edge)],
+                ),
+            }),
+            point: read(editor_core::pose::PoseDef::Point {
+                of: editor_core::Operand::select(
+                    copy,
+                    vec![named(editor_core::EntityKind::Vertex)],
+                ),
+            }),
+        })),
+        to: editor_core::Target::World(editor_core::WorldRead::Frame),
+        class: editor_core::ContactClass::Rest,
+    };
+    fixture::constrain_at(doc, placement, mate).0
+}
+
+/// **One copy of `body`, which never evaluates, in the world**: a
+/// placement of it, [`nominally_pinned`].
+fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    (nominally_pinned(doc, placement), placement)
 }
 
 /// `placement` with its bundle emptied.
@@ -281,19 +349,15 @@ fn min_x(body: &topo::Body<f64>) -> f64 {
 
 /// Row 1 (kernel half) — an assembly of TWO instances of one part at
 /// different frames evaluates to a 2-solid product whose volume is
-/// exactly 2× the part's, in root order.
+/// twice the part's, in root order.
 #[test]
 fn row1_two_instances_gather_into_a_two_solid_product() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r1-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
 
-    let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([5.0, 0.0, 0.0])),
-    );
+    let (doc, ids) = placed_assembly("asm2a-r1-asm", &[doc_ref, doc_ref], &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([5.0, 0.0, 0.0]), &opts);
 
     let ev = run(&doc, &opts);
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
@@ -303,10 +367,13 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let part_doc = part("asm2a-r1-part", 0.0, 1.0);
     let part_ev = run(&part_doc, &EvalOptions::default());
     let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
-    assert_eq!(
-        volume(&body).to_bits(),
-        (2.0 * volume(&part_body)).to_bits(),
-        "volume is bit-exactly twice the part's"
+    // The second copy's pin is read off its geometry and composed
+    // through world turns, so its rotation is the identity only to
+    // rounding: the volume is twice the part's to a few ulps.
+    let (got, want) = (volume(&body), 2.0 * volume(&part_body));
+    assert!(
+        (got - want).abs() <= 8.0 * f64::EPSILON * want,
+        "volume is twice the part's: {got} vs {want}"
     );
 
     // Solid order IS root order: the first root's solid sits at x = 0,
@@ -332,12 +399,8 @@ fn row2_one_part_two_instances_one_evaluation() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r2-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
-    let doc = repinned(
-        doc,
-        ids[2],
-        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
-    );
+    let (doc, ids) = placed_assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref], &opts);
+    let doc = repinned(doc, ids[2], &Frame::translation([9.0, 0.0, 0.0]), &opts);
 
     let ev = run(&doc, &opts);
     assert_eq!(
@@ -359,12 +422,8 @@ fn row2_one_part_two_instances_one_evaluation() {
     let a = store.insert(part("asm2a-r2-a", 0.0, 1.0), Tol::witness());
     let b = store.insert(part("asm2a-r2-b", 0.0, 2.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
-    let doc = repinned(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([20.0, 0.0, 0.0])),
-    );
+    let (doc, ids) = placed_assembly("asm2a-r2-two", &[a, b], &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([20.0, 0.0, 0.0]), &opts);
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
 }
 
@@ -390,16 +449,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // Both instances pinned off the identity, so both ops do the same
     // work on the part they share: an identity placement is applied by
     // doing nothing, and an op that does nothing decides nothing.
-    let doc = repinned(
-        doc,
-        ids[0],
-        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
-    );
-    let doc = repinned(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
-    );
+    let doc = repinned(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([9.0, 0.0, 0.0]), &opts);
     let ev = run(&doc, &opts);
     assert_eq!(ev.part_evaluations, 1, "the second instance is a cache hit");
     let log = |id: RecipeNodeId| {
@@ -436,14 +487,15 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 463 is
-    // the placing op's own log on this part (the world pin's literal
-    // pose admitted at the decided rigidity door, once, then placement
-    // and validation of the placed body); 728 is the part's, on its own
-    // nodes — its profile's pre-pass on the Profile node's log,
-    // decided once (the pinned lift reuses the pre-pass's validated
-    // form).
-    assert_eq!(first.len(), 463, "the instantiate op's own decisions");
+    // two instances passes when both lose the same decisions. 466 is
+    // the placing op's own log on this part: its pin's fold off the
+    // identity (the two datum normals, and the at-rest predicate,
+    // decided once by the fold's snap), then placement and validation
+    // of the placed body; 728 is the part's, on its own
+    // nodes — its profile's pre-pass on the Profile node's log, decided
+    // once (the pinned lift reuses the pre-pass's validated form); its
+    // placement's world pin reads nothing and decides nothing.
+    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
     assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
@@ -466,12 +518,8 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r3-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([5.0, 0.0, 0.0])),
-    );
+    let (doc, ids) = placed_assembly("asm2a-r3-asm", &[doc_ref, doc_ref], &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([5.0, 0.0, 0.0]), &opts);
     let ev = run(&doc, &opts);
 
     let a = instance_names(&ev, ids[0]);
@@ -534,7 +582,7 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r3p-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r3p-asm", &[doc_ref]);
+    let (doc, ids) = placed_assembly("asm2a-r3p-asm", &[doc_ref], &opts);
     let ev = run(&doc, &opts);
     let name = instance_names(&ev, ids[0])
         .into_iter()
@@ -566,37 +614,45 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 
 // ---- Row 4: the world pin ----
 
-/// Row 4 — the world pin's pose moves the copy without changing its
-/// volume;
-/// the pre-edit document is untouched (undo = keeping the prior value);
-/// an improper frame refuses typed NAMING the R4 prerequisite; a
-/// non-instance target refuses typed.
+/// Row 4 — an inserted instance is loose; a world pin's pose moves the
+/// copy without changing its volume; the pre-edit document is untouched
+/// (undo = keeping the prior value); a non-instance target refuses
+/// typed.
 #[test]
 fn row4_the_world_pin_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
+    let (loose, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
+    assert!(
+        fixture::bundle(&loose, ids[0]).is_empty(),
+        "an inserted instance is loose"
+    );
+    let doc = fixture::pinned(loose, ids[0], &opts);
+    let held = fixture::offset_of(&doc, ids[0]);
+    assert!(held.is_some(), "the instance is pinned to the world");
 
     let before = run(&doc, &opts);
     let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
-    assert_eq!(
-        fixture::offset_of(&doc, ids[0]),
-        Some(editor_core::Placement::IDENTITY),
-        "an inserted instance is pinned to the world at the identity"
-    );
-
     let moved = repinned(
         doc.clone(),
         ids[0],
-        editor_core::Placement::literal(&Frame::translation([7.0, 0.0, 0.0])),
+        &Frame::translation([7.0, 0.0, 0.0]),
+        &opts,
+    );
+    assert_ne!(
+        fixture::offset_of(&moved, ids[0]),
+        held,
+        "the pin moves to the new pose"
     );
     let after = run(&moved, &opts);
     let after_body = product(&moved, &after, Tol::witness()).expect("gathers");
-    assert_eq!(
-        volume(&before_body).to_bits(),
-        volume(&after_body).to_bits(),
-        "a rigid placement preserves volume bit for bit"
+    // A pin away from the identity is composed through world turns, so
+    // it is rigid to rounding: the volume holds to a few ulps.
+    let (b, a) = (volume(&before_body), volume(&after_body));
+    assert!(
+        (a - b).abs() <= 8.0 * f64::EPSILON * b,
+        "a rigid placement preserves volume: {b} vs {a}"
     );
     assert!(
         (min_x(&after_body) - min_x(&before_body) - 7.0).abs() < 1e-9,
@@ -604,57 +660,29 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     );
 
     // Undo, as this layer offers it: the prior document is unchanged.
-    assert_eq!(
-        fixture::offset_of(&doc, ids[0]),
-        Some(editor_core::Placement::IDENTITY),
-        "undo restores"
-    );
-
-    // An improper frame (a mirror) refuses, naming R4's prerequisite.
-    let mirror = Frame {
-        columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.0, 0.0, 0.0],
-    };
-    match editor_core::apply(
-        &unpinned(doc.clone(), ids[0]),
-        &DocEdit::AddConstraint {
-            placement: ids[0],
-            mate: Box::new(editor_core::Mate::world_pin(
-                editor_core::Placement::literal(&mirror),
-            )),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(
-            ref e @ EditError::ImproperPlacement {
-                ref node,
-                determinant,
-                ..
-            },
-        ) => {
-            assert_eq!(node.id(), ids[0]);
-            assert!(determinant < 0.0);
-            let rendered = e.to_string();
-            assert!(
-                rendered.contains("admitted only behind the equivariance audit"),
-                "the refusal names the prerequisite: {rendered}"
-            );
-        }
-        other => panic!("an improper frame must refuse, got {other:?}"),
-    }
+    assert_eq!(fixture::offset_of(&doc, ids[0]), held, "undo restores");
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
     let target = part_doc.ids()[0];
+    let block = *part_doc
+        .ids()
+        .iter()
+        .find(|&&id| matches!(part_doc.node(id), Some(Node::Extrude { .. })))
+        .expect("the part extrudes its block");
+    let pin = editor_core::pin_at(
+        &part_doc,
+        &editor_core::Operand::Node(block),
+        &Frame::translation([1.0, 0.0, 0.0]),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the block pins over its geometry");
     match editor_core::apply(
         &part_doc,
         &DocEdit::AddConstraint {
             placement: target,
-            mate: Box::new(editor_core::Mate::world_pin(
-                editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
-            )),
+            mate: Box::new(pin),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -743,7 +771,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
     let part_doc = two_solid_part("asm2a-r5d-part");
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r5d-asm", &[doc_ref]);
+    let (doc, ids) = placed_assembly("asm2a-r5d-asm", &[doc_ref], &opts);
     let ev = run(&doc, &opts);
     match ev.result(ids[0]) {
         Some(NodeResult::Ok(_)) => assert_eq!(
@@ -776,6 +804,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     let mut store = StubStore::default();
     let a = store.insert(part("asm2a-r6-part", 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r6-asm", &[a]);
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
@@ -790,7 +819,8 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     let moved = repinned(
         doc.clone(),
         ids[0],
-        editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
+        &Frame::translation([1.0, 0.0, 0.0]),
+        &opts,
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
 
@@ -812,14 +842,10 @@ fn row6_placement_is_part_of_the_content_key() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r6k-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r6k-asm", &[doc_ref]);
+    let (doc, ids) = placed_assembly("asm2a-r6k-asm", &[doc_ref], &opts);
     let first = run(&doc, &opts);
 
-    let moved = repinned(
-        doc,
-        ids[0],
-        editor_core::Placement::literal(&Frame::translation([4.0, 0.0, 0.0])),
-    );
+    let moved = repinned(doc, ids[0], &Frame::translation([4.0, 0.0, 0.0]), &opts);
     let second = evaluate::<f64>(
         &moved,
         Some(&first),
@@ -923,24 +949,23 @@ fn row6_a_faulted_part_is_asked_again_on_the_next_run() {
 fn row7_instantiate_and_placement_round_trip() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
-    let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
+    let opts = with_resolver(store);
+    let (doc, ids) = placed_assembly("asm2a-r7-asm", &[doc_ref, doc_ref], &opts);
     let doc = repinned(
         doc,
         ids[1],
-        editor_core::Placement::literal(
-            &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0], fixture::band())
-                .expect("a literal axis has a definite direction"),
-        ),
+        &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0], fixture::band())
+            .expect("a literal axis has a definite direction"),
+        &opts,
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
-        fixture::offset_of(&loaded, ids[1])
-            .zip(fixture::offset_of(&doc, ids[1]))
-            .is_some_and(|(a, b)| a.bit_eq(&b)),
-        "the frame's bits survive"
+        fixture::offset_of(&doc, ids[1]).is_some()
+            && fixture::same_offset(&loaded, ids[1], &doc, ids[1]),
+        "the pin's world read survives, bit for bit"
     );
     assert!(
         matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
@@ -992,7 +1017,8 @@ fn failure(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NodeErrorKind {
 }
 
 /// A deliberately MISBEHAVING resolver: it answers each of a pair of
-/// references with a document instantiating the OTHER, pins ignored.
+/// references with a document instantiating the OTHER, pins ignored,
+/// its instance pinned to the world so the part's product is that copy.
 ///
 /// A4 makes this unconstructible through an honest store — a document
 /// would have to contain its own hash — so a resolver is the only thing
@@ -1014,7 +1040,8 @@ impl PartResolver for CyclicStore {
             (self.b, self.a)
         };
         let doc = ProfileDoc::empty(here.id, Tol::witness());
-        Ok(insert(doc, Node::instantiate_part(there)).0)
+        let (doc, instance) = insert(doc, Node::instantiate_part(there));
+        Ok(nominally_pinned(doc, instance))
     }
 }
 
@@ -1082,7 +1109,8 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let mut store = StubStore::default();
     let broken = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"), Tol::witness());
-        insert(doc, Node::instantiate_part(missing)).0
+        let (doc, instance) = insert(doc, Node::instantiate_part(missing));
+        nominally_pinned(doc, instance)
     };
     let inner_root = broken.ids()[0];
     assert_eq!(
@@ -1163,7 +1191,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
             side: ExtrudeSide::Along,
         },
     );
-    let p3 = crate::fixture::place(p3, p3_root).0;
+    let p3 = placed_nominally(p3, p3_root).0;
     let p3_ev = run(&p3, &EvalOptions::default());
     let p3_own = match p3_ev.result(p3_root) {
         Some(NodeResult::Failed(e)) => e.spoken(&p3, &p3_ev),
@@ -1173,10 +1201,11 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     // Each wrapper's instance is pinned to the world: a part delivers
     // only its world.
     let wrapper = |label: &str, inner: DocRef| {
-        insert(
+        let (doc, instance) = insert(
             ProfileDoc::empty(DocumentId::derive(label), tol),
             Node::instantiate_part(inner),
-        )
+        );
+        (nominally_pinned(doc, instance), instance)
     };
     let (p2, p2_root) = wrapper("asm2a-depth-p2", r3);
     let r2 = store.insert(p2, tol);
@@ -1302,7 +1331,7 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         },
     );
     let (part, moved) = moved_over(part, extrude);
-    let (part, placed) = crate::fixture::place(part, moved);
+    let (part, placed) = placed_nominally(part, moved);
     (part, extrude, placed)
 }
 
@@ -1335,8 +1364,9 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
 
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
     let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
+    let bracket = nominally_pinned(bracket, inner);
     let (bracket, moved) = moved_over(bracket, inner);
-    let (bracket, _) = crate::fixture::place(bracket, moved);
+    let (bracket, _) = placed_nominally(bracket, moved);
     let bracket_ref = store.insert(bracket.clone(), tol);
 
     let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
@@ -1455,12 +1485,13 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let p = store.insert(part("asm2a-nest-p", 0.0, 1.0), Tol::witness());
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
-        insert(doc, Node::instantiate_part(p)).0
+        let (doc, instance) = insert(doc, Node::instantiate_part(p));
+        fixture::pinned(doc, instance, &with_resolver(store.clone()))
     };
     let b = store.insert(sub, Tol::witness());
     let opts = with_resolver(store);
 
-    let (doc, ids) = assembly("asm2a-nest-a", &[b]);
+    let (doc, ids) = placed_assembly("asm2a-nest-a", &[b], &opts);
     let ev = run(&doc, &opts);
     assert_eq!(
         ev.part_evaluations, 2,
@@ -1509,7 +1540,7 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
                 resolver: resolver.clone(),
                 ..EvalOptions::default()
             };
-            let (doc, _) = assembly("asm2a-sweep-asm", &[doc_ref]);
+            let (doc, _) = placed_assembly("asm2a-sweep-asm", &[doc_ref], &opts);
             let ev = run(&doc, &opts);
             let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
             volume(&body).to_bits()
@@ -1585,12 +1616,8 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
     let part_doc = part("asm2a-door-part", 0.0, 1.0);
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-door-asm", &[doc_ref, doc_ref]);
-    let doc = repinned(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
-    );
+    let (doc, ids) = placed_assembly("asm2a-door-asm", &[doc_ref, doc_ref], &opts);
+    let doc = repinned(doc, ids[1], &Frame::translation([1.0, 0.0, 0.0]), &opts);
     let (doc, union) = insert(
         doc,
         Node::Union {

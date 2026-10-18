@@ -700,18 +700,32 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose placer refused each name
-/// that node and point at it; the refusal they carry is drawn as its
-/// own line, one per document level, and never inside theirs.
+/// part whose root failed and a mate whose pose did not evaluate each
+/// name that node and point at it; the refusal they carry is drawn as
+/// its own line, one per document level, and never inside theirs.
 ///
 /// Held on the payloads that stress it: the longest refusal on this
 /// roster, carried one document down, three documents down, and under
-/// a mate's placer. Each carrying line is held to the budget and must
-/// not quote what it carries; the carried line is the roster row's own
-/// text, so it keeps that row's name and its filed allowances.
+/// a mate's unevaluated pose. Each carrying line is held to the budget
+/// and must not quote what it carries; the carried line is the roster
+/// row's own text, so it keeps that row's name and its filed
+/// allowances.
+///
+/// *Breaks if* a carrying line quotes what it carries, outgrows the
+/// budget, or a mate's carried level is numbered outside its part.
 #[test]
 fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     use editor_core::{MateFault, MateSide, PartFault};
+    let unevaluated = |refusal: NodeErrorKind| {
+        NodeErrorKind::Mate(Box::new(MateFault::SideUnevaluated {
+            mate: editor_core::MateRef::new(
+                RecipeNodeId::new(0, tagged(9)),
+                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
+            ),
+            side: MateSide::To,
+            refusal: Box::new(refusal.into()),
+        }))
+    };
     let longest = node_refusals()
         .into_iter()
         .map(|(name, kind)| {
@@ -750,20 +764,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
             3,
             part(7, part(4, part(3, inner()))),
         ),
-        (
-            "Carried/PlacerRefused",
-            1,
-            NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-                mate: editor_core::MateRef::new(
-                    RecipeNodeId::new(0, tagged(9)),
-                    editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
-                ),
-                side: MateSide::B,
-                placer: RecipeNodeId::new(0, tagged(4)),
-                error: inner().into(),
-                placer_row: editor_core::PlacerRow::Silent,
-            })),
-        ),
+        ("Carried/SideUnevaluated", 1, unevaluated(inner())),
     ];
     let mut rows = Vec::new();
     for (case, depth, kind) in cases {
@@ -790,28 +791,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 
-    // A placer whose own row states its refusal is pointed at and not
-    // carried: the refusal is drawn once, on the placer's row.
-    let placer = |placer_row| {
-        NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-            mate: editor_core::MateRef::new(
-                RecipeNodeId::new(0, tagged(9)),
-                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
-            ),
-            side: MateSide::B,
-            placer: RecipeNodeId::new(0, tagged(4)),
-            error: inner().into(),
-            placer_row,
-        }))
-    };
-    assert_eq!(
-        drawn_lines(placer(editor_core::PlacerRow::States)).len(),
-        1,
-        "a placer that states its own refusal is not carried"
-    );
     // A mate's carried level inside a part is numbered in that part, as
     // the part's own level is.
-    let in_part = part(7, placer(editor_core::PlacerRow::Silent));
+    let in_part = part(7, unevaluated(inner()));
     let documents: Vec<_> = in_part
         .carried_chain()
         .map(|level| (level.document.doc_ref(), level.node))
@@ -821,9 +803,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         documents,
         vec![
             (Some(&part_ref), RecipeNodeId::new(0, tagged(7))),
-            (Some(&part_ref), RecipeNodeId::new(0, tagged(4))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(9))),
         ],
-        "the placer's level is in the part the mate is in"
+        "the mate's carried level is in the part the mate is in"
     );
 }
 
@@ -4098,8 +4080,10 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Clash, DocumentId, LeverRefusal, MateFault as M, MateSide, Subgroup};
-    use geom_core::{FrameError, FrameInput};
+    use editor_core::{
+        Clash, Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis,
+        Subgroup, VarKind,
+    };
     use payloads::*;
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
@@ -4113,25 +4097,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 found: DocumentId::derive("b"),
             },
         ),
-        (
-            "Frame",
-            M::Frame {
-                mate: r(9),
-                side: MateSide::A,
-                error: FrameError::Degenerate {
-                    input: FrameInput::Aim,
-                    indeterminate: None,
-                },
-            },
-        ),
         ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
-        (
-            "TableLacks",
-            M::TableLacks {
-                mate: r(9),
-                what: "a clocking rider on a planar rest",
-            },
-        ),
         (
             "Indeterminate",
             M::Indeterminate {
@@ -4140,9 +4106,10 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "Band",
-            M::Band {
-                error: band_error(),
+            "PoseOutOfRange",
+            M::PoseOutOfRange {
+                held: r(8),
+                added: r(9),
             },
         ),
         (
@@ -4171,90 +4138,68 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         ),
         ("NotOnTheCopy", M::NotOnTheCopy { mate: r(9) }),
         (
-            "SideBase",
-            M::SideBase {
+            "KindsDiffer",
+            M::KindsDiffer {
                 mate: r(9),
-                side: MateSide::A,
-                base: editor_core::FrameBase::World,
+                on: VarKind::Plane,
+                to: VarKind::Axis,
             },
         ),
         (
-            "DanglingHead",
-            M::DanglingHead {
+            "WorldRead",
+            M::WorldRead {
                 mate: r(9),
-                side: MateSide::B,
-                head: n(4),
+                fault: editor_core::WorldReadFault::Role {
+                    role: editor_core::pose::PoseRole::Normal,
+                    found: VarKind::Frame,
+                },
             },
         ),
         (
-            "PlacerRefused",
-            M::PlacerRefused {
-                mate: r(9),
-                side: MateSide::B,
-                placer: n(4),
-                error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
-                placer_row: editor_core::PlacerRow::Silent,
+            "ValueNamesNoMate",
+            M::ValueNamesNoMate {
+                value: r(9),
+                mate: c(8),
             },
         ),
         (
-            "PartSelectsAnotherCopy",
-            M::PartSelectsAnotherCopy {
-                mate: r(9),
-                side: MateSide::A,
-                part: n(6),
-                named: 2,
-                selected: 5,
+            "NotAFreedom",
+            M::NotAFreedom {
+                value: r(9),
+                coord: Coord::Slide(SlideAxis::Z),
+                kind: Some(VarKind::Plane),
             },
         ),
         (
-            "SelfMate",
-            M::SelfMate {
-                mate: r(9),
-                instance: n(6),
+            "NotAFreedom/FixedByTheBundle",
+            M::NotAFreedom {
+                value: r(9),
+                coord: Coord::Spin,
+                kind: None,
             },
         ),
         (
-            "FaceUnresolved",
-            M::FaceUnresolved {
-                mate: r(9),
-                side: MateSide::A,
-                refusal: Box::new(editor_core::FaceRefusal::Reach {
-                    instance: n(6),
-                    part: doc_ref(),
-                    face: editor_core::FaceName::new(editor_core::StableName {
-                        kind: editor_core::EntityKind::Face,
-                        node: n(3),
-                        path: vec![],
-                    })
-                    .expect("a face"),
-                    refusal: editor_core::FacePoseRefusal::NoSuchName,
-                }),
+            "NoChart",
+            M::NoChart {
+                value: r(9),
+                why: NoChartWhy::PointRotation,
             },
         ),
         (
-            "FaceUnresolved/NoPartFace",
-            M::FaceUnresolved {
-                mate: r(9),
-                side: MateSide::A,
-                refusal: Box::new(editor_core::FaceRefusal::NoPartFace {
-                    instance: n(6),
-                    head: editor_core::FaceName::new(editor_core::StableName {
-                        kind: editor_core::EntityKind::Face,
-                        node: n(6),
-                        path: vec![],
-                    })
-                    .expect("a face"),
-                }),
+            "NoChart/TwoBodies",
+            M::NoChart {
+                value: r(9),
+                why: NoChartWhy::TwoBodies,
             },
         ),
         (
-            "FrameUnevaluated",
-            M::FrameUnevaluated {
+            "SideUnevaluated",
+            M::SideUnevaluated {
                 mate: r(9),
-                side: MateSide::B,
+                side: MateSide::To,
                 refusal: Box::new(
-                    NodeErrorKind::DegenerateDirection {
-                        role: "transform rotation axis",
+                    NodeErrorKind::PoseDegenerate {
+                        construction: editor_core::pose::PoseConstruction::Through,
                     }
                     .into(),
                 ),

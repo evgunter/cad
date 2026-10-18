@@ -111,6 +111,68 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, revolve)
 }
 
+/// **A body with no planar face is pinned, and the gesture says so.**
+/// The revolve gesture places the ring it made; a ring of revolution
+/// has no planar face to rest a plane mate on, so the "place part"
+/// gesture falls back to the pin — one mate to the world, no values to
+/// move it by, the copy where it was made — and the outcome's notice
+/// says so. Breaks if the fallback leaves the copy loose, writes values
+/// a pin does not leave, places it anywhere but where it was made, or
+/// goes unsaid.
+#[test]
+fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(plane),
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [R, 0.0],
+                radius: RO,
+            })],
+        },
+    );
+    let outcome = session.perform(SessionOp::AddRevolve {
+        profile,
+        axis_through: len2([0.0, 0.0]),
+        axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+        angle: ang(TAU),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [_, placement] = outcome.minted[..] else {
+        panic!("the revolve and its placement: {:?}", outcome.minted)
+    };
+    assert_eq!(
+        outcome.placed,
+        vec![viewer::session::PlaceReport {
+            placement,
+            by: Ok(editor_core::PlacedBy::Pin),
+        }],
+        "the ring is pinned: it has no planar face"
+    );
+    let notices: Vec<String> = viewer::frame::outcome_notices(&outcome)
+        .map(|notice| notice.text().to_owned())
+        .collect();
+    assert!(
+        notices.iter().any(|text| text.contains("no planar face")),
+        "the gesture says how it placed the copy: {notices:?}"
+    );
+    session.pump();
+    let doc = session.committed_doc();
+    let bundle = crate::fixture::bundle(doc, placement);
+    assert!(
+        matches!(bundle.as_slice(), [pin]
+            if pin.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))),
+        "one mate to the world and no values: {bundle:?}"
+    );
+    assert!(
+        common::solve(&session, doc, tol).at_identity(placement),
+        "the ring stands where it was made"
+    );
+}
+
 #[test]
 fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     let tol = Tol::witness();
@@ -151,11 +213,14 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
 }
 
 /// **A creation gesture places what it made, in the same action**
-/// (A10): the extrude and its identity world placement are one
-/// recorded action — the world is `[extrude]`, the tree badges the
-/// extrude, and ONE undo takes both. Breaks if the gesture leaves the
-/// body unplaced (nothing is drawn), records the placement as a second
-/// action, or places something else.
+/// (A10): the extrude and its world placement — a plane mate on the
+/// extrude's planar face to the world and the three values naming it,
+/// solved to the identity — are one recorded action: the world is
+/// `[extrude]`, the tree badges the extrude, the outcome says the copy
+/// was placed on a planar face, and ONE undo takes both. Breaks if the
+/// gesture leaves the body unplaced (nothing is drawn), pins it with no
+/// values to move it by, places it anywhere but where it was made,
+/// records the placement as a second action, or places something else.
 #[test]
 fn a_creation_gesture_places_what_it_made_in_one_action() {
     let tol = Tol::witness();
@@ -174,17 +239,51 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     };
     let doc = session.committed_doc();
     assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
+    let Some(Node::Place {
+        shapes,
+        constraints,
+    }) = doc.node(placement)
+    else {
+        panic!("the extrude's placement: {:?}", doc.node(placement))
+    };
     assert!(
-        matches!(
-            doc.node(placement),
-            Some(Node::Place { shapes, constraints })
-                if matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0))
-                    && matches!(constraints.as_slice(), [pin]
-                        if pin.mate.bit_eq(&pncad::document::Mate::world_pin(
-                            pncad::document::Placement::IDENTITY,
-                        )))
-        ),
-        "the extrude's identity placement"
+        matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0)),
+        "the placement copies the extrude: {shapes:?}"
+    );
+    let [mate, values @ ..] = constraints.as_slice() else {
+        panic!("a mate and its values: {constraints:?}")
+    };
+    assert!(
+        mate.mate()
+            .is_some_and(|m| matches!(m.to, pncad::document::Target::World(_))),
+        "the mate reads the world: {mate:?}"
+    );
+    {
+        use pncad::document::{Coord, SlideAxis};
+        assert_eq!(
+            values
+                .iter()
+                .map(|c| c.value().map(|v| (v.mate, v.coord)))
+                .collect::<Vec<_>>(),
+            vec![
+                Some((mate.id, Coord::Slide(SlideAxis::X))),
+                Some((mate.id, Coord::Slide(SlideAxis::Y))),
+                Some((mate.id, Coord::Spin)),
+            ],
+            "the three freedoms a plane mate leaves, each set"
+        );
+    }
+    assert_eq!(
+        outcome.placed,
+        vec![viewer::session::PlaceReport {
+            placement,
+            by: Ok(editor_core::PlacedBy::PlanarFace),
+        }],
+        "the outcome says how the copy was placed"
+    );
+    assert!(
+        common::solve(&session, doc, tol).at_identity(placement),
+        "the copy stands where it was made"
     );
     assert_eq!(common::world(doc), [extrude], "what was made is the world");
     let rows = session.tree_rows();
@@ -273,8 +372,15 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 
     // Undo walks back across the reopened log one edit at a time (the
     // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, then the extrude; redo restores the
-    // whole document.
+    // extrude's world placement, its three values, then its mate, then
+    // its insert — then the extrude; redo restores the whole document.
+    for _ in 0..4 {
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+        assert!(
+            !session.committed_doc().placements().is_empty(),
+            "the placement's values and mate go before it"
+        );
+    }
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         session.committed_doc().placements().is_empty(),
@@ -297,9 +403,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    // Five edits: the plane, the sketch frame, the profile, the extrude
-    // and its placement.
-    for _ in 0..5 {
+    // Nine edits: the plane, the sketch frame, the profile, the extrude,
+    // its placement, and the placement's mate and three values.
+    for _ in 0..9 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");

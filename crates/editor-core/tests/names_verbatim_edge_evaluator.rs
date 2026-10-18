@@ -59,8 +59,8 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
-    Node, ProfileDoc, RecipeNodeId, StableName,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
+    SlideAxis, StableName, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -128,16 +128,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
 /// **Two instanced blocks, one seated on the other by a mate** — the
 /// assembly kind the Band 4 corpus does not author (`InstantiatePart`,
 /// with a constraint in its bundle).
@@ -149,26 +139,40 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
     let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(base));
-    let (doc, top) = insert(doc, fixture::mated_instance(top));
     let opts = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (doc, _mate) = fixture::constrain_with(
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base), &opts);
+    let (doc, top) = insert(doc, fixture::mated_instance(top));
+    let (doc, mate) = fixture::constrain(
         doc,
-        &reach,
-        fixture::mate(
-            fixture::head(in_part(base, base_body, CapEnd::End)),
+        fixture::rest(
             fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head(in_part(base, base_body, CapEnd::End)),
             ContactClass::Rest,
-            Alignment {
-                a: mate_frame([0.0, 0.0, 1.0]),
-                b: mate_frame([0.0, 0.0, 0.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
         ),
     );
+    // The freedoms the rest leaves, each zero: the top stands square on
+    // the base.
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by): (Coord, Formula)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
     (doc, opts)
 }
 

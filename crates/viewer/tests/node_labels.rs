@@ -419,7 +419,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ))
         .is_err(),
         "a mate creates no node"

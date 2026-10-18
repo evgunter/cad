@@ -51,11 +51,17 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance's bundle is one world pin at the identity — the
-/// insert door's own placement (A11 (2)).
+/// Whether the instance's bundle is the "place part" gesture's — one
+/// mate to the world and the three values naming it — and solves to
+/// the identity: the insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    crate::fixture::offset_of(session.doc(), node)
-        .is_some_and(|pose| pose.bit_eq(&pncad::document::Placement::IDENTITY))
+    let doc = session.doc();
+    let bundle = crate::fixture::bundle(doc, node);
+    let placed_by_gesture = matches!(bundle.as_slice(), [mate, values @ ..]
+        if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
+            && values.len() == 3
+            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
+    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node)
 }
 
 // --- the acceptance ------------------------------------------------
@@ -71,8 +77,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and one world pin at the identity — A11 (2)'s insert
-    // at the origin.
+    // split seam), and the place gesture's mate and values at the
+    // identity — A11 (2)'s insert at the origin.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,
@@ -92,7 +98,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     );
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance authors one world pin at the identity"
+        "AddInstance places each instance at the identity"
     );
 
     // The instances evaluate: the references resolve through the
@@ -117,59 +123,73 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance stands on its world pin alone
+    // Free-move: an authored instance stands on its world mate alone
     // until a mate names it, so the probe opens and commits.
-    for op in [
-        SessionOp::BeginFreeMove { instance: shelf_i },
-        SessionOp::PreviewFreeMove {
-            instance: shelf_i,
-            frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
-        },
-        SessionOp::CommitFreeMove { instance: shelf_i },
-    ] {
-        let outcome = session.perform(op);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    }
-    assert!(session.display().free_move_of(shelf_i).is_some());
+    let probe = |session: &mut DocSession| {
+        for op in [
+            SessionOp::BeginFreeMove { instance: shelf_i },
+            SessionOp::PreviewFreeMove {
+                instance: shelf_i,
+                frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
+            },
+            SessionOp::CommitFreeMove { instance: shelf_i },
+        ] {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        }
+        assert!(session.display().free_move_of(shelf_i).is_some());
+    };
+    probe(&mut session);
 
     // The shipped mate tool's op takes them from here. Both instances
-    // stand pinned, so the mate joins the shelf's bundle, which its pin
-    // already fixes: the door refuses it typed — overconstrained, or,
-    // while a bundle relates its copy to one target, as a second target
-    // beside the world — and commits nothing. A mate beyond the pin is
-    // never dropped silently.
+    // stand placed, so the mate joins the post's bundle, which its
+    // world mate and values already fix: the door admits it (it
+    // measures nothing) and the evaluation refuses the post's bundle
+    // typed — overconstrained, contradicting the world mate it does not
+    // agree with, or, while a bundle relates its copy to one target, as
+    // a second target beside the world. A mate beyond the pin is never
+    // dropped silently, and undo takes it off.
     let seat = || {
         asm::seat_op_under(
             &bench,
             post_i,
             shelf_i,
             ContactClass::Rest,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         )
     };
-    let refused = session.perform(seat());
-    assert!(refused.committed.is_empty(), "nothing was committed");
-    match &refused.refusal {
-        Some(Refusal::Edit(error)) => assert!(
+    let beyond = session.perform(seat());
+    assert!(beyond.refusal.is_none(), "{:?}", beyond.refusal);
+    session.pump();
+    {
+        let (_, ev) = session.landed_pair().expect("landed");
+        let fault = match ev.result(post_i).and_then(|r| r.error()).map(|e| &e.kind) {
+            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
+            other => panic!("the post's bundle refuses the mate beyond its pin, got {other:?}"),
+        };
+        assert!(
             matches!(
-                error.as_ref(),
-                pncad::document::EditError::MateRefused { fault, .. }
-                    if matches!(
-                        fault.as_ref(),
-                        pncad::document::MateFault::Overconstrained { placement, .. }
-                        | pncad::document::MateFault::TargetsDiffer { placement, .. }
-                            if *placement == shelf_i
-                    )
+                &fault,
+                pncad::document::MateFault::Overconstrained { placement, .. }
+                    | pncad::document::MateFault::TargetsDiffer { placement, .. }
+                    if *placement == post_i
+            ) || matches!(
+                &fault,
+                pncad::document::MateFault::Contradictory { held, added, .. }
+                    if held.placement == post_i && added.placement == post_i
             ),
-            "the shelf's bundle refuses the mate beyond its pin: {error}"
-        ),
-        other => panic!("a mate beyond the pin refuses, got {other:?}"),
+            "the post's bundle refuses the mate beyond its pin: {fault:?}"
+        );
     }
-    // With the shelf's world pin taken off, the same mate places it.
-    asm::unpin(&mut session, shelf_i);
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    session.pump();
+    probe(&mut session);
+    // With the post's world mate (and its values) taken off, the same
+    // mate places it: one mate and its three values.
+    asm::unpin(&mut session, post_i);
     let outcome = session.perform(seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
+    assert_eq!(outcome.committed.len(), 4);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -178,7 +198,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     };
     assert_eq!(
         superseded.instance, shelf_i,
-        "the mate supersedes the probe on the instance it constrains"
+        "the mate supersedes the probe on the instance it names"
     );
     assert!(
         matches!(

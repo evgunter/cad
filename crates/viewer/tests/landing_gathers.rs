@@ -181,7 +181,7 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
     assert!(

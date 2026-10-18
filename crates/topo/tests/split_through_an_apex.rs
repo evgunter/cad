@@ -26,7 +26,7 @@ use common::meeting::{
 };
 use common::split_plane;
 use geom_core::{Tol, Vec3};
-use topo::{AtRestBody, SplitPart, SplitReduceError, split, validate_geometric};
+use topo::{AtRestBody, SplitPart, SplitReduceError, ValidationError, split, validate_geometric};
 
 fn t() -> Tol {
     Tol::witness()
@@ -483,6 +483,32 @@ fn a_notch_floor_in_the_band_splits_sound() {
         (-0.0422, 0.9, true),
     ]);
     pyramid_splits_sound("a notch floor 0.9 ε above", &base, Some([2, 1]));
+    for pose in poses() {
+        let u = apex_pyramid(&base, &pose, t());
+        for up in [true, false] {
+            let r = split(&u, &plane_at(&pose, up), t()).unwrap();
+            for (part, side) in [(&r.above, "above"), (&r.below, "below")] {
+                let SplitPart::Body(b) = part else {
+                    panic!("{}: side {side} empty", pose.label);
+                };
+                // What tier 3′ still escalates is the edge-edge lane's
+                // reading of the two edges through the floor.
+                let errors =
+                    topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), t())
+                        .err()
+                        .unwrap_or_default();
+                let edge_edge = |e: &ValidationError| {
+                    matches!(e, ValidationError::CensusEscalated { cause }
+                        if cause.predicate.is_some_and(|p| p.starts_with("pm_census_ee_")))
+                };
+                assert!(
+                    errors.iter().all(edge_edge),
+                    "{}, up {up}, side {side}: tier 3′ refuses past the edge-edge lane: {errors:?}",
+                    pose.label
+                );
+            }
+        }
+    }
 }
 
 /// A W-shaped base whose valley dips `1000 ε` below the top between

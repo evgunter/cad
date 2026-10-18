@@ -11,10 +11,10 @@ use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
-    Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
-    PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
-    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
-    spoken_by,
+    EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
+    Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
+    coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -1633,17 +1633,18 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, _) = crate::fixture::place(doc, the_box);
-    let turned: editor_core::Placement<Formula> = editor_core::Step::Rigid {
-        translation: [len(2.0), len(1.0), len(0.0)],
-        axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: ang(std::f64::consts::PI),
-    }
-    .into();
-    let (doc, q) = crate::fixture::step(
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::PI,
+        [2.0, 1.0, 0.0],
+        crate::fixture::band(),
+    )
+    .expect("a half-turn about z");
+    let (doc, q) = crate::fixture::insert(
         doc,
-        editor_core::DocEdit::place_in_world(the_box, Some(turned)),
+        Node::place(vec![editor_core::BodyRead::plain(the_box)]),
     );
-    q.expect("the placement inserts");
+    let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     let rows = product.coincidences.len();

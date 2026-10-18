@@ -2,11 +2,11 @@
 id: a-clocking-rider-is-levered-unreduced
 kind: issue
 title: A coincidence's clocking rider is levered as authored: a full turn refuses as contradictory, and a huge one quotes an infinite deviation
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -49,3 +49,7 @@ whole-turn rider as redundant.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: the fix site (Lever::Roll, the coincidence rider) is deleted by #3681's MSOLVE-15, which is re-cut against D10's frame and mate ground at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires the clocking rider: a turn about the mated direction is a `Spin` value on the mate, charted on the swung frames (`reference_about`), and `Lever::Roll` is gone, so there is no rider to lever unreduced.

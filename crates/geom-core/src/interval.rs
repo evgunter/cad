@@ -877,10 +877,10 @@ impl crate::spline::SpanLocate for Interval {
         ends: (f64, f64),
         _held_ends: (Self, Self),
     ) -> Vec<Self> {
-        // A held knot at `Interval` is the point of its `f64` structure,
-        // so the certified restriction reads the structure; the held
-        // values are checked for length only, as at every scalar.
-        if held.len() != span.knots().knots().len() {
+        // The certified restriction reads the knots' `f64` vector (C6's
+        // interim), which a carrier's point knots have; the held values
+        // are checked for length only, as at every scalar.
+        if held.len() != span.structure().len() {
             return vec![Self::from_f64(f64::NAN); span.degree() + 1];
         }
         crate::spline::blossom::restrict_window(window, span, ends)
@@ -889,6 +889,11 @@ impl crate::spline::SpanLocate for Interval {
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (!self.is_poison() && lo <= hi).then_some((lo, hi))
     }
 
     fn structure_positive(self) -> bool {

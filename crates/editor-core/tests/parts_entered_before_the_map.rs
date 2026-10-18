@@ -17,9 +17,8 @@
 
 use crate::fixture;
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions,
-    Evaluation, ExtrudeSide, Frame, Mate, MateFrame, MatePrimitive, Node, NodeResult, Placement,
-    ProfileDoc, RecipeNodeId, evaluate, mate_reach,
+    CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, ExtrudeSide,
+    Frame, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
@@ -74,9 +73,8 @@ fn stored_part(label: &str) -> (EvalOptions, DocRef, RecipeNodeId) {
 enum Rest {
     /// Each pinned at the identity too.
     Pinned,
-    /// The second placed by a frame coincidence of its bottom cap on
-    /// the first's top cap, with a clocking rider, so the solve reads
-    /// the part (its lever and its faces' poses).
+    /// The second placed by a rest of its bottom cap on the first's
+    /// top cap, so the solve reads the part (its faces' poses).
     Mated,
 }
 
@@ -107,21 +105,10 @@ fn assembly(
         ids.push(id);
     }
     if let Rest::Mated = rest {
-        let frame = |origin| {
-            MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], Tol::witness())
-                .expect("a definite frame")
-        };
-        let mate = fixture::mate(
-            fixture::head(in_part(ids[0], *body, CapEnd::End)),
+        let mate = fixture::rest(
             fixture::head(in_part(ids[1], *body, CapEnd::Start)),
+            fixture::head(in_part(ids[0], *body, CapEnd::End)),
             ContactClass::Rest,
-            Alignment {
-                a: frame([0.0, 0.0, 1.0]),
-                b: frame([0.0; 3]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Aligned,
-                clocking: Some(0.0),
-            },
         );
         doc = at_the_door(&doc, &mate_reach::<f64>(opts, Tol::witness()), mate)
             .unwrap_or_else(|(_, fault)| panic!("the door admits the mate: {fault}"))
@@ -241,12 +228,12 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
     let mid = ProfileDoc::empty(DocumentId::derive(&format!("{label}-mid")), Tol::witness());
     let (mid, _) = insert(mid, Node::instantiate_part(leaf));
     let (mid, apart) = insert(mid, fixture::mated_instance(leaf));
-    let mid = fixture::constrain_at(
+    let mid = fixture::pin(
         mid,
         apart,
-        Mate::world_pin(Placement::literal(&Frame::translation([9.0, 0.0, 0.0]))),
-    )
-    .0;
+        &Frame::translation([9.0, 0.0, 0.0]),
+        &with_resolver(store.clone()),
+    );
     let mid = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -277,8 +264,8 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
 }
 
 /// **A mated part's samples land ahead of every node, not in a
-/// placement's recording unit.** The solve reads the part (the clocking
-/// rider's lever, the mated faces' poses) and keeps what it records per
+/// placement's recording unit.** The solve reads the part (the mated
+/// faces' poses) and keeps what it records per
 /// placement, spliced at that placement's node; the part was entered
 /// before the solve ran, so none of its samples are there.
 #[test]

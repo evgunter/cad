@@ -7,6 +7,7 @@ opened: 2026-10-17
 priority: P1
 cost: M
 rides_with: a-split-through-a-pinch-names-both-tip-copies-alike
+pr: 5275
 closed: 2026-10-18
 ---
 
