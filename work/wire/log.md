@@ -6117,3 +6117,15 @@ Signed (WIRE orchestrator).
   (`emit.rs`, `wire_legal_union_refusals.rs`). Sequencing call;
   the alternative was dispatching now and rebasing the map twice.
   (WIRE orchestrator)
+- 2026-10-18 — PR 5302 (prism crossing): already fixed on main by PR
+  4816, as bisected, so the row's reading was refuted. The PR is the
+  order test alone, so its review tier dropped from FULL to the
+  orchestrator's read: no naming change is left to review. Merged on
+  green and the row closed as overtaken. (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE: `a-split-names-an-operand-edge-in-its-plane-as-a-section-chord`
+  goes to a designer pair (Opus + Fable, problem only). It asks how
+  an in-plane operand edge and its copies are named, and whether N2's
+  face `Keeps` cites it. N2 is ratified, so a change goes to Ev. The
+  blinding draw is on `analysis/design-fork/wire-2026-10-17`.
+  (WIRE orchestrator)
