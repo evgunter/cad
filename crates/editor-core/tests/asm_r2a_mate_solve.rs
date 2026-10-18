@@ -288,18 +288,18 @@ fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> MateFault {
 
 // ---- Row 1: a determined pair, evaluated, deterministic ----
 
-/// The A11 rule-1 exemplar: **coaxial plus flush plus clocking** is
-/// the DETERMINED case. Coaxial ∩ a perpendicular rest is a revolute
-/// freedom about the shared line, and the clocking — a spin value of
-/// zero on the coaxial mate — is what closes it. The rest's target is
-/// `a`'s top cap lifted a unit along its normal (a standoff), so `b`
-/// stands clear of `a`, one unit up.
+/// The A11 rule-1 exemplar, **a coaxial mate and its slide and spin
+/// values**, is the DETERMINED case: the coaxial between the two
+/// corner-0 lateral edges leaves a cylindrical freedom along and about
+/// the shared line, and its two values close it — a spin of zero clocks
+/// `b` square to `a`, and a slide of two along the line stands `b` a
+/// unit clear above `a`'s top cap.
 fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
     let (doc, ids, kit) = assembly("asm-r2a-row1", 2);
     let (doc, coaxial) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
     let doc = add_value(doc, coaxial, Coord::Spin, ang(0.0));
-    let (doc, rest) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], 1.0));
-    (doc, ids, kit, rest)
+    let doc = add_value(doc, coaxial, Coord::Slide(SlideAxis::Z), len(2.0));
+    (doc, ids, kit, coaxial)
 }
 
 /// A pair determined by ONE mate: a frame coincidence of `b`'s bottom
@@ -321,12 +321,12 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef, Kit) {
     (doc, ids, joint, kit)
 }
 
-/// *Breaks if* the coaxial, the standoff or the spin value is lost
-/// from the fold (the copy is loose or stands elsewhere).
+/// *Breaks if* the coaxial or either value is lost from the solve (the
+/// copy is loose or stands elsewhere).
 #[test]
-fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
-    let (doc, ids, kit, rest) = determined_pair();
-    assert_eq!(rest.placement, ids[1], "the constraints place instance 1");
+fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
+    let (doc, ids, kit, coaxial) = determined_pair();
+    assert_eq!(coaxial.placement, ids[1], "the constraint places instance 1");
     let o = kit.opts();
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "the pair solves");
@@ -338,7 +338,7 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let relative = poses.relative(ids[1]).expect("a solved pose");
     assert!(
         relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
-        "the child sits at the seating height plus the standoff: {relative:?}"
+        "the child stands its height plus a unit clear above the parent: {relative:?}"
     );
     assert!(
         poses
