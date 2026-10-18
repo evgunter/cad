@@ -3878,12 +3878,13 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
+    pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, Some(reached), tol)
+    evaluate_at_descent(doc, None, cancel, opts, Some((reached, pin)), tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3898,7 +3899,7 @@ fn evaluate_at_descent<T>(
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    reached: Option<parts::Reached<T>>,
+    reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3930,7 +3931,9 @@ where
     // each call site.
     let env = match (opts.param_box.as_deref(), opts.symbols) {
         (None, false) => Ok(doc.var_env::<T>()),
-        (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
+        (None, true) => {
+            crate::analysis::var_env_symbolic_pinned::<T, _>(doc, reached.as_ref().map(|r| r.1))
+        }
         (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
         (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
     };
@@ -3958,7 +3961,7 @@ where
     // one serial pass that reuses what the prior carried (`parts`
     // module docs).
     let entry = match reached {
-        Some(reached) => parts::Entry {
+        Some((reached, _)) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,

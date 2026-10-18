@@ -751,7 +751,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // no box and no seed a referenced document runs at its own
         // nominal, so it is built as its instantiator's build would build
         // it — pinned, with its own variables' values.
-        let evaluation = super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), tol);
+        let evaluation =
+            super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its

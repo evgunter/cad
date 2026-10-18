@@ -449,13 +449,14 @@ pub trait AxisScalar: geom_core::Real {
         Self::axis(lo, hi)
     }
 
-    /// [`AxisScalar::axis_of`] for a variable of the document `doc`:
-    /// a parameter symbol keyed by the document as well as the
-    /// variable, since two documents mint the same ids, so a run that
-    /// binds a part's variables beside its own never makes two of them
-    /// one symbol.
-    fn axis_of_in(doc: crate::ident::DocumentId, var: VarId, lo: f64, hi: f64) -> Option<Self> {
-        let _ = doc;
+    /// [`AxisScalar::axis_of`] for a variable of the document version
+    /// `scope` names ([`symbol_scope`]): a parameter symbol keyed by the
+    /// version as well as the variable, since two documents mint the
+    /// same ids and two versions of one document share them, so a run
+    /// that binds a part's variables beside its own never makes two of
+    /// them one symbol.
+    fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let _ = scope;
         Self::axis_of(var, lo, hi)
     }
 
@@ -541,15 +542,8 @@ where
         })
     }
 
-    fn axis_of_in(doc: crate::ident::DocumentId, var: VarId, lo: f64, hi: f64) -> Option<Self> {
-        // The document's two halves folded into the variable's digest,
-        // each through its own odd multiplier, so neither half cancels
-        // the other.
-        #[allow(clippy::cast_possible_truncation)]
-        let (lo_half, hi_half) = (doc.0 as u64, (doc.0 >> 64) as u64);
-        let key = var.0.digest()
-            ^ lo_half.wrapping_mul(0x9e37_79b9_7f4a_7c15)
-            ^ hi_half.wrapping_mul(0xc2b2_ae3d_27d4_eb4f).rotate_left(31);
+    fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let key = var.0.digest() ^ scope;
         T::axis(lo, hi)
             .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::new(key), v, lo, hi))
     }
@@ -1202,7 +1196,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 
 /// **Every continuous free variable a symbol of its own** (D10; the
 /// `unproven-coincidence` door's environment): each binds `nominal +
-/// offset`, the offset a symbol keyed by the document and the
+/// offset`, the offset a symbol keyed by the document version and the
 /// variable's id ([`AxisScalar::axis_of_in`] over the zero span), whatever tolerance it
 /// carries or lacks. Two variables typed to one value are two symbols,
 /// so their difference is not zero as a polynomial: the question here
@@ -1217,12 +1211,37 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
 ) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    var_env_symbolic_pinned(doc, None)
+}
+
+/// **Which document version a symbol belongs to**: the document's id
+/// and, for a part, the version its reference pins (`None` for the
+/// document being evaluated, which is no pinned version), folded to one
+/// word by FNV-1a over their bytes.
+pub fn symbol_scope(id: crate::ident::DocumentId, pin: Option<&crate::ident::ContentPin>) -> u64 {
+    let pinned = pin.map_or(&[][..], |p| &p.0[..]);
+    id.0.to_le_bytes()
+        .iter()
+        .chain([u8::from(pin.is_some())].iter())
+        .chain(pinned)
+        .fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| {
+            (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
+        })
+}
+
+/// [`var_env_symbolic`] for the version `pin` names: a part's document
+/// at the pin its reference holds.
+pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
+    doc: &Doc<P>,
+    pin: Option<&crate::ident::ContentPin>,
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    let scope = symbol_scope(doc.id(), pin);
     let mut binds_symbols = false;
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
-                let offset = T::axis_of_in(doc.id(), id, 0.0, 0.0).ok_or_else(|| {
+                let offset = T::axis_of_in(scope, id, 0.0, 0.0).ok_or_else(|| {
                     ParamBoxError::AxisUnrepresentable {
                         param: doc.spoken_var(id),
                         lo: 0.0,
