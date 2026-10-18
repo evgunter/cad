@@ -3554,9 +3554,10 @@ struct LinesClosest<T: Real> {
 /// of the unit directions and of `n` (whose cancellation leaves it
 /// `u` off in any direction, `u/s` relative) is about `|e|·u/s` in the
 /// gap, and `(|e| + |reach| + gap/s)·u/s` in a reach: `n`'s tilt leaks
-/// the off-plane part of `e` into it over `s` once more. Each reading
-/// is taken from both ends of the other edge and the two enclosures
-/// intersected, so the nearer end bounds it.
+/// the off-plane part of every `e`, the lines' real distance, into it
+/// over `s` once more, so a reach is charged the gap's upper bound.
+/// Each reading is taken from every pair of ends it allows and the
+/// enclosures intersected, so the nearest ends bound it.
 fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T> {
     let end = |e: &EdgeGeo<T>, k: usize| if k == 0 { e.p0 } else { e.p1 };
     let shared = [(0, 0), (0, 1), (1, 0), (1, 1)]
@@ -3580,12 +3581,17 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
     let n = ea.dir.cross(eb.dir);
     let nn = n.norm_squared();
     let s = nn.sqrt();
-    let off_plane = |e: Vec3<T>| e.dot(n).abs() / s;
     let gap = |e: Vec3<T>| {
-        let g = off_plane(e);
+        let g = e.dot(n).abs() / s;
         let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
         [g - charge, g + charge]
     };
+    let ends = [(ea.p0, eb.p0), (ea.p0, eb.p1), (ea.p1, eb.p0), (ea.p1, eb.p1)];
+    let [lo, hi] = ends
+        .into_iter()
+        .map(|(p, q)| gap(q - p))
+        .reduce(both_enclose)
+        .unwrap_or_else(|| unreachable!("four ends"));
     // `x`'s ends against the line of `y`: from its start, to its end.
     let reaches = |x: &EdgeGeo<T>, y: &EdgeGeo<T>| {
         let w = y.dir.cross(x.dir.cross(y.dir)) / nn;
@@ -3594,19 +3600,13 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
                 let e = q - p;
                 let r = if flip { -e.dot(w) } else { e.dot(w) };
                 let charge =
-                    geom_brep::rounding_charge(e.norm() + r.abs() + off_plane(e) / s) / s;
+                    geom_brep::rounding_charge(e.norm() + r.abs() + hi / s) / s;
                 [r - charge, r + charge]
             };
             both_enclose(read(y.p0), read(y.p1))
         };
         [from(x.p0, false), from(x.p1, true)]
     };
-    let ends = [(ea.p0, eb.p0), (ea.p0, eb.p1), (ea.p1, eb.p0), (ea.p1, eb.p1)];
-    let [lo, hi] = ends
-        .into_iter()
-        .map(|(p, q)| gap(q - p))
-        .reduce(both_enclose)
-        .unwrap_or_else(|| unreachable!("four ends"));
     let reach = [reaches(ea, eb), reaches(eb, ea)];
     let [from_lo, from_hi] = reach[0][0];
     LinesClosest {
@@ -14992,5 +14992,60 @@ mod edge_pairs_as_segments {
         let long = seg([-1.0, 0.0, 0.0], [2.0, 0.0, 0.0]);
         let short = seg([0.0, 1.5e-9, 0.0], [1.0, 0.5e-9, 0.0]);
         assert_eq!(overlaps(&short, &long), [(true, 0); 2]);
+    }
+
+    /// **Nearly parallel edges sharing no point key, crossing well
+    /// inside both spans, are never read apart at `f64`**: each pair
+    /// crosses at least `3Kε` inside both edges (measured exactly), at
+    /// 2.8e-9 to 1.1e-7 rad. Read through the closed form from the
+    /// edges' starts, its rounding put the crossing a definite span
+    /// outside one edge at ε = 1e-12. Each reach and the gap are now
+    /// read off an enclosure of their rounding, so where that rounding
+    /// reaches the band the reading escalates, as `Interval`'s does.
+    #[test]
+    fn nearly_parallel_crossings_sharing_no_point_key_are_never_read_apart() {
+        let pairs = [
+            (
+                (
+                    [-0.57969420202416, 1.88862539895253, 1.125319280928707],
+                    [-0.8888391370099953, 1.9912650048598994, 1.3512645386746862],
+                ),
+                (
+                    [-0.8185163607393474, 1.9679170509070156, 1.2998676175168766],
+                    [-0.8377476620810586, 1.974302057180716, 1.3139232301007768],
+                ),
+            ),
+            (
+                (
+                    [0.9094635217007113, 0.795634715001027, -1.9525321423009292],
+                    [0.906583440932391, 0.7871642771827733, -1.9439503768151147],
+                ),
+                (
+                    [1.291972490856439, 1.9206095283007654, -3.0922925809420705],
+                    [0.8310534972376821, 0.565027566261542, -1.7188941070352404],
+                ),
+            ),
+            (
+                (
+                    [1.0194388820881284, 1.624640164893315, -0.018033492456674075],
+                    [0.91675493431915, 1.5146244538520608, -0.027124376056758173],
+                ),
+                (
+                    [1.0604926322270467, 1.668625203918349, -0.014398894659049784],
+                    [0.09459421682116398, 0.6337604301239435, -0.09991245475486416],
+                ),
+            ),
+        ];
+        for (i, ((a0, a1), (b0, b1))) in pairs.into_iter().enumerate() {
+            let (ea, eb) = (seg(a0, a1), seg(b0, b1));
+            for (label, (x, y)) in [("as built", (&ea, &eb)), ("swapped", (&eb, &ea))] {
+                let (met, pushed) = meet(x, y, AT_1E12);
+                assert_eq!(
+                    (met, pushed > 0),
+                    (None, true),
+                    "pair {i} {label}: escalated, never a definite no"
+                );
+            }
+        }
     }
 }

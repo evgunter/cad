@@ -125,9 +125,12 @@ fn big_dot(a: &[BigInt; 3], b: &[BigInt; 3]) -> BigInt {
 
 /// `n / d`, `d > 0`, to a few ulps.
 fn ratio(n: &BigInt, d: &BigInt) -> f64 {
-    let shift = n.bits().max(d.bits()).saturating_sub(62);
-    let f = |x: &BigInt| i64::try_from(x >> shift).unwrap() as f64;
-    f(n) / f(d)
+    let head = |x: &BigInt| {
+        let shift = x.bits().saturating_sub(62);
+        (i64::try_from(x >> shift).unwrap() as f64, shift as i32)
+    };
+    let ((n, sn), (d, sd)) = (head(n), head(d));
+    n / d * 2f64.powi(sn - sd)
 }
 
 impl Exact {
@@ -138,12 +141,12 @@ impl Exact {
         Self { a, b, d, n, nn }
     }
 
-    /// Where the lines come closest, as a fraction of `a` from its
-    /// start and of `b` from its.
-    fn fractions(&self) -> (f64, f64) {
+    /// Where the lines come closest, per segment the fraction of it
+    /// `[from its start, to its end]`: `[a, b]`.
+    fn fractions(&self) -> [[f64; 2]; 2] {
         let ta = big_dot(&big_cross(&self.d, &self.b), &self.n);
         let tb = big_dot(&big_cross(&self.d, &self.a), &self.n);
-        (ratio(&ta, &self.nn), ratio(&tb, &self.nn))
+        [ta, tb].map(|t| [ratio(&t, &self.nn), ratio(&(&self.nn - &t), &self.nn)])
     }
 
     /// The lines' distance, in metres.
@@ -235,8 +238,8 @@ fn crossings_strictly_inside_both_spans_never_read_apart() {
         let ea = (add(x, a, -sa), add(x, a, la - sa));
         let eb = (add(x, b, -sb), add(x, b, lb - sb));
         let exact = Exact::of(ea, eb);
-        let (ta, tb) = exact.fractions();
-        let inside = |t: f64, len: f64| (t * len).min((1.0 - t) * len) >= 2.0 * K * eps;
+        let [ta, tb] = exact.fractions();
+        let inside = |[from, to]: [f64; 2], len: f64| from.min(to) * len >= 2.0 * K * eps;
         if !(inside(ta, la) && inside(tb, lb) && exact.gap() <= eps / 2.0) {
             return Built::Dropped;
         }
@@ -300,7 +303,7 @@ fn crossings_past_an_end_never_read_as_meeting() {
         let ea = (add(x, a, o), add(x, a, o + la));
         let eb = (add(x, b, -sb), add(x, b, lb - sb));
         let exact = Exact::of(ea, eb);
-        if !(exact.fractions().0 <= 0.0 && exact.start_off_b() >= 2.0 * K * eps) {
+        if !(exact.fractions()[0][0] <= 0.0 && exact.start_off_b() >= 2.0 * K * eps) {
             return Built::Dropped;
         }
         Built::Pair(
@@ -309,4 +312,58 @@ fn crossings_past_an_end_never_read_as_meeting() {
             format!("φ {phi:e} o {o:e} la {la:e} lb {lb:e} sb {sb:e}"),
         )
     });
+}
+
+/// **The closed form's enclosures hold the real values**: for two
+/// segments sharing no point key, at any angle, offset and gap, each
+/// reach and the gap [`ee_lines_closest`] reads at `f64` encloses the
+/// value measured exactly (to its own few ulps).
+#[test]
+fn the_closed_forms_enclosures_hold_the_exact_values() {
+    let mut r = test_utils::fuzz::start("census_lines_closest_enclosures");
+    let mut bad = Vec::new();
+    let count = test_utils::fuzz::scaled(1500);
+    for _ in 0..count {
+        let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
+        let a = unit(&mut r);
+        let phi = r.log_uniform(1e-12, 10f64.powf(0.2));
+        let b = turned(&mut r, a, phi);
+        let off = cross(a, b);
+        let g = if r.unit() < 0.5 { 0.0 } else { r.log_uniform(1e-15, 1.0) };
+        let x_b = add(x, off, g / norm(off));
+        let la = r.log_uniform(1e-9, 10f64.powf(0.5));
+        let lb = r.log_uniform(1e-9, 10f64.powf(0.5));
+        let sa = r.range(-la, 2.0 * la);
+        let sb = r.range(-lb, 2.0 * lb);
+        let ea = (add(x, a, -sa), add(x, a, la - sa));
+        let eb = (add(x_b, b, -sb), add(x_b, b, lb - sb));
+        let exact = Exact::of(ea, eb);
+        let [ta, tb] = exact.fractions();
+        let p = |v: V| Point3::new(v[0], v[1], v[2]);
+        let (ga, gb) = (segment((p(ea.0), p(ea.1))), segment((p(eb.0), p(eb.1))));
+        let read = ee_lines_closest(&ga, &gb);
+        let truth = [
+            ("gap", exact.gap(), read.gap),
+            ("a from its start", ta[0] * ga.len, read.reach[0][0]),
+            ("a to its end", ta[1] * ga.len, read.reach[0][1]),
+            ("b from its start", tb[0] * gb.len, read.reach[1][0]),
+            ("b to its end", tb[1] * gb.len, read.reach[1][1]),
+        ];
+        for (what, real, [lo, hi]) in truth {
+            let slack = 8.0 * f64::EPSILON * real.abs();
+            if !(lo - slack <= real && real <= hi + slack) {
+                bad.push(format!(
+                    "{what} {real:e} outside [{lo:e}, {hi:e}]: φ {phi:e} gap {g:e}, a {ea:?}, b {eb:?}"
+                ));
+            }
+        }
+    }
+    println!("[fuzz] census_lines_closest_enclosures: {count} pairs");
+    assert!(
+        bad.is_empty(),
+        "{} readings outside their enclosure; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(8)].join("\n")
+    );
 }
