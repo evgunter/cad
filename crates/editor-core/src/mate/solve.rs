@@ -450,6 +450,56 @@ pub(crate) fn marked<T: SolveScalar>(map: Affine3<T>) -> Motion<T> {
     }
 }
 
+/// **The solved map admitted as the motion it is**: through the decided
+/// door ([`Motion::rigid`]) where that door calls it, and re-witnessed
+/// where the band cannot. The solve composes its map of rigid pieces
+/// only — the poses' orthonormal frames, turns about witnessed axes,
+/// slides — so it is a rotation and a translation at every point a box
+/// lane encloses, while the enclosure's own columns can be too wide for
+/// the seven rigidity margins to read zero (a pose read off geometry
+/// that a widened parameter moves). Such a map is admitted by
+/// Gram–Schmidt over its first two columns
+/// ([`geom_core::RigidMotion::gram_schmidt`], under
+/// [`SOLVE_MAP_REWITNESS`]): each point's map is its own orthonormal
+/// frame, so the witness encloses every point's map, and its third
+/// axis is the cross product, which a map of turns alone holds.
+/// Neither a decided defect nor a lane the door calls is touched, so a
+/// map read at a point keeps its bits.
+///
+/// # Errors
+///
+/// [`crate::NodeErrorKind::Motion`]: the decided door's refusal, where
+/// the band decided a defect or the re-witness could not read the
+/// columns' frame either.
+pub(crate) fn admitted<T: SolveScalar>(
+    motion: Motion<T>,
+    band: Band,
+) -> Result<Option<geom_core::RigidMotion<T>>, crate::NodeErrorKind> {
+    let refusal = match motion.rigid(band) {
+        Err(crate::NodeErrorKind::Motion(
+            refusal @ geom_core::RigidMotionError::Undecided { .. },
+        )) => refusal,
+        decided => return decided,
+    };
+    let Motion::Map(map) = motion else {
+        return Err(crate::NodeErrorKind::Motion(refusal));
+    };
+    let origin = geom_core::linalg::Point3::origin() + map.translation;
+    geom_core::RigidMotion::gram_schmidt(
+        origin,
+        map.linear.c0,
+        map.linear.c1,
+        SOLVE_MAP_REWITNESS,
+        band,
+    )
+    .map(Some)
+    .map_err(|_| crate::NodeErrorKind::Motion(refusal))
+}
+
+/// The funnel name the re-witness of a solved map decides its frame
+/// under ([`admitted`]).
+pub(crate) const SOLVE_MAP_REWITNESS: &str = "solve_map_rewitness";
+
 // ---- A9: relative freedom ----
 
 /// **A9's relative-freedom partition**: the connected components of the

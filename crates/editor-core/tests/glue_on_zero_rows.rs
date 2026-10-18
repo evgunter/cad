@@ -72,7 +72,7 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
         "two constructions, no proof; the plate stands where its placement's solve put \
          it, a value computed apart from the variables (an opaque atom), so the recourse \
          is to assert the rest \
-         (a-placed-copys-pose-is-an-opaque-atom-to-the-coincidence-door)"
+         (until stage 4 H, placed-carriers-compare-through-their-frames)"
     );
 }
 

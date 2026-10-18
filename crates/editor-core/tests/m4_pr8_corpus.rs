@@ -114,8 +114,13 @@ fn incremental_recompute_reuses_the_cone_complement() {
             expected.len(),
             bumped.len()
         );
+        // A bump at a construction that reads no node leaves nothing
+        // upstream of its cone: every construction is the root of its
+        // own space (D10), so a lone primitive and its placement are
+        // the whole document (`tube_ring`, `tube_arc`). Everywhere
+        // else the bump is a MID-DAG edit and something is reused.
         assert!(
-            after.reused > 0,
+            after.reused > 0 || d.doc.upstream(d.bump_root).is_empty(),
             "{}: the bump must leave something to reuse (it is a MID-DAG edit)",
             d.name
         );

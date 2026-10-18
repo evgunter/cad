@@ -1467,6 +1467,45 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether a ball mate's two directions point the same way",
     ),
     (
+        "solve_copy_at_identity",
+        "whether a solved copy stands where its body does",
+    ),
+    // The decided door's rigidity margins (`geom_core::RigidMotion::
+    // check_rigid`), asked of a solved placement's map and of a
+    // pattern's listed frames.
+    (
+        "transform_rigid_col0_unit",
+        "whether the map keeps its first axis's length",
+    ),
+    (
+        "transform_rigid_col1_unit",
+        "whether the map keeps its second axis's length",
+    ),
+    (
+        "transform_rigid_col2_unit",
+        "whether the map keeps its third axis's length",
+    ),
+    (
+        "transform_rigid_col01_orth",
+        "whether the map keeps its first two axes square",
+    ),
+    (
+        "transform_rigid_col12_orth",
+        "whether the map keeps its last two axes square",
+    ),
+    (
+        "transform_rigid_col02_orth",
+        "whether the map keeps its first and third axes square",
+    ),
+    (
+        "transform_rigid_det_plus_one",
+        "whether the map keeps its handedness",
+    ),
+    (
+        solve::SOLVE_MAP_REWITNESS,
+        "whether a solved placement's map holds a frame of its own",
+    ),
+    (
         "mate_chart_reference_antipode",
         "whether the direction a mate's values are charted about points straight down its \
          reference's z",

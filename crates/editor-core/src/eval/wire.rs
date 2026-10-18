@@ -738,7 +738,7 @@ where
             };
             Ok((
                 match placed {
-                    Some(map) => crate::mate::solve::marked(map).rigid(b)?,
+                    Some(map) => crate::mate::solve::admitted(crate::mate::solve::marked(map), b)?,
                     None => None,
                 },
                 target_space.unwrap_or(Space::World),

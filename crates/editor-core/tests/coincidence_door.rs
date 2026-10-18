@@ -1704,7 +1704,7 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// the check reports it. The blocks are copies placed on the plate,
 /// whose poses the door reads as opaque atoms, so the recourse is to
 /// assert the fusion
-/// (`a-placed-copys-pose-is-an-opaque-atom-to-the-coincidence-door`). Red if
+/// (stage 4 H, `placed-carriers-compare-through-their-frames`). Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///

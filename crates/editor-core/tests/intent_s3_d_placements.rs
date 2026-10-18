@@ -533,3 +533,43 @@ fn an_instance_stands_on_its_parts_base() {
         stood.mate
     );
 }
+
+/// **A copy stands against a copy already placed**, at a frame in the
+/// placed copy's own coordinates: the target is read where its
+/// placement moved it, the frame carried there with it, so the second
+/// box sits on the first's top wherever the first was turned and slid.
+/// Placing the placed copy itself again still refuses: a copy is
+/// defined by its one placement.
+#[test]
+fn a_copy_stands_against_a_copy_already_placed() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, a) = unit_box(doc);
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+        [5.0, 0.0, 0.0],
+        fixture::band(),
+    )
+    .expect("a quarter turn about z");
+    let (doc, first) = fixture::in_world(doc, a, &turned);
+    let (doc, b) = unit_box(doc);
+    let own = vertices(&doc, b);
+    let (doc, second) = fixture::slid(doc, first, b, [0.0, 0.0, 1.0]);
+    // The first box's motion, applied to the second's own vertices one
+    // up its z: (x, y, z) → (5 − y, x, z + 1).
+    let want: Vec<[f64; 3]> = own.iter().map(|p| [5.0 - p[1], p[0], p[2] + 1.0]).collect();
+    assert_near(&vertices(&doc, second), &want);
+    let again = editor_core::place_against(
+        &doc,
+        &Operand::from(b),
+        &Operand::from(first),
+        &editor_core::Frame::IDENTITY,
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(again, Err(editor_core::PinRefusal::AlreadyPlaced { .. })),
+        "a placed copy is never placed again: {:?}",
+        again.map(|p| p.by)
+    );
+}

@@ -148,8 +148,17 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use pncad::document::{BooleanValue, Node, ValuePayload};
+    use pncad::document::{BooleanValue, Evaluation, Node, RecipeNodeId, Space, ValuePayload};
     use pncad::topo::{Body, mass_properties};
+
+    /// The placements whose copies stand in the world: the product's
+    /// (a placement against another body joins that body's space).
+    fn world_placements(doc: &ProfileDoc, evaluation: &Evaluation<f64>) -> Vec<RecipeNodeId> {
+        doc.placements()
+            .into_iter()
+            .filter(|&p| evaluation.space(p) == Space::World)
+            .collect()
+    }
 
     /// What one gallery scene is expected to PRODUCE.
     struct Shape {
@@ -328,8 +337,11 @@ mod tests {
                 &EvalOptions::default(),
                 tol,
             );
+            eprintln!("ZZ {} world {} all {}", shape.name, world_placements(&shape.doc, &evaluation).len(), shape.doc.placements().len());
+            if let Ok(product) = pncad::document::product(&shape.doc, &evaluation, tol) { eprintln!("ZZ {} product {} {}", shape.name, product.solids().count(), product.faces().count()); }
+            if let Ok(report) = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol) { eprintln!("ZZ {} separation {}", shape.name, report.findings.iter().filter(|f| f.check == CheckId::Separation).count()); }
             assert_eq!(
-                shape.doc.placements().len(),
+                world_placements(&shape.doc, &evaluation).len(),
                 shape.placements,
                 "{}: world placements ({})",
                 shape.name,
@@ -381,10 +393,17 @@ mod tests {
         use crate::plate::{RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB_BOUND, cut_plate};
         let tol = Tol::witness();
         let cut = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
-        let [placement] = cut.doc.placements()[..] else {
+        let evaluation = evaluate::<f64>(
+            &cut.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let [placement] = world_placements(&cut.doc, &evaluation)[..] else {
             panic!(
-                "the cut plate places one body, the cut part: {:?}",
-                cut.doc.placements()
+                "the cut plate places one body in the world, the cut part: {:?}",
+                world_placements(&cut.doc, &evaluation)
             )
         };
         let Some(Node::Place { shapes, .. }) = cut.doc.node(placement) else {
@@ -400,13 +419,6 @@ mod tests {
         assert!(
             matches!(cut.doc.node(part_node), Some(Node::Subtract { .. })),
             "the placed body is the second cut"
-        );
-        let evaluation = evaluate::<f64>(
-            &cut.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            tol,
         );
         let product = pncad::document::product(&cut.doc, &evaluation, tol)
             .unwrap_or_else(|error| panic!("the cut plate gathers: {error:?}"));

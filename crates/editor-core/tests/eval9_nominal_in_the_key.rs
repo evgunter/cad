@@ -52,10 +52,13 @@ fn var(doc: &ProfileDoc) -> editor_core::VarId {
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a
-/// square profile slid `u` along its own x, `u` built from `p` by
-/// `u_of`, and its extrude. The extrude holds no
+/// triangle profile whose apex is slid `u` along its own x, `u` built
+/// from `p` by `u_of`, and its extrude. The extrude holds no
 /// parameter, so everything that moves in these rows moves through the
-/// profile.
+/// profile. Only the apex reads `p`: a coordinate two vertices share
+/// widens each on its own at `Interval`, and the edge between them
+/// (exactly axis-aligned at the nominal) then reads an enclosure about
+/// zero that a box this wide cannot decide (`chord_side`).
 fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
     use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
     let doc = ProfileDoc::empty_derived("eval9_nominal_in_the_key", Tol::witness());
@@ -82,10 +85,9 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
     let to = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let program = ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([x(-1.0), len(-1.0)]),
-            to(x(1.0), len(-1.0)),
-            to(x(1.0), len(1.0)),
-            to(x(-1.0), len(1.0)),
+            ProgramStep::At([len(-1.0), len(-1.0)]),
+            to(len(1.0), len(-1.0)),
+            to(x(0.0), len(1.0)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),

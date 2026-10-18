@@ -105,6 +105,30 @@ fn copy_of(
     ),
     PinRefusal,
 > {
+    match read_of(doc, evaluation, body)? {
+        (node, _, _, Some(_)) => Err(PinRefusal::AlreadyPlaced { node }),
+        (node, solid, table, None) => Ok((node, solid, table)),
+    }
+}
+
+/// **The body read through `body`, placed or not**: [`copy_of`]'s
+/// answer, with the motion its placement moved it by (`None` for a
+/// body that stands where its construction put it). A frame read off a
+/// placed copy is read in the copy's space, and the motion carries a
+/// frame given in the copy's own coordinates there.
+fn read_of(
+    doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
+    body: &Operand,
+) -> Result<
+    (
+        RecipeNodeId,
+        std::sync::Arc<topo::Body<f64>>,
+        crate::names::NameTable,
+        Option<geom_core::RigidMotion<f64>>,
+    ),
+    PinRefusal,
+> {
     let node = match body {
         Operand::Output { node, .. } | Operand::Node(node) => *node,
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
@@ -113,9 +137,6 @@ fn copy_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
-    if value.motion.is_some() {
-        return Err(PinRefusal::AlreadyPlaced { node });
-    }
     let port = match body {
         Operand::Output { port, .. } => *port,
         Operand::Var(var) => match doc.var(*var).map(crate::Var::def) {
@@ -161,7 +182,7 @@ fn copy_of(
     let table = var
         .and_then(|var| evaluation.table(var))
         .ok_or(PinRefusal::NotABody { node })?;
-    Ok((node, solid, table.clone()))
+    Ok((node, solid, table.clone(), value.motion))
 }
 
 /// **A mate pinning the copy read through `body` to the world at
@@ -763,6 +784,9 @@ fn framed_against(
     at: &Frame,
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
+    // The copy is placed here, so it stands unplaced; the target may be
+    // a placed copy, read where it stands.
+    copy_of(doc, ev, body)?;
     let on = frame_at_in(doc, ev, body, &Frame::IDENTITY, tol)?;
     let to = frame_at_in(doc, ev, target, at, tol)?;
     Ok(Placed {
@@ -922,11 +946,13 @@ fn revolve_axis(
 /// frame's own x, y and z and slid along them to `at` — the angles taken
 /// once by `atan2` and the lengths by projection, as [`moved_by`] takes
 /// a world read's. Read through a plane role it is a split's tool or a
-/// mate's target at an absolute pose of the body's own.
+/// mate's target at an absolute pose of the body's own. A placed copy is
+/// read where its placement moved it, `at` carried there with it, so the
+/// frame follows the copy.
 ///
 /// # Errors
 ///
-/// [`PinRefusal`], as [`pin_at`]'s.
+/// [`PinRefusal`], as [`pin_at`]'s, save that a placed copy is read.
 pub fn frame_at_in(
     doc: &crate::ProfileDoc,
     ev: &Evaluation<f64>,
@@ -935,12 +961,15 @@ pub fn frame_at_in(
     tol: Tol,
 ) -> Result<Operand, PinRefusal> {
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
-    let (node, solid, table) = copy_of(doc, ev, body)?;
+    let (node, solid, table, motion) = read_of(doc, ev, body)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let anchors = super::anchor::Anchors::of(doc, node);
     let picked = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)))
         .or_else(|| picked_frame(&solid, band, &name));
     let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
+    // A placed body's geometry stands where its placement moved it:
+    // `at`, in its own coordinates, is carried there too.
+    let at = motion.map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let base = Operand::Pose(Box::new(PoseDef::Through {
         axis: read(PoseDef::Axis {
@@ -950,7 +979,7 @@ pub fn frame_at_in(
             of: Operand::select(body.clone(), vec![vertex_name]),
         }),
     }));
-    let rel = frame.to_affine().inverse() * at.affine();
+    let rel = frame.to_affine().inverse() * at;
     Ok(moved_pose(base, rel.linear, rel.translation))
 }
 
@@ -1070,8 +1099,9 @@ pub fn place_against_in(
                 .map_err(|_| refusal);
         }
     };
-    // A target with no face on its own `xy` (a full revolve) is read by a
-    // frame off its geometry, as a tilted copy's is.
+    // A target with no face on its own `xy` (a full revolve), or one a
+    // placement moved off its own coordinates, is read by a frame off
+    // its geometry, as a tilted copy's is.
     let target_plane = own_plane(target).ok();
     let plane = |shape: &Operand, face: crate::StableName| {
         Operand::Pose(Box::new(PoseDef::Plane {

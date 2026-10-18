@@ -1100,9 +1100,10 @@ fn the_place_gesture_reproduces_its_pose() {
 }
 
 /// **The gesture pins where its face's chart has no swing.** A box
-/// placed at a turn of `π − ε` about `x`: its first planar face's
-/// normal stands at the chart's one pole by a chord the band cannot
-/// decide (ε levered over the copy's arm), where no value can be
+/// placed at a turn of `ε` about `x`: its start cap (the first planar
+/// face no variable reaches, facing `−z`) stands at the chart's one
+/// pole by a chord the band cannot decide (ε levered over the copy's
+/// arm), where no value can be
 /// charted, so `place_at` falls back to the pin (`PlacedBy::Pin`) and
 /// the copy stands at `P`; a turn well clear of the pole writes the
 /// plane mate and its values. The turn is the run's ε, not a literal:
@@ -1126,9 +1127,9 @@ fn the_place_gesture_pins_where_its_chart_has_no_swing() {
                 .unwrap_or_else(|refusal| panic!("the gesture places at {angle}: {refusal}"));
         (turn, placed)
     };
-    let (_, clear) = gesture(std::f64::consts::PI - 0.5);
+    let (_, clear) = gesture(0.5);
     assert_eq!(clear.by, editor_core::PlacedBy::PlanarFace);
-    let (turn, near) = gesture(std::f64::consts::PI - Tol::witness().eps());
+    let (turn, near) = gesture(Tol::witness().eps());
     assert_eq!(near.by, editor_core::PlacedBy::Pin, "{near:?}");
     let (doc, _) = fixture::constrain_at(doc, placement, near.mate);
     let at = solved(&doc, placement);
