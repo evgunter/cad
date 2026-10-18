@@ -2,10 +2,13 @@
 id: a-merged-face-with-several-same-side-constituents-has-no-chord-rule
 kind: issue
 title: A seam chord bordering a merged face that holds several faces of one operand has no naming rule
-status: open
+status: closed
 opened: 2026-09-28
 priority: P0
 cost: H
+closed: 2026-10-18
+pr: 5263
+branch: wire/merged-chord-rule
 ---
 
 
@@ -202,3 +205,9 @@ it the scene still refuses `merged_chord_constituents`. The rule this
 row asks for is unchanged:
 `wire_legal_union_refusals::a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug`
 still reaches it.
+
+## Closed (2026-10-18)
+
+PR 5263 (merged `6bf23859b7`): a chord along a merged face names the constituent that holds it whole, read as "the chord was never joined (no `EdgeJoin` keeps it) and exactly one constituent holds its middle strictly inside", with both ends checked against the pick; anything else keeps the typed `MergedChordConstituents`. Full review found a MAJOR on the first build (a middle-point pick on a chord spanning both constituents) and the fix pass closed it; the delta review found it mergeable. The test this row cited as still red (`a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug`) is gone: the sunk-boss slot names. What a chord spanning two constituents is named stays open on `a-chord-spanning-two-merged-constituents-has-no-name`; the heat-sink fin witness stands on `PlacedUnion` (D10-held) and was not measured. Residue: REFS's `a-union-judgement-that-merges-two-faces-of-one-member-links-neither`, `work/issues/a-face-holds-a-point-has-no-public-door`.
+
+Signed (WIRE orchestrator).

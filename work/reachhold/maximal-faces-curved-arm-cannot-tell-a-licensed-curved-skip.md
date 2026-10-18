@@ -7,7 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 design: true
-refs: [3657, a-union-glues-same-sense-cosurface-walls-without-merging-them]
+refs: [3657, 3613]
 ---
 
 Found by the unit that built the continuation ruling

@@ -45,7 +45,7 @@ itself: whether a contact is flush depends on whether another member
 has covered it yet. `RayExhausted` is REACH's: the containment
 fallback's vertex probe runs out when every vertex of the joining
 member lies on the accumulation's boundary. It shares that shape with
-`work/fuse/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
+`two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted` (closed, PR 3897)
 but is not the same defect, because the operands here are distinct and
 legal.
 
@@ -280,7 +280,7 @@ today:
   `emit_union_flush_names::a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names`
   `[0,2,1]`. Owners:
   `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md` (P0)
-  and `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md` (P1).
+  and `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made` (closed, PR 4373) (P1).
 
 ## Re-pointed from the D10 hold (2026-10-08)
 

@@ -54,7 +54,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
         radius: len(0.1),
-        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
+        selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
     };
     let (doc, fillet) = insert(doc, node);
     // The repair door moves the fillet's selection into the fillet's
@@ -64,8 +64,8 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
         &doc,
         &DocEdit::Rebind {
             body: doc.output(body, 0),
-            from: fname(body, wall(&doc, body, 0)),
-            to: fname(fillet, wall(&doc, fillet, 2)),
+            from: crate::fixture::end_rim(&doc, body, 0),
+            to: crate::fixture::end_rim(&doc, fillet, 2),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -77,7 +77,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     };
     assert_eq!(
         crate::fixture::selected(&doc, *selection),
-        vec![fname(fillet, wall(&doc, fillet, 2))],
+        vec![crate::fixture::end_rim(&doc, fillet, 2)],
         "the carrier now names its own space"
     );
 

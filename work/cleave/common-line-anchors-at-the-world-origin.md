@@ -41,4 +41,4 @@ offset. Then pin a translated family at 100 m and 1 km.
 
 ## Closed — its subject is gone (fuse/curve-pair-reader-c)
 
-`carrier_cross::common_line` was deleted with `carrier_cross::meetings` when `carrier_cross` became a caller of `geom_brep::curve_pair::meet` (stage (c) of `work/fuse/the-curve-pair-reader.md`). `meet` builds no common line: across planes it solves the first conic's height above the other's plane as a first harmonic in its own angle and polishes each root to the closest pair.
+`carrier_cross::common_line` was deleted with `carrier_cross::meetings` when `carrier_cross` became a caller of `geom_brep::curve_pair::meet` (stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). `meet` builds no common line: across planes it solves the first conic's height above the other's plane as a first harmonic in its own angle and polishes each root to the closest pair.

@@ -2,11 +2,14 @@
 id: the-designation-road-resolves-before-it-asks-the-kind
 kind: issue
 title: a selection resolves a name before asking what it denotes, so a tied name of the wrong kind refuses Ambiguous
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
 rides_with: the-entity-doors-key-comes-from-its-caller
+closed: 2026-10-18
+pr: 5264
+branch: wire/selection-kind-at-the-door
 ---
 
 
@@ -137,5 +140,11 @@ load rather than resolve to `MateFault::SideUnresolved`
 (`tests/edit_one_predicate.rs`), and `mate::member::head_of`'s kind
 check becomes a backstop; announced on INTENT's log. One unit carries
 both rows.
+
+Signed (WIRE orchestrator).
+
+## Closed (2026-10-18)
+
+PR 5264 (merged `a3a5bf6d05`) built FORK-ENTITYDOOR's decision: a wrong-kind name is refused at the edit door (`EditError::SelectionNameKind`, speaking the node, position, name and both kinds) and the load door (`SelectionFault::Kind`); evaluation resolves typed keys through `key_in::<K>`, with `K` checked once against the selection variable; `eval::entity_door`, `Found` and `SelectKind` are deleted, and the blend/shell silent `filter_map` drops with them. Full review approved with fixes; fix pass taken. Residue: `a-blend-of-no-edges-refuses-at-evaluation`, `a-seating-door-refuses-a-kind-mismatch-as-a-duplicate-name` (WIRE), MSOLVE's `a-mate-sides-docs-name-a-retired-select-kind`.
 
 Signed (WIRE orchestrator).
