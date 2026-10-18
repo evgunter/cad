@@ -227,8 +227,6 @@ pub enum NodeErrorClass {
     MateIndeterminate,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
     MatePoseOutOfRange,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Contradictory`].
-    MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
@@ -417,7 +415,6 @@ impl NodeErrorClass {
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Indeterminate { .. } => Self::MateIndeterminate,
             MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
-            MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
@@ -574,7 +571,6 @@ mod tests {
         MateClassNotAdmitted,
         MateIndeterminate,
         MatePoseOutOfRange,
-        MateContradictory,
         MateOverconstrained,
         MateTargetsDiffer,
         MateNotOnTheCopy,
@@ -965,16 +961,10 @@ mod tests {
                 held: m(8),
                 added: m(9),
             }),
-            C::MateContradictory => mate(crate::MateFault::Contradictory {
-                held: m(8),
-                added: m(9),
-                predicate: "mate_coaxial",
-                clash: crate::Clash::Length { metres: 0.002 },
-            }),
             C::MateOverconstrained => mate(crate::MateFault::Overconstrained {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],
-                held: crate::Subgroup::Trivial,
+                free: 1,
             }),
             C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
                 placement: n(6),

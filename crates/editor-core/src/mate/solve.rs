@@ -13,9 +13,13 @@
 //!   a placement's constraints couple its copy to their target).
 //! - [`mate_coset`] — one mate's coset: the target pose's symmetry,
 //!   carried onto the copy's pose.
+//! - [`overconstrained`] — the bundle rule: a constraint any of whose
+//!   equations the rest already fix refuses, by subgroup algebra over
+//!   the families its definitions name ([`super::coset`]), measuring
+//!   nothing.
 //! - [`solve_bundle`] — a placement's mates folded by coset
-//!   intersection ([`super::coset`]), and the pin's overconstraint
-//!   named.
+//!   intersection, constructed and never checked, and its values
+//!   placed inside what the mates leave.
 //! - [`admit_mate`] — the edit door's question of a constraint, the
 //!   part of it the recipe decides.
 //! - [`SolvedPoses`] — every placement's answer, read off an
@@ -34,8 +38,8 @@ use geom_core::linalg::{Affine3, Mat3};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real};
 
-use super::coset::{Arm, Coset, FoldStop, PoseSymmetry, Subgroup};
-use super::{Clash, MateFault, MateRef, MateSide, Target};
+use super::coset::{Arm, Coset, PoseSymmetry, SubgroupFamily};
+use super::{MateFault, MateRef, MateSide, Target};
 use crate::doc::Doc;
 use crate::node::{Node, RecipeNodeId};
 use crate::placement::{Frame, Motion};
@@ -48,20 +52,17 @@ use crate::pose::PoseValue;
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
 /// never decides one; an interval definitely or by escalating).
 ///
-/// What a scalar answers here beyond deciding is per scalar. No pose value is derived from
-/// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
-/// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
-/// refusal branches — `LeverRefusal::OutOfRange` where the arm is
-/// formed, `Unleverable` where it is asked to decide
-/// ([`Arm::decides_over`]) — and there an over-stated arm refuses
-/// sooner, never wrongly.
+/// What a scalar answers here beyond deciding is per scalar. No pose
+/// value is derived from [`Self::quoted`] or [`Self::upper`]. `quoted`
+/// feeds a sign and a payload only. `upper` forms the arm
+/// ([`Arm::of`]), so it feeds the lever's own refusal
+/// (`LeverRefusal::OutOfRange` where the arm is formed), and there an
+/// over-stated arm refuses sooner, never wrongly.
 pub trait SolveScalar: Decide {
-    /// **The number a refusal quotes for a measurement made at this
-    /// scalar** — a [`Clash`]'s length or residual, which the fault's
-    /// payload carries as `f64`. The value itself at `f64`; a dual's
-    /// value channel, which is the `f64` lane's number; an interval's
-    /// midpoint. Error text and payloads only: the measurement was
-    /// decided at the scalar, through its margin, before this is read.
+    /// **The number a payload quotes for a measurement made at this
+    /// scalar**, as `f64`: the value itself at `f64`; a dual's value
+    /// channel, which is the `f64` lane's number; an interval's
+    /// midpoint.
     fn quoted(self) -> f64;
 
     /// **An `f64` upper bound of a length measured at this scalar** —
@@ -586,64 +587,211 @@ pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset
     }
 }
 
-/// **A bundle's fold** (A11 rule 1): every mate of one placement,
-/// intersected, at the fold's arm.
+/// **One constraint's equations, as the bundle rule reads them**
+/// (FORK-S3O): a mate's are its pose kind's symmetry, a value's the one
+/// freedom it sets on the mate it names. The doors read them off the
+/// definitions and the fold off the poses' values, whose kinds the pose
+/// evaluator asserts are the definitions'.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Equations {
+    /// A mate, by its kind's symmetry.
+    Mate(SubgroupFamily),
+    /// A value: the mate it names and the freedom it sets.
+    Value {
+        /// The mate.
+        mate: crate::node::ConstraintId,
+        /// The freedom.
+        coord: super::Coord,
+    },
+}
+
+impl Equations {
+    /// How many equations it is.
+    fn codimension(self) -> u8 {
+        match self {
+            Self::Mate(family) => family.codimension(),
+            Self::Value { .. } => 1,
+        }
+    }
+}
+
+/// The pose kind whose symmetry `family` is, for the kinds a mate reads.
+fn kind_of(family: SubgroupFamily) -> Option<crate::VarKind> {
+    use crate::VarKind as K;
+    Some(match family {
+        SubgroupFamily::Trivial => K::Frame,
+        SubgroupFamily::Planar => K::Plane,
+        SubgroupFamily::Cylindrical => K::Axis,
+        SubgroupFamily::Parallel => K::Direction,
+        SubgroupFamily::Spherical => K::Point,
+        SubgroupFamily::Se3
+        | SubgroupFamily::Prismatic
+        | SubgroupFamily::Revolute
+        | SubgroupFamily::Translation
+        | SubgroupFamily::PlaneTranslation => return None,
+    })
+}
+
+/// **How many equations a set of constraints fixes**, read off their
+/// families alone: the mates' families met ([`SubgroupFamily::meet`]),
+/// and one more for each freedom a value sets that its mate's kind
+/// leaves with a chart and every other mate leaves too. A slide is left
+/// by a mate freeing every translation, a spin by one freeing every
+/// rotation about a point: any other mate fixes, in general position,
+/// what the value would set. Two values of one freedom on one mate set
+/// it once.
+fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
+    let mates: Vec<(crate::node::ConstraintId, SubgroupFamily)> = bundle
+        .iter()
+        .filter_map(|&(id, e)| match e {
+            Equations::Mate(family) => Some((id, family)),
+            Equations::Value { .. } => None,
+        })
+        .collect();
+    let met = mates
+        .iter()
+        .fold(SubgroupFamily::Se3, |held, &(_, family)| held.meet(family));
+    let mut set = Vec::new();
+    for &(_, e) in bundle {
+        let Equations::Value { mate, coord } = e else {
+            continue;
+        };
+        let Some(&(_, own)) = mates.iter().find(|&&(id, _)| id == mate) else {
+            continue;
+        };
+        let charted = kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok());
+        let left_by_the_rest = mates.iter().filter(|&&(id, _)| id != mate).all(|&(_, f)| {
+            match coord {
+                super::Coord::Slide(_) => f.frees_every_translation(),
+                super::Coord::Spin => f.frees_every_rotation(),
+            }
+        });
+        if charted && left_by_the_rest && !set.contains(&(mate, coord)) {
+            set.push((mate, coord));
+        }
+    }
+    let set = u8::try_from(set.len()).unwrap_or(u8::MAX);
+    met.codimension().saturating_add(set).min(6)
+}
+
+/// **The constraints any of whose equations the rest of `bundle`
+/// already fixes** (FORK-S3O, A11 (1)): each whose own equations and
+/// the rest's together fix fewer than they count. Decided by subgroup
+/// algebra over the families alone, measuring nothing, and order-free:
+/// the bundle has no order, so none of them is "the later one".
+fn already_fixed(
+    bundle: &[(crate::node::ConstraintId, Equations)],
+) -> Vec<crate::node::ConstraintId> {
+    let all = codimension(bundle);
+    bundle
+        .iter()
+        .enumerate()
+        .filter(|&(k, &(_, e))| {
+            let rest: Vec<_> = bundle
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != k)
+                .map(|(_, &c)| c)
+                .collect();
+            codimension(&rest) + e.codimension() > all
+        })
+        .map(|(_, &(id, _))| id)
+        .collect()
+}
+
+/// **The bundle rule** (FORK-S3O): `placement`'s constraints, read as
+/// equations, refuse [`MateFault::Overconstrained`] where any of them
+/// fixes an equation the others already fix, pinned or not, naming
+/// every such constraint. Asked by every door that writes a constraint
+/// or a bundle (the edit doors and the load door) and by the fold, for
+/// a state no door saw (a rebind, a definition edit that changed a
+/// kind).
 ///
 /// # Errors
 ///
-/// The first refusal: an Indeterminate case split, an unleverable arm,
-/// a meeting point out of range, or the CONTRADICTORY empty
-/// intersection, which names both mates, the predicate, and the
-/// measured clash.
+/// [`MateFault::Overconstrained`], with the freedoms the whole bundle
+/// leaves.
+pub(crate) fn overconstrained(
+    placement: RecipeNodeId,
+    bundle: &[(crate::node::ConstraintId, Equations)],
+) -> Result<(), Box<MateFault>> {
+    let named = already_fixed(bundle);
+    if named.is_empty() {
+        return Ok(());
+    }
+    Err(Box::new(MateFault::Overconstrained {
+        placement,
+        constraints: named,
+        free: 6 - codimension(bundle),
+    }))
+}
+
+/// **Whether a bundle pins its copy**: its equations fix all six of
+/// the copy's freedoms. Decided by codimension alone, so a copy's
+/// space is the recipe's, never a value's.
+pub(crate) fn pins(bundle: &[(crate::node::ConstraintId, Equations)]) -> bool {
+    codimension(bundle) == 6
+}
+
+/// **A bundle's equations, read off its definitions** — what the doors
+/// ask the bundle rule of. A mate whose `on` reads no live variable, or
+/// a world pin, states none: the first is the evaluation's to refuse,
+/// the second [`world_pin_stands_alone`]'s.
+pub(crate) fn equations_of<P>(
+    doc: &Doc<P>,
+    bundle: &[super::Constraint],
+) -> Vec<(crate::node::ConstraintId, Equations)> {
+    bundle
+        .iter()
+        .filter_map(|c| {
+            let e = match &c.kind {
+                super::ConstraintKind::Mate(mate) => Equations::Mate(
+                    doc.var(mate.on)
+                        .map(crate::Var::kind)
+                        .and_then(crate::VarKind::symmetry)?,
+                ),
+                super::ConstraintKind::Value(value) => Equations::Value {
+                    mate: value.mate,
+                    coord: value.coord,
+                },
+                super::ConstraintKind::WorldPin(_) => return None,
+            };
+            Some((c.id, e))
+        })
+        .collect()
+}
+
+/// **A bundle's mates, folded** (A11 (1)): their cosets met
+/// ([`super::coset::intersect`]), constructed and never checked. The
+/// bundle rule has admitted the bundle, so every meeting is transverse.
+///
+/// # Errors
+///
+/// [`MateFault::Overconstrained`] naming every mate where two do not
+/// meet transversally (a pose whose kind is not its definition's, which
+/// the pose evaluator refuses first), and [`MateFault::PoseOutOfRange`]
+/// where they meet further away than a length can say.
 pub(crate) fn fold_bundle<T: SolveScalar>(
+    placement: RecipeNodeId,
     mates: &[ReadMate<T>],
-    arm: Arm,
-    band: Band,
 ) -> Result<Coset<T>, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate: Option<MateRef> = None;
     for m in mates {
-        let mate = m.mate;
-        let coset = mate_coset(&m.on, &m.to);
-        // The fold's identity element costs nothing and decides
-        // nothing: the first mate's coset is the fold.
-        if matches!(held.subgroup, Subgroup::Se3) {
-            held = coset;
-            held_mate.get_or_insert(mate);
-            continue;
-        }
-        held = match super::coset::intersect(held, coset, band, arm) {
-            Ok(next) => next,
-            Err(FoldStop::Indeterminate(diag)) => {
-                return Err(Box::new(MateFault::Indeterminate { mate, diag }));
-            }
-            Err(FoldStop::OutOfRange) => {
-                return Err(Box::new(MateFault::PoseOutOfRange {
-                    held: held_mate.unwrap_or(mate),
-                    added: mate,
-                }));
-            }
-            Err(FoldStop::Unleverable(refusal)) => {
-                return Err(Box::new(MateFault::Unleverable { mate, refusal }));
-            }
-            Err(FoldStop::Clash { predicate, clash }) => {
-                return Err(Box::new(MateFault::Contradictory {
-                    held: held_mate.unwrap_or(mate),
-                    added: mate,
-                    predicate,
-                    clash,
-                }));
-            }
-        };
-        if matches!(held.subgroup, Subgroup::Empty) {
-            return Err(Box::new(MateFault::Contradictory {
-                held: held_mate.unwrap_or(mate),
-                added: mate,
-                predicate: super::MATE_MEMBER_EMPTY,
-                clash: Clash::Structural,
+        held = super::coset::intersect(held, mate_coset(&m.on, &m.to)).ok_or_else(|| {
+            Box::new(MateFault::Overconstrained {
+                placement,
+                constraints: mates.iter().map(|m| m.mate.id).collect(),
+                free: 0,
+            })
+        })?;
+        if !geom_core::is_finite_length(held.representative.translation.norm()) {
+            return Err(Box::new(MateFault::PoseOutOfRange {
+                held: held_mate.unwrap_or(m.mate),
+                added: m.mate,
             }));
         }
-        held_mate.get_or_insert(mate);
+        held_mate.get_or_insert(m.mate);
     }
     Ok(held)
 }
@@ -658,17 +806,20 @@ pub(crate) enum Folded<T: Real> {
     Pinned(Affine3<T>),
 }
 
-/// **One placement's bundle, folded.** A bundle that pins less than its
-/// copy needs makes a loose copy, never a refusal; one whose mates pin
-/// it with a mate the rest already fix refuses, naming every such
-/// mate: each whose removal leaves the copy pinned. Constraints have no
-/// order, so each is asked alone. The values then place the copy inside
-/// what the mates leave ([`super::value::settle`]).
+/// **One placement's bundle, solved.** Each value is first asked what
+/// its mate's kind decides (a freedom the kind leaves, with a chart),
+/// then the bundle rule ([`overconstrained`]) refuses a constraint any
+/// of whose equations the rest already fix. The mates fold, and the
+/// values place the copy inside what they leave
+/// ([`super::value::settle`]). A bundle that pins less than its copy
+/// needs ([`pins`]) makes a loose copy, never a refusal.
 ///
 /// # Errors
 ///
-/// The fold's own ([`fold_bundle`]), [`MateFault::Overconstrained`], or
-/// a value's ([`super::value::settle`]).
+/// [`MateFault::ValueNamesNoMate`], [`MateFault::NotAFreedom`] or
+/// [`MateFault::NoChart`] for a value, [`MateFault::Overconstrained`],
+/// the fold's own ([`fold_bundle`]), or a chart degenerate at its
+/// values ([`super::value::settle`]).
 pub(crate) fn solve_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
@@ -676,38 +827,64 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     charts: &BTreeMap<crate::node::ConstraintId, Option<super::value::Chart<T>>>,
     arm: Arm,
     band: Band,
-) -> Result<Folded<T>, Box<MateFault>> {
+) -> Result<Folded<T>, crate::NodeErrorKind> {
+    let fault = |f: MateFault| crate::NodeErrorKind::Mate(Box::new(f));
+    let mut equations: Vec<(crate::node::ConstraintId, Equations)> = mates
+        .iter()
+        .map(|m| (m.mate.id, Equations::Mate(m.to.symmetry().family())))
+        .collect();
+    for v in values {
+        let Some(&(_, Equations::Mate(family))) =
+            equations.iter().find(|&&(id, _)| id == v.mate)
+        else {
+            return Err(fault(MateFault::ValueNamesNoMate {
+                value: v.value,
+                mate: v.mate,
+            }));
+        };
+        if let Some(kind) = kind_of(family) {
+            v.coord
+                .admitted_by(kind)
+                .map_err(|refusal| fault(refused_freedom(v.value, v.coord, kind, refusal)))?;
+        }
+    }
+    equations.extend(values.iter().map(|v| {
+        (
+            v.value.id,
+            Equations::Value {
+                mate: v.mate,
+                coord: v.coord,
+            },
+        )
+    }));
+    overconstrained(placement, &equations).map_err(|f| fault(*f))?;
     if mates.is_empty() {
         return Ok(Folded::Loose);
     }
-    let coset = fold_bundle(mates, arm, band)?;
-    if coset.subgroup.is_determined() && mates.len() > 1 {
-        let mut redundant = Vec::new();
-        for k in 0..mates.len() {
-            let rest: Vec<ReadMate<T>> = mates
-                .iter()
-                .enumerate()
-                .filter(|&(j, _)| j != k)
-                .map(|(_, m)| m.clone())
-                .collect();
-            if fold_bundle(&rest, arm, band)?.subgroup.is_determined() {
-                redundant.push(mates[k].mate.id);
-            }
-        }
-        if !redundant.is_empty() {
-            return Err(Box::new(MateFault::Overconstrained {
-                placement,
-                constraints: redundant,
-                held: Subgroup::Trivial,
-            }));
-        }
-    }
-    Ok(
-        match super::value::settle(coset, values, charts, arm, band)? {
-            Some(at) => Folded::Pinned(at),
-            None => Folded::Loose,
+    let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
+    let at = super::value::settle(coset, values, charts, arm, band)?;
+    Ok(if pins(&equations) {
+        Folded::Pinned(at)
+    } else {
+        Folded::Loose
+    })
+}
+
+/// A value's freedom its mate's kind does not leave, as the fault
+/// names it.
+fn refused_freedom(
+    value: MateRef,
+    coord: super::Coord,
+    kind: crate::VarKind,
+    refusal: super::FreedomRefusal,
+) -> MateFault {
+    match refusal {
+        super::FreedomRefusal::NotAFreedom => MateFault::NotAFreedom { value, coord, kind },
+        super::FreedomRefusal::NoChart => MateFault::NoChart {
+            value,
+            why: super::NoChartWhy::PointRotation,
         },
-    )
+    }
 }
 
 /// **Whether a mate's target reads its pose in the opposite sense**: a
@@ -842,9 +1019,9 @@ fn admit_class(mate: MateRef, class: super::ContactClass) -> Result<(), Box<Mate
 /// the load door of every constraint it reads: `on` reads the copy
 /// ([`MateFault::NotOnTheCopy`]), a world read is a pose
 /// ([`MateFault::WorldRead`]), the two poses are of one kind
-/// ([`MateFault::KindsDiffer`]), and the class is admitted. What the
-/// fold decides — a contradiction, an overconstraint — needs the poses'
-/// values, and is the placement's own refusal where it evaluates.
+/// ([`MateFault::KindsDiffer`]), and the class is admitted. Whether it
+/// fixes an equation the rest of its bundle already fixes is the bundle
+/// rule's ([`overconstrained`]).
 ///
 /// # Errors
 ///
@@ -906,7 +1083,7 @@ pub(crate) fn world_pin_stands_alone(
         Err(Box::new(MateFault::Overconstrained {
             placement,
             constraints: beside,
-            held: Subgroup::Trivial,
+            free: 0,
         }))
     }
 }
@@ -960,15 +1137,13 @@ pub(crate) fn chart_body<P>(
     }
 }
 
-/// **One value's own admission** (ruling C-2, the named interim C-3):
-/// what the recipe decides about it — it names a mate of `bundle`
-/// ([`MateFault::ValueNamesNoMate`]), the mate's kind leaves its
-/// freedom ([`MateFault::NotAFreedom`]) with a chart
+/// **One value's own admission** (ruling C-2): it names a mate of
+/// `bundle` ([`MateFault::ValueNamesNoMate`]), the mate's kind leaves
+/// its freedom ([`MateFault::NotAFreedom`]) with a chart
 /// ([`MateFault::NoChart`]), and the mate's target reads one body. Its
-/// number's dimension is the slot's, which the lowering checks. Until
-/// F, what needs the bundle's residual — a freedom the bundle's other
-/// constraints already fix — is the placement's own refusal where it
-/// evaluates.
+/// number's dimension is the slot's, which the lowering checks. A
+/// freedom the bundle's other constraints already fix is the bundle
+/// rule's ([`overconstrained`]).
 ///
 /// # Errors
 ///
@@ -990,19 +1165,9 @@ pub(crate) fn admit_value<P>(
         }));
     };
     if let Some(kind) = doc.var(mate.on).map(crate::Var::kind) {
-        data.coord.admitted_by(kind).map_err(|refusal| {
-            Box::new(match refusal {
-                super::FreedomRefusal::NotAFreedom => MateFault::NotAFreedom {
-                    value,
-                    coord: data.coord,
-                    kind: Some(kind),
-                },
-                super::FreedomRefusal::NoChart => MateFault::NoChart {
-                    value,
-                    why: super::NoChartWhy::PointRotation,
-                },
-            })
-        })?;
+        data.coord
+            .admitted_by(kind)
+            .map_err(|refusal| Box::new(refused_freedom(value, data.coord, kind, refusal)))?;
     }
     if let Target::Pose(to) = &mate.to {
         chart_body(doc, *to).map_err(|why| Box::new(MateFault::NoChart { value, why }))?;

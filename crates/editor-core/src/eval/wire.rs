@@ -708,6 +708,13 @@ where
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     if mates.is_empty() {
+        // A value names a mate of its bundle; with none, its own.
+        if let Some(v) = values.first() {
+            return Err(fault(MateFault::ValueNamesNoMate {
+                value: v.value,
+                mate: v.mate,
+            }));
+        }
         return Ok((None, Space::Loose { root: id }));
     }
     let reach = reach.map_err(|refusal| {
@@ -734,9 +741,7 @@ where
             crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
         );
     }
-    match crate::mate::solve::solve_bundle(id, &mates, &values, &charts, arm, b)
-        .map_err(|f| fault(*f))?
-    {
+    match crate::mate::solve::solve_bundle(id, &mates, &values, &charts, arm, b)? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep) => {
             // The one at-rest verdict, decided once (fork C-5).

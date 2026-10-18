@@ -6233,7 +6233,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<Applied<P>, EditError> {
-    apply_with(doc, edit, tol, Some(reach))
+    let _ = reach;
+    apply_with(doc, edit, tol)
 }
 
 /// **Replay one edit**: the edit through every door [`apply`] has —
@@ -6248,19 +6249,17 @@ pub fn apply_replayed<P: Clone + crate::ProfilePayload>(
     edit: &DocEdit<P>,
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    apply_with(doc, edit, tol, None)
+    apply_with(doc, edit, tol)
 }
 
-/// [`apply`] with the reach the door holds: the live door's, or none
-/// on replay ([`apply_replayed`]).
+/// [`apply`] and [`apply_replayed`]: one door.
 fn apply_with<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
     tol: Tol,
-    reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
     let (doc, record, maintenance) = door(doc, tol, |new, reported| {
-        write_edit(doc, new, reported, edit, tol, reach)
+        write_edit(doc, new, reported, edit, tol)
     })?;
     Ok(Applied {
         doc,
@@ -6278,8 +6277,9 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
+    let _ = reach;
     let (doc, minted, maintenance) = door(doc, tol, |new, _| {
-        insert_into(doc, new, node, &[], tol, Some(reach))
+        insert_into(doc, new, node, &[], tol)
     })?;
     let id = minted.0;
     let applied = Applied {
@@ -6429,7 +6429,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     authored: &Node<P::Authored, Formula>,
     fresh: &[FreshEntry],
     tol: Tol,
-    reach: Option<&dyn MateReach>,
 ) -> Result<Inserted, EditError> {
     // A refusal speaks the node by the id drawn from it with every name
     // the document holds lowered, so a node authored by name and the
@@ -6510,23 +6509,23 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     let fresh = lowering.finish(new)?;
     // Each constraint's own admission speaks before the cycle check,
     // as `add_constraint`'s does.
-    for (k, &c) in minted.iter().enumerate() {
-        admit_written_constraint(new, id, c, k, tol, reach)?;
+    for &c in &minted {
+        admit_written_constraint(new, id, c)?;
     }
     check_acyclic(new)?;
-    // Last, the bundle's make-up, as `add_constraint` asks it: a world
-    // pin stands alone. Every constraint's own admission is the
-    // recipe's (above); what the fold decides of the bundle needs the
-    // poses' values and is the placement's evaluation fault (C-3).
+    // Last, the bundle's make-up, as `add_constraint` asks it.
     if !minted.is_empty() {
         admit_bundle_make_up(new, id)?;
     }
     Ok((id, fresh, outputs, minted))
 }
 
-/// **A placement's bundle as a whole, at the edit door**: a world pin
-/// stands alone ([`crate::mate::solve::world_pin_stands_alone`]), asked
-/// by every edit that writes a constraint into a bundle.
+/// **A placement's bundle as a whole, at the edit door**, asked by
+/// every edit that writes a constraint into a bundle: a world pin
+/// stands alone ([`crate::mate::solve::world_pin_stands_alone`]), and
+/// no constraint fixes an equation the rest already fix
+/// ([`crate::mate::solve::overconstrained`], read off the bundle's
+/// definitions, measuring nothing).
 fn admit_bundle_make_up<P: crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
@@ -6539,7 +6538,12 @@ fn admit_bundle_make_up<P: crate::ProfilePayload>(
         return Ok(());
     };
     crate::mate::solve::world_pin_stands_alone(placement, bundle)
-        .map(|_| ())
+        .and_then(|_| {
+            crate::mate::solve::overconstrained(
+                placement,
+                &crate::mate::solve::equations_of(new, bundle),
+            )
+        })
         .map_err(|fault| EditError::MateRefused {
             node: new.spoken(placement),
             held: crate::spoken::held_by(&*fault, new),
@@ -6569,7 +6573,6 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     kind: crate::mate::ConstraintKind<Formula>,
     fresh: &[FreshEntry],
     tol: Tol,
-    reach: Option<&dyn MateReach>,
 ) -> Result<(crate::node::ConstraintId, Vec<VarId>), EditError> {
     match new.nodes.get(&placement) {
         Some(node) if crate::mate::solve::bundle_of(node).is_some() => {}
@@ -6612,7 +6615,6 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
         unreachable!("the placement was checked above")
     };
     node.push(constraint);
-    let k = node.len() - 1;
     let Some(written) = new.nodes.get(&placement).cloned() else {
         unreachable!("the placement was checked above")
     };
@@ -6621,7 +6623,7 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     // The constraint's own admission speaks before the cycle check: a
     // mate whose `on` reads a copy through its own placement is no
     // mate of that copy, which is the more specific refusal.
-    admit_written_constraint(new, placement, id, k, tol, reach)?;
+    admit_written_constraint(new, placement, id)?;
     check_acyclic(new)?;
     // Last, the bundle's make-up: a world pin stands alone, so a
     // constraint beside one refuses as the bundle already fixing its
@@ -6632,22 +6634,17 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
 
 /// **The admission of a constraint an edit just wrote** (A11 rule 1),
 /// asked of the document it now stands in: what the recipe decides of
-/// it ([`crate::mate::solve::admit_mate`]) — its `on` reads the copy,
-/// its world read is a pose, its two poses are of one kind, its class
-/// is admitted. What the fold decides needs the poses' values, and is
-/// the placement's own refusal where it evaluates (INTENT stage 3 C's
-/// interim until F's measure-free door; `reach`, `tol` and the bundle
-/// ahead, `k`, are what that door will read). The one call every edit that
+/// it alone ([`crate::mate::solve::admit_mate`],
+/// [`crate::mate::solve::admit_value`]) — its `on` reads the copy, its
+/// world read is a pose, its two poses are of one kind, its class is
+/// admitted, a value's freedom is its mate's kind's. The bundle as a
+/// whole is [`admit_bundle_make_up`]'s. The one call every edit that
 /// writes a constraint ([`DocEdit::writes_a_mates_datum`]) makes.
 fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
     constraint: crate::node::ConstraintId,
-    k: usize,
-    tol: Tol,
-    reach: Option<&dyn MateReach>,
 ) -> Result<(), EditError> {
-    let _ = (k, tol, reach);
     let Some(bundle) = new
         .nodes
         .get(&placement)
@@ -6704,11 +6701,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
     reported: &mut Vec<Maintenance>,
     edit: &DocEdit<P>,
     tol: Tol,
-    reach: Option<&dyn MateReach>,
 ) -> Result<EditRecord, EditError> {
     Ok(match edit {
         DocEdit::InsertNode { node, fresh } => {
-            inserted(insert_into(doc, new, node, fresh, tol, reach)?)
+            inserted(insert_into(doc, new, node, fresh, tol)?)
         }
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
@@ -6920,7 +6916,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     // A mate's pose re-pointed is a mate written: its
                     // two kinds must still agree.
                     if let crate::OperandSlot::Side { constraint, .. } = operand {
-                        admit_written_constraint(new, *node, *constraint, 0, tol, reach)?;
+                        admit_written_constraint(new, *node, *constraint)?;
+                        admit_bundle_make_up(new, *node)?;
                     }
                     return Ok(record);
                 }
@@ -7534,7 +7531,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             fresh,
         } => {
             let kind = crate::mate::ConstraintKind::Mate((**mate).clone());
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
@@ -7550,7 +7547,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             fresh,
         } => {
             let kind = crate::mate::ConstraintKind::Value((**value).clone());
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
@@ -7562,7 +7559,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::PinWhereItStands { placement } => {
             let kind = crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity);
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, &[], tol, reach)?;
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, &[], tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
