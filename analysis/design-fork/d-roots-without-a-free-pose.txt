@@ -1,0 +1,3 @@
+fork: d-roots-without-a-free-pose (s3 D: roots with no pose free of document variables; loft sections once a profile is 2-D)
+byte: 142
+mapping: even -> A = Opus, B = Fable; odd -> A = Fable, B = Opus
