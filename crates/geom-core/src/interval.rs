@@ -853,6 +853,43 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// through to whichever reader certifies. A NaI (NaN ends) or an empty
 /// enclosure (inverted ends) is no bracket, so it locates nothing.
 impl crate::spline::SpanLocate for Interval {
+    /// A blend's `t` inside `[0, 1]` over finite `x` and `y`: the hull
+    /// of the step at the eight corners. `x + (y − x)·t` is linear in
+    /// `x`, in `y` and in `t` separately, so its range over the box is
+    /// attained at a corner, and each corner, a step of three points,
+    /// is enclosed outward; the inputs' widths are met, not multiplied
+    /// (the expression reads `x` twice). Otherwise (an unblend's `t`
+    /// above `1`, an unbounded or poison input) the expression.
+    fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        let (xl, xh, yl, yh) = (Bounds::lo(x), Bounds::hi(x), Bounds::lo(y), Bounds::hi(y));
+        let (tl, th) = (Bounds::lo(t), Bounds::hi(t));
+        let finite = [xl, xh, yl, yh].iter().all(|v| v.is_finite());
+        if !(finite && tl >= 0.0 && th <= 1.0) {
+            return x + (y - x) * t;
+        }
+        let corner = |a: f64, b: f64, s: f64| {
+            let (a, b, s) = (
+                Self(DInterval::point(a)),
+                Self(DInterval::point(b)),
+                Self(DInterval::point(s)),
+            );
+            a + (b - a) * s
+        };
+        let mut acc = corner(xl, yl, tl);
+        for (a, b, s) in [
+            (xl, yl, th),
+            (xl, yh, tl),
+            (xl, yh, th),
+            (xh, yl, tl),
+            (xh, yl, th),
+            (xh, yh, tl),
+            (xh, yh, th),
+        ] {
+            acc = Self(enclosure_hull_of(acc.0, corner(a, b, s).0));
+        }
+        acc
+    }
+
     fn locate_spans<'a>(
         self,
         knots: &'a crate::spline::KnotVector,

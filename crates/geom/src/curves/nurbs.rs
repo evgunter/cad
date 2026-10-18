@@ -777,12 +777,21 @@ macro_rules! nurbs_curve {
                     .collect();
                 for plan in plans {
                     hom = plan.apply_homogeneous(knots.values(), &hom, (poison, fresh), |x, y, t: T| {
-                        x + (y - x) * t
+                        $Vector::new($(T::homogeneous_step(x.$c, y.$c, t)),+)
                     });
                     knots = knots.restructure(plan.knots().clone(), fresh);
                 }
                 let (control, weights): (Vec<$Point<T>>, Vec<T>) =
                     hom.into_iter().map(|(v, w)| (origin + v / w, w)).unzip();
+                // A removal's ratio read from knots within rounding of each
+                // other can reach 0 or 1, and its unblend divides by it: an
+                // unbounded enclosure, which the door's poison test does not
+                // see. Refused here, typed.
+                if let Some(index) = control.iter().zip(&weights).position(|(p, w)| {
+                    !(w.is_bounded() && $(p.$c.is_bounded())&&+)
+                }) {
+                    return Err(KnotAlgebraError::UnboundedAtEnclosure { index });
+                }
                 $Curve::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
             }
         }
@@ -851,15 +860,13 @@ macro_rules! nurbs_curve {
             /// [`KnotAlgebraError::WeightCollapse`] included
             /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
-                let p = self.knots.degree();
-                let (d0, d1) = self.domain();
+                let kv = spline::point_knots(&self.knots)?;
+                let p = kv.degree();
+                let (d0, d1) = kv.domain();
                 if !u.is_finite() || !(u > d0 && u < d1) {
                     return Err(KnotAlgebraError::ParameterOutsideDomain { u });
                 }
-                let have = spline::point_inputs(&self.knots, &self.weights)?
-                    .0
-                    .multiplicity_of(u)
-                    .map_or(0, |(m, _)| m);
+                let have = kv.multiplicity_of(u).map_or(0, |(m, _)| m);
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
@@ -868,7 +875,7 @@ macro_rules! nurbs_curve {
                 // First occurrence of `u` in the saturated vector
                 // (multiplicity is exactly `p` there). Present by
                 // construction; `ok_or` keeps the path total.
-                let knots = spline::point_inputs(&full.knots, &full.weights)?.0.knots();
+                let knots = spline::point_knots(&full.knots)?.knots();
                 let f = knots
                     .iter()
                     .position(|k| *k == u)
@@ -941,7 +948,7 @@ macro_rules! nurbs_curve {
                 let curves: Vec<&Self> = curves.into_iter().collect();
                 let vectors: Vec<&KnotVector> = curves
                     .iter()
-                    .map(|c| spline::point_inputs(&c.knots, &c.weights).map(|(kv, _)| kv))
+                    .map(|c| spline::point_knots(&c.knots))
                     .collect::<Result<_, _>>()?;
                 curves
                     .iter()
@@ -984,10 +991,13 @@ macro_rules! nurbs_curve {
                     // The reinsertion puts back the knot the removal took
                     // out: its held value, so the bound reads the curve's
                     // own knot rather than a constant copy of it.
-                    let held = |v: f64| match cur.knots.value_at(v) {
-                        Ok(k) => k.unwrap_or_else(|| Self::inserted(v)),
-                        Err(e) => unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}"),
-                    };
+                    // The reinsertion brings in `u` alone.
+                    let held_u = cur
+                        .knots
+                        .value_at(u)
+                        .map_err(KnotAlgebraError::Structure)?
+                        .unwrap_or_else(|| Self::inserted(u));
+                    let held = |v: f64| if v.to_bits() == u.to_bits() { held_u } else { Self::inserted(v) };
                     let reinserted =
                         removed.apply_plans(core::slice::from_ref(&step.reinsert), &held)?;
                     bound = bound + net::removal_pass_bound(

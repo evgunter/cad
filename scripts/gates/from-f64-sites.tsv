@@ -88,7 +88,8 @@ crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
 crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/curves/nurbs.rs	1	constant	<fn>	the placeholder's unit knots (Knots::lift)
 crates/geom/src/curves/on_carrier.rs	1	constant	s	one of SPLINE_SAMPLES, the fixed fractions of a knot span a spline's foot search seeds at: a heuristic's place to read, never a verdict
-crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a knot the surface does not hold: the caller's f64 parameter (unreachable: the removal took it from the surface)
+crates/geom/src/surfaces/nurbs.rs	1	constant	u	a removal's reinsertion of the removed knot where the surface does not hold it: the caller's f64 parameter (unreachable: the removal took it from the surface)
+crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a value other than the removed knot: the caller's f64 parameter (unreachable: a reinsertion brings in the removed knot alone)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
 crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index

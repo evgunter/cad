@@ -15,6 +15,9 @@
 #   Knots::structure_f64_interim, Span::knots_f64_interim
 #   NurbsCurve{2,3}::weights_f64_interim, NurbsSurface::weights_f64_interim,
 #   Weights::weights_f64_interim (C6 S2)
+#   spline::point_inputs, spline::point_knots (C6 S4: the knot algebra's
+#   plan constructors take a carrier's vectors through this funnel, which
+#   refuses typed; a caller of it is a reader like any other)
 #
 # Every caller is a reader that has not yet moved to the held values or
 # the combinatorial structure. C6's slices S2–S5 move them; S5 deletes
@@ -64,7 +67,7 @@ gate() {
 import glob, re, sys
 
 baseline_path = sys.argv[1]
-NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim|weights_f64_interim)"
+NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim|weights_f64_interim|point_inputs|point_knots)"
 CALL = re.compile(r"\b" + NAMES + r"\s*\(")
 DECL = re.compile(r"\bfn\s+" + NAMES + r"\b")
 KV = re.compile(r"^(?:&'[a-z_]+)?(?:(?:Option|Cow|Arc|Rc|Box|Vec)<(?:'[a-z_]+,)?)?(?:&'[a-z_]+)?KnotVector>?$")

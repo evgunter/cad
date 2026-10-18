@@ -32,8 +32,11 @@
 //! A plan (insertion, removal or elevation) is applied by
 //! [`CurvePlan::apply_rational`] at an evaluation scalar
 //! ([`ProjectiveScalar`]), by
-//! [`CurvePlan::apply_points`] on its own `f64` channel, and by
-//! [`CurvePlan::apply_certified`] in the certification ring, off the SAME [`Step`] list — same targets, same sources, same
+//! [`CurvePlan::apply_points`] on its own `f64` channel, by
+//! [`CurvePlan::apply_certified`] in the certification ring, and by
+//! `CurvePlan::apply_homogeneous` (in `projective`, outside this
+//! certification file) on `(w·P, w)` at any scalar, the curve's knot
+//! operations at an enclosure scalar, off the SAME [`Step`] list — same targets, same sources, same
 //! order. They differ in the coefficient the combination is taken
 //! with, and they must: the projective appliers' `λ` is a quotient of
 //! weights (formed at `T` from the held weights, or the plan's `f64`),
@@ -105,6 +108,16 @@ pub enum KnotAlgebraError {
         /// the writer, the reinserted polygon's slot.
         index: usize,
     },
+    /// At an enclosure scalar, a control point or weight a plan wrote
+    /// is not bounded: a removal's ratio, read from knots within
+    /// rounding of each other, has an enclosure reaching `0` or `1`, and
+    /// the unblend divides by it (C6 S4). Refused rather than handed to
+    /// the carrier as an unbounded enclosure.
+    UnboundedAtEnclosure {
+        /// Index of the control point in the polygon the operation
+        /// wrote.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for KnotAlgebraError {
@@ -148,6 +161,12 @@ impl core::fmt::Display for KnotAlgebraError {
                  Recourse: drop this operation — the curve it would leave is not a \
                  valid rational one, so keep the curve as it is"
             ),
+            KnotAlgebraError::UnboundedAtEnclosure { index } => write!(
+                f,
+                "the knot operation wrote control point {index} unbounded over the values it \
+                 stands for: a removal's ratio, read from knots within rounding of each other, \
+                 reaches 0 or 1. Recourse: evaluate at a point scalar, or keep the knot"
+            ),
         }
     }
 }
@@ -172,11 +191,13 @@ enum Src {
 /// - degree elevation's binomial `i/(p + 1)`: `lo = 0`, `hi = p + 1`,
 ///   `inserted = i`, small integers and so exact.
 ///
-/// Carried as INGREDIENTS and not as values, because the two appliers
-/// need them at two precisions: `f64`, folded into the projective `λ`
-/// below, and outward-rounded ring quotients for
-/// [`CurvePlan::apply_certified`]. A stored `f64` ratio would leave the
-/// ring applier padding a rounded number by a guess.
+/// Carried as INGREDIENTS and not as values, for the ring applier
+/// [`CurvePlan::apply_certified`], which takes one channel and no knots
+/// and so needs them here, to form an outward-rounded ring quotient: a
+/// stored `f64` ratio would leave it padding a rounded number by a
+/// guess. The appliers at a scalar form the same coefficient from the
+/// held knots instead, through the step's [`Coef`]; the two describe
+/// one number, written together by each constructor.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Ratio {
     pub(super) inserted: f64,
@@ -428,6 +449,9 @@ impl CurvePlan {
     /// widened by them rather than re-rounded to `f64`.
     ///
     /// # The step: [`Certification::between`] at a ratio from the knots
+    ///
+    /// (An insertion's and an elevation's blend; a removal's unblend is
+    /// below.)
     ///
     /// With `Δ = U_{j+p} − U_j`, positive by the insertion precondition
     /// (`insert_once`'s band comment, so the quotient never refuses on a
