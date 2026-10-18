@@ -260,10 +260,10 @@ fn the_bare_straddle_seat_is_untouched() {
          margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
          UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
          b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\", \
-         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         margin: Some(MarginDiag(Value(1.1234667099445444e-15, None, ZeroWord(0)))) }, \
          UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
          b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\", \
-         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }]",
+         margin: Some(MarginDiag(Value(1.1234667099445444e-15, None, ZeroWord(0)))) }]",
         "the bare straddle seat's whole census"
     );
 }

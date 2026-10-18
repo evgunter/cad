@@ -1323,6 +1323,7 @@ pub fn run_checks_at_rest_on<
             door = Some(DoorJob {
                 document: doc.id(),
                 rows,
+                resolver: ev.resolver().cloned(),
                 tol,
                 at: report.findings.len(),
             });
@@ -1350,6 +1351,9 @@ pub fn run_checks_at_rest_on<
 pub struct DoorJob {
     document: crate::DocumentId,
     rows: Vec<DoorRows>,
+    /// The resolver the report's evaluation crossed the seam with, so
+    /// the replay builds the same parts.
+    resolver: Option<std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     /// Where its findings go among the report's.
     at: usize,
@@ -1378,7 +1382,7 @@ impl DoorJob {
         Ok(DoorFindings {
             document: self.document,
             at: self.at,
-            findings: door_findings(doc, &self.rows, self.tol, cancel)?,
+            findings: door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, cancel)?,
         })
     }
 }
@@ -1428,7 +1432,8 @@ fn door_rows<P, T: Decide>(
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
     };
     // A row of two copies is proved at the first copy's placement, which
-    // is no decision the replay retakes: the door replays no census row.
+    // is no decision the replay retakes: the door reads a census row off
+    // the replay's copies.
     let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
         crate::assembly::AtRestBy::Mate(mate) => mate.placement,
         crate::assembly::AtRestBy::Copies(a, _) => doc
@@ -1458,6 +1463,7 @@ fn door_rows<P, T: Decide>(
 fn door_findings<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     rows: &[DoorRows],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
@@ -1465,7 +1471,7 @@ fn door_findings<P: crate::ProfilePayload>(
         .iter()
         .map(|(_, node, rows)| (*node, &rows[..]))
         .collect();
-    let proofs = crate::coincide::prove(doc, &nodes, tol, cancel)?;
+    let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
     let rows = rows
         .iter()
         .flat_map(|(subject, _, rows)| rows.iter().map(move |row| (*subject, row)));

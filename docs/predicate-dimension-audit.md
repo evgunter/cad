@@ -268,23 +268,42 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Twelve names carry the K vocabulary and never reach the funnel**, so
+**These names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 250 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
   `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
-- five as the name argument of a `k_stats::straddle` call, two decided
-  bounds on one quantity straddling the band:
+- the name argument of each shipped `k_stats::straddle` call, two
+  decided bounds on one quantity straddling the band (the call sites
+  are the list: `grep -rn 'straddle(' crates/ --include=*.rs`, outside
+  `#[cfg(test)]`, whose `lane_straddle`, `finish_straddle` and
+  `rh_straddle` are fixtures):
   - an ellipse's lower and upper bound on one distance, or on its span's
     overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
-    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`
-    and `bool_sphere_region_arc_straddle` (whose arcs are circles, whose
-    two bounds are one, so it is never raised);
+    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`,
+    and `bool_sphere_region_arc_straddle` and
+    `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
+    two bounds are one, so neither is raised);
   - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
     declared-tangency path read in the rulings' lane over a wall face's
     reach measured over each edge's span and in the conic lane over it
     measured round each edge's whole turn (`chord_join::agreed_section`);
+  - `pm_census_ee_span_straddle` and `pm_census_ee_gap_straddle`, the
+    lower and upper bound of a reach or of the lines' gap that the
+    census's crossing lane reads off the closed form's rounding
+    (`crossing_reading`);
+  - `curve_carrier_straddle`, `geom`'s on-carrier reading of a point
+    whose lower bound on the distance from a conic and the gap at its
+    foot straddle (`curves::on_carrier`);
+  - `curve_pair_span_end_straddle`, a span end's side read Zero against
+    the point's chord to that end, and `curve_pair_span_past_straddle`,
+    a kept piece's clearance read near against that chord
+    (`curve_pair::span`);
+  - `curve_pair_meet_stretch`, two meetings of one stretch read apart
+    with a point between them read on (`curve_pair::meet`);
+  - and a blend's battery straddle, which carries its decision's own
+    funnel row, so it adds no name here;
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
   `k_stats::gate_measured` call.
 
