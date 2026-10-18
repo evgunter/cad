@@ -3297,6 +3297,11 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         geom_core::Bounds::hi(self)
     }
 
+    fn zz_lohi(self) -> (f64, f64) {
+        use geom_core::Bounds;
+        (self.lo(), self.hi())
+    }
+
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
         false
     }
@@ -3427,6 +3432,10 @@ where
 
     fn upper(self) -> f64 {
         self.value.upper()
+    }
+
+    fn zz_lohi(self) -> (f64, f64) {
+        self.value.zz_lohi()
     }
 
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {

@@ -33,3 +33,9 @@ D lands with `mate::stand` as the interim: a Plane mate from a face no variable 
 - **Re-bless**: every placement's bits and bytes move (the corpus digests, goldens, the `.pncad`/`.cad` snapshots and the tour stops).
 
 Supersedes `a-stand-on-an-instance-reads-its-part-by-the-names-shape`, `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` and `an-inline-at-a-moved-landing-reading-a-variable-refuses`. Not started until D has merged; the orchestrator dispatches it.
+
+Found while D's rows were restated (2026-10-18):
+- **A copy at the identity places again.** The pin helpers tell a placed copy by its motion (`mate::pin::copy_of`: `value.motion.is_some()`), and a placement at the bit-exact identity has none. So a copy of an instance or body that is already pinned at the identity is accepted as a new copy in the same space, while one pinned elsewhere refuses `AlreadyPlaced`. Under #5312 placing world content into the world is a space reaching itself. D′ makes a placement's source a space and refuses that structurally. The D rows that rely on the loophole (`place_moved`, `slid_with(top, top, …)`) are in `msolve1_transform_aware`, `msolve13_read_at_operand` and `mate1_member_vocab`, and they are restated with it.
+- **Deleted in D, pending §1's naming ruling**, because which copy a mate's side mints on is the twice-placed source's question:
+  - `msolve1_transform_aware::a3b_a_placed_copy_of_a_pattern_seats_and_gates`: the at-rest gate reported `StaleContactDeclaration` (via `Refuted`) for copies 1 and 2 of a placed 3-copy pattern;
+  - `msolve13_read_at_operand::a1b_a_placement_above_the_operand_mints_nothing`: a mate read at an unplaced pattern copy minted on a placement of that copy that stands elsewhere.

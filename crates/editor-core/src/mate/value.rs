@@ -237,6 +237,7 @@ pub(crate) fn settle<T: SolveScalar>(
         // A turn the table holds no rest of (a ball's, less one) leaves
         // a turn free beside it: no value can pin what remains, and a
         // second turn is not charted on it.
+        super::solve::zz_trace("after_spin", &m);
         let Some(rest) = after_turn(left) else {
             return Err(not_a_freedom(v));
         };
@@ -262,6 +263,7 @@ pub(crate) fn settle<T: SolveScalar>(
             .map_err(indeterminate(v.value))?
             .ok_or_else(|| not_a_freedom(v))?;
         m = Affine3::from_parts(Mat3::identity(), shift) * m;
+        super::solve::zz_trace("after_slide", &m);
         free = rest;
     }
     Ok((turns_fixed && matches!(free, Translations::None)).then_some(m))

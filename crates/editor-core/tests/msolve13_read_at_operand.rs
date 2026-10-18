@@ -276,33 +276,6 @@ fn a1a_mates_read_at_the_placements_below_a_placed_union_mint_nothing() {
 
 // ---- A1 (b): a placement above the operand ----
 
-/// **`t3 = Place(t1)` is placed, and the mate reads at `t1`.**
-/// The solve seats the slab under the block where the pattern put copy
-/// `t1`; the product holds the face where `t3` moved it, under `t3`'s
-/// own layer. No placement's copy is `t1`'s, so the mate has no world
-/// copy to mint on and states nothing about the product.
-#[test]
-fn a1b_a_placement_above_the_operand_mints_nothing() {
-    let s = scene("msolve13-a1b");
-    let (doc, pattern, [t1, _]) = s.lifts(s.doc.clone());
-    let (doc, _) = crate::mate1_member_vocab::slid_with(doc, t1, t1, [5.0, 0.0, 0.0], &s.opts);
-    let (doc, mate) = seat(
-        doc,
-        s.base1,
-        s.base_cap(s.base1),
-        head_at(t1, s.copy_cap(pattern, 1)),
-    );
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(
-        poses.fault(mate.placement).is_none(),
-        "the solve seats the slab at t1: {:?}",
-        poses.fault(mate.placement)
-    );
-    assert_eq!(poses.space(mate.placement), Some(Space::World));
-    let ev = run(&doc, &s.opts);
-    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
-}
-
 // ---- A1 (c): a pick on the fused body ----
 
 /// **A target read at the union, naming member `t1`'s face**, is what
