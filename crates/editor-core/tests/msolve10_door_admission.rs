@@ -33,9 +33,8 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateReach,
-    MateRef, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
-    RefusingReach, SlideAxis, SnapshotError, Target, VarKind, WorldRead, WorldReadFault, load,
-    mate_reach, save,
+    MateRef, Node, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, RefusingReach, SlideAxis,
+    SnapshotError, Target, VarKind, WorldRead, WorldReadFault, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, at_the_door, at_the_door_of, insert, insert_pinned, len, on_frame, step};
@@ -382,7 +381,7 @@ fn a1_a_values_own_admission_refuses_at_insert() {
             fault,
             MateFault::NotAFreedom {
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
+                kind: VarKind::Plane,
                 ..
             }
         ),
@@ -618,14 +617,15 @@ fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
     );
 }
 
-/// **What needs the poses' values is the placement's at evaluation**:
-/// two rests a copy cannot hold at once — its bottom cap and its top
-/// cap each resting on the same face — are each admitted at the door,
-/// replay with no store, and the placement's evaluation refuses them
-/// `Contradictory`, naming the two.
+/// **A second rest refuses at the door, and on replay**: two rests on
+/// one copy — its bottom cap and its top cap each resting on the same
+/// face — fix the normal twice, which the door reads off the two
+/// mates' kinds, measuring nothing (FORK-S3O). A log carrying the
+/// second refuses to save, its replay refusing in the same words,
+/// naming the entry.
 #[test]
-fn a3_a_contradictory_pair_is_admitted_and_refused_where_it_evaluates() {
-    let (doc, ids, opts, body) = instances("msolve10-a3-contradictory", 2);
+fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
+    let (doc, ids, _, body) = instances("msolve10-a3-overconstrained", 2);
     let snapshot = doc.clone();
     let bottom = add(ids[1], mate(body, ids[0], ids[1]));
     let top = add(
@@ -640,35 +640,28 @@ fn a3_a_contradictory_pair_is_admitted_and_refused_where_it_evaluates() {
         .apply(&bottom, Tol::witness(), &RefusingReach)
         .expect("the door admits the first rest")
         .doc;
-    let doc = doc
+    let held = fixture::bundle(&doc, ids[1])[0].id;
+    let refused = doc
         .apply(&top, Tol::witness(), &RefusingReach)
-        .expect("the door admits the second rest: it decides no pose")
-        .doc;
-    let log = vec![bottom, top];
-    let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("replay re-decides no pose");
-    assert_eq!(
-        fixture::bundle(&loaded.doc, ids[1]),
-        fixture::bundle(&doc, ids[1])
-    );
-    let held: Vec<editor_core::ConstraintId> =
-        fixture::bundle(&doc, ids[1]).iter().map(|c| c.id).collect();
-    let ev = fixture::run(&loaded.doc, &opts);
-    match ev.result(ids[1]) {
-        Some(NodeResult::Failed(err)) => assert!(
-            matches!(
-                &err.kind,
-                NodeErrorKind::Mate(fault) if matches!(
-                    **fault,
-                    MateFault::Contradictory { held: h, added: a, .. }
-                        if h != a && held.contains(&h.id) && held.contains(&a.id)
-                )
-            ),
-            "{:?}",
-            err.kind
+        .expect_err("the door refuses the second rest");
+    let EditError::MateRefused { fault, .. } = &refused else {
+        panic!("refused as a mate: {refused:?}");
+    };
+    assert!(
+        matches!(
+            &**fault,
+            MateFault::Overconstrained { placement, constraints, free: 1 }
+                if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held)
         ),
-        other => panic!("the placement refuses its own bundle: {other:?}"),
-    }
+        "{fault:?}"
+    );
+    let err = save(&snapshot, &[bottom, top], Tol::witness())
+        .expect_err("a log carrying the second rest does not replay");
+    let PersistError::EditReplay { index, error } = &err else {
+        panic!("expected EditReplay, got {err:?}");
+    };
+    assert_eq!(*index, 1, "the entry is named");
+    assert_eq!(**error, refused, "replay refuses in the door's words");
 }
 
 /// **A snapshot is data, and the load door decides it as the edit door
@@ -751,8 +744,9 @@ fn a_door_fault(fault: &MateFault) -> bool {
             | MateFault::KindsDiffer { .. }
             | MateFault::WorldRead { .. }
             | MateFault::ValueNamesNoMate { .. }
-            | MateFault::NotAFreedom { kind: Some(_), .. }
+            | MateFault::NotAFreedom { .. }
             | MateFault::NoChart { .. }
+            | MateFault::Overconstrained { .. }
     )
 }
 
@@ -762,9 +756,9 @@ type Row = (&'static str, ProfileDoc, EvalOptions);
 
 /// **The corpus**: shapes of constraint a document can hold, through
 /// the doors that admit them — a sound pair, a chain, a class that
-/// solves and mints nothing, a value on a mate, and states the
-/// evaluation refuses: a contradictory pair, and a target stranded past
-/// a pattern's count after the mate is in.
+/// solves and mints nothing, a value on a mate, and a state the
+/// evaluation refuses: a target stranded past a pattern's count after
+/// the mate is in.
 fn corpus() -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::new();
     rows.push({
@@ -797,19 +791,6 @@ fn corpus() -> Vec<Row> {
         )
         .expect("a plane mate leaves its spin");
         ("msolve10-corpus-value", doc, opts)
-    });
-    rows.push({
-        let (doc, ids, opts, body) = instances("msolve10-corpus-contradictory", 2);
-        let (doc, _) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
-        let (doc, _) = fixture::constrain(
-            doc,
-            fixture::rest(
-                cap(ids[1], body, CapEnd::End),
-                cap(ids[0], body, CapEnd::End),
-                ContactClass::Rest,
-            ),
-        );
-        ("msolve10-corpus-contradictory", doc, opts)
     });
     rows.push({
         // A target stranded past a pattern's count, after insert: the
@@ -949,7 +930,7 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
     // Floors, not counts: the corpus can grow, the claim cannot go
     // vacuous.
     assert!(
-        admitted >= 6 && refused_where_evaluated >= 2,
+        admitted >= 6 && refused_where_evaluated >= 1,
         "the corpus re-admitted {admitted} constraints over {refused_where_evaluated} \
          placements refused where they evaluate"
     );

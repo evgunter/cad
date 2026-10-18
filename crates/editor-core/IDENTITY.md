@@ -29,9 +29,7 @@ symbol beside them; the symbol is the stable half.
   an input of an evaluation only where the evaluation crosses the seam.
 - **Free-move is display state** (G3, over loose spaces by DI5): a display
   frame over a loose space's picture, no solver, admitted for a loose space
-  and keyed by its root (DI5). The viewer still admits and keys by
-  instance, for an instance no mate names (`display.rs`;
-  `work/intent/free-move-admits-a-loose-space.md`).
+  and keyed by its root (DI5; `crates/viewer/src/display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
 

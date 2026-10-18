@@ -19,12 +19,14 @@ fn band() -> Band {
 }
 
 /// The **locus-exact rational-quadratic chain** of a circular arc
-/// (Book §7.3), written here exactly as `geom-brep`'s private
-/// `rational_arc_chain` writes it: ≤ 90° Bézier segments, middle
-/// weight `cos(θ/2)`, middle point the tangent intersection. This is
-/// the "exact curve piece" the door is meant to consume; it is
-/// test-local because the shipped copy is private and downstream (see
-/// the unit's finding 1).
+/// (Book §7.3), as `geom-brep`'s private `rational_arc_chain` wrote it
+/// when this row was cut: ≤ 90° Bézier segments, middle weight
+/// `cos(θ/2)`, middle point the tangent intersection. This is the
+/// "exact curve piece" the door is meant to consume; it is test-local
+/// because the shipped copy was private and downstream (see the unit's
+/// finding 1). The skin's arcs (`sweep::segment_curve`) now let one
+/// sub-arc reach `(π/2)(1+η)` (C6); this row's chain keeps its own
+/// ≤ 90° rule, which the door accepts as it accepts any exact chain.
 fn exact_arc(
     center: Point3<f64>,
     axis: Vec3<f64>,

@@ -398,10 +398,11 @@ pub enum SessionOp {
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on a completely-unconstrained
-    /// instance (G3's fit probe). Refused typed for a mate-
-    /// constrained instance — eligibility is derived from the
-    /// document, never guessed from solver state.
+    /// Open a free-move probe gesture on the loose space `instance`'s
+    /// copy lives in (G3's fit probe, DI5). Refused typed for a copy
+    /// in the world's space, and while no evaluation that answers the
+    /// document has landed — which space a copy lives in is the
+    /// solve's answer ([`crate::display::free_move_check`]).
     BeginFreeMove {
         /// The instance to probe.
         instance: RecipeNodeId,
@@ -1244,9 +1245,7 @@ impl SessionOp {
     /// nothing to the document, and the frame stays display state keyed
     /// by the loose space it was drawn for. So
     /// [`SessionOp::CommitFreeMove`] commits nothing to the history, and
-    /// the argument below covers it as it covers the other three. (The
-    /// admission still reads "an instance no mate names" rather than a
-    /// loose space; `work/intent/free-move-admits-a-loose-space.md`.)
+    /// the argument below covers it as it covers the other three.
     ///
     /// The two drags own disjoint state. A value gesture owns a
     /// `Doc` snapshot and writes a scratch `Doc`; the free-move
@@ -1258,20 +1257,23 @@ impl SessionOp {
     /// actually lives — all three ask a display predicate about a
     /// document, and they do not all ask about the SAME document:
     ///
-    /// - the operation admits against the COMMITTED document
+    /// - the operation admits against the COMMITTED document and the
+    ///   spaces a landing read off it or off the scratch
     ///   ([`crate::display::free_move_check`], via
-    ///   [`crate::display::DisplayState::begin_free_move`]);
+    ///   [`crate::display::DisplayState::begin_free_move`] and
+    ///   [`super::DocSession::space_evaluation`]);
     /// - the view the scene draws
     ///   ([`super::DocSession::display_view`]) resolves against the
-    ///   PREVIEWED one, and so does the Properties pane, which runs
-    ///   the SAME admission test the view does
-    ///   ([`crate::display::instance_check`], which
-    ///   [`crate::display::drawn_targets`] runs first) to decide
-    ///   whether to DRAW the control the operation then decides
-    ///   whether to ACCEPT;
+    ///   PREVIEWED one; the Properties pane reads the COMMITTED one and
+    ///   runs the SAME admission test the operation does
+    ///   ([`crate::display::free_move_check`], over the same
+    ///   [`super::DocSession::space_evaluation`]) to decide whether to
+    ///   DRAW the control the operation then decides whether to
+    ///   ACCEPT;
     /// - every committed edit prunes the display state against the new
-    ///   document — a prune that DISCARDS committed probes and kills
-    ///   an in-flight free-move whose instance stopped being eligible,
+    ///   document, and again when its evaluation lands — a prune that
+    ///   DISCARDS committed frames and kills an in-flight free-move
+    ///   whose space stopped being loose,
     ///   reporting the first in [`PruneReport::superseded`] and the
     ///   second in [`PruneReport::killed_gesture`], each with the
     ///   fault that decided it, on [`OpOutcome::withdrawn`].
@@ -1284,8 +1286,20 @@ impl SessionOp {
     /// one. Every display predicate is a function of the node graph —
     /// which nodes exist, of what kind, with which inputs and which
     /// mate references — and never of a slot's expression or a
-    /// variable's value. So the previewed document and the committed
-    /// one agree on every display question, at every point of a drag.
+    /// variable's value. The free-move admission reads its spaces off
+    /// an evaluation (DI5), and those are the graph's too: pinning is
+    /// structural, which mates name which copies and which name the
+    /// world, so a landing of either document answers both. The one
+    /// space answer a value can move is a placement the evaluation
+    /// refuses ([`crate::display::AdmissionFault::NoSpace`]): admission
+    /// reads it off whichever of the two landed last, and a scratch
+    /// landing's prune acts on the graph's answers alone
+    /// ([`crate::display::DisplayState::prune_structural`]), so a
+    /// committed pin a preview overtook still lands mid-drag and a
+    /// previewed refusal discards nothing committed. So the previewed
+    /// document and the committed one agree on every display question
+    /// the graph decides, at every point of a drag; a refused placement
+    /// is said when the committed document lands, whatever refused it.
     /// Break that — let a gesture's edit change the graph — and
     /// committing a slider would take an in-flight probe away under
     /// the pointer holding it, saying nothing. The minting half is

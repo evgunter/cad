@@ -150,7 +150,7 @@ pub use evalseam::{
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
 pub use display::{
     AdmissionFault, DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn,
-    free_move_check, mates_naming,
+    free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};

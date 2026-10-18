@@ -36,6 +36,8 @@ refuses typed"). Two cases hit this:
   (`crates/editor-core/tests/e6_drive_over_a_loft_at_interval.rs`: the
   arc row still bisects to its leaf budget). Sections whose values are
   all points still loft through the lifted `f64` skin.
+  (S3 retired `ArcWeightNotAPoint`: the weight is held in `T` and
+  stops at the carrier's door, `CarrierWeightNotAPoint`, until S4/S5.)
 - **More sections than `v_degree + 1`.** The interior averaged knots
   are chord-length parameters (Book Eq. 10.8, `skin_parameters`). Over
   a wide section they are wide, and `Knots::new` refuses them as
@@ -108,8 +110,10 @@ Option A, framed as a correction rather than a permission (fork-log row
 - The sub-arc count rule moves its breakpoints off multiples of π/2 by
   a named η: an interval bracket contains the true sweep, so a
   right-angle fillet, a circle half or a bulge of 1 straddles an exact
-  breakpoint whatever the rounding. At `f64` every document arc keeps
-  its count. Form constants enter as `T::pi()`.
+  breakpoint whatever the rounding. At `f64` an arc whose sweep rounds
+  just past `k·π/2` (a quarter-circle bulge, `4·atan(tan(π/8))`) now
+  counts `k`, one fewer than before; S3's PR lists each count that
+  moved. Form constants enter as `T::pi()`.
 - The skin's compatibility step at Interval runs the homogeneous ring
   algebra (fork3's sentence, kept verbatim, becomes the general rule).
 - The stored net stays Cartesian `(P, w)`.

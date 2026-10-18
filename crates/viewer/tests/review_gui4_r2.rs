@@ -17,7 +17,7 @@
 //!   inverse-ray transform (the unit's displaced-pick rows are
 //!   translation-only, which a transposed or forward linear map would
 //!   survive).
-//! - Adversarial flows: a contradictory second mate on one pair; a
+//! - Adversarial flows: a second mate beyond the pin on one pair; a
 //!   mate landing while a free-move GESTURE is in flight; hide
 //!   surviving a mate that supersedes the same instance's probe;
 //!   save-as into a partless directory; the threaded seam resolving
@@ -204,6 +204,9 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     let tol = Tol::witness();
     let bench = asm::bench("r2rotpick", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b's world pin off: a loose space the probe moves, the frame
+    // composed so it moves the post from where its pin stood it.
+    asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -212,13 +215,15 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     // y' ∈ [0.06, 0.08]; z is unchanged.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::rotate_then_translate(
-            [0.0, 0.0, 1.0],
-            std::f64::consts::FRAC_PI_2,
-            [0.12, 0.0, 0.0],
-            common::band(),
-        )
-        .expect("a literal axis has a definite direction"),
+        frame: asm::where_b_stood(
+            Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                std::f64::consts::FRAC_PI_2,
+                [0.12, 0.0, 0.0],
+                common::band(),
+            )
+            .expect("a literal axis has a definite direction"),
+        ),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CommitFreeMove {
@@ -279,15 +284,14 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     );
 }
 
-/// **A second mate on the same pair refuses typed and is recoverable.**
-/// The first mate and its values pin post_b, so a second rest of the
-/// same faces a centimetre lower is a mate beyond the pin that
-/// contradicts it: the door admits it (it measures nothing) and the
-/// evaluation refuses post_b's bundle typed, naming both; undo takes
-/// the second off, and the assembly works again. No crash, no silent
+/// **A second mate on the same pair refuses typed and leaves the
+/// assembly working.** The first mate and its values pin post_b, so a
+/// second rest of the same faces a centimetre lower is a mate beyond
+/// the pin: the door refuses it, measuring nothing, naming post_b's
+/// bundle, and the assembly works as before. No crash, no silent
 /// success, no silent drop.
 #[test]
-fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
+fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let tol = Tol::witness();
     let bench = asm::bench("r2contra", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -326,34 +330,23 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
         values: Vec::new(),
     });
     // post_b's bundle already pins it, so the second mate is a mate
-    // beyond the pin: the evaluation refuses the bundle typed, naming
-    // the pair.
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    {
-        let (_, ev) = session.landed_pair().expect("landed");
-        let fault = match ev
-            .result(bench.post_b)
-            .and_then(|r| r.error())
-            .map(|e| &e.kind)
-        {
-            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
-            other => panic!("a mate beyond the pin refuses, got {other:?}"),
-        };
-        assert!(
+    // beyond the pin: the door refuses it typed, measuring nothing, and
+    // the assembly is as it was.
+    match outcome.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => assert!(
             matches!(
-                &fault,
-                pncad::document::MateFault::Contradictory { held, added, .. }
-                    if held.placement == bench.post_b && added.placement == bench.post_b
-                        && held != added
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, constraints, .. }
+                            if *placement == bench.post_b && constraints.len() > 1
+                    )
             ),
-            "the second mate contradicts the first: {fault:?}"
-        );
+            "the second mate is beyond the pin: {error:?}"
+        ),
+        other => panic!("the door refuses the second mate, got {other:?}"),
     }
-
-    // Undo removes the second mate; the assembly works again.
-    let outcome = session.perform(SessionOp::Undo);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after undo: {row:?}");
@@ -363,8 +356,10 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
 /// **A mate landing while a free-move GESTURE is in flight kills the
 /// gesture** (the unit's rows supersede a COMMITTED probe; the
 /// in-flight arm is `prune`'s third clause and deserves its own
-/// exercise). Afterwards the preview op refuses `NoFreeMove` — the
-/// gesture died with its instance's eligibility.
+/// exercise). The mate puts post_b in the world's space, which its
+/// landing knows, so the landing's prune kills it. Afterwards the
+/// preview op refuses `NoFreeMove` — the gesture died with its
+/// instance's eligibility.
 #[test]
 fn a_landing_mate_kills_an_in_flight_gesture() {
     let tol = Tol::witness();
@@ -390,6 +385,14 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     });
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert!(
+        session
+            .take_landed_withdrawals()
+            .iter()
+            .any(|report| report.killed_gesture.is_some()),
+        "the landing reports the gesture it killed"
+    );
     // The in-flight gesture is dead: a further preview has nothing to
     // preview into.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
@@ -434,7 +437,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     });
     session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::translation([0.02, 0.0, 0.0]),
+        frame: asm::where_b_stood(Frame::translation([0.02, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove {
         instance: bench.post_b,
@@ -466,29 +469,34 @@ fn hide_survives_the_mate_that_discards_the_probe() {
 
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the space is known at the landing, not at the edit"
+    );
+    session.pump();
+    let [superseded] = &session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate discards the probe"
+        "the mate's landing discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
-        "and the outcome carries WHY it went, not only which went — the \
+        "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
          the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().is_hidden(bench.post_b), "hide stands");
-    session.pump();
     let index = asm::index_of(&session);
     let scene = index
         .scene_for(&session.display_view())

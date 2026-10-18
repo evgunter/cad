@@ -16,14 +16,14 @@
 use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, Diagnosis, Dimension,
-    DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateRef, MateSide,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
-    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
-    StepSegmentsError, UnnamedEntity, VarName,
+    AssemblyError, CapEnd, CarriedRefusal, ContactClass, Diagnosis, Dimension, DimensionError,
+    DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
+    InterrogateError, LeverRefusal, Maintenance, MateFault, MateRef, MateSide, MeshPickError,
+    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
+    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -2304,198 +2304,47 @@ fn the_mint_arms_render_every_refusal_they_hold() {
     );
 }
 
-/// A mate-solve contradiction states WHO is at fault. Two mates that
-/// cannot both hold are named as a pair; one mate that contradicts
-/// itself is named ONCE, because "mate 6 and mate 6" reads as an indexing
-/// fault and hides the shape the payload states.
-///
-/// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
-/// is why that sentence names neither a pair nor a count: one recourse
-/// covers a repair that is the same either way.
+/// **An overconstraint names each constraint and what the bundle
+/// leaves** (FORK-S3O): one constraint as "constraint", several as
+/// "each of constraints", and the freedoms left in words, ending on
+/// [`editor_core::OVERCONSTRAINED_RECOURSE`].
 #[test]
-fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
-    let pair = MateFault::Contradictory {
-        held: mref(3),
-        added: mref(5),
-        predicate: "mate_member_translation_zero",
-        clash: Clash::Length { metres: 0.01 },
+fn an_overconstraint_names_each_constraint_and_what_the_bundle_leaves() {
+    let placement = RecipeNodeId::new(0, tagged(6));
+    let id = |k: u64| mref(k).id;
+    let one = MateFault::Overconstrained {
+        placement,
+        constraints: vec![id(3)],
+        free: 0,
     };
     assert_f6(
-        &pair,
+        &one,
         &[
-            "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
-            "a clash of 0.01 m",
-            editor_core::CONTRADICTORY_RECOURSE,
+            "fixes an equation the rest of its bundle already fixes",
+            "the bundle pins its copy",
+            editor_core::OVERCONSTRAINED_RECOURSE,
         ],
-        &["Contradictory"],
+        &["Overconstrained"],
     );
-    assert!(
-        !pair.to_string().contains("contradicts itself"),
-        "two distinct mates are a PAIR: {pair}"
-    );
-
-    let itself = MateFault::Contradictory {
-        held: mref(6),
-        added: mref(6),
-        predicate: "mate_member_rotation_identity",
-        clash: Clash::Levered(Lever::Residual {
-            value: 0.25,
-            arm: 1.0,
-        }),
+    let two = MateFault::Overconstrained {
+        placement,
+        constraints: vec![id(3), id(5)],
+        free: 1,
     };
-    assert_f6(
-        &itself,
-        &[
-            "constraint #6 of node 000000000006 contradicts itself",
-            "the relative rotation is not the identity",
-            editor_core::CONTRADICTORY_RECOURSE,
-        ],
-        &["Contradictory"],
-    );
-    assert!(
-        !itself
-            .to_string()
-            .contains("constraint #6 of node 000000000006 and constraint #6 of node 000000000006"),
-        "one mate at fault is named once: {itself}"
-    );
-}
-
-/// **A levered clash prints the product of its two halves.** The
-/// metre figure is computed from the halves the message shows, and a
-/// stored figure that could disagree with them is not representable:
-/// `Clash::Levered` holds the lever and nothing beside it.
-#[test]
-fn a_levered_clash_prints_only_a_product_that_is_the_product() {
-    let fault = MateFault::Contradictory {
-        held: mref(6),
-        added: mref(6),
-        predicate: "mate_member_rotation_identity",
-        clash: Clash::Levered(Lever::Residual {
-            value: core::f64::consts::FRAC_PI_2,
-            arm: 2.0,
-        }),
-    };
-    let shown = fault.to_string();
+    let shown = two.to_string();
     for want in [
-        "a dimensionless residual of 1.5707963267948966",
-        "on a 2 m arm",
-        "a deviation of 3.141592653589793 m",
+        "each of constraints",
+        "the bundle leaves its copy one freedom",
     ] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
-    let MateFault::Contradictory { clash, .. } = &fault else {
-        unreachable!()
-    };
-    assert_eq!(
-        clash.deviation(),
-        Some(core::f64::consts::FRAC_PI_2 * 2.0),
-        "the deviation is the product, to the bit"
-    );
-}
-
-/// **A residual clash names its pure number, says it is one, and
-/// prints the product**, for the membership margins that lever a sine,
-/// a Frobenius departure or a reach: a reader who multiplies the
-/// halves back gets the metre figure.
-#[test]
-fn a_residual_clash_prints_its_pure_number_and_the_product() {
-    let fault = MateFault::Contradictory {
-        held: mref(3),
-        added: mref(5),
-        predicate: "mate_member_rotation_identity",
-        clash: Clash::Levered(Lever::Residual {
-            value: 0.25,
-            arm: 4.0,
-        }),
-    };
-    let shown = fault.to_string();
-    for want in [
-        "constraint #3 of node 000000000003 and constraint #5 of node 000000000005 cannot both hold",
-        "the relative rotation is not the identity",
-        "a dimensionless residual of 0.25",
-        "on a 4 m arm",
-        "a deviation of 1 m",
-        editor_core::CONTRADICTORY_RECOURSE,
-    ] {
-        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    let shown = MateFault::Overconstrained {
+        placement,
+        constraints: vec![id(3), id(5)],
+        free: 3,
     }
-}
-
-/// **A non-finite clash that is not the empty set does not claim to
-/// be.** The structural refusal is the TYPE's fact (`Clash::Structural`),
-/// so a length that merely fails to be finite — a NaN, a negative
-/// infinity, an infinity — is reported as the non-measurement it is
-/// and never borrows the empty set's sentence, and a levered clash
-/// whose halves are not finite keeps its halves.
-///
-/// The exits below are every arm the type has, and each is checked
-/// to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the repair does
-/// not depend on which measurement the predicate could report, so no
-/// exit may drop it.
-#[test]
-fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
-    let empty = MateFault::Contradictory {
-        held: mref(3),
-        added: mref(5),
-        predicate: "mate_member_empty",
-        clash: Clash::Structural,
-    };
-    let shown = empty.to_string();
-    assert!(
-        shown.contains("meet in the empty set") && !shown.contains("inf"),
-        "the structural refusal has no metre figure to print: {shown:?}"
-    );
-    assert!(
-        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
-        "{shown:?}"
-    );
-
-    for (what, clash) in [
-        ("NaN", f64::NAN),
-        ("-inf", f64::NEG_INFINITY),
-        ("+inf", f64::INFINITY),
-    ] {
-        let fault = MateFault::Contradictory {
-            held: mref(3),
-            added: mref(5),
-            predicate: "mate_member_translation_zero",
-            clash: Clash::Length { metres: clash },
-        };
-        let shown = fault.to_string();
-        assert!(
-            !shown.contains("empty set"),
-            "a {what} margin under another predicate is not the empty set: {shown:?}"
-        );
-        assert!(
-            shown.contains("not a finite length"),
-            "a {what} margin says it is no measurement: {shown:?}"
-        );
-        assert!(
-            shown.contains(editor_core::CONTRADICTORY_RECOURSE),
-            "{shown:?}"
-        );
-    }
-
-    // A lever whose residual is not finite is still levered: the
-    // sentence keeps its halves and prints the product they make.
-    let levered = MateFault::Contradictory {
-        held: mref(6),
-        added: mref(6),
-        predicate: "mate_member_rotation_identity",
-        clash: Clash::Levered(Lever::Residual {
-            value: f64::INFINITY,
-            arm: 1.0,
-        }),
-    };
-    let shown = levered.to_string();
-    assert!(
-        shown.contains("a dimensionless residual of inf") && !shown.contains("empty set"),
-        "a levered clash keeps its halves whatever they are: {shown:?}"
-    );
-    assert!(
-        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
-        "{shown:?}"
-    );
+    .to_string();
+    assert!(shown.contains("leaves its copy 3 freedoms"), "{shown:?}");
 }
 
 /// **A lever refusal names the instance and says why its part's reach

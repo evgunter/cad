@@ -547,18 +547,23 @@ impl crate::spoken::Say for NodeStanding {
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match *self {
             Self::NotEvaluated { node } => write!(
                 f,
                 "{} has no result in this evaluation: the run was canceled before it \
-                 reached the node — re-evaluate the document to completion",
-                by.node(node)
+                 reached the node. {}",
+                by.node(node),
+                Recourse("re-evaluate the document to completion")
             ),
             Self::NotInDocument { node } => write!(
                 f,
-                "{} is not a node of the document this evaluation ran over — ask about \
-                 one of that document's nodes, or evaluate the document the node is in",
-                by.node(node)
+                "{} is not a node of the document this evaluation ran over. {}",
+                by.node(node),
+                Recourse(
+                    "ask about one of that document's nodes, or evaluate the document the \
+                     node is in"
+                )
             ),
             Self::Failed { node } => write!(
                 f,
@@ -2257,7 +2262,11 @@ impl crate::spoken::Say for NodeErrorKind {
                     f,
                     "profile loop {loop_}'s lane elaboration refused at step {step} on its \
                      own geometry under this binding (the f64 pass is the one whose \
-                     refusals carry numbers)"
+                     refusals carry numbers). {}",
+                    crate::sentence::Recourse(
+                        "narrow the parameter box until the profile builds across it, or move \
+                         the nominal off this binding"
+                    )
                 ),
             },
             Self::ProfileReplay { loop_, error } => {
@@ -2511,11 +2520,9 @@ impl crate::spoken::Say for NodeErrorKind {
                 crate::sentence::article(&pose.to_string())
             ),
             Self::PoseDegenerate { construction } => write!(f, "{construction}"),
-            Self::PoseScalar { var: _, source } => write!(
-                f,
-                "a scalar the pose reads did not evaluate: {source}. Recourse: define it from \
-                 values the document holds"
-            ),
+            Self::PoseScalar { var: _, source } => {
+                write!(f, "a scalar the pose reads did not evaluate: {source}")
+            }
             Self::CountOutOfRange {
                 slot,
                 count,

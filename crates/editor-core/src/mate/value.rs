@@ -14,21 +14,19 @@
 //! [`settle`] places a folded bundle's copy at its values: each spin
 //! turns the copy about `d` inside the bundle's residual, then each
 //! slide moves it, by the least translation the residual still holds,
-//! until its measure along its axis is the value. A turn the residual
-//! does not hold, or a slide whose axis the residual's translations do
-//! not reach, is a freedom the bundle's other constraints already fix
-//! ([`MateFault::NotAFreedom`] with no kind), the placement's own
-//! refusal until F's door (the named interim C-3). The values are taken
-//! in one order whatever order they are listed in (spins, then slides
-//! along `x`, `y`, `z`, each by its mate's id), so the listed order
-//! moves no bit.
+//! until its measure along its axis is the value. The bundle rule has
+//! admitted each value's freedom as one the rest of the bundle leaves,
+//! so nothing here asks whether the residual holds it. The values are
+//! taken in one order whatever order they are listed in (spins, then
+//! slides along `x`, `y`, `z`, each by its mate's id), so the listed
+//! order moves no bit.
 
 use std::collections::BTreeMap;
 
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
-use geom_core::predicate::{Band, Indeterminate};
+use geom_core::predicate::Band;
 
-use super::coset::{Arm, Coset, Subgroup, after_turn, turn_line};
+use super::coset::{Arm, Coset, Subgroup, after_turn};
 use super::solve::SolveScalar;
 use super::{Coord, MateFault, MateRef, SlideAxis};
 use crate::NodeErrorKind;
@@ -158,51 +156,40 @@ pub(crate) struct ReadValue<T> {
     pub(crate) by: T,
 }
 
-/// **A folded bundle's copy placed at its values**: `Some` the relative
-/// pose once its mates and values leave nothing free, `None` for a
-/// loose copy.
+/// **A folded bundle's copy placed at its values**: the relative pose
+/// with each value's freedom set, inside what the mates leave. The
+/// bundle rule has admitted every value's freedom
+/// (`super::solve::overconstrained`), so each is held by the residual
+/// by construction, and nothing here decides whether it is: a spin
+/// turns about the residual's own line, or about `d` through the
+/// copy's origin where every line along `d` will do; a slide moves the
+/// copy by the least translation the residual holds that moves its
+/// measure.
 ///
 /// # Errors
 ///
-/// [`MateFault::NotAFreedom`] (no kind) for a value whose turn or slide
-/// the residual does not hold, [`MateFault::NoChart`] for one whose
-/// mate has no chart, and [`MateFault::Indeterminate`] for a verdict
-/// in the band.
+/// [`MateFault::NoChart`] for a value whose mate has no chart, and
+/// [`NodeErrorKind::PoseDegenerate`] (`Chart`) where the line a slide
+/// leaves cannot be minted at the band, and [`MateFault::Indeterminate`]
+/// where its mint lands in the band.
 pub(crate) fn settle<T: SolveScalar>(
     coset: Coset<T>,
     values: &[ReadValue<T>],
     charts: &BTreeMap<ConstraintId, Option<Chart<T>>>,
     arm: Arm,
     band: Band,
-) -> Result<Option<Affine3<T>>, Box<MateFault>> {
+) -> Result<Affine3<T>, NodeErrorKind> {
     let mut m = coset.representative;
     let mut left = coset.subgroup;
-    let indeterminate = |value: MateRef| {
-        move |diag: Indeterminate| {
-            Box::new(MateFault::Indeterminate {
-                mate: value,
-                diag: Box::new(diag),
-            })
-        }
-    };
-    let not_a_freedom = |v: &ReadValue<T>| {
-        Box::new(MateFault::NotAFreedom {
-            value: v.value,
-            coord: v.coord,
-            kind: None,
-        })
-    };
     let chart = |v: &ReadValue<T>| match charts.get(&v.mate) {
         Some(Some(chart)) => Ok(*chart),
-        _ => Err(Box::new(MateFault::NoChart {
+        _ => Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
             value: v.value,
             why: super::NoChartWhy::PointRotation,
-        })),
+        }))),
     };
     // One order whatever order the values are listed in: spins, then
-    // slides along x, y and z, each by its mate's id, then by its own
-    // (two values of one freedom on one mate: the second, which the
-    // fold refuses, is the same value whichever is listed first).
+    // slides along x, y and z, each by its mate's id, then by its own.
     let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
     ordered.sort_by_key(|v| {
         let rank = match v.coord {
@@ -218,37 +205,20 @@ pub(crate) fn settle<T: SolveScalar>(
     // Spins first: every slide after them re-measures the copy's origin.
     for v in spins {
         let chart = chart(v)?;
-        let Some(line) = turn_line(left, chart.d, band, arm).map_err(indeterminate(v.value))?
-        else {
-            return Err(not_a_freedom(v));
-        };
         let by = v.by - chart.spin(&m);
         // A turn about the copy's own origin keeps its translation as it
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
-        m = match line.or(chart.line) {
+        m = match residual_turn_point(left).or(chart.line) {
             Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
             None => {
                 let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };
-        // A turn the table holds no rest of (a ball's, less one) leaves
-        // a turn free beside it: no value can pin what remains, and a
-        // second turn is not charted on it.
-        let Some(rest) = after_turn(left) else {
-            return Err(not_a_freedom(v));
-        };
-        left = rest;
+        left = after_turn(left).unwrap_or(left);
     }
-    let turns_fixed = matches!(
-        left,
-        Subgroup::PlaneTranslation { .. }
-            | Subgroup::Prismatic { .. }
-            | Subgroup::Translation
-            | Subgroup::Trivial
-    );
     let mut free = Translations::of(left);
     for v in slides {
         let chart = chart(v)?;
@@ -257,14 +227,29 @@ pub(crate) fn settle<T: SolveScalar>(
         };
         let axis = chart.axis(along);
         let gap = v.by - chart.slide(&m, axis);
-        let (shift, rest) = free
-            .slide(axis, gap, band, arm)
-            .map_err(indeterminate(v.value))?
-            .ok_or_else(|| not_a_freedom(v))?;
+        let (shift, rest) = free.slide(axis, gap, v.value, band, arm)?;
         m = Affine3::from_parts(Mat3::identity(), shift) * m;
         free = rest;
     }
-    Ok((turns_fixed && matches!(free, Translations::None)).then_some(m))
+    Ok(m)
+}
+
+/// **The line a residual's turns about its direction fix**: the
+/// residual's own for a line's or a ball's group, none for a group
+/// freeing every translation across its direction.
+fn residual_turn_point<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> {
+    match g {
+        Subgroup::Cylindrical { point, .. }
+        | Subgroup::Revolute { point, .. }
+        | Subgroup::Spherical { point } => Some(point),
+        Subgroup::Se3
+        | Subgroup::Planar { .. }
+        | Subgroup::Parallel { .. }
+        | Subgroup::Prismatic { .. }
+        | Subgroup::Translation
+        | Subgroup::PlaneTranslation { .. }
+        | Subgroup::Trivial => None,
+    }
 }
 
 /// **The translations a residual still holds**, apart from its turns:
@@ -288,48 +273,55 @@ impl<T: SolveScalar> Translations<T> {
             Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
                 Self::Along(direction)
             }
-            Subgroup::Revolute { .. }
-            | Subgroup::Spherical { .. }
-            | Subgroup::Trivial
-            | Subgroup::Empty => Self::None,
+            Subgroup::Revolute { .. } | Subgroup::Spherical { .. } | Subgroup::Trivial => {
+                Self::None
+            }
         }
     }
 
     /// **The least translation these hold that moves a measure along
-    /// `axis` by `gap`**, and the translations left that keep it: `None`
-    /// where none of these reaches `axis` (every one is perpendicular to
-    /// it). The one divisor is the share of `axis` these reach, decided
-    /// away from zero over `arm`.
-    #[allow(clippy::type_complexity)]
+    /// `axis` by `gap`**, and the translations left that keep it. The
+    /// bundle rule admitted the slide, so `axis` is one these reach: in
+    /// the plane across a normal it lies in it, along a line it is the
+    /// line.
     fn slide(
         self,
         axis: UnitVec3<T>,
         gap: T,
+        value: MateRef,
         band: Band,
         arm: Arm,
-    ) -> Result<Option<(Vec3<T>, Self)>, Indeterminate> {
+    ) -> Result<(Vec3<T>, Self), NodeErrorKind> {
         let a = axis.get();
         Ok(match self {
-            Self::Every => Some((a * gap, Self::Across(axis))),
+            Self::Every => (a * gap, Self::Across(axis)),
             Self::Across(n) => {
-                // The line the plane keeps once `a`'s measure is fixed:
-                // across `a` and `n`, none where they are parallel.
-                let Some(left) = super::coset::across(axis, n, band, arm)? else {
-                    return Ok(None);
+                // The line the plane keeps once `a`'s measure is fixed,
+                // across `a` and `n`, minted at the arm's lever.
+                let left = match super::coset::across(axis, n, band, arm) {
+                    Ok(Some(left)) => left,
+                    Ok(None) => {
+                        return Err(NodeErrorKind::PoseDegenerate {
+                            construction: crate::pose::PoseConstruction::Chart,
+                        });
+                    }
+                    Err(diag) => {
+                        return Err(NodeErrorKind::Mate(Box::new(MateFault::Indeterminate {
+                            mate: value,
+                            diag: Box::new(diag),
+                        })));
+                    }
                 };
                 // `a` with its share along `n` taken out: the plane's
                 // nearest translation to `a`, whose own measure along `a`
                 // is its squared length.
                 let reach = a - n.get() * a.dot(n.get());
-                Some((reach * (gap / reach.dot(a)), Self::Along(left)))
+                (reach * (gap / reach.dot(a)), Self::Along(left))
             }
-            Self::Along(r) => {
-                if !super::coset::reaches(axis, r, band, arm)? {
-                    return Ok(None);
-                }
-                Some((r.get() * (gap / r.get().dot(a)), Self::None))
-            }
-            Self::None => None,
+            Self::Along(r) => (r.get() * (gap / r.get().dot(a)), Self::None),
+            Self::None => unreachable!(
+                "the bundle rule admits no slide beyond the translations its residual holds"
+            ),
         })
     }
 }

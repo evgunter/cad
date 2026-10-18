@@ -2,10 +2,11 @@
 id: census-meet-reads-two-segments-on-one-line-two-metres-apart-as-coincident-lines
 kind: issue
 title: The edge-face cut's meet of two straight segments on one line, 2 m apart, escalates curve_pair_pose_offset: the level-lines pose reads each span's ends against the other's line (132 escalations left at ε = 1e-6, all pass 4)
-status: open
+status: closed
 opened: 2026-10-18
 priority: P1
 cost: M
+closed: 2026-10-18
 ---
 
 ## What
@@ -49,3 +50,25 @@ reader's own question, so the fix belongs in
 segment-vs-line proxy of
 `the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair`,
 inside `meet`.
+
+## Closed
+
+Closed by branch `restread/meet-apart-on-one-line`. The router in
+`geom_brep::curve_pair::pose` (`route`) now reads the gap between the
+two spans' projections on the first line (`curve_pair_pose_gap`) right
+after the parallel argument and before the tilt or the offset:
+projections apart by a gap that decides positive are `Pose::Apart`,
+since a meeting's two points project within the zero band of each
+other. The fix sits in the curve-pair reader, so every caller of
+`meet` has it, and it covers both arms the router serves, two lines
+and a line against a conic's extent. Pinned by
+`meet_rows::two_segments_on_one_line_two_metres_apart_meet_nowhere`
+(the census's own pair at `ε = 10⁻⁶`), and by
+`a_gap_along_one_line_past_the_band_meets_nowhere` and
+`a_line_far_along_from_a_circle_in_its_plane_meets_nowhere`. On the
+near-tangent probe's grid, `curve_pair_*` escalations go from 132 / 0 /
+12 to 0 / 0 / 0 at ε = 1e-6 / 1e-9 / 1e-12, and 97 and 12 `OK BAD`
+outcomes read `OK SOUND`. The conic arms' sibling is filed on CPAIR
+(`the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc`),
+and check 9's on RESTFRONT
+(`check-9-lines-meet-reads-each-end-against-the-other-line-before-the-overlap`).

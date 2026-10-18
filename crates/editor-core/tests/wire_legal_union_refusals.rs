@@ -95,6 +95,12 @@ fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 
         !shown.contains(BUG_FRAMING),
         "a legal document was told the kernel is broken: {shown}"
     );
+    assert!(
+        shown.ends_with(geom_core::NOT_YET_ENDING)
+            && !shown.contains(geom_core::KERNEL_DEFECT_ENDING),
+        "a legal document was not told the rule is missing, or was asked for a defect \
+         report: {shown}"
+    );
     let at_rest = |n| topo::AtRestBody::validate(body_of(&ev, n).clone(), Tol::witness()).unwrap();
     let topo::BooleanResult::Body(cut_body) =
         topo::subtract(&at_rest(joined), &at_rest(tool), Tol::witness()).expect("the cut builds")

@@ -2,11 +2,11 @@
 id: a-far-meeting-point-fails-membership-by-its-own-rounding
 kind: issue
 title: A near-parallel pair's far meeting point fails its own membership by the rounding of its coordinates — a Contradictory or an escalation for a pair that meets
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-18
 ---
 
 
@@ -72,3 +72,11 @@ escalates as the enclosure it is.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: the false Contradictory comes from the membership re-measure (mate_member_translation_in_plane), which stage 3's measure-free overconstraint retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (INTENT stage 3 F, re-read)
+
+No arm reaches it. Two planes are refused at the door whatever their
+angle, so no near-parallel pair is met, and no meeting is checked:
+the one constructed meeting of two mates' cosets, a ball's with a
+direction's (`coset::intersect`), divides by nothing, and its
+finiteness is the format's (`MateFault::PoseOutOfRange`).
