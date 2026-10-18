@@ -3528,39 +3528,97 @@ fn ee_cross_backed<T: Decide>(
     }
 }
 
-/// Where two non-parallel edge lines come closest.
+/// Where two non-parallel edge lines come closest, each quantity as
+/// `[lower, upper]`: an enclosure of the real value under the closed
+/// form's rounding.
 struct LinesClosest<T: Real> {
     /// The lines' distance there.
-    gap: Margin<T>,
+    gap: [T; 2],
     /// Per edge, `[from its start, to its end]` along it.
-    reach: [[T; 2]; 2],
+    reach: [[[T; 2]; 2]; 2],
     /// The closest point on `ea`'s line.
     point: Point3<T>,
 }
 
-/// Where two non-parallel edge lines come closest, read from the ends
-/// the two edges share on one point key, else from their starts. The
-/// closed form's rounding is the distance between its two origins over
-/// the sine of the angle, so read from a shared point it is none: the
-/// lines meet there, at zero reach along each.
+/// Where two non-parallel edge lines come closest.
+///
+/// Two edges ending on one point key meet there: each reach is exactly
+/// `0` or its edge's length, the gap exactly `0`.
+///
+/// Otherwise every quantity is read from the nearest ends the closed
+/// form allows, and charged its rounding. With `n = da × db` and `s =
+/// |n| = sin φ`, an end `p` of one edge stands `(q − p)·(d' × n)/s²`
+/// from the closest point, for any point `q` of the other line (`d'`
+/// its direction); the lines' distance is `|(q − p)·n|/s` for any `p`,
+/// `q` on them. Read from ends `e = q − p` apart, the rounding of `e`,
+/// of the unit directions and of `n` (whose cancellation leaves it
+/// `u` off in any direction, `u/s` relative) is about `|e|·u/s` in the
+/// gap, and `(|e| + |reach| + gap/s)·u/s` in a reach: `n`'s tilt leaks
+/// the off-plane part of `e` into it over `s` once more. Each reading
+/// is taken from both ends of the other edge and the two enclosures
+/// intersected, so the nearer end bounds it.
 fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T> {
-    let (i, j) = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        .into_iter()
-        .find(|&(i, j)| ea.points[i].is_some() && ea.points[i] == eb.points[j])
-        .unwrap_or((0, 0));
     let end = |e: &EdgeGeo<T>, k: usize| if k == 0 { e.p0 } else { e.p1 };
-    let (oa, ob) = (end(ea, i), end(eb, j));
-    let ncross = ea.dir.cross(eb.dir);
-    let nn = ncross.norm_squared();
-    let d = ob - oa;
-    let ta = d.cross(eb.dir).dot(ncross) / nn;
-    let tb = d.cross(ea.dir).dot(ncross) / nn;
-    let reach = |t: T, k: usize, len: T| if k == 0 { [t, len - t] } else { [len + t, -t] };
-    LinesClosest {
-        gap: Margin::levered_inv(d.dot(ncross).abs(), ncross.norm()),
-        reach: [reach(ta, i, ea.len), reach(tb, j, eb.len)],
-        point: oa + ea.dir * ta,
+    let shared = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        .into_iter()
+        .find(|&(i, j)| ea.points[i].is_some() && ea.points[i] == eb.points[j]);
+    if let Some((i, j)) = shared {
+        let exact = |x: T| [x, x];
+        let reach = |k: usize, len: T| {
+            if k == 0 {
+                [exact(T::zero()), exact(len)]
+            } else {
+                [exact(len), exact(T::zero())]
+            }
+        };
+        return LinesClosest {
+            gap: exact(T::zero()),
+            reach: [reach(i, ea.len), reach(j, eb.len)],
+            point: end(ea, i),
+        };
     }
+    let n = ea.dir.cross(eb.dir);
+    let nn = n.norm_squared();
+    let s = nn.sqrt();
+    let off_plane = |e: Vec3<T>| e.dot(n).abs() / s;
+    let gap = |e: Vec3<T>| {
+        let g = off_plane(e);
+        let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
+        [g - charge, g + charge]
+    };
+    // `x`'s ends against the line of `y`: from its start, to its end.
+    let reaches = |x: &EdgeGeo<T>, y: &EdgeGeo<T>| {
+        let w = y.dir.cross(x.dir.cross(y.dir)) / nn;
+        let from = |p: Point3<T>, flip: bool| {
+            let read = |q: Point3<T>| {
+                let e = q - p;
+                let r = if flip { -e.dot(w) } else { e.dot(w) };
+                let charge =
+                    geom_brep::rounding_charge(e.norm() + r.abs() + off_plane(e) / s) / s;
+                [r - charge, r + charge]
+            };
+            both_enclose(read(y.p0), read(y.p1))
+        };
+        [from(x.p0, false), from(x.p1, true)]
+    };
+    let ends = [(ea.p0, eb.p0), (ea.p0, eb.p1), (ea.p1, eb.p0), (ea.p1, eb.p1)];
+    let [lo, hi] = ends
+        .into_iter()
+        .map(|(p, q)| gap(q - p))
+        .reduce(both_enclose)
+        .unwrap_or_else(|| unreachable!("four ends"));
+    let reach = [reaches(ea, eb), reaches(eb, ea)];
+    let [from_lo, from_hi] = reach[0][0];
+    LinesClosest {
+        gap: [lo.max(T::zero()), hi],
+        point: ea.p0 + ea.dir * geom::mid_param(from_lo, from_hi),
+        reach,
+    }
+}
+
+/// The intersection of two enclosures of one value.
+fn both_enclose<T: Real>([lo_a, hi_a]: [T; 2], [lo_b, hi_b]: [T; 2]) -> [T; 2] {
+    [lo_a.max(lo_b), hi_a.min(hi_b)]
 }
 
 /// The crossing point of two edges whose lines meet: the one point the
@@ -3581,7 +3639,8 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 
 /// Whether two non-parallel edges cross at a point inside both their
 /// spans: the lines' closest point is strictly interior to each
-/// (`pm_census_ee_span`) and the lines meet there (`pm_census_ee_gap`).
+/// (`pm_census_ee_span`) and the lines meet there (`pm_census_ee_gap`),
+/// each read off its enclosure ([`ee_lines_closest`]).
 /// `Some(Some(margin))` a crossing, with the reading of the Zero that
 /// made the lines meet; `Some(None)` none; `None` where a decision
 /// escalated (pushed). Either reading's definite no settles the pair
@@ -3596,21 +3655,73 @@ fn crossing_reading<T: Decide>(
 ) -> Option<Option<MarginDiag>> {
     let closest = ee_lines_closest(ea, eb);
     let mut held = Vec::new();
-    for m in closest.reach.into_iter().flatten() {
-        match decide("pm_census_ee_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Some(None),
+    for reach in closest.reach.into_iter().flatten() {
+        match span_reading(reach, band) {
+            Ok(true) => {}
+            Ok(false) => return Some(None),
             Err(cause) => held.push(ValidationError::CensusEscalated { cause }),
         }
     }
-    let gap = gap_zero_reading("pm_census_ee_gap", closest.gap, band, &mut held);
-    match gap {
-        Some(None) => Some(None),
-        Some(Some(margin)) if held.is_empty() => Some(Some(margin)),
-        _ => {
+    match gap_reading(closest.gap, band) {
+        Ok(None) => Some(None),
+        Ok(Some(margin)) if held.is_empty() => Some(Some(margin)),
+        Ok(Some(_)) => {
             errors.extend(held);
             None
         }
+        Err(cause) => {
+            errors.extend(held);
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+    }
+}
+
+/// Whether a reach enclosed by `[lo, hi]` stands strictly inside its
+/// span: `Ok(true)` where `lo` reads Positive, so the reach exceeds
+/// `Kε`; `Ok(false)` where `hi` reads Zero or Negative, so the reach is
+/// at most `ε` and the closest point lies at an end or past it; else
+/// the escalation of a bound that did not decide, or of the two
+/// bounds straddling the band.
+fn span_reading<T: Decide>([lo, hi]: [T; 2], band: Band) -> Result<bool, Indeterminate> {
+    let name = "pm_census_ee_span";
+    let below = geom_core::k_stats::decide_reported(name, Margin::of(lo), band);
+    let above = geom_core::k_stats::decide_reported(name, Margin::of(hi), band);
+    match (below, above) {
+        (Ok(b), _) if b.sign == Sign::Positive => Ok(true),
+        (_, Ok(a)) if a.sign != Sign::Positive => Ok(false),
+        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(
+            "pm_census_ee_span_straddle",
+            b,
+            a,
+            band,
+        )),
+        (Err(cause), _) | (_, Err(cause)) => Err(cause),
+    }
+}
+
+/// Whether a gap enclosed by `[lo, hi]`, both nonnegative, is zero:
+/// `Ok(Some(margin))` where `hi` reads Zero, so the gap is at most
+/// `ε`, with that reading; `Ok(None)` where `lo` reads Positive, so the
+/// gap exceeds `Kε`; else the escalation of a bound that did not
+/// decide, or of the two bounds straddling the band.
+fn gap_reading<T: Decide>(
+    [lo, hi]: [T; 2],
+    band: Band,
+) -> Result<Option<MarginDiag>, Indeterminate> {
+    let name = "pm_census_ee_gap";
+    let below = geom_core::k_stats::decide_reported(name, Margin::of(lo), band);
+    let above = geom_core::k_stats::decide_reported(name, Margin::of(hi), band);
+    match (below, above) {
+        (Ok(b), _) if b.sign == Sign::Positive => Ok(None),
+        (_, Ok(a)) if a.sign == Sign::Zero => Ok(Some(a.margin)),
+        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(
+            "pm_census_ee_gap_straddle",
+            b,
+            a,
+            band,
+        )),
+        (Err(cause), _) | (_, Err(cause)) => Err(cause),
     }
 }
 

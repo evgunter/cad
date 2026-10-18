@@ -1,8 +1,9 @@
-//! **Pass 5's edge pairs never read a meeting apart**: random segment
-//! pairs built to meet, read by [`interiors_meet`] at `f64` and at
-//! [`Interval`], in both orders, at ε = 1e-6, 1e-9 and 1e-12 (K = 10).
+//! **Pass 5's edge pairs read a meeting as it is**: random segment
+//! pairs read by [`interiors_meet`] at `f64` and at [`Interval`], in
+//! both orders, at ε = 1e-6, 1e-9 and 1e-12 (K = 10), every reading
+//! asserted at both scalars.
 //!
-//! Two families, each over every angle from far inside the parallel
+//! Three families, each over every angle from far inside the parallel
 //! zero to right:
 //!
 //! - **Crossings**: two segments through one point at least `3Kε` inside
@@ -10,46 +11,36 @@
 //! - **Overlaps**: two segments along one line, overlapping by at least
 //!   `3Kε`, every point of the overlap within `ε/3` of the other edge.
 //!   A definite no is a missed overlap.
+//! - **Crossings past an end**: two segments whose lines cross beyond
+//!   one segment's start, that start standing at least `3Kε` off the
+//!   other line. A definite yes is a meeting that is not there.
 //!
-//! An escalation is never wrong here; a definite no always is. Interval
-//! is checked everywhere, and `f64` everywhere but one regime. For two
-//! edges that share no point key, the closest point of their lines is
-//! read through the closed form from their starts, `d` apart
-//! ([`ee_lines_closest`]). Its `f64` rounding in each reach is about
-//! `|d|·u / sin φ` times the few roundings of its cross, dot and
-//! division, which [`ROUNDINGS`] bounds. A crossing here stands at least
-//! `3Kε` inside both spans, so `f64` reads a definite span outside one
-//! only where that rounding reaches `4Kε`. An `f64` no is excused only
-//! there, nearly parallel crossings at the tightest band, which Interval
-//! escalates
-//! (`work/restread/the-census-crossing-lane-reads-a-pair-sharing-no-point-key-from-their-starts.md`).
-//! Excused noes are counted and logged; any other `f64` no fails.
+//! An escalation is never wrong here; a definite wrong answer always
+//! is. A crossing pair is built in rounded arithmetic, so its rounded
+//! ends may cross somewhere other than where it was aimed: each is
+//! measured exactly ([`Exact`]) and read only if the real segments
+//! still stand `2Kε` inside (or off) their mark. Those dropped are
+//! counted and logged, with the escalations.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-// Gated to the readings it checks, and the band they decide in.
+// Gated to the readings it checks, and the band and rounding charge
+// they decide with.
 test_utils::gated_to![
     "crates/topo/src/census.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/k_stats.rs",
+    "crates/geom-brep/src/implicit.rs",
 ];
 
 use super::*;
 use geom_core::Interval;
+use num_bigint::BigInt;
 use test_utils::fuzz::Rng;
 
 const K: f64 = 10.0;
-
-/// A bound on the closed form's roundings, over `|d|·u / sin φ`.
-const ROUNDINGS: f64 = 16.0;
-
-/// Whether the closed form's `f64` rounding, read from two starts `d`
-/// apart at an angle `φ`, can carry a reach `4Kε` (a crossing `3Kε`
-/// inside a span read `Kε` outside it).
-fn rounding_reaches(d: f64, phi: f64, eps: f64) -> bool {
-    ROUNDINGS * d * (f64::EPSILON / 2.0) / phi.sin() >= 4.0 * K * eps
-}
 const EPS: [f64; 3] = [1e-6, 1e-9, 1e-12];
 
 type V = [f64; 3];
@@ -90,6 +81,84 @@ fn turned(r: &mut Rng, a: V, phi: f64) -> V {
     add(a.map(|x| x * phi.cos()), w, phi.sin())
 }
 
+/// Two segments' lines measured in exact arithmetic, every `f64` an
+/// integer count of `2⁻¹⁰⁷⁴`.
+struct Exact {
+    /// `a`'s and `b`'s chord vectors, and `b`'s start from `a`'s.
+    a: [BigInt; 3],
+    b: [BigInt; 3],
+    d: [BigInt; 3],
+    /// `a × b`, and its squared norm.
+    n: [BigInt; 3],
+    nn: BigInt,
+}
+
+/// The exact value of a finite `f64`, in counts of `2⁻¹⁰⁷⁴`.
+fn big(x: f64) -> BigInt {
+    let bits = x.to_bits();
+    let exp = ((bits >> 52) & 0x7ff) as usize;
+    let frac = bits & ((1u64 << 52) - 1);
+    let (mant, shift) = if exp == 0 {
+        (frac, 0)
+    } else {
+        (frac | (1u64 << 52), exp - 1)
+    };
+    let m = BigInt::from(mant) << shift;
+    if bits >> 63 == 1 { -m } else { m }
+}
+
+fn big_sub(a: V, b: V) -> [BigInt; 3] {
+    [0, 1, 2].map(|i| big(a[i]) - big(b[i]))
+}
+
+fn big_cross(a: &[BigInt; 3], b: &[BigInt; 3]) -> [BigInt; 3] {
+    [
+        &a[1] * &b[2] - &a[2] * &b[1],
+        &a[2] * &b[0] - &a[0] * &b[2],
+        &a[0] * &b[1] - &a[1] * &b[0],
+    ]
+}
+
+fn big_dot(a: &[BigInt; 3], b: &[BigInt; 3]) -> BigInt {
+    &a[0] * &b[0] + &a[1] * &b[1] + &a[2] * &b[2]
+}
+
+/// `n / d`, `d > 0`, to a few ulps.
+fn ratio(n: &BigInt, d: &BigInt) -> f64 {
+    let shift = n.bits().max(d.bits()).saturating_sub(62);
+    let f = |x: &BigInt| i64::try_from(x >> shift).unwrap() as f64;
+    f(n) / f(d)
+}
+
+impl Exact {
+    fn of((a0, a1): (V, V), (b0, b1): (V, V)) -> Self {
+        let (a, b, d) = (big_sub(a1, a0), big_sub(b1, b0), big_sub(b0, a0));
+        let n = big_cross(&a, &b);
+        let nn = big_dot(&n, &n);
+        Self { a, b, d, n, nn }
+    }
+
+    /// Where the lines come closest, as a fraction of `a` from its
+    /// start and of `b` from its.
+    fn fractions(&self) -> (f64, f64) {
+        let ta = big_dot(&big_cross(&self.d, &self.b), &self.n);
+        let tb = big_dot(&big_cross(&self.d, &self.a), &self.n);
+        (ratio(&ta, &self.nn), ratio(&tb, &self.nn))
+    }
+
+    /// The lines' distance, in metres.
+    fn gap(&self) -> f64 {
+        let dn = big_dot(&self.d, &self.n);
+        ratio(&(&dn * &dn), &(&self.nn << 2148)).sqrt()
+    }
+
+    /// The distance of `a`'s start from `b`'s line, in metres.
+    fn start_off_b(&self) -> f64 {
+        let c = big_cross(&self.d, &self.b);
+        ratio(&big_dot(&c, &c), &(big_dot(&self.b, &self.b) << 2148)).sqrt()
+    }
+}
+
 fn meets<T: Decide>((a0, a1): (V, V), (b0, b1): (V, V), band: Band) -> Option<bool> {
     let p = |v: V| Point3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
     let mut errors = Vec::new();
@@ -101,42 +170,48 @@ fn meets<T: Decide>((a0, a1): (V, V), (b0, b1): (V, V), band: Band) -> Option<bo
     )
 }
 
-/// Each pair built by `pair` at every ε, read in both orders: the
-/// readings that said a definite no, at Interval and at `f64` (the
-/// latter except where `pair` says its rounding may reach a no), and
-/// the `f64` noes excused.
-fn falsify(
-    label: &str,
-    count: usize,
-    mut pair: impl FnMut(&mut Rng, f64) -> Option<((V, V), (V, V), bool, String)>,
-) {
+/// One built pair, or none.
+enum Built {
+    /// Two segments, and what built them.
+    Pair((V, V), (V, V), String),
+    /// The draw was empty, or its rounded ends missed their mark.
+    Dropped,
+}
+
+/// Each pair built by `pair` at every ε, read in both orders at
+/// Interval and at `f64`: the readings that said `wrong`.
+fn falsify(label: &str, count: usize, wrong: bool, mut pair: impl FnMut(&mut Rng, f64) -> Built) {
     let mut r = test_utils::fuzz::start(label);
     let mut bad = Vec::new();
     for eps in EPS {
         let band = Band::new(eps, K * eps).unwrap();
-        let mut excused = 0usize;
+        let (mut read, mut dropped, mut f64_held, mut iv_held) = (0usize, 0usize, 0usize, 0usize);
         for _ in 0..test_utils::fuzz::scaled(count) {
-            let Some((a, b, excusable, what)) = pair(&mut r, eps) else {
+            let Built::Pair(a, b, what) = pair(&mut r, eps) else {
+                dropped += 1;
                 continue;
             };
             for (p, q) in [(a, b), (b, a)] {
                 let iv = meets::<Interval>(p, q, band);
                 let f = meets::<f64>(p, q, band);
-                let f64_no = f == Some(false);
-                if iv == Some(false) || (f64_no && !excusable) {
+                read += 1;
+                f64_held += usize::from(f.is_none());
+                iv_held += usize::from(iv.is_none());
+                if iv == Some(wrong) || f == Some(wrong) {
                     bad.push(format!(
                         "ε {eps:e} {what}: f64 {f:?}, Interval {iv:?}, a {p:?}, b {q:?}"
                     ));
-                } else if f64_no {
-                    excused += 1;
                 }
             }
         }
-        println!("[fuzz] {label} at ε {eps:e}: {excused} f64 noes excused");
+        println!(
+            "[fuzz] {label} at ε {eps:e}: {read} readings, {f64_held} escalated at f64, \
+             {iv_held} at Interval; {dropped} draws dropped"
+        );
     }
     assert!(
         bad.is_empty(),
-        "{label}: {} definite noes on pairs that meet; {}:\n{}",
+        "{label}: {} readings said {wrong}; {}:\n{}",
         bad.len(),
         test_utils::fuzz::replay(),
         bad[..bad.len().min(8)].join("\n")
@@ -147,7 +222,7 @@ fn falsify(
 /// apart.**
 #[test]
 fn crossings_strictly_inside_both_spans_never_read_apart() {
-    falsify("census_segment_crossings", 500, |r, eps| {
+    falsify("census_segment_crossings", 500, false, |r, eps| {
         let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
         let a = unit(r);
         let phi = r.log_uniform(1e-14, 10f64.powf(0.2));
@@ -157,21 +232,26 @@ fn crossings_strictly_inside_both_spans_never_read_apart() {
         let lb = r.log_uniform(7.0 * m, 10f64.powf(0.5));
         let sa = r.range(m, la - m);
         let sb = r.range(m, lb - m);
-        let (a0, b0) = (add(x, a, -sa), add(x, b, -sb));
-        let d = norm(add(b0, a0, -1.0));
-        Some((
-            (a0, add(x, a, la - sa)),
-            (b0, add(x, b, lb - sb)),
-            rounding_reaches(d, phi, eps),
+        let ea = (add(x, a, -sa), add(x, a, la - sa));
+        let eb = (add(x, b, -sb), add(x, b, lb - sb));
+        let exact = Exact::of(ea, eb);
+        let (ta, tb) = exact.fractions();
+        let inside = |t: f64, len: f64| (t * len).min((1.0 - t) * len) >= 2.0 * K * eps;
+        if !(inside(ta, la) && inside(tb, lb) && exact.gap() <= eps / 2.0) {
+            return Built::Dropped;
+        }
+        Built::Pair(
+            ea,
+            eb,
             format!("φ {phi:e} la {la:e} lb {lb:e} sa {sa:e} sb {sb:e}"),
-        ))
+        )
     });
 }
 
 /// **Two segments overlapping within the zero never read apart.**
 #[test]
 fn overlaps_within_the_zero_never_read_apart() {
-    falsify("census_segment_overlaps", 500, |r, eps| {
+    falsify("census_segment_overlaps", 500, false, |r, eps| {
         let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
         let a = unit(r);
         let m = 3.0 * K * eps;
@@ -180,7 +260,7 @@ fn overlaps_within_the_zero_never_read_apart() {
         // `b` starts before `a`'s far end by at least `m`.
         let s = r.range(-lb + m, la - m);
         if la.min(s + lb) - s.max(0.0) < m {
-            return None;
+            return Built::Dropped;
         }
         // Its turn and offset keep the overlap within ε/3 of `a`.
         let psi = r.unit() * (eps / 6.0) / la.max(lb);
@@ -188,11 +268,45 @@ fn overlaps_within_the_zero_never_read_apart() {
         let off = cross(a, unit(r));
         let off = off.map(|v| v / norm(off) * (r.unit() * eps / 6.0));
         let b0 = add(add(x, a, s), off, 1.0);
-        Some((
+        Built::Pair(
             (x, add(x, a, la)),
             (b0, add(b0, b, lb)),
-            false,
             format!("ψ {psi:e} la {la:e} lb {lb:e} s {s:e}"),
-        ))
+        )
+    });
+}
+
+/// **Two segments whose lines cross past one's start, that start
+/// standing off the other line, never read as meeting.** Every point
+/// of `a` then stands at least as far off `b`'s line as its start.
+#[test]
+fn crossings_past_an_end_never_read_as_meeting() {
+    falsify("census_segment_past_an_end", 500, true, |r, eps| {
+        let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
+        let a = unit(r);
+        let phi = r.log_uniform(1e-14, 10f64.powf(0.2));
+        let b = turned(r, a, phi);
+        let m = 3.0 * K * eps;
+        // `a` starts `o` past the crossing, `o·sin φ ≥ m` off `b`'s line.
+        let far = 10f64.powf(0.5);
+        let near = m / phi.sin();
+        if near >= far {
+            return Built::Dropped;
+        }
+        let o = r.log_uniform(near, far);
+        let la = r.log_uniform(7.0 * m, far);
+        let lb = r.log_uniform(7.0 * m, far);
+        let sb = r.range(m, lb - m);
+        let ea = (add(x, a, o), add(x, a, o + la));
+        let eb = (add(x, b, -sb), add(x, b, lb - sb));
+        let exact = Exact::of(ea, eb);
+        if !(exact.fractions().0 <= 0.0 && exact.start_off_b() >= 2.0 * K * eps) {
+            return Built::Dropped;
+        }
+        Built::Pair(
+            ea,
+            eb,
+            format!("φ {phi:e} o {o:e} la {la:e} lb {lb:e} sb {sb:e}"),
+        )
     });
 }
