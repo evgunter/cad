@@ -568,14 +568,14 @@ fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {
         let (x, y) = if c.quoted() < 0.0 {
             let k = one - c;
             (
-                Vec3::new(one - a * a / k, T::zero() - a * b / k, a),
-                Vec3::new(a * b / k, b * b / k - one, T::zero() - b),
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, a),
+                Vec3::new(a * b / k, b.powi(2) / k - one, T::zero() - b),
             )
         } else {
             let k = one + c;
             (
-                Vec3::new(one - a * a / k, T::zero() - a * b / k, T::zero() - a),
-                Vec3::new(T::zero() - a * b / k, one - b * b / k, T::zero() - b),
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, T::zero() - a),
+                Vec3::new(T::zero() - a * b / k, one - b.powi(2) / k, T::zero() - b),
             )
         };
         Affine3::from_parts(Mat3::from_cols(x, y, d), origin - Point3::origin())

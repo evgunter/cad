@@ -1663,7 +1663,7 @@ fn candidate_translation<T: SolveScalar>(
             Separated::Sine(sine),
         ) => {
             let w = u.get().cross(v.get());
-            u.get() * (v.get().cross(w).dot(delta) / (sine * sine))
+            u.get() * (v.get().cross(w).dot(delta) / sine.powi(2))
         }
         // An added side that pins the translation outright: the point
         // of the held line nearest it.
