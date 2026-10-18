@@ -39,8 +39,11 @@ new `NamingError::KindMismatch`, an emission bug that ends with the
 kernel-defect ending. That arm is entered in the category map, the
 display rows, the `NAMING_ERROR` census, the refusal-concision rows and
 the Python tag table (`kind_mismatch`). `Select::fault`'s doc now names
-it. Pinned by
+it. Every door checks kind before any collision or list-shape check, so a
+row with both defects is always `KindMismatch`. Pinned by
 `names::table::carrying_door::a_kind_mismatched_seating_refuses_as_a_kind_mismatch`,
 which checks every door: `insert`, `insert_tied` (each candidate) and
-the carrying door's strict and numbered rows. The sibling (a short tie
+the carrying door's strict and numbered rows. It also checks the
+two-defect rows: a held name, an already-seated candidate, a malformed
+strict list and a one-candidate tie, each beside an edge. The sibling (a short tie
 refused as a duplicate) is `a-short-tie-refuses-as-a-duplicate-name`.
