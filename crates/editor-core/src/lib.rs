@@ -162,8 +162,8 @@ pub use mate::{
     MateFault, MateReach, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy,
     OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
     ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
-    Unobservable, Value, WorldPin, WorldRead, WorldReadFault, class_admission, head_face, head_of,
-    member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
+    Unobservable, Value, WorldRead, WorldReadFault, class_admission, head_face, head_of,
+    member_of, member_reading, pin_at, pinned_at, place_at, reference_about, stand,
     relative_freedom_components, solve_document, unobservable,
 };
 pub use mc::{

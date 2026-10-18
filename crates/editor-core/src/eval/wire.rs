@@ -574,12 +574,6 @@ where
 {
     use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
     let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
-    // The named interim's world pin places its copy where its body
-    // stands, by no map, in every lane: it reads nothing and holds no
-    // number. It stands alone, so anything beside it is already fixed.
-    if crate::mate::solve::world_pin_stands_alone(id, constraints).map_err(NodeErrorKind::Mate)? {
-        return Ok((None, Space::World));
-    }
     let b = band(tol)?;
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
@@ -592,9 +586,6 @@ where
         let mate = MateRef::new(id, c.id);
         let m = match &c.kind {
             crate::mate::ConstraintKind::Mate(m) => m,
-            crate::mate::ConstraintKind::WorldPin(_) => {
-                unreachable!("a bundle holding a world pin is folded above")
-            }
             crate::mate::ConstraintKind::Value(v) => {
                 let slot = match v.coord {
                     crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },

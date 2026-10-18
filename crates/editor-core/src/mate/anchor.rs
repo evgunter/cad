@@ -1,32 +1,27 @@
-//! **Which geometry a pin can anchor on without reading a variable**
-//! (stage 3 C, the orchestrator's anchor rule): [`pin_at`] and
-//! [`place_at`] read a copy's pose off its own geometry against numbers
-//! taken from one evaluation, so an anchor whose definition reaches a
-//! document variable is pinned where that variable's nominal put it,
-//! and a variable that moves it moves the copy back. An anchor whose
-//! definition reaches none stands where the copy's variable-free
-//! geometry stands at every value: the copy follows its variables as it
-//! did before it was pinned, and under a parameter box the map is the
-//! identity, which the snap places by no map.
+//! **Which geometry a pin can anchor on without reading a variable**:
+//! [`pin_at`], [`place_at`] and [`stand`] read a copy's pose off its own
+//! geometry against numbers taken from one evaluation, so an anchor
+//! whose definition reaches a document variable is pinned where that
+//! variable's nominal put it, and a variable that moves it moves the
+//! copy back. An anchor whose definition reaches none stands where the
+//! copy's variable-free geometry stands at every value: the copy
+//! follows its variables, and under a parameter box the map is the
+//! identity, which the snap places by no map. A root extrude's start
+//! cap lies on its profile's plane and reads nothing.
 //!
-//! [`Anchor::Fixed`] is relative to the variables an analysis moves:
-//! a free variable with a tolerance ([`crate::analysis::is_axis`]). A
-//! typed number with none is a free variable too (Q1), but a constant
-//! of every analysis (`analyzed_box`), so geometry that reads only
-//! such numbers stands still under every box. The revalue instrument
-//! moves untoleranced variables as well, so a `Fixed` anchor can still
-//! move under it. The gap is the interim's alone: until D a
-//! construction sits on a datum written in such numbers, and after D a
-//! root extrude's start cap reads nothing at all.
+//! A typed number with no tolerance is a document variable too (Q1,
+//! VR6): the revalue instrument moves it, so an anchor reading one is
+//! not fixed. Only the constant `0` reads nothing.
 //!
 //! Decided from the recipe, never by measuring: what a name's geometry
 //! reads is the node that minted it, read as narrowly as its role
-//! allows (an extrude's start cap reads its profile's frame alone),
-//! and every operation between that node and the copied body has to
-//! carry the entity's carrier and points through unmoved.
+//! allows (an extrude's start cap reads nothing), and every operation
+//! between that node and the copied body has to carry the entity's
+//! carrier and points through unmoved.
 //!
 //! [`pin_at`]: super::pin::pin_at
 //! [`place_at`]: super::pin::place_at
+//! [`stand`]: super::pin::stand
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -84,7 +79,16 @@ impl<'a> Anchors<'a> {
     /// every operation between it and the copied body one that carries
     /// a surviving entity's carrier and points through unmoved.
     pub(crate) fn fixed(&self, name: &StableName) -> bool {
-        self.carried_unmoved(name.node) && !self.minted_reads(name)
+        // A piece of an entity lies on the entity's carrier.
+        let whole = &name.path[..crate::names::role::fragment_tail_start(&name.path)];
+        match whole {
+            // An operation that carries the entity unmoved names it by
+            // the name it had: a member's, a split target's, or each of
+            // the coplanar faces it merged.
+            [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => self.fixed(of),
+            [RoleSeg::Merged(merged)] => merged.iter().any(|n| self.fixed(n)),
+            _ => self.carried_unmoved(name.node) && !self.minted_reads(name),
+        }
     }
 
     /// Every operation the copied body is built through after `minted`
@@ -131,10 +135,9 @@ impl<'a> Anchors<'a> {
     }
 
     /// Whether the node that minted `name` reads a variable that moves
-    /// it. An extrude's names read its profile's frame; all but its
-    /// start cap read the profile's own numbers; those its path names
-    /// the end of read its distance. Any other node's names read
-    /// everything the node reads.
+    /// it. An extrude's names but its start cap read the profile's own
+    /// numbers; those its path names the end of read its distance. Any
+    /// other node's names read everything the node reads.
     fn minted_reads(&self, name: &StableName) -> bool {
         let Some(node) = self.doc.node(name.node) else {
             return true;
@@ -148,9 +151,9 @@ impl<'a> Anchors<'a> {
         let Some(sketch) = self.doc.operation_of(*profile) else {
             return true;
         };
-        let Some(Node::Profile(program)) = self.doc.node(sketch) else {
+        if !matches!(self.doc.node(sketch), Some(Node::Profile(_))) {
             return self.node_reads(name.node);
-        };
+        }
         let segs = name.path.as_slice();
         let start_cap = matches!(segs, [RoleSeg::Cap(CapEnd::Start)]);
         let shape = !start_cap
@@ -170,7 +173,7 @@ impl<'a> Anchors<'a> {
         shape || depth
     }
 
-    /// Whether `node` reads a toleranced variable, through its slots or
+    /// Whether `node` reads a document variable, through its slots or
     /// its operands, transitively.
     fn node_reads(&self, node: RecipeNodeId) -> bool {
         if let Some(&known) = self.nodes.borrow().get(&node) {
@@ -187,7 +190,7 @@ impl<'a> Anchors<'a> {
     }
 
     /// Whether `var` is, or reaches through its definition, a free
-    /// variable with a tolerance.
+    /// variable.
     fn var_reads(&self, var: VarId) -> bool {
         if let Some(&known) = self.vars.borrow().get(&var) {
             return known;
@@ -195,8 +198,8 @@ impl<'a> Anchors<'a> {
         self.vars.borrow_mut().insert(var, false);
         let reads = if self.doc.var(var).is_none() {
             true
-        } else if let Some(free) = self.doc.free(var) {
-            crate::analysis::is_axis(free)
+        } else if self.doc.free(var).is_some() {
+            true
         } else if let Some(node) = self.doc.operation_of(var) {
             self.node_reads(node)
         } else {

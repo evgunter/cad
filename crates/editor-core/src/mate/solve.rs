@@ -476,8 +476,8 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         for input in doc.upstream_of(id, node) {
             couple(id, input);
         }
-        // A world read is inside the mate and reads no variable, and a
-        // world pin reads nothing, so the world is coupled here.
+        // A world read is inside the mate and reads no variable, so the
+        // world is coupled here.
         let pinned =
             bundle_of(node).is_some_and(|bundle| bundle.iter().any(super::Constraint::reads_world));
         if pinned {
@@ -875,41 +875,6 @@ pub(crate) fn admit_mate<P>(
     admit_class(mate, data.class)
 }
 
-/// **The named interim's world pin stands alone** ([`super::WorldPin`]):
-/// a bundle holding one holds no mate or value. Answers whether
-/// `bundle` holds a world pin, and refuses a bundle holding one beside
-/// any other constraint ([`MateFault::Overconstrained`], naming every
-/// constraint beside the pin: the pin already fixes the copy). Two
-/// world pins say one thing, as a replayed log may write. The one
-/// reading of the rule: the edit doors (`AddConstraint`, an inserted
-/// placement), the load door and the fold each ask it of the whole
-/// bundle.
-///
-/// # Errors
-///
-/// [`MateFault::Overconstrained`] naming the constraints beside the pin.
-pub(crate) fn world_pin_stands_alone(
-    placement: RecipeNodeId,
-    bundle: &[super::Constraint],
-) -> Result<bool, Box<MateFault>> {
-    if !bundle.iter().any(|c| c.world_pin().is_some()) {
-        return Ok(false);
-    }
-    let beside: Vec<_> = bundle
-        .iter()
-        .filter(|c| c.world_pin().is_none())
-        .map(|c| c.id)
-        .collect();
-    if beside.is_empty() {
-        Ok(true)
-    } else {
-        Err(Box::new(MateFault::Overconstrained {
-            placement,
-            constraints: beside,
-            held: Subgroup::Trivial,
-        }))
-    }
-}
 
 /// **The body a mate's target pose is charted on** (ruling C-1): the
 /// placement whose copy every read of `to` reaches — through a

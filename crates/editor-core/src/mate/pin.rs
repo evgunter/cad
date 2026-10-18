@@ -14,9 +14,9 @@
 //! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a loose
 //! copy in silence.
 //!
-//! A copy standing where its body stands is pinned by the named
-//! interim's world pin ([`crate::WorldPin::Identity`]), which reads
-//! nothing; `pin_at` is the pin of a pose off the identity — inline's
+//! A copy standing where its body stands is placed by [`stand`]: a
+//! plane mate on a face no variable reaches and the constant `0` on its
+//! freedoms. `pin_at` is the pin of a pose off the identity — inline's
 //! copy at a moved landing, and migration, tests and demos — not an
 //! authoring gesture. The authoring gesture is [`place_at`]: "place this copy
 //! at `P`" writes a plane mate on the copy's first planar face to the
@@ -562,5 +562,82 @@ pub fn place_at(
         values,
         by: PlacedBy::PlanarFace,
         anchor,
+    })
+}
+
+/// **A copy standing where its body stands** (D10: a body has no
+/// location): a plane mate on the copy's first planar face by id whose
+/// definition reaches no document variable ([`super::anchor`]) — an
+/// extrude's start cap, which lies on its profile's plane — to the
+/// world plane it lies in, and the constant `0` on the three freedoms
+/// the mate leaves, which says the copy's own coordinates agree with
+/// the world's. The copy side carries a `Flip` where the face looks
+/// down its own `z`, so the mate's direction is the world's `+z` and no
+/// move is written on the world side.
+///
+/// A copy whose every planar face reads a variable is placed by the
+/// gesture at the identity ([`place_at`], [`Anchor::Varying`]): its
+/// numbers are its anchor's nominal, which the report names.
+///
+/// # Errors
+///
+/// [`PinRefusal`], as [`place_at`]'s.
+pub fn stand(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let anchors = super::anchor::Anchors::of(doc, node);
+    let on_its_plane = solid.faces().find_map(|(face, _)| {
+        let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+        if kind != geom::SurfaceKind::Plane {
+            return None;
+        }
+        let name = table.name_of(&EntityRef {
+            body: 0,
+            key: EntityKey::Face(face),
+        })?;
+        if !anchors.fixed(name) {
+            return None;
+        }
+        let at = topo::readback::face_pose(&solid, face).ok()?;
+        let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+        // A face no variable reaches is built from constants alone, so
+        // it lies on its body's own `xy` exactly or not at all.
+        let origin = at.origin - geom_core::linalg::Point3::origin();
+        let on_xy = [origin.x, origin.y, origin.z, normal.x, normal.y]
+            .into_iter()
+            .all(|c| c == 0.0);
+        on_xy.then(|| (name.clone(), normal.z < 0.0))
+    });
+    let Some((face, down)) = on_its_plane else {
+        return place_at(doc, body, &Frame::IDENTITY, opts, tol);
+    };
+    let plane = Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::select(body.clone(), vec![face]),
+    }));
+    let on = if down {
+        Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(plane),
+        }))
+    } else {
+        plane
+    };
+    let zero = |coord, dim| (coord, Formula::zero(dim));
+    Ok(Placed {
+        mate: Mate {
+            on,
+            to: Target::World(WorldRead::through(PoseRole::Xy)),
+            class: super::ContactClass::Rest,
+        },
+        values: vec![
+            zero(super::Coord::Slide(super::SlideAxis::X), Dimension::Length),
+            zero(super::Coord::Slide(super::SlideAxis::Y), Dimension::Length),
+            zero(super::Coord::Spin, Dimension::Angle),
+        ],
+        by: PlacedBy::PlanarFace,
+        anchor: Anchor::Fixed,
     })
 }

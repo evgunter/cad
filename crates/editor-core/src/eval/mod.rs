@@ -3654,10 +3654,6 @@ fn spaces_of<T: Decide>(
                             .map_or(Space::World, |root| Space::Loose { root })
                     };
                 match crate::mate::solve::bundle_of(node) {
-                    // A world pin places its copy in the world.
-                    Some(bundle) if bundle.iter().any(|c| c.world_pin().is_some()) => {
-                        Some(Space::World)
-                    }
                     Some(bundle) => {
                         let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
                         Some(match mates.next() {
@@ -4755,12 +4751,12 @@ mod tag {
             PART = 2,
             READ = 3,
         }
-        /// What a constraint states: a mate, a value, or the identity
-        /// world pin ([`crate::mate::ConstraintKind`]).
+        /// What a constraint states: a mate or a value
+        /// ([`crate::mate::ConstraintKind`]).
         constraint_kind {
             MATE = 1,
             VALUE = 2,
-            WORLD_PIN_IDENTITY = 3,
+            // 3 was the retired world pin's.
         }
         /// Which freedom a value sets ([`crate::mate::Coord`]).
         value_coord {
@@ -6108,10 +6104,6 @@ fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
                     Coord::Slide(SlideAxis::Z) => tag::value_coord::SLIDE_Z,
                     Coord::Spin => tag::value_coord::SPIN,
                 });
-                continue;
-            }
-            crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity) => {
-                h.write_tag(tag::constraint_kind::WORLD_PIN_IDENTITY);
                 continue;
             }
         };

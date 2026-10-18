@@ -575,19 +575,6 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
-    /// **Pin a copy where its body stands** (stage 3 C's named interim,
-    /// [`crate::WorldPin::Identity`]): a world pin with no read and no
-    /// number, placing the copy at the identity of the world's
-    /// coordinates in every lane. Its id is minted as
-    /// [`DocEdit::AddConstraint`]'s is.
-    ///
-    /// Refuses what [`DocEdit::AddConstraint`] refuses of its
-    /// placement, and a bundle holding anything else
-    /// ([`crate::MateFault::Overconstrained`]): the pin stands alone.
-    PinWhereItStands {
-        /// The placement.
-        placement: RecipeNodeId,
-    },
     /// **Remove a constraint from a placement**: the bundle without it.
     /// What it pinned is recomputed from what remains — a copy whose
     /// bundle no longer pins it is a loose copy, never a refusal.
@@ -656,7 +643,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **The edits removing the constraint `at` as one action** (ruling
     /// C-2): for a mate, each value naming it in bundle order and then
     /// the mate, since a mate goes only once no value names it
-    /// ([`EditError::MateNamedByValue`]); for a value or a world pin,
+    /// ([`EditError::MateNamedByValue`]); for a value,
     /// its own removal. Empty where `at` names no constraint `doc`
     /// holds. The one spelling of the rule every façade's "remove"
     /// applies through a [`crate::Recording`].
@@ -722,9 +709,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::InsertNode { node, .. } => {
                 crate::mate::solve::bundle_of(&**node).is_some_and(|bundle| !bundle.is_empty())
             }
-            Self::AddConstraint { .. } | Self::AddValue { .. } | Self::PinWhereItStands { .. } => {
-                true
-            }
+            Self::AddConstraint { .. } | Self::AddValue { .. } => true,
             Self::SetParam { slot, .. } => {
                 matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
             }
@@ -6469,38 +6454,9 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         admit_written_constraint(new, id, c, k, tol, reach)?;
     }
     check_acyclic(new)?;
-    // Last, the bundle's make-up, as `add_constraint` asks it: a world
-    // pin stands alone. Every constraint's own admission is the
-    // recipe's (above); what the fold decides of the bundle needs the
-    // poses' values and is the placement's evaluation fault (C-3).
-    if !minted.is_empty() {
-        admit_bundle_make_up(new, id)?;
-    }
     Ok((id, fresh, outputs, minted))
 }
 
-/// **A placement's bundle as a whole, at the edit door**: a world pin
-/// stands alone ([`crate::mate::solve::world_pin_stands_alone`]), asked
-/// by every edit that writes a constraint into a bundle.
-fn admit_bundle_make_up<P: crate::ProfilePayload>(
-    new: &Doc<P>,
-    placement: RecipeNodeId,
-) -> Result<(), EditError> {
-    let Some(bundle) = new
-        .nodes
-        .get(&placement)
-        .and_then(crate::mate::solve::bundle_of)
-    else {
-        return Ok(());
-    };
-    crate::mate::solve::world_pin_stands_alone(placement, bundle)
-        .map(|_| ())
-        .map_err(|fault| EditError::MateRefused {
-            node: new.spoken(placement),
-            held: crate::spoken::held_by(&*fault, new),
-            fault,
-        })
-}
 
 /// A placement's bundle, writable; `None` for a node that is no
 /// placement.
@@ -6578,10 +6534,6 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     // mate of that copy, which is the more specific refusal.
     admit_written_constraint(new, placement, id, k, tol, reach)?;
     check_acyclic(new)?;
-    // Last, the bundle's make-up: a world pin stands alone, so a
-    // constraint beside one refuses as the bundle already fixing its
-    // copy.
-    admit_bundle_make_up(new, placement)?;
     Ok((id, fresh))
 }
 
@@ -6641,7 +6593,6 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
         crate::mate::ConstraintKind::Value(value) => {
             crate::mate::solve::admit_value(new, at, bundle, value)
         }
-        crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
     };
     admitted.map_err(|fault| EditError::MateRefused {
         node: new.spoken(placement),
@@ -7483,18 +7434,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         } => {
             let kind = crate::mate::ConstraintKind::Value((**value).clone());
             let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
-            EditRecord {
-                minted: None,
-                minted_constraints: vec![id],
-                minted_var: None,
-                structural: true,
-                fresh,
-                outputs: Vec::new(),
-            }
-        }
-        DocEdit::PinWhereItStands { placement } => {
-            let kind = crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity);
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, &[], tol, reach)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],

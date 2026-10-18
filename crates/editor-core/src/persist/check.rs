@@ -1179,8 +1179,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // door lowers.
         | DocEdit::AddConstraint { .. }
         | DocEdit::AddValue { .. }
-        // A world pin holds no number.
-        | DocEdit::PinWhereItStands { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
         // A label is text.
@@ -2073,7 +2071,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 crate::mate::ConstraintKind::Value(value) => {
                     crate::mate::solve::admit_value(doc, at, bundle, value)
                 }
-                crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
             };
             if let Err(fault) = admitted {
                 return Err(SnapshotError::MateRefused {
@@ -2082,16 +2079,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     fault,
                 });
             }
-        }
-        if let Err(fault) = crate::mate::solve::world_pin_stands_alone(id, bundle) {
-            let crate::MateFault::Overconstrained { constraints, .. } = &*fault else {
-                unreachable!("a bundle beside a world pin is overconstrained")
-            };
-            return Err(SnapshotError::MateRefused {
-                node: doc.spoken(id),
-                constraint: constraints[0],
-                fault,
-            });
         }
     }
     // Every `StableName` the document holds, in ONE pass over the
