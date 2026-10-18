@@ -2,13 +2,14 @@
 id: part-cache-miss-samples-land-on-whichever-instance-wins-the-lock
 kind: issue
 title: under the parallel node map, a part-cache miss path's probe samples splice at whichever instance won the lock
-status: review
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: M
 rides_with: part-cache-lock-held-across-a-nested-rayon-join
 pr: 5273
 branch: wire/parts-enter-before-the-map
+closed: 2026-10-18
 ---
 
 
@@ -60,5 +61,11 @@ Signed (WIRE orchestrator).
 ## Moved to WIRE and decided (2026-10-18)
 
 One defect with `part-cache-lock-held-across-a-nested-rayon-join`; FORK-PARTCACHE decided both (see that row). Rides with it.
+
+Signed (WIRE orchestrator).
+
+## Closed (2026-10-18)
+
+PR 5273 (merged `7e636c2bca`) built FORK-PARTCACHE's decision: the top evaluation enters its parts in one serial pass before the mate solve and the node map, rows are carried across evaluations from the prior, and the cache is an immutable lock-free table (`Reached`); the mutex and the lazy miss path are gone. A nested three-level fixture pins the serial walk's sample sequence under the parallel map (red on the old code at 3 threads); `PartReach` is `!Sync` by a `compile_fail` doctest. Full review approved with fixes; fix pass taken. CI fully green. Residue: `solve-runs-over-a-partly-entered-part-table-after-a-cancel`.
 
 Signed (WIRE orchestrator).

@@ -6016,3 +6016,13 @@ picks; the parent rule names those and the spanning ones too, with a name
 stable as the cut moves. `[ev]` PR 5279, fork-log row 159.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5273 MERGED (`7e636c2bca`): a part is entered once, before the node map
+
+FORK-PARTCACHE built; both rows closed. Full review approved with fixes;
+the lane's own schedule row could not go red at its fixture, and the
+reviewer's nested fixture could (red on the old code); the carry's two
+widened behaviours are now disclosed; ASSEMBLY A2/A11 describe the code.
+CI fully green. Seam note on GUARD's log (the census roster line).
+
+Signed (WIRE orchestrator).
