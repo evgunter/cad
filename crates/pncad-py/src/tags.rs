@@ -1054,13 +1054,12 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — OVERCONSTRAINED, an out-of-range pose and a
-        // dangling head carry different recourses, so a caller
+        // the root invariants do — an overconstrained bundle, a lever
+        // that cannot be formed and a pose that did not evaluate carry
+        // different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         C::MateClassNotAdmitted => "mate_class_not_admitted",
-        C::MateIndeterminate => "mate_indeterminate",
-        C::MatePoseOutOfRange => "mate_pose_out_of_range",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -1710,7 +1709,6 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
-        SkinError::IncompatibleAtEnclosure { .. } => "incompatible_at_enclosure",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
@@ -1779,7 +1777,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
-        NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",

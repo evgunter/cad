@@ -3828,8 +3828,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
-    "MateFault::Indeterminate": "MateFault.variant",
-    "MateFault::PoseOutOfRange": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::TargetsDiffer": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",

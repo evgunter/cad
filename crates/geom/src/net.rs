@@ -275,15 +275,18 @@ pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
     let mut c_max = T::zero();
     let mut bwp = T::zero();
     let mut bw = T::zero();
-    let mut w_min = T::from_f64(f64::INFINITY);
+    // Seeded by the first weight, not by `+∞`, which is no value at
+    // `Interval` (`from_f64` poisons it) and would refuse every bound.
+    let mut w_min: Option<T> = None;
     for (i, pt) in orig_control.iter().enumerate() {
         c_max = c_max.max(P::norm(*pt - origin));
         // Indexing justified: shared net shape (fn docs).
         let (rp, rw) = (re_control[i], re_weights[i]);
         bw = bw.max((orig_weights[i] - rw).abs());
-        w_min = w_min.min(rw);
+        w_min = Some(w_min.map_or(rw, |m| m.min(rw)));
         let d = (*pt - origin) * orig_weights[i] - (rp - origin) * rw;
         bwp = bwp.max(P::norm(d));
     }
-    (c_max * bw + bwp) * (T::one() / w_min)
+    // An empty net perturbs nothing.
+    w_min.map_or_else(T::zero, |w_min| (c_max * bw + bwp) * (T::one() / w_min))
 }
