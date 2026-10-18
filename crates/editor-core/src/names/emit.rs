@@ -608,7 +608,10 @@ pub(crate) enum Category {
 }
 
 impl Category {
-    /// The sentence a refusal of this category opens with.
+    /// The sentence a refusal of this category opens with: each arm's
+    /// `Display` writes it by hand, and the framing test holds the two
+    /// equal.
+    #[cfg(test)]
     pub(crate) fn framing(self) -> &'static str {
         match self {
             Self::Emission => EMISSION_FRAMING,

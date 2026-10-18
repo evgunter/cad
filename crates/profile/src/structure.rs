@@ -971,8 +971,7 @@ impl core::fmt::Display for StructureRefusal {
                 let levers = format!("{NARROW_THE_BOX} and try again, or move the geometry");
                 write!(
                     f,
-                    "{} cannot be re-verified at this scalar, so the structure stays \
-                     unconfirmed: {}",
+                    "{} cannot be re-verified at this scalar: {}",
                     self.decision,
                     source.under(&levers)
                 )
