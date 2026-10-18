@@ -157,7 +157,9 @@ const RIGID_SLACK: f64 = 1e-9;
 /// to know which sentences it is a claim about. The admission tests
 /// answer this enum rather than [`DisplayFault`], and [`Withdrawn`]
 /// stores what they answer, so the sentences the claim ranges over
-/// are these seven and an eighth cannot arrive without an arm here. The
+/// are these arms' and a new one cannot arrive without an arm here, or
+/// a guard on one (`MovedSpace` speaks two, by whether the copy left
+/// into a space of its own), each sampled by the census. The
 /// claim itself is then a census over a closed set, held by
 /// `a_withdrawn_cause_never_carries_the_list_mark` in
 /// `crates/viewer/tests/frame_policy.rs`.

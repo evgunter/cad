@@ -390,6 +390,12 @@ fn every_cause() -> Vec<AdmissionFault> {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
             into: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
         },
+        // The arm's second sentence, for a copy that left into a space
+        // of its own (`into` the copy itself).
+        AdmissionFault::MovedSpace {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+        },
         AdmissionFault::FusedGeometry {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
             body: SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
@@ -414,9 +420,11 @@ fn every_cause() -> Vec<AdmissionFault> {
 ///
 /// What is held instead is the POPULATION. The admission tests answer
 /// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
-/// the sentences this claim ranges over are exactly these seven — the
+/// the sentences this claim ranges over are exactly these arms' — the
 /// compiler's census, `cause_ordinal` being exhaustive and the
-/// ordinals having to run from 0 with no hole — and this row is the
+/// ordinals having to run from 0 with no hole, with one sample more
+/// for each sentence an arm chooses by a guard (`MovedSpace`'s two) —
+/// and this row is the
 /// claim over it. Before the narrowing the field was the whole of
 /// `DisplayFault`, where `NonRigidFrame` writes a `LIST_SEPARATOR`
 /// inside one sentence: the property was true only because neither
