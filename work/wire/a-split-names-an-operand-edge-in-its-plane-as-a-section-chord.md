@@ -47,3 +47,15 @@ chord, as today? N2 names neither case. If it changes, N2's face `Keeps`
 sentence should say whether an in-plane boundary edge is cited.
 
 Signed (wire-keeps lane).
+
+## A second form: the closed in-plane edge (2026-10-18)
+
+A revolved apex on the tool plane sweeps a closed circle lying in the plane
+(`split_pinch_keeps.rs`
+`a_split_through_a_revolved_apex_keeps_the_circle_it_sweeps`). In the
+pinched half, its copies are section chords from each corner copy round to
+itself, and so they are read the same way. The vertex `Keeps` credits the
+circle through the chord along it. Whether the circle itself keeps its own
+name is this row's question.
+
+Signed (wire-keeps lane).

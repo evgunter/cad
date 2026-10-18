@@ -156,9 +156,11 @@ document lints it as an `unproven-coincidence`. Row:
 rows, and
 a transversal cut none.
 
-A document cannot yet reach a pinch split at all: the split's naming
-refuses the two tip copies as one name
-(`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+A document reaches a pinch split: the split names the two tip copies
+apart by `Keeps` (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`),
+and `crates/editor-core/tests/coincidence_door.rs`
+`a_split_through_a_pinch_records_one_row_per_pinched_vertex` reads the
+pinch's rows through it.
 
 What is left here is the "still owed" list above, which D10 does not
 change: (1) the δ = 5e-10 arm refusing in kernel-defect voice at the
