@@ -874,20 +874,16 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
         tol,
     );
     let doc_with_both = {
-        let (with_first, first) = common::edited(
+        let (with_first, first) = common::placed_read(
             &doc,
-            pncad::document::DocEdit::place_in_world(
-                pncad::document::Operand::output(split, 0),
-                None,
-            ),
+            pncad::document::Operand::output(split, 0),
+            &pncad::document::EvalOptions::default(),
             tol,
         );
-        let (with_both, second) = common::edited(
+        let (with_both, second) = common::placed_read(
             &with_first,
-            pncad::document::DocEdit::place_in_world(
-                pncad::document::Operand::output(split, 1),
-                None,
-            ),
+            pncad::document::Operand::output(split, 1),
+            &pncad::document::EvalOptions::default(),
             tol,
         );
         (with_both, [first, second])
@@ -910,8 +906,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
         .sum();
     let index = plate_index(&session);
     let mut tools = Tools::new();
-    for (half, copy) in copies.into_iter().enumerate() {
-        let node = copy.expect("a placement mints its node");
+    for (half, node) in copies.into_iter().enumerate() {
         let drawn = index.edges_in(node, 0).len();
         assert!(drawn > 0, "the split's half {half} is drawn");
         assert!(

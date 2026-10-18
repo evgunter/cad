@@ -16,7 +16,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
     apply,
 };
-use fixture::{fname, insert, len, run, scl, step, wall};
+use fixture::{insert, len, run, scl, step};
 use geom_core::{Sign, Tol};
 use std::collections::BTreeSet;
 
@@ -181,25 +181,33 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
 }
 
 /// A document holding a fillet whose selection was rebound onto a
-/// node inserted after the fillet, and that node's wall name before
-/// the rebind. A selection is a frozen name with no document-order
-/// rule, so the rebind is admitted and the reference points forward.
+/// node inserted after the fillet, and the rim edge it read before the
+/// rebind. A selection is a frozen name with no document-order rule,
+/// so the rebind is admitted and the reference points forward. The
+/// document evaluates once rebound back: the split pins its instance
+/// over the part's own geometry, which a part that does not build has
+/// none of.
 fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
     let doc = ProfileDoc::empty_derived("recourse_split_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let wb = wall(&doc, b, 0);
+    let rim = |doc: &ProfileDoc, node| {
+        fixture::rim_edge(
+            node,
+            editor_core::CapEnd::End,
+            fixture::piece(doc, node, 0, 0),
+        )
+    };
+    let ra = rim(&doc, a);
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
             radius: len(0.1),
-            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
+            selection: editor_core::Operand::select(a, vec![ra.clone()]),
         },
     );
     let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let wc = wall(&doc, c, 0);
-    let (from, to) = (fname(b, wb), fname(c, wc));
+    let (from, to) = (ra, rim(&doc, c));
     let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,

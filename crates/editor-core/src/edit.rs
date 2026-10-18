@@ -2,13 +2,9 @@
 //!
 //! `apply` returns a NEW document value; the input is untouched.
 //! Undo/redo is keeping prior values — no edit destroys history at
-//! this layer (spec D2). `apply` is pure over the document AND the
-//! reach it is handed ([`crate::mate::MateReach`]), which it asks for
-//! one decision only: the clocking rider of a mate being inserted,
-//! levered over the mated parts' own extent. No edit records a frame
-//! (A11 (2)), so replay is the edits alone, applied with no reach
-//! ([`apply_replayed`]): pure over the log (spec D7), and never a
-//! solve.
+//! this layer (spec D2). No edit records a frame (A11 (2)), so replay
+//! is the edits alone ([`apply_replayed`]): pure over the log (spec
+//! D7), and never a solve.
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
@@ -571,6 +567,38 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
+    /// **Add a value to a placement** (ruling C-2): one freedom a mate
+    /// of its bundle leaves, set to a number. Its id is minted as
+    /// [`DocEdit::AddConstraint`]'s is.
+    ///
+    /// Refuses what [`DocEdit::AddConstraint`] refuses of its placement,
+    /// a mate the bundle does not hold
+    /// ([`crate::MateFault::ValueNamesNoMate`]), a freedom the mate's
+    /// kind does not leave ([`crate::MateFault::NotAFreedom`]) or leaves
+    /// with no chart ([`crate::MateFault::NoChart`]), and a number of
+    /// another dimension.
+    AddValue {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The value, as authored.
+        value: Box<crate::mate::Value<Formula>>,
+        /// The edit's fresh table (VR6), as [`DocEdit::InsertNode`]'s.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<FreshEntry>,
+    },
+    /// **Pin a copy where its body stands** (stage 3 C's named interim,
+    /// [`crate::WorldPin::Identity`]): a world pin with no read and no
+    /// number, placing the copy at the identity of the world's
+    /// coordinates in every lane. Its id is minted as
+    /// [`DocEdit::AddConstraint`]'s is.
+    ///
+    /// Refuses what [`DocEdit::AddConstraint`] refuses of its
+    /// placement, and a bundle holding anything else
+    /// ([`crate::MateFault::Overconstrained`]): the pin stands alone.
+    PinWhereItStands {
+        /// The placement.
+        placement: RecipeNodeId,
+    },
     /// **Remove a constraint from a placement**: the bundle without it.
     /// What it pinned is recomputed from what remains — a copy whose
     /// bundle no longer pins it is a loose copy, never a refusal.
@@ -636,6 +664,36 @@ pub enum DocEdit<P: crate::ProfilePayload> {
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **The edits removing the constraint `at` as one action** (ruling
+    /// C-2): for a mate, each value naming it in bundle order and then
+    /// the mate, since a mate goes only once no value names it
+    /// ([`EditError::MateNamedByValue`]); for a value or a world pin,
+    /// its own removal. Empty where `at` names no constraint `doc`
+    /// holds. The one spelling of the rule every façade's "remove"
+    /// applies through a [`crate::Recording`].
+    #[must_use]
+    pub fn removing(doc: &Doc<P>, at: crate::mate::MateRef) -> Vec<Self> {
+        let Some(bundle) = doc
+            .node(at.placement)
+            .and_then(crate::mate::solve::bundle_of)
+        else {
+            return Vec::new();
+        };
+        let Some(target) = bundle.iter().find(|c| c.id == at.id) else {
+            return Vec::new();
+        };
+        let named = bundle
+            .iter()
+            .filter(|c| target.mate().is_some() && c.value().is_some_and(|v| v.mate == at.id));
+        named
+            .chain(std::iter::once(target))
+            .map(|c| Self::RemoveConstraint {
+                placement: at.placement,
+                constraint: c.id,
+            })
+            .collect()
+    }
+
     /// **One copy of each of `shapes`, placed by `constraints`** (D10):
     /// the insert of a [`Node::Place`] holding the bundle, each
     /// constraint's id minted by the insert in bundle order. Python's
@@ -650,44 +708,21 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
                 shapes,
                 constraints: constraints
                     .into_iter()
-                    .map(|mate| crate::mate::Constraint {
-                        id: placeholder,
-                        mate,
-                    })
+                    .map(|mate| crate::mate::Constraint::of_mate(placeholder, mate))
                     .collect(),
             }),
             fresh: Vec::new(),
         }
     }
 
-    /// **One copy of `body` pinned to the world at `pose`**: a
-    /// [`DocEdit::place`] of the body by one coincidence of its own
-    /// frame with the world's, at `pose` in the world (the identity
-    /// when `None`).
-    pub fn place_in_world(
-        body: impl Into<crate::BodyRead<Formula>>,
-        pose: Option<crate::placement::Placement<Formula>>,
-    ) -> Self {
-        Self::place(
-            vec![body.into()],
-            vec![crate::mate::Mate::world_pin(
-                pose.unwrap_or(crate::placement::Placement::IDENTITY),
-            )],
-        )
-    }
-
-    /// **Whether this edit writes a constraint's alignment datum** —
-    /// the frames, the primitive, the sense and the rider the solve's
-    /// per-constraint admission decides on. Three edits do, and each
-    /// asks the admission of what it wrote: the insert of a placement
-    /// holding constraints, an `AddConstraint`, and a slot edit
-    /// (`SetParam`, `SetExpression`) addressed at one of a constraint
-    /// side's frame-offset steps ([`SlotId::MateFrameStep`]). A `Rebind` moves a side's
-    /// NAME and a slot edit at a side ([`crate::OperandSlot::Side`]) its
-    /// read, never the datum, and what either strands is N5's — the
-    /// solve's at evaluation; a
-    /// document parameter an offset reads moves a STATE, which is the
-    /// solve's at evaluation too.
+    /// **Whether this edit writes a constraint** — what the per-
+    /// constraint admission decides on: its poses' kinds, its world
+    /// read, its class. Three edits do, and each asks the admission of
+    /// what it wrote: the insert of a placement holding constraints, an
+    /// `AddConstraint`, and a re-point at one of a mate's poses
+    /// ([`crate::OperandSlot::Side`]). A slot edit at a world read's
+    /// scalar moves a number, never a kind, and a `Rebind` moves a
+    /// name; what either strands is the fold's at evaluation.
     ///
     /// **Exhaustive, with no wildcard arm**: an arm added without an
     /// answer here stops the crate compiling rather than writing a
@@ -698,9 +733,13 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::InsertNode { node, .. } => {
                 crate::mate::solve::bundle_of(&**node).is_some_and(|bundle| !bundle.is_empty())
             }
-            Self::AddConstraint { .. } => true,
-            Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
-            Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
+            Self::AddConstraint { .. } | Self::AddValue { .. } | Self::PinWhereItStands { .. } => {
+                true
+            }
+            Self::SetParam { slot, .. } => {
+                matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
+            }
+            Self::SetExpression { .. } => false,
             // A reshaping rewrites no name and never touches a datum;
             // a side whose piece it stops drawing is N5's, the solve's
             // at evaluation.
@@ -1558,12 +1597,26 @@ fn mint_selection<P: crate::ProfilePayload>(
         }
         return Ok(body);
     }
-    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let entity = selection_entity(expected, names);
     let kind = expected
         .selection_kind(entity)
         .ok_or_else(|| shape(crate::var::SelectionFault::Seat { entity }))?;
     if let Some(fault) = crate::var::Select::fault(kind, names) {
-        return Err(shape(fault));
+        return Err(match fault {
+            crate::var::SelectionFault::Kind {
+                at,
+                found,
+                expected,
+            } => EditError::SelectionNameKind {
+                node: spoken(),
+                slot,
+                at,
+                name: doc.spoken_name(&names[at]),
+                found,
+                expected,
+            },
+            fault => shape(fault),
+        });
     }
     for name in names {
         if !doc.nodes.contains_key(&name.node) {
@@ -1583,6 +1636,20 @@ fn mint_selection<P: crate::ProfilePayload>(
             },
         ),
     )
+}
+
+/// **The entity kind a selection of `names` at a seat of `expected`
+/// is minted for**, which [`crate::var::Select::fault`] then holds
+/// every name to: at a seat of one selection kind ([`crate::SlotKind::Is`])
+/// that kind's, whatever the names say, so the first name of another
+/// kind is the one reported; at a seat admitting several (a measure's
+/// reference) its first name's, the seat answering for that kind.
+fn selection_entity(expected: crate::SlotKind, names: &[StableName]) -> EntityKind {
+    match (expected, names.first()) {
+        (crate::SlotKind::Is(kind), _) if let Some((entity, _)) = kind.selection() => entity,
+        (_, Some(name)) => name.kind,
+        (_, None) => EntityKind::Face,
+    }
 }
 
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
@@ -1650,7 +1717,7 @@ pub fn selection_into<P>(
     body: VarId,
     names: &[StableName],
 ) -> VarId {
-    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let entity = selection_entity(slot.kind(), names);
     let kind = slot
         .kind()
         .selection_kind(entity)
@@ -2149,6 +2216,28 @@ pub enum EditError {
         slot: SlotId,
         /// Why.
         fault: crate::var::SelectionFault,
+    },
+    /// A name this edit authors into a selection at `slot` denotes
+    /// another entity kind than the seat reads (a face among a blend's
+    /// edges, an edge as a shell's open face): what a name denotes is
+    /// its own kind ([`crate::var::SelectionFault::Kind`]), so this is
+    /// refused here rather than discovered when the selection resolves.
+    /// Its own arm, not a [`Self::SelectionShape`], because the
+    /// sentence speaks the offending name, which a stored selection's
+    /// form fault does not carry.
+    SelectionNameKind {
+        /// The node whose seat the selection is authored at.
+        node: SpokenNode,
+        /// The seat.
+        slot: SlotId,
+        /// The name's position in the selection.
+        at: usize,
+        /// The name, spoken.
+        name: SpokenName,
+        /// The entity kind the name denotes.
+        found: EntityKind,
+        /// The entity kind the seat reads.
+        expected: EntityKind,
     },
     /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
     /// not one the document can store ([`crate::pose::PoseFault`]): a
@@ -2828,6 +2917,17 @@ pub enum EditError {
         /// The id.
         constraint: crate::node::ConstraintId,
     },
+    /// **A mate a value names was to be removed** (ruling C-2): the
+    /// value would set a freedom of nothing. The façade removes both as
+    /// one edit.
+    MateNamedByValue {
+        /// The placement.
+        node: SpokenNode,
+        /// The mate.
+        mate: crate::node::ConstraintId,
+        /// A value naming it.
+        value: crate::node::ConstraintId,
+    },
     /// A placement-rule node whose rule and count slot would give two
     /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
     PlacementRuleMismatch {
@@ -2896,28 +2996,12 @@ pub enum EditError {
         /// The direction door's refusal, unaltered.
         error: crate::eval::NodeRefusal,
     },
-    /// A mate's alignment datum carries a non-finite number outside
-    /// its frames — the clocking rider, or a length the primitive
-    /// authors: a datum nothing can decide about never enters the
-    /// document. A frame offset's literal steps are the placement
-    /// frame rule's (`NonFinitePlacement` at a `FrameSite::MateStep`).
-    NonFiniteAlignment {
-        /// The placement holding it.
-        node: SpokenNode,
-        /// The constraint.
-        constraint: crate::node::ConstraintId,
-        /// The constraint's 1-based position in the placement's bundle:
-        /// what the refusal says.
-        position: usize,
-    },
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
     /// whenever it reads the datum: its head does not resolve to a
     /// member, it names one member twice, its class is outside the
     /// vocabulary, a frame has no definite direction, the coset table
-    /// has no row for it, or its clocking rider contradicts the
-    /// coincidence it rides (decided over the mate's own lever,
-    /// through the reach this door holds). The same admission the
+    /// has no row for it. The same admission the
     /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
     /// door, so the insert is refused; the recourse is the fault's
     /// own. A mate on a pair the fold never reads — two members over
@@ -3251,6 +3335,11 @@ impl EditError {
                 node,
                 constraint: _,
             }
+            | Self::MateNamedByValue {
+                node,
+                mate: _,
+                value: _,
+            }
             | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
             | Self::ImproperPlacement {
@@ -3263,11 +3352,6 @@ impl EditError {
                 node,
                 at: _,
                 check: _,
-            }
-            | Self::NonFiniteAlignment {
-                node,
-                constraint: _,
-                position: _,
             }
             | Self::UpdateOnNonInstance { node }
             | Self::PinUnchanged { node, pin: _ } => {
@@ -3393,6 +3477,17 @@ impl EditError {
             }
             | Self::MetaNotSet { name, key: _ }
             | Self::RebindMetadataCollision { name, key: _ } => {
+                *name = name.respoken(doc);
+            }
+            Self::SelectionNameKind {
+                node,
+                slot: _,
+                at: _,
+                name,
+                found: _,
+                expected: _,
+            } => {
+                *node = node.respoken(doc);
                 *name = name.respoken(doc);
             }
             Self::MateRefused {
@@ -3537,17 +3632,48 @@ impl EditError {
                     ),
                 )
             }
-            Self::SelectionShape { slot, fault, .. } => {
+            Self::SelectionNameKind {
+                node,
+                slot,
+                at,
+                name,
+                found,
+                expected,
+            } => {
+                match slot {
+                    SlotId::Operand(seat) => match seat.selection_entry(*at) {
+                        Some(entry) => write!(f, "{node}'s {entry} names {name}")?,
+                        None => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                    },
+                    _ => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                }
                 write!(
                     f,
-                    "the selection at {slot} is not one a document stores: {fault}"
+                    ", which is {} {}, not {} {}",
+                    found.article(),
+                    found.noun(),
+                    expected.article(),
+                    expected.noun()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "name {} {} of the body the selection reads",
+                        expected.article(),
+                        expected.noun()
+                    ),
+                )
+            }
+            Self::SelectionShape { node, slot, fault } => {
+                write!(
+                    f,
+                    "{node}'s {slot} is not a selection a document stores: {fault}"
                 )?;
                 tail.recourse(
                     f,
                     format_args!(
                         "author the names in the stored order (an edge set sorted, a face set \
-                         naming each face once), as the fillet, chamfer and shell builders do, \
-                         or name entities of the kind the seat reads"
+                         naming each face once), as the fillet, chamfer and shell builders do"
                     ),
                 )
             }
@@ -4217,6 +4343,16 @@ impl EditError {
                 write!(f, "{node} holds no constraint {constraint}")?;
                 tail.recourse(f, format_args!("name a constraint the placement holds"))
             }
+            Self::MateNamedByValue { node, mate, value } => {
+                write!(
+                    f,
+                    "{node}'s constraint {mate} is a mate its value {value} sets a freedom of"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("remove value {value} first, or both in one group"),
+                )
+            }
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`). A
             // rule's shape is written only by the insert that authors
@@ -4275,16 +4411,6 @@ impl EditError {
             }
             Self::NonFinitePlacement { node, at } => {
                 frame_refusal(f, tail, node, *at, FrameFault::NonFinite)
-            }
-            Self::NonFiniteAlignment { node, position, .. } => {
-                write!(
-                    f,
-                    "{node}'s constraint {position} carries a non-finite alignment coordinate"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("give every alignment coordinate a finite value"),
-                )
             }
             Self::MateRefused { node, fault, held } => {
                 let said = crate::spoken::Said(
@@ -5694,7 +5820,7 @@ enum Writes {
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
-/// - a decidable alignment, and a mate's frame offsets;
+/// - a transform's literal steps ([`Node::placement_frame_fault`]);
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
 ///   of the measure it reads ([`check_node_slots`]);
@@ -5718,30 +5844,6 @@ fn check_written_node<P: crate::ProfilePayload>(
     // one.
     if matches!(node, Node::World) {
         return Err(EditError::WorldIsUndeletable { node: spoken() });
-    }
-    // ASM-R2a D-1, through `Node::non_finite_alignment` — the one
-    // place a node is asked whether its constraints' alignment data
-    // are decidable, which the load door's walk asks too.
-    if let Some(constraint) = node.non_finite_alignment() {
-        let position = crate::mate::solve::bundle_of(node)
-            .and_then(|bundle| bundle.iter().position(|c| c.id == constraint))
-            .map_or_else(
-                || unreachable!("a non-finite alignment is one of the node's constraints"),
-                |k| k + 1,
-            );
-        return Err(EditError::NonFiniteAlignment {
-            node: spoken(),
-            constraint,
-            position,
-        });
-    }
-    // A constraint's admission composes its frame offsets, so their
-    // literal steps meet the frame rule first, by the predicate the
-    // whole-document pass asks of every placement.
-    if crate::mate::solve::bundle_of(node).is_some()
-        && let Some((at, fault)) = node.placement_frame_fault(tol)
-    {
-        return Err(EditError::placement_frame(spoken(), at, fault));
     }
     check_node_slots(new, doc, id, node)?;
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
@@ -6116,15 +6218,15 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// Apply one edit to a document — pure over the document and the
-/// reach (spec D2): the input is untouched, and the output is a
-/// function of `doc`, `edit` and what `reach` answers; on acceptance
-/// a new value comes back with the [`EditRecord`] and the maintenance
-/// reports ([`Applied::maintenance`]). All validation is here — refs
-/// resolve, no cycles, dimension checks re-run on touched expressions
-/// (spec D6), and a mate being inserted passes the solve's own
-/// per-mate admission, its clocking rider decided over the mated
-/// parts' reach ([`EditError::MateRefused`]).
+/// Apply one edit to a document — pure (spec D2): the input is
+/// untouched, and the output is a function of `doc` and `edit`; on
+/// acceptance a new value comes back with the [`EditRecord`] and the
+/// maintenance reports ([`Applied::maintenance`]). All validation is
+/// here — refs resolve, no cycles, dimension checks re-run on touched
+/// expressions (spec D6), and a mate being inserted passes the solve's
+/// own per-mate admission ([`EditError::MateRefused`]).
+///
+/// `reach` is unread (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -6134,12 +6236,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     apply_with(doc, edit, tol, Some(reach))
 }
 
-/// **Replay one edit**: the edit through every door [`apply`] has,
-/// with no reach — no solve, no store. No edit records a frame and no
-/// maintenance needs one (A11 (2)), so the edits ARE the log, and the
-/// one decision `apply` levers through a reach — the clocking rider of
-/// an inserted mate — is declined here, as
-/// [`crate::mate::solve::admit_mate`] states.
+/// **Replay one edit**: the edit through every door [`apply`] has —
+/// no solve, no store. No edit records a frame and no maintenance
+/// needs one (A11 (2)), so the edits ARE the log.
 ///
 /// # Errors
 ///
@@ -6285,8 +6384,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 });
             }
         }
-        // Literal placement steps — a transform's, and a constraint's
-        // frame offsets — meet the same bar, by the same predicate.
+        // A transform's literal placement steps meet the same bar, by
+        // the same predicate.
         if let Some((at, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }
@@ -6403,27 +6502,49 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     let mut minted = Vec::new();
     if let Some(bundle) = bundle_of_mut(&mut node) {
         for c in bundle.iter_mut() {
-            c.id = new.mint.add_constraint(id, &c.mate);
+            c.id = new.mint.add_constraint(id, &c.kind);
             minted.push(c.id);
         }
     }
     new.nodes.insert(id, node);
     let fresh = lowering.finish(new)?;
-    check_acyclic(new)?;
-    // The solve's own per-constraint admission (A11 rule 1), asked of
-    // the document the placement now stands in — its walks read the
-    // operands there — through the reach this door holds, each
-    // constraint against the bundle before it: a mate the coset table
-    // refuses on its own datum, a target other than the bundle's and a
-    // mate beyond the pin are refused at this door. Every STATE a
-    // constraint comes to hold after insert is the solve's: a reference
-    // a later edit strands is N5's. The other edits that write a datum
-    // — an `AddConstraint`, a slot edit at a frame-offset step — ask
-    // the same admission (`DocEdit::writes_a_mates_datum`).
+    // Each constraint's own admission speaks before the cycle check,
+    // as `add_constraint`'s does.
     for (k, &c) in minted.iter().enumerate() {
         admit_written_constraint(new, id, c, k, tol, reach)?;
     }
+    check_acyclic(new)?;
+    // Last, the bundle's make-up, as `add_constraint` asks it: a world
+    // pin stands alone. Every constraint's own admission is the
+    // recipe's (above); what the fold decides of the bundle needs the
+    // poses' values and is the placement's evaluation fault (C-3).
+    if !minted.is_empty() {
+        admit_bundle_make_up(new, id)?;
+    }
     Ok((id, fresh, outputs, minted))
+}
+
+/// **A placement's bundle as a whole, at the edit door**: a world pin
+/// stands alone ([`crate::mate::solve::world_pin_stands_alone`]), asked
+/// by every edit that writes a constraint into a bundle.
+fn admit_bundle_make_up<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    placement: RecipeNodeId,
+) -> Result<(), EditError> {
+    let Some(bundle) = new
+        .nodes
+        .get(&placement)
+        .and_then(crate::mate::solve::bundle_of)
+    else {
+        return Ok(());
+    };
+    crate::mate::solve::world_pin_stands_alone(placement, bundle)
+        .map(|_| ())
+        .map_err(|fault| EditError::MateRefused {
+            node: new.spoken(placement),
+            held: crate::spoken::held_by(&*fault, new),
+            fault,
+        })
 }
 
 /// A placement's bundle, writable; `None` for a node that is no
@@ -6445,7 +6566,7 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
     placement: RecipeNodeId,
-    mate: &crate::mate::Mate<Formula>,
+    kind: crate::mate::ConstraintKind<Formula>,
     fresh: &[FreshEntry],
     tol: Tol,
     reach: Option<&dyn MateReach>,
@@ -6471,7 +6592,7 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
         shapes: Vec::new(),
         constraints: vec![crate::mate::Constraint {
             id: placeholder,
-            mate: mate.clone(),
+            kind,
         }],
     };
     let lowering = Lowering::start(new, fresh)?;
@@ -6485,7 +6606,7 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     let Some(mut constraint) = constraints.pop() else {
         unreachable!("the carrier holds the one constraint")
     };
-    constraint.id = new.mint.add_constraint(placement, &constraint.mate);
+    constraint.id = new.mint.add_constraint(placement, &constraint.kind);
     let id = constraint.id;
     let Some(node) = new.nodes.get_mut(&placement).and_then(bundle_of_mut) else {
         unreachable!("the placement was checked above")
@@ -6497,36 +6618,27 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     };
     check_written_node(doc, new, placement, &written, Writes::Node, tol)?;
     let fresh = lowering.finish(new)?;
-    check_acyclic(new)?;
+    // The constraint's own admission speaks before the cycle check: a
+    // mate whose `on` reads a copy through its own placement is no
+    // mate of that copy, which is the more specific refusal.
     admit_written_constraint(new, placement, id, k, tol, reach)?;
+    check_acyclic(new)?;
+    // Last, the bundle's make-up: a world pin stands alone, so a
+    // constraint beside one refuses as the bundle already fixing its
+    // copy.
+    admit_bundle_make_up(new, placement)?;
     Ok((id, fresh))
 }
 
-/// [`admit_written_constraint`] of a constraint a slot edit just
-/// rewrote, against the bundle ahead of it.
-fn admit_slot_edit<P: Clone + crate::ProfilePayload>(
-    new: &Doc<P>,
-    placement: RecipeNodeId,
-    constraint: crate::node::ConstraintId,
-    tol: Tol,
-    reach: Option<&dyn MateReach>,
-) -> Result<(), EditError> {
-    let k = new
-        .nodes
-        .get(&placement)
-        .and_then(crate::mate::solve::bundle_of)
-        .and_then(|bundle| bundle.iter().position(|c| c.id == constraint))
-        .unwrap_or(0);
-    admit_written_constraint(new, placement, constraint, k, tol, reach)
-}
-
-/// **The solve's admission of a constraint an edit just wrote** (A11
-/// rule 1), asked of the document it now stands in, at that document's
-/// own nominal environment, through the reach the door holds: its own
-/// datum ([`crate::mate::solve::admit_mate`]), then the bundle before
-/// it ([`crate::mate::solve::admit_constraint`]), the `k` constraints
-/// ahead of it in bundle order. The one call every edit that writes a
-/// constraint's datum ([`DocEdit::writes_a_mates_datum`]) makes.
+/// **The admission of a constraint an edit just wrote** (A11 rule 1),
+/// asked of the document it now stands in: what the recipe decides of
+/// it ([`crate::mate::solve::admit_mate`]) — its `on` reads the copy,
+/// its world read is a pose, its two poses are of one kind, its class
+/// is admitted. What the fold decides needs the poses' values, and is
+/// the placement's own refusal where it evaluates (INTENT stage 3 C's
+/// interim until F's measure-free door; `reach`, `tol` and the bundle
+/// ahead, `k`, are what that door will read). The one call every edit that
+/// writes a constraint ([`DocEdit::writes_a_mates_datum`]) makes.
 fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
@@ -6535,6 +6647,7 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<(), EditError> {
+    let _ = (k, tol, reach);
     let Some(bundle) = new
         .nodes
         .get(&placement)
@@ -6545,25 +6658,41 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     let Some(added) = bundle.iter().find(|c| c.id == constraint) else {
         unreachable!("the edit wrote constraint {constraint} into the bundle")
     };
-    let env = new.var_env::<f64>();
-    let mate = crate::mate::MateRef::new(placement, constraint);
-    crate::mate::solve::admit_mate(new, mate, &added.mate, &env, reach, tol)
-        .and_then(|()| {
-            crate::mate::solve::admit_constraint(
-                new,
-                placement,
-                &bundle[..k.min(bundle.len())],
-                added,
-                &env,
-                reach,
-                tol,
-            )
-        })
-        .map_err(|fault| EditError::MateRefused {
-            node: new.spoken(placement),
-            held: crate::spoken::held_by(&*fault, new),
-            fault,
-        })
+    let at = crate::mate::MateRef::new(placement, constraint);
+    let admitted = match &added.kind {
+        // A mate re-written re-asks every value naming it: a value's
+        // chart is read off its mate's poses (a target re-pointed onto
+        // two bodies has none), so the door's verdict on a value holds
+        // whichever was written last — as the load door asks it of
+        // every value.
+        crate::mate::ConstraintKind::Mate(mate) => crate::mate::solve::admit_mate(new, at, mate)
+            .and_then(|()| {
+                bundle
+                    .iter()
+                    .filter_map(|c| {
+                        c.value()
+                            .filter(|v| v.mate == constraint)
+                            .map(|v| (c.id, v))
+                    })
+                    .try_for_each(|(id, value)| {
+                        crate::mate::solve::admit_value(
+                            new,
+                            crate::mate::MateRef::new(placement, id),
+                            bundle,
+                            value,
+                        )
+                    })
+            }),
+        crate::mate::ConstraintKind::Value(value) => {
+            crate::mate::solve::admit_value(new, at, bundle, value)
+        }
+        crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
+    };
+    admitted.map_err(|fault| EditError::MateRefused {
+        node: new.spoken(placement),
+        held: crate::spoken::held_by(&*fault, new),
+        fault,
+    })
 }
 
 /// One edit written into `new` (a copy of `doc`), its maintenance
@@ -6786,7 +6915,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    return set_operand(doc, new, reported, *node, *operand, (read, None), tol);
+                    let record =
+                        set_operand(doc, new, reported, *node, *operand, (read, None), tol)?;
+                    // A mate's pose re-pointed is a mate written: its
+                    // two kinds must still agree.
+                    if let crate::OperandSlot::Side { constraint, .. } = operand {
+                        admit_written_constraint(new, *node, *constraint, 0, tol, reach)?;
+                    }
+                    return Ok(record);
                 }
                 (SlotId::Operand(operand), SlotValue::Copy { of, key }) => {
                     if !fresh.is_empty() {
@@ -6816,9 +6952,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             };
             let fresh = set_slot(new, doc, *node, *slot, &formula, fresh)?;
             check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
-            if let SlotId::MateFrameStep { constraint, .. } = slot {
-                admit_slot_edit(new, *node, *constraint, tol, reach)?;
-            }
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -6908,9 +7041,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let structural = path.slot.is_structural();
             set_slot(new, doc, path.node, path.slot, &rebuilt, &[])?;
             check_profile_after_slot_edit(new, doc, path.node, path.slot, tol)?;
-            if let SlotId::MateFrameStep { constraint, .. } = path.slot {
-                admit_slot_edit(new, path.node, constraint, tol, reach)?;
-            }
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -7403,7 +7533,36 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             mate,
             fresh,
         } => {
-            let (id, fresh) = add_constraint(doc, new, *placement, mate, fresh, tol, reach)?;
+            let kind = crate::mate::ConstraintKind::Mate((**mate).clone());
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
+            EditRecord {
+                minted: None,
+                minted_constraints: vec![id],
+                minted_var: None,
+                structural: true,
+                fresh,
+                outputs: Vec::new(),
+            }
+        }
+        DocEdit::AddValue {
+            placement,
+            value,
+            fresh,
+        } => {
+            let kind = crate::mate::ConstraintKind::Value((**value).clone());
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
+            EditRecord {
+                minted: None,
+                minted_constraints: vec![id],
+                minted_var: None,
+                structural: true,
+                fresh,
+                outputs: Vec::new(),
+            }
+        }
+        DocEdit::PinWhereItStands { placement } => {
+            let kind = crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity);
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, &[], tol, reach)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
@@ -7438,6 +7597,18 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     constraint: *constraint,
                 });
             };
+            // A mate goes only once no value names it: the value's
+            // freedom would be no freedom of anything.
+            if let Some(value) = bundle
+                .iter()
+                .find(|c| c.value().is_some_and(|v| v.mate == *constraint))
+            {
+                return Err(EditError::MateNamedByValue {
+                    node: doc.spoken(*placement),
+                    mate: *constraint,
+                    value: value.id,
+                });
+            }
             // Its reads go with it: every anonymous variable it alone
             // read is retired by the door's VR7 pass.
             bundle.remove(at);
@@ -7551,32 +7722,55 @@ fn selection_readers<P: crate::ProfilePayload>(
     doc.ids()
         .into_iter()
         .filter(|&id| {
-            doc.node(id)
-                .is_some_and(|node| node.operand_rows().iter().any(|&(_, read)| read == var))
+            doc.node(id).is_some_and(|node| {
+                node.operand_rows()
+                    .iter()
+                    .any(|&(_, read)| seat_reads(doc, read).contains(&var))
+            })
         })
         .map(|id| before.spoken(id))
         .collect()
 }
 
 /// **The selections of `doc` that go with the edit** (VR7): unnamed,
-/// with no reader left. A name one holds is stranded by nothing.
+/// with no reader left once the unread poses reading them go too. A
+/// name one holds is stranded by nothing.
 fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections::BTreeSet<VarId> {
-    let readers = doc.reader_counts();
-    doc.vars()
-        .iter()
-        .filter(|(id, var)| {
-            var.def().select().is_some()
-                && doc.var_name(**id).is_none()
-                && readers.get(id).copied().unwrap_or(0) == 0
-        })
-        .map(|(&id, _)| id)
+    doc.unread_anonymous_vars()
+        .into_iter()
+        .filter(|id| doc.selection(*id).is_some())
         .collect()
 }
 
-/// **Every operand of `doc` reading one of `removed`**, directly or as
-/// a selection's body, in document order and within a node in field
-/// order, as the strand rows a removal reports, spoken from `before`,
-/// which still holds them.
+/// **What a read at a seat reaches**: the read itself, a selection's
+/// body, and through a pose written in place (an anonymous definition)
+/// every read inside it, in read order. A named pose is a read of its
+/// own and is not walked.
+fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
+    fn walk<P>(doc: &Doc<P>, var: VarId, out: &mut Vec<VarId>) {
+        if out.contains(&var) {
+            return;
+        }
+        out.push(var);
+        match doc.var(var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body, out),
+            Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
+                for (_, &read, _, _) in def.reads() {
+                    walk(doc, read, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(doc, var, &mut out);
+    out
+}
+
+/// **Every operand of `doc` reading one of `removed`**, directly, as a
+/// selection's body or through a pose written in place ([`seat_reads`]),
+/// in document order and within a node in field order, as the strand
+/// rows a removal reports, spoken from `before`, which still holds them.
 fn stranded_reads<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -7585,15 +7779,16 @@ fn stranded_reads<P: crate::ProfilePayload>(
     doc.nodes
         .iter()
         .flat_map(|(&node, n)| {
-            n.operand_rows()
-                .into_iter()
-                .map(|(slot, read)| (slot, doc.selection(read).map_or(read, |s| s.body)))
-                .filter(|(_, read)| removed.contains(read))
-                .map(move |(slot, var)| Maintenance::StrandedRead {
-                    node: before.spoken(node),
-                    slot,
-                    var: before.spoken_var(var),
-                })
+            n.operand_rows().into_iter().flat_map(move |(slot, read)| {
+                seat_reads(doc, read)
+                    .into_iter()
+                    .filter(|var| removed.contains(var))
+                    .map(move |var| Maintenance::StrandedRead {
+                        node: before.spoken(node),
+                        slot,
+                        var: before.spoken_var(var),
+                    })
+            })
         })
         .collect()
 }
@@ -7789,13 +7984,15 @@ mod tests {
     use crate::program::ProfileProgram;
     use crate::test_support::len;
 
-    /// **The datum question is answered by the edit too**: the insert
-    /// of a mate and a slot edit at a mate's frame-offset step write a
-    /// mate's alignment datum, and nothing else does — not the insert
-    /// of another node, not a slot edit at any other address, not the
-    /// rebind that moves a head (a reference, not the datum), not the
-    /// structural edit that shrinks a pattern under one. The per-mate
-    /// admission is asked at exactly the edits this answers `true` for.
+    /// **The constraint question is answered by the edit too**: the
+    /// insert of a placement holding a mate, an `AddConstraint`, an
+    /// `AddValue` and a re-point at a mate's pose write a constraint, and
+    /// nothing else does — not the insert of another node, not a slot
+    /// edit at a world read's number (a number, never a kind), not the
+    /// rebind that moves a face (a reference, not the constraint), not
+    /// the structural edit that shrinks a pattern under one. The
+    /// per-constraint admission is asked at exactly the edits this
+    /// answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
         let id = crate::node::RecipeNodeId::new(0, 1);
@@ -7804,33 +8001,54 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame::from_face();
-        let face = |node| {
-            crate::mate::SideRead::Face(crate::Operand::from(crate::node::SitedFace::at_mint(
-                crate::names::FaceName::new(name(node)).expect("a face"),
-            )))
+        let plane = |node| {
+            crate::Operand::Pose(Box::new(crate::pose::PoseDef::Plane {
+                face: crate::Operand::from(crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(node)).expect("a face"),
+                )),
+            }))
         };
-        let mate: DocEdit<ProfileProgram> = DocEdit::place(
-            vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
-            vec![crate::mate::Mate {
-                a: face(id),
-                b: face(crate::node::RecipeNodeId::new(0, 2)),
-                class: crate::mate::ContactClass::Rest,
-                alignment: crate::mate::Alignment {
-                    a: frame.clone(),
-                    b: frame,
-                    primitive: crate::mate::MatePrimitive::FrameCoincidence,
-                    sense: crate::mate::AxisSense::Aligned,
-                    clocking: None,
-                },
-            }],
-        );
-        assert!(mate.writes_a_mates_datum());
-        let step = crate::node::SlotId::MateFrameStep {
-            constraint: crate::node::ConstraintId(crate::MintId::new(0, 4)),
-            side: crate::mate::MateSide::B,
+        let mate = crate::mate::Mate {
+            on: plane(crate::node::RecipeNodeId::new(0, 3)),
+            to: crate::mate::Target::Pose(plane(crate::node::RecipeNodeId::new(0, 2))),
+            class: crate::mate::ContactClass::Rest,
+        };
+        let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
+        let writing: [DocEdit<ProfileProgram>; 4] = [
+            DocEdit::place(
+                vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
+                vec![mate.clone()],
+            ),
+            DocEdit::AddConstraint {
+                placement: id,
+                mate: Box::new(mate.clone()),
+                fresh: Vec::new(),
+            },
+            DocEdit::AddValue {
+                placement: id,
+                value: Box::new(crate::mate::Value {
+                    mate: constraint,
+                    coord: crate::mate::Coord::Spin,
+                    by: crate::test_support::ang(0.5),
+                }),
+                fresh: Vec::new(),
+            },
+            DocEdit::SetParam {
+                node: id,
+                slot: crate::node::SlotId::Operand(crate::OperandSlot::Side {
+                    constraint,
+                    side: crate::mate::MateSide::To,
+                }),
+                value: crate::SlotValue::Read(plane(crate::node::RecipeNodeId::new(0, 5))),
+                fresh: Vec::new(),
+            },
+        ];
+        for edit in &writing {
+            assert!(edit.writes_a_mates_datum(), "{edit:?} writes a constraint");
+        }
+        let step = crate::node::SlotId::WorldSpin {
+            constraint,
             step: 0,
-            arg: crate::node::RigidArg::RotationAngle,
         };
         let at_a_step: [DocEdit<ProfileProgram>; 2] = [
             DocEdit::SetParam {
@@ -7849,7 +8067,10 @@ mod tests {
             },
         ];
         for edit in &at_a_step {
-            assert!(edit.writes_a_mates_datum(), "{edit:?} writes a frame step");
+            assert!(
+                !edit.writes_a_mates_datum(),
+                "{edit:?} moves a world read's number, never its kind"
+            );
         }
         let others: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {

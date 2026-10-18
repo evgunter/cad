@@ -727,7 +727,7 @@ fn a7_the_product_of_a_lone_placed_half_is_that_half() {
         target: cube.into(),
         tool: tool.into(),
     });
-    r.push(DocEdit::place_in_world(port(split, SplitHalf::Above), None));
+    r.place(port(split, SplitHalf::Above));
     let ev = eval(&r.doc);
     let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
     let m = mass_properties(&body, Tol::witness()).expect("mass properties");

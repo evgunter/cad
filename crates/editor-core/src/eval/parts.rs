@@ -1,9 +1,10 @@
-//! The per-evaluation instantiated-part memo (ASM-2A D-3).
+//! The instantiated parts an evaluation reads (ASM-2A D-3).
 //!
 //! A2 says evaluation MATERIALIZES: an instantiate node evaluates the
 //! document it pins and takes that document's A10 product. N instances
-//! of one part must not evaluate it N times, so one cache per
-//! evaluation holds each resolved part's product.
+//! of one part must not evaluate it N times, so each evaluation enters
+//! every part it instantiates once, into one table its nodes read, and
+//! carries the successful rows to the run that names it as its prior.
 //!
 //! # Three hash vocabularies, deliberately not unified
 //!
@@ -16,40 +17,51 @@
 //! evaluation ran at). Each answers a different question, and unifying
 //! any two would answer one of them wrongly.
 //!
-//! The top-level cache is LAZY: a memo-hit instantiate node never
-//! asks, so a re-evaluation that changed nothing across the seam does
-//! no cross-document work at all.
+//! # A document's parts are entered before it evaluates
+//!
+//! At every depth, an evaluation reads its parts from a [`Reached`]
+//! table filled before its mate solve and its node map run, by `&`,
+//! with no lock: a node map on rayon workers reads it as the serial
+//! walk does. Nothing evaluates a part on a miss; a miss is the typed
+//! kernel defect [`PartFault::NotEntered`], an ask that escaped
+//! [`instantiated`], the one census of the asks.
+//!
+//! The top fills its table in one serial pass
+//! ([`PartStore::enter_census`]) over that census, in document order:
+//! each distinct key evaluated at most once, under a shielding verdict
+//! bracket ([`PartStore::row`]), so its decisions land on no node and
+//! its `probe` samples reach the caller's sink ahead of every node's,
+//! whatever schedule the node map then runs. Each successful row is
+//! carried on the [`super::Evaluation`] ([`Carried`]) and reused by the
+//! run that names that evaluation as its prior — the node memo's
+//! argument: the pin says which content (A4), and the same content at
+//! the same ε evaluates to the same product (D9). So an unchanged
+//! assembly, or one whose edit moved only a pose, evaluates no part. A
+//! faulted row is not carried: the next run asks again.
 //!
 //! # The descent runs on the heap
 //!
 //! Below the top, the descent is bottom-up on an explicit stack
-//! (`PartCache::resolve_and_evaluate`): a referenced document is
-//! evaluated once every part it instantiates has its row, and its cache
-//! starts with those rows. So one nested evaluation is on the thread's
-//! stack at a time, how deep an assembly nests costs heap and never
-//! stack, and every depth either evaluates or refuses typed on whatever
-//! thread the evaluation runs on.
+//! (`PartStore::resolve_and_evaluate`): a referenced document is
+//! evaluated once every part it instantiates has its row, and its
+//! table starts with those rows. So one nested evaluation is on the
+//! thread's stack at a time, how deep an assembly nests costs heap and
+//! never stack, and every depth either evaluates or refuses typed.
 //!
-//! A nested cache never descends: every reference a nested evaluation
-//! can ask for is entered first ([`instantiated`], the one census of
-//! the asks), and a miss below the top is the typed kernel defect
-//! [`PartFault::NotEntered`], never a recursion.
-//!
-//! **Below the top, every part a document instantiates is evaluated,
-//! whether or not its instance asks.** The instance that declines to
-//! ask is one whose placement refused (a mate fault); its part's row,
-//! failed or not, sits in a cache that dies with the nested evaluation
-//! and reaches no node, product or refusal. What it does reach is
-//! what counts or records work as it happens: `part_evaluations`
-//! counts it, and a shape report, a symbolic session's counts or a
-//! sample sink installed around the evaluation sees its decisions —
-//! and sees every nested document's decisions bottom-up, a part's
-//! before its instantiator's.
+//! **Every part a document instantiates is evaluated, whether or not
+//! its instance asks.** The instance that declines to ask is one whose
+//! placement refused (a mate fault), or a memo hit; its part's row,
+//! failed or not, reaches no node, product or refusal. What it does
+//! reach is what counts or records work as it happens:
+//! `part_evaluations` counts it, and a shape report, a symbolic
+//! session's counts or a sample sink installed around the evaluation
+//! sees its decisions — and sees every nested document's decisions
+//! bottom-up, a part's before its instantiator's.
 //!
 //! # Cycles are decided, not waited out
 //!
-//! The cache also carries the DESCENT CHAIN — the references this
-//! evaluation was reached through. A reference already in the chain is
+//! The descent also carries its CHAIN — the references each document
+//! on it was reached through. A reference already in the chain is
 //! a cycle by A4's own rule (same id, same pin ⇒ same content), so it
 //! refuses immediately, NAMING the loop, and that check runs before
 //! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
@@ -57,8 +69,6 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use geom_core::Decide;
 use topo::Body;
@@ -80,7 +90,7 @@ use geom_core::Tol;
 ///
 /// An author reaches it with a file: any acyclic chain of references
 /// that long. CYCLES are decided before it, structurally, by the
-/// descent chain (see [`PartCache`]) — a revisited reference refuses
+/// descent chain (see [`PartStore`]) — a revisited reference refuses
 /// NAMING the cycle — so reaching the bound means the chain was long,
 /// not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
@@ -151,7 +161,7 @@ impl<T: Decide> Clone for PartValue<T> {
 }
 
 /// Why an instantiation could not produce a part body. Cloneable and
-/// self-contained: the cache stores one of these per reference, so
+/// self-contained: the table holds one of these per reference, so
 /// every instance of a broken part reports the same typed cause.
 ///
 /// An arm that names the part's nodes keeps them as the pinned part
@@ -159,7 +169,7 @@ impl<T: Decide> Clone for PartValue<T> {
 /// (DESIGN.md Band 1, "Node labels"). Equality compares those labels
 /// too, deliberately: two faults with equal ids from parts labelled apart
 /// (two pins, since a label is in the pin) are unequal, here and in the
-/// refusals that hold a `PartFault` (`ReachRefusal`, `FacePoseRefusal`).
+/// refusals that hold a `PartFault` (`ReachRefusal`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartFault {
     /// The evaluation carries no resolver, so the document seam cannot
@@ -261,11 +271,11 @@ pub enum PartFault {
     /// Instantiation nested past [`MAX_DEPTH`] without repeating a
     /// reference: the assembly nests deeper than the bound allows.
     DepthExceeded,
-    /// A document below the top of the descent asked for a part the
-    /// descent had not entered before evaluating it. The descent enters
-    /// every reference [`instantiated`] names, which is every reference
-    /// a nested evaluation can ask for, so this is a kernel defect: an
-    /// ask that escaped that census.
+    /// An evaluation asked for a part that was not entered before it
+    /// evaluated. Every evaluation's parts are entered from
+    /// [`instantiated`]'s census, which names every reference an
+    /// evaluation can ask for, so this is a kernel defect: an ask that
+    /// escaped that census.
     NotEntered,
 }
 
@@ -425,8 +435,8 @@ impl PartFault {
             ),
             Self::NotEntered => write!(
                 f,
-                "the part was asked for by a nested document the descent evaluated before \
-                 entering it, so the part has no body. {}",
+                "the part was asked for by a document that evaluated before entering it, so \
+                 the part has no body. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
@@ -505,20 +515,15 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
 /// none. Keyed by `(DocRef, ambient ε bits)` — the module docs' key.
 type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
-/// The cache. One per `evaluate` call; shared across its nodes.
-pub(crate) struct PartCache<'a, T: Decide> {
+/// **The serial part store**: rows filled one at a time, by `&mut`,
+/// outside any node map — the top evaluation's census pass
+/// ([`Self::enter_census`]) and the edit door's lazy reach
+/// ([`super::PartReach`]). A running evaluation reads the [`Reached`]
+/// table the pass hands over, never this.
+pub(crate) struct PartStore<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
-    /// The DESCENT CHAIN: every reference this evaluation was reached
-    /// through, outermost first — empty at the top-level call.
-    ///
-    /// A4 makes `(id, pin)` say WHICH CONTENT, so a reference already
-    /// in the chain would re-enter a document whose evaluation is the
-    /// one currently in progress: the loop is structural, and it is
-    /// decided here rather than waited out by a depth counter. The
-    /// chain doubles as the nesting depth (its length).
-    chain: &'a [DocRef],
-    /// The ambient ε these entries were produced at, by bits — half
-    /// the key, hoisted because it is constant within one evaluation.
+    /// The ambient ε these rows were produced at, by bits — half the
+    /// key, hoisted because it is constant within one store.
     eps_bits: u64,
     /// The candidate-generation strategy the CALLER chose. Inherited
     /// across the seam so a differential run exercises the parts'
@@ -528,92 +533,122 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
-    entries: Mutex<Rows<T>>,
-    /// How many referenced documents this cache's descents evaluated,
+    rows: Rows<T>,
+    /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
-    /// timing claim. Only a top-level cache descends
-    /// (`resolve_and_evaluate` evaluates every document below it on
-    /// this cache), so the top's count is every crossing the run made
-    /// and a nested cache's is zero.
-    evaluations: AtomicUsize,
+    /// timing claim. Every document below the top is evaluated by the
+    /// top's descent, so the top's count is every crossing the run
+    /// made.
+    evaluations: usize,
 }
 
-impl<'a, T: Decide> PartCache<'a, T> {
+impl<'a, T: Decide> PartStore<'a, T> {
     pub(crate) fn new(
         resolver: Option<&'a Arc<dyn PartResolver>>,
-        chain: &'a [DocRef],
-        reached: Reached<T>,
         boolean_sweep: topo::SweepStrategy,
         tol: Tol,
     ) -> Self {
         Self {
             resolver,
-            chain,
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
-            entries: Mutex::new(reached.0),
-            evaluations: AtomicUsize::new(0),
+            rows: BTreeMap::new(),
+            evaluations: 0,
         }
     }
 
-    /// This cache, its descents binding every variable a symbol where
+    /// This store, its descents binding every variable a symbol where
     /// `symbols`.
     pub(crate) fn with_symbols(self, symbols: bool) -> Self {
         Self { symbols, ..self }
     }
-
-    /// How many referenced-document evaluations ran at or below this
-    /// level.
-    pub(crate) fn evaluations(&self) -> usize {
-        self.evaluations.load(Ordering::Relaxed)
-    }
 }
 
-impl<T: super::EvalScalar> PartCache<'_, T> {
-    /// The part `doc_ref` denotes, evaluated at most once per key.
+/// **The top's parts, entered** ([`PartStore::enter_census`]).
+pub(crate) struct Entry<T: Decide> {
+    /// What the evaluation's mate solve and node map read.
+    pub reached: Reached<T>,
+    /// What the evaluation carries for the run after it.
+    pub carried: Carried<T>,
+    /// How many referenced documents the pass evaluated, at every
+    /// depth.
+    pub evaluations: usize,
+}
+
+impl<T: super::EvalScalar> PartStore<'_, T> {
+    /// The part `doc_ref` denotes, evaluated on its first ask and kept.
     ///
-    /// Only the top of a descent (an empty chain) evaluates on a miss.
-    /// A nested cache starts with every row its document can ask for
-    /// ([`instantiated`]), so a miss there is an ask that escaped that
-    /// census: it refuses [`PartFault::NotEntered`] rather than
-    /// descending from inside a nested evaluation, which would put a
-    /// second evaluation on the thread's stack per level.
-    ///
-    /// The lock is held across the miss path on purpose: it is what
-    /// makes "evaluated ONCE" true when two instances of one part race,
-    /// and a nested evaluation builds its own cache, so the lock is
-    /// never re-entered.
-    ///
-    /// **The miss path runs inside a shielding verdict bracket.** The
+    /// **The evaluation runs inside a shielding verdict bracket.** An
     /// instantiate node's log is the decisions its op made about its
-    /// own content, the same on a hit and on a miss (same content key
-    /// ⇒ same decisions, D9), so the part's unbracketed decisions —
-    /// its mate solve, its profile pre-passes, the gather of its
-    /// product — must land on neither instance. The shield sits HERE
-    /// rather than at the op door because the miss path is the one
-    /// thing a hit does not run: shielding the whole op would also
-    /// hide the placement and validation the op does on every path,
-    /// which ARE the node's decisions.
-    pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
+    /// own content, the same whether or not its part was evaluated in
+    /// this run (same content key ⇒ same decisions, D9), so the part's
+    /// unbracketed decisions — its mate solve, its profile pre-passes,
+    /// the gather of its product — must land on no instance. Its
+    /// `probe` samples go to whatever sink the caller installed.
+    pub(crate) fn row(
+        &mut self,
+        doc_ref: &DocRef,
+        tol: Tol,
+        cancel: &super::CancelToken,
+    ) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
-        let mut entries = match self.entries.lock() {
-            Ok(g) => g,
-            // A poisoned lock means another instance's resolution
-            // panicked. This crate has no panic paths, so treat it as
-            // the same refusal rather than propagating a panic.
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if let Some(hit) = entries.get(&key) {
+        if let Some(hit) = self.rows.get(&key) {
             return hit.clone();
         }
-        if !self.chain.is_empty() {
-            return Err(PartFault::NotEntered);
-        }
-        let _shield = geom_core::k_stats::Bracket::open();
-        let value = self.resolve_and_evaluate(doc_ref, tol);
-        entries.insert(key, value.clone());
+        let value = {
+            let _shield = geom_core::k_stats::Bracket::open();
+            self.resolve_and_evaluate(doc_ref, tol, cancel)
+        };
+        self.rows.insert(key, value.clone());
         value
+    }
+
+    /// **The top's census, entered**: one row per distinct reference
+    /// `doc` instantiates ([`instantiated`]), in document order, each
+    /// taken from `prior`'s carried rows or evaluated once
+    /// ([`Self::row`]). Serial, and run before the evaluation's mate
+    /// solve and node map, so which part is evaluated, and where its
+    /// samples land, is a property of the document and not of a
+    /// schedule. The store's rows ARE the table it hands over, so it is
+    /// consumed, and is called on a store fresh from [`Self::new`].
+    ///
+    /// A cancel stops the pass before its next evaluation; the rows it
+    /// did not enter refuse [`PartFault::NotEntered`], and the
+    /// evaluation, canceled, runs no node to ask. A row evaluated while
+    /// `cancel` fired is not carried, nor is a faulted one.
+    pub(crate) fn enter_census<P>(
+        mut self,
+        doc: &crate::Doc<P>,
+        prior: Option<&Carried<T>>,
+        cancel: &super::CancelToken,
+        tol: Tol,
+    ) -> Entry<T> {
+        let mut carried = BTreeMap::new();
+        for doc_ref in doc.ids().iter().filter_map(|&id| instantiated(doc, id)) {
+            let key = (doc_ref, self.eps_bits);
+            if self.rows.contains_key(&key) {
+                continue;
+            }
+            if let Some(value) = prior.and_then(|p| p.0.get(&key)) {
+                carried.insert(key, value.clone());
+                self.rows.insert(key, Ok(value.clone()));
+                continue;
+            }
+            if cancel.is_canceled() {
+                break;
+            }
+            if let Ok(value) = self.row(&doc_ref, tol, cancel)
+                && !cancel.is_canceled()
+            {
+                carried.insert(key, value);
+            }
+        }
+        Entry {
+            reached: Reached(self.rows),
+            carried: Carried(carried),
+            evaluations: self.evaluations,
+        }
     }
 
     /// The descent below `doc_ref`, run BOTTOM-UP on an explicit stack.
@@ -631,7 +666,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// decisions, the same sharing within a document and none across
     /// two. Rows no instance asks for are evaluated too (the module
     /// docs say what that reaches).
-    fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
+    fn resolve_and_evaluate(
+        &mut self,
+        doc_ref: &DocRef,
+        tol: Tol,
+        cancel: &super::CancelToken,
+    ) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
         let mut path = Vec::new();
         let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
@@ -651,7 +691,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                 continue;
             }
             let reached = core::mem::take(&mut current.reached);
-            let value = self.evaluate_entered(&current.doc, current.doc_ref, &path, reached, tol);
+            let value = self.evaluate_entered(&current.doc, current.doc_ref, reached, cancel, tol);
             path.pop();
             let Some(parent) = waiting.pop() else {
                 return value;
@@ -661,27 +701,25 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         }
     }
 
-    /// One entered document's evaluation, at the end of `chain` (its
-    /// own reference, `doc_ref`, last), over the parts it instantiates,
-    /// reached.
+    /// One entered document's evaluation, over the parts it
+    /// instantiates, reached.
     ///
     /// The rows its value hands up hold the nodes they name in `doc`
     /// ([`PartRow`]): this is the one place the version `doc_ref` pins
     /// is in hand, and the pin is in every instance's key, so no later
     /// label reaches them.
     fn evaluate_entered(
-        &self,
+        &mut self,
         doc: &ProfileDoc,
         doc_ref: DocRef,
-        chain: &[DocRef],
         reached: Rows<T>,
+        cancel: &super::CancelToken,
         tol: Tol,
     ) -> Result<PartValue<T>, PartFault> {
-        self.evaluations.fetch_add(1, Ordering::Relaxed);
+        self.evaluations += 1;
         // AQ4: the referenced document evaluates at its OWN parameters
         // — v1 instantiation takes no arguments. Sequentially, with a
-        // fresh epoch: this run's identity is its own, and nesting a
-        // rayon scope under a held lock buys nothing.
+        // fresh epoch: this run's identity is its own.
         let opts = super::EvalOptions {
             epoch: super::Epoch::mint(),
             parallel: false,
@@ -711,14 +749,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // no box and no seed a referenced document runs at its own
         // nominal, so it is built as its instantiator's build would build
         // it — pinned, with its own variables' values.
-        let evaluation = super::evaluate_nested::<T>(
-            doc,
-            &super::CancelToken::new(),
-            &opts,
-            chain,
-            Reached(reached),
-            tol,
-        );
+        let evaluation = super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), tol);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its
@@ -736,7 +767,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
-        // `Arc`s are the cache's, so every instance of one part shares
+        // `Arc`s are the row's, so every instance of one part shares
         // one row set.
         let parts = product
             .solid_copies
@@ -845,26 +876,50 @@ pub(crate) fn keyed_copies<T: Decide>(
     out
 }
 
-/// **The parts a nested evaluation instantiates, already evaluated** —
-/// the rows its cache starts from.
+/// **The parts an evaluation instantiates, already evaluated**: what
+/// its mate solve and node map read, by `&`, from any thread.
 pub(crate) struct Reached<T: Decide>(Rows<T>);
 
 impl<T: Decide> Reached<T> {
-    /// No part reached: the top of a descent, whose cache asks lazily.
+    /// The row `doc_ref` has at `tol`'s ε. A reference with none was
+    /// not entered: [`PartFault::NotEntered`].
+    pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
+        self.0
+            .get(&(*doc_ref, tol.eps().to_bits()))
+            .cloned()
+            .unwrap_or(Err(PartFault::NotEntered))
+    }
+}
+
+/// **The successful rows an evaluation carries for the next**
+/// ([`PartStore::enter_census`]): the next run that names it as its
+/// prior takes each row its own census names from here instead of
+/// evaluating the part again.
+pub(crate) struct Carried<T: Decide>(BTreeMap<(DocRef, u64), PartValue<T>>);
+
+impl<T: Decide> Carried<T> {
+    /// No row carried: a nested evaluation, or one that entered none.
     pub(crate) fn none() -> Self {
         Self(BTreeMap::new())
     }
 }
 
+impl<T: Decide> core::fmt::Debug for Carried<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_set()
+            .entries(self.0.keys().map(|(r, _)| r))
+            .finish()
+    }
+}
+
 /// **The one census of what a document's evaluation can ask its part
-/// cache for**: the reference `id` instantiates, when `id` is an
+/// table for**: the reference `id` instantiates, when `id` is an
 /// instantiate node. Both askers read it: the instantiate node's own op
 /// (`wire::wire_instantiate_part`) and the mate solve's reach over a
 /// member's instance (`mate::solve`'s `part_of`, which the lever's
 /// `pair_reach` and a face-based side's face pose both ask through).
-/// The descent enters every reference it names before the document
-/// evaluates, and a nested cache refuses any other ask
-/// ([`PartFault::NotEntered`]).
+/// Every reference it names is entered before the document evaluates,
+/// and the table refuses any other ask ([`PartFault::NotEntered`]).
 pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
     match doc.node(id) {
         Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
@@ -1007,11 +1062,12 @@ fn product_fault<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{PartCache, PartFault, Reached};
+    use super::{PartFault, PartStore, Reached};
     use crate::ProfileDoc;
     use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::part::{PartResolver, ResolveFailure, ResolveFault};
     use geom_core::Tol;
+    use std::collections::BTreeMap;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1036,55 +1092,47 @@ mod tests {
         }
     }
 
-    /// **A nested cache never descends.** Below the top, an ask the
-    /// descent did not enter refuses `NotEntered` without reaching the
-    /// resolver; at the top the same ask resolves. Goes red if a miss
-    /// below the top descends again, which would put one more nested
-    /// evaluation on the thread's stack per level.
+    /// **A table never descends, and the store asks once per key.** An
+    /// ask the census did not enter refuses `NotEntered`; the store's
+    /// row resolves on its first ask and keeps even a faulted answer,
+    /// so a second ask in one run reaches no resolver. Goes red if a
+    /// table miss evaluates, or if the store re-resolves within a run.
     #[test]
-    fn a_miss_below_the_top_refuses_not_entered_and_never_resolves() {
+    fn a_table_miss_refuses_not_entered_and_a_store_asks_once() {
         let counting = Arc::new(Counting::default());
         let resolver: Arc<dyn PartResolver> = counting.clone();
-        let chain = [doc_ref("parts-unit-above")];
-        let defaults = super::super::EvalOptions::default();
-        let cache = |chain| {
-            PartCache::<f64>::new(
-                Some(&resolver),
-                chain,
-                Reached::none(),
-                defaults.boolean_sweep,
-                Tol::witness(),
-            )
-        };
         let asked = doc_ref("parts-unit-asked");
 
-        let nested = cache(&chain);
+        let table = Reached::<f64>(BTreeMap::new());
         assert!(
             matches!(
-                nested.get(&asked, Tol::witness()),
+                table.get(&asked, Tol::witness()),
                 Err(PartFault::NotEntered)
             ),
-            "a nested cache's miss is the kernel defect"
+            "a table's miss is the kernel defect"
         );
-        assert_eq!(
-            counting.0.load(Ordering::Relaxed),
-            0,
-            "a nested cache's miss reaches no resolver"
-        );
-        assert_eq!(nested.evaluations(), 0, "and evaluates nothing");
 
-        let top = cache(&[]);
-        assert!(
-            matches!(
-                top.get(&asked, Tol::witness()),
-                Err(PartFault::Unresolved { .. })
-            ),
-            "the top's miss descends, and this resolver refuses it"
-        );
+        let defaults = super::super::EvalOptions::default();
+        let mut store =
+            PartStore::<f64>::new(Some(&resolver), defaults.boolean_sweep, Tol::witness());
+        let cancel = super::super::CancelToken::new();
+        for ask in 1..=2 {
+            assert!(
+                matches!(
+                    store.row(&asked, Tol::witness(), &cancel),
+                    Err(PartFault::Unresolved { .. })
+                ),
+                "ask {ask}: this resolver refuses the reference"
+            );
+        }
         assert_eq!(
             counting.0.load(Ordering::Relaxed),
             1,
-            "the top's miss resolves once"
+            "two asks in one store resolve once"
+        );
+        assert_eq!(
+            store.evaluations, 0,
+            "a refused resolution evaluates nothing"
         );
     }
 }

@@ -253,12 +253,20 @@ fn both_blends_evaluate_in_one_document() {
 /// point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x0361_6dfa_2dcb_a50au64),
-        ("die_chamfer", 0x8aab_4985_692e_cebe),
+        ("die_fillet", 0x81f1_4b59_6af2_3004u64),
+        ("die_chamfer", 0xfa2a_e5e9_86d3_5f3a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -421,13 +429,21 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x413e_8402_6156_81adu64),
-        ("heat_sink", 0x0ef0_9289_7944_5852),
-        ("kiss_carry", 0xa393_83fb_2793_3986),
+        ("crossing_slots", 0x9b2d_ac02_c3e4_168bu64),
+        ("heat_sink", 0xd551_a6fc_787e_61ba),
+        ("kiss_carry", 0x8ee4_89b1_9c55_7144),
     ] {
         let doc = corpus::documents()
             .into_iter()

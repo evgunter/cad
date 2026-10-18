@@ -142,7 +142,11 @@ this rule, and so do profile pieces:
     arc is its `RunIn`, `fillet_arc`'s arrival arc its `RunOut`, and
     `arc_fillet_arc` has both;
   - a `circle_split` has `Piece(k)` for each `k < n` (the `n` is
-    structural);
+    structural). `Piece(k)` is the arc from the split's vertex `k`, at
+    `phase + 2πk/n`, to vertex `k + 1`. The phase is a value, so a phase
+    edit moves every piece along the carrier, and whatever hangs on it,
+    and renames none: a shift by a whole number of arcs draws the same
+    circle with each piece some places along it;
   - a `circle` has `Piece(0)` and `Piece(1)`. It is drawn as the
     `circle_split` with `n = 2` and phase 0: two semicircles, split at the
     circle's `±x` points.
@@ -300,9 +304,14 @@ The qualifier depends on what was split:
   run holds no edge, a straight seam in it. An equal pair, or a run with no
   such line, ties.
   Where the result holds an operand corner as several vertices, each is a
-  fragment of it, `Fragment(Borders)` over the walls that divide the corner
-  there, read as a face piece's walls are (`borders.rs`); equal sets tie, and
-  a corner the result holds as one vertex is its bare name.
+  fragment of it, qualified as the operation's face pieces are. At a boolean
+  or a union it is `Fragment(Borders)` over the walls that divide the corner
+  there, read as a face piece's walls are (`borders.rs`). At a Split, where
+  one half holds the corner as several vertices, it is `Fragment(Keeps)`:
+  the sorted set of the operand corner's own edges, cited by their lines,
+  that the vertex is an end of a piece of in that half, an edge lying in the
+  tool plane included. Equal sets tie, and a corner the result holds as one
+  vertex (in a Split, one per half) is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set; the flush rule below is

@@ -461,19 +461,32 @@ pub enum SlotId {
         /// Which of the rigid step's components.
         arg: RigidArg,
     },
-    /// A component of a rigid step of a mate side's frame offset
-    /// ([`crate::MateFrame`]): `arg` of step `step` of side `side`'s
-    /// offset. A mate holds two placements, so its addresses carry
-    /// the side, and step 0 is addressed by its index like any other.
-    MateFrameStep {
+    /// A slide's length in a mate's world read ([`crate::WorldRead`]):
+    /// the `step`th scalar of constraint `constraint`'s read, in
+    /// pre-order.
+    WorldSlide {
         /// Which constraint of the placement.
         constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
+        /// The scalar's place in the read.
         step: usize,
-        /// Which of the rigid step's components.
-        arg: RigidArg,
+    },
+    /// A spin's angle in a mate's world read ([`crate::WorldRead`]),
+    /// addressed as [`SlotId::WorldSlide`] is.
+    WorldSpin {
+        /// Which constraint of the placement.
+        constraint: ConstraintId,
+        /// The scalar's place in the read.
+        step: usize,
+    },
+    /// A slide value's length ([`crate::mate::Value`]).
+    ValueSlide {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
+    },
+    /// A spin value's angle ([`crate::mate::Value`]).
+    ValueSpin {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
     },
     /// A linear pattern's instance spacing (Length).
     Spacing,
@@ -564,13 +577,6 @@ fn rigid_label(step: usize, noun: &str) -> String {
     }
 }
 
-/// **The prose of a mate side's offset component**, `noun`, at chain
-/// index `step` of side `side`'s offset — counted from one, as
-/// [`rigid_label`] counts.
-fn mate_step_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
-    format!("side {} frame step {} {noun}", side.name(), step + 1)
-}
-
 /// A slot family whose members are the three COMPONENTS of one
 /// 3-vector — the vector-valued half of [`SlotId`], named once here so
 /// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
@@ -622,26 +628,6 @@ pub enum VectorSlot {
         /// The step's index in the chain.
         step: usize,
     },
-    /// A rigid step's translation in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameTranslation {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
-    /// A rigid step's rotation axis in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameRotationAxis {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
 }
 
 impl VectorSlot {
@@ -656,26 +642,6 @@ impl VectorSlot {
             Self::V => SlotId::V(axis),
             Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
             Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
-            Self::MateFrameTranslation {
-                constraint,
-                side,
-                step,
-            } => SlotId::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg: RigidArg::Translation(axis),
-            },
-            Self::MateFrameRotationAxis {
-                constraint,
-                side,
-                step,
-            } => SlotId::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg: RigidArg::RotationAxis(axis),
-            },
         }
     }
 
@@ -694,12 +660,6 @@ impl VectorSlot {
             Self::V => "y axis".to_owned(),
             Self::Translation { step } => rigid_label(step, "translation"),
             Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
-            Self::MateFrameTranslation { side, step, .. } => {
-                mate_step_label(side, step, "translation")
-            }
-            Self::MateFrameRotationAxis { side, step, .. } => {
-                mate_step_label(side, step, "rotation axis")
-            }
         }
     }
 
@@ -764,9 +724,13 @@ impl SlotId {
                 Dimension::Count
             }
             // A later step's component has its step-0 twin's dimension.
-            Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
+            Self::PlacementStep { arg, .. } => {
                 return SlotId::rigid(0, arg).dimension();
             }
+            Self::WorldSlide { .. } => Dimension::Length,
+            Self::WorldSpin { .. } => Dimension::Angle,
+            Self::ValueSlide { .. } => Dimension::Length,
+            Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -860,12 +824,10 @@ impl SlotId {
                 Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
                 _ => String::from("component"),
             },
-            Self::MateFrameStep {
-                side, step, arg, ..
-            } => match arg {
-                RigidArg::RotationAngle => mate_step_label(side, step, "rotation angle"),
-                RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
-            },
+            Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
+            Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
+            Self::ValueSlide { .. } => String::from("slide value"),
+            Self::ValueSpin { .. } => String::from("spin value"),
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -904,30 +866,6 @@ impl SlotId {
                     (_, RigidArg::RotationAngle) => None,
                 }
             }
-            Self::MateFrameStep {
-                constraint,
-                side,
-                step,
-                arg,
-            } => match arg {
-                RigidArg::Translation(axis) => Some((
-                    VectorSlot::MateFrameTranslation {
-                        constraint,
-                        side,
-                        step,
-                    },
-                    axis,
-                )),
-                RigidArg::RotationAxis(axis) => Some((
-                    VectorSlot::MateFrameRotationAxis {
-                        constraint,
-                        side,
-                        step,
-                    },
-                    axis,
-                )),
-                RigidArg::RotationAngle => None,
-            },
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
@@ -949,7 +887,11 @@ impl SlotId {
             | Self::Stations
             | Self::Operand(_)
             | Self::Index { .. }
-            | Self::Profile { .. } => None,
+            | Self::Profile { .. }
+            | Self::WorldSlide { .. }
+            | Self::WorldSpin { .. }
+            | Self::ValueSlide { .. }
+            | Self::ValueSpin { .. } => None,
         }
     }
 
@@ -970,10 +912,16 @@ impl SlotId {
         SlotId::PlacementStep { step, arg }
     }
 
-    /// Whether this slot addresses a step of a mate side's frame
-    /// offset — an address only a mate carries.
-    pub fn is_mate_frame_step(self) -> bool {
-        matches!(self, Self::MateFrameStep { .. })
+    /// Whether this slot addresses a scalar of a mate's world read —
+    /// an address only a mate carries.
+    pub fn is_world_read_step(self) -> bool {
+        matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
+    }
+
+    /// Whether this slot addresses a value's number — an address only a
+    /// value carries.
+    pub fn is_value(self) -> bool {
+        matches!(self, Self::ValueSlide { .. } | Self::ValueSpin { .. })
     }
 
     /// The chain position and component a rigid step's slot addresses
@@ -1496,25 +1444,26 @@ impl SitedRef {
     }
 }
 
-/// **A mate side as an author writes it: a FACE name, and the node it
-/// is read at.**
+/// **A face as an author writes it for a mate: a FACE name, and the
+/// node it is read at.**
 ///
-/// [`SitedRef`]'s shape with the name's kind fixed by the type, because
-/// a mate declares a FACE-PAIR contact. It lowers
-/// (`impl From<SitedFace> for Operand`) to the read a mate stores: a
-/// one-name selection of `at`'s output, which the door mints as a
-/// `Face` variable, so the selection's body read is an ordinary DAG
-/// edge and the name resolves against `at`'s own evaluated table
-/// through the N5 ladder every other authored name takes.
+/// [`SitedRef`]'s shape with the name's kind fixed by the type. It
+/// lowers (`impl From<SitedFace> for Operand`) to a one-name selection
+/// of `at`'s output, which the door mints as a `Face` variable, so the
+/// selection's body read is an ordinary DAG edge and the name resolves
+/// against `at`'s own evaluated table through the N5 ladder every
+/// other authored name takes. A mate reads it inside a pose — the
+/// plane of the face ([`crate::pose::PoseDef::Plane`]).
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
 /// that re-derives one without re-asking the kind.
 ///
 /// ```
+/// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, Formula, Mate, MateFrame,
-///     MatePrimitive, RecipeNodeId, SideRead, SitedFace, StableName,
+///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     StableName, Target,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1522,18 +1471,18 @@ impl SitedRef {
 ///     path: Vec::new(),
 /// })
 /// .expect("a face name is a face");
-/// let frame = MateFrame::from_face();
+/// let plane = |face: FaceName| {
+///     Operand::Pose(Box::new(PoseDef::Plane {
+///         face: SitedFace::at_mint(face).into(),
+///     }))
+/// };
+/// let flipped = Operand::Pose(Box::new(PoseDef::Flip {
+///     pose: plane(face.clone()).into(),
+/// }));
 /// let _: Mate<Formula> = Mate {
-///     a: SideRead::Face(SitedFace::at_mint(face.clone()).into()),
-///     b: SideRead::Face(SitedFace::at_mint(face).into()),
+///     on: plane(face),
+///     to: Target::Pose(flipped),
 ///     class: ContactClass::Rest,
-///     alignment: Alignment {
-///         a: frame.clone(),
-///         b: frame,
-///         primitive: MatePrimitive::FrameCoincidence,
-///         sense: AxisSense::Aligned,
-///         clocking: None,
-///     },
 /// };
 /// ```
 ///
@@ -2223,8 +2172,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     },
     /// **The world** (D10): one undeletable node every document holds
     /// from its creation, at [`RecipeNodeId::WORLD`]. It defines no
-    /// variable, so only a placement's constraints read it
-    /// ([`crate::mate::SideRead::World`]), and export writes its
+    /// variable, so only a placement's mates read it
+    /// ([`crate::mate::Target::World`]), and export writes its
     /// coordinates. It is not on the wire: every document has it.
     World,
     /// **A pattern of an upstream value** with a STRUCTURAL
@@ -2608,8 +2557,8 @@ macro_rules! node_rows {
                 placement,
             } => $out.extend(placement.$rows()),
             // A placement's slots are its shapes' indices, then each
-            // constraint's two frame offsets' rigid steps, addressed by
-            // the constraint and its side.
+            // constraint's: a world read's scalars and a value's number,
+            // addressed by the constraint.
             Node::Place {
                 shapes,
                 constraints,
@@ -2786,8 +2735,8 @@ impl<P> Node<P> {
         };
         match self {
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
-            // Each constraint's face reads, in bundle order, `a` before
-            // `b`; the copy and the world are read by no variable.
+            // Each constraint's pose reads, in bundle order, `on` before
+            // a pose `to`; a world read reads no variable.
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
@@ -3076,25 +3025,6 @@ impl<P> Node<P> {
         AssertionBoundFault::against(dim(value)?, dim(bound)?)
     }
 
-    /// **The first constraint of this placement whose alignment datum
-    /// carries a coordinate no predicate can decide on** (ASM-R2a D-1).
-    ///
-    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
-    /// one place a NODE is asked it, so the edit door and the load
-    /// door's walk share the destructuring as well as the test.
-    /// `None` for every node that holds no constraint.
-    pub(crate) fn non_finite_alignment(&self) -> Option<ConstraintId> {
-        match self {
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .iter()
-                    .find(|c| !c.mate.alignment.is_finite())
-                    .map(|c| c.id)
-            }
-            _ => None,
-        }
-    }
-
     /// **What is wrong with this node's indexed reads**, if anything:
     /// an index at a family argument, or a read carrying other than its
     /// family's rank of indices.
@@ -3221,9 +3151,8 @@ impl<P> Node<P> {
     /// admission rule refuses at `tol`, with where it sits
     /// ([`crate::Placement::frame_fault`]) — the one question the edit
     /// door and the load door ask of a node's literal steps: a
-    /// transform's, and each of a placement's constraints' two frame
-    /// offsets, in bundle order, side `a` first. `None` for every node
-    /// without one.
+    /// transform's. A mate holds no frame (FORK-S3M). `None` for every
+    /// node without one.
     pub fn placement_frame_fault(
         &self,
         tol: geom_core::Tol,
@@ -3231,21 +3160,6 @@ impl<P> Node<P> {
         let step = |(index, fault)| (crate::placement::FrameSite::Step { index }, fault);
         match self {
             Node::Transform { placement, .. } => placement.frame_fault(tol).map(step),
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints.iter().find_map(|c| {
-                    c.mate.frames().into_iter().find_map(|(side, frame)| {
-                        let (index, fault) = frame.offset.frame_fault(tol)?;
-                        Some((
-                            crate::placement::FrameSite::MateStep {
-                                constraint: c.id,
-                                side,
-                                index,
-                            },
-                            fault,
-                        ))
-                    })
-                })
-            }
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -3267,6 +3181,8 @@ impl<P> Node<P> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
+            | Node::InstantiatePart { .. }
             | Node::World
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -4187,40 +4103,25 @@ impl<P, S: Slot> Node<P, S> {
         reference: usize,
     ) -> Option<(&'static str, String)> {
         use crate::OperandSlot as O;
-        match (self, slot) {
-            (Node::Fillet { .. }, O::Selection) => Some(("fillet", format!("edge {reference}"))),
-            (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
-            (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
-            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
-            (Node::Measure { .. }, O::Measured(_, i)) => {
-                Some(("measure", format!("reference {i}")))
-            }
-            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { constraint, side }) => {
-                Some(("constraint", format!("{constraint} side {}", side.name())))
-            }
-            _ => None,
-        }
+        let owner = match (self, slot) {
+            (Node::Fillet { .. }, O::Selection) => "fillet",
+            (Node::Chamfer { .. }, O::Selection) => "chamfer",
+            (Node::Shell { .. }, O::Open) => "shell",
+            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => "frame",
+            (Node::Measure { .. }, O::Measured(..)) => "measure",
+            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
+            _ => return None,
+        };
+        Some((owner, slot.selection_entry(reference)?))
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record, pinned to the world at the identity — the authoring
-    /// constructor, so every insert door yields an instance standing
-    /// where its part's world does ([`crate::mate::Mate::world_pin`]).
-    /// An instance placed by other constraints starts from
-    /// [`Node::instantiate_part_with`], its bundle empty. A non-empty
-    /// record is mintable only by the refactoring that observed
-    /// declarations crossing a cut: an authored instance crosses
-    /// nothing.
+    /// record and no constraint: a loose copy until its mates pin it. A
+    /// mate reads poses off geometry and there is no part frame to read
+    /// (FORK-S3M), so no constructor can pin an instance where its
+    /// part's world is; the façade's "place part" writes the mates.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        let mut node = Self::instantiate_part_with(doc_ref, InterfaceRecord::default());
-        if let Node::InstantiatePart { constraints, .. } = &mut node {
-            constraints.push(crate::mate::Constraint {
-                // The insert door mints the constraint's id.
-                id: ConstraintId(crate::MintId::new(0, 0)),
-                mate: crate::mate::Mate::world_pin(crate::placement::Placement::IDENTITY),
-            });
-        }
-        node
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
@@ -4314,13 +4215,6 @@ impl<P> Node<P, crate::Formula> {
             Node::Shell { open, .. } => vec![open],
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .iter()
-                    .flat_map(|c| [c.mate.a.face(), c.mate.b.face()])
-                    .flatten()
-                    .collect()
-            }
             // Exhaustive, so a selection seat added to a node is stated
             // here or does not compile: an operand that is a whole body
             // authors no selection.
@@ -4346,6 +4240,8 @@ impl<P> Node<P, crate::Formula> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
+            | Node::InstantiatePart { .. }
             | Node::Assertion { .. } => Vec::new(),
         };
         seats
@@ -4445,7 +4341,7 @@ where
         // A literal FRAME is float payload no slot addresses, and the
         // `PartialEq` above compares its coordinates by value: a
         // transform's literal steps, an explicit rule's listed frames,
-        // and each constraint's alignment datum compare here, by bits.
+        // and each constraint's own scalars compare here, by bits.
         match (self, other) {
             (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
                 if !a.bit_eq(b) {
@@ -4482,44 +4378,49 @@ where
     }
 }
 
-/// **A bundle's face reads**, each at its seat
-/// ([`crate::OperandSlot::Side`]), in bundle order, `a` before `b`.
-fn side_rows(constraints: &[crate::mate::Constraint]) -> Vec<(crate::OperandSlot, VarId)> {
+/// **A bundle's pose reads**, each at its seat
+/// ([`crate::OperandSlot::Side`]), in bundle order, `on` before a pose
+/// `to` (a world read reads no variable).
+fn side_rows<S: Slot>(
+    constraints: &[crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, S::Read)>
+where
+    S::Read: Clone,
+{
     let mut out = Vec::new();
     for c in constraints {
-        for (side, read) in c.mate.sides() {
-            if let Some(read) = read.face() {
-                out.push((
-                    crate::OperandSlot::Side {
-                        constraint: c.id,
-                        side,
-                    },
-                    *read,
-                ));
-            }
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: c.id,
+            side,
+        };
+        let Some(mate) = c.mate() else {
+            continue;
+        };
+        out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
+        if let Some(to) = mate.to.pose() {
+            out.push((seat(crate::mate::MateSide::To), to.clone()));
         }
     }
     out
 }
 
 /// [`side_rows`], writable, in the same order.
-fn side_rows_mut(
-    constraints: &mut [crate::mate::Constraint],
-) -> Vec<(crate::OperandSlot, &mut VarId)> {
+fn side_rows_mut<S: Slot>(
+    constraints: &mut [crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, &mut S::Read)> {
     let mut out = Vec::new();
     for c in constraints {
         let id = c.id;
-        let crate::mate::Mate { a, b, .. } = &mut c.mate;
-        for (side, read) in [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)] {
-            if let Some(read) = read.face_mut() {
-                out.push((
-                    crate::OperandSlot::Side {
-                        constraint: id,
-                        side,
-                    },
-                    read,
-                ));
-            }
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: id,
+            side,
+        };
+        let Some(crate::mate::Mate { on, to, .. }) = c.mate_mut() else {
+            continue;
+        };
+        out.push((seat(crate::mate::MateSide::On), on));
+        if let Some(to) = to.pose_mut() {
+            out.push((seat(crate::mate::MateSide::To), to));
         }
     }
     out
@@ -4536,21 +4437,18 @@ fn map_constraints<S: Slot, S2: Slot, E>(
         .iter()
         .map(|c| {
             let id = c.id;
-            Ok(crate::mate::Constraint {
-                id,
-                mate: c.mate.try_map(
-                    |side, r| {
-                        read(
-                            crate::OperandSlot::Side {
-                                constraint: id,
-                                side,
-                            },
-                            r,
-                        )
-                    },
-                    f,
-                )?,
-            })
+            c.try_map(
+                |side, r| {
+                    read(
+                        crate::OperandSlot::Side {
+                            constraint: id,
+                            side,
+                        },
+                        r,
+                    )
+                },
+                f,
+            )
         })
         .collect()
 }

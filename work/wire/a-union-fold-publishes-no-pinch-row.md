@@ -2,10 +2,12 @@
 id: a-union-fold-publishes-no-pinch-row
 kind: issue
 title: An n-ary union or intersect publishes no pinch row: the pairwise judgement drops its vertex identities and a fold step publishes only the rows a record cites
-status: open
+status: review
 opened: 2026-10-12
 priority: P2
 cost: M
+pr: 5276
+branch: wire/fold-rows-in-member-space
 ---
 
 
@@ -59,3 +61,60 @@ A fold step's pinch row has to be published when the final body still
 pinches there, and not when a later step consumed the pinch. A later
 step reads the accumulator's copies as structure and decides nothing
 there, so the publication cannot be read off the last step alone.
+
+## Measured (2026-10-18, `wire-pinch`)
+
+The witness as an editor document (the L extruded z 0 to 1 on the xy
+frame; the cube a square of half-width 2 on the frame through
+(1, 1, 1) with normal (1, 1.3, 0.7) normalised, extruded 4), at
+`4489bedb04`, counting `VertexFusion` rows per pairwise judgement, per
+fold step, and on the node:
+
+- `Union [prism, cube]`: the one step holds one `VertexFusion` row no
+  record cites; the node publishes it; two vertices at the corner.
+- `Union [far, prism, cube]`: the judgement of prism and cube holds
+  one uncited `VertexFusion` row, step 2 holds one; the node publishes
+  none, and the result holds two vertices at the corner. The defect.
+- `Union [prism, cube, cap]` and `[cap, prism, cube]` (cap: the block
+  0.8..1.2 in x and y, z 0.8 to 1.2): the judgement of prism and cube
+  holds the uncited row in both; in the first order step 1 holds it
+  too; the result holds no vertex at the corner. A consumed pinch the
+  judgement and the first step both decided.
+- `Union [prism, cube, far]` and `Intersect [prism, cube, big]` refuse
+  in naming before any row is published
+  (`work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md`).
+
+## Decided (2026-10-18, FORK-FOLDPINCH, designers converged): DM4 already answers it
+
+Both designers, briefed with the problem only, rejected the brief's
+criterion ("the coincidences true of the finished body") and found the
+answer already ratified: `crates/editor-core/REFERENCES.md` DM4 (PR 4323,
+Ev-approved, fork-log row 94) — "its rows, in member space, are the
+union's coincidence rows"; "a contact a third member covers is still its
+pair's, recorded"; "No row names a cell the fold minted"; "drop a fold row
+only when a judged row states it". A row records a decision the kernel took
+from values, not a feature of the body: a covered pinch routed the build
+and a replay refuses at it, so its `unproven-coincidence` finding is true.
+`wire_combine`'s `VertexFusion` filter departs from DM4 for one site, and
+its justifying comment is unratified agent text.
+
+**The build:** drop the filter, so the judgement's rows are published
+whole, `VertexFusion` included, in member space; spell each fold row by
+member cells (the `From { read, of }` head of its collapsed name, piece
+qualifiers stripped, as `NamedCell::Entity { input: read, name: of }`; a
+cell the fold minted stays in the node's space under its canonical head);
+and before publishing a fold row, cite the judged row that states the same
+two member cells and relation instead of publishing it twice. A step's
+`inherited` pinch stays silent (topo's `pinch_rows` is right). This also
+fixes `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+(no row is named against an intermediate fold table), which lands in the
+same unit and closes with it. Pin: the rows are one multiset across
+member orders (extend `union_member_orders_decide_alike`), for the orders
+that build today; REFS's `a-pinch-carried-through-a-later-fold-step-refuses-naming`
+blocks the rest and is independent.
+
+Not Ev's: no ratified text changes. One designer flagged an unmeasured
+gap for intersect (three-member rows may not be order-free once a fourth
+member covers them), filed separately.
+
+Signed (WIRE orchestrator).

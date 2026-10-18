@@ -297,8 +297,8 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     let mid = control.len() / 2;
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )

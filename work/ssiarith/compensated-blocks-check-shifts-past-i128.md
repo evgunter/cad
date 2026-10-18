@@ -8,7 +8,7 @@ priority: P2
 cost: E
 ---
 
-Seen by the FUSE lane on stage (c) of `work/fuse/the-curve-pair-reader.md`, whose diff does not touch `ssi`. It failed once in a local `ci`-profile run of geom-brep, at the default effort.
+Seen by the FUSE lane on stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), whose diff does not touch `ssi`. It failed once in a local `ci`-profile run of geom-brep, at the default effort.
 
 `ssi::compensated::tests::the_blocks_enclose_the_exact_results` (`crates/geom-brep/src/ssi/compensated.rs`) panics with "attempt to shift left with overflow" in its division check's `ai << -e`.
 

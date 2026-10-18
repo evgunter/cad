@@ -617,7 +617,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
         let weights: Vec<f64> = (0..nctrl).map(|_| rng.range(0.5, 2.0)).collect();
         let curve = NurbsCurve3::new(kv.clone(), control, weights.clone()).unwrap();
         let coords = curve.certified_coords();
-        let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
+        let data = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords).unwrap();
         let surfaces = [
             ImplicitSurface::Plane {
                 point: [rng.range(-1.0, 1.0), 0.3, -0.2],
@@ -785,18 +785,18 @@ fn f6_worked_example_numbers() {
     let fit65 = NurbsCurve3::approximate(&arc_samples_certify(65), 3, 1e-2).unwrap();
     println!(
         "[F6] 65 samples: ctrl {} bound {:.4e} refit {}",
-        fit65.curve.knots().control_count(),
+        fit65.curve.knots_f64_interim().control_count(),
         fit65.bound,
         fit65.refit_applied
     );
     let fit129 = NurbsCurve3::approximate(&arc_samples_certify(129), 3, 1e-2).unwrap();
     println!(
         "[F6] 129 samples: ctrl {} bound {:.4e} refit {}",
-        fit129.curve.knots().control_count(),
+        fit129.curve.knots_f64_interim().control_count(),
         fit129.bound,
         fit129.refit_applied
     );
-    assert_eq!(fit65.curve.knots().control_count(), 30);
+    assert_eq!(fit65.curve.knots_f64_interim().control_count(), 30);
     assert!(
         (fit65.bound - 9.890e-3).abs() < 2e-5,
         "bound {:e}",
@@ -816,7 +816,7 @@ fn f6_loose_tolerance_degenerate_structures() {
     for tol in [1.0, 1e3, 1e12] {
         match NurbsCurve3::approximate(&pts, 3, tol) {
             Ok(fit) => {
-                let n = fit.curve.knots().control_count();
+                let n = fit.curve.knots_f64_interim().control_count();
                 let dense = {
                     let reference = NurbsCurve3::interpolate(&pts, 1).unwrap();
                     let mut worst = 0.0f64;
@@ -846,7 +846,7 @@ fn f6_loose_tolerance_degenerate_structures() {
     let fit2 = NurbsCurve2::approximate(&pts2, 3, 1e6).unwrap();
     println!(
         "[F6] 2-D loose: ctrl {} bound {:.3e}",
-        fit2.curve.knots().control_count(),
+        fit2.curve.knots_f64_interim().control_count(),
         fit2.bound
     );
 }
@@ -874,7 +874,7 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     let fit = NurbsCurve3::approximate(&pts, 3, tol).unwrap();
     println!(
         "[F9] fit: ctrl {} bound {:.3e} refit {}",
-        fit.curve.knots().control_count(),
+        fit.curve.knots_f64_interim().control_count(),
         fit.bound,
         fit.refit_applied
     );
@@ -894,7 +894,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     }
     // Compose the cylinder residual of the FIT and hull-bound it.
     let coords = fit.curve.certified_coords();
-    let data = CurveCertData::new(fit.curve.knots(), fit.curve.weights(), &coords).unwrap();
+    let data =
+        CurveCertData::new(fit.curve.knots_f64_interim(), fit.curve.weights(), &coords).unwrap();
     let cyl = ImplicitSurface::Cylinder {
         point: [0.0, 0.0, 0.0],
         axis: [0.0, 0.0, 1.0],
@@ -928,7 +929,7 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     assert!(matches!(verdict, Ok(geom_core::predicate::Sign::Positive)));
     // Corrupt one control point (between-samples excursion) and verify
     // REFUSAL through the same gate.
-    let kv = fit.curve.knots();
+    let kv = fit.curve.knots_f64_interim();
     let p_deg = kv.degree();
     let idx = fit.curve.control().len() / 2;
     let mut control = fit.curve.control().to_vec();
@@ -937,7 +938,12 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     control[idx] = control[idx] + radial * (0.05 / rn);
     let corrupted = NurbsCurve3::new(kv.clone(), control, fit.curve.weights().to_vec()).unwrap();
     let coords_c = corrupted.certified_coords();
-    let data_c = CurveCertData::new(corrupted.knots(), corrupted.weights(), &coords_c).unwrap();
+    let data_c = CurveCertData::new(
+        corrupted.knots_f64_interim(),
+        corrupted.weights(),
+        &coords_c,
+    )
+    .unwrap();
     let hull_c = compose::implicit_composite(&data_c, &cyl)
         .unwrap()
         .sup_bound();

@@ -2762,7 +2762,7 @@ mod tests {
         let Curve3::Nurbs(n) = c else {
             panic!("fixture is a NURBS");
         };
-        let knots = n.knots().knots();
+        let knots = n.knots_f64_interim().knots();
         let mut ps: Vec<f64> = knots.to_vec();
         ps.extend(
             knots
@@ -2791,13 +2791,13 @@ mod tests {
             panic!("a described NURBS lifted to another variant");
         };
         assert_eq!(
-            lifted.knots(),
-            source.knots(),
+            lifted.knots_f64_interim(),
+            source.knots_f64_interim(),
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weight_channel(),
-            source.weight_channel(),
+            lifted.weights_f64_interim(),
+            source.weights_f64_interim(),
             "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
@@ -3142,13 +3142,13 @@ mod tests {
                 panic!("a described NURBS lifted to another variant");
             };
             assert_eq!(
-                lifted.knots(),
-                source.knots(),
+                lifted.knots_f64_interim(),
+                source.knots_f64_interim(),
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weight_channel(),
-                source.weight_channel(),
+                lifted.weights_f64_interim(),
+                source.weights_f64_interim(),
                 "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {

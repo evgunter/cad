@@ -147,10 +147,7 @@ pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
     node_kind_noun, spoken_by, spoken_within,
 };
-// The entity door's token: a field of four `NodeErrorKind` variants, so
-// a reader that matches one needs to be able to name it here rather
-// than through the module path.
-pub use eval::entity_door::Found;
+
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,
@@ -160,13 +157,14 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
-    Constraint, Coset, FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, Mate,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRef, MateSide, Member,
-    NO_AT_REST_RECORD_RECOURSE, OVERCONSTRAINED_RECOURSE, PlacerRow, Placing, PoseRefusal,
-    PoseSymmetry, ReachRefusal, RefusingReach, SideRead, SolvedPoses, Space, Subgroup,
-    SubgroupFamily, class_admission, head_face, head_of, member_of, member_reading,
-    relative_freedom_components, solve_document, solve_document_by_placement, table_gap,
+    Anchor, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint,
+    ConstraintKind, Coord, Coset, FreedomRefusal, Lever, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate,
+    MateFault, MateReach, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy,
+    OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
+    ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
+    Unobservable, Value, WorldPin, WorldRead, WorldReadFault, class_admission, head_face, head_of,
+    member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
+    relative_freedom_components, solve_document, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

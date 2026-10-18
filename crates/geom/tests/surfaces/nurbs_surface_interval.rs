@@ -99,8 +99,8 @@ fn surface_poison_propagates() {
     let mut ctrl = n.control().to_vec();
     ctrl[6] = Point3::new(f64::NAN, ctrl[6].y, ctrl[6].z);
     let np = NurbsSurface::new(
-        n.knots_u().clone(),
-        n.knots_v().clone(),
+        n.knots_u_f64_interim().clone(),
+        n.knots_v_f64_interim().clone(),
         ctrl,
         n.weights().to_vec(),
     )

@@ -1,50 +1,52 @@
-//! **The member walk's residue**: one nominal environment per solve,
-//! and the mate wire's one field-bearing type that dropped a stray
-//! key.
+//! **The solve's one environment, and the constraint wire's denial of
+//! a stray key.**
 //!
-//! The solve reads every number it needs — a pattern's count, a
-//! `Part`'s index, the slots a derived offset composes — in one
-//! environment. `solve_document` builds the document's own ONCE; the
-//! evaluation hands in its lane's, which it already holds
-//! (`solve_with_env`); either is passed down as a parameter. The
-//! build count is pinned here by the source rather than by a probe —
-//! no counter sees a `var_env` build — and the rows over parameters
-//! pin what `solve_document`'s environment IS: the document's nominal,
-//! bit for bit, following an edit of the parameter and ignoring its
-//! distribution.
+//! A placement folds its bundle where it evaluates, so every number
+//! the fold reads — a value's slide or spin, a standoff, a world read's
+//! moves — is read in the environment of the evaluation's own lane,
+//! which it already holds. The solve builds no environment of its own:
+//! `solve_document` IS an evaluation. The build count is pinned here by
+//! the source rather than by a probe — no counter sees a `var_env`
+//! build — and the rows over parameters pin what that environment IS
+//! for the nominal solve: the document's nominal, bit for bit,
+//! following an edit of the parameter and ignoring its distribution.
 //!
-//! `MatePrimitive` refuses a field this build lacks through the load
-//! door, in the typed arm the format uses for every stray field
-//! (`PersistError::Unreadable`, naming the field) — the persist module
-//! docs' rule, proved for this type. The same alignment with the key
-//! removed loads.
+//! A constraint's objects on the wire — the mate and the value —
+//! refuse a field this build lacks through the load door, in the typed
+//! arm the format uses for every stray field (`PersistError::Unreadable`,
+//! naming the field); the same bundle without the key loads.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::wire;
 use editor_core::ExtrudeSide;
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, Datum, Dimension, Distribution,
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, Mate,
-    MateFault, MateFrame, MatePrimitive, MateRef, Node, PatternKind, PersistError, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedFace, StableName, VarName, apply, load, save,
+    CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
+    EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SlideAxis, StableName, Value, VarName, apply,
+    load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
-use geom_core::Tol;
+use fixture::{ang, head, insert, len, on_frame, solve, step};
 use geom_core::linalg::Affine3;
+use geom_core::{Point3, Tol, Vec3};
 use test_utils::source;
 
-// ---- A1: one environment per solve ----
+// ---- A1: the solve builds no environment ----
 
-const MEMBER: &str = include_str!("../src/mate/member.rs");
 const SOLVE: &str = include_str!("../src/mate/solve.rs");
+const VALUE: &str = include_str!("../src/mate/value.rs");
+const PIN: &str = include_str!("../src/mate/pin.rs");
+const COSET: &str = include_str!("../src/mate/coset.rs");
+const WIRE: &str = include_str!("../src/eval/wire.rs");
 const EVAL: &str = include_str!("../src/eval/mod.rs");
 
 /// A file's shipped code: comments and literals blanked, cut at its
 /// `#[cfg(test)]` module if it has one — a unit row there hands the
-/// reader an environment the way the solve does, and building it is
-/// the row's business. `must_hold` are heads the prefix has to keep,
+/// reader an environment the way the evaluation does, and building it
+/// is the row's business. `must_hold` are heads the prefix has to keep,
 /// so a marker that moved up the file cannot shrink the guarded text
 /// to nothing.
 fn shipped(text: &str, must_hold: &[&str]) -> String {
@@ -61,83 +63,76 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
     code
 }
 
-/// **The solve's environment is built at one site of the solve**:
-/// `solve_document`'s body holds the one `var_env` build the solve
-/// makes, `solve_with_env` — the entry the evaluation uses — holds
-/// none, and `member.rs`, every reader of that environment, holds
-/// none. A reader that rebuilt its own would put a second build in
-/// one of these files, which is what this row counts.
-/// `SolvedPoses::placement`, the nominal world-pose door, builds none
-/// either: it composes the frames the solve recorded.
+/// The body of the item `head` declares in `code`.
+fn body_of<'a>(code: &'a str, head: &str) -> &'a str {
+    let at = code
+        .find(head)
+        .unwrap_or_else(|| panic!("`{head}` is declared"));
+    let source::ItemBody::Body(body) = source::item_body(code, at) else {
+        panic!("`{head}` has a body");
+    };
+    &code[body]
+}
+
+/// **The solve builds no environment; the fold reads the lane's**:
+/// the mate modules hold no `var_env` build; `solve_document` answers
+/// off an evaluation (its body hands off to `solve_document_at`, which
+/// calls `evaluate`); the fold, `fold_with` in `eval/wire.rs`, reads the
+/// parameters of the lane it runs in (`env.lane.params`) and builds
+/// none; and the evaluation never calls back into `solve_document`,
+/// which would evaluate the document a second time.
 ///
 /// What it cannot see: an environment reached through another door
-/// (`VarEnv { .. }` written by hand, `var_env_over`, `seed_env`),
-/// and a build sited correctly but fed to nothing — the rows over
-/// parameters below are what pin that the environment the solve
-/// reads is the document's nominal.
+/// (`VarEnv { .. }` written by hand, `var_env_over`, `seed_env`), and a
+/// lane environment built correctly but not the one the fold is handed
+/// — the rows over parameters below are what pin that the environment
+/// the nominal solve reads is the document's nominal.
+///
+/// *Breaks if* a mate module builds an environment of its own, the
+/// solve stops being an evaluation, or the fold stops reading its
+/// lane's parameters.
 #[test]
-fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
+fn a1_the_solve_builds_no_environment_and_the_fold_reads_its_lanes() {
     const NEEDLE: &str = "var_env";
-    let member = shipped(MEMBER, &["fn check_reference", "fn derived_offset"]);
-    assert_eq!(
-        member.matches(NEEDLE).count(),
-        0,
-        "member.rs takes the environment as a parameter and builds none"
-    );
-    let solve = shipped(SOLVE, &["pub fn solve_document", "fn solve_with_env"]);
-    let door = {
-        let at = solve
-            .find("pub fn placement<P>")
-            .expect("the nominal world-pose door is declared");
-        let source::ItemBody::Body(body) = source::item_body(&solve, at) else {
-            panic!("the door has a body");
-        };
-        body
-    };
-    let builds: Vec<usize> = solve.match_indices(NEEDLE).map(|(at, _)| at).collect();
-    assert_eq!(
-        solve[door].matches(NEEDLE).count(),
-        0,
-        "the world-pose door builds no environment"
-    );
-    assert_eq!(
-        builds.len(),
-        1,
-        "solve.rs builds the environment once, at lines {:?}",
-        builds
-            .iter()
-            .map(|&at| source::line(&solve, at))
-            .collect::<Vec<_>>()
-    );
-    let body_of = |head: &str| {
-        let at = solve
-            .find(head)
-            .unwrap_or_else(|| panic!("`{head}` is declared"));
-        let source::ItemBody::Body(body) = source::item_body(&solve, at) else {
-            panic!("`{head}` has a body");
-        };
-        body
-    };
+    for (file, text, heads) in [
+        (
+            "mate/solve.rs",
+            SOLVE,
+            &["pub fn solve_document", "fn solve_bundle"][..],
+        ),
+        ("mate/value.rs", VALUE, &["fn settle"][..]),
+        ("mate/pin.rs", PIN, &["pub fn pin_at"][..]),
+        ("mate/coset.rs", COSET, &["pub fn intersect"][..]),
+    ] {
+        let code = shipped(text, heads);
+        assert_eq!(
+            code.matches(NEEDLE).count(),
+            0,
+            "{file} builds no environment"
+        );
+    }
+    let solve = shipped(SOLVE, &["pub fn solve_document"]);
     assert!(
-        body_of("pub fn solve_document").contains(&builds[0]),
-        "the one build stands in `solve_document`'s body, not in a helper it calls"
+        body_of(&solve, "pub fn solve_document(").contains("solve_document_at("),
+        "`solve_document` is `solve_document_at` at `f64`"
     );
-    let with_env = body_of("fn solve_with_env");
+    // `solve_document_at` lives at the evaluation's scalar seam
+    // (`eval/mod.rs`), re-exported from the solve.
+    let at = shipped(EVAL, &["pub fn solve_document_at"]);
+    let at = body_of(&at, "pub fn solve_document_at");
+    assert!(at.contains("evaluate::<T>("), "the solve is the evaluation");
+    assert_eq!(at.matches(NEEDLE).count(), 0, "the solve builds none");
+    let wire = shipped(WIRE, &["fn fold_with"]);
+    let fold = body_of(&wire, "fn fold_with");
     assert!(
-        !with_env.contains(&builds[0]),
-        "`solve_with_env` reads the environment it is handed"
+        fold.contains("env.lane.params"),
+        "the fold reads the parameters of the lane it runs in"
     );
-    // The entry the evaluation takes is the one that takes an
-    // environment, fed the lane environment it already built — boxed
-    // or seeded, at its own scalar (`ASSEMBLY.md` A11 (5)).
+    assert_eq!(fold.matches(NEEDLE).count(), 0, "the fold builds none");
     let eval = shipped(EVAL, &["pub fn evaluate"]);
     assert!(
-        eval.contains("solve_with_env(doc, &env,"),
-        "the evaluation hands its own lane environment to the solve"
-    );
-    assert!(
         !eval.contains("solve_document("),
-        "the evaluation does not take the entry that builds a second one"
+        "the evaluation never asks the entry that evaluates again"
     );
 }
 
@@ -166,53 +161,21 @@ const BASE_HEIGHT: f64 = 1.0;
 const BASE_WIDTH: f64 = 3.0;
 const TOP_HEIGHT: f64 = 3.0;
 
-/// The seat every parameter row's mate declares: `b` rests on `a`.
-fn seat(a: SitedFace, b: SitedFace) -> Mate<Formula> {
-    fixture::mate(
-        a,
-        b,
-        ContactClass::Rest,
-        Alignment {
-            a: MateFrame::authored(
-                [1.0, 1.0, BASE_HEIGHT],
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            b: MateFrame::authored(
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, -1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    )
-}
-
-/// A base pinned to the world and a top, the top optionally under a
-/// pattern, the mate in the top's bundle onto copy `copy` of it read at
-/// the pattern.
+/// A base pinned to the world and a top seated on it: the top's
+/// bottom cap resting on the base's top cap, its origin over `(x, 1)`
+/// and turned `turn` about the cap's normal — the rest and its three
+/// values, `x` and `turn` as written.
 #[derive(Clone)]
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
     top: RecipeNodeId,
-    pattern: Option<RecipeNodeId>,
-    mate: MateRef,
+    rest: MateRef,
 }
 
-/// A pattern rule over the axis datum the scene inserts, and its count.
-type Rule = (fn(RecipeNodeId) -> PatternKind<Formula>, Formula);
-
-/// The document parameters declared first, then base, top, the
-/// pattern `rule` places the top by (a linear rule, or a circular one
-/// over an axis datum inserted before it), and the mate.
-fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, copy: u32) -> Scene {
+/// The document parameters declared first, then base, top and the
+/// seat.
+fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Formula) -> Scene {
     let mut store = PartStore::default();
     let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -234,42 +197,50 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
         )
         .0;
     }
-    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let a = head(in_part(base, base_body, CapEnd::End));
-    let (doc, pattern, b) = match rule {
-        None => (doc, None, head(in_part(top, top_body, CapEnd::Start))),
-        Some((kind, count)) => {
-            let (doc, axis) = insert(
-                doc,
-                Node::Datum(Datum::Axis {
-                    origin: [0.0, 0.0, 0.0].map(len),
-                    direction: [0.0, 0.0, 1.0].map(scl),
-                }),
-            );
-            let (doc, pattern) = insert(
-                doc,
-                Node::Pattern {
-                    input: top.into(),
-                    count,
-                    kind: kind(axis),
-                },
-            );
-            let b = head_at(
-                pattern,
-                in_copy(pattern, copy, in_part(top, top_body, CapEnd::Start)),
-            );
-            (doc, Some(pattern), b)
-        }
-    };
-    let (doc, mate) = fixture::constrain_at(doc, top, seat(a, b));
+    let (mut doc, rest) = fixture::constrain_at(
+        doc,
+        top,
+        fixture::rest(
+            head(in_part(top, top_body, CapEnd::Start)),
+            head(in_part(base, base_body, CapEnd::End)),
+            ContactClass::Rest,
+        ),
+    );
+    for (coord, by) in [
+        (Coord::Slide(SlideAxis::X), x),
+        (Coord::Slide(SlideAxis::Y), len(1.0)),
+        (Coord::Spin, turn),
+    ] {
+        doc = with_value(doc, rest, coord, by);
+    }
     Scene {
         doc,
         opts,
         top,
-        pattern,
-        mate,
+        rest,
     }
+}
+
+/// `doc` with the freedom `coord` of `mate` set to `by`.
+fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
+    apply(
+        &doc,
+        &DocEdit::AddValue {
+            placement: mate.placement,
+            value: Box::new(Value {
+                mate: mate.id,
+                coord,
+                by,
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
+    .doc
 }
 
 fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDoc {
@@ -283,65 +254,56 @@ fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDo
     .0
 }
 
-fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind<Formula> {
-    PatternKind::Linear {
-        direction: [1.0, 0.0, 0.0].map(scl),
-        spacing: Formula::named(VarName::from_static("s"), Dimension::Length),
-    }
+fn named(name: &'static str, dim: Dimension) -> Formula {
+    Formula::named(VarName::from_static(name), dim)
 }
 
-fn circular_by_th(axis: RecipeNodeId) -> PatternKind<Formula> {
-    PatternKind::Circular {
-        axis: axis.into(),
-        step: Formula::named(VarName::from_static("th"), Dimension::Angle),
-    }
-}
-
-/// The solved relative pose of the top, faults asserted absent.
+/// The solved pose of the top, faults asserted absent.
 fn top_pose(s: &Scene, what: &str) -> editor_core::Frame {
     let poses = solve(&s.doc, &s.opts, Tol::witness());
     assert!(
-        poses.fault(s.mate.placement).is_none(),
+        poses.fault(s.rest.placement).is_none(),
         "{what}: {:?}",
-        poses.fault(s.mate.placement)
+        poses.fault(s.rest.placement)
     );
     poses.relative(s.top).expect("the top solves")
 }
 
-/// **A linear offset is the document's nominal parameter, bit for
-/// bit.** The spacing is a parameter carrying a distribution, so an
-/// environment drawn or seeded from it would place the copy somewhere
-/// else; the solved offset is `1·s` exactly, `2·s` at copy 2, and
-/// follows `SetVarValue` — the environment is the document's,
-/// not a run's.
+/// The bits of a frame, for a bit-for-bit comparison.
+fn bits(f: &editor_core::Frame) -> Vec<u64> {
+    f.columns
+        .iter()
+        .flatten()
+        .chain(&f.translation)
+        .map(|x| x.to_bits())
+        .collect()
+}
+
+/// **A slide value read off a parameter is the document's nominal
+/// parameter, bit for bit.** The slide is a parameter carrying a
+/// distribution, so an environment drawn or seeded from it would place
+/// the copy somewhere else; the top seated over `s` stands where the
+/// same seat written with the literal the document's own nominal
+/// environment gives `s` stands, bit for bit, and follows
+/// `SetVarValue` — the environment is the document's, not a run's.
+///
+/// *Breaks if* the fold reads a value in any environment other than
+/// the evaluation's nominal one.
 #[test]
-fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
-    let params = [
-        (
-            "s",
-            FreeVar::continuous_with(Dimension::Length, 5.0, Distribution::Normal { sigma: 1.0 }),
-        ),
-        ("n", FreeVar::Count { value: 3 }),
-    ];
-    let count = || Formula::named(VarName::from_static("n"), Dimension::Count);
-    let control = scene("msolve7-a1-linear-control", &params, None, 0);
-    let c = top_pose(&control, "control");
+fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
+    let params = [(
+        "s",
+        FreeVar::continuous_with(Dimension::Length, 5.0, Distribution::Normal { sigma: 1.0 }),
+    )];
     let test = scene(
-        "msolve7-a1-linear",
+        "msolve7-a1-slide",
         &params,
-        Some((linear_x_by_s, count())),
-        1,
+        named("s", Dimension::Length),
+        ang(0.0),
     );
-    let t = top_pose(&test, "s=5 copy 1");
-    let diff = c.translation[0] - t.translation[0];
-    assert_eq!(
-        diff.to_bits(),
-        5.0_f64.to_bits(),
-        "the offset is 1·s exactly"
-    );
-    // The same number through the public expression door against the
+    // The number through the public expression door against the
     // document's own nominal environment.
-    let via_env = editor_core::eval::<f64>(
+    let nominal = editor_core::eval::<f64>(
         &editor_core::Expr::var(
             test.doc.var_named("s").expect("s is declared"),
             Dimension::Length,
@@ -349,90 +311,60 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
         &test.doc.var_env::<f64>(),
     )
     .unwrap();
-    assert_eq!(via_env.to_bits(), diff.to_bits());
-    assert_eq!(c.columns, t.columns);
-    assert_eq!(c.translation[1].to_bits(), t.translation[1].to_bits());
-    assert_eq!(c.translation[2].to_bits(), t.translation[2].to_bits());
-    // The environment is the DOCUMENT's: a new nominal, a new offset.
+    assert_eq!(nominal.to_bits(), 5.0_f64.to_bits());
+    let control = scene("msolve7-a1-slide-control", &params, len(nominal), ang(0.0));
+    let (t, c) = (top_pose(&test, "s = 5"), top_pose(&control, "5 m"));
+    assert_eq!(bits(&t), bits(&c), "the slide is the nominal, bit for bit");
+    // The environment is the DOCUMENT's: a new nominal, a new pose.
     let edited = Scene {
         doc: set_value(test.doc.clone(), "s", FreeValue::Continuous(7.5)),
         ..test.clone()
     };
-    let t2 = top_pose(&edited, "s=7.5 copy 1");
+    let t2 = top_pose(&edited, "s = 7.5");
+    let control2 = scene("msolve7-a1-slide-control2", &params, len(7.5), ang(0.0));
     assert_eq!(
-        (c.translation[0] - t2.translation[0]).to_bits(),
-        7.5_f64.to_bits(),
-        "the offset follows the edit"
+        bits(&t2),
+        bits(&top_pose(&control2, "7.5 m")),
+        "the pose follows the edit"
     );
-    let two = scene(
-        "msolve7-a1-linear-copy2",
-        &params,
-        Some((linear_x_by_s, count())),
-        2,
-    );
-    let two = Scene {
-        doc: set_value(two.doc.clone(), "s", FreeValue::Continuous(7.5)),
-        ..two
-    };
-    let t3 = top_pose(&two, "s=7.5 copy 2");
-    assert_eq!(
-        (c.translation[0] - t3.translation[0]).to_bits(),
-        15.0_f64.to_bits(),
-        "the offset is 2·s exactly"
+    assert!(
+        (t2.translation[0] - t.translation[0] - 2.5).abs() <= 1e-12,
+        "the edit moved the top 2.5 m along the slide: {t:?} vs {t2:?}"
     );
     // One document, two solves: bit-identical.
-    let again = top_pose(&edited, "again");
-    assert_eq!(again.translation, t2.translation);
-    assert_eq!(again.columns, t2.columns);
+    assert_eq!(bits(&top_pose(&edited, "again")), bits(&t2));
 }
 
-/// **The pattern's count is read at the document's own bindings**:
-/// copy 2 of `n = 3` seats, and after `n → 2` the same mate refuses
-/// `DanglingHead` at the pattern.
+/// **A spin value follows the document's angle parameter**: the
+/// solved pose is the control turned `θ` about the vertical through
+/// the top's origin, at the nominal `θ`, and follows an edit of `θ`.
+///
+/// *Breaks if* a spin value is read anywhere but the document's
+/// nominal environment, or turns about another line.
 #[test]
-fn a1_the_count_is_read_at_the_documents_own_bindings() {
-    let params = [
-        ("s", FreeVar::continuous(Dimension::Length, 4.0)),
-        ("n", FreeVar::Count { value: 3 }),
-    ];
-    let count = Formula::named(VarName::from_static("n"), Dimension::Count);
-    let s = scene("msolve7-a1-count", &params, Some((linear_x_by_s, count)), 2);
-    top_pose(&s, "n=3 copy 2");
-    let shrunk = set_value(s.doc.clone(), "n", FreeValue::Count(2));
-    let poses = solve(&shrunk, &s.opts, Tol::witness());
-    match poses.fault(s.mate.placement).cloned() {
-        Some(MateFault::DanglingHead { head, .. }) => assert_eq!(head, s.pattern.unwrap()),
-        other => panic!("expected DanglingHead at the pattern, got {other:?}"),
-    }
-}
-
-/// **A circular offset follows the document's angle parameter**: the
-/// solved pose is `R_z(-θ)·control` at the nominal θ, and follows an
-/// edit of θ.
-#[test]
-fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
+fn a1_a_spin_value_follows_the_documents_angle_parameter() {
     let params = [("th", FreeVar::continuous(Dimension::Angle, 0.7))];
-    let control = scene("msolve7-a1-circular-control", &params, None, 0);
+    let control = scene("msolve7-a1-spin-control", &params, len(1.0), ang(0.0));
     let c = top_pose(&control, "control").affine::<f64>();
     let s = scene(
-        "msolve7-a1-circular",
+        "msolve7-a1-spin",
         &params,
-        Some((circular_by_th, Formula::count(4))),
-        1,
+        len(1.0),
+        named("th", Dimension::Angle),
     );
     let check = |doc: ProfileDoc, th: f64, what: &str| -> Affine3<f64> {
         let sc = Scene { doc, ..s.clone() };
         let t = top_pose(&sc, what).affine::<f64>();
         let expected = Affine3::rotation_about_axis(
-            geom_core::Point3::origin(),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-            -th,
+            Point3::origin() + c.translation,
+            Vec3::new(0.0, 0.0, 1.0),
+            th,
         ) * c;
         let gap = fixture::seat::map_gap(&t, &expected);
-        assert!(gap <= 1e-12, "{what}: gap to R(-θ)·control is {gap:e}");
+        assert!(gap <= 1e-12, "{what}: gap to R(θ)·control is {gap:e}");
         assert!(
             fixture::seat::map_gap(&t, &c) > 0.1,
-            "{what}: the pattern moved the pose"
+            "{what}: the value turned the pose"
         );
         t
     };
@@ -448,25 +380,34 @@ fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
     );
 }
 
-// ---- A4: the mate wire's attribute ----
+// ---- A4: the constraint wire's denial ----
 
-/// A document with two instances, the second placed by one planar-rest
-/// mate onto the first, saved: the text a stray key is injected into.
-fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
+/// **`face`'s plane slid `h` along its own outward normal and
+/// flipped**: a target a face rests against at a standoff of `h`.
+fn standoff(face: SitedFace, h: f64) -> Operand {
+    let plane = fixture::plane(face);
+    fixture::flip(Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(plane.clone()),
+        along: RoleRead::through(plane, PoseRole::Normal),
+        by: len(h),
+    })))
+}
+
+/// A document with two instances, the second resting on the first at
+/// a standoff and turned by a spin value, saved: the text a stray key
+/// is injected into.
+fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
     let doc_ref = DocRef {
         id: DocumentId::derive("msolve7-part"),
         pin: ContentPin([7u8; 32]),
     };
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for node in [
-        Node::instantiate_part(doc_ref),
-        fixture::mated_instance(doc_ref),
-    ] {
+    for _ in 0..2 {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(node),
+                node: Box::new(fixture::mated_instance(doc_ref)),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -476,75 +417,61 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
         ids.push(applied.record.minted.expect("a minted id"));
         doc = applied.doc;
     }
-    let name = |node| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 1),
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            .into(),
-        }],
+    let name = |node, end| {
+        fixture::head(StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::InPart {
+                of: StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, 1),
+                    path: vec![RoleSeg::Cap(end)],
+                }
+                .into(),
+            }],
+        })
     };
-    let f = MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame");
-    let doc = apply(
-        &doc,
-        &DocEdit::AddConstraint {
-            placement: ids[1],
-            mate: Box::new(fixture::mate(
-                fixture::head(name(ids[0])),
-                fixture::head(name(ids[1])),
-                ContactClass::Rest,
-                Alignment {
-                    a: f.clone(),
-                    b: f,
-                    primitive: MatePrimitive::PlanarRest { offset: 0.5 },
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
-            )),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a mate inserts")
-    .doc;
+    let (doc, rest) = fixture::constrain_at(
+        doc,
+        ids[1],
+        fixture::mate(
+            fixture::plane(name(ids[1], CapEnd::Start)),
+            standoff(name(ids[0], CapEnd::End), 0.5),
+            ContactClass::Rest,
+        ),
+    );
+    let doc = with_value(doc, rest, Coord::Spin, ang(0.25));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
 }
 
-/// `text` with `injected` placed just inside the planar rest's own
-/// object — the one place the wire has a named field to deny.
-fn with_a_key_on_the_planar_rest(text: &str, injected: &str) -> String {
-    const ANCHOR: &str = "\"planar_rest\": {";
-    assert_eq!(
-        text.matches(ANCHOR).count(),
-        1,
-        "the saved document spells one planar rest: {text}"
-    );
-    let open = text.find(ANCHOR).unwrap() + ANCHOR.len();
-    format!("{}{injected}{}", &text[..open], &text[open..])
+/// The first object under `json` holding every key in `keys`.
+fn object_with<'a>(
+    json: &'a mut serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    let holds = match &*json {
+        serde_json::Value::Object(map) => keys.iter().all(|k| map.contains_key(*k)),
+        _ => false,
+    };
+    if holds {
+        return json.as_object_mut();
+    }
+    match json {
+        serde_json::Value::Object(map) => map.values_mut().find_map(|v| object_with(v, keys)),
+        serde_json::Value::Array(items) => items.iter_mut().find_map(|v| object_with(v, keys)),
+        _ => None,
+    }
 }
 
-/// `text` with `injected` placed just after `anchor`, which the text
-/// spells once.
-fn inject_after(text: &str, anchor: &str, injected: &str) -> String {
-    assert_eq!(
-        text.matches(anchor).count(),
-        1,
-        "the saved document spells {anchor:?} once: {text}"
-    );
-    let open = text.find(anchor).unwrap() + anchor.len();
-    format!("{}{injected}{}", &text[..open], &text[open..])
+/// `text` with `key: 2.0` written into the first object holding every
+/// key in `keys`.
+fn with_a_key_in(text: &str, keys: &[&str], key: &str) -> String {
+    wire::doctored(text, |json| {
+        object_with(json, keys)
+            .unwrap_or_else(|| panic!("the saved document holds an object with {keys:?}"))
+            .insert(key.to_owned(), serde_json::json!(2.0));
+    })
 }
 
 /// The load door's answer to `text`: the field the typed arm names,
@@ -562,27 +489,42 @@ fn refused_field(text: &str) -> Result<String, String> {
     }
 }
 
-/// **A stray key on `planar_rest` refuses at the load door**, in the
-/// format's own arm for a field this build lacks, naming the field:
-/// before `offset`, after it, and spelled with a word another part of
-/// the wire owns (`clocking` is the alignment's rider, not the
-/// primitive's field).
+/// The keys of a mate's object and of a value's on the wire.
+const MATE_KEYS: [&str; 3] = ["on", "to", "class"];
+const VALUE_KEYS: [&str; 3] = ["mate", "coord", "by"];
+
+/// **A stray key on a constraint's objects refuses at the load door**,
+/// in the format's own arm for a field this build lacks, naming the
+/// field: on the mate, on the value, and spelled with a word another
+/// object of the wire owns (`coord` is the value's, not the mate's;
+/// `class` is the mate's, not the value's).
+///
+/// *Breaks if* either object drops a field it does not know.
 #[test]
-fn a4_a_stray_key_on_a_planar_rest_refuses_at_the_load_door() {
-    let (_, text) = saved_with_a_planar_rest("msolve7-a4-stray");
-    let before = with_a_key_on_the_planar_rest(&text, "\"stray\": 2.0,");
-    assert_eq!(refused_field(&before).as_deref(), Ok("stray"));
-    let after = inject_after(&text, "\"offset\": 0.5", ", \"stray\": 2.0");
-    assert_eq!(refused_field(&after).as_deref(), Ok("stray"));
-    let borrowed = with_a_key_on_the_planar_rest(&text, "\"clocking\": 2.0,");
-    assert_eq!(refused_field(&borrowed).as_deref(), Ok("clocking"));
+fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
+    let (_, text) = saved_with_a_bundle("msolve7-a4-stray");
+    for (keys, key) in [
+        (&MATE_KEYS, "stray"),
+        (&VALUE_KEYS, "stray"),
+        (&MATE_KEYS, "coord"),
+        (&VALUE_KEYS, "class"),
+    ] {
+        assert_eq!(
+            refused_field(&with_a_key_in(&text, keys, key)).as_deref(),
+            Ok(key),
+            "`{key}` beside {keys:?}"
+        );
+    }
 }
 
 /// **Every checked-in document still loads under the attribute** —
 /// the stop clause's measurement, made rather than assumed. None of
-/// the four carries a mate, so the corpus does not exercise the
-/// attribute at all: what it proves is that nothing checked in is
-/// refused, not that the attribute is reached.
+/// the four carries a mate between copies, so the corpus does not
+/// exercise the attribute at all: what it proves is that nothing
+/// checked in is refused, not that the attribute is reached.
+///
+/// *Breaks if* a tracked document stops loading, or starts carrying a
+/// mate this row would then have to reach.
 #[test]
 fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -609,26 +551,26 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
-        // A world pin is a constraint too, and reads no face: a mate
-        // is a constraint that does.
+        // A world pin is a constraint too, and targets the world: a
+        // mate between copies targets a pose of a space.
         let mated = fixture::constrained(&loaded.doc);
         assert!(mated.is_empty(), "{path}: the corpus carries no mate");
     }
 }
 
-/// **The same alignment without the key loads**, bit for bit: the
+/// **The same bundle without the key loads**, bit for bit: the
 /// attribute denies what is not there and nothing that is.
+///
+/// *Breaks if* the clean wire refuses, or loads as another bundle.
 #[test]
-fn a4_the_same_alignment_without_the_key_loads() {
-    let (doc, text) = saved_with_a_planar_rest("msolve7-a4-clean");
+fn a4_the_same_bundle_without_the_key_loads() {
+    let (doc, text) = saved_with_a_bundle("msolve7-a4-clean");
     let back = load(&text, Tol::witness()).expect("loads").doc;
-    assert!(back.bit_eq(&doc), "the planar rest round-trips bit for bit");
-    // The first instance's world pin is a constraint too; the mate is
-    // the one that reads faces.
-    let primitives: Vec<MatePrimitive> = fixture::constrained(&back)
+    assert!(back.bit_eq(&doc), "the bundle round-trips bit for bit");
+    let coords: Vec<Coord> = fixture::constrained(&back)
         .into_iter()
         .flat_map(|p| fixture::bundle(&back, p))
-        .map(|c| c.mate.alignment.primitive)
+        .filter_map(|c| c.value().map(|v| v.coord))
         .collect();
-    assert_eq!(primitives, [MatePrimitive::PlanarRest { offset: 0.5 }]);
+    assert_eq!(coords, [Coord::Spin], "the value comes back as written");
 }

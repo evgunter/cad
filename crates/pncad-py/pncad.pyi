@@ -38,8 +38,9 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-a placement's bundle of `Mate`s places each copy (`Doc.place`,
-`Doc.constrain`, `Mate.world_pin`), `solve_document` poses them, `product` gathers what
+a placement's bundle of `Mate`s and `MateValue`s places each copy
+(`Doc.place`, `Doc.constrain`, `Doc.add_value`), `solve_document` poses
+them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
 `update_references` moves a pin at its sites.
@@ -139,7 +140,10 @@ class EditError(PncadError):
       is the entry that does not sort strictly before the one after
       it, and `again` is `None` — the break is between that entry and
       its successor, so the second position is the first plus one and
-      is not carried.
+      is not carried. On `name_kind` (a stored selection holding a name
+      of another entity kind than its own) and on the
+      `selection_name_kind` arm (the same, authored at a seat) `first`
+      alone is that name's position.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -149,24 +153,27 @@ class EditError(PncadError):
       two attributes.
     - `mate` is a constraint's address (`MateRef`): the placement
       `node` names with the constraint the refusal is about — an id
-      the bundle does not hold (`unknown_constraint`), a non-finite
-      alignment, or the frame offset a refused step sits in, with
-      `side` and `index`.
+      the bundle does not hold (`unknown_constraint`) or a mate a
+      value names (`mate_named_by_value`).
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
       keyword.
+    - `found_kind` and `expected_kind` are the entity kind a
+      selection's name denotes and the one its seat reads:
+      `selection_name_kind` carries both, with the name, its position
+      in `first` and the seat in `slot`; `selection_shape` carries both
+      on `name_kind` and `found_kind` alone on `seat`. They are not
+      `found`/`expected`, which are dimensions.
 
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
     refusal it holds, and the fields inside it belong to that type's
-    own door. The one exception is `mate_refused`, the edit door
-    asking the solve's own per-mate admission of a mate being
-    inserted: `fault` carries the solve's `MateFault` about that mate
-    WHOLE — the value `SolvedPoses.fault` answers for a mate the solve
-    refuses on the same datum — so its lever, its clash and its
-    recourse are read off the type a caller already knows, and
-    `inner_variant` is that fault's word (`mate_table_lacks`,
-    `mate_contradictory`, …).
+    own door. The one exception is `mate_refused`, the edit door's
+    structural admission of a constraint being added: `fault` carries
+    its `MateFault` WHOLE — the type `SolvedPoses.fault` answers in —
+    so its payload and its recourse are read off the type a caller
+    already knows, and `inner_variant` is that fault's word
+    (`mate_kinds_differ`, `mate_not_a_freedom`, …).
     """
 
     variant: str
@@ -182,6 +189,8 @@ class EditError(PncadError):
     kind: Optional[str]
     from_kind: Optional[EntityKind]
     to_kind: Optional[EntityKind]
+    found_kind: Optional[EntityKind]
+    expected_kind: Optional[EntityKind]
     count: Optional[int]
     first: Optional[int]
     again: Optional[int]
@@ -189,7 +198,6 @@ class EditError(PncadError):
     offered: Optional[float | int]
     determinant: Optional[float]
     index: Optional[int]
-    side: Optional[str]
     mate: Optional[MateRef]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
@@ -238,8 +246,8 @@ class EvaluationError(PncadError):
     A refusal that CARRIES another node's refusal — `part_root_failed`,
     a part whose world placement failed, `part_root_poisoned`, a part
     whose world placement never ran because a node upstream of it failed,
-    and `mate_placer_refused`, a mate whose poisoned placer could not
-    derive its pose — names the node that failed and points at it, and
+    and `mate_side_unevaluated`, a mate whose pose did not evaluate —
+    names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
     `EvaluationError` raised for that node as its own evaluation raises
     it, whose `node` is in the id space of its `document`: the part's
@@ -739,10 +747,7 @@ class SplitError(PncadError):
     param: Optional[str]
     name: Optional[str]
     id: Optional[str]
-    mate: Optional[MateRef]
-    """`mate_frame_crosses`: the constraint whose frame crosses the
-    cut, `node` its placement. `no_material`: `node` is the cut's first
-    node."""
+    """`no_material`: `node` is the cut's first node."""
     moving: Optional[str]
     staying: Optional[str]
     """`definition_straddles_cut`: `param` is the tied variable, `moving`
@@ -767,8 +772,11 @@ class InlineError(PncadError):
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
     mate: Optional[MateRef]
-    """`mate_frame_crosses` and `side_leaves_an_instance`: the
-    constraint at issue, `node` its placement. `unplaceable_part`:
+    """`value_on_a_moved_world`: the part copy's value charted on the
+    world the inline moves, `node` its placement, both in the part's
+    ids. `instance_unsolved`: `node` is the instance whose pin did not
+    solve; `pin_reads_variable`: `node` is the instance and `param` the
+    variable its pin reads. `unplaceable_part`:
     `node` is the instance whose bundle does not carry its part;
     `construction_reads_copy`: `node` is the construction reading the
     instance's copy; `copy_pinned_to_construction`: `node` is the part
@@ -2352,10 +2360,11 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `select_resolve`
-        for a name that stopped denoting, `select_kind` for an
-        edge or vertex name, `face_frame_not_planar` for a curved
-        carrier, `face_frame_readback` for unreadable geometry.
+        An edge or vertex name refuses at the insert (`EditError`
+        `selection_name_kind`). The rest refuse typed at `evaluate`, never
+        here — `select_resolve` for a name that stopped denoting,
+        `face_frame_not_planar` for a curved carrier,
+        `face_frame_readback` for unreadable geometry.
         """
 
     @staticmethod
@@ -2439,10 +2448,10 @@ class Node:
         `shapes` is one body argument or a sequence of them: over one,
         the copy has that shape's kind (a body over a body); over
         several, its output is a keyed enumeration of copies.
-        `constraints` is the bundle; empty, the copy is loose, in a
-        space of its own until a constraint pins it. Each rigid step of
-        each constraint's frame offsets is checked against its slot, as
-        `Node.transform_by`'s are."""
+        `constraints` is the bundle, a sequence of `Mate`s; empty, the
+        copy is loose, in a space of its own until a constraint pins it.
+        A value names a mate by the id its insert mints, so values are
+        added once the node is in (`Doc.add_value`)."""
 
     @staticmethod
     def union(members: Sequence[_BodyArg] | _Operand) -> Node:
@@ -2571,12 +2580,10 @@ class Node:
         site at once).
 
         Placed by `constraints`: an instance IS a placement, its part's
-        world moved by its bundle. `None` pins it to the world at the
-        identity, where its part's world stands; a sequence of `Mate`s
-        is that bundle, and `[]` a loose copy, in a space of its own
-        until a constraint (`Doc.constrain`) pins it. No interface
-        record
-        either: an AUTHORED instance crosses nothing, and a non-empty
+        world moved by its bundle: a sequence of `Mate`s. `None` or `[]`
+        is a loose copy, in a space of its own until constraints pin it
+        — `Doc.pin(instance)`, the "place part" gesture, or
+        `Doc.constrain`. No interface record either: an AUTHORED instance crosses nothing, and a non-empty
         record is mintable only by the `split` that observed
         declarations crossing its cut.
 
@@ -3551,17 +3558,38 @@ class DocEdit:
         """Add `mate` to `placement`'s bundle; the constraint's id is
         minted by the edit (`Doc.constrain` answers its address).
         Refuses typed on `EditError`: `constraint_on_non_placement` (the
-        node holds no bundle), and `mate_refused` with the solve's fault
-        where the solve refuses the datum — `mate_overconstrained` where
-        the rest of the bundle already pins the copy."""
+        node holds no bundle), and `mate_refused` with the door's fault —
+        `mate_not_on_the_copy`, `mate_kinds_differ`, `mate_world_read`,
+        `mate_overconstrained` where the rest of the bundle already pins
+        the copy."""
+
+    @staticmethod
+    def add_value(placement: NodeId, value: MateValue) -> DocEdit:
+        """Add `value` to `placement`'s bundle: one freedom a mate of the
+        bundle leaves, set to a number (`Doc.add_value` answers its
+        address). Refuses typed on `EditError`:
+        `constraint_on_non_placement`, and `mate_refused` with the
+        door's fault — `mate_value_names_no_mate`, `mate_not_a_freedom`,
+        `mate_no_chart`."""
+
+    @staticmethod
+    def pin_where_it_stands(placement: NodeId) -> DocEdit:
+        """Pin `placement`'s copy where its body stands (stage 3 C's
+        named interim): a world pin with no read and no number, placing
+        the copy at the identity of the world's coordinates. It stands
+        alone: refuses typed on `EditError`, `constraint_on_non_placement`
+        and `mate_refused` (`mate_overconstrained`) on a bundle holding
+        anything else."""
 
     @staticmethod
     def remove_constraint(mate: MateRef) -> DocEdit:
         """Remove the constraint `mate` addresses from its placement's
         bundle. What it pinned is recomputed from what remains: a copy
         its bundle no longer pins is a loose copy, never a refusal.
-        Refuses typed on `EditError`: `constraint_on_non_placement` and
-        `unknown_constraint` (the bundle holds no such id)."""
+        Refuses typed on `EditError`: `constraint_on_non_placement`,
+        `unknown_constraint` (the bundle holds no such id) and
+        `mate_named_by_value` (a value names the mate: remove the value
+        first)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -3749,29 +3777,20 @@ class Doc:
         """Apply one edit, answering the minted node id if the edit
         minted one.
 
-        `resolver` is the document seam the mate door reads the mated
-        parts through: inserting a mate asks the solve's own per-mate
-        admission at the door, which reads the parts through
-        `resolver` in two cases — a `MateFrame.from_face` side is
-        resolved from the part's own face, and a clocking rider on a
-        frame coincidence is decided over the parts' extent. Absent, a
-        mate with a face side raises `mate_refused` with
-        `inner_variant == "mate_face_unresolved"`, and one with such a
-        rider `inner_variant == "mate_unleverable"`; no other edit
-        consults it, because no edit records a frame.
+        `resolver` is the document seam an edit door reads parts
+        through; the mate door itself is structural and reads none.
 
-        A mate the solve refuses on its own datum — no member at its
-        head, one member named twice, a class outside the vocabulary,
-        a frame with no definite direction, a primitive-and-rider pair
-        the coset table has no row for, a rider that contradicts the
-        coincidence it rides — raises `EditError` with variant
-        `mate_refused` at this insert; `fault` is the solve's own
+        A constraint the door refuses — an `on` that does not read the
+        copy, poses of two kinds, a world read whose moves do not
+        compose, a class outside the vocabulary, a value on a freedom
+        its mate's kind does not leave — raises `EditError` with
+        variant `mate_refused` at this edit; `fault` is the
         `MateFault`; a constraint the rest of its bundle already pins
         raises it with `mate_overconstrained`. The doors decide edits
-        and the solve decides states: a verdict about a PAIR
-        (contradicting another mate), and a per-mate fault a mate comes to carry after
-        insert (a stranded head, a re-pointed `Part`, a loaded
-        snapshot), are the solve's at evaluation."""
+        and the evaluation decides states: everything that needs pose
+        values (a pair that contradicts, a pose that does not evaluate,
+        an escalated verdict) is the placement's own refusal where it
+        evaluates."""
 
     def step_ids(self, profile: NodeId) -> list[list[StepId]]:
         """The minted id of every step of the profile at `profile`, one
@@ -3847,13 +3866,14 @@ class Doc:
     def world(self) -> NodeId:
         """The world: the node every document holds from its creation,
         which no edit deletes or writes (`world_is_undeletable`). A
-        constraint side that reads the world (`Mate.world_pin`) pins its
-        copy to it; it is not among the document's nodes (`order`,
+        mate whose `to` reads the world (a `WorldRead`) relates its copy
+        to it; it is not among the document's nodes (`order`,
         `node_count`)."""
 
-    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate]]:
+    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue | WorldPin]]:
         """A placement's bundle: each constraint by its address, with
-        its mate as written, in the bundle's order. Raises `EditError`
+        its mate, its value or its world pin as written, in the
+        bundle's order. Raises `EditError`
         (`constraint_on_non_placement`) for a node that holds no bundle,
         and (`unknown_node`) for one this document does not hold."""
 
@@ -3863,11 +3883,32 @@ class Doc:
         """Add `mate` to `placement`'s bundle and answer the
         constraint's address: `apply` of `DocEdit.add_constraint`, the
         id minted by the edit. Refuses typed on `EditError`:
-        `constraint_on_non_placement`, `mate_refused` (the solve's own
-        admission of the datum — `mate_overconstrained` where the
-        bundle already pins the copy), and the slot doors' refusals.
-        `resolver` is the seam the admission reads the parts through, as
+        `constraint_on_non_placement`, `mate_refused` (the door's
+        fault — `mate_not_on_the_copy`, `mate_kinds_differ`,
+        `mate_world_read`, `mate_overconstrained` where the bundle
+        already pins the copy), and the slot doors' refusals.
+        `resolver` is the seam the door reads parts through, as
         `apply`'s."""
+
+    def remove_mate(self, mate: MateRef) -> list[MateRef]:
+        """Remove the constraint `mate` addresses as one action, a mate
+        with every value that names it: each value's removal in bundle
+        order, then the mate's, all applied or none; answers the removed
+        values' addresses. A value, a world pin, or a mate no value
+        names is removed alone (answering `[]`).
+        `DocEdit.remove_constraint` stays the raw edit, which refuses a
+        mate a value names (`mate_named_by_value`). Raises `EditError`:
+        `unknown_node`, `constraint_on_non_placement`,
+        `unknown_constraint` (no such id)."""
+
+    def add_value(self, mate: MateRef, coord: Coord, by: _SlotArg) -> MateRef:
+        """Set one freedom `mate` leaves to `by`, and answer the value's
+        address: `apply` of `DocEdit.add_value` on `mate`'s placement.
+        `by` is a `Length` for a slide, an `Angle` for a spin, or
+        anything a slot argument is. Refuses typed on `EditError`
+        (`mate_refused`, the fault naming the value):
+        `mate_value_names_no_mate`, `mate_not_a_freedom`,
+        `mate_no_chart`."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3917,13 +3958,11 @@ class Doc:
         `DocEdit.set_label`, both applied or neither. A text that is
         not a label raises EditError before anything is applied.
 
-        `resolver` is the document seam a mate's admission reads the
-        parts through: an insert is a Join at most (the survivor keeps
-        its root), so its maintenance never consults it, but a mate's
-        `from_face` side is resolved from the part's face at the door,
-        and its clocking rider on a frame coincidence is decided there
-        over the mated parts' extent, both read through `resolver` —
-        see `apply` for what a mate refuses here (`mate_refused`)."""
+        `resolver` is the document seam an edit door reads parts
+        through: an insert is a Join at most (the survivor keeps its
+        root), so its maintenance never consults it, and a mate's door
+        is structural — see `apply` for what a mate refuses here
+        (`mate_refused`)."""
     def measure(
         self,
         primitives: list[MeasurePrimitive],
@@ -3960,18 +3999,27 @@ class Doc:
         shapes: _BodyArg | Sequence[_BodyArg],
         constraints: Optional[Sequence[Mate]] = None,
         *,
+        pose: Optional[Frame] = None,
+        resolver: Optional[Workspace] = None,
         label: Optional[str] = None,
     ) -> NodeId:
         """Place one copy of `shapes`, placed by `constraints`, and
-        return the placement's id: the Rust façade's `DocEdit::place`,
-        the insert of `Node.place(shapes, constraints)`.
+        return the placement's id: the insert of `Node.place(shapes,
+        constraints)`.
 
         `shapes` is one body argument or a sequence of them; over
         several the copy is a keyed enumeration. `constraints` is the
-        bundle: `None` pins the copy to the world at the identity
-        (`[Mate.world_pin()]`), a copy at a world pose is
-        `[Mate.world_pin(pose)]`, and `[]` a loose copy, in a space of
-        its own until a constraint pins it.
+        bundle, a sequence of `Mate`s; `[]` is a loose copy, in a space
+        of its own until a constraint pins it. `None` with a `pose` is
+        the "place part" gesture, `place_at(shapes, pose)`, answering the
+        placement alone; `pose` beside `constraints` raises ValueError.
+        Neither: the copy stands where its body stands, pinned by a
+        world pin (`WorldPin`, stage 3 C's named interim), which reads
+        nothing and so follows the body's variables. The two differ at
+        the identity too, on purpose: `pose=Frame.identity()` is the
+        gesture, a plane mate and three values the copy can then be slid
+        and spun by, read off the copy's geometry at its nominal; no
+        `pose` is the pin, which holds no freedom and reads nothing.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
@@ -3979,6 +4027,50 @@ class Doc:
         split's half is placed by its output, `place(doc.output(split,
         1))`. Two placements of one body are two copies. `label=`
         labels the placement in the same call, as `insert`'s does."""
+
+    def pin(
+        self,
+        placement: NodeId,
+        pose: Optional[Frame] = None,
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> Placed:
+        """The "place part" gesture on a placement already in the
+        document — an instance, or a loose `Place`: `place_at`'s
+        constraints added to its bundle, pinning its copy in the world
+        at `pose` (the identity when `None`). An instance's part is read
+        through `resolver`. The mate and the values are one action, and
+        refuse as `place_at`'s do; a node that is no placement raises
+        `EditError` (`constraint_on_non_placement`)."""
+
+    def place_at(
+        self,
+        shapes: _BodyArg | Sequence[_BodyArg],
+        pose: Optional[Frame] = None,
+        *,
+        resolver: Optional[Workspace] = None,
+        label: Optional[str] = None,
+    ) -> Placed:
+        """The "place part" gesture: one copy of `shapes` placed in the
+        world at `pose` (the identity when `None`), as constraints its
+        author can then move by their numbers.
+
+        The copy is inserted loose, then pinned: a plane mate on its
+        first planar face to the world plane that face lies in at
+        `pose`, and three values — the slides along the chart's `x` and
+        `y` and the spin — computed from `pose`, so evaluating the
+        document puts the copy at `pose` (`Placed.by ==
+        "planar_face"`). A copy with no planar face is pinned over a
+        frame read off its geometry instead and leaves no freedom to
+        set (`Placed.by == "pin"`). The insert, the mate and the values
+        are one action: all land or none does.
+
+        The copy is evaluated to read its geometry, through `resolver`
+        where it is a part's. A copy that cannot be placed raises
+        `EditError` under the pin refusal's word (`pin_no_frame`,
+        `pin_unevaluated`, `pin_not_a_body`, `pin_already_placed`,
+        `pin_no_node`, `pin_band`); the edit doors' own refusals raise
+        as theirs."""
 
     @property
     def node_count(self) -> int: ...
@@ -5620,190 +5712,201 @@ def evaluate(
 # Two part documents in a store, instances of them in a third, mates
 # saying how the instances meet, and one gate that says whether the
 # result is valid at rest. Authoring is `Node.instantiate_part` +
-# `Doc.place` + `Mate` / `Mate.world_pin` + `Doc.constrain`; reading
-# is `solve_document`, `product` and `assemble`; refactoring is
-# `split` / `inline`.
+# `Doc.place` + `Mate` + `Doc.constrain` + `Doc.add_value`; reading is
+# `solve_document`, `product` and `assemble`; refactoring is `split` /
+# `inline`.
 #
 # A copy is made by a PLACEMENT — a `Place` over shapes, or an
 # instance, which is its part's world, moved — and placed by its
-# BUNDLE: the constraints (`Mate`s) it holds, each addressed by a
-# `MateRef`, never a node. One side of each constraint is on the copy;
-# the other reads the world (`Mate.world_pin`) or another copy. A
-# bundle that pins the copy fully puts it in its target's space, and
-# pinned, transitively, to the world it is in the product. A bundle
-# that pins less is a LOOSE copy: it lives in a space of its own, not
-# in the product, and nothing outside it is compared with it
-# (`Evaluation.loose`). `SolvedPoses.pose` is a placement's pose in
-# its target's space; `SolvedPoses.placement` its world pose.
-
-class MateFrame:
-    """One side's mate frame: a base composed with an offset, a
-    `Placement` written in the base's frame.
-
-    PART BASE: `MateFrame.on_part(offset)`, the side's part frame.
-    Three authored vectors, `MateFrame(origin, axis, reference)`, are
-    the part base with one literal step: local +Z is `axis`, the local
-    origin `origin`, the roll fixed by `reference`. `axis` need not be
-    unit and `reference` need not be perpendicular to it — only the
-    axis's direction and the reference's perpendicular part are read.
-    Both are plain numbers (a direction carries no dimension); `origin`
-    is three lengths.
-
-    FACE BASE: `MateFrame.from_face()`, or `MateFrame.on_face(offset)`.
-    No name: the side's frame is its own HEAD's face, the face the
-    mate's reference on that side names, read in the mated part. The
-    solve reads that face's canonical pose off the part's own
-    evaluation at every evaluation: the carrier's origin, its CHART
-    axis as local +Z (the face's orientation sense is not folded in —
-    the mate's `AxisSense` says which way the sides point) and the
-    carrier's own in-frame reference direction as local +Y (the
-    `point_at` convention: local +X is the reference crossed with the
-    axis). The offset is
-    written in that frame, so it slides along the face, turns about its
-    normal, or sets back from it. Nothing is stored twice: edit the
-    part so the face moves, or rebind the head, and the side follows,
-    offset and all; split and inline carry it with its head. A face
-    with no canonical frame (a NURBS carrier) refuses at the solve.
-
-    The offset is any rigid motion; the mate's contact class says which
-    offsets are legal — a `Rest` side set back from its face declares a
-    contact that is not there, and the at-rest gate refutes it. A rigid
-    step's expressions may read a document parameter, so a parameter
-    can drive where a side sits.
-
-    A face base resolves on every lane: a seed run reads the pose with
-    its tangent, a box run an enclosure of it, and so does a parameter
-    an offset step reads."""
-
-    def __init__(
-        self,
-        origin: tuple[Length, Length, Length],
-        axis: tuple[float, float, float],
-        reference: tuple[float, float, float],
-    ) -> None:
-        """Three authored vectors: the part base with the one literal
-        step they denote. Raises FrameError when the axis has no
-        definite direction or the reference no definite perpendicular,
-        or a length is not a finite number. Decided at the session's
-        tolerance, the one every edit door decides at (a document
-        recording another epsilon is refused before its geometry is
-        read); the stored literal is judged again by the placement
-        frame rule where it lands."""
-    @staticmethod
-    def on_part(offset: Placement) -> MateFrame:
-        """The part base composed with `offset`, in the part's own
-        coordinates."""
-    @staticmethod
-    def from_face() -> MateFrame:
-        """The side's own head face with no offset: the face's pose
-        itself (see the class docs), resolved on every lane at the
-        evaluation's own scalar."""
-    @staticmethod
-    def on_face(offset: Placement) -> MateFrame:
-        """The side's own head face composed with `offset`, written in
-        the face's frame: origin on the face, +Z along its chart axis,
-        +Y along its reference direction."""
-
-    @staticmethod
-    def on_world(offset: Placement) -> MateFrame:
-        """The world's frame composed with `offset`, in world
-        coordinates: the frame of a side that reads the world
-        (`Mate.world_pin`'s `a` side)."""
-
-    @property
-    def base(self) -> Literal["part", "face", "world"]:
-        """What the offset is written in: `"part"`, `"face"` or
-        `"world"`."""
-
-    @property
-    def offset(self) -> Placement:
-        """The offset, in the base's frame."""
-
-    def __eq__(self, other: object) -> bool:
-        """BIT-exact: the same base, and offsets equal by
-        `Placement.__eq__`'s rule."""
-
-class AxisSense:
-    """Which way the two sides' axes point at each other. `Opposed` is
-    what kills every pi-flip ambiguity: the senses are AUTHORED, never
-    inferred."""
-
-    Aligned: Final[AxisSense]
-    Opposed: Final[AxisSense]
+# BUNDLE: the constraints it holds, each addressed by a `MateRef`,
+# never a node. A constraint is a `Mate`, two poses of one kind
+# equated — `on` read off the copy's geometry, `to` a pose of the
+# space it joins or a `WorldRead` — or a `MateValue` setting one freedom a
+# mate leaves. A bundle that pins the copy fully puts it in its
+# target's space, and pinned, transitively, to the world it is in the
+# product. A bundle that pins less is a LOOSE copy: it lives in a space
+# of its own, not in the product, and nothing outside it is compared
+# with it (`Evaluation.loose`). `Node.instantiate_part` is a loose
+# copy until a constraint pins it. `SolvedPoses.pose` is a placement's
+# pose in its space; `SolvedPoses.placement` its world pose.
 
 class MateSide:
-    """Which side of a mate a diagnostic is about."""
+    """Which pose of a mate a diagnostic is about: `On`, the copy's,
+    or `To`, the pose it is equated with."""
 
-    A: Final[MateSide]
-    B: Final[MateSide]
+    On: Final[MateSide]
+    To: Final[MateSide]
 
-class MatePrimitive:
-    """Which coset of rigid motions a mate pins the pair's relative
-    pose to.
+class WorldRead:
+    """A pose of the world, read inside a mate: the world defines no
+    pose variable, so a mate's `to` reads it here — its frame, a role
+    of it, and the moves a target may make.
 
-    Four constructors and no bare enum, because one carries a length.
-    `clocking` is representable precisely so it can be REFUSED — the
-    coset table has no entry for a bare angular relation, and an
-    unrepresentable refusal is an untestable one."""
+    `WorldRead.frame()` is the world's frame; `WorldRead.through(role)`
+    the frame read through a role (`"x"`, `"y"`, `"z"` its axes,
+    `"origin"`, `"xy"`, `"yz"`, `"zx"` its planes). Each move answers a
+    new read: `read.role(role)` a role of the read (a plane's
+    `"normal"`, an axis's `"direction"`), `read.slide(along, by)` slid
+    along `along` (a direction or an axis read) by the length `by`,
+    `read.spin(about, by)` spun about `about` (an axis read) by the
+    angle `by`, right-handed, `read.flip()` the opposite sense. A lone
+    `0` is the constant zero of the slot's dimension.
 
-    @staticmethod
-    def frame_coincidence() -> MatePrimitive:
-        """The two mate frames coincide outright — residual trivial."""
-
-    @staticmethod
-    def coaxial() -> MatePrimitive:
-        """The two axes coincide as a LINE — residual cylindrical."""
-
-    @staticmethod
-    def planar_rest(offset: Length) -> MatePrimitive:
-        """`b`'s plane rests on `a`'s, displaced by `offset` along
-        `a`'s axis — residual planar. Zero is the flush rest; nonzero
-        is an authored standoff, never a designed clearance."""
+    A read whose moves do not compose (a slide of a direction, a spin
+    about a plane, a role its pose's kind does not offer, a flipped
+    point) is built here and refused where its mate is added
+    (`mate_world_read`); `kind` answers `None` for it."""
 
     @staticmethod
-    def clocking() -> MatePrimitive:
-        """Clocking with no carrying primitive: refused at the insert
-        of a mate carrying it (`EditError`, variant `mate_refused`)
-        and at every solve that reads the datum."""
+    def frame() -> WorldRead: ...
+    @staticmethod
+    def through(role: str) -> WorldRead:
+        """The world's frame read through `role`. Raises ValueError for
+        a word that is no role."""
+    def role(self, role: str) -> WorldRead: ...
+    def slide(self, along: WorldRead, by: _SlotArg) -> WorldRead: ...
+    def spin(self, about: WorldRead, by: _SlotArg) -> WorldRead: ...
+    def flip(self) -> WorldRead: ...
     @property
-    def variant(self) -> str: ...
-    @property
-    def offset(self) -> Optional[Length]:
-        """The planar rest's standoff, `None` for the others."""
+    def kind(self) -> Optional[Literal["point", "direction", "axis", "plane", "frame"]]:
+        """The kind of pose this read is, `None` where its moves do not
+        compose."""
+    def __eq__(self, other: object) -> bool:
+        """Bit-exact: the same moves, each number equal."""
 
-    def __eq__(self, other: object) -> bool: ...
+class Mate:
+    """A mate: two poses of one kind equated, with the contact class it
+    declares — ONE value carrying both the placement constraint and the
+    contact declaration. A mate is a constraint of the placement that
+    holds it (`Doc.constrain`, `Doc.place(shapes, constraints)`), never
+    a node.
 
-class Alignment:
-    """The alignment datum: which frames coincide, at which axis
-    sense, with which clocking rider.
+    `on` is a pose read off the copied shapes' geometry — a `PoseDef`
+    over one of the placement's shapes, or over the instance itself.
+    `to` is a pose of the space the copy joins (a `PoseDef`, or a pose
+    variable), or a `WorldRead`. The kind is the primitive: plane to
+    plane rests, axis to axis is coaxial, frame to frame coincides,
+    point to point is a ball, direction to direction is parallel. A
+    plain plane mate equates outward normals, so two faces resting
+    against each other carry a flip on the target
+    (`PoseDef.flip(PoseDef.plane(...))`). A mate holds no number: what
+    it leaves free is set by a `MateValue`, and a standoff is a slide of the
+    target plane along its own normal.
 
-    `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
-    residual to prismatic; on `frame_coincidence` it is
-    redundant-or-contradictory and gets decided over the mated parts'
-    extent — at the insert (`Doc.insert` with `resolver`, variant
-    `mate_refused`) and at every solve that reads the datum, not
-    re-decided on replay; on a planar rest the table has no entry and
-    the same doors refuse typed."""
+    `class_` is the declared contact class; ask `class_admission`
+    BEFORE authoring, because a class the solve folds may still mint
+    nothing at the at-rest gate.
+
+    Where it is added, the door refuses an `on` that does not read the
+    copy (`mate_not_on_the_copy`), poses of two kinds
+    (`mate_kinds_differ`) and a world read whose moves do not compose
+    (`mate_world_read`). A pose that does not evaluate — a face gone, a
+    curved face read as a plane — is the placement's own refusal where
+    it evaluates (`mate_side_unevaluated`)."""
 
     def __init__(
         self,
-        a: MateFrame,
-        b: MateFrame,
-        primitive: MatePrimitive,
-        sense: AxisSense,
-        clocking: Optional[Angle] = None,
+        on: _Operand,
+        to: _Operand | WorldRead,
+        class_: ContactClass,
     ) -> None: ...
     @property
-    def a(self) -> MateFrame: ...
+    def on(self) -> PoseDef:
+        """The copy's pose, as written."""
     @property
-    def b(self) -> MateFrame: ...
+    def to(self) -> PoseDef | WorldRead:
+        """The pose the copy's is equated with."""
     @property
-    def primitive(self) -> MatePrimitive: ...
+    def class_(self) -> ContactClass:
+        """The declared contact class."""
+    def __eq__(self, other: object) -> bool:
+        """BIT-exact: the same poses, the same world moves, the same
+        class."""
+
+class Coord:
+    """Which freedom of its mate a value sets: `Coord.slide("x")`,
+    `"y"` or `"z"` — a slide along the chart's axis, `z` the mated
+    direction — or `Coord.spin()`, the turn about the mated direction.
+
+    A plane mate leaves the slides along `x` and `y` and the spin; an
+    axis mate the slide along `z` (its axis) and the spin; a direction
+    mate all four; a point mate's rotation has no chart; a frame mate
+    leaves nothing."""
+
+    @staticmethod
+    def slide(axis: Literal["x", "y", "z"]) -> Coord:
+        """Raises ValueError for any other axis word."""
+    @staticmethod
+    def spin() -> Coord: ...
     @property
-    def sense(self) -> AxisSense: ...
-    @property
-    def clocking(self) -> Optional[Angle]: ...
+    def variant(self) -> Literal["slide_x", "slide_y", "slide_z", "spin"]: ...
     def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class WorldPin:
+    """A world pin (stage 3 C's named interim): the copy placed where its
+    body stands, the identity of the world's coordinates, with no read
+    and no number. It stands alone in its bundle.
+    `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
+    neither `constraints` nor `pose` places by one."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class MateValue:
+    """A mate's value: one freedom a mate of the same bundle leaves, set to a
+    number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
+    is the constant zero).
+
+    It is charted on the two bodies' own frames, each swung onto the
+    mated direction by the shortest turn: a slide is the copy's origin
+    measured from the target's along the chart's axis, a spin the angle
+    about the mated direction from the target's reference to the
+    copy's. Zero says the two bodies' own coordinates agree as far as
+    the mate allows.
+
+    `mate` names the mate (a `MateRef`, or its `constraint` id).
+    `Doc.add_value` adds one; the door refuses an id that is no mate of
+    the bundle (`mate_value_names_no_mate`), a freedom the mate's kind
+    does not leave (`mate_not_a_freedom`) and a point mate's rotation
+    (`mate_no_chart`). Raises ValueError where `by` is of another
+    dimension."""
+
+    def __init__(
+        self,
+        mate: MateRef | ConstraintId,
+        coord: Coord,
+        by: _SlotArg,
+    ) -> None: ...
+    @property
+    def mate(self) -> ConstraintId:
+        """The id of the mate whose freedom it sets."""
+    @property
+    def coord(self) -> Coord: ...
+    @property
+    def by(self) -> Formula:
+        """The number, as written."""
+    def __eq__(self, other: object) -> bool:
+        """Bit-exact."""
+
+class Placed:
+    """What the "place part" gesture wrote (`Doc.place_at`): the
+    placement, its mate and its values, and how the copy was placed —
+    `by == "planar_face"`, a plane mate on the copy's first planar face
+    to the world plane it lies in at the pose and the three values
+    (slides along `x` and `y`, and the spin) that put it there; or
+    `by == "pin"`, a copy with no planar face pinned over a frame read
+    off its geometry, with no freedom left to set."""
+
+    @property
+    def placement(self) -> NodeId: ...
+    @property
+    def mate(self) -> MateRef: ...
+    @property
+    def values(self) -> list[MateRef]:
+        """Slide `x`, slide `y`, spin; empty for a pin."""
+    @property
+    def by(self) -> Literal["planar_face", "pin"]: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -5888,70 +5991,6 @@ class MateRef:
     def __ge__(self, other: MateRef) -> bool: ...
     def __hash__(self) -> int: ...
 
-class Mate:
-    """A mate: two sides and the alignment datum relating them, with
-    the contact class it declares — ONE value carrying both the
-    placement constraint and the contact declaration. A mate is a
-    constraint of the placement that holds it (`Doc.constrain`,
-    `Doc.place(shapes, constraints)`), never a node.
-
-    Each face side is a node and a name: `a_at` / `b_at` is the node
-    the face is read at — whose geometry the mate speaks about — and
-    `a` / `b` the name text of a face of that node's output, what
-    `Evaluation.select` answers with. One side must be on the
-    placement's own copy (a face of one of its shapes, or of the
-    instance itself), else the solve refuses `mate_not_on_the_copy`;
-    the other reads a pose outside the copy.
-
-    `class_` is the declared contact class; ask `class_admission`
-    BEFORE authoring, because a class the solve folds may still mint
-    nothing at the at-rest gate. `alignment` is AUTHORED data —
-    nothing checks it against the faces `a` and `b` name, so a mate
-    can solve cleanly and still be refuted at the gate.
-
-    A head must name a FACE, and that IS refused here: `a` or `b`
-    naming an edge raises `EditError` with `variant ==
-    "mate_head_not_a_face"` at this call. A dangling reference is not
-    refused here: the solve refuses typed naming its head
-    (`mate_dangling_head`), or the side's read when it is no face of a
-    live body (`mate_side_unresolved`) — or, where the head resolves
-    and a pattern or transform placing it could not derive a pose,
-    naming that placer (`mate_placer_refused`)."""
-
-    def __init__(
-        self,
-        a_at: NodeId,
-        a: str,
-        b_at: NodeId,
-        b: str,
-        class_: ContactClass,
-        alignment: Alignment,
-    ) -> None: ...
-    @staticmethod
-    def world_pin(pose: Optional[Placement] = None) -> Mate:
-        """A copy pinned to the world at `pose`, the identity when
-        `None`: one coincidence of the world's frame, moved by `pose`,
-        with the placement's own copy's frame. The world is the `a`
-        side, so the copy sits at `pose` bit for bit. Each rigid step's
-        components are checked against their slot, as
-        `Node.transform_by`'s are."""
-    @property
-    def class_(self) -> ContactClass:
-        """The declared contact class."""
-    @property
-    def alignment(self) -> Alignment:
-        """The alignment datum."""
-    @property
-    def a(self) -> Literal["face", "copy", "world"]:
-        """What the `a` side reads: a face, the placement's own copy
-        (by its part frame), or the world."""
-    @property
-    def b(self) -> Literal["face", "copy", "world"]:
-        """What the `b` side reads, in `a`'s words."""
-    def __eq__(self, other: object) -> bool:
-        """BIT-exact: the same sides and class, and alignments equal by
-        `Alignment.__eq__`'s rule."""
-
 class Subgroup:
     """A residual subgroup: what a fold left free.
 
@@ -5984,17 +6023,15 @@ class MateFault:
     branch on `variant` first.
 
     The classifier's words are the frame door's words: `margin`,
-    `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
-    and `predicate` are spelled here exactly as `FrameError` spells
+    `margin_low`, `margin_high`, `zero`, `escalate` and `predicate`
+    are spelled here exactly as `FrameError` spells
     them, because an escalation a mate reports and one a frame
     constructor reports are the same value.
 
     `cause` is the refusal the fault CARRIES, typed: on
-    `mate_placer_refused` where the placer is poisoned and cannot state
-    it, the `EvaluationError` the placer's own evaluation raises, which
-    `str(fault)` points at and never quotes. `None` where the placer
-    fails in its own right, whose own failure states it. A raised
-    `MateError` carries the same as its `__cause__`.
+    `mate_side_unevaluated`, the `EvaluationError` the pose's own
+    evaluation raises, which `str(fault)` points at (`error` is its
+    kind). A raised `MateError` carries the same as its `__cause__`.
 
     Every field that names a mate answers its address, a `MateRef`.
     A bundle's two faults name the placement and its constraints:
@@ -6002,9 +6039,17 @@ class MateFault:
     whose removal leaves the bundle's codimension unchanged) and
     `residual` (what the rest of the bundle holds the copy to);
     `mate_targets_differ` carries `placement` and the `constraints`
-    whose targets differ. `mate_not_on_the_copy` names the `mate` with
-    no side on its own copy, and `mate_side_base` the `mate`, the
-    `side` and the frame `base` its read does not admit."""
+    whose targets differ. `mate_not_on_the_copy` names the `mate` whose
+    `on` does not read its copy; `mate_kinds_differ` the `mate` and its
+    `on_kind` and `to_kind`; `mate_world_read` the `mate`, with the
+    world read's word as `inner_variant` (`role`, `along`,
+    `slid_direction`, `about`, `flipped_point`, `too_deep`);
+    `mate_side_unevaluated` the `mate`, the `side` and the pose's own
+    `error`. A value's faults
+    name the value as `value_ref`: `mate_value_names_no_mate` the id it
+    names as `named`, `mate_not_a_freedom` the `coord` and, where the
+    mate's kind alone fixes it, `mate_kind`, and `mate_no_chart` `why`
+    (`point_rotation`, `two_bodies`)."""
 
     @property
     def variant(self) -> str: ...
@@ -6013,27 +6058,19 @@ class MateFault:
     @property
     def side(self) -> Optional[MateSide]: ...
     @property
-    def head(self) -> Optional[NodeId]: ...
-    @property
-    def placer(self) -> Optional[NodeId]: ...
-    @property
     def error(self) -> Optional[str]: ...
     @property
     def cause(self) -> Optional[EvaluationError]: ...
     @property
-    def instance(self) -> Optional[NodeId]: ...
+    def instance(self) -> Optional[NodeId]:
+        """The instance whose part a lever's reach was asked of."""
+    @property
+    def shape(self) -> Optional[NodeId]:
+        """The node whose copied body a lever's reach was asked of."""
     @property
     def placement(self) -> Optional[NodeId]: ...
     @property
     def constraints(self) -> Optional[list[MateRef]]: ...
-    @property
-    def base(self) -> Optional[Literal["part", "face", "world"]]: ...
-    @property
-    def face(self) -> Optional[str]:
-        """The face a `from_face` side read — its head's face, as its
-        name text in the PART's own spelling, or the head itself where
-        it names no face of the part — where the refusal is about one
-        (`mate_face_unresolved`)."""
 
     @property
     def residual(self) -> Optional[Subgroup]: ...
@@ -6050,13 +6087,22 @@ class MateFault:
         measures nothing."""
 
     @property
-    def part(self) -> Optional[NodeId]: ...
+    def on_kind(self) -> Optional[str]: ...
     @property
-    def named(self) -> Optional[int]: ...
+    def to_kind(self) -> Optional[str]: ...
     @property
-    def selected(self) -> Optional[int]: ...
+    def value_ref(self) -> Optional[MateRef]: ...
     @property
-    def what(self) -> Optional[str]: ...
+    def named(self) -> Optional[ConstraintId]: ...
+    @property
+    def coord(self) -> Optional[Coord]: ...
+    @property
+    def mate_kind(self) -> Optional[str]: ...
+    @property
+    def why(self) -> Optional[Literal["point_rotation", "two_bodies"]]: ...
+    @property
+    def what(self) -> Optional[str]:
+        """What a lever's unbounded face is, in its own words."""
     @property
     def expected_document(self) -> Optional[str]:
         """The document whose placement was asked for, as `Doc.id`
@@ -6069,18 +6115,13 @@ class MateFault:
 
     @property
     def inner_variant(self) -> Optional[str]:
-        """The nested refusal's own word: the frame ladder's
-        (`FrameError.variant`'s vocabulary), the band constructor's
-        (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
-        refusal's (`part_unresolved`, `face_unbounded`,
-        `malformed_body`, `no_extent`, `no_finite_bound`,
-        `not_an_instance`, with the instance it is about as `instance`,
-        or `out_of_range` and `below_zero_band`, about the pair's lever
-        rather than one part, with no `instance`), or the face refusal's on
-        `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
-        `ambiguous`, `not_a_face`, `readback`,
-        `not_an_instance`, `no_part_face`, with the
-        instance as `instance` and the face as `face`). `None` on an
+        """The nested refusal's own word: the lever refusal's
+        (`part_unresolved`, `face_unbounded`,
+        `malformed_body`, `no_extent`, `no_finite_bound`, with the
+        instance it is about as `instance` or the copied shape as
+        `shape`, or `out_of_range` and `below_zero_band`, about the
+        pair's lever rather than one body, with neither), or the world
+        read's on `mate_world_read`. `None` on an
         arm whose payload is a struct rather than an enum — an
         escalation has no inner word, and its shape is which margin
         attribute is set."""
@@ -6106,8 +6147,7 @@ class MateFault:
     @property
     def zero(self) -> Optional[float]:
         """The coincidence threshold of the band a margin was
-        classified against, or of the band a constructor could not
-        form. A plain real, as the frame door answers it: a band's
+        classified against. A plain real, as the frame door answers it: a band's
         thresholds are whatever its predicate measures in."""
 
     @property
@@ -6115,46 +6155,27 @@ class MateFault:
         """Its escalation threshold."""
 
     @property
-    def field(self) -> Optional[str]:
-        """Which band threshold a rejected value was — `zero` or
-        `escalate`."""
-
-    @property
-    def value(self) -> Optional[float]:
-        """The rejected number: a threshold, or a lever arm handed to
-        the band constructor."""
-
-    @property
-    def lever_tilt(self) -> Optional[Angle]:
-        """The lever's TILT, when a contradictory clash levered an
-        authored roll (the clocking rider's `mate_clocking_redundant`).
-        One of this and `lever_residual` is set on a levered clash,
-        never both: which one says what kind of number the predicate
-        measured."""
-
-    @property
     def lever_residual(self) -> Optional[float]:
         """The lever's RESIDUAL — a pure number, named by `predicate`:
         a sine, a cosine, a Frobenius departure from the identity, a
-        reachability defect — when a contradictory clash levered one
-        rather than an authored roll. Dimensionless, so a bare float
+        reachability defect — when a contradictory clash levered one.
+        Dimensionless, so a bare float
         and not a quantity."""
 
     @property
     def lever_arm(self) -> Optional[Length]:
-        """Its ARM, in metres: an upper bound on the two mated parts'
-        extent together from the datum — each part's reach from its own
-        origin plus its frame's distance, plus the authored lengths.
-        NOT a contact feature: it names the parts' scale and nothing
+        """Its ARM, in metres: an upper bound on the two mated bodies'
+        extent together from the datum. NOT a contact feature: it names
+        the bodies' scale and nothing
         else in the model. `clash` is the PRODUCT of the set half and
         the arm, and an arm that measured its margin without a lever
-        carries none of the three."""
+        carries neither."""
 
 
 
 class SolvedPoses:
     """The document's solved poses: each placement's pose in its
-    target's space, and the per-placement refusals."""
+    space, and the per-placement refusals."""
 
     def fault(self, placement: NodeId) -> Optional[MateFault]:
         """The placement's recorded fault. Recorded against the
@@ -6167,18 +6188,18 @@ class SolvedPoses:
         again to speak the current labels."""
 
     def pose(self, placement: NodeId) -> Optional[Frame]:
-        """The placement's solved pose in its target's space: where its
-        bundle puts its copy relative to the copy it is pinned to (the
-        world, or another placement's copy), and in a loose copy's own
-        space the pose it is evaluated at. `None` for a node that is no
-        placement, or one whose bundle refused."""
+        """The placement's solved pose in its space: where its copy sits
+        in the world's coordinates for a copy pinned, transitively,
+        against the world, and in a loose copy's own coordinates for one
+        pinned to it. `None` for a node that is no placement, or one
+        whose bundle refused."""
 
     def placement(self, doc: Doc, placement: NodeId) -> Frame:
         """The placement's WORLD pose, at the document's own
-        parameters: its solved pose composed into the world pose of the
-        copy it is pinned to. A copy pinned to the world at `pose`
-        returns that pose's frame bit for bit, and at the identity the
-        identity.
+        parameters: its pose in its space, for a copy pinned,
+        transitively, against the world. A copy pinned to the world at a
+        pose returns that pose, to the rounding of the values its pin is
+        computed in.
 
         `doc` must be the document this solve is OF. Passing another
         would compose this document's poses onto that one's
@@ -6203,19 +6224,12 @@ def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedP
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    The solve reads no geometry except what each mated part's own
-    evaluation answers: its extent — an upper bound taken from its
-    evaluated body, entering only as the lever a parallelism verdict
-    is decided over — and, for a `MateFrame.from_face` side, that
-    face's canonical pose. So `resolver` is the same document seam
-    `evaluate(doc, resolver=)` crosses. Without one every mate on a
-    part refuses in the resolver's own voice rather than reading
-    nothing: a face side `mate_face_unresolved` (read first), an
-    authored one `mate_unleverable`. A face frame IS its face and
-    cannot drift from the part; the solve does NOT check that AUTHORED
-    vectors match the faces the mate's references name, which is why
-    a document authored so can solve cleanly and still refuse at the
-    gate."""
+    A bundle folds where its placement evaluates: each mate's poses
+    are read off the evaluated geometry, and a parallelism verdict is
+    levered over the mated bodies' own extent. So `resolver` is the
+    document seam `evaluate(doc, resolver=)` crosses: without one, a
+    placement over a part's instance refuses in the resolver's own
+    voice (`part_no_resolver`) rather than reading nothing."""
 
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
     """The relative-freedom partition: the recipe's components over
@@ -6645,8 +6659,8 @@ def split(
     placement whose bundle reads a kept copy severs that read
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
-    the part pinned to the world at the identity, so its copies stand
-    where the cut's did. A remainder read of the cut crosses only where
+    the part pinned where it stands by the world pin, so its copies
+    stand where the cut's did. A remainder read of the cut crosses only where
     the instance's copies carry what it reads, re-pointed to that copy
     of the instance; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
@@ -6654,20 +6668,14 @@ def split(
     `doc` is untouched. Raises SplitError, typed, naming the offending
     edge, constraint, parameter or name.
 
-    `resolver` is the document seam the part's constraint inserts lever
-    through where one carries a clocking rider, decided over the mated
-    parts' own extent. The part being minted answers its own
-    reference; `resolver` answers every other. Absent, such a rider
-    raises `SplitError` carrying an `EditError` with variant
-    `mate_refused`; a cut with none is unaffected.
+    `resolver` is the document seam the split evaluates `doc` through,
+    to decide which of the cut's copies are the world's: it answers the
+    parts the document's instances reference.
 
-    A kept constraint reading a cut copy reads it in the instance: a
-    face frame rides its face; a frame on the copy's own part stands in
-    that copy's coordinates, which are the instance's only where the
-    copy is pinned to the world at the identity — otherwise the split
-    refuses `mate_frame_crosses` (`mate` the constraint, `node` its
-    placement). A cut holding no body refuses (`no_material`), and a
-    cut naming the world `cuts_the_world`."""
+    A kept constraint whose pose reads a cut copy's geometry reads it
+    in the instance: its pose is re-written over the instance's copies.
+    A cut holding no body refuses (`no_material`), and a cut naming the
+    world `cuts_the_world`."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the
@@ -6694,16 +6702,16 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     version on disk. Pure — `doc` is untouched. Raises InlineError,
     typed.
 
-    Where the content lands (A4): an instance pinned to the world at a
-    pose splices its part's placements with every constraint on the
-    part's world moved by that pose (at the identity, verbatim). An
+    Where the content lands (A4): the part's world mates are moved by
+    the motion the instance's pin solved to, taken as numbers — so a
+    pin that reads a variable refuses `pin_reads_variable` (`node` the
+    instance, `param` the variable), a pin that did not solve
+    `instance_unsolved`, and a part copy's value charted on the world
+    the inline moves `value_on_a_moved_world` (`mate` the value). An
     instance placed by other constraints is inlined only over a part
     whose one placement on its world is an instance pinned there at the
     identity, which takes the instance's bundle in place of its pin;
-    otherwise it refuses `unplaceable_part` (`node` the instance). A
-    host constraint side reading the instance crosses the seam only
-    where its coordinates do not change (`mate_frame_crosses`,
-    `side_leaves_an_instance`; `mate` the constraint).
+    otherwise it refuses `unplaceable_part` (`node` the instance).
 
     A host node that read the instance reads the inlined copy the part's
     one placement makes. A part whose world is not one body for that

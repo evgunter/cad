@@ -1,26 +1,27 @@
 //! MSOLVE-14 acceptance — **the mate solve runs at the evaluation's own
-//! scalar** (`ASSEMBLY.md` A11 (5): the solve's inputs are read at the
-//! evaluation's scalar and over its parameters; a pattern's count and a
-//! `Part`'s index are read at the nominal).
+//! scalar** (`ASSEMBLY.md` A11 (5): the fold's inputs are read at the
+//! evaluation's scalar and over its parameters).
 //!
-//! The rows, by the spec's acceptance:
+//! A placement folds its bundle where it evaluates, so every pose its
+//! mates read and every number its values and pose constructions hold
+//! is bound in the evaluation's own lane. The rows, by the spec's
+//! acceptance:
 //!
-//! - **A3, the `f64` fence**: a mate corpus — authored and face frames,
-//!   every primitive, a LOOSE bundle and an OVERCONSTRAINED one, a
-//!   patterned bolt, a transform placer, a parametric world pin, a chain
-//!   of bundles — solved and evaluated at `f64`, digested, and pinned;
-//!   and the same corpus at `Dual64` reading the `f64` bits on its value
-//!   channel.
-//! - **A1**: a face-framed mate on a `Dual64` seed run carries its pose's
-//!   tangent, and on an `Interval` box run an enclosure of the pose at
-//!   every sampled box corner.
-//! - **A2**: a mate read through a parametric placer moves its mated
-//!   part in the run that binds the placer — the patterned bolt
-//!   (∂B/∂s = −2, ∂copy2/∂s = 0) and a rotating transform.
+//! - **A3, the `f64` fence**: a mate corpus — every kind of mate the
+//!   fold has a branch for, a LOOSE bundle and an OVERCONSTRAINED one,
+//!   a parametric seat under a pattern, a parametric standoff, a
+//!   parametric world pin, a chain of bundles — solved and evaluated
+//!   at `f64`, digested, and pinned; and the same corpus at `Dual64`
+//!   reading the `f64` bits on its value channel.
+//! - **A2**: a parameter a bundle reads — a value's slide, a standoff,
+//!   a value's spin — moves the mated part in the run that binds it,
+//!   on a `Dual64` seed run by its tangent and on an `Interval` box run
+//!   by an enclosure: the patterned bolt (∂B/∂s = −2, ∂copy2/∂s = 0),
+//!   a standoff and a slid, spun seat.
 //! - **A4**: a seeded pass threaded an unseeded `Dual64` prior reuses no
 //!   zero-tangent pose (the memo key carries the pose's two channels).
 //! - **A5**: `stackup::sensitivities` and certified `clearance` over the
-//!   face-framed bolt.
+//!   seated bolt.
 //! - **C5**: one document's structure — spaces, faults' presence — is
 //!   the same in every lane.
 //!
@@ -36,14 +37,15 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocRef,
-    DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Mate, MateFrame, MatePrimitive, MateRef,
-    Node, NodeResult, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace,
-    StableName, Step, VarName, all_vertices, evaluate, vertex_position,
+    BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, StableName,
+    Target, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
+use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
 use geom_core::{Dual64, Interval, Tol};
 
 // ---- Substrate ----
@@ -57,7 +59,7 @@ const BOLT_HEIGHT: f64 = 3.0;
 
 /// The bolt pattern's spacing parameter and its nominal.
 const SPACING: f64 = 2.0;
-/// The transform placer's lift parameter and its nominal.
+/// The standoff parameter and its nominal.
 const GAP: f64 = 0.5;
 
 fn spacing() -> VarName {
@@ -73,7 +75,7 @@ fn lift() -> VarName {
 }
 
 fn turn() -> VarName {
-    VarName::from_static("spin")
+    VarName::from_static("twist")
 }
 
 /// A `w x w x h` block from the origin, as a whole part document, and
@@ -97,32 +99,105 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
+/// A part's own names for what a mate reads off it besides its caps:
+/// the lateral edges at its profile's four canonical vertices, the
+/// cap vertices over them, and the rim edges of its first segment.
+#[derive(Clone)]
+struct Names {
+    lateral: Vec<StableName>,
+    corner: Vec<StableName>,
+    foot_rim: StableName,
+    top_rim: StableName,
+}
+
+impl Names {
+    fn of(doc: &ProfileDoc, body: RecipeNodeId) -> Self {
+        let v = |k| fixture::vpiece(doc, body, 0, k);
+        Self {
+            lateral: (0..4)
+                .map(|k| fixture::ename(body, RoleSeg::LateralEdge(v(k))))
+                .collect(),
+            corner: (0..4)
+                .map(|k| fixture::cap_vertex(body, CapEnd::End, v(k)))
+                .collect(),
+            foot_rim: fixture::rim_edge(body, CapEnd::Start, fixture::piece(doc, body, 0, 0)),
+            top_rim: fixture::rim_edge(body, CapEnd::End, fixture::piece(doc, body, 0, 0)),
+        }
+    }
+}
+
 /// The two parts every document here instantiates, in one store.
 struct Parts {
     store: PartStore,
     slab: DocRef,
     slab_body: RecipeNodeId,
+    slab_names: Names,
     bolt: DocRef,
     bolt_body: RecipeNodeId,
+    bolt_names: Names,
 }
 
 fn parts(label: &str) -> Parts {
     let mut store = PartStore::new();
-    let (slab, slab_body) = store.insert_part(
-        block(&format!("{label}-slab"), SLAB_WIDTH, SLAB_HEIGHT),
-        Tol::witness(),
-    );
-    let (bolt, bolt_body) = store.insert_part(
-        block(&format!("{label}-bolt"), BOLT_WIDTH, BOLT_HEIGHT),
-        Tol::witness(),
-    );
+    let (slab_doc, slab_part) = block(&format!("{label}-slab"), SLAB_WIDTH, SLAB_HEIGHT);
+    let slab_names = Names::of(&slab_doc, slab_part);
+    let (slab, slab_body) = store.insert_part((slab_doc, slab_part), Tol::witness());
+    let (bolt_doc, bolt_part) = block(&format!("{label}-bolt"), BOLT_WIDTH, BOLT_HEIGHT);
+    let bolt_names = Names::of(&bolt_doc, bolt_part);
+    let (bolt, bolt_body) = store.insert_part((bolt_doc, bolt_part), Tol::witness());
     Parts {
         store,
         slab,
         slab_body,
+        slab_names,
         bolt,
         bolt_body,
+        bolt_names,
     }
+}
+
+/// **`name`, an entity of a part's body, as `instance` wears it**:
+/// under the placement the part's world copies the body by, inside the
+/// instance's `InPart` wrapper.
+fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: &StableName) -> StableName {
+    let placed = StableName {
+        kind: name.kind,
+        node: placement_of(body),
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(name.clone()),
+        }],
+    };
+    StableName {
+        kind: placed.kind,
+        node: instance,
+        path: vec![RoleSeg::InPart { of: placed.into() }],
+    }
+}
+
+/// A pose slid `by` along a direction or an axis's direction.
+fn slid(pose: Operand, along: RoleRead<Operand>, by: Formula) -> Operand {
+    Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(pose),
+        along,
+        by,
+    }))
+}
+
+/// A plane slid `by` along its own normal.
+fn standoff(plane: Operand, by: Formula) -> Operand {
+    Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(plane.clone()),
+        along: RoleRead::through(plane, PoseRole::Normal),
+        by,
+    }))
+}
+
+/// The frame through `axis` and `point`.
+fn through(axis: Operand, point: Operand) -> Operand {
+    Operand::Pose(Box::new(PoseDef::Through {
+        axis: RoleRead::plain(axis),
+        point: RoleRead::plain(point),
+    }))
 }
 
 impl Parts {
@@ -141,34 +216,102 @@ impl Parts {
     fn bolt_head(&self, bolt: RecipeNodeId) -> StableName {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
+    /// The bolt's lateral edge `k`, as an axis `bolt` places.
+    fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
+        fixture::axis(SitedRef::new(
+            bolt,
+            worn(bolt, self.bolt_body, &self.bolt_names.lateral[k]),
+        ))
+    }
+    /// The slab's lateral edge `k`, as an axis `slab` places.
+    fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
+        fixture::axis(SitedRef::new(
+            slab,
+            worn(slab, self.slab_body, &self.slab_names.lateral[k]),
+        ))
+    }
+    /// **One of the slab's two side directions**, as an axis: the `x`
+    /// of the frame standing on its edge at canonical vertex 0 and aimed
+    /// at the top corner over vertex `k` (1 or 3, its neighbours) — a
+    /// direction along a side whatever way the edge runs.
+    fn slab_side(&self, slab: RecipeNodeId, k: usize) -> RoleRead<Operand> {
+        RoleRead::through(
+            through(
+                self.slab_edge(slab, 0),
+                fixture::point_of(SitedRef::new(
+                    slab,
+                    worn(slab, self.slab_body, &self.slab_names.corner[k]),
+                )),
+            ),
+            PoseRole::X,
+        )
+    }
+    /// **A vertical line through the slab at `(x, y)` from its corner**
+    /// at canonical vertex 0, along its two sides.
+    fn slab_line(&self, slab: RecipeNodeId, x: f64, y: f64) -> Operand {
+        slid(
+            slid(self.slab_edge(slab, 0), self.slab_side(slab, 1), len(x)),
+            self.slab_side(slab, 3),
+            len(y),
+        )
+    }
 }
 
-fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], Tol::witness()).expect("a frame")
-}
-
-/// **A seat**: `mover`'s frame (its own origin, axis down) coincident
-/// with `onto`'s, axes opposed — the mover stands ON the other part.
-/// `onto_frame` is the frame on the seat's receiving side: authored at
-/// a point of its top cap, or the cap face's own pose.
-fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame<Formula>) -> Mate<Formula> {
-    fixture::mate(
-        mover,
-        onto,
-        ContactClass::Rest,
-        Alignment {
-            a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-            b: onto_frame,
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
+/// `doc` with the freedom `coord` of `mate` set to `by`.
+fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
+    editor_core::apply(
+        &doc,
+        &DocEdit::AddValue {
+            placement: mate.placement,
+            value: Box::new(Value {
+                mate: mate.id,
+                coord,
+                by,
+            }),
+            fresh: Vec::new(),
         },
+        Tol::witness(),
+        &editor_core::RefusingReach,
     )
+    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
+    .doc
 }
 
-/// The receiving frame authored at `(x, y)` of the slab's top.
-fn slab_at(x: f64, y: f64) -> MateFrame<Formula> {
-    authored([x, y, SLAB_HEIGHT], [0.0, 0.0, 1.0])
+/// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
+/// `by` above it, and the mover's origin at `(x, y)` from the target
+/// body's, turned `spin` about the cap's normal — the rest and its three
+/// values, in `mover`'s bundle. Answers the rest's address.
+#[allow(clippy::too_many_arguments)]
+fn seat(
+    doc: ProfileDoc,
+    mover: RecipeNodeId,
+    foot: StableName,
+    onto: StableName,
+    by: Formula,
+    (x, y, spin): (Formula, Formula, Formula),
+) -> (ProfileDoc, MateRef) {
+    let (doc, rest) = fixture::constrain_at(
+        doc,
+        mover,
+        fixture::mate(
+            fixture::plane(head(foot)),
+            fixture::flip(standoff(fixture::plane(head(onto)), by)),
+            ContactClass::Rest,
+        ),
+    );
+    let doc = [
+        (Coord::Slide(SlideAxis::X), x),
+        (Coord::Slide(SlideAxis::Y), y),
+        (Coord::Spin, spin),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| with_value(doc, rest, coord, by));
+    (doc, rest)
+}
+
+/// Literal `(x, y, spin)` values.
+fn at(x: f64, y: f64, spin: f64) -> (Formula, Formula, Formula) {
+    (len(x), len(y), ang(spin))
 }
 
 fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
@@ -193,15 +336,20 @@ fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     .0
 }
 
-/// A slab (pinned to the world at the identity) and `n` bolts whose
-/// bundles are empty, each placed by whatever mates the caller adds.
+fn named(name: VarName, dim: Dimension) -> Formula {
+    Formula::named(name, dim)
+}
+
+/// A slab (pinned to the world at the identity over its own geometry)
+/// and `n` bolts whose bundles are empty, each placed by whatever mates
+/// the caller adds.
 fn slab_and_bolts(
     p: &Parts,
     label: &str,
     n: usize,
 ) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (mut doc, slab) = insert(doc, Node::instantiate_part(p.slab));
+    let (mut doc, slab) = fixture::insert_pinned(doc, Node::instantiate_part(p.slab), &p.opts());
     let mut bolts = Vec::new();
     for _ in 0..n {
         let (next, bolt) = insert(doc, fixture::mated_instance(p.bolt));
@@ -211,45 +359,41 @@ fn slab_and_bolts(
     (doc, slab, bolts)
 }
 
-/// Adds `mate` to `placement`'s bundle through the parts' own reach —
-/// the door a face-framed side needs, since its admission reads the
-/// part's face, and the door that folds the bundle it joins.
-fn constrain_through(
-    doc: ProfileDoc,
-    placement: RecipeNodeId,
-    mate: Mate<Formula>,
-    opts: &EvalOptions,
-) -> (ProfileDoc, MateRef) {
-    let reach = editor_core::mate_reach::<f64>(opts, Tol::witness());
-    match fixture::at_the_door_of(&doc, &reach, placement, mate) {
-        Ok(admitted) => admitted,
-        Err((at, fault)) => panic!("the constraint is admitted, got {at:?}: {fault}"),
-    }
-}
-
 // ---- The documents the rows share ----
 
-/// **The patterned bolt** (the designers' worked example): a linear
-/// pattern of the bolt along `+x` at spacing `s`, three copies, and
-/// copy #2 seated on the slab at `(6, 4)` — through `slab_frame`, so
-/// the face-framed variant reads the slab's cap pose. Copy #2 stays on
-/// the slab for every `s`, so the pattern's master instance sits at
-/// `6 − 2s` and moves by `−2` per unit of `s`.
+/// **The patterned bolt** (the designers' worked example): the bolt
+/// seated on the slab with its origin at `(6 − 2s, 4)`, and a linear
+/// pattern of it along `+x` at spacing `s`, three copies. Copy #2
+/// stands at `6` for every `s`, so the bolt moves by `−2` per unit of
+/// `s`, copy #1 by `−1` and copy #2 not at all.
 struct Bolted {
     doc: ProfileDoc,
     opts: EvalOptions,
     slab: RecipeNodeId,
     bolt: RecipeNodeId,
     pattern: RecipeNodeId,
-    /// The seat, a constraint of the bolt's bundle.
+    /// The seat's rest, a constraint of the bolt's bundle.
     mate: MateRef,
 }
 
-fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
+fn bolted(label: &str) -> Bolted {
     let p = parts(label);
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let bolt = bolts[0];
     let doc = declare(doc, spacing(), SPACING, Dimension::Length);
+    let x = Formula::sub(
+        len(6.0),
+        Formula::mul(scl(2.0), named(spacing(), Dimension::Length)).expect("2·s is a length"),
+    )
+    .expect("a length less a length");
+    let (doc, mate) = seat(
+        doc,
+        bolt,
+        p.bolt_foot(bolt),
+        p.slab_top(slab),
+        len(0.0),
+        (x, len(4.0), ang(0.0)),
+    );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -257,24 +401,13 @@ fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: Formula::named(spacing(), Dimension::Length),
+                spacing: named(spacing(), Dimension::Length),
             },
         },
     );
-    let opts = p.opts();
-    let (doc, mate) = constrain_through(
-        doc,
-        bolt,
-        seat(
-            head_at(pattern, in_copy(pattern, 2, p.bolt_foot(bolt))),
-            head(p.slab_top(slab)),
-            slab_frame,
-        ),
-        &opts,
-    );
     Bolted {
         doc,
-        opts,
+        opts: p.opts(),
         slab,
         bolt,
         pattern,
@@ -282,16 +415,15 @@ fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
     }
 }
 
-/// The bolt seated through a rotating TRANSFORM placer whose lift is a
-/// parameter: the transform lifts the bolt by `gap` and turns it 0.4
-/// rad about `x`, and the mate seats the TRANSFORMED bolt on the slab —
-/// so the bolt instance itself sits at `T(gap)⁻¹ ∘ seat`.
+/// **The bolt on a parametric standoff**: seated on the slab `gap`
+/// above its top cap — a slide of the cap's plane along its own normal
+/// — with its origin at `(2, 3)` and turned 0.4 rad, so the bolt moves
+/// by `e_z` per unit of `gap`.
 struct Lifted {
     doc: ProfileDoc,
     opts: EvalOptions,
     bolt: RecipeNodeId,
-    transform: RecipeNodeId,
-    /// The seat, a constraint of the bolt's bundle.
+    /// The seat's rest, a constraint of the bolt's bundle.
     mate: MateRef,
 }
 
@@ -300,59 +432,35 @@ fn lifted(label: &str) -> Lifted {
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let bolt = bolts[0];
     let doc = declare(doc, gap(), GAP, Dimension::Length);
-    let (doc, transform) = insert(
-        doc,
-        Node::transform(
-            bolt,
-            Step::Rigid {
-                translation: [len(0.0), len(0.0), Formula::named(gap(), Dimension::Length)],
-                axis: [1.0, 0.0, 0.0].map(scl),
-                angle: ang(0.4),
-            },
-        ),
-    );
-    let opts = p.opts();
-    let (doc, mate) = constrain_through(
+    let (doc, mate) = seat(
         doc,
         bolt,
-        seat(
-            head_at(transform, p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-            slab_at(2.0, 3.0),
-        ),
-        &opts,
+        p.bolt_foot(bolt),
+        p.slab_top(slab),
+        named(gap(), Dimension::Length),
+        at(2.0, 3.0, 0.4),
     );
     Lifted {
         doc,
-        opts,
+        opts: p.opts(),
         bolt,
-        transform,
         mate,
     }
 }
 
 /// **A shaft in two coaxial bores**: the bolt held by two coaxial mates
-/// on ONE line, so the second bore's axis point lies on the first's
-/// axis and the fold meets a clocking with no radius to turn
-/// (`clocking_about`'s degenerate arm); either bore is then one the
-/// rest of the bundle already fixes, so the bundle is overconstrained. The clocking is then fixed
-/// either by a clocked coaxial rider and a planar rest
-/// ([`ShaftShape::ClockedRider`]), or by a planar rest and a third pin
-/// on a parallel axis a quarter off the first ([`ShaftShape::ParallelPin`]).
-/// The rest's slab frame rises with `rise`, which lifts the shaft one
-/// for one; `idle` is declared and read by nothing.
+/// on ONE line — its lateral edge on the same vertical line of the slab
+/// twice — and a rest whose standoff `rise` lifts it one for one; a
+/// third pin, the bolt's next lateral edge on that line slid one bolt
+/// width along the slab's side, clocks it. Either bore is then one the
+/// rest of the bundle already fixes, so the bundle is overconstrained;
+/// `idle` is declared and read by nothing.
 struct Shaft {
     doc: ProfileDoc,
     opts: EvalOptions,
     bolt: RecipeNodeId,
     /// The bolt's bundle, in the order it was authored.
     mates: Vec<MateRef>,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum ShaftShape {
-    ClockedRider,
-    ParallelPin,
 }
 
 const RISE: f64 = 1.0;
@@ -366,413 +474,330 @@ fn idle() -> VarName {
     VarName::from_static("idle")
 }
 
-/// The two bores' bolt-side and slab-side axis points, on the bolt's
-/// and the slab's own axis lines.
-type Bores = ([[f64; 3]; 2], [[f64; 3]; 2]);
-
-/// The bores on one line exactly: `(0.5, 0.5)` through the bolt,
-/// `(4, 4)` through the slab.
-const BORES: Bores = (
-    [[0.5, 0.5, 0.0], [0.5, 0.5, 2.0]],
-    [[4.0, 4.0, SLAB_HEIGHT], [4.0, 4.0, -1.0]],
-);
-
-fn shaft(label: &str, shape: ShaftShape, bores: Bores) -> Shaft {
-    try_shaft(label, shape, bores)
-        .unwrap_or_else(|fault| panic!("{label}: the door admits the shaft's bundle: {fault}"))
-}
-
-/// [`shaft`], or the fault the constraint door refused its bundle with:
-/// the door folds the bundle a constraint joins, so a bundle whose fold
-/// cannot settle refuses there.
-fn try_shaft(
-    label: &str,
-    shape: ShaftShape,
-    (bolt_at, slab_at): Bores,
-) -> Result<Shaft, editor_core::MateFault> {
+/// The second bore's line is the first's slid along the slab's side by
+/// `off.0` and then by `off.1`: `(0, 0)` for one line.
+fn shaft(label: &str, off: (f64, f64)) -> Shaft {
     let p = parts(label);
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let bolt = bolts[0];
     let doc = declare(doc, rise(), RISE, Dimension::Length);
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
-    let bore = |a: [f64; 3], b: [f64; 3], clocking: Option<f64>| {
+    let line = || p.slab_line(slab, 4.0, 4.0);
+    let mates = [
+        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
         fixture::mate(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
+            p.bolt_edge(bolt, 0),
+            slid(
+                slid(line(), p.slab_side(slab, 1), len(off.0)),
+                p.slab_side(slab, 1),
+                len(off.1),
+            ),
             ContactClass::Rest,
-            Alignment {
-                a: authored(a, [0.0, 0.0, -1.0]),
-                b: authored(b, [0.0, 0.0, 1.0]),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Opposed,
-                clocking,
-            },
-        )
-    };
-    let rest = fixture::mate(
-        head(p.bolt_foot(bolt)),
-        head(p.slab_top(slab)),
-        ContactClass::Rest,
-        Alignment {
-            a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-            b: MateFrame::on_part(Step::Rigid {
-                translation: [
-                    len(0.0),
-                    len(0.0),
-                    Formula::named(rise(), Dimension::Length),
-                ],
-                axis: [0.0, 0.0, 1.0].map(scl),
-                angle: ang(0.0),
-            }),
-            primitive: MatePrimitive::PlanarRest { offset: 0.25 },
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    );
-    let quarter = |x: [f64; 3]| [x[0] + 0.25, x[1], x[2]];
-    let then = match shape {
-        ShaftShape::ClockedRider => [bore(bolt_at[0], slab_at[0], Some(0.3)), rest],
-        ShaftShape::ParallelPin => [rest, bore(quarter(bolt_at[0]), quarter(slab_at[0]), None)],
-    };
-    let opts = p.opts();
+        ),
+        fixture::mate(
+            fixture::plane(head(p.bolt_foot(bolt))),
+            fixture::flip(standoff(
+                fixture::plane(head(p.slab_top(slab))),
+                named(rise(), Dimension::Length),
+            )),
+            ContactClass::Rest,
+        ),
+        fixture::mate(
+            p.bolt_edge(bolt, 1),
+            slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
+            ContactClass::Rest,
+        ),
+    ];
     let mut doc = doc;
-    let mut mates = Vec::new();
-    for mate in [
-        bore(bolt_at[0], slab_at[0], None),
-        bore(bolt_at[1], slab_at[1], None),
-    ]
-    .into_iter()
-    .chain(then)
-    {
-        let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-        let (next, mate) =
-            fixture::at_the_door_of(&doc, &reach, bolt, mate).map_err(|(_, fault)| fault)?;
+    let mut refs = Vec::new();
+    for mate in mates {
+        let (next, m) = fixture::constrain_at(doc, bolt, mate);
         doc = next;
-        mates.push(mate);
+        refs.push(m);
     }
-    Ok(Shaft {
+    Shaft {
         doc,
-        opts,
+        opts: p.opts(),
         bolt,
-        mates,
-    })
+        mates: refs,
+    }
 }
 
 // ---- The mate corpus ----
 
 /// **The mate corpus the fence is taken over** — one document per shape
-/// the solve has a branch for, each with its resolver. Built through
+/// the fold has a branch for, each with its resolver. Built through
 /// the ordinary doors, so the documents are what an author makes.
 fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let mut out = Vec::new();
 
-    // An authored opposed seat, and a face-framed one on the slab's cap.
+    // Two seats: a rest and its three values, twice.
     let p = parts("msolve14-c-seat");
-    let opts = p.opts();
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-seat", 2);
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         bolts[0],
-        seat(
-            head(p.bolt_foot(bolts[0])),
-            head(p.slab_top(slab)),
-            slab_at(1.0, 1.0),
-        ),
-        &opts,
+        p.bolt_foot(bolts[0]),
+        p.slab_top(slab),
+        len(0.0),
+        at(1.0, 1.0, 0.0),
     );
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         bolts[1],
-        seat(
-            head(p.bolt_foot(bolts[1])),
-            head(p.slab_top(slab)),
-            MateFrame::from_face(),
-        ),
-        &opts,
+        p.bolt_foot(bolts[1]),
+        p.slab_top(slab),
+        len(0.0),
+        at(5.0, 1.0, 0.3),
     );
-    out.push(("seats", doc, opts));
+    out.push(("seats", doc, p.opts()));
 
-    // Coaxial with a clocking rider, cut to DETERMINED by a planar rest:
-    // the prismatic-planar row and the translation stage's cosine.
+    // A coaxial mate cut to DETERMINED by its two values: a slide
+    // along the pin's line seating the bolt's foot 0.25 above the
+    // slab's top, and a turn about that line.
     let p = parts("msolve14-c-coax");
-    let opts = p.opts();
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-coax", 1);
-    let coax = fixture::mate(
-        head(p.bolt_foot(bolts[0])),
-        head(p.slab_top(slab)),
-        ContactClass::Rest,
-        Alignment {
-            a: authored([0.5, 0.5, 0.0], [0.0, 0.0, -1.0]),
-            b: authored([4.0, 4.0, SLAB_HEIGHT], [0.0, 0.0, 1.0]),
-            primitive: MatePrimitive::Coaxial,
-            sense: AxisSense::Opposed,
-            clocking: Some(0.3),
-        },
-    );
-    let rest_alignment = Alignment {
-        a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-        b: authored([0.0, 0.0, SLAB_HEIGHT], [0.0, 0.0, 1.0]),
-        primitive: MatePrimitive::PlanarRest { offset: 0.25 },
-        sense: AxisSense::Opposed,
-        clocking: None,
-    };
-    let rest = |p: &Parts, bolt: RecipeNodeId, slab: RecipeNodeId| {
+    let (doc, coaxial) = fixture::constrain_at(
+        doc,
+        bolts[0],
         fixture::mate(
+            p.bolt_edge(bolts[0], 0),
+            p.slab_line(slab, 4.0, 4.0),
+            ContactClass::Rest,
+        ),
+    );
+    let doc = with_value(
+        doc,
+        coaxial,
+        Coord::Slide(SlideAxis::Z),
+        len(SLAB_HEIGHT + 0.25),
+    );
+    let doc = with_value(doc, coaxial, Coord::Spin, ang(0.3));
+    out.push(("coaxial-slide-spin", doc, p.opts()));
+
+    // A lone rest: the bolt is LOOSE, its own space's root.
+    let p = parts("msolve14-c-loose");
+    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-loose", 1);
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        bolts[0],
+        fixture::rest(
+            head(p.bolt_foot(bolts[0])),
+            head(p.slab_top(slab)),
+            ContactClass::Rest,
+        ),
+    );
+    out.push(("loose", doc, p.opts()));
+
+    // A rest, then a frame mate the rest is redundant beside: the door
+    // admits the frame (it decides nothing that needs a pose), and the
+    // placement refuses its bundle OVERCONSTRAINED, naming the rest.
+    let p = parts("msolve14-c-over");
+    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-over", 1);
+    let bolt = bolts[0];
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        bolt,
+        fixture::rest(
             head(p.bolt_foot(bolt)),
             head(p.slab_top(slab)),
             ContactClass::Rest,
-            rest_alignment.clone(),
+        ),
+    );
+    let frame = |at: RecipeNodeId, body: RecipeNodeId, names: &Names, edge: Operand, end| {
+        let corner = match end {
+            CapEnd::End => names.corner[1].clone(),
+            CapEnd::Start => fixture::cap_vertex(
+                body,
+                CapEnd::Start,
+                match names.corner[1].path.as_slice() {
+                    [RoleSeg::CapVertex(_, v)] => *v,
+                    other => panic!("a cap vertex, not {other:?}"),
+                },
+            ),
+        };
+        through(
+            edge,
+            fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
         )
     };
-    let (doc, _) = constrain_through(doc, bolts[0], coax, &opts);
-    let (doc, _) = constrain_through(doc, bolts[0], rest(&p, bolts[0], slab), &opts);
-    out.push(("coaxial-clocked-rest", doc, opts));
-
-    // A lone planar rest: the bolt is LOOSE, its own space's root.
-    let p = parts("msolve14-c-loose");
-    let opts = p.opts();
-    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-loose", 1);
-    let (doc, _) = constrain_through(doc, bolts[0], rest(&p, bolts[0], slab), &opts);
-    out.push(("loose", doc, opts));
-
-    // A planar rest, then a coincidence the rest is redundant beside:
-    // the door admits the coincidence (the bundle before it pinned
-    // less), and the solve refuses the bundle OVERCONSTRAINED, naming
-    // the rest.
-    let p = parts("msolve14-c-over");
-    let opts = p.opts();
-    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-over", 1);
-    let (doc, _) = constrain_through(doc, bolts[0], rest(&p, bolts[0], slab), &opts);
-    let (doc, _) = constrain_through(
+    let (doc, _) = fixture::constrain_at(
         doc,
-        bolts[0],
-        seat(
-            head(p.bolt_foot(bolts[0])),
-            head(p.slab_top(slab)),
-            slab_at(2.0, 1.0),
+        bolt,
+        fixture::mate(
+            frame(
+                bolt,
+                p.bolt_body,
+                &p.bolt_names,
+                p.bolt_edge(bolt, 0),
+                CapEnd::Start,
+            ),
+            frame(
+                slab,
+                p.slab_body,
+                &p.slab_names,
+                p.slab_edge(slab, 0),
+                CapEnd::End,
+            ),
+            ContactClass::Rest,
         ),
-        &opts,
     );
-    out.push(("overconstrained", doc, opts));
+    out.push(("overconstrained", doc, p.opts()));
 
-    // The patterned bolt, authored and face-framed.
-    let b = bolted("msolve14-c-bolt", slab_at(6.0, 4.0));
+    // The patterned bolt.
+    let b = bolted("msolve14-c-bolt");
     out.push(("patterned-bolt", b.doc, b.opts));
-    let b = bolted("msolve14-c-bolt-face", MateFrame::from_face());
-    out.push(("patterned-bolt-face", b.doc, b.opts));
 
-    // The rotating transform placer.
+    // The parametric standoff.
     let l = lifted("msolve14-c-lift");
-    out.push(("transform-placer", l.doc, l.opts));
+    out.push(("standoff", l.doc, l.opts));
 
-    // A parametric world pin of three steps (two of them read
-    // parameters), a transform on a seat's side, and a seat on a copy
-    // the seat before it placed: a chain of bundles back to the world.
+    // A parametric world pin — the world's frame slid and turned, two
+    // of its moves reading parameters — and a seat on the pinned slab,
+    // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
-    let opts = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("msolve14-c-pin"), Tol::witness());
     let doc = declare(doc, lift(), 2.0, Dimension::Length);
     let doc = declare(doc, turn(), 0.25, Dimension::Angle);
     let (doc, slab) = insert(doc, fixture::mated_instance(p.slab));
+    let world = WorldRead::Frame
+        .slide(WorldRead::through(PoseRole::X), len(5.0))
+        .spin(WorldRead::through(PoseRole::X), ang(0.3))
+        .slide(
+            WorldRead::through(PoseRole::Z),
+            named(lift(), Dimension::Length),
+        )
+        .spin(
+            WorldRead::through(PoseRole::Z),
+            named(turn(), Dimension::Angle),
+        );
     let (doc, _) = fixture::constrain_at(
         doc,
         slab,
-        Mate::world_pin(Placement {
-            steps: vec![
-                Step::Rigid {
-                    translation: [5.0, 0.0, 0.0].map(len),
-                    axis: [1.0, 0.0, 0.0].map(scl),
-                    angle: ang(0.3),
-                },
-                Step::Rigid {
-                    translation: [
-                        len(0.0),
-                        len(0.0),
-                        Formula::named(lift(), Dimension::Length),
-                    ],
-                    axis: [0.0, 0.0, 1.0].map(scl),
-                    angle: Formula::named(turn(), Dimension::Angle),
-                },
-                Step::Rigid {
-                    translation: [1.0, 2.0, 0.0].map(len),
-                    axis: [0.0, 1.0, 0.0].map(scl),
-                    angle: ang(0.2),
-                },
-            ],
-        }),
+        Mate {
+            on: frame(
+                slab,
+                p.slab_body,
+                &p.slab_names,
+                p.slab_edge(slab, 0),
+                CapEnd::End,
+            ),
+            to: Target::World(world),
+            class: ContactClass::Rest,
+        },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(p.bolt));
-    let (doc, t) = insert(
-        doc,
-        Node::transform(
-            top,
-            Step::Rigid {
-                translation: [0.0, 0.0, 10.0].map(len),
-                axis: [1.0, 0.0, 0.0].map(scl),
-                angle: ang(0.4),
-            },
-        ),
-    );
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         top,
-        seat(
-            head_at(t, p.bolt_foot(top)),
-            head(p.slab_top(slab)),
-            slab_at(1.0, 1.0),
-        ),
-        &opts,
+        p.bolt_foot(top),
+        p.slab_top(slab),
+        len(0.0),
+        at(1.0, 1.0, 0.0),
     );
     let (doc, third) = insert(doc, fixture::mated_instance(p.bolt));
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         third,
-        seat(
-            head(p.bolt_foot(third)),
-            head(p.bolt_head(top)),
-            authored([0.5, 0.5, BOLT_HEIGHT], [0.0, 0.0, 1.0]),
-        ),
-        &opts,
+        p.bolt_foot(third),
+        p.bolt_head(top),
+        len(0.0),
+        at(0.0, 0.0, 0.0),
     );
-    out.push(("pinned-chain", doc, opts));
+    out.push(("pinned-chain", doc, p.opts()));
 
     // Two bolts on the slab and a third seated on the second: a chain
     // of bundles, each pinned to the copy before it.
     let p = parts("msolve14-c-chain");
-    let opts = p.opts();
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-chain", 3);
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         bolts[0],
-        seat(
-            head(p.bolt_foot(bolts[0])),
-            head(p.slab_top(slab)),
-            slab_at(1.0, 1.0),
-        ),
-        &opts,
+        p.bolt_foot(bolts[0]),
+        p.slab_top(slab),
+        len(0.0),
+        at(1.0, 1.0, 0.0),
     );
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         bolts[1],
-        seat(
-            head(p.bolt_foot(bolts[1])),
-            head(p.slab_top(slab)),
-            slab_at(4.0, 1.0),
-        ),
-        &opts,
+        p.bolt_foot(bolts[1]),
+        p.slab_top(slab),
+        len(0.0),
+        at(4.0, 1.0, 0.0),
     );
-    let (doc, _) = constrain_through(
+    let (doc, _) = seat(
         doc,
         bolts[2],
-        seat(
-            head(p.bolt_foot(bolts[2])),
-            head(p.bolt_head(bolts[1])),
-            authored([0.5, 0.5, BOLT_HEIGHT], [0.0, 0.0, 1.0]),
-        ),
-        &opts,
+        p.bolt_foot(bolts[2]),
+        p.bolt_head(bolts[1]),
+        len(0.0),
+        at(0.0, 0.0, 0.0),
     );
-    out.push(("chain", doc, opts));
+    out.push(("chain", doc, p.opts()));
 
-    // Two pins on parallel axes and a rest: the fold meets two
-    // rotation constraints about parallel axes and SOLVES the free
-    // clocking between them (`clocking_about`'s angle), then the rest
-    // cuts the prismatic residual to DETERMINED.
+    // Two pins on parallel lines and a rest: the fold meets two
+    // rotation constraints about parallel axes, which leave the slide
+    // along them, and the rest cuts that to DETERMINED.
     let p = parts("msolve14-c-two-pin");
-    let opts = p.opts();
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-two-pin", 1);
-    let pin = |a: [f64; 3], b: [f64; 3]| {
+    let bolt = bolts[0];
+    let line = || p.slab_line(slab, 3.0, 2.0);
+    let mut doc = doc;
+    for mate in [
+        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
         fixture::mate(
-            head(p.bolt_foot(bolts[0])),
-            head(p.slab_top(slab)),
+            p.bolt_edge(bolt, 1),
+            slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
             ContactClass::Rest,
-            Alignment {
-                a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0], Tol::witness())
-                    .expect("a frame"),
-                b: MateFrame::authored(b, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], Tol::witness())
-                    .expect("a frame"),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
-        )
-    };
-    let flat_rest = |p: &Parts, bolt: RecipeNodeId, slab: RecipeNodeId| {
-        fixture::mate(
+        ),
+        fixture::rest(
             head(p.bolt_foot(bolt)),
             head(p.slab_top(slab)),
             ContactClass::Rest,
-            Alignment {
-                a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                b: authored([0.0, 0.0, SLAB_HEIGHT], [0.0, 0.0, 1.0]),
-                primitive: MatePrimitive::PlanarRest { offset: 0.0 },
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
-        )
-    };
-    let (doc, _) = constrain_through(
-        doc,
-        bolts[0],
-        pin([0.25, 0.25, 0.0], [3.0, 2.0, SLAB_HEIGHT]),
-        &opts,
-    );
-    let (doc, _) = constrain_through(
-        doc,
-        bolts[0],
-        pin([0.75, 0.5, 0.0], [3.5, 2.25, SLAB_HEIGHT]),
-        &opts,
-    );
-    let (doc, _) = constrain_through(doc, bolts[0], flat_rest(&p, bolts[0], slab), &opts);
-    out.push(("two-pin", doc, opts));
+        ),
+    ] {
+        doc = fixture::constrain_at(doc, bolt, mate).0;
+    }
+    out.push(("two-pin", doc, p.opts()));
 
-    // A pin across a rest's normal: two rotation constraints about
-    // DIFFERENT axes, met through the reachability predicate and its
-    // angle (`candidate_rotation`'s two-axis arm); the prismatic
-    // residual along the pin leaves the bolt LOOSE.
+    // A pin lying in a rest's plane: two rotation constraints about
+    // DIFFERENT axes, met through the reachability predicate
+    // (`candidate_rotation`'s two-axis arm); the prismatic residual
+    // along the pin leaves the bolt LOOSE.
     let p = parts("msolve14-c-cross-pin");
-    let opts = p.opts();
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-cross-pin", 1);
-    let (doc, _) = constrain_through(doc, bolts[0], flat_rest(&p, bolts[0], slab), &opts);
-    let (doc, _) = constrain_through(
+    let bolt = bolts[0];
+    let (doc, _) = fixture::constrain_at(
         doc,
-        bolts[0],
-        fixture::mate(
-            head(p.bolt_foot(bolts[0])),
+        bolt,
+        fixture::rest(
+            head(p.bolt_foot(bolt)),
             head(p.slab_top(slab)),
             ContactClass::Rest,
-            Alignment {
-                a: MateFrame::authored(
-                    [0.5, 0.0, 0.5],
-                    [0.3, 1.0, 0.0],
-                    [0.0, 0.0, 1.0],
-                    Tol::witness(),
-                )
-                .expect("a frame"),
-                b: MateFrame::authored(
-                    [2.0, 3.0, 1.5],
-                    [1.0, 0.2, 0.0],
-                    [0.0, 0.0, 1.0],
-                    Tol::witness(),
-                )
-                .expect("a frame"),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
         ),
-        &opts,
     );
-    out.push(("cross-pin", doc, opts));
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        bolt,
+        fixture::mate(
+            fixture::axis(SitedRef::new(
+                bolt,
+                worn(bolt, p.bolt_body, &p.bolt_names.foot_rim),
+            )),
+            fixture::axis(SitedRef::new(
+                slab,
+                worn(slab, p.slab_body, &p.slab_names.top_rim),
+            )),
+            ContactClass::Rest,
+        ),
+    );
+    out.push(("cross-pin", doc, p.opts()));
 
-    // A shaft in two coaxial bores on one line, clocked by a rider or by
-    // a third pin: the fold's clocking with no radius to turn.
-    for (label, shape) in [
-        ("shaft-clocked-rider", ShaftShape::ClockedRider),
-        ("shaft-parallel-pin", ShaftShape::ParallelPin),
-    ] {
-        let s = shaft(&format!("msolve14-c-{label}"), shape, BORES);
-        out.push((label, s.doc, s.opts));
-    }
+    // A shaft in two coaxial bores on one line, clocked by a third pin:
+    // two constraints the rest fix.
+    let s = shaft("msolve14-c-shaft", (0.0, 0.0));
+    out.push(("shaft", s.doc, s.opts));
     out
 }
 
@@ -899,10 +924,34 @@ fn run_at<T: editor_core::EvalScalar>(
 /// and both shafts' bundles are overconstrained — and the digest feeds
 /// each node's space and fault where it fed a mate's role and a
 /// group's root.
+///
+/// And again for INTENT stage 3 C (all three rows): a mate is two poses
+/// read off geometry, so every seat of the corpus is a rest and its
+/// values, the coaxial document is one edge mate and its slide and
+/// spin values, the pin documents read the parts' edges, the
+/// world pin is a frame read off the slab equated with a world read,
+/// the patterned bolt and the standoff carry their parameters in a
+/// value and a pose construction rather than a placer, and the clocked
+/// shaft is gone with the rider; every instance is pinned over its
+/// geometry, so its pose is the identity to that pin's rounding.
+///
+/// And again when a slide value became the least translation the
+/// residual holds (all three rows): only the pinned chain moved, its two
+/// seats on the turned slab by a few ulps of translation, where the
+/// plane's normal and the chart's axes are not the coordinate axes and
+/// the divisor of the slide's share is not exactly one. Each document's
+/// own digest measured equal on the tree before and on this one at all
+/// three ε but for that one; its seats' values are listed in the one
+/// order the solve takes them, so no reordering moved it.
+///
+/// And again for the named interim's world pin (all three rows): every
+/// copy the fixtures place where it stands is pinned by a world pin,
+/// which reads nothing, so its pose is the identity exactly rather than
+/// to a pin's rounding, and its placement decides nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2b8d_96bb_96da_b27d),
-    (1e-6, 0x2473_b1c6_90d7_f46c),
-    (1e-12, 0x7ce3_8a76_e479_ef33),
+    (1e-9, 0x2902_fc93_713f_a236),
+    (1e-6, 0x4dcf_61d5_d169_1930),
+    (1e-12, 0x8276_8f60_1700_e9f9),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1120,11 +1169,11 @@ fn narrow(w: f64) -> (f64, f64) {
 
 /// **The solve's own pose of `instance` over a box encloses its `f64`
 /// pose at both corners and the nominal** — read at the solve, through
-/// [`editor_core::mate::solve_document_at`] at `Interval` over the box's
-/// own environment, and held to [`solve`] at `f64` on the document with
-/// the parameter bound at each sample: the solve read where no placement
-/// door stands between it and the row. Returns the enclosure's widest
-/// translation component.
+/// [`editor_core::mate::solve_document_at`] at `Interval` under the box,
+/// and held to [`solve`] at `f64` on the document with the parameter
+/// bound at each sample. The solve is the evaluation, so its box is one
+/// the placement door admits ([`narrow`]). Returns the enclosure's
+/// widest translation component.
 fn assert_pose_encloses_corners(
     doc: &ProfileDoc,
     opts: &EvalOptions,
@@ -1135,13 +1184,11 @@ fn assert_pose_encloses_corners(
     what: &str,
 ) -> f64 {
     use geom_core::Bounds;
-    let pbox = ParamBox::from_axes(BTreeMap::from([(
-        var_of(doc, &param),
-        BoxAxis::Varying { lo, hi },
-    )]));
-    let env = editor_core::var_env_over::<Interval, _>(doc, &pbox).expect("the box binds");
-    let reach = editor_core::mate_reach::<Interval>(opts, Tol::witness());
-    let poses = editor_core::mate::solve_document_at(doc, &env, &reach, Tol::witness());
+    let poses = editor_core::mate::solve_document_at::<Interval>(
+        doc,
+        &boxed(doc, opts, param.clone(), lo, hi),
+        Tol::witness(),
+    );
     assert!(
         poses.fault(instance).is_none(),
         "{what}: the solve over the box poses {instance:?}: {:?}",
@@ -1186,17 +1233,20 @@ fn assert_pose_encloses_corners(
         .fold(0.0, f64::max)
 }
 
-// ---- A2: a parametric placer moves its mated part in the run that binds it ----
+// ---- A2: a parameter a bundle reads moves its mated part in the run that binds it ----
 
 /// **The patterned bolt, seeded on its spacing** (the designers' worked
-/// example): the bolt instance — the pattern's master — moves by
-/// `∂B/∂s = −2` along `x`, and copy #2, which the mate holds on the
-/// slab, by `∂copy2/∂s = 0`; copy #1 by `−1`. Every vertex's tangent is
-/// the central difference of two `f64` builds, and the value channel is
-/// the nominal build's bits.
+/// example): the bolt instance — seated at `6 − 2s` and the pattern's
+/// master — moves by `∂B/∂s = −2` along `x`, copy #1 by `−1`, and copy
+/// #2 by `∂copy2/∂s = 0`. Every vertex's tangent is the central
+/// difference of two `f64` builds, and the value channel is the nominal
+/// build's bits.
+///
+/// *Breaks if* a value's number is read anywhere but the lane's own
+/// environment, or loses its tangent on the way to the pose.
 #[test]
 fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two() {
-    let b = bolted("msolve14-a2-seed", slab_at(6.0, 4.0));
+    let b = bolted("msolve14-a2-seed");
     let ev = run_at::<Dual64>(&b.doc, &seeded(&b.doc, &b.opts, spacing()), None);
     assert!(
         ev.node_error(b.mate.placement).is_none(),
@@ -1234,16 +1284,18 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
     );
 }
 
-/// **The patterned bolt over a box on its spacing.** At the solve, over
-/// a wide box: the bolt's pose encloses its `f64` pose at both corners
-/// and the nominal, and is twice the box wide along `x` — not the
-/// nominal's point. Through the evaluation, over a box narrow enough
-/// for the placement door ([`narrow`]): every vertex of the bolt and of
-/// the pattern is enclosed at both corners and the nominal.
+/// **The patterned bolt over a box on its spacing.** At the solve: the
+/// bolt's pose encloses its `f64` pose at both corners and the nominal,
+/// and is at least twice the box wide along `x` — not the nominal's
+/// point. Through the evaluation: every vertex of the bolt, the pattern
+/// and the slab — whose face the seat reads, and which holds still — is
+/// enclosed at both corners and the nominal.
+///
+/// *Breaks if* a box run's fold reads a value at the nominal.
 #[test]
 fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
-    let b = bolted("msolve14-a2-box", slab_at(6.0, 4.0));
-    let (lo, hi) = (-0.25, 0.25);
+    let b = bolted("msolve14-a2-box");
+    let (lo, hi) = narrow(0.05);
     let width = assert_pose_encloses_corners(
         &b.doc,
         &b.opts,
@@ -1257,14 +1309,13 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
         width >= 2.0 * (hi - lo),
         "the bolt's pose spans the box twice over: {width}"
     );
-    let (lo, hi) = narrow(0.05);
     let ev = run_at::<Interval>(&b.doc, &boxed(&b.doc, &b.opts, spacing(), lo, hi), None);
     assert!(
         ev.node_error(b.mate.placement).is_none(),
         "{:?}",
         ev.node_error(b.mate.placement)
     );
-    for node in [b.bolt, b.pattern] {
+    for node in [b.bolt, b.pattern, b.slab] {
         assert_encloses_corners(
             &b.doc,
             &b.opts,
@@ -1277,15 +1328,17 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
     }
 }
 
-/// **Over a wide box the solve places the bolt, and the instance meets
-/// the placement door's refusal** — the residual every boxed placer
-/// meets today (a `Transform` node with a boxed translation refuses the
-/// same way): the bolt's own refusal is the rigid transform's
-/// certification, and the pattern, which reads the bolt, is poisoned
-/// through it.
+/// **Over a wide box the bolt meets the placement door's refusal** —
+/// the residual every boxed placer meets today (a `Transform` node with
+/// a boxed translation refuses the same way): the bolt's own refusal is
+/// the rigid motion's, not its bundle's, and the pattern, which reads
+/// the bolt, is poisoned through it.
+///
+/// *Breaks if* a box-wide motion is certified rigid, or the refusal
+/// reads as the bundle's.
 #[test]
 fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
-    let b = bolted("msolve14-a2-wide", slab_at(6.0, 4.0));
+    let b = bolted("msolve14-a2-wide");
     let ev = run_at::<Interval>(
         &b.doc,
         &boxed(&b.doc, &b.opts, spacing(), -0.25, 0.25),
@@ -1304,17 +1357,23 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
         .expect("the placement door refuses")
         .kind;
     assert!(
-        matches!(kind, editor_core::NodeErrorKind::Transform(_)),
-        "the bolt refuses at the rigid transform: {kind:?}"
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::Transform(_) | editor_core::NodeErrorKind::Motion(_)
+        ),
+        "the bolt refuses at the rigid motion: {kind:?}"
     );
 }
 
-/// **A rotating transform placer whose lift is seeded**: the bolt
-/// instance moves by `−R⁻¹ e_z` per unit of `gap` (the transform turns
-/// 0.4 rad about `x` after lifting), and every vertex's tangent is the
+/// **A standoff whose length is seeded**: the bolt rests on a plane its
+/// bundle constructs, the slab's top cap slid `gap` along its normal,
+/// so it moves by `e_z` per unit of `gap`, every vertex's tangent the
 /// `f64` builds' central difference.
+///
+/// *Breaks if* a pose construction's number is read anywhere but the
+/// lane's own environment.
 #[test]
-fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
+fn a2_a_seed_on_a_standoff_moves_the_mated_part() {
     let l = lifted("msolve14-a2-lift-seed");
     let ev = run_at::<Dual64>(&l.doc, &seeded(&l.doc, &l.opts, gap()), None);
     assert!(
@@ -1324,81 +1383,62 @@ fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
     );
     let tangents =
         assert_tangents_match(&l.doc, &l.opts, &ev, l.bolt, gap(), GAP, "the lifted bolt");
-    let (s, c) = 0.4_f64.sin_cos();
     for (name, t) in tangents {
-        let want = [0.0, -s, -c];
+        let want = [0.0, 0.0, 1.0];
         assert!(
             (0..3).all(|k| (t[k] - want[k]).abs() <= 1e-12),
             "∂B/∂gap at {name:?} is {t:?}, want {want:?}"
         );
     }
-    // The transformed body is what the mate holds: it does not move.
-    let held = assert_tangents_match(
-        &l.doc,
-        &l.opts,
-        &ev,
-        l.transform,
-        gap(),
-        GAP,
-        "the transformed bolt",
-    );
-    for (name, t) in held {
-        assert!(
-            t.iter().all(|x| x.abs() <= 1e-12),
-            "the seated body at {name:?} holds still: {t:?}"
-        );
-    }
 }
 
-/// **The same transform placer over a box on its lift**: the bolt's
-/// pose encloses its `f64` pose at both corners at the solve over a wide
-/// box, and every vertex of the bolt and the transformed body is
-/// enclosed through the evaluation over a narrow one.
+/// **The same standoff over a box on its length**: the bolt's pose
+/// encloses its `f64` pose at both corners at the solve, and every
+/// vertex of the bolt is enclosed through the evaluation.
+///
+/// *Breaks if* a box run's fold reads a pose construction's number at
+/// the nominal.
 #[test]
-fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
+fn a2_a_box_on_a_standoff_encloses_the_mated_part() {
     let l = lifted("msolve14-a2-lift-box");
+    let (lo, hi) = narrow(0.05);
     let width = assert_pose_encloses_corners(
         &l.doc,
         &l.opts,
         l.bolt,
         gap(),
         GAP,
-        (-0.2, 0.3),
+        (lo, hi),
         "the lifted box, at the solve",
     );
-    assert!(width >= 0.5 * 0.4_f64.cos(), "the pose widens: {width}");
-    let (lo, hi) = narrow(0.05);
+    assert!(width >= hi - lo, "the pose widens: {width}");
     let ev = run_at::<Interval>(&l.doc, &boxed(&l.doc, &l.opts, gap(), lo, hi), None);
     assert!(
         ev.node_error(l.mate.placement).is_none(),
         "{:?}",
         ev.node_error(l.mate.placement)
     );
-    for node in [l.bolt, l.transform] {
-        assert_encloses_corners(
-            &l.doc,
-            &l.opts,
-            &ev,
-            node,
-            (gap(), GAP),
-            (lo, hi),
-            "the lifted box, evaluated",
-        );
-    }
+    assert_encloses_corners(
+        &l.doc,
+        &l.opts,
+        &ev,
+        l.bolt,
+        (gap(), GAP),
+        (lo, hi),
+        "the lifted box, evaluated",
+    );
 }
 
-// ---- A2's third set of names: a mate frame's own offset ----
+// ---- A2's third set of names: a value's slide and spin ----
 
-/// **A bolt seated on a slab frame whose offset two parameters drive**
-/// (PLACE's mate-frame offset): the slab side is the part base composed
-/// with a rigid step that slides along `x` by `slide` and turns about
-/// the frame's axis by `spin`. The mate seats the bolt there, so the
-/// bolt moves with both.
+/// **A bolt seated with a slide and a spin two parameters drive**: the
+/// rest's `x` value is `slide` and its spin value `spin`, so the bolt
+/// moves with both.
 struct Slid {
     doc: ProfileDoc,
     opts: EvalOptions,
     bolt: RecipeNodeId,
-    /// The seat, a constraint of the bolt's bundle.
+    /// The seat's rest, a constraint of the bolt's bundle.
     mate: MateRef,
 }
 
@@ -1413,43 +1453,42 @@ fn spin() -> VarName {
     VarName::from_static("spin")
 }
 
-fn slid(label: &str) -> Slid {
+fn slid_bolt(label: &str) -> Slid {
     let p = parts(label);
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let doc = declare(doc, slide(), SLIDE, Dimension::Length);
     let doc = declare(doc, spin(), SPIN, Dimension::Angle);
-    let frame = MateFrame::on_part(Step::Rigid {
-        translation: [
-            Formula::named(slide(), Dimension::Length),
-            len(3.0),
-            len(SLAB_HEIGHT),
-        ],
-        axis: [0.0, 0.0, 1.0].map(scl),
-        angle: Formula::named(spin(), Dimension::Angle),
-    });
-    let opts = p.opts();
-    let (doc, mate) = constrain_through(
+    let (doc, mate) = seat(
         doc,
         bolts[0],
-        seat(head(p.bolt_foot(bolts[0])), head(p.slab_top(slab)), frame),
-        &opts,
+        p.bolt_foot(bolts[0]),
+        p.slab_top(slab),
+        len(0.0),
+        (
+            named(slide(), Dimension::Length),
+            len(3.0),
+            named(spin(), Dimension::Angle),
+        ),
     );
     Slid {
         doc,
-        opts,
+        opts: p.opts(),
         bolt: bolts[0],
         mate,
     }
 }
 
-/// **A seed on a mate frame's offset moves the mated part in that
-/// lane**: seeded on the slide, the bolt moves by `(1, 0, 0)`; seeded on
-/// the turn, each vertex by its `f64` builds' central difference — the
-/// frame's own parameters, a third set of names a run binds beside a
-/// placer's and a world pin's.
+/// **A seed on a value moves the mated part in that lane**: seeded on
+/// the slide, the bolt moves by `(1, 0, 0)`; seeded on the spin, each
+/// vertex by its `f64` builds' central difference — a value's own
+/// parameters, a set of names a run binds beside a world pin's and a
+/// pose construction's.
+///
+/// *Breaks if* a value's number is read anywhere but the lane's own
+/// environment.
 #[test]
-fn a2_a_seed_on_a_mate_frames_offset_moves_the_mated_part() {
-    let s = slid("msolve14-a2-offset-seed");
+fn a2_a_seed_on_a_value_moves_the_mated_part() {
+    let s = slid_bolt("msolve14-a2-offset-seed");
     let ev = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, slide()), None);
     assert!(
         ev.node_error(s.mate.placement).is_none(),
@@ -1491,33 +1530,35 @@ fn a2_a_seed_on_a_mate_frames_offset_moves_the_mated_part() {
     );
 }
 
-/// **A box on a mate frame's offset encloses the mated part**: over a
-/// wide box on either parameter, the solve's pose of the bolt encloses
-/// its `f64` pose at both corners and the nominal; over a narrow box on
-/// the slide, so does every vertex of the evaluated bolt.
+/// **A box on a value encloses the mated part**: over a box on either
+/// parameter, the solve's pose of the bolt encloses its `f64` pose at
+/// both corners and the nominal; over the box on the slide, so does
+/// every vertex of the evaluated bolt.
+///
+/// *Breaks if* a box run's fold reads a value at the nominal.
 #[test]
-fn a2_a_box_on_a_mate_frames_offset_encloses_the_mated_part() {
-    let s = slid("msolve14-a2-offset-box");
+fn a2_a_box_on_a_value_encloses_the_mated_part() {
+    let s = slid_bolt("msolve14-a2-offset-box");
+    let (lo, hi) = narrow(0.05);
     let width = assert_pose_encloses_corners(
         &s.doc,
         &s.opts,
         s.bolt,
         slide(),
         SLIDE,
-        (-0.25, 0.25),
+        (lo, hi),
         "the slid box, at the solve",
     );
-    assert!(width >= 0.5, "the slide widens the pose: {width}");
+    assert!(width >= hi - lo, "the slide widens the pose: {width}");
     assert_pose_encloses_corners(
         &s.doc,
         &s.opts,
         s.bolt,
         spin(),
         SPIN,
-        (-0.1, 0.1),
+        (lo, hi),
         "the turned box, at the solve",
     );
-    let (lo, hi) = narrow(0.05);
     let ev = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, slide(), lo, hi), None);
     assert!(
         ev.node_error(s.mate.placement).is_none(),
@@ -1582,194 +1623,91 @@ fn overconstrained_or_escalates<T: geom_core::Decide>(
 }
 
 /// **A shaft in two coaxial bores is overconstrained in every lane**
-/// ([`shaft`]), clocked either way: the fold meets the clocking with no
-/// radius to turn, and the bundle then pins the bolt with two bores
-/// either of which the rest already fix, so the solve refuses it naming
-/// both — at `f64`, at `Dual64` seeded on `rise` and on `idle`, and at
+/// ([`shaft`]): the bundle pins the bolt with two bores either of
+/// which the rest already fix, so the placement refuses it naming both
+/// — at `f64`, at `Dual64` seeded on `rise` and on `idle`, and at
 /// `Interval` over a box on `rise` a fraction of ε wide, save where the
 /// corpus's identically-zero membership margins escalate unboxed
 /// ([`INTERVAL_ESCALATIONS`]), where the bolt's fault is that
 /// escalation instead.
+///
+/// *Breaks if* a lane decides the bundle's overconstraint otherwise
+/// than `f64` does.
 #[test]
 fn c2_a_shaft_in_two_coaxial_bores_is_overconstrained_in_every_lane() {
     use geom_core::MarginKind;
     let eps = Tol::witness().eps();
-    for (label, shape) in [
-        ("shaft-clocked-rider", ShaftShape::ClockedRider),
-        ("shaft-parallel-pin", ShaftShape::ParallelPin),
-    ] {
-        let s = shaft(&format!("msolve14-c2-{label}"), shape, BORES);
-        let f = run_at::<f64>(&s.doc, &s.opts, None);
+    let label = "shaft";
+    let s = shaft("msolve14-c2-shaft", (0.0, 0.0));
+    let f = run_at::<f64>(&s.doc, &s.opts, None);
+    assert!(
+        !overconstrained_or_escalates(&f, &s, MarginKind::Value, "f64"),
+        "f64 decides"
+    );
+    for param in [rise(), idle()] {
+        let d = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, param.clone()), None);
         assert!(
-            !overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{label}, f64")),
-            "{label}: f64 decides"
-        );
-        for param in [rise(), idle()] {
-            let d = run_at::<Dual64>(&s.doc, &seeded(&s.doc, &s.opts, param.clone()), None);
-            assert!(
-                !overconstrained_or_escalates(
-                    &d,
-                    &s,
-                    MarginKind::Value,
-                    &format!("{label}, Dual64 seeded on {param:?}")
-                ),
-                "{label}: Dual64 decides"
-            );
-        }
-        let escalates = INTERVAL_ESCALATIONS
-            .iter()
-            .any(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label);
-        let (lo, hi) = narrow(0.05);
-        let i = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, rise(), lo, hi), None);
-        assert_eq!(
-            overconstrained_or_escalates(
-                &i,
+            !overconstrained_or_escalates(
+                &d,
                 &s,
-                MarginKind::Enclosure,
-                &format!("{label}, Interval")
+                MarginKind::Value,
+                &format!("Dual64 seeded on {param:?}")
             ),
-            escalates,
-            "{label}: Interval escalates exactly where the corpus's escalations say"
+            "Dual64 decides"
         );
     }
+    let escalates = INTERVAL_ESCALATIONS
+        .iter()
+        .any(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label);
+    let (lo, hi) = narrow(0.05);
+    let i = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, rise(), lo, hi), None);
+    assert_eq!(
+        overconstrained_or_escalates(&i, &s, MarginKind::Enclosure, "Interval"),
+        escalates,
+        "Interval escalates exactly where the corpus's escalations say"
+    );
 }
 
 /// **A near-degenerate shaft decides or escalates, and never reads a
-/// NaN**: its bores a rounding apart (non-dyadic points on one line), or
-/// three ε apart, inside the band. The in-band pair escalates at the
-/// constraint door, which folds the bundle a constraint joins: the
-/// fault is `Indeterminate` over a point margin. The rounding pair is
-/// admitted, and in every lane — `f64`, `Dual64` unseeded and seeded on
+/// NaN**: its second bore's line a rounding off the first's (slid a
+/// non-dyadic distance along the slab's side and back), or three ε off
+/// it, inside the band. The door decides nothing that needs a pose, so
+/// both enter; in every lane — `f64`, `Dual64` unseeded and seeded on
 /// `rise`, `Interval` unboxed — the bolt's bundle is refused
 /// overconstrained or escalates on its own log, over a point margin or
 /// an enclosure and never a poisoned one, the same way at `f64` and
 /// `Dual64`.
+///
+/// *Breaks if* a lane reads a NaN out of a near-degenerate fold, or
+/// `Dual64` decides where `f64` escalates.
 #[test]
 fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
     use geom_core::MarginKind;
     let eps = Tol::witness().eps();
-    let rounding: Bores = (
-        [[0.1, 0.7, 0.0], [0.1, 0.7, 2.3]],
-        [[4.3, 4.1, SLAB_HEIGHT], [4.3, 4.1, -1.3]],
-    );
-    let (bolt_at, [first, second]) = BORES;
-    let in_band: Bores = (
-        bolt_at,
-        [first, [second[0] + 3.0 * eps, second[1], second[2]]],
-    );
-    for (variant, bores) in [("rounding", rounding), ("in-band", in_band)] {
-        for shape in [ShaftShape::ClockedRider, ShaftShape::ParallelPin] {
-            let label = format!("{variant} {shape:?}");
-            let s = match try_shaft(
-                &format!("msolve14-c2-near-{variant}-{shape:?}"),
-                shape,
-                bores,
-            ) {
-                Ok(s) => s,
-                Err(fault) => {
-                    assert_eq!(variant, "in-band", "{label}: the door refused: {fault:?}");
-                    let editor_core::MateFault::Indeterminate { diag, .. } = &fault else {
-                        panic!("{label}: the door escalates: {fault:?}");
-                    };
-                    assert_eq!(diag.margin.kind(), MarginKind::Value, "{label}: {diag:?}");
-                    continue;
-                }
-            };
-            let f = run_at::<f64>(&s.doc, &s.opts, None);
-            let escalated =
-                overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{label}, f64"));
-            for opts in [s.opts.clone(), seeded(&s.doc, &s.opts, rise())] {
-                let d = run_at::<Dual64>(&s.doc, &opts, None);
-                assert_eq!(
-                    overconstrained_or_escalates(
-                        &d,
-                        &s,
-                        MarginKind::Value,
-                        &format!("{label}, Dual64 {:?}", opts.seed),
-                    ),
-                    escalated,
-                    "{label}: Dual64 decides where f64 does"
-                );
-            }
-            let i = run_at::<Interval>(&s.doc, &s.opts, None);
-            overconstrained_or_escalates(
-                &i,
-                &s,
-                MarginKind::Enclosure,
-                &format!("{label}, Interval"),
+    for (variant, off) in [("rounding", (0.1, -0.1)), ("in-band", (3.0 * eps, 0.0))] {
+        let s = shaft(&format!("msolve14-c2-near-{variant}"), off);
+        let f = run_at::<f64>(&s.doc, &s.opts, None);
+        let escalated =
+            overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{variant}, f64"));
+        for opts in [s.opts.clone(), seeded(&s.doc, &s.opts, rise())] {
+            let d = run_at::<Dual64>(&s.doc, &opts, None);
+            assert_eq!(
+                overconstrained_or_escalates(
+                    &d,
+                    &s,
+                    MarginKind::Value,
+                    &format!("{variant}, Dual64 {:?}", opts.seed),
+                ),
+                escalated,
+                "{variant}: Dual64 decides where f64 does"
             );
         }
-    }
-}
-
-// ---- A1: a face frame resolves on every lane ----
-
-/// **A face-framed mate on a `Dual64` seed run resolves and carries its
-/// pose's tangent**: the bolt seated through copy #2 on the slab cap's
-/// OWN pose moves by `−2` per unit of spacing, as the authored seat
-/// does, held to the `f64` builds' central difference.
-#[test]
-fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
-    let b = bolted("msolve14-a1-seed", MateFrame::from_face());
-    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.doc, &b.opts, spacing()), None);
-    assert!(
-        ev.node_error(b.mate.placement).is_none(),
-        "the face frame resolves at Dual64: {:?}",
-        ev.node_error(b.mate.placement)
-    );
-    let tangents = assert_tangents_match(
-        &b.doc,
-        &b.opts,
-        &ev,
-        b.bolt,
-        spacing(),
-        SPACING,
-        "the face-seated bolt",
-    );
-    for (name, t) in tangents {
-        assert_eq!(t, [-2.0, 0.0, 0.0], "∂B/∂s at {name:?}");
-    }
-    let unseeded = run_at::<Dual64>(&b.doc, &b.opts, None);
-    assert!(
-        unseeded.node_error(b.mate.placement).is_none(),
-        "{:?}",
-        unseeded.node_error(b.mate.placement)
-    );
-}
-
-/// **A face-framed mate on an `Interval` box run resolves to an
-/// enclosure of the pose at every box corner**: at the solve over a wide
-/// box, and through the evaluation over a narrow one, where the slab —
-/// whose face the frame reads — holds still.
-#[test]
-fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
-    let b = bolted("msolve14-a1-box", MateFrame::from_face());
-    let width = assert_pose_encloses_corners(
-        &b.doc,
-        &b.opts,
-        b.bolt,
-        spacing(),
-        SPACING,
-        (-0.25, 0.25),
-        "the face-seated box, at the solve",
-    );
-    assert!(width >= 1.0, "the face-seated pose widens: {width}");
-    let (lo, hi) = narrow(0.05);
-    let ev = run_at::<Interval>(&b.doc, &boxed(&b.doc, &b.opts, spacing(), lo, hi), None);
-    assert!(
-        ev.node_error(b.mate.placement).is_none(),
-        "the face frame resolves at Interval: {:?}",
-        ev.node_error(b.mate.placement)
-    );
-    for node in [b.bolt, b.pattern, b.slab] {
-        assert_encloses_corners(
-            &b.doc,
-            &b.opts,
-            &ev,
-            node,
-            (spacing(), SPACING),
-            (lo, hi),
-            "the face-seated box, evaluated",
+        let i = run_at::<Interval>(&s.doc, &s.opts, None);
+        overconstrained_or_escalates(
+            &i,
+            &s,
+            MarginKind::Enclosure,
+            &format!("{variant}, Interval"),
         );
     }
 }
@@ -1778,14 +1716,15 @@ fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
 
 /// **A seeded pass threaded an unseeded `Dual64` prior reuses no
 /// zero-tangent pose** — `stackup`'s arrangement, through the front
-/// door. The bolt instance has no slot the seed reaches and no DAG
-/// input, so only its solved pose distinguishes the seeded pass's
-/// answer from the prior's: a key that fed the pose's value channel
-/// alone would serve the prior's bolt, tangent zero, and copy #2 would
-/// then move by `+2`.
+/// door. The bolt's DAG inputs are the seed-free slab and part, and its
+/// one read of the seed is its seat's slide value, whose value channel
+/// is the prior's: a key that fed that channel alone would serve the
+/// prior's bolt, tangent zero, and copy #2 would then move by `+2`.
+///
+/// *Breaks if* a placement's key misses a tangent its values carry.
 #[test]
 fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
-    let b = bolted("msolve14-a4", MateFrame::from_face());
+    let b = bolted("msolve14-a4");
     let base_opts = b.opts.clone();
     let base = run_at::<Dual64>(&b.doc, &base_opts, None);
     for (name, p) in vertices(&base, b.bolt) {
@@ -1860,39 +1799,31 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 /// candidate's own residual) encloses zero only as tightly as the
 /// lane's rounding, so at a fine enough ε it escalates with no box at
 /// all (the spec's §5 (b),
-/// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`):
-/// at ε = 1e-12, five of the thirteen documents (the clocked coaxial
-/// pair, both pin documents and both shafts), and none at the coarser
-/// rows.
-const INTERVAL_ESCALATIONS: [(f64, &str, &str); 5] = [
-    (
-        1e-12,
-        "coaxial-clocked-rest",
-        "mate_member_rotation_identity",
-    ),
-    (1e-12, "two-pin", "mate_member_axis_fixed"),
-    (1e-12, "cross-pin", "mate_member_axis_fixed"),
-    (
-        1e-12,
-        "shaft-clocked-rider",
-        "mate_member_rotation_identity",
-    ),
-    (1e-12, "shaft-parallel-pin", "mate_member_axis_fixed"),
-];
+/// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`).
+/// Over this corpus, measured at ε = 1e-9, 1e-6 and 1e-12: the pinned
+/// chain's second seat at 1e-12, where the placed copy's edges certify
+/// against their carriers over an enclosure about five times the
+/// band's zero (`carrier_endpoint_start`) — its slide placed
+/// by the least translation its residual holds, on a turned chart.
+const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
+    [(1e-12, "pinned-chain", "carrier_endpoint_start")];
 
 /// The escalation `id` fails with in `ev`, if its fault is one: a mate
-/// fault `Indeterminate`.
+/// fault `Indeterminate` (the solve could not decide), or the first
+/// escalation its own log carries where it failed downstream of the
+/// solve (certifying the placed copy's edges).
 fn escalation<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
     use editor_core::{MateFault, NodeErrorKind};
-    match &ev.node_error(id)?.kind {
+    let error = ev.node_error(id)?;
+    match &error.kind {
         NodeErrorKind::Mate(fault) => match &**fault {
             MateFault::Indeterminate { diag, .. } => Some(**diag),
             _ => None,
         },
-        _ => None,
+        _ => error.escalations.first().map(|e| e.source),
     }
 }
 
@@ -2022,17 +1953,18 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
     }
 }
 
-// ---- A5: the two analysis doors over a face-framed assembly ----
+// ---- A5: the two analysis doors over a seated assembly ----
 
-/// **`stackup::sensitivities` over the face-framed bolt**: the distance
+/// **`stackup::sensitivities` over the seated bolt**: the distance
 /// from a vertex of the bolt to a vertex of the slab, differentiated in
-/// the spacing, is the `f64` builds' central difference — ∂m/∂s crosses
-/// the face-framed mate.
+/// the spacing, is the closed form — ∂m/∂s crosses the seat's value.
+///
+/// *Breaks if* the driver's pass loses the value's tangent.
 #[test]
-fn a5_sensitivities_cross_a_face_framed_mate() {
+fn a5_sensitivities_cross_a_seated_mate() {
     use editor_core::stackup::{SensitivityOutcome, SensitivityRefusal, sensitivities};
     use editor_core::{MeasurePrimitive, SitedRef};
-    let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
+    let b = bolted("msolve14-a5-stackup");
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
@@ -2083,7 +2015,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
             (value - fd).abs() <= 1e-12,
             "∂m/∂s is {value} where the closed form gives {fd}"
         ),
-        other => panic!("a derivative across the face frame, not {other:?}"),
+        other => panic!("a derivative across the seat, not {other:?}"),
     }
     // A record build over no resolver is not this build: its instances
     // refuse where the anchor's resolve, and the pairing gate says so.
@@ -2105,16 +2037,18 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     );
 }
 
-/// **Certified `clearance` over the face-framed bolt**: the separation
+/// **Certified `clearance` over the seated bolt**: the separation
 /// between the bolt and copy #2 is `2s − 1`, three at the nominal, so a
 /// leaf around it holds a clearance of 2.5 and violates one of 3.5 —
-/// each answered over the leaf, the mate solved at its scalar.
+/// each answered over the leaf, the bundle folded at its scalar.
+///
+/// *Breaks if* the leaf's fold holds the bolt at its nominal pose.
 #[test]
-fn a5_certified_clearance_runs_over_a_face_framed_mate() {
+fn a5_certified_clearance_runs_over_a_seated_mate() {
     use editor_core::clearance::{
         ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_with,
     };
-    let b = bolted("msolve14-a5-clearance", MateFrame::from_face());
+    let b = bolted("msolve14-a5-clearance");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let (lo, hi) = narrow(0.05);
     let leaf = ParamBox::from_axes(BTreeMap::from([(

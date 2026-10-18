@@ -750,10 +750,9 @@ mod source_rules {
     /// counted.
     ///
     /// It also refuses a family word spelled anywhere but the macro:
-    /// `ValuePayload::kind_name` and `eval::node_value_kind` answer the
-    /// vocabulary over a value and over a node, and a new variant whose
-    /// arm returned a fresh literal would mint a word nothing knows
-    /// about.
+    /// `ValuePayload::kind_name` answers the vocabulary over a value,
+    /// and a new variant whose arm returned a fresh literal would mint a
+    /// word nothing knows about.
     #[test]
     fn every_family_word_has_exactly_one_const() {
         // The LITERAL-bearing view: the macro's arms ARE literals, and
@@ -810,9 +809,9 @@ mod source_rules {
             "every `family_word!` arm owes exactly one `family::` const and every const owes \
              an arm; an arm with no const is dead text no lint reads"
         );
-        // No arm of either kind function spells a family word itself.
+        // No arm of the kind function spells a family word itself.
         let code = source::blanked(source::code_only, "eval/mod.rs", MOD);
-        for head in ["pub fn kind_name", "pub(crate) fn node_value_kind"] {
+        for head in ["pub fn kind_name"] {
             let at = code
                 .find(head)
                 .unwrap_or_else(|| panic!("`{head}` is declared"));

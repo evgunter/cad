@@ -46,10 +46,7 @@ use topo::Body;
 /// refuses it typed. Answers the document, the options that resolve its
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, RecipeNodeId) {
-    use editor_core::{
-        Alignment, AxisSense, CapEnd, ContactClass, EntityKind, MateFrame, MatePrimitive, RoleSeg,
-        StableName,
-    };
+    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
     let (part, profile) = on_frame(
@@ -68,8 +65,9 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
         },
     );
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
+    let opts = fixture::resolver::with_resolver(store);
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,
@@ -83,29 +81,13 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
             .into(),
         }],
     };
-    let frame = || {
-        MateFrame::authored(
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            Tol::witness(),
-        )
-        .expect("a definite frame")
-    };
-    let mate = fixture::mate(
-        fixture::head(nowhere),
+    let mate = fixture::rest(
         fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
+        fixture::head(nowhere),
         ContactClass::Rest,
-        Alignment {
-            a: frame(),
-            b: frame(),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
-    (doc, fixture::resolver::with_resolver(store), placed)
+    (doc, opts, placed)
 }
 
 /// The two spellings of the registry over one document.

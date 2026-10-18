@@ -190,6 +190,21 @@ pub enum OperandSlot {
 }
 
 impl OperandSlot {
+    /// **Name `reference` of the selection read at this seat, as a
+    /// person reads it**: `edge 2`, `open face 0`, `face`, `reference
+    /// 1`, `3 side a`; `None` for a seat that reads no selection.
+    #[must_use]
+    pub(crate) fn selection_entry(self, reference: usize) -> Option<String> {
+        match self {
+            Self::Selection => Some(format!("edge {reference}")),
+            Self::Open => Some(format!("open face {reference}")),
+            Self::Face => Some("face".to_owned()),
+            Self::Measured(_, i) => Some(format!("reference {i}")),
+            Self::Side { constraint, side } => Some(format!("{constraint} side {}", side.name())),
+            _ => None,
+        }
+    }
+
     /// The field as a reader says it.
     #[must_use]
     pub fn label(self) -> String {
@@ -233,7 +248,10 @@ impl OperandSlot {
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
-            Self::Face | Self::Side { .. } => SlotKind::Is(VarKind::Face),
+            Self::Face => SlotKind::Is(VarKind::Face),
+            // A mate's pose, of whichever kind; the door asks that its
+            // two sides agree (`MateFault::KindsDiffer`).
+            Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             // A placement copies a body or a family whole.
             Self::Input | Self::Shape(_) => SlotKind::Placeable,
@@ -286,14 +304,17 @@ impl SlotKind {
 
     /// **The kind a selection authored at this seat is minted at**
     /// ([`Operand::Select`]), given the entity kind its names name:
-    /// the seat's own selection kind, or at a seat admitting several,
-    /// the singleton of that entity kind. `None` where the seat holds no
-    /// selection of it.
+    /// the seat's own selection kind where it holds that entity, or at a
+    /// seat admitting several, the singleton of that entity kind. `None`
+    /// where the seat holds no selection of it.
     #[must_use]
     pub fn selection_kind(self, entity: crate::names::EntityKind) -> Option<VarKind> {
         use crate::names::EntityKind as E;
         match self {
-            Self::Is(kind) => kind.selection().is_some().then_some(kind),
+            Self::Is(kind) => kind
+                .selection()
+                .is_some_and(|(held, _)| held == entity)
+                .then_some(kind),
             // The singleton of the names' entity kind, whether or not
             // the primitive admits it: the door mints it and the read's
             // kind check refuses it as any seat's would.

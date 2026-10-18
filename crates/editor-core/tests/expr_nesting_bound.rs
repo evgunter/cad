@@ -122,6 +122,70 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     (r, extrude)
 }
 
+/// **A copy placed by the deepest world read a mate holds**: the
+/// extrude of [`extrude_document`] placed by a plane mate on its end
+/// cap against the world's xy plane after six spins and six slides —
+/// a world read [`editor_core::MAX_WORLD_READ_DEPTH`] reads deep,
+/// written inside its mate, the spin nearest the world's frame holding
+/// its angle `levels` deep under every other bracket of the read.
+fn deepest_world_read_document(levels: usize) -> Recorder {
+    use editor_core::{ContactClass, Mate, Target, WorldRead, pose::PoseRole};
+    let (mut r, extrude) = extrude_document(len(0.5));
+    let read = fixture::body_read(&r.doc, extrude.into());
+    let placement = r
+        .push(DocEdit::InsertNode {
+            node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+            fresh: Vec::new(),
+        })
+        .expect("a placement mints its node");
+    let cap = fixture::plane(editor_core::Operand::select(
+        extrude,
+        vec![fixture::fname(
+            extrude,
+            editor_core::RoleSeg::Cap(editor_core::CapEnd::End),
+        )],
+    ));
+    let mut world = WorldRead::Frame;
+    for spin in 0..6 {
+        let by = if spin == 0 {
+            (1..levels).fold(fixture::ang(0.0), |e, _| {
+                Formula::add(e, fixture::ang(0.0)).unwrap()
+            })
+        } else {
+            fixture::ang(0.0)
+        };
+        world = WorldRead::Spin {
+            pose: Box::new(world),
+            about: Box::new(WorldRead::through(PoseRole::Z)),
+            by,
+        };
+    }
+    for _ in 0..6 {
+        world = WorldRead::Slide {
+            pose: Box::new(world),
+            along: Box::new(WorldRead::through(PoseRole::X)),
+            by: len(0.0),
+        };
+    }
+    let to = WorldRead::Role {
+        pose: Box::new(world),
+        role: PoseRole::Xy,
+    };
+    assert_eq!(to.depth(), editor_core::MAX_WORLD_READ_DEPTH);
+    // A recorded edit applies or the recorder panics: the read at the
+    // bound is admitted.
+    r.push(DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(Mate {
+            on: cap,
+            to: Target::World(to),
+            class: ContactClass::Rest,
+        }),
+        fresh: Vec::new(),
+    });
+    r
+}
+
 /// [`extrude_document`] over a plain length, saved as its edit log over
 /// the empty document: the log carries the distance as the formula it
 /// was written as, where the snapshot's slot holds a variable's id.
@@ -204,8 +268,10 @@ fn wrap_distance(text: &str, levels: usize) -> (String, usize) {
 /// derived walks and `unparse` read it, the text door reads it back,
 /// and a document holding it in its deepest slots applies, evaluates,
 /// pins, saves from its snapshot and from its edit log, and loads back
-/// to the same document. The deepest of those saves nests exactly as
-/// deep as the load door reads.
+/// to the same document, as does a copy placed by a world read at
+/// [`editor_core::MAX_WORLD_READ_DEPTH`] whose deepest angle is at the
+/// bound. The deepest of those saves nests exactly as deep as the load
+/// door reads.
 #[test]
 fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -273,17 +339,24 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
 
         // Saved as a snapshot and as an edit log replayed over the empty
-        // document, it loads back to the document it was.
+        // document, it loads back to the document it was; and so does a
+        // copy placed by a world read at its own bound, its deepest
+        // angle at the expression's bound — the deepest position a save
+        // writes.
+        let world = deepest_world_read_document(BOUND);
+        let world_pin = content_pin(&world.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
-        for (label, text) in both_saves(&r) {
-            deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
-            let loaded = editor_core::persist::load(&text, Tol::witness())
-                .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
-            assert_eq!(
-                content_pin(&loaded.doc, Tol::witness()).expect("the loaded document pins"),
-                pin,
-                "the {label} loads back to the document it saved"
-            );
+        for (r, pin) in [(&r, pin), (&world, world_pin)] {
+            for (label, text) in both_saves(r) {
+                deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
+                let loaded = editor_core::persist::load(&text, Tol::witness())
+                    .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
+                assert_eq!(
+                    content_pin(&loaded.doc, Tol::witness()).expect("the loaded document pins"),
+                    pin,
+                    "the {label} loads back to the document it saved"
+                );
+            }
         }
         assert_eq!(
             deepest,
@@ -744,6 +817,10 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     recorders.push((
         "this suite's deepest document".to_string(),
         deep_document(1).0,
+    ));
+    recorders.push((
+        "this suite's deepest world read".to_string(),
+        deepest_world_read_document(1),
     ));
     let (mut deepest, mut at) = (0, String::new());
     for (name, r) in &recorders {

@@ -31,4 +31,4 @@ been built.
 
 ## Where it stands
 
-The edge-on-face cut no longer reads its own side rows: `census::edge_crossings` reads `geom_brep::curve_pair::meet`, the one reading of two spans' meetings (stage (c) of `work/fuse/the-curve-pair-reader.md`). Pass 5 (`crossing_in_both_interiors`) and the line lane's confirm (`interiors_meet`) still read their own rows for two lines. The tie this row asks for is pass 5 and the line confirm reading `meet` too.
+The edge-on-face cut no longer reads its own side rows: `census::edge_crossings` reads `geom_brep::curve_pair::meet`, the one reading of two spans' meetings (stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). Pass 5 (`crossing_in_both_interiors`) and the line lane's confirm (`interiors_meet`) still read their own rows for two lines. The tie this row asks for is pass 5 and the line confirm reading `meet` too.

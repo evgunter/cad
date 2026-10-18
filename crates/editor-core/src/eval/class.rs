@@ -89,8 +89,6 @@ pub enum NodeErrorClass {
     UnresolvedRead,
     /// [`NodeErrorKind::SelectResolve`].
     SelectResolve,
-    /// [`NodeErrorKind::SelectKind`].
-    SelectKind,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -223,18 +221,12 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::Mate`] carrying
     /// [`MateFault::PosesOfAnotherDocument`].
     MatePosesOfAnotherDocument,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Frame`].
-    MateFrame,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::ClassNotAdmitted`].
     MateClassNotAdmitted,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::TableLacks`].
-    MateTableLacks,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Indeterminate`].
     MateIndeterminate,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
     MatePoseOutOfRange,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Band`].
-    MateBand,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Contradictory`].
     MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
@@ -243,27 +235,22 @@ pub enum NodeErrorClass {
     MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideBase`].
-    MateSideBase,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnresolved`].
-    MateSideUnresolved,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::DanglingHead`].
-    MateDanglingHead,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::PlacerRefused`].
-    MatePlacerRefused,
-    /// [`NodeErrorKind::Mate`] carrying
-    /// [`MateFault::PartSelectsAnotherCopy`].
-    MatePartSelectsAnotherCopy,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SelfMate`].
-    MateSelf,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::KindsDiffer`].
+    MateKindsDiffer,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::WorldRead`].
+    MateWorldRead,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnevaluated`].
+    MateSideUnevaluated,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::ValueNamesNoMate`].
+    MateValueNamesNoMate,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotAFreedom`].
+    MateNotAFreedom,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NoChart`].
+    MateNoChart,
     /// [`NodeErrorKind::SpaceMismatch`].
     SpaceMismatch,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
-    MateFaceUnresolved,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameUnevaluated`].
-    MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefUnreadable`].
@@ -313,7 +300,6 @@ impl NodeErrorKind {
             Self::MissingInput { .. } => C::MissingInput,
             Self::UnresolvedRead { .. } => C::UnresolvedRead,
             Self::SelectResolve { .. } => C::SelectResolve,
-            Self::SelectKind { .. } => C::SelectKind,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -428,25 +414,20 @@ impl NodeErrorClass {
     pub fn of_mate(fault: &MateFault) -> Self {
         match fault {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
-            MateFault::Frame { .. } => Self::MateFrame,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
-            MateFault::TableLacks { .. } => Self::MateTableLacks,
             MateFault::Indeterminate { .. } => Self::MateIndeterminate,
             MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
-            MateFault::Band { .. } => Self::MateBand,
             MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
-            MateFault::SideBase { .. } => Self::MateSideBase,
-            MateFault::SideUnresolved { .. } => Self::MateSideUnresolved,
-            MateFault::DanglingHead { .. } => Self::MateDanglingHead,
-            MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
-            MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
-            MateFault::SelfMate { .. } => Self::MateSelf,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
-            MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
-            MateFault::FrameUnevaluated { .. } => Self::MateFrameUnevaluated,
+            MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
+            MateFault::WorldRead { .. } => Self::MateWorldRead,
+            MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
+            MateFault::ValueNamesNoMate { .. } => Self::MateValueNamesNoMate,
+            MateFault::NotAFreedom { .. } => Self::MateNotAFreedom,
+            MateFault::NoChart { .. } => Self::MateNoChart,
         }
     }
 
@@ -485,7 +466,7 @@ fn by_verb(verb: BlendKind, fillet: NodeErrorClass, chamfer: NodeErrorClass) -> 
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
-    use crate::names::{EntityKey, EntityKind, StableName};
+    use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
     use sweep::blend::BlendKind;
@@ -531,7 +512,6 @@ mod tests {
         MissingInput,
         UnresolvedRead,
         SelectResolve,
-        SelectKind,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -591,26 +571,21 @@ mod tests {
         PartDepthExceeded,
         PartNotEntered,
         MatePosesOfAnotherDocument,
-        MateFrame,
         MateClassNotAdmitted,
-        MateTableLacks,
         MateIndeterminate,
         MatePoseOutOfRange,
-        MateBand,
         MateContradictory,
         MateOverconstrained,
         MateTargetsDiffer,
         MateNotOnTheCopy,
-        MateSideBase,
-        MateSideUnresolved,
-        MateDanglingHead,
-        MatePlacerRefused,
-        MatePartSelectsAnotherCopy,
-        MateSelf,
         MateUnleverable,
+        MateKindsDiffer,
+        MateWorldRead,
+        MateSideUnevaluated,
+        MateValueNamesNoMate,
+        MateNotAFreedom,
+        MateNoChart,
         SpaceMismatch,
-        MateFaceUnresolved,
-        MateFrameUnevaluated,
         CrossingUnverified,
         MeasureRefUnreadable,
         MeasureNonFinite,
@@ -656,13 +631,6 @@ mod tests {
                 node: RecipeNodeId::new(0, 3),
             },
         })
-    }
-
-    /// The entity door's own answer for a whole body, which is the only
-    /// way a [`crate::Found`] is minted.
-    fn found_body(refuse: fn(crate::Found) -> K) -> K {
-        crate::eval::entity_door::entity(EntityKey::Body, |_| None::<()>, refuse)
-            .expect_err("a read that finds nothing refuses")
     }
 
     fn doc_ref() -> crate::DocRef {
@@ -771,13 +739,6 @@ mod tests {
                 reference: 0,
                 error: resolve_error(),
             },
-            C::SelectKind => found_body(|found| K::SelectKind {
-                slot: crate::OperandSlot::Selection,
-                var: crate::VarId::new(3, 3),
-                name: Box::new(name()),
-                expected: crate::EntityKind::Edge,
-                found,
-            }),
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
@@ -995,19 +956,7 @@ mod tests {
                 expected: crate::DocumentId::derive("a"),
                 found: crate::DocumentId::derive("b"),
             }),
-            C::MateFrame => mate(crate::MateFault::Frame {
-                mate: m(9),
-                side: crate::MateSide::A,
-                error: geom_core::FrameError::Degenerate {
-                    input: geom_core::FrameInput::Aim,
-                    indeterminate: None,
-                },
-            }),
             C::MateClassNotAdmitted => mate(crate::MateFault::ClassNotAdmitted { mate: m(9) }),
-            C::MateTableLacks => mate(crate::MateFault::TableLacks {
-                mate: m(9),
-                what: "a clocking rider on a planar rest",
-            }),
             C::MateIndeterminate => mate(crate::MateFault::Indeterminate {
                 mate: m(9),
                 diag: Box::new(diag()),
@@ -1015,9 +964,6 @@ mod tests {
             C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange {
                 held: m(8),
                 added: m(9),
-            }),
-            C::MateBand => mate(crate::MateFault::Band {
-                error: band_error(),
             }),
             C::MateContradictory => mate(crate::MateFault::Contradictory {
                 held: m(8),
@@ -1035,39 +981,6 @@ mod tests {
                 constraints: vec![c(1), c(2)],
             }),
             C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
-            C::MateSideBase => mate(crate::MateFault::SideBase {
-                mate: m(9),
-                side: crate::MateSide::A,
-                base: crate::FrameBase::World,
-            }),
-            C::MateSideUnresolved => mate(crate::MateFault::SideUnresolved {
-                mate: m(9),
-                side: crate::MateSide::A,
-                read: crate::VarId::new(3, 3),
-            }),
-            C::MateDanglingHead => mate(crate::MateFault::DanglingHead {
-                mate: m(9),
-                side: crate::MateSide::B,
-                head: n(4),
-            }),
-            C::MatePlacerRefused => mate(crate::MateFault::PlacerRefused {
-                mate: m(9),
-                side: crate::MateSide::B,
-                placer: n(4),
-                error: K::EmptyOperand { input: n(3) }.into(),
-                placer_row: crate::PlacerRow::Silent,
-            }),
-            C::MatePartSelectsAnotherCopy => mate(crate::MateFault::PartSelectsAnotherCopy {
-                mate: m(9),
-                side: crate::MateSide::A,
-                part: n(6),
-                named: 2,
-                selected: 5,
-            }),
-            C::MateSelf => mate(crate::MateFault::SelfMate {
-                mate: m(9),
-                instance: n(6),
-            }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
                 mate: m(9),
                 refusal: Box::new(crate::LeverRefusal::Reach {
@@ -1076,30 +989,37 @@ mod tests {
                     refusal: crate::ReachRefusal::NoExtent,
                 }),
             }),
+            C::MateKindsDiffer => mate(crate::MateFault::KindsDiffer {
+                mate: m(9),
+                on: crate::VarKind::Plane,
+                to: crate::VarKind::Axis,
+            }),
+            C::MateWorldRead => mate(crate::MateFault::WorldRead {
+                mate: m(9),
+                fault: crate::WorldReadFault::FlippedPoint,
+            }),
+            C::MateSideUnevaluated => mate(crate::MateFault::SideUnevaluated {
+                mate: m(9),
+                side: crate::MateSide::On,
+                refusal: Box::new(K::EmptyOperand { input: n(3) }.into()),
+            }),
+            C::MateValueNamesNoMate => mate(crate::MateFault::ValueNamesNoMate {
+                value: m(9),
+                mate: c(1),
+            }),
+            C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
+                value: m(9),
+                coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
+                kind: Some(crate::VarKind::Plane),
+            }),
+            C::MateNoChart => mate(crate::MateFault::NoChart {
+                value: m(9),
+                why: crate::mate::NoChartWhy::PointRotation,
+            }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::Space::World,
                 b: crate::Space::Loose { root: n(6) },
             },
-            C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
-                mate: m(9),
-                side: crate::MateSide::A,
-                refusal: Box::new(crate::FaceRefusal::Reach {
-                    instance: n(6),
-                    part: doc_ref(),
-                    face: crate::FaceName::new(name()).expect("a face name"),
-                    refusal: crate::FacePoseRefusal::NoSuchName,
-                }),
-            }),
-            C::MateFrameUnevaluated => mate(crate::MateFault::FrameUnevaluated {
-                mate: m(9),
-                side: crate::MateSide::B,
-                refusal: Box::new(
-                    K::DegenerateDirection {
-                        role: crate::eval::TRANSFORM_AXIS_ROLE,
-                    }
-                    .into(),
-                ),
-            }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),

@@ -138,7 +138,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weight_channel().iter().any(|w| *w != 1.0) {
+    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -149,7 +149,7 @@ fn nurbs_vector_area<T: SpanLocate>(
                    before integrating higher",
         });
     };
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
         // A poison end locates no span, and the area is poison in every
         // channel the ends carry.

@@ -3,6 +3,7 @@ id: a-lone-unread-partner-has-no-class-rule
 kind: issue
 title: A vertex whose lone partner reads nothing has no class rule, so naming refuses a crossing there
 status: open
+priority: P2
 opened: 2026-10-15
 ---
 

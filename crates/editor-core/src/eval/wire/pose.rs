@@ -21,7 +21,7 @@ use topo::DATUM_UNIT_NORM;
 
 use super::{
     DATUM_AXIS_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, datum_unit, frame_axes,
-    pose_direction_escalated, read_body, refusal, select, slots, value_of,
+    pose_direction_escalated, refusal, select_one, slots, value_of,
 };
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
@@ -98,6 +98,36 @@ pub(crate) fn eval_pose<T: Decide>(
     let admits = read.admits(slot.kind());
     let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol)?;
     Ok(through(value, read.role))
+}
+
+/// **A pose read bound against an evaluation's results**, with no
+/// reader seat: what a report over the document's pose variables reads
+/// ([`crate::mate::unobservable`]). Its refusals name no seat a reader
+/// holds, so it is for reports, never for an op.
+pub(crate) fn read_pose<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: RoleRead<VarId>,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    let admits = crate::SlotKind::Pose(crate::pose::PoseAdmits::Any);
+    let value = eval_pose_as(
+        doc,
+        results,
+        OperandSlot::Frame,
+        admits,
+        read.read,
+        env,
+        tol,
+    )?;
+    Ok(match read.role {
+        None => value,
+        Some(role) => role.read(&value).ok_or(NodeErrorKind::UnresolvedRead {
+            slot: OperandSlot::Frame,
+            var: read.read,
+        })?,
+    })
 }
 
 /// `value` read through `role`, or itself for a plain read.
@@ -232,28 +262,8 @@ fn definition<T: Decide>(
             let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) = pose(along)? else {
                 unreachable!("the door admits a direction or an axis alone at a slide's direction")
             };
-            let step = dir.get() * scalar(*by, crate::expr::Dimension::Length)?;
-            match pose(read)? {
-                PoseValue::Point { position } => PoseValue::Point {
-                    position: position + step,
-                },
-                PoseValue::Axis { origin, dir } => PoseValue::Axis {
-                    origin: origin + step,
-                    dir,
-                },
-                PoseValue::Plane { origin, normal } => PoseValue::Plane {
-                    origin: origin + step,
-                    normal,
-                },
-                PoseValue::Frame(f) => PoseValue::Frame(
-                    RigidMotion::translation(step)
-                        .and_then(|t| t.compose(f))
-                        .map_err(NodeErrorKind::Motion)?,
-                ),
-                PoseValue::Direction { .. } => {
-                    unreachable!("the door admits no direction at a slide: it has no position")
-                }
-            }
+            let by = scalar(*by, crate::expr::Dimension::Length)?;
+            slide(pose(read)?, dir, by)?
         }
         // The pose turned about the line by the right-hand rule: a rigid
         // motion, so each direction is the motion's turn of a unit one.
@@ -266,30 +276,7 @@ fn definition<T: Decide>(
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
             let angle = scalar(*by, crate::expr::Dimension::Angle)?;
-            let turn = RigidMotion::rotation_about_axis(origin, dir, angle)
-                .map_err(NodeErrorKind::Motion)?;
-            // A turned point takes `q + R·(p − q)`, which widens by its
-            // offset from the axis, not by the composite map's anchor.
-            let point = |p| geom_core::Affine3::rotate_point_about_unit_axis(origin, dir, angle, p);
-            match pose(read)? {
-                PoseValue::Point { position } => PoseValue::Point {
-                    position: point(position),
-                },
-                PoseValue::Direction { dir } => PoseValue::Direction {
-                    dir: turn.turn(dir),
-                },
-                PoseValue::Axis { origin, dir } => PoseValue::Axis {
-                    origin: point(origin),
-                    dir: turn.turn(dir),
-                },
-                PoseValue::Plane { origin, normal } => PoseValue::Plane {
-                    origin: point(origin),
-                    normal: turn.turn(normal),
-                },
-                PoseValue::Frame(f) => {
-                    PoseValue::Frame(turn.compose(f).map_err(NodeErrorKind::Motion)?)
-                }
-            }
+            spin(pose(read)?, origin, dir, angle)?
         }
         PoseDef::Through { axis, point } => {
             let (PoseValue::Axis { origin, dir }, PoseValue::Point { position }) =
@@ -335,23 +322,7 @@ fn definition<T: Decide>(
                 dir,
             }
         }
-        PoseDef::Flip { pose: read } => match pose(read)? {
-            PoseValue::Direction { dir } => PoseValue::Direction { dir: -dir },
-            PoseValue::Axis { origin, dir } => PoseValue::Axis { origin, dir: -dir },
-            PoseValue::Plane { origin, normal } => PoseValue::Plane {
-                origin,
-                normal: -normal,
-            },
-            // A half-turn about the frame's own x: `u` kept, `v` and
-            // the normal reversed.
-            PoseValue::Frame(f) => PoseValue::Frame(
-                frame_axes(f.origin(), f.u().get(), -f.v().get(), b)
-                    .map_err(DirectionRefusal::node_error)?,
-            ),
-            PoseValue::Point { .. } => {
-                unreachable!("the door admits no point at a flip: a point has no sense")
-            }
-        },
+        PoseDef::Flip { pose: read } => flip(pose(read)?, b)?,
         // The pose moved by the motion its copy's placement solved to:
         // a rigid map, so a direction stays unit up to the direction
         // door's own decision, which normalizes it again.
@@ -362,6 +333,153 @@ fn definition<T: Decide>(
                 None => value,
                 Some(motion) => carried(value, &motion, b)?,
             }
+        }
+    })
+}
+
+/// **A world read, evaluated** (spec Q7): the world's frame is the
+/// identity of the world's coordinates, and the read's moves are a pose
+/// definition's ([`slide`], [`spin`], [`flip`], a role's
+/// [`crate::pose::PoseRole::read`]). Its kinds were checked
+/// ([`crate::WorldRead::kind`]) before it is asked.
+///
+/// # Errors
+///
+/// A scalar's refusal ([`NodeErrorKind::PoseScalar`]), or a move's.
+pub(crate) fn eval_world<T: Decide>(
+    world: &crate::mate::WorldRead,
+    env: &VarEnv<T>,
+    b: geom_core::predicate::Band,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    use crate::mate::WorldRead as W;
+    let scalar = |var: VarId, dim| {
+        eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
+    };
+    Ok(match world {
+        W::Frame => PoseValue::Frame(RigidMotion::axes_xy(Point3::origin())),
+        W::Role { pose, role } => role.read(&eval_world(pose, env, b)?).unwrap_or_else(|| {
+            unreachable!("a world read's role is its pose's: its kind was checked")
+        }),
+        W::Slide { pose, along, by } => {
+            let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) =
+                eval_world(along, env, b)?
+            else {
+                unreachable!(
+                    "a world read slides along a direction or an axis: its kind was checked"
+                )
+            };
+            let by = scalar(*by, crate::expr::Dimension::Length)?;
+            slide(eval_world(pose, env, b)?, dir, by)?
+        }
+        W::Spin { pose, about, by } => {
+            let PoseValue::Axis { origin, dir } = eval_world(about, env, b)? else {
+                unreachable!("a world read spins about an axis: its kind was checked")
+            };
+            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            spin(eval_world(pose, env, b)?, origin, dir, angle)?
+        }
+        W::Flip { pose } => flip(eval_world(pose, env, b)?, b)?,
+    })
+}
+
+/// **A pose slid along `dir` by `by`**: its position moved, its
+/// directions kept. A direction has no position and is no slide's.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] where a frame's translation is no motion.
+pub(crate) fn slide<T: Decide>(
+    value: PoseValue<T>,
+    dir: UnitVec3<T>,
+    by: T,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    let step = dir.get() * by;
+    Ok(match value {
+        PoseValue::Point { position } => PoseValue::Point {
+            position: position + step,
+        },
+        PoseValue::Axis { origin, dir } => PoseValue::Axis {
+            origin: origin + step,
+            dir,
+        },
+        PoseValue::Plane { origin, normal } => PoseValue::Plane {
+            origin: origin + step,
+            normal,
+        },
+        PoseValue::Frame(f) => PoseValue::Frame(
+            RigidMotion::translation(step)
+                .and_then(|t| t.compose(f))
+                .map_err(NodeErrorKind::Motion)?,
+        ),
+        PoseValue::Direction { .. } => {
+            unreachable!("the door admits no direction at a slide: it has no position")
+        }
+    })
+}
+
+/// **A pose turned by `angle` about the line `(origin, dir)`**, by the
+/// right-hand rule: a rigid motion, so each direction is the motion's
+/// turn of a unit one.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] where the turn is no motion.
+pub(crate) fn spin<T: Decide>(
+    value: PoseValue<T>,
+    origin: Point3<T>,
+    dir: UnitVec3<T>,
+    angle: T,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    let turn =
+        RigidMotion::rotation_about_axis(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
+    // A turned point takes `q + R·(p − q)`, which widens by its offset
+    // from the axis, not by the composite map's anchor.
+    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis(origin, dir, angle, p);
+    Ok(match value {
+        PoseValue::Point { position } => PoseValue::Point {
+            position: point(position),
+        },
+        PoseValue::Direction { dir } => PoseValue::Direction {
+            dir: turn.turn(dir),
+        },
+        PoseValue::Axis { origin, dir } => PoseValue::Axis {
+            origin: point(origin),
+            dir: turn.turn(dir),
+        },
+        PoseValue::Plane { origin, normal } => PoseValue::Plane {
+            origin: point(origin),
+            normal: turn.turn(normal),
+        },
+        PoseValue::Frame(f) => PoseValue::Frame(turn.compose(f).map_err(NodeErrorKind::Motion)?),
+    })
+}
+
+/// **A pose's opposite sense**: a direction, an axis or a plane
+/// reversed, a frame half-turned about its own x. A point has no sense.
+///
+/// # Errors
+///
+/// The direction door's refusal where a frame's reversed axes are no
+/// frame at `b`.
+pub(crate) fn flip<T: Decide>(
+    value: PoseValue<T>,
+    b: geom_core::predicate::Band,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    Ok(match value {
+        PoseValue::Direction { dir } => PoseValue::Direction { dir: -dir },
+        PoseValue::Axis { origin, dir } => PoseValue::Axis { origin, dir: -dir },
+        PoseValue::Plane { origin, normal } => PoseValue::Plane {
+            origin,
+            normal: -normal,
+        },
+        // A half-turn about the frame's own x: `u` kept, `v` and the
+        // normal reversed.
+        PoseValue::Frame(f) => PoseValue::Frame(
+            frame_axes(f.origin(), f.u().get(), -f.v().get(), b)
+                .map_err(DirectionRefusal::node_error)?,
+        ),
+        PoseValue::Point { .. } => {
+            unreachable!("the door admits no point at a flip: a point has no sense")
         }
     })
 }
@@ -394,11 +512,9 @@ fn read_off<T: Decide>(
     let body_var = doc.selection(of).map_or(of, |select| select.body);
     let projected = super::project_ports(&[body_var], doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
-    let selected = select(doc, results, slot, of)?;
-    let body = read_body(results, selected.at)?;
-    let Some(key) = selected.ents.first().map(|ent| ent.key) else {
-        unreachable!("a singleton selection holds one entity")
-    };
+    let (at, ent) = select_one(doc, results, slot, of)?;
+    let key = ent.key;
+    let body = super::read_named_body(results, at, ent.body)?;
     let fault = |fault| NodeErrorKind::PoseRead { pose, fault };
     let readback = |error| fault(PoseReadFault::Readback { error });
     // A carrier's stored direction is unit up to its rounding, and is
@@ -592,7 +708,7 @@ fn walk<T: Decide>(
 
 /// A read's role word ([`crate::eval::tag::pose_role`]), a plain
 /// read's included.
-fn role_word(role: Option<crate::pose::PoseRole>) -> u8 {
+pub(crate) fn role_word(role: Option<crate::pose::PoseRole>) -> u8 {
     use crate::eval::tag::pose_role as w;
     use crate::pose::PoseRole as R;
     match role {

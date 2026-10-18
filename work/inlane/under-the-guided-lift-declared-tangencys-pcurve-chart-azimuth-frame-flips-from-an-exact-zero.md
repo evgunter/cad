@@ -19,8 +19,11 @@ Split out of `under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exa
 
 **Pinned.** The row owes both flips here through its `flips` entry, and a row that names no flips owes none. So the row goes red when they go, and when any other decision flips.
 
+**Downstream of the flip (the ε-legs fix, `inlane/revalue-move-scales-with-eps`).** After the first flip, the chart's `pcurve_map_residual` margins are a few ulps, computed in the other frame at `p1`. At ε 1e-6 they re-value to other bits than `p1`'s, and at 1e-9 and 1e-12 to the same. The row therefore names `pcurve_map_residual` as a predicate that may re-value away after this flip (`holds`' `after` is a bound). A fix that closes the flips closes that with them.
+
 **Evidence, PCERT B1 (PR 5225, 2026-10-18): the premise is gone with that PR.**
 - PCERT B1 decides the frame across the window's cut line (`pcurve_chart_cut_side`), not on `x`'s sign, so the two exact-zero flips at #2874 and #2961 are gone.
 - The census after, with the repro above: `flips []`, 2,989 compared, nothing laundered, `after_flip {}`.
 - The row's `flips` entry came out with that PR's merge of main (`DECLARED_TANGENCY_FLIP` removed); the row now owes no flips.
 - A direction in band on the cut line itself (θ = −1) reads the closed end τ − 1 at every scalar, pinned by `a_direction_on_the_windows_cut_reads_its_closed_end_at_every_scalar`.
+- With the flips gone, the row's `after` entry for `pcurve_map_residual` came out too: no frame flips, so nothing is computed in the other frame at `p1`.
