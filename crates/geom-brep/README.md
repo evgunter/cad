@@ -27,7 +27,7 @@ escalated typed refusal, never a raw comparison.
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
-| C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
+| C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
@@ -689,26 +689,41 @@ and torus metres conversion (C2 limb 2).
 
 ### Fitted-cache structure
 
-**C6 — Structure is an f64 decision; values are the scalar's;
-certification is scalar-generic.** A carrier's *structure* — degree,
-knot and control counts, knot multiplicities, which span a parameter
-lies in, and every decision a fitting loop or a skin takes (knot count,
-sub-arc count, merged knots) — is decided once in `f64`, read off the
-values' value channel, and re-decided by no generic lane; a value that
-names no single point refuses typed. Its *values* — knot positions,
-weights, control points and the combination coefficients the knot
-algebra derives from them — are held in the scalar, each entered where
-it is made as what it is: a constant of the construction's form or of
-an imported file through `from_f64`; a numerical routine's output (a
-fit's knots, weights and poles) once, at the fit, through
-`Real::from_computed`; a value the model determines computed in the
-scalar. The certificate re-evaluates against the pinned structure at
-any `Real`, so the interval lane proves what the f64 lane chose. A
-refinement made inside a certificate chooses nothing: its refined
-weights are generally not `f64`, so it is held only as homogeneous
-enclosures `(w·P, w)`, and the projective knot algebra has no meaning
-at the certification scalar. No topology-determining predicate reads
-knot counts, spans or fitted coefficients except through named
+**C6 — Structure is combinatorial and certified for every member;
+values are the scalar's; certification is scalar-generic.** A carrier's
+*structure* is its combinatorial part: degree, knot and control counts,
+knot multiplicities, the order of its breakpoints, and every decision a
+fitting loop or a skin takes (knot count, sub-arc count, merged knots).
+Its *values* are knot positions, weights, control points and the
+combination coefficients the knot algebra derives from them. Values are
+held in the scalar, each entered where it is made as what it is: a
+constant of the construction's form (π as `T::pi()`, never as the
+arithmetic that computes it) or of an imported file through `from_f64`;
+a numerical routine's output (a fit's knots, weights and poles) once, at
+the fit, through `Real::from_computed`; a value the model determines
+computed in the scalar. At an enclosure scalar a carrier stands for the
+family of its members, so its knot positions and weights may be
+enclosures as its poles are. Structure is decided once for every member:
+at a point scalar it is read off the values; at an enclosure scalar it
+is certified to hold for every member — consecutive knot runs ascend,
+every weight is positive, and a parameter's span read hulls every span
+the parameter can lie in for some member. A structure decision whose
+members may disagree refuses typed, naming the decision, and carries
+its margin so that a refinement of the inputs can lift it; a decision
+that was only a shortcut (equal weights, the integral test) takes the
+general route instead. No decision rule breaks where documents sit: the
+sub-arc count allows one sub-arc to reach `(π/2)(1+η)`, η a named
+structure constant, so an arc whose true sweep is a multiple of π/2
+counts the same for every member. A fit's structure (knot vectors,
+degrees and control counts) is the deterministic `f64` pipeline's, and
+the certificate re-evaluates against it at any `Real`, so the interval
+lane proves what the f64 lane chose. A refinement made inside a
+certificate chooses nothing: its refined weights are generally not
+`f64`, so it is held only as homogeneous enclosures `(w·P, w)`, and the
+projective knot algebra has no meaning at the certification scalar; the
+knot algebra a construction runs at that scalar (a skin's compatibility
+step) is that homogeneous algebra too. No topology-determining predicate
+reads knot counts, spans or fitted coefficients except through named
 certified margins; the name table is a function of recipe structure and
 verdicts only.
 
