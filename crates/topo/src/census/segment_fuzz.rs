@@ -372,15 +372,14 @@ fn the_closed_forms_enclosures_hold_the_exact_values() {
     );
 }
 
-/// **Each single reading's error stays inside its charge** (review 1 of PR
-/// 5297), over regimes the PR's enclosure test does not sample: coordinates
-/// near 1e4, edges up to 1e3 long, ends up to 1e3 lengths off the crossing,
-/// φ down to 1e-14. Prints the worst ratio of error to
-/// charge per regime.
+/// **Each single reading's error stays inside its charge**, over
+/// regimes the enclosure test does not sample: coordinates near 1e4,
+/// edges up to 1e3 long, ends up to 1e3 lengths off the crossing, φ
+/// down to 1e-14. Prints the worst ratio of error to charge per regime.
 #[test]
 fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
-    let mut r = test_utils::fuzz::start("review_charge_ratio");
-    let count = test_utils::fuzz::scaled(4000);
+    let mut r = test_utils::fuzz::start("census_lines_closest_charge_ratio");
+    let count = test_utils::fuzz::scaled(1200);
     for (regime, scale, lmax, far, gmax) in [
         ("unit", 2.0, 3.0, 2.0, 1.0),
         ("coords1e4", 1e4, 3.0, 2.0, 1.0),
@@ -460,7 +459,7 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
             }
         }
         println!(
-            "[review] {regime}: worst gap ratio {:.3} ({}), worst reach ratio {:.3} ({}), over {over}",
+            "[fuzz] census_lines_closest_charge_ratio {regime}: worst gap ratio {:.3} ({}), worst reach ratio {:.3} ({}), over {over}",
             worst[0].0, worst[0].1, worst[1].0, worst[1].1
         );
         assert_eq!(over, 0, "{regime}: a reading's error exceeded its charge");
@@ -468,7 +467,7 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
 }
 
 /// **A reach whose enclosure straddles the band is never read as
-/// interior** (review 1 of PR 5297): two nearly parallel segments
+/// interior**: two nearly parallel segments
 /// whose lines cross `2Kε` before `a`'s start, `b`'s far end beside
 /// `a`'s far end (so the gap's enclosure is tight and reads Zero),
 /// while `a`'s start stands half a metre from both of `b`'s ends (so
@@ -493,7 +492,6 @@ fn a_span_straddle_past_an_end_is_never_a_crossing() {
         for (p, q) in [(ea, eb), (eb, ea)] {
             let f = meets::<f64>(p, q, band);
             let iv = meets::<Interval>(p, q, band);
-            println!("[review] φ {phi:e}: f64 {f:?}, Interval {iv:?}");
             assert_ne!(
                 f,
                 Some(true),

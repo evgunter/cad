@@ -411,17 +411,27 @@ fn assert_builds(
     built: Result<topo::BooleanResult<f64>, BooleanError>,
     tol: Tol,
 ) {
+    assert_eq!(
+        built_census(what, shells, built, tol),
+        Ok(()),
+        "{what}: every pair is definite"
+    );
+}
+
+/// The census of a wall that builds with `shells` shells per solid.
+fn built_census(
+    what: &str,
+    shells: usize,
+    built: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
     let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
     assert_eq!(
         shells_per_solid(meet.body().expect("the wall is not empty")),
         [shells],
         "{what}: shells per solid"
     );
-    assert_eq!(
-        census(what, Ok(meet), tol),
-        Ok(()),
-        "{what}: every pair is definite"
-    );
+    census(what, Ok(meet), tol)
 }
 
 /// **Every thin wall refuses on a pair below `Kε` and builds above it**
@@ -467,13 +477,9 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
                 );
             }
             built => {
-                let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
-                assert_eq!(
-                    shells_per_solid(meet.body().expect("the wall is not empty")),
-                    [shells],
-                    "{what}: shells per solid"
-                );
-                let errors = census(&what, Ok(meet), tol).err().unwrap_or_default();
+                let errors = built_census(&what, shells, built, tol)
+                    .err()
+                    .unwrap_or_default();
                 let on_k_eps = |e: &ValidationError| {
                     matches!(e, ValidationError::CensusEscalated { cause }
                         if cause.predicate.is_some_and(|p| p.starts_with("pm_census_ee_"))
