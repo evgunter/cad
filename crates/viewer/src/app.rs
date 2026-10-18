@@ -5322,25 +5322,43 @@ mod properties_pane_tests {
         );
     }
 
-    /// **A landing's withdrawal reaches the status line** (DI5): a
-    /// free-move's space is known only once its solve lands, so the
-    /// frame an undo pins goes at the LANDING, which `sync_scene` takes
-    /// and the next frame says — the path an operation's own
-    /// withdrawals never cross. Drawn through the real app, frame by
-    /// frame, so the landing arrives on the worker's schedule.
-    #[test]
-    fn a_landings_withdrawal_reaches_the_status_line() {
-        let tol = pncad::tolerance::witness();
-        let dir = std::env::temp_dir().join(format!("landing notice {}", std::process::id()));
+    /// **A fresh directory under the temp dir holding one stored part**
+    /// (`test_support::boss_on_block`), for a row that authors an
+    /// assembly beside it: the directory, the part, and the file it was
+    /// stored in. `name` names the directory, made unique by the process.
+    fn part_workspace(
+        name: &str,
+        tol: pncad::geom_core::Tol,
+    ) -> (
+        std::path::PathBuf,
+        pncad::document::Doc<pncad::document::ProfileProgram>,
+        std::path::PathBuf,
+    ) {
+        let dir = std::env::temp_dir().join(format!("{name} {}", std::process::id()));
         if dir.exists() {
             std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
         }
         std::fs::create_dir_all(&dir).expect("create the fixture directory");
-        let (part, _, _) = crate::test_support::boss_on_block("landing-notice-part", tol);
-        pncad::workspace::Workspace::open(&dir)
+        let (part, _, _) = crate::test_support::boss_on_block(&format!("{name}-part"), tol);
+        let file = pncad::workspace::Workspace::open(&dir)
             .expect("the empty workspace opens")
             .create(&part, tol)
             .expect("the part stores");
+        (dir, part, file)
+    }
+
+    /// **A landing's withdrawal reaches the status line** (DI5): a
+    /// free-move's space is known only once its solve lands, so the
+    /// frame an undo pins goes at the LANDING. `sync_scene` takes it
+    /// (`DocSession::take_landed_withdrawals`) at the top of the frame
+    /// the landing arrives in, and the batch at that frame's end says it
+    /// — the path an operation's own withdrawals never cross. Drawn
+    /// through the real app, frame by frame, so the landing arrives on
+    /// the worker's schedule.
+    #[test]
+    fn a_landings_withdrawal_reaches_the_status_line() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("landing notice", tol);
         let mut driven = Driven::with(vec![
             SessionOp::NewDocument {
                 name: "landing-notice".to_owned(),
@@ -5402,6 +5420,12 @@ mod properties_pane_tests {
         // the space; its landing does, in a later frame.
         driven.app.perform_batch(vec![SessionOp::Undo]);
         assert!(
+            !status(&driven)
+                .unwrap_or_default()
+                .contains("lives in the world's space"),
+            "the undo's own outcome says nothing of the frame"
+        );
+        assert!(
             driven
                 .app
                 .session
@@ -5411,7 +5435,6 @@ mod properties_pane_tests {
             "the edit's own prune keeps the frame"
         );
         driven.settle();
-        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         assert!(
             driven
                 .app
@@ -5437,16 +5460,7 @@ mod properties_pane_tests {
     fn the_part_chooser_labels_the_instance_it_inserts() {
         use crate::pane::create::{ADD_PART, INSTANCE_NOUN};
         let tol = pncad::tolerance::witness();
-        let dir = std::env::temp_dir().join(format!("part chooser label {}", std::process::id()));
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
-        }
-        std::fs::create_dir_all(&dir).expect("create the fixture directory");
-        let (part, _, _) = crate::test_support::boss_on_block("part-chooser-label-part", tol);
-        let part_file = pncad::workspace::Workspace::open(&dir)
-            .expect("the empty workspace opens")
-            .create(&part, tol)
-            .expect("the part stores");
+        let (dir, _, part_file) = part_workspace("part chooser label", tol);
         let part_name = part_file
             .file_name()
             .expect("a stored part has a file name")

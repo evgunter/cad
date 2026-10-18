@@ -36,3 +36,10 @@ frame, and the `InTheWorld` withdrawal is on the status line. Removing the
 
 Review tier: single STYLE review. The unit adds one test and no production
 code.
+
+The style review gave APPROVE-WITH-FIXES with no MAJOR, and all of its fixes
+are taken:
+- the doc says which frame shows the notice;
+- the idle frame is gone;
+- the row asserts that the undo's own outcome says nothing about the frame;
+- the part-workspace prelude both `Driven` rows used is `part_workspace`.

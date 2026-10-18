@@ -8,7 +8,6 @@ priority: P2
 cost: E
 ---
 
-
 The post-merge whole-unit Opus review of PR 5296 (final head 6bc4618965) gave
 APPROVE-WITH-FIXES and raised no MAJOR. Its findings follow, all shown by
 execution unless marked.
@@ -49,5 +48,9 @@ execution unless marked.
      the ordinal its first already holds, so nothing would notice that sample
      going missing.
    - `AdmissionFault`'s "instance N" vocabulary rule fails for a `Place` root.
-   - Pre-existing: `session/op.rs` and `gesture_table.rs` say the pane reads the
-     previewed document, but it reads `committed_doc()`.
+   - Pre-existing: `crates/viewer/src/session/op.rs`
+     (`permitted_during_value_gesture`) says the pane resolves against the
+     previewed document, and `crates/viewer/tests/gesture_table.rs`
+     (`a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other`'s doc)
+     calls it "the shown one the panel draws the control from". The pane
+     reads `committed_doc()`.
