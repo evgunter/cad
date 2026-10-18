@@ -1075,7 +1075,9 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let failed = NodeStanding::Failed { node: extrude };
     assert_eq!(
         HitTestError::Standing(failed).spoken(&doc, &ev),
-        format!("hit test: {plate} failed, so it has no value. Recourse: fix the node's own failure")
+        format!(
+            "hit test: {plate} failed, so it has no value. Recourse: fix the node's own failure"
+        )
     );
     assert_eq!(
         InterrogateError::Standing(failed).spoken(&doc),

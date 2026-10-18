@@ -949,8 +949,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         Some(
             format!(
                 "pick index: Place {copy} could not be indexed: pick: this node is \
-                 poisoned by the failure at Extrude {failed}, so it has no value — the repair \
-                 is upstream, at Extrude {failed}",
+                 poisoned by the failure at Extrude {failed}, so it has no value. Recourse: \
+                 repair the failure upstream, at Extrude {failed}",
                 copy = test_utils::refusal::tag(broken_copy.0.digest()),
                 failed = test_utils::refusal::tag(broken.0.digest())
             )

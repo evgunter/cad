@@ -428,9 +428,9 @@ impl core::fmt::Display for RimShare {
 // It is raised only inside evaluation and memoized with the node's
 // refusal, so it holds ids: each node and each name's minting node is
 // said by the speaker of the frame that hands the refusal out.
-impl NamingError {
+impl crate::spoken::Say for NamingError {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn fact(
+    fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
@@ -588,9 +588,14 @@ impl NamingError {
                     )
                 )
             }
+        }?;
+        match self.ending() {
+            Some(ending) => write!(f, ". {ending}"),
+            None => Ok(()),
         }
     }
 }
+
 impl NamingError {
     /// How the sentence ends, by whose the failure is: an emission bug
     /// is the kernel's, a missing rule is a construction no rule names
@@ -615,20 +620,6 @@ impl NamingError {
             | Self::PartnerUnread { .. }
             | Self::MemberEdgeTied { .. } => Some(geom_core::NOT_YET_ENDING),
             Self::Band(_) | Self::Escalated { .. } => None,
-        }
-    }
-}
-
-impl crate::spoken::Say for NamingError {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        self.fact(f, by)?;
-        match self.ending() {
-            Some(ending) => write!(f, ". {ending}"),
-            None => Ok(()),
         }
     }
 }
