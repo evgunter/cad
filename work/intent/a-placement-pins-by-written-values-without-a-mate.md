@@ -39,3 +39,4 @@ Found while D's rows were restated (2026-10-18):
 - **Deleted in D, pending §1's naming ruling**, because which copy a mate's side mints on is the twice-placed source's question:
   - `msolve1_transform_aware::a3b_a_placed_copy_of_a_pattern_seats_and_gates`: the at-rest gate reported `StaleContactDeclaration` (via `Refuted`) for copies 1 and 2 of a placed 3-copy pattern;
   - `msolve13_read_at_operand::a1b_a_placement_above_the_operand_mints_nothing`: a mate read at an unplaced pattern copy minted on a placement of that copy that stands elsewhere.
+- **Absorb, if the chart is rewritten:** `sym-solve-atan2-has-no-branch-rule-about-pi` (Sym's angle readback) and `a-slide-value-doubles-its-translations-width` (the slide's width). D's box-lane solve fixes (`Chart::turned`, `mate::solve::tightened`, Sym's at-rest snap) are the base the new chart builds on.
