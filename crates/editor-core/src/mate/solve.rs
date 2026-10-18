@@ -1344,6 +1344,58 @@ mod tests {
     /// slide has no chart: `SlideTurnsABall`), and a
     /// plane beside an axis fixes, in general position, more than the
     /// two count apart, so both are named.
+    /// **No bundle the rule admits sets slides on two mates** — the
+    /// premise `value::settle` moves each slide along its own chart's
+    /// axis on. A slide is its own only beside mates that free every
+    /// translation, which only a direction mate does, and a direction
+    /// mate beside any mate of any kind is refused: two directions
+    /// repeat a rotation equation, a plane, an axis or a frame beside one
+    /// repeats one too, and beside a ball the slide refuses as having no
+    /// chart. So every slide a bundle sets is on one chart, whose `x`,
+    /// `y` and `d` are perpendicular.
+    ///
+    /// *Breaks if* a pair of mates comes to admit a slide on each: the
+    /// settle would then move one chart's slide across another's axis,
+    /// where no structural move is right.
+    #[test]
+    fn no_admitted_bundle_sets_slides_on_two_mates() {
+        let kinds = [F::Trivial, F::Planar, F::Cylindrical, F::Parallel, F::Spherical];
+        // A slide each kind's chart leaves, where it leaves one.
+        let slide = |f: F| match f {
+            F::Planar | F::Parallel => Some(Coord::Slide(SlideAxis::X)),
+            F::Cylindrical => Some(Coord::Slide(SlideAxis::Z)),
+            _ => None,
+        };
+        for a in kinds {
+            for b in kinds {
+                let (Some(sa), Some(sb)) = (slide(a), slide(b)) else {
+                    continue;
+                };
+                let bundle = [
+                    (id(1), Equations::Mate(a)),
+                    (id(2), Equations::Mate(b)),
+                    value(1, sa),
+                    value(2, sb),
+                ];
+                assert!(
+                    verdict(&bundle).is_err(),
+                    "{a:?} beside {b:?} admits a slide on each: {:?}",
+                    verdict(&bundle)
+                );
+            }
+        }
+        // The two-direction case the settle would have met first, alone:
+        // refused at the door before any value.
+        assert!(
+            verdict(&[
+                (id(1), Equations::Mate(F::Parallel)),
+                (id(2), Equations::Mate(F::Parallel)),
+            ])
+            .is_err(),
+            "two directions repeat a rotation equation"
+        );
+    }
+
     #[test]
     fn the_four_value_availability_rows() {
         // A lone Plane with Slide(X): admitted, loose.
