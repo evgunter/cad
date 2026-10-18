@@ -2,12 +2,13 @@
 id: curve-pair-meetings-are-runs
 kind: unit
 title: A curve pair meets along stretches, one meeting each: ends read first, a found meeting takes its stretch, a found root divided out; the census sweeps joined pairs unchanged
-status: open
+status: closed
 opened: 2026-10-16
 priority: P1
 cost: H
-design: true
 refs: [the-curve-pair-reader, an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime, two-coplanar-ellipses-have-no-meeting-method]
+closed: 2026-10-17
+pr: 5227
 ---
 
 
@@ -89,3 +90,7 @@ The rows that pin each mechanism, each red under the bug it names:
 Implemented on `fuse/curve-pair-reader-c3`; it lands with c3. With the coplanar ellipse pair read on the same branch (`two-coplanar-ellipses-have-no-meeting-method`, its first bullet), all 31 rows pass. The sixteen `band_turn_overrun_fillet*` rows pass too: their fillet joints are decided by the window reading.
 
 Reading ends first moved two escalation rows to the end's own reading (`curve_carrier_gap`): `census::tests::crossing_cuts`, and `sweep`'s `a_ruling_lying_on_a_wall::two_rims_the_band_reads_coplanar_are_one_curve_only_within_it` at `k` = 2 and 5. `carrier_cross`'s `a_swept_spans_end_is_read_by_its_chord_to_the_meeting` now escalates at `0.8·z` (`curve_pair_meet_stretch`). There the end's meeting and the crossing `16·z` inside it are two meetings in one stretch.
+
+## Closed (2026-10-17)
+
+Landed with stage (c3) in PR 5227 (`fuse/curve-pair-reader-c3`): every mechanism above is built and pinned by the rows listed. The one regression pass 5′ left on main, editor-core's `boss_union` escalating one-curve readings at Interval, is `pass-five-prime-reds-the-census-golden-and-the-interval-door`, fixed in PR 5268. What stays open has its own row: the coplanar touch, `two-coplanar-ellipses-have-no-meeting-method`.

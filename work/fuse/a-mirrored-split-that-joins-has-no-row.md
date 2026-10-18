@@ -2,10 +2,12 @@
 id: a-mirrored-split-that-joins-has-no-row
 kind: issue
 title: No split row takes the mirrored lane and joins, so the emitter's side check on a join record is unrowed
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
+closed: 2026-10-18
+pr: 4565
 ---
 
 
@@ -38,3 +40,7 @@ piece round a vertex on each side, so it never reruns under the flipped
 plane, and `SplitNaming::mirrored` is gone. Every split record states
 its sides against the caller's plane as made, which ordinary joined
 split rows read through the emitter's check.
+
+## Closed (2026-10-18)
+
+PR 4565 merged (`cleave/apex-section-corners`), and `SplitNaming::mirrored` is gone from the tree (no match under `crates/`), so the lane this row asks a fixture for no longer exists. Closed at FUSE's close, on its own section above.
