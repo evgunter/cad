@@ -50,6 +50,8 @@ The knot algebra (`make_compatible`'s elevation and refinement) does
 not run at an enclosure scalar either (`SkinError::IncompatibleAtEnclosure`).
 It is reachable only once arcs are, since two line strips are always
 compatible.
+(S4 runs it there, homogeneous, and retires that refusal; a rational
+section's refined weights stop at the carrier's door until S5.)
 
 ## Options (a design fork; not chosen)
 
@@ -157,3 +159,11 @@ Option A, framed as a correction rather than a permission (fork-log row
 
 - **A wide weight's `NonPositiveWeight` reports its top alone,** not its enclosure (the error's field is one `f64`).
 - **The door's order of refusals differs by regime.** With a wide weight present, `Weights::new` certifies every weight before the count check (documented at `geom::net::weight_channel`).
+
+### Left for S5 (S4)
+
+- **The plan constructors still decide on the `f64` vectors.** Every carrier knot operation reaches them through one funnel, `geom_core::spline::point_inputs` / `point_knots` (the gate counts its callers as readers: geom 222 → 218, geom-core 16 → 19). At a wide input the funnel refuses typed (`CarrierKnotNotAPoint`, `CarrierWeightNotAPoint`) instead of reaching a loud interim read. Lifting the door means deciding the plans on the held values: the inserted parameter's span, a removal's bound and a written weight's sign, each certified for every member.
+- **The algebra's outputs at `Interval` stop at the door.** A rational net's refined weights are enclosures from rounding alone, so `make_compatible` refuses a rational section that needs refinement or elevation with `CarrierWeightNotAPoint`. A polynomial section keeps its unit weights exactly and is admitted.
+- **The door's poison test does not see an unbounded enclosure.** The knot algebra's enclosure branch checks its own result (`KnotAlgebraError::UnboundedAtEnclosure`). Other paths that build a carrier at `Interval` do not, so lifting the door should move that check into it.
+- **`Dual` and `Sym` over `Interval` take the plain blend step.** Only `Interval` itself overrides `SpanLocate::homogeneous_step` with the corner hull, so a chain of blends still widens per step at those two scalars.
+- **The surface's knot operations stay projective-only.** They have no caller at an enclosure scalar. Their column builds take the u knots through `point_knots`.
