@@ -5276,7 +5276,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "member_edge_tied",
             "merged_chord",
-            "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
             "partner_unread",

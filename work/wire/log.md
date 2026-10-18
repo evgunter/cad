@@ -6156,3 +6156,11 @@ Signed (WIRE orchestrator).
   merged group is `Merged`. `[ev]` PR 5306 edits N2/N3, fork-log row
   162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
   (P3, design). The build unit waits on Ev. (WIRE orchestrator)
+
+- 2026-10-18 — PR 5313 fix pass adjudicated by the orchestrator's read
+  of `rim_among`: one chooser, decided by name. A sole holding rim wins
+  over an escalated pair, which is sound because two distinct rims of a
+  valid body cannot overlap along a chord. The `(true,true)` arm is
+  pinned by unit rows on its extracted decision, since no model
+  reaches it. Merged on green; the spanning-chord row closed.
+  (WIRE orchestrator)

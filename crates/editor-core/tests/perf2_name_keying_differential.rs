@@ -235,11 +235,15 @@ fn sans_epsilon(t: &str) -> String {
 /// and every id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
+/// table only, whose two seams beside the merged floor cite its
+/// `Merged` parent where they cited one floor; its persisted text held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x8460e9578c470e60, 0x7134dab9e0a2c309),
     ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
     ("heat_sink", 0x74fe7181598471d0, 0x548b2f20591251f3),
-    ("crossing_slots", 0x6e8a52216ba39de2, 0xdf3ffbe0e05e610d),
+    ("crossing_slots", 0x51165bb2ff33b3fe, 0xdf3ffbe0e05e610d),
     ("nested_islands_105", 0x67c13cad100b68f6, 0x97d8297c514a94e9),
     (
         "nested_islands_106_depth1",
