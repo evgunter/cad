@@ -5991,6 +5991,10 @@ Signed (WIRE orchestrator).
   `a-revolved-pinch-split-refuses-with-its-normal-flipped`,
   `split-and-boolean-copy-chains-are-chased-three-ways` (all P3).
   (WIRE orchestrator)
+- 2026-10-18 — PR 5276 fix pass adjudicated by the orchestrator's delta
+  read (dedup runs before any record cites a row index; `fold_cell`
+  refuses an unstripped minted head as it does a member head); merged on
+  green; `a-union-fold-publishes-no-pinch-row` closed. (WIRE orchestrator)
 ## 2026-10-18 — FORK-CIRCLEPHASE to Ev (PR 5278); PR 5273 reviewed
 
 - **FORK-CIRCLEPHASE converged:** both designers found the circle-split

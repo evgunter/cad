@@ -1130,10 +1130,11 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 /// **A union records a vertex touch once, as a pair does.** Two blocks
 /// kissing at a corner: their two-member union — the pair — holds one
 /// `VertexFusion` row, cited by its one record. Folded into a union with
-/// a third block apart, the pairwise judgement decides the same touch,
-/// but its records are not the union's, so only the fold step's row,
-/// which the union's record cites, is published: the union's rows and
-/// findings are the pair's, the vertex touch once.
+/// a third block apart, the pairwise judgement decides the same touch
+/// and publishes its row, and the fold step's row, which the union's
+/// record cites, states the same two member cells, so the record cites
+/// the judged row: the union's rows and findings are the pair's, the
+/// vertex touch once.
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
