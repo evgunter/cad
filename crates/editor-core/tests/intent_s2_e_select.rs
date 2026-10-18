@@ -476,24 +476,24 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
             members: editor_core::Bodies::Spelled(vec![p.extrude.into(), q.into()]),
         },
     );
-    // An edge of the prism the union keeps, so the fillet builds and its
-    // copy stands.
+    // An edge of the prism the union keeps, as the union names it, so the
+    // fillet builds and its copy stands.
     let edge = {
         let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
         let read = fixture::out(&doc, p.extrude);
         let table = fixture::table(&ev, union);
-        fixture::prism_edges(&doc, p.extrude, 4)
-            .into_iter()
-            .find(|e| {
-                table.iter().any(|(n, _)| {
-                    matches!(n.path.as_slice(), [editor_core::RoleSeg::From { read: r, of }]
-                        if *r == read && of.name() == e)
-                })
+        let edges = fixture::prism_edges(&doc, p.extrude, 4);
+        table
+            .iter()
+            .map(|(n, _)| n)
+            .find(|n| {
+                matches!(n.path.as_slice(), [editor_core::RoleSeg::From { read: r, of }]
+                    if *r == read && edges.contains(of.name()))
             })
+            .cloned()
             .expect("the union keeps an edge of the prism")
     };
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![edge]));
-    { let ev = fixture::run(&doc, &editor_core::EvalOptions::default()); eprintln!("DBG f={:?}", ev.node_error(fillet)); }
     let (doc, _) = fixture::place(doc, fillet);
     let out = editor_core::split(
         &doc,

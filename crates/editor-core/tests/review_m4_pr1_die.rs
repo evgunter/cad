@@ -376,7 +376,7 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
         );
         // A placement's constraints are minted per authoring: its slots
         // correspond through the constraints' order.
-        let constraint_ids = |n: &Node| match n {
+        let constraint_ids = |n: &Node<_>| match n {
             Node::Place { constraints, .. } => constraints.iter().map(|c| c.id).collect(),
             _ => Vec::new(),
         };
