@@ -145,6 +145,17 @@ fn close3(got: Vec3<f64>, want: Vec3<f64>, what: &str) {
     );
 }
 
+/// **The placements the session's landings superseded** since the
+/// last read, drained: a mate's space is known only when its
+/// evaluation lands, so the landing's prune reports the discard.
+fn landed_superseded(session: &mut DocSession) -> Vec<viewer::display::Withdrawn> {
+    session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect()
+}
+
 /// Drive one free-move gesture to its committed display value,
 /// asserting it is display state and never a document edit.
 fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
@@ -445,9 +456,12 @@ fn the_windmill_story() {
     assert!(session.hover().is_none(), "leaving clears only the hover");
     assert_eq!(session.selection().face(), Some(&picked));
 
-    // ── 7. THE FREE-MOVE PROBE. A cancelled probe on the hub leaves
-    // no trace at all; then the user parks the hub clear of the tower
-    // (a committed display value, never a document edit).
+    // ── 7. THE FREE-MOVE PROBE. A free-move moves a loose space
+    // (DI5), so the hub's world pin comes off first: pinned at the
+    // identity, it is drawn where it stood. A cancelled probe on the
+    // hub leaves no trace at all; then the user parks the hub clear of
+    // the tower (a committed display value, never a document edit).
+    asm::unpin(&mut session, hub_i);
     for op in [
         SessionOp::BeginFreeMove { instance: hub_i },
         SessionOp::PreviewFreeMove {
@@ -469,9 +483,9 @@ fn the_windmill_story() {
     // ── 8. THE SEAT MATE, through the tool's two-pick flow: the hub's
     // underside (picked where it is DRAWN — the parked spot), then the
     // tower's top, a rest with every value zero (both boxes centred).
-    // One committed action — the mate and its three values; the same
-    // outcome reports the hub's probe superseded — discarded, not
-    // zeroed.
+    // One committed action — the mate and its three values. The seat
+    // puts the hub in the world's space, so its landing discards the
+    // hub's probe — superseded, not zeroed.
     let hub_bottom =
         common::displayed_face_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
     assert_eq!(
@@ -493,8 +507,6 @@ fn the_windmill_story() {
         tool.proposal(doc, rest_choice([0.0; 2], 0.0))
             .expect("the seat proposes")
     };
-    // The hub's world pin off, so the seat places the hub.
-    asm::unpin(&mut session, hub_i);
     let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
@@ -502,29 +514,29 @@ fn the_windmill_story() {
         4,
         "one committed mate and its three values"
     );
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the space is known at the landing, not at the edit"
+    );
+    session.pump();
+    let [superseded] = &landed_superseded(&mut session)[..] else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(
         superseded.instance, hub_i,
-        "the mate's landing discards the park, in the same outcome"
+        "the mate's landing discards the park"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == hub_i && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == hub_i
         ),
-        "and the outcome carries WHY it went, not only which went — the \
+        "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
          the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().free_move_of(hub_i).is_none());
-    session.pump();
     let seat_mate = *common::mates_in(session.committed_doc())
         .last()
         .expect("the mate landed");
@@ -568,24 +580,14 @@ fn the_windmill_story() {
         "the seated base certifies with its one declaration"
     );
 
-    // A mate-constrained instance refuses the probe, typed, naming
-    // the mate that binds it.
+    // The seated hub lives in the world's space, so it refuses the
+    // probe, typed.
     let refused = session.perform(SessionOp::BeginFreeMove { instance: hub_i });
     match refused.refusal {
-        Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+        Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
             instance,
-            mates,
-        }))) => {
-            assert_eq!(instance.id(), hub_i);
-            assert!(
-                mates
-                    .iter()
-                    .any(|(placement, id)| (placement.id(), *id)
-                        == (seat_mate.placement, seat_mate.id)),
-                "the refusal names the mate"
-            );
-        }
-        other => panic!("expected the mate-constrained refusal, got {other:?}"),
+        }))) => assert_eq!(instance.id(), hub_i),
+        other => panic!("expected the in-the-world refusal, got {other:?}"),
     }
 
     // ── 9. UNDO AND REDO ACROSS THE MATE: the edit steps out and back
@@ -624,6 +626,10 @@ fn the_windmill_story() {
     // blade's solved direction, not assumed from the walls' charts.
     let sail_a = common::instance_in(&mut session, sail_id);
     let sail_b = common::instance_in(&mut session, sail_id);
+    // Their world pins off, each a loose space of its own, so each
+    // parks; pinned at the identity, each is drawn where it stood.
+    asm::unpin(&mut session, sail_a);
+    asm::unpin(&mut session, sail_b);
     park(&mut session, sail_a, SAIL_A_PARK);
     park(&mut session, sail_b, SAIL_B_PARK);
     let index = asm::index_of(&session);
@@ -672,16 +678,13 @@ fn the_windmill_story() {
         tool.proposal(doc, sail_choice(true, 0.0))
             .expect("the first sail proposes")
     };
-    // The first sail's world pin off, so its mate places it.
-    asm::unpin(&mut session, sail_a);
     let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 4);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
+    assert!(outcome.withdrawn.superseded.is_empty());
+    session.pump();
+    let [superseded] = &landed_superseded(&mut session)[..] else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(
         superseded.instance, sail_a,
@@ -690,15 +693,11 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == sail_a && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == sail_a
         ),
-        "and the outcome carries WHY it went, not only which went — the \
-         fault's own PAYLOAD, which is what would go red if the prune paired \
-         the right fault with the wrong instance: {}",
+        "and the report carries WHY it went: {}",
         superseded.cause
     );
-    session.pump();
 
     // The first blade's solved long axis, in world.
     let long_axis = Vec3::new(1.0, 0.0, 0.0);
@@ -724,30 +723,23 @@ fn the_windmill_story() {
         tool.proposal(doc, sail_choice(false, core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
-    // The second sail's world pin off, so its mate places it.
-    asm::unpin(&mut session, sail_b);
     let outcome = session.perform(sail_b_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 4);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
+    assert!(outcome.withdrawn.superseded.is_empty());
+    session.pump();
+    let [superseded] = &landed_superseded(&mut session)[..] else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(superseded.instance, sail_b, "and so does the second's");
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == sail_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == sail_b
         ),
-        "and the outcome carries WHY it went, not only which went — the \
-         fault's own PAYLOAD, which is what would go red if the prune paired \
-         the right fault with the wrong instance: {}",
+        "and the report carries WHY it went: {}",
         superseded.cause
     );
-    session.pump();
 
     // ── 11. THE FINISHED WINDMILL: four rows all ok, each sail's
     // underside in its wall's plane, normals opposed, the blades

@@ -333,7 +333,8 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 /// weights and knots are points at every scalar
 /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`):
 /// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
-///   wide bulge or from rounding alone, so an arc section refuses;
+///   wide bulge or from rounding alone, so an arc section refuses at the
+///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
 ///   knot vector, and the fit refuses a wide one as a carrier's knot.
 #[test]
@@ -353,7 +354,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         ),
     ] {
         match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-            Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+            Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierWeightNotAPoint {
+                ..
+            }))) => {}
             other => panic!(
                 "{what}: expected section 0's arc refusal, got {:?}",
                 other.map(|_| ())

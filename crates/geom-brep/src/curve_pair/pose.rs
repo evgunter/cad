@@ -38,7 +38,18 @@
 //!   piece's overlap is a sub-interval of the whole's, and its offset at
 //!   its own middle less its own variation is at least the whole's
 //!   margin; a pair read Parallel whole is read Parallel in every split.
-//!   Only where that margin does not decide does the tilt route: levered
+//!   **The gap between the projections reads next**
+//!   (`curve_pair_pose_gap`), before the tilt or the offset is read: by
+//!   the same projection argument, projections apart by a gap that
+//!   decides positive hold no meeting, whatever the lines' distance
+//!   reads, and the pair is [`Pose::Apart`]. A piece's gap is at least
+//!   the whole's, so a pair read Apart whole is read Parallel or Apart in
+//!   every split. A gap read zero or in the escalation gap says nothing,
+//!   and the reading goes on. Both screens' margins are charged with the
+//!   rounding the projections and the offset carry, sized by the
+//!   carriers' origins and the spans' ends as evaluated, so a coordinate
+//!   large by its parameter is charged as one large by its origin.
+//!   Only where neither decides does the tilt route: levered
 //!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
 //!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
 //!   span, the pair is level where it can meet, and the offset at the
@@ -200,8 +211,16 @@
 //!
 //! # The band
 //!
-//! Every decision above that falls in the band's gap escalates
-//! ([`MeetFault::Escalated`]); none prunes a candidate.
+//! A decision the reading rests on escalates in the band's gap
+//! ([`MeetFault::Escalated`]). A decision read as a screen, for the one
+//! verdict that lets the reading stop or take a shorter road, passes any
+//! other reading on, an escalation included, to the readings after it,
+//! which decide the pair or escalate on their own: the router's parallel
+//! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
+//! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
+//! clearance (`curve_pair_pose_clear`), and the like in the window's
+//! readings and the branch compares. A meter's escalation refuses
+//! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;
 
@@ -255,7 +274,8 @@ pub enum Pose<T: geom_core::Real> {
     /// Parallel lines, or a line or conic parallel to the other's plane,
     /// definitely apart: no point meets.
     Parallel,
-    /// Definitely apart otherwise: the residual's extremes one-signed.
+    /// Definitely apart otherwise: the spans' projections on a line
+    /// apart past the band, or the residual's extremes one-signed.
     Apart,
     /// One touch: a double root the band cannot split, of the residual in
     /// one plane or of the height above the other's plane.
@@ -283,6 +303,7 @@ mod row {
     pub(super) const TILT: &str = "curve_pair_pose_tilt";
     pub(super) const OFFSET: &str = "curve_pair_pose_offset";
     pub(super) const PARALLEL: &str = "curve_pair_pose_parallel";
+    pub(super) const GAP: &str = "curve_pair_pose_gap";
     pub(super) const SENSE: &str = "curve_pair_pose_sense";
     pub(super) const SWING: &str = "curve_pair_pose_swing";
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
@@ -667,13 +688,33 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The overlap, along the unit `u` from `o`, of the projections `a` and
-/// `b` (each a pair of ends, either order): its middle and its length,
-/// zero where the projections are disjoint (module docs, "Two lines").
-fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> (T, T) {
+/// The overlap, along a unit from a point, of two projections (module
+/// docs, "The router").
+#[derive(Clone, Copy, Debug)]
+struct Overlap<T> {
+    /// Its middle.
+    mid: T,
+    /// Its signed length: the gap between the projections, negated,
+    /// where they are disjoint.
+    extent: T,
+}
+
+/// The [`Overlap`] of the projections `a` and `b`, each a pair of ends in
+/// either order.
+fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> Overlap<T> {
     let lo = a.0.min(a.1).max(b.0.min(b.1));
     let hi = a.0.max(a.1).min(b.0.max(b.1));
-    ((lo + hi) * T::from_f64(0.5), (hi - lo).max(T::zero()))
+    Overlap {
+        mid: (lo + hi) * T::from_f64(0.5),
+        extent: hi - lo,
+    }
+}
+
+/// The metres `s`'s two ends lie from the origin, as evaluated.
+fn ends<T: Decide>(s: &Span<'_, T>) -> T {
+    let (t0, t1) = s.params();
+    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
+    from(t0) + from(t1)
 }
 
 /// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
@@ -689,6 +730,8 @@ fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
 /// Where the router sends a line's pair (module docs, "The router").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Route {
+    /// The projections definitely apart: no place to meet.
+    Apart,
     /// Definitely apart over every place they can meet.
     Parallel,
     /// Crossing: the tilt definite over the longer span.
@@ -701,12 +744,16 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `length` the overlap's and `lever` the longer span's metres.
+/// `at` the overlap, `lever` the longer span's metres and `noise` the
+/// rounding the offset and the projections carry, charged against both
+/// screens' margins.
 ///
-/// The parallel argument runs first and alone: where the offset less its
-/// most variation over the overlap and the escalation either side decides
+/// The parallel argument runs first: where the offset less its most
+/// variation over the overlap and the escalation either side decides
 /// positive (`curve_pair_pose_parallel`), no point meets, whatever the
-/// tilt reads. Only otherwise does the tilt route: definite over the
+/// tilt reads. Then the gap: where the projections are disjoint and
+/// their gap decides positive (`curve_pair_pose_gap`), no point meets.
+/// Only otherwise does the tilt route: definite over the
 /// longer span, a crossing; zero over the overlap, or over the longer
 /// span, level where the offset reads zero, and [`Unsettled::Meter`]
 /// where it does not, the parallel margin having not decided.
@@ -719,13 +766,19 @@ fn route<T: Decide>(
     tilt: T,
     rate: T,
     offset: T,
-    (length, lever): (T, T),
+    at: Overlap<T>,
+    (lever, noise): (T, T),
     band: Band,
 ) -> Result<Route, MeetFault> {
+    let length = at.extent.max(T::zero());
     let e = T::from_f64(band.escalate());
     let half = length * T::from_f64(0.5) + e;
-    if decide(row::PARALLEL, Margin::of(offset - rate * half), band) == Ok(Sign::Positive) {
+    let parallel = Margin::of(offset - rate * half - noise);
+    if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
         return Ok(Route::Parallel);
+    }
+    if decide(row::GAP, Margin::of(-at.extent - noise), band) == Ok(Sign::Positive) {
+        return Ok(Route::Apart);
     }
     let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
         || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
@@ -778,10 +831,14 @@ fn line_line<T: Decide>(
     let n = u1.cross(u2);
     let s = n.norm();
     let first = (o1, u1);
-    let (mid, length) = overlap(on_line(first, a), on_line(first, b));
-    let w = o1 + u1 * mid - o2;
+    let at = overlap(on_line(first, a), on_line(first, b));
+    let w = o1 + u1 * at.mid - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
+    let origin = Point3::origin();
+    let noise = crate::rounding_charge(
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+    );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -791,7 +848,8 @@ fn line_line<T: Decide>(
             tb: line_foot(lb, point),
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, (length, lever), band)? {
+    match route(s, s / u1.dot(u2).abs(), off, at, (lever, noise), band)? {
+        Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
         Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
@@ -822,14 +880,16 @@ fn line_conic<T: Decide>(
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.center - o).dot(u);
-    let (mid, length) = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
+    let at = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let height = (o + u * mid - k.center).dot(n);
-    match route(den, den.abs(), height.abs(), (length, lever), band)? {
+    let height = (o + u * at.mid - k.center).dot(n);
+    let screened = noise + crate::rounding_charge(ends(a));
+    match route(den, den.abs(), height.abs(), at, (lever, screened), band)? {
+        Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
             // The line's height above the plane runs `|d̂·n̂|` per metre,
