@@ -122,7 +122,11 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
     });
 
-    let placed_tab = r.against(plate, tab, &editor_core::Frame::translation([0.0, 0.0, 0.125]));
+    let placed_tab = r.against(
+        plate,
+        tab,
+        &editor_core::Frame::translation([0.0, 0.0, 0.125]),
+    );
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), placed_tab.into()]),
     });

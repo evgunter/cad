@@ -5509,7 +5509,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "witness_bifurcation",
             "wrong_operand",
         ],
-        delegates: &["resolve_fault_tag", "resolve_fault_tag", "resolve_fault_tag"],
+        delegates: &[
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+        ],
     },
     TagEntry {
         function: "node_inner_kind_tag",

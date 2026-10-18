@@ -296,6 +296,8 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         profile: bore_profile.into(),
         distance: thickness,
     });
+    // The bore joins the disc's space where it is drawn.
+    let bore = r.against(disc, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

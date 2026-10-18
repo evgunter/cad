@@ -22,8 +22,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::sweep::ExtrudeSide;
 use pncad::profile::SketchPlane;
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 

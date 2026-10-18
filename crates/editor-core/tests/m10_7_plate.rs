@@ -91,7 +91,7 @@ pub(crate) fn plate(
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: len(1.0e-3),
     });
@@ -115,6 +115,9 @@ pub(crate) fn plate(
         "hole_a_r",
     );
     let hole_b = hole(&mut r, param("half_spacing"), "hole_b_r");
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
 
     // The wall of each hole, through the selection door the tour uses.
     let refs = {

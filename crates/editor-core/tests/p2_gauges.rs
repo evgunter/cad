@@ -747,8 +747,8 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
 
 /// **A seat under a parametric world pin poses alike in every lane.**
 /// The base is pinned at a pose turned a quarter of a radian about z and
-/// lifted by `lift`; the top is seated on it, and a `+10 z` transform
-/// reads the seated top:
+/// lifted by `lift`; the top is seated on it, and a second top is
+/// stacked on the seated one:
 ///
 /// - the mated faces seat in the product exactly as on a document whose
 ///   base is pinned at the identity;
@@ -779,7 +779,7 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     let (doc, base) = pinned_lifting(doc, p.base, turned, &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
-    let (doc, lifted) = copy_against(doc, top, &Frame::translation([0.0, 0.0, 10.0]), &o);
+    let (doc, lifted) = stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
     assert_eq!(poses.space(top), Some(Space::World));
@@ -831,24 +831,19 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     }
 }
 
-/// **A copy of `instance`'s copy, at `at` against the instance's own
-/// geometry** ([`editor_core::place_against`]), its part resolved
-/// through `o`. Returns the document and the placement, whose output is
-/// the copy.
-pub(crate) fn copy_against(
+/// **A second instance of `part` stacked on `onto`**: its body's bottom
+/// cap seated on `onto` square at the origin ([`seat_on`] at `[0, 0]`).
+/// Returns the document and the instance.
+pub(crate) fn stacked(
     doc: ProfileDoc,
-    instance: RecipeNodeId,
-    at: &Frame,
-    o: &EvalOptions,
+    part: DocRef,
+    part_body: RecipeNodeId,
+    onto: SitedFace,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let copy = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
-    let placed = editor_core::place_against(&doc, &copy, &copy, at, o, Tol::witness())
-        .expect("the copy places against its own geometry");
-    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(copy)]));
-    (
-        fixture::with_values(doc, placement, placed.mate, placed.values),
-        placement,
-    )
+    let (doc, copy) = insert(doc, fixture::mated_instance(part));
+    let mover = head(in_part(copy, part_body, CapEnd::Start));
+    let (doc, _) = seat_on(doc, copy, mover, onto, [0.0, 0.0]);
+    (doc, copy)
 }
 
 // ---- Row 6: split and inline ----
@@ -1205,10 +1200,17 @@ fn an_inline_at_the_identity_keeps_every_bundle() {
     for (source, spliced) in bundles_through(&part, through, &back.doc) {
         assert_eq!(spliced, source, "and each placement's constraints");
     }
-    // The instance stands where its body stands by a world pin, which
-    // reads no variable, so its going retires none; nothing carried
-    // from the part is reported.
-    assert_eq!(back.maintenance, Vec::<Maintenance>::new());
+    // The instance stands where its body stands by a mate to the world
+    // and constant values; its going retires those anonymous values and
+    // nothing else, so nothing carried from the part is reported.
+    for row in &back.maintenance {
+        assert!(
+            matches!(row, Maintenance::AnonymousVarRemoved { var, .. }
+                if host.var(var.id()).is_some() && back.doc.var(var.id()).is_none()
+                    && part.var(var.id()).is_none()),
+            "only the instance's own pin retires: {row:?}"
+        );
+    }
 }
 
 /// **The carry's edit lists replay to its documents without a solve**:

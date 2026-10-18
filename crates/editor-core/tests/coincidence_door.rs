@@ -1247,10 +1247,11 @@ fn measure_the_filleted_disc_at_sym() {
 /// lane binds an untoleranced one as its value**
 /// (`unproven-coincidence-lint-binds-every-variable-as-a-symbol`). The
 /// declared rest above stands a plate on a block whose height and the
-/// plate's floor are two variables typed to one metre: the lint
-/// reports the row (that test), and here the two environments read
-/// their difference. In the analysis lane's environment both are the
-/// constant 1, so the difference decides Zero as a theorem; in the
+/// plate's floor are two variables typed to one metre — the floor a
+/// slide of the block's start cap along its outward normal, `−z`, by
+/// `−1`: the lint reports the row (that test), and here the two
+/// environments read their sum. In the analysis lane's environment
+/// both are constants, so the sum decides Zero as a theorem; in the
 /// door's they are two symbols, so it decides Zero only by value.
 #[test]
 fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbols_to_the_door() {
@@ -1260,24 +1261,27 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     let doc = ProfileDoc::empty_derived("coincide-two-metres", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     let (doc, _) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
-    let metres: Vec<editor_core::VarId> = doc
-        .free_vars()
-        .filter_map(|(id, free)| match *free {
-            FreeVar::Continuous { value, .. } => (value == 1.0).then_some(id),
-            _ => None,
-        })
-        .collect();
+    let typed = |want: f64| -> Vec<editor_core::VarId> {
+        doc.free_vars()
+            .filter_map(|(id, free)| match *free {
+                FreeVar::Continuous { value, .. } => (value == want).then_some(id),
+                _ => None,
+            })
+            .collect()
+    };
+    let (heights, floors) = (typed(1.0), typed(-1.0));
     assert!(
-        metres.len() >= 2,
-        "the block's height and the plate's floor: {metres:?}"
+        !heights.is_empty() && !floors.is_empty(),
+        "the block's height and the plate's floor: {heights:?} {floors:?}"
     );
+    let metres = [heights[0], floors[0]];
     let band = Band::linear(Tol::witness()).expect("a band");
     let difference = |env: &editor_core::VarEnv<Sym<f64>>| {
         let value = |id| match env.bindings.get(id) {
             Some(ParamValue::Continuous { value, .. }) => *value,
             other => panic!("{id:?} binds {other:?}"),
         };
-        let decided = (value(&metres[0]) - value(&metres[1]))
+        let decided = (value(&metres[0]) + value(&metres[1]))
             .sign_within(band)
             .expect("a difference of nothing decides");
         (decided.sign, decided.margin.proven())
@@ -1295,7 +1299,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     assert_eq!(
         analysis,
         (geom_core::Sign::Zero, true),
-        "the analysis lane reads two constants 1 and their difference is the zero polynomial"
+        "the analysis lane reads two constants and their sum is the zero polynomial"
     );
     assert_eq!(
         door,

@@ -1355,7 +1355,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
     });
@@ -1386,6 +1386,9 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         Formula::named(name("half_spacing"), Dimension::Length),
         "hole_b_r",
     );
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
     let ev = eval_over::<f64>(&r.doc, None);
     let wall = |node: RecipeNodeId| {
         let mut faces = select_where(

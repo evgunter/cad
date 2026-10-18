@@ -88,7 +88,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
 use viewer::session::BooleanSpec;
 
@@ -106,7 +105,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PartSelectSpec, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    PartSelectSpec, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -251,20 +250,27 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
         },
-        SessionOp::AddDatum {
-            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        },
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(node),
+        SessionOp::SketchOnFace {
+            face: FaceSelection {
+                name: face(node),
+                node,
+                body: 0,
+            },
             loops: vec![],
+            distance: len(0.01),
+            spin: common::ang(0.0),
         },
+        SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddExtrude {
             profile: node,
             distance: len(0.01),
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: common::ang(1.0),
         },
@@ -273,7 +279,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            tool: node,
+            origin: len3([0.0; 3]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
         SessionOp::AddTransform {
             input: node.into(),
@@ -332,11 +339,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             label: Some(pncad::document::Label::new("renamed").expect("a label")),
         },
         SessionOp::CreateLabelled {
-            creation: viewer::session::Creation::of(SessionOp::AddDatum {
-                datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-            })
-            .expect("adding a datum creates a node"),
-            label: pncad::document::Label::new("Datum frame 1").expect("a label"),
+            creation: viewer::session::Creation::of(SessionOp::AddProfile { loops: vec![] })
+                .expect("adding a profile creates a node"),
+            label: pncad::document::Label::new("Profile 1").expect("a label"),
         },
         SessionOp::RenameVar {
             var,
@@ -417,7 +422,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CancelFreeMove => (26, true),
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
-        SessionOp::AddDatum { .. } => (29, false),
+        SessionOp::SketchOnFace { .. } => (29, false),
         SessionOp::AddProfile { .. } => (30, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
@@ -893,7 +898,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -1503,7 +1508,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
-        | SessionOp::AddDatum { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }

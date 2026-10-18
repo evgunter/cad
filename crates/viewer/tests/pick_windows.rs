@@ -17,8 +17,8 @@
 //! keeps seeing it as the index is refactored underneath it.
 //!
 //! The fixture is chosen for the places a window breaks: a first part,
-//! a last part, one node with THREE bodies, and one name drawn TWICE
-//! (two placed `Transform`s over one extrude carry one body's names), plus
+//! a last part, one node with THREE bodies, and one body drawn TWICE
+//! (two world placements of one extrude carry one body's names), plus
 //! addresses one past the end of a body that IS drawn — the refusal
 //! that must not read the next body.
 
@@ -26,7 +26,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::common;
@@ -95,20 +94,29 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let placed = |at: f64| {
-        Node::transform(
-            twinned,
-            pncad::document::Step::Rigid {
-                translation: [common::len(at), common::len(0.2), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
+    // Two world placements of one extrude, each at its own pose.
+    let placed = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, at: f64| {
+        let (doc, placement) = common::inserted(
+            doc,
+            Node::place(vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(twinned),
+            )]),
+            tol,
+        );
+        let pose = pncad::document::Frame {
+            translation: [at, 0.2, 0.0],
+            ..pncad::document::Frame::IDENTITY
+        };
+        common::pin(
+            &doc,
+            placement,
+            &pose,
+            &pncad::document::EvalOptions::default(),
+            tol,
         )
     };
-    let (doc, first) = common::inserted(&doc, placed(0.0), tol);
-    let (doc, second) = common::inserted(&doc, placed(0.1), tol);
-    let (doc, _) = common::placed(&doc, first, tol);
-    let (doc, _) = common::placed(&doc, second, tol);
+    let doc = placed(&doc, 0.0);
+    let doc = placed(&doc, 0.1);
     let (doc, last) = common::square_profile(&doc, 0.01, tol);
     let (doc, last) = common::inserted(
         &doc,

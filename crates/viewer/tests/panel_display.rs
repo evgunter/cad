@@ -27,11 +27,10 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{
-    Axis3, Datum, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
-    VectorSlot,
+    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, PatternKind, ProfileProgram, SlotId,
+    VarName, VectorSlot,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
@@ -41,21 +40,36 @@ use viewer::props::{
 };
 use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
-/// A document holding one datum plane — six slots, two vector families.
-fn plane_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
+/// A document holding one linear pattern of a block — five slots: its
+/// count, its direction's three components and its spacing.
+fn pattern_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-display", tol);
+    let (doc, profile) = common::square_profile(&doc, 0.01, tol);
+    let (doc, block) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: common::len(0.01),
+        },
+        tol,
+    );
     common::inserted(
         &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.001), common::len(0.002), common::len(0.003)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        }),
+        Node::Pattern {
+            input: block.into(),
+            count: Formula::count(2),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.02),
+            },
+        },
         tol,
     )
 }
 
-/// **A datum plane is two rows, not six** — and the rows it is made of
-/// are exactly the slots the node has, in the vocabulary's own order.
+/// **A linear pattern is three rows, not five** — its direction one of
+/// them — and the rows it is made of are exactly the slots the node
+/// has, in the vocabulary's own order.
 ///
 /// The second half is the property that matters more than the count:
 /// grouping is a LAYOUT, so it may bundle rows and may not invent,
@@ -63,30 +77,29 @@ fn plane_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
 #[test]
 fn a_vectors_three_components_are_one_panel_row() {
     let tol = Tol::witness();
-    let (doc, plane) = plane_doc(tol);
-    let rows = props::slot_rows(&doc, plane);
+    let (doc, pattern) = pattern_doc(tol);
+    let rows = props::slot_rows(&doc, pattern);
     let groups = props::group_rows(rows.clone());
 
-    assert_eq!(rows.len(), 6, "a plane carries origin xyz + normal xyz");
-    assert_eq!(groups.len(), 2, "shown as two vectors");
-    match &groups[0] {
+    assert_eq!(
+        rows.len(),
+        5,
+        "a linear pattern carries its count, direction xyz and spacing"
+    );
+    assert_eq!(groups.len(), 3, "shown as a count, a vector and a spacing");
+    assert!(matches!(&groups[0], SlotGroup::Scalar(row) if row.slot == SlotId::Count));
+    match &groups[1] {
         SlotGroup::Vector { family, rows } => {
-            assert_eq!(*family, VectorSlot::Origin);
+            assert_eq!(*family, VectorSlot::Direction);
             assert_eq!(
                 rows.each_ref().map(|row| row.slot),
-                Axis3::ALL.map(SlotId::Origin),
+                Axis3::ALL.map(SlotId::Direction),
                 "components in x/y/z order"
             );
         }
-        other => panic!("expected the origin vector, got {other:?}"),
+        other => panic!("expected the direction vector, got {other:?}"),
     }
-    assert!(matches!(
-        &groups[1],
-        SlotGroup::Vector {
-            family: VectorSlot::Normal,
-            ..
-        }
-    ));
+    assert!(matches!(&groups[2], SlotGroup::Scalar(row) if row.slot == SlotId::Spacing));
     // The flattening is the whole set, once each, in order.
     let flattened: Vec<SlotId> = groups
         .iter()
@@ -121,27 +134,27 @@ fn scalar_slots_stay_one_row_each() {
 #[test]
 fn an_incomplete_vector_family_degrades_to_scalar_rows() {
     let tol = Tol::witness();
-    let (doc, plane) = plane_doc(tol);
-    let mut rows = props::slot_rows(&doc, plane);
-    rows.retain(|row| row.slot != SlotId::Origin(Axis3::Z));
+    let (doc, pattern) = pattern_doc(tol);
+    let mut rows = props::slot_rows(&doc, pattern);
+    rows.retain(|row| row.slot != SlotId::Direction(Axis3::Z));
     let groups = props::group_rows(rows);
-    // origin x, origin y as scalars; the complete normal as a vector.
-    assert_eq!(groups.len(), 3);
-    assert!(matches!(
-        groups[0],
-        SlotGroup::Scalar(ref row) if row.slot == SlotId::Origin(Axis3::X)
-    ));
+    // The count, direction x and direction y, and the spacing, each a
+    // scalar row: no vector with a hole in it.
+    assert_eq!(groups.len(), 4);
     assert!(matches!(
         groups[1],
-        SlotGroup::Scalar(ref row) if row.slot == SlotId::Origin(Axis3::Y)
+        SlotGroup::Scalar(ref row) if row.slot == SlotId::Direction(Axis3::X)
     ));
     assert!(matches!(
         groups[2],
-        SlotGroup::Vector {
-            family: VectorSlot::Normal,
-            ..
-        }
+        SlotGroup::Scalar(ref row) if row.slot == SlotId::Direction(Axis3::Y)
     ));
+    assert!(
+        groups
+            .iter()
+            .all(|group| matches!(group, SlotGroup::Scalar(_))),
+        "{groups:?}"
+    );
 }
 
 /// **The written unit is the literal's own, and the canonical fallback
@@ -358,49 +371,42 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-switch", tol);
     let (doc, profile) = common::square_profile(&doc, 0.04, tol);
-    let (doc, extrude) = common::inserted(
-        &doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: common::len(0.008),
-        },
-        tol,
-    );
     let (doc, placed) = common::inserted(
         &doc,
-        Node::transform(
-            extrude,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: Formula::literal_with_unit(
-                    core::f64::consts::FRAC_PI_2,
-                    Dimension::Angle,
-                    DEG.def(),
-                )
-                .expect("a right angle"),
-            },
-        ),
+        Node::Revolve {
+            profile: profile.into(),
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: Formula::literal_with_unit(
+                core::f64::consts::FRAC_PI_2,
+                Dimension::Angle,
+                DEG.def(),
+            )
+            .expect("a right angle"),
+        },
         tol,
     );
     let before = props::slot_rows(&doc, placed)
         .into_iter()
-        .find(|row| row.slot == SlotId::RotationAngle)
-        .expect("the rotation angle");
+        .find(|row| row.slot == SlotId::RevolveAngle)
+        .expect("the sweep angle");
     assert_eq!(before.unit, Some(DEG.def()));
 
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::SetSlotUnit {
         node: placed,
-        slot: SlotId::RotationAngle,
+        slot: SlotId::RevolveAngle,
         unit: PI.def(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "one edit, one undo step");
     let after = props::slot_rows(session.doc(), placed)
         .into_iter()
-        .find(|row| row.slot == SlotId::RotationAngle)
-        .expect("the rotation angle");
+        .find(|row| row.slot == SlotId::RevolveAngle)
+        .expect("the sweep angle");
     assert_eq!(after.unit, Some(PI.def()), "written in half-turns now");
     let radians = after.value.clone().expect("a value").as_f64();
     assert_eq!(
@@ -421,13 +427,13 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     // same kind of edit as moving it to degrees.
     session.perform(SessionOp::SetSlotUnit {
         node: placed,
-        slot: SlotId::RotationAngle,
+        slot: SlotId::RevolveAngle,
         unit: RAD.def(),
     });
     let after = props::slot_rows(session.doc(), placed)
         .into_iter()
-        .find(|row| row.slot == SlotId::RotationAngle)
-        .expect("the rotation angle");
+        .find(|row| row.slot == SlotId::RevolveAngle)
+        .expect("the sweep angle");
     assert_eq!(
         after.unit.map(|u| u.symbol()),
         Some("rad"),

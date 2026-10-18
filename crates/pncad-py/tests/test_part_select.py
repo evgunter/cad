@@ -34,7 +34,6 @@ from pncad import (
     PatternKind,
     evaluate,
     m,
-    rad,
 )
 
 from placing import plane_on

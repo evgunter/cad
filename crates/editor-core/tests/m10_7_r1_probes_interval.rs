@@ -343,7 +343,7 @@ fn bracket_with(
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: div(w(), 10.0),
     });
@@ -362,6 +362,9 @@ fn bracket_with(
     };
     let hole_a = hole(&mut r, Formula::neg(half(4.0)).expect("a shallow negation"));
     let hole_b = hole(&mut r, half(4.0));
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = evaluate(
             &r.doc,

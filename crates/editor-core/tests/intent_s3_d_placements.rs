@@ -431,3 +431,70 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
     .0;
     assert_eq!(top_z(&raised), 2.5, "the boss rides up with the face it names");
 }
+
+/// A full revolve about its own y, the bore of a ring: no face of it lies
+/// on its own `xy`.
+fn full_revolve(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![vec![
+            (1.0, 0.0),
+            (1.5, 0.0),
+            (1.5, 1.0),
+            (1.0, 1.0),
+        ]])),
+    );
+    insert(
+        doc,
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            fixture::along_y(),
+            Formula::turn_over(1).expect("a turn"),
+        ),
+    )
+}
+
+/// **A copy is placed against a target with no plane of its own**: a
+/// frame read off the revolve's geometry stands where the copy's start
+/// cap does, and the copy lands at `at` in the revolve's coordinates.
+#[test]
+fn a_copy_stands_against_a_plane_less_target() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, rev) = full_revolve(doc);
+    let (doc, b) = unit_box(doc);
+    let own = vertices(&doc, b);
+    let (doc, placed) = fixture::slid(doc, rev, b, [2.0, 0.5, -0.25]);
+    for (p, q) in vertices(&doc, placed).iter().zip(shifted(&own, [2.0, 0.5, -0.25])) {
+        for k in 0..3 {
+            assert!((p[k] - q[k]).abs() < 1e-12, "{p:?} vs {q:?}");
+        }
+    }
+}
+
+/// **A copy with neither a plane nor an axis of its own** (an arc tube:
+/// its wedge caps stand off its own `xy`) is placed by a frame read off
+/// it, equated with one read off its target.
+#[test]
+fn an_arc_tube_stands_against_its_target_by_frames() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let (doc, bend) = insert(
+        doc,
+        Node::Tube {
+            major_radius: len(2.0),
+            window: TubeWindow::Arc {
+                t0: ang(0.25),
+                t1: ang(1.5),
+            },
+            minor_radius: len(0.25),
+        },
+    );
+    let own = vertices(&doc, bend);
+    let (doc, placed) = fixture::slid(doc, b, bend, [0.5, 0.5, 3.0]);
+    for (p, q) in vertices(&doc, placed).iter().zip(shifted(&own, [0.5, 0.5, 3.0])) {
+        for k in 0..3 {
+            assert!((p[k] - q[k]).abs() < 1e-12, "{p:?} vs {q:?}");
+        }
+    }
+}

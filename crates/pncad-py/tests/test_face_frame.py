@@ -288,7 +288,7 @@ class TestSketchOnAFace(unittest.TestCase):
         ev = evaluate(self.doc)
         want = (0.4 * math.cos(theta), 0.4 * math.sin(theta), 0.2)
         near = [
-            p for p in positions(ev, sketched.placement) if max(abs(a - b) for a, b in zip(p, want)) < 1e-12
+            p for p in positions(ev, sketched.placement) if max(abs(a - b) for a, b in zip(p, want, strict=True)) < 1e-12
         ]
         self.assertEqual(len(near), 1, "the sketch's (0.4, 0) corner, turned by the spin")
 

@@ -860,7 +860,11 @@ pub fn value_bump(
 /// **The id `doc`'s next insert would mint**, read by making that
 /// insert on a copy: an id no node of `doc` holds, whatever the mint.
 pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
-    insert(doc.clone(), Node::Profile(desc(vec![square(0.0, 0.0, 1.0)]))).1
+    insert(
+        doc.clone(),
+        Node::Profile(desc(vec![square(0.0, 0.0, 1.0)])),
+    )
+    .1
 }
 
 /// **The last node in `doc.order()`** — the one a just-applied
@@ -1539,7 +1543,9 @@ impl Recorder {
                 vec![fname(cube, RoleSeg::Cap(CapEnd::Start))],
             ))
         };
-        let copy = self.insert(Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(cube))]));
+        let copy = self.insert(Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(cube),
+        )]));
         self.constrain(
             copy,
             editor_core::Mate {
@@ -1666,8 +1672,9 @@ impl Recorder {
         let read = body_read(&self.doc, body.into());
         self.evaluated();
         let ev = self.last.as_ref().expect("just evaluated");
-        let placed = editor_core::place_against_in(&self.doc, ev, &target, &read, at, Tol::witness())
-            .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+        let placed =
+            editor_core::place_against_in(&self.doc, ev, &target, &read, at, Tol::witness())
+                .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.constrain(placement, placed.mate, placed.values);
         placement
@@ -1790,9 +1797,12 @@ pub fn die() -> Die {
     // extruded along its own +z by pip_depth.
     let mut masters = Vec::new(); // (extrude id, origin, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let prof = r.profile([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![
-            square(0.0, 0.0, 0.125),
-        ]);
+        let prof = r.profile(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, 0.125)],
+        );
         let ext = r.insert(Node::Extrude {
             profile: prof.into(),
             distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
@@ -2829,7 +2839,12 @@ pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNod
     move |doc| {
         let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
         let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 0.5);
-        let (doc, b) = against(doc, a, b, &editor_core::Frame::translation([0.0, 0.0, 1.0 + lift]));
+        let (doc, b) = against(
+            doc,
+            a,
+            b,
+            &editor_core::Frame::translation([0.0, 0.0, 1.0 + lift]),
+        );
         let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 1.3);
         let (doc, c) = against(doc, a, c, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
         (doc, vec![a, b, c])

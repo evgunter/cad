@@ -372,27 +372,11 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     }
 }
 
-/// **A name worn by the copy `placement` makes**: one `Placed` wrapper
-/// round the name its body minted.
-fn in_placement(placement: RecipeNodeId, of: editor_core::StableName) -> editor_core::StableName {
-    editor_core::StableName {
-        kind: of.kind,
-        node: placement,
-        path: vec![editor_core::RoleSeg::Placed {
-            of: editor_core::NameRef::new(of),
-        }],
-    }
-}
-
 /// Two local cubes, `x` and `y`, a placement `t` lifting `x` by 5 in
-/// its own space, and `x` and `y` placed; a distance measure reads a
-/// face of `x` in `body_of_x(x, t)` and a face of `y`. Answers the
-/// document and `(x, t, the placement of x)`.
-fn lifted_cube_measured(
-    label: &str,
-    body_of_x: impl Fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
-    placed: impl Fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
-) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// its own space, and `x` and `y` placed in the world; a distance
+/// measure reads a face of `x` and a face of `y`. Answers the document
+/// and `(x, t, the placement of x)`.
+fn lifted_cube_measured(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let cube = |doc: ProfileDoc, x: f64| {
         let (doc, p) = on_frame(
             doc,
@@ -414,18 +398,13 @@ fn lifted_cube_measured(
     let (doc, y) = cube(doc, 3.0);
     let (doc, t) = fixture::xform(doc, x, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
     let x_end = fixture::fname(x, editor_core::RoleSeg::Cap(CapEnd::End));
-    let x_end = if body_of_x(x, t) == t {
-        in_placement(t, x_end)
-    } else {
-        x_end
-    };
-    let (doc, px) = fixture::place(doc, placed(x, t));
+    let (doc, px) = fixture::place(doc, x);
     let (doc, _) = fixture::place(doc, y);
     let (doc, _) = fixture::measure_node(
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::new(body_of_x(x, t), x_end),
+            editor_core::SitedRef::new(x, x_end),
             editor_core::SitedRef::new(
                 y,
                 fixture::fname(y, editor_core::RoleSeg::Cap(CapEnd::End)),
@@ -433,52 +412,6 @@ fn lifted_cube_measured(
         ],
     );
     (doc, [x, t, px])
-}
-
-/// **A selection crosses a cut only through a placement of its own
-/// body** (review R1, MAJOR-1). A measure reads `x`'s face in the
-/// placement `t` over it, and only `x` is placed: the cut placement's
-/// copy holds the name, but not where the measure reads it, so the
-/// read is severed rather than re-anchored five units away. The
-/// reverse — the face read in `x`, only `t` placed — likewise.
-#[test]
-fn a_selection_crosses_only_through_a_placement_of_its_own_body() {
-    for (label, body_of_x, placed, severed) in [
-        (
-            "f-cross-through-t",
-            (|_x, t| t) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
-            (|x, _t| x) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
-            (|_x, t| t) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
-        ),
-        ("f-cross-through-x", |x, _t| x, |_x, t| t, |x, _t| x),
-    ] {
-        let (doc, [x, t, px]) = lifted_cube_measured(label, body_of_x, placed);
-        // `t` and everything it reads, and the placement.
-        let mut cut = std::collections::BTreeSet::from([px]);
-        let mut stack = vec![t];
-        while let Some(n) = stack.pop() {
-            if cut.insert(n) {
-                stack.extend(doc.upstream(n));
-            }
-        }
-        let err = editor_core::split(
-            &doc,
-            &cut,
-            DocumentId::derive(&format!("{label}-part")),
-            Tol::witness(),
-            None,
-        )
-        .expect_err("the measure reads a body no cut placement places");
-        let input = severed(x, t);
-        assert!(
-            matches!(
-                &err,
-                SplitError::SeveredEdge { input: i, consumer_is_cut: false, .. }
-                    if *i == doc.spoken(input)
-            ),
-            "{label}: {err:?}"
-        );
-    }
 }
 
 /// **A selection of a pattern's copies is a mate pose's alone** (review
@@ -569,19 +502,9 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
 /// back.
 #[test]
 fn a_selection_crossing_a_posed_placement_refuses() {
-    let (doc, [x, t, _]) = lifted_cube_measured("f-posed", |x, _| x, |_, t| t);
-    // Re-place `x` itself, posed, and drop `t`'s world placement.
-    let placed_t = doc
-        .placements()
-        .into_iter()
-        .find(|&p| match doc.node(p) {
-            Some(Node::Place { shapes, .. }) => {
-                shapes.len() == 1 && doc.operation_of(shapes[0].read).is_some_and(|at| at == t)
-            }
-            _ => false,
-        })
-        .expect("`t` is placed in the world");
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: placed_t });
+    let (doc, [x, t, px]) = lifted_cube_measured("f-posed");
+    // Re-place `x` posed, in place of its world placement at the identity.
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: px });
     let (doc, posed) = insert(doc, Node::place(vec![x.into()]));
     let doc = fixture::pin(
         doc,

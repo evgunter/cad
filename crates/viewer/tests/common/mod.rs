@@ -190,8 +190,9 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// The failure is a division by a zero literal in the extrude's
 /// distance — an expression that is well-dimensioned at the edit door
 /// and non-finite at evaluation, which is exactly the shape GQ2's
-/// per-node result exists to report. The transform is placed. Answers
-/// the document, the failing extrude and the poisoned transform.
+/// per-node result exists to report. A placement of it is pinned in the
+/// world. Answers the document, the failing extrude and the poisoned
+/// placement.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
     let (doc, profile) = square_profile(&doc, 0.04, tol);
@@ -205,15 +206,54 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::place(vec![pncad::document::BodyRead::plain(extrude.into())]),
+        Node::place(vec![pncad::document::BodyRead::plain(
+            pncad::document::Operand::from(extrude),
+        )]),
         tol,
     );
     let at = pncad::document::Frame {
         translation: [0.01, 0.0, 0.0],
         ..pncad::document::Frame::IDENTITY
     };
-    let doc = pin(&doc, moved, &at, &pncad::document::EvalOptions::default(), tol);
+    let doc = pin(
+        &doc,
+        moved,
+        &at,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
     (doc, extrude, moved)
+}
+
+/// **`doc` with `body` placed in the world at `at`** — a placement of
+/// it, pinned there over its geometry ([`pin`]) — answering the
+/// document and the placement: a copy of `body` standing translated by
+/// `at` from where its body stands.
+pub fn placed_at(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    at: [f64; 3],
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, placement) = inserted(
+        doc,
+        Node::place(vec![pncad::document::BodyRead::plain(
+            pncad::document::Operand::from(body),
+        )]),
+        tol,
+    );
+    let pose = pncad::document::Frame {
+        translation: at,
+        ..pncad::document::Frame::IDENTITY
+    };
+    let doc = pin(
+        &doc,
+        placement,
+        &pose,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    (doc, placement)
 }
 
 /// The gallery ring document as `demo-tour gallery` saved it (the

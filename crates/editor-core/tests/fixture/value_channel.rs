@@ -62,8 +62,8 @@
 //! scalar-free or `f64`-only channels a caller compares directly.
 
 use editor_core::{
-    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, RecipeNodeId,
-    SplitSide, ValuePayload,
+    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, RecipeNodeId, SplitSide,
+    ValuePayload,
 };
 use geom_core::{Decide, Dual64};
 use topo::{Body, MassProperties};

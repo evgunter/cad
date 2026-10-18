@@ -180,7 +180,7 @@ struct Dumbbell {
     doc: ProfileDoc,
     /// The extrude that MINTED the wall names.
     solid: RecipeNodeId,
-    /// The transform the measure READS them at.
+    /// The placement the measure READS them at.
     placed: RecipeNodeId,
     measure: RecipeNodeId,
     assertion: RecipeNodeId,
@@ -188,7 +188,7 @@ struct Dumbbell {
 
 /// The neck pair, read out of an evaluation the way the engine's
 /// caller does: the placed body, and the two wall faces the names
-/// resolve to AT the transform.
+/// resolve to AT the placement.
 ///
 /// It exists so the rows can ask the engine the same question the
 /// measure asks it, without either of them going through the other.
@@ -207,7 +207,10 @@ impl<'v> Neck<'v> {
             panic!("a placement's value is one body");
         };
         let key = |seg: u32| {
-            let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
+            let n = crate::m10_5_clearance_interval::in_placement(
+                f.placed,
+                fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg)),
+            );
             let Some(editor_core::Entry::Unique(ent)) =
                 ev.table_at(f.placed).expect("one table").lookup(&n)
             else {

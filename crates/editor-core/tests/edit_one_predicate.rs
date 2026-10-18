@@ -59,7 +59,7 @@ use test_utils::fuzz;
 
 // ---- The assertion's bound ----
 
-/// A document carrying an XY frame (0), a profile (1), an extrude (2)
+/// A document carrying a profile (0), an extrude (1)
 /// and a LENGTH variable `gap` — the smallest value an assertion
 /// bounds, which is all its bound is checked against.
 fn with_value() -> (ProfileDoc, editor_core::VarId) {
@@ -92,41 +92,41 @@ fn assertion(value: editor_core::VarId, bound: Formula) -> AuthoredNode {
 }
 
 /// **The value is no scalar — both doors.** An assertion reads its
-/// value at a dimension, so the edit door refuses the frame's output by
-/// kind (`PayloadVarKind`), and the load door the same, read by the
+/// value at a dimension, so the edit door refuses the profile's output
+/// by kind (`PayloadVarKind`), and the load door the same, read by the
 /// payload walk.
 #[test]
 fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
     let (doc, value) = with_value();
-    // The sketch frame (the first node) is live and precedes any
-    // assertion, so the only thing wrong with the document is that its
-    // output is no scalar.
-    let frame = doc
+    // The profile (the first node) is live and precedes any assertion,
+    // so the only thing wrong with the document is that its output is
+    // no scalar.
+    let profile = doc
         .output(doc.ids()[0], 0)
-        .expect("a frame defines its pose");
+        .expect("a profile defines its output");
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(assertion(frame, len(1.0))),
+            node: Box::new(assertion(profile, len(1.0))),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadVarKind {
-            declared: editor_core::VarKind::Frame,
+            declared: editor_core::VarKind::Profile,
             ..
         }) => {}
         other => panic!("an assertion over a non-scalar must refuse typed, got {other:?}"),
     }
 
     // The same fact at the load door: a file whose assertion is
-    // re-pointed at the frame.
+    // re-pointed at the profile.
     let (text, id) = saved_assertion(&doc, value, len(1.0));
-    let corrupt = repoint_value(&text, id, value, frame);
+    let corrupt = repoint_value(&text, id, value, profile);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
-            declared: editor_core::VarKind::Frame,
+            declared: editor_core::VarKind::Profile,
             ..
         })) => {}
         other => panic!("a non-scalar value must refuse typed at load, got {other:?}"),
@@ -663,8 +663,8 @@ fn saved_transform(label: &str) -> (String, RecipeNodeId) {
 /// The first entry of the first column of a placed union's one listed
 /// frame, on the wire.
 fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["PlacedUnion"]["kind"]["Explicit"][0]
-        ["columns"][0][0]
+    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["PlacedUnion"]["kind"]["Explicit"][0]["columns"]
+        [0][0]
 }
 
 /// **An IMPROPER placement frame — both doors.** A mirror is authored
@@ -694,10 +694,12 @@ fn an_improper_placement_is_refused_at_both_doors() {
         *entry = serde_json::json!(-1.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
-            node, determinant, ..
+        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
+            node,
+            fault: editor_core::PlacementRuleFault::ImproperFrame { index, determinant },
+            ..
         })) => {
-            assert_eq!(node.id(), transform);
+            assert_eq!((node.id(), index), (transform, 0));
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
@@ -734,8 +736,12 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         *entry = serde_json::json!(2.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
-            assert_eq!((node.id(), at), (transform, step0));
+        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
+            node,
+            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, .. },
+            ..
+        })) => {
+            assert_eq!((node.id(), index), (transform, 0));
         }
         other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
@@ -786,11 +792,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_value` lays down a frame, a profile, an extrude and a
-    // variable, in that order: the profile is the only sketch-bearing
-    // node in it, and the extrude is a live node that is not one.
+    // `with_value` lays down a profile, an extrude and a variable, in
+    // that order: the profile is the only sketch-bearing node in it, and
+    // the extrude is a live node that is not one.
     let (doc, _) = with_value();
-    let (sketch, non_sketch) = (doc.ids()[1], doc.ids()[2]);
+    let (sketch, non_sketch) = (doc.ids()[0], doc.ids()[1]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -822,7 +828,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_value();
-    let (sketch, gone) = (doc.ids()[1], doc.ids()[2]);
+    let (sketch, gone) = (doc.ids()[0], doc.ids()[1]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.

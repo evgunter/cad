@@ -996,7 +996,7 @@ fn each_boolean_join_says_its_operation() {
         let from = match op {
             BooleanOp::Subtract => String::new(),
             BooleanOp::Union | BooleanOp::Intersect => {
-                format!(" from Extrude {}", test_utils::refusal::tag(pin.0.digest()))
+                format!(" from Place {}", test_utils::refusal::tag(pin.0.digest()))
             }
         };
         let join = format!(

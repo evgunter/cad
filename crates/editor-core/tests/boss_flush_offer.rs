@@ -27,14 +27,12 @@ fn the_flush_boss_unions() {
     );
     let (doc, path) = insert(
         doc,
-        Node::Profile(desc(
-            vec![vec![
-                (10.0 * MM, -5.0 * MM),
-                (20.0 * MM, -5.0 * MM),
-                (20.0 * MM, 5.0 * MM),
-                (10.0 * MM, 5.0 * MM),
-            ]],
-        )),
+        Node::Profile(desc(vec![vec![
+            (10.0 * MM, -5.0 * MM),
+            (20.0 * MM, -5.0 * MM),
+            (20.0 * MM, 5.0 * MM),
+            (10.0 * MM, 5.0 * MM),
+        ]])),
     );
     let (doc, boss) = insert(
         doc,

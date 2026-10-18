@@ -357,6 +357,8 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     )
     .unwrap()
     .doc;
+    // The world copy stood on the face the rebind designates.
+    let doc = re_stood(doc, shell);
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let t = ev.table_at(shell).unwrap();
@@ -441,4 +443,21 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
         ),
         "the hole rim is named for the designated face and its hole's pairing index"
     );
+}
+
+/// `doc` with `body`'s world placement written afresh: a copy standing
+/// over the body as it now is.
+fn re_stood(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let stale: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(body)))
+        })
+        .collect();
+    let doc = stale.into_iter().fold(doc, |doc, p| {
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: p }).0
+    });
+    crate::fixture::place(doc, body).0
 }

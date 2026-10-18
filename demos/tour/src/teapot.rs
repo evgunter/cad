@@ -25,7 +25,7 @@
 //!   here would be claiming a certification nothing issued.
 //! - **the spout** — a CANAL: seven annular sections standing on the
 //!   tangent frames of a circular arc, skinned by ONE `Node::Loft`,
-//!   built about its own spine and placed by `Node::Transform`. It
+//!   built about its own spine and placed against the pot. It
 //!   bends, it tapers, and its wall thins with it, so no revolve
 //!   reaches it at any axis. That is finding 5, and the shape and the
 //!   finding moved together.
@@ -198,11 +198,11 @@
 //!    build.
 //!
 //!    **What the loft costs instead, and it is a different debt.** The
-//!    SPINE IS NOT IN THE DOCUMENT. `spout_frames` computes seven
-//!    frames from [`SPOUT_BEND`] and writes their components as
-//!    literals, so a reader of the saved document sees seven
-//!    placements and no arc, and changing the bend means re-deriving
-//!    all seven rather than editing one number. That is
+//!    SPINE IS NOT IN THE DOCUMENT. `spout_stations` computes six
+//!    stations from [`SPOUT_BEND`] and writes their spins and slides as
+//!    literals, so a reader of the saved document sees six stations and
+//!    no arc, and changing the bend means re-deriving
+//!    all six rather than editing one number. That is
 //!    `twisted_tube`'s own star one scene over, and a spine datum a
 //!    loft could read its placements off is what would close it.
 //!
@@ -282,8 +282,9 @@ use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
     Axis3, Bodies, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame,
-    LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RefusingReach, StationMove, TubeWindow, ValuePayload, apply, evaluate,
+    LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, RefusingReach, StationMove, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -671,9 +672,7 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
 /// section is perpendicular to the spine because of what the station
 /// says, not because a fitting step made it nearly so.
 ///
-/// Returned with each station's OUTER radius, because the two lofts
-/// below share these stations: the canal and its solid twin are the
-/// same spine and the same sections, differing in one loop.
+/// Returned with each station's OUTER radius.
 fn spout_stations() -> Vec<(Vec<StationMove<Formula>>, f64)> {
     let r_spine = SPOUT_LEN / SPOUT_BEND;
     (0..SPOUT_STATIONS)
@@ -852,11 +851,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
 /// point `(x, y)` is the revolve's own point `(x, y, 0)`, so the pot
 /// stands on its own `+y` — the placement every camera, cell and
 /// budget row of this scene was taken from.
-fn revolved(
-    doc: &mut Doc<ProfileProgram>,
-    loop_: LoopProgram<Formula>,
-    tol: Tol,
-) -> RecipeNodeId {
+fn revolved(doc: &mut Doc<ProfileProgram>, loop_: LoopProgram<Formula>, tol: Tol) -> RecipeNodeId {
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -869,7 +864,10 @@ fn revolved(
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -1002,10 +1000,30 @@ fn build_doc(tol: Tol) -> Recipe {
         },
         tol,
     );
-    let placed = crate::world::against(
+    // A windowed tube's own axis is its torus's: the spine is mated by
+    // it to the pot.
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let spine_face = ev
+        .table_at(handle_body)
+        .expect("the handle evaluates")
+        .iter()
+        .map(|(name, _)| name.clone())
+        .find(|name| {
+            name.kind == EntityKind::Face
+                && face_carrier_kind(&ev, handle_body, name) == Ok(SurfaceKind::Torus)
+        })
+        .expect("a tube has a torus face");
+    let placed = crate::world::against_on_axis(
         &doc,
         pncad::document::Operand::output(bellied, 0),
         handle_body,
+        spine_face,
         &handle_pose(),
         tol,
     );
@@ -1993,8 +2011,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     };
     let tip_placed =
         face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
-    let placed =
-        face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
+    let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
     // WHICH cap is the root is read rather than assumed: the spout is
     // built with station 0 AT its own origin, so the root cap is the
     // one standing there and the tip cap is a whole spine-length away.
@@ -2049,7 +2066,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //   * ORIENTATION evidence comes from BOTH caps' normals, and a
     //     translation cannot rotate a normal — so the root cap still
     //     carries turn evidence, of a kind its position could not.
-    let off_axis = bent(tip_unplaced.origin).x.hypot(bent(tip_unplaced.origin).y);
+    let off_axis = bent(tip_unplaced.origin)
+        .x
+        .hypot(bent(tip_unplaced.origin).y);
     assert!(
         off_axis > 1e-3,
         "the tip annulus stands at {:?}, on the rotation's own fixed axis — a residual \
@@ -2393,11 +2412,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
               ONE Node::Fillet over the flange rim, the dome foot and the knob top, \
-              each by its two half-arcs' names, for the lid; Datum::Frame x7 -> Profile(2 circle loops) \
-              x7 -> Node::Loft(v_degree 3) -> Node::Transform for the \
-              spout, with the same frames lofted a second time WITHOUT the bore as its \
-              volume's denominator; \
-              Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
+              each by its two half-arcs' names, for the lid; Profile(2 circle loops) x7 -> \
+              Node::Loft(v_degree 3, six stations) -> Place against the pot (its root cap \
+              on a frame read off the pot) for the spout; \
+              Node::Tube -> Place against the pot (its spine's axis on a frame read off \
+              the pot) for the handle. Two walls pinned: both unions, \
               as Node::Union nodes that refuse at evaluate",
         delta: DELTA,
         note: Some(format!(

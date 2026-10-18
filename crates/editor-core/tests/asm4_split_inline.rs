@@ -696,10 +696,7 @@ fn row3_further_typed_refusals() {
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
     let (host, inst) = pinned(host, doc_ref, &o);
-    let (host, block_profile) = insert(
-        host,
-        Node::Profile(desc(vec![square(5.0, 0.0, 0.5)])),
-    );
+    let (host, block_profile) = insert(host, Node::Profile(desc(vec![square(5.0, 0.0, 0.5)])));
     let (host, block) = insert(
         host,
         Node::Extrude {
@@ -1099,10 +1096,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.ids()[BODY_POSITION];
-    let (doc, cut_p) = insert(
-        doc,
-        Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])),
-    );
+    let (doc, cut_p) = insert(doc, Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])));
     let (doc, cut_e) = insert(
         doc,
         Node::Extrude {

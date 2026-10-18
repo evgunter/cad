@@ -55,7 +55,11 @@ pub fn document() -> CorpusDoc {
 
     // The boss stands against the plate with its foot 0.3 up, inside
     // the plate's slab.
-    let placed = r.against(plate, boss, &editor_core::Frame::translation([0.0, 0.0, 0.3]));
+    let placed = r.against(
+        plate,
+        boss,
+        &editor_core::Frame::translation([0.0, 0.0, 0.3]),
+    );
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), placed.into()]),
     });

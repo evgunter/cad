@@ -269,18 +269,16 @@ fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeN
 fn unpinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
     let mut bundle = fixture::bundle(&doc, placement);
     bundle.sort_by_key(|c| c.value().is_none());
-    bundle
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        })
+    bundle.into_iter().fold(doc, |doc, c| {
+        step(
+            doc,
+            DocEdit::RemoveConstraint {
+                placement,
+                constraint: c.id,
+            },
+        )
+        .0
+    })
 }
 
 /// The one product body an instance's copies carry.
@@ -1231,15 +1229,15 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
 }
 
 /// **A part whose root was poisoned carries the failure that poisoned
-/// it.** The part's extrude refuses and its one placement, of a
-/// transform over the extrude, never runs: the instance names both nodes, points at
+/// it.** The part's extrude refuses and its one placement, of the
+/// extrude, never runs: the instance names both nodes, points at
 /// the extrude, and carries the extrude's own refusal typed — the last
 /// level of its chain is the extrude's line exactly as the part's own
 /// evaluation draws it.
 #[test]
 fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
-    let (part, extrude, moved) = poisoned_part("asm2a-poisoned-part");
+    let (part, extrude, placed) = poisoned_part("asm2a-poisoned-part");
     let own = own_line(&part, extrude, &EvalOptions::default());
     let mut store = StubStore::default();
     let part_ref = store.insert(part, tol);
@@ -1256,7 +1254,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
     };
-    assert_eq!((*root, *through), (moved, extrude), "both nodes are named");
+    assert_eq!((*root, *through), (placed, extrude), "both nodes are named");
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
         "the extrude's refusal travels typed: {refusal:?}"
@@ -1268,7 +1266,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
             test_utils::refusal::tag(extrude.0.digest())
         )) && rendered.contains(&format!(
             "Place {}",
-            test_utils::refusal::tag(moved.0.digest())
+            test_utils::refusal::tag(placed.0.digest())
         )),
         "the instance names the root and points at the failed node: {rendered}"
     );
@@ -1293,15 +1291,8 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     );
 }
 
-/// A placement of `input`, nominally pinned: the root a part's move
-/// makes.
-fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    placed_nominally(doc, input)
-}
-
 /// A part whose extrude refuses (its distance is 1/0) and whose one
-/// placement places a placement of it: the extrude, then the
-/// placement.
+/// placement places it: the extrude, then the placement.
 fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (part, profile) = on_frame(
@@ -1318,8 +1309,7 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
         },
     );
-    let (part, moved) = moved_over(part, extrude);
-    let (part, placed) = placed_nominally(part, moved);
+    let (part, placed) = placed_nominally(part, extrude);
     (part, extrude, placed)
 }
 
@@ -1338,7 +1328,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 /// **Two documents down, the chain still ends at the failing node.**
 /// The bracket holds an instance of the poisoned part, and the instance
 /// is a placement in the bracket's product: it fails in its own right
-/// (the placement a placement of it also reads is poisoned through
+/// (the placement that places it also reads is poisoned through
 /// it), and its own fault is the part's poisoned root in turn. The assembly's
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.
@@ -1353,8 +1343,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
     let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
     let bracket = nominally_pinned(bracket, inner);
-    let (bracket, moved) = moved_over(bracket, inner);
-    let (bracket, _) = placed_nominally(bracket, moved);
+    let (bracket, _) = placed_nominally(bracket, inner);
     let bracket_ref = store.insert(bracket.clone(), tol);
 
     let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);

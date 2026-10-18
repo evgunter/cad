@@ -67,7 +67,11 @@ pub fn document() -> CorpusDoc {
     });
     // Nothing is coincident yet (the tool pierces the plate top and
     // overhangs both ends).
-    let placed1 = r.against(plate, slot1, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
+    let placed1 = r.against(
+        plate,
+        slot1,
+        &editor_core::Frame::translation([0.0, 0.0, 0.5]),
+    );
     let sub1 = r.insert(Node::Subtract {
         from: plate.into(),
         tool: placed1.into(),
@@ -85,7 +89,11 @@ pub fn document() -> CorpusDoc {
         profile: slot2_p.into(),
         distance: len(1.0),
     });
-    let placed2 = r.against(plate, slot2, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
+    let placed2 = r.against(
+        plate,
+        slot2,
+        &editor_core::Frame::translation([0.0, 0.0, 0.5]),
+    );
     let sub2 = r.insert(Node::Subtract {
         from: sub1.into(),
         tool: placed2.into(),

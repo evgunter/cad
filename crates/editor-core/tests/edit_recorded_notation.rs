@@ -138,15 +138,13 @@ fn doc_of(program: LoopProgram<Formula>) -> ProfileDoc {
 
 /// The same document as its edit log, for the save/load row.
 fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 1] {
-    [
-        DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
-                loops: vec![program],
-                ids: Vec::new(),
-            })),
-            fresh: Vec::new(),
-        },
-    ]
+    [DocEdit::InsertNode {
+        node: Box::new(Node::Profile(ProfileProgram {
+            loops: vec![program],
+            ids: Vec::new(),
+        })),
+        fresh: Vec::new(),
+    }]
 }
 
 fn slot(doc: &ProfileDoc, step: u32, arg: StepArg) -> ExprPath {

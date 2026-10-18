@@ -29,8 +29,8 @@
 
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
+    Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;

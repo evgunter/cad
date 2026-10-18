@@ -160,29 +160,23 @@ Everything Python can say about geometry, in full:
   and which modes a state admits IS the admissibility matrix — an
   inadmissible pair is a `TypeError` at the boundary with no kernel
   call made, the runtime shadow of Rust's missing trait impl.
-- `SketchPlane` — the sketch plane as a VALUE: the named cyclic
-  frames `xy` / `yz` / `zx` (normals +z / +x / +y), and the general
-  `from_frame(origin, u, v)`. The binding adds no predicate of its
-  own: rigidity is the kernel mint's, so `from_frame` orthonormalizes
-  the pair it is given (keeping `u`, yielding `v`) and raises
-  `FrameError` when the two span no plane.
-- `Node.profile(outline, plane=doc.sketch_frame(plane=…))` — one closed loop
-  from that lattice, **or a list of them** (outer boundary first,
-  then holes), on any sketch plane, built from the loops' recorded
-  programs. `plane=` and `elevation=` are mutually exclusive
-  (`elevation` is the xy sugar); passing both is a `TypeError`.
-  Nothing about the loop SET is pre-checked: nesting and containment
-  are `Profile::validate`'s work, reaching Python as a typed refusal
-  at `insert`.
-- `Node.polygon(points, plane=doc.sketch_frame(plane=…))` — the straight-segment
-  shortcut, same plane story.
-- `Node.extrude(profile, distance)` — along the sketch-plane normal,
-  so the plane is what chooses the axis.
-- `Node.revolve(profile, *axis, angle)` about a `Node.datum_axis`.
-- `Node.loft(profiles, v_degree)` — a skinned solid through two or
-  more section profiles in skin order, at an integer v-degree. There
-  is no placement argument: each section rides its own profile's
-  sketch plane.
+- `Node.profile(outline)` — one closed loop from that lattice, **or a
+  list of them** (outer boundary first, then holes), on the profile's
+  own xy, built from the loops' recorded programs. Nothing about the
+  loop SET is pre-checked: nesting and containment are
+  `Profile::validate`'s work, reaching Python as a typed refusal at
+  `insert`.
+- `Node.polygon(points)` — the straight-segment shortcut.
+- `Node.extrude(profile, distance)` — up the profile's own z. A body
+  has no location: `Doc.place(body, pose=frame)` stands it in the
+  world, and `Doc.place_against(target, body, frame)` at a frame in
+  another body's own coordinates.
+- `Node.revolve(profile, *axis, angle)` about an axis written in the
+  profile's own two coordinates.
+- `Node.loft(first, then, v_degree)` — a skinned solid through two or
+  more section profiles in skin order, at an integer v-degree: each
+  later section rides its STATION, a chain of `StationMove` slides and
+  spins in the first section's own axes.
 - `Node.union(members)`, `Node.intersect(members)`, `Node.subtract(from_, tool)`.
   A flush pair glues where its margin decides it (D10), and
   `Evaluation.coincidences(node)` lists what was glued; a pair in the
@@ -191,14 +185,13 @@ Everything Python can say about geometry, in full:
   on named edges. The selection is edge names as TEXT, materialized
   off an evaluation and then FROZEN into the recipe: a commitment,
   not a live query. There is no "every edge" spelling.
-- `Node.split(target, tool)` — cut a body by a `Node.datum_plane`.
+- `Node.split(target, tool)` — cut a body by a plane read off
+  geometry (`PoseDef.plane` and its moves).
   The value is a split: `Value.split()` answers `(above, below)`,
   `None` where a side is empty.
-- `Node.transform(input, translation, rotation_axis, rotation_angle)`
-  — a rigid placement, the kernel's convention unchanged: rotate
-  about the axis THROUGH THE WORLD ORIGIN, then translate.
-- `Node.datum_plane(origin, normal)` — the datum a split cuts with,
-  beside `Node.datum_axis`.
+- `Frame.rotate_then_translate(axis, angle, v)` — a rigid frame, the
+  kernel's convention unchanged: rotate about the axis THROUGH THE
+  WORLD ORIGIN, then translate; a placement at it is the rigid motion.
 - `Evaluation.all_edges/all_faces/all_vertices/all_bodies(node)` —
   U7's whole-body materializers, answering the names as text. A
   materializer, never a query: it answers for the evaluation in hand,
@@ -211,16 +204,12 @@ Everything Python can say about geometry, in full:
   (`SegPat` per segment: tag, `OpGroup` group, side, sub-name
   prefix); `geom` is a conjunction of `GeomPred` atoms — the EXACT
   tag reads (`curve_kind`, `surface_kind`, `adjacent_kinds`) and the
-  DECIDED `datum_distance(datum, Cmp, Length)`, whose in-band
+  DECIDED `plane_distance(face, Cmp, Length)`, whose in-band
   candidates refuse as the typed `SelectRefusal` rather than being
   silently included or dropped. Patterns are values built in Python
   and evaluated in Rust; `Selector.matches`/`NamePat.matches`
   classify a materialized text, so the binding stays the one
   licensed reader of a name.
-- `SketchPlane.origin/u/v/normal` and bit-exact `==` — the frame
-  reads back, and the equality is `SketchPlane::bit_eq` crossing
-  unchanged (`-0.0` keeps its own identity; there is no tolerance in
-  a plane to compare with).
 - `FreeVar` compares and hashes, mirroring Rust's `PartialEq` — the
   IEEE comparison, not `bit_eq`'s.
 - Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
@@ -316,7 +305,7 @@ this page grades BODIES against the bound surface.
 | 11 | `diechamferblank` | **YES** | — | LIB-G16, same shape as row 2: a unit cube, all twelve edges chamfered at the setback `diefillet` blends at. `TestDiechamfer` builds it and meters the derived closed form `L³ − 6Ld² + (16/3)d³` at the scenes' own relative 1e-9 |
 | 12 | `diechamfer` | **YES** | — | LIB-G16. The die keeps its recipe now: the scene's finding 1 (no node, so the model has to leave its document) is answered outright, and finding 2 with it — `select_where(CurveKind = Line)` hands its twelve names straight to `Node.chamfer`, the identical line row 10 hands to `Node.fillet`. `TestDiechamferDie` runs exactly that and checks the census (26 box faces + 21 sharp pip cavities in two half-faces each). What the door does NOT discharge is the KERNEL-direct path: `chamfer_edges` still takes arena keys, so a consumer calling the verb beside a document still writes the hand-rolled carrier-kind loop this scene writes — that crossing is a separate door, and it is unbuilt |
 | 13 | `lily` (15 bodies) | NO | G2 | STAYS NO, and the reason narrowed rather than vanished at LIB-TUBE: the tube half of its blocker is gone (`Node.tube` exists), but the scene also needs SWEEP — `wire_sweep` refuses unconditionally, banked on U4/LQ3 — and PLACEMENT (G7). A scene is YES when every body in it is sayable, and one door of three arriving does not make fifteen bodies buildable |
-| 14 | `budfillet` | **YES** | — | the curved-support arms reach through `Node.fillet` unchanged; the rims are named by `select_where(adjacent_kinds)` plus a `datum_distance` station, which is the scene's own by-description selection said in the document layer's words |
+| 14 | `budfillet` | **YES** | — | the curved-support arms reach through `Node.fillet` unchanged; the rims are named by `select_where(adjacent_kinds)` plus a `plane_distance` station, which is the scene's own by-description selection said in the document layer's words |
 | 15 | `klein` | NO | G2 | WAS YES while the top loop was two elbows (two-loop profiles partially revolved about a datum axis); the scene now builds the loop as ONE `sweep_body` of an annulus along an interpolated U-turn spine, and neither half of that is in the document: the sweep is the `SWEEP_FRONTIER` bank, and no node authors a curve interpolated through sampled points (filed: `work/lib/the-klein-loop-sweep-has-no-document-spelling`). The bulb is still sayable — the meridian band's `.fillet`/`.tangent_arc_to` chain is on the lattice and the bulb is one full revolve — and `TestKlein` executes it; a scene is YES only when every body in it is sayable |
 | 16 | `tiltedcut` | **YES** | — | — |
 | 17 | `bossplate` | **YES** | — | — |
@@ -351,7 +340,7 @@ this page grades BODIES against the bound surface.
 | 46 | `torusvesselcup` | NO | G17 | the same body one verb later, and the ONLY row G17 still holds. Row 45 next door flipped at LIB-TEAPOT — it is this vessel without the merge — so what is left here is not the shell half at all but the SECOND door: `Body::merge_coplanar_faces`, which this scene calls as its second step and which no document node binds. The merge is a REPAIR rather than a construction, so binding it is a separate question from G17's; it stays this row's named secondary rather than a gap of its own, and the row now measures exactly that residue |
 | 47 | `fivewall` | YES\* | — | every door the scene needs is bound and named: the PATHS meridian with `Center` arcs, `revolve`, `Node.shell` with an open list EMPTY (the sealed sleeve) and NON-empty (the cup — row 46's residue is the merge, not the opening), and `Node.Transform` for the rigid lift that sets the two side by side. What the star marks is row 41's sense: no Python row executes it yet. The scene's own claim — that each wall's offset is a face of its OWN kind, read out of the stored surfaces — is a readback over `Surface`, so a Python row would need the surface accessors as well as the doors |
 | 48 | `twisted_tube` | YES\* | — | NOT row 21's blocker: that row is a SWEEP and waits on `SWEEP_FRONTIER`; this one is a LOFT, and `Node::Loft` has been bound since LIB-PYG23A. Its sections are profile NODES, so each one's placement is its own sketch plane — non-xy planes bound with the same unit — and a `ProfileProgram` carries a list of loops, so the annular section is sayable too. The star is the legend's own sense: the SPINE is not in the document. `loft_body`'s frames are derived here by evaluating a `NurbsCurve3` interpolant and reading its tangent at each station, and through the document those frames would cross as literal numbers — so the body transfers and the point of the scene, which is that the sections follow a curve with torsion, does not. No Python row executes it either |
-| 49 | `impeller6` | YES\* | G8 | every door the scene needs is bound and named: `FreeVar.count` declares the parameter, `Doc.parse_formula` reads the step string VERBATIM (`360 deg / scalar(blades)` — the grammar's one Count→Scalar promotion lives in the parser, so no binding has to carry it), `PatternKind.circular(axis, step)` takes a `Node.datum_axis`, and `Node.placed_union` says the whole blade family as ONE node whose value is an ordinary body a `Node.boolean` consumes. So the scene's own claim — that the COUNT slot and the STEP slot read the SAME parameter, and one `set_var_value` moves both while the blades still close the circle — is sayable through the surface, relation and all. The star is rows 41–43's and exactly theirs: no Python row executes the placed-union-into-a-base fusion yet |
+| 49 | `impeller6` | YES\* | G8 | every door the scene needs is bound and named: `FreeVar.count` declares the parameter, `Doc.parse_formula` reads the step string VERBATIM (`360 deg / scalar(blades)` — the grammar's one Count→Scalar promotion lives in the parser, so no binding has to carry it), `PatternKind.circular(axis, step)` takes an axis read off geometry (`PoseDef.axis`), and `Node.placed_union` says the whole blade family as ONE node whose value is an ordinary body a `Node.boolean` consumes. So the scene's own claim — that the COUNT slot and the STEP slot read the SAME parameter, and one `set_var_value` moves both while the blades still close the circle — is sayable through the surface, relation and all. The star is rows 41–43's and exactly theirs: no Python row executes the placed-union-into-a-base fusion yet |
 | 50 | `impeller8` | YES\* | G8 | same |
 | 51 | `impeller12` | YES\* | G8 | same |
 | 52 | `bench60` | YES\* | — | the bench of row 44 after one `DocEdit.set_var_value` on `swing`, to 60°: the same job |
@@ -408,13 +397,15 @@ their scene's oracle from Python: the die's **exact dyadic**
 
 The G3 family reads the way the captions do. `silhouette3` is three
 letterform prisms and two intersects, and each letter is a polygon on
-its own plane extruded along that plane's normal:
+its own xy, extruded up its own z, and stood in the world at the frame
+it faces along:
 
 ```python
-from pncad import Doc, Formula, Node, SketchPlane, evaluate, m
+from pncad import Doc, Formula, Frame, Node, evaluate, m
 
-# The scene's "T": a yz sketch through the origin, extruded +x by 2 —
-# the plane's normal is u x v = y x z = +x, so the plane IS the axis.
+# The scene's "T": a sketch extruded 2 up its own z, stood on the world
+# yz-plane through the origin — its x along +y, its y along +z — so its
+# extrusion runs along world +x.
 T = [
     (1.25, 0.0), (1.75, 0.0), (1.75, 2.5), (3.0, 2.5),
     (3.0, 3.0), (0.0, 3.0), (0.0, 2.5), (1.25, 2.5),
@@ -422,9 +413,10 @@ T = [
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(Formula.length_in(a, m), Formula.length_in(b, m)) for a, b in T], plane=doc.sketch_frame(plane=SketchPlane.yz()))
+    Node.polygon([(Formula.length_in(a, m), Formula.length_in(b, m)) for a, b in T])
 )
-prism = doc.insert(Node.extrude(sketch, Formula.length_in(2.0, m)))
+letter = doc.insert(Node.extrude(sketch, Formula.length_in(2.0, m)))
+prism = doc.place(letter, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
 
 # Area = stem 0.5*2.5 + bar 3*0.5 = 2.75; times the 2 extrusion, 5.5
 # exactly.
@@ -443,8 +435,7 @@ Python that could make it one.
 `loft_prism` and `nonuniform_loft` are the minimal pair, and since the
 montage-v3 curation they are two bodies of ONE scene (row 19): the same
 three sections and the same v-degree, differing only in where the
-middle section sits, which from Python is the three `elevation=`
-values. The full pair is `test_north_star.py`; the guide's §2.2 shows
+middle section sits, which from Python is the stations' `z` slides. The full pair is `test_north_star.py`; the guide's §2.2 shows
 the executed three-section loft.
 
 There is a reason those two transfer. Both scenes were authored under

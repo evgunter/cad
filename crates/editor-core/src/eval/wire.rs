@@ -1301,10 +1301,9 @@ fn need_point2<T: Decide>(
 /// **A direction refusal before it is spelled as a node error** — what
 /// the kernel's door said and which vector said it.
 ///
-/// Separate from its spelling because a refusal is not always raised
-/// where it is made: [`FramePlacement::Unreadable`] CARRIES one to the
-/// reader that needed it. Every road spells it through
-/// [`DirectionRefusal::node_error`].
+/// Separate from its spelling because a pose's direction is decided
+/// where the pose is made and spelled by the reader that needed it.
+/// Every road spells it through [`DirectionRefusal::node_error`].
 #[derive(Debug, Clone, Copy)]
 pub struct DirectionRefusal {
     /// Which vector refused, in the words a user reads — "datum frame
@@ -1317,12 +1316,9 @@ pub struct DirectionRefusal {
 impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
-    /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
-    /// and its class ([`NodeErrorKind::class`]) read through it, so the
-    /// carried refusal says and is what the frame's own raise says and
-    /// is. `pub` because the carried refusal is: a consumer holding one
-    /// asks for the raise here rather than re-spelling it.
+    /// spelling** from a refusal to a [`NodeErrorKind`]. `pub` because
+    /// the refusal is: a consumer holding one asks for the raise here
+    /// rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, pose_direction_escalated)
     }

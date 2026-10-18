@@ -19,7 +19,6 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
-use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -85,12 +84,7 @@ pub struct Bench {
 /// One extruded box, placed, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let plane = insert_into(&mut doc, super::xy_frame(), tol);
-    let profile = insert_into(
-        &mut doc,
-        super::rectangle(plane, [0.0, 0.0], width, depth),
-        tol,
-    );
+    let profile = insert_into(&mut doc, super::rectangle([0.0, 0.0], width, depth), tol);
     let extrude = insert_into(
         &mut doc,
         Node::Extrude {

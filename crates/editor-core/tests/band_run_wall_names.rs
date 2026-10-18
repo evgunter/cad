@@ -14,7 +14,9 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{ang, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece};
+use crate::fixture::{
+    ang, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece,
+};
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))

@@ -78,16 +78,12 @@ mod chrome_labels;
 mod combine_ops;
 #[path = "creation_ops.rs"]
 mod creation_ops;
-#[path = "datum_draw.rs"]
-mod datum_draw;
 #[path = "debug_dumps.rs"]
 mod debug_dumps;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
-#[path = "docm1_face_frame.rs"]
-mod docm1_face_frame;
 #[path = "docm9_range_vs_probe.rs"]
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
@@ -102,8 +98,6 @@ mod error_display;
 mod eval_seam;
 #[path = "focus_highlight.rs"]
 mod focus_highlight;
-#[path = "frame_labels.rs"]
-mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
 #[path = "gesture_table.rs"]
@@ -176,8 +170,12 @@ mod rv_matehead_probes;
 
 #[path = "scene_build.rs"]
 mod scene_build;
+#[path = "screen_view.rs"]
+mod screen_view;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "sketch_on_face.rs"]
+mod sketch_on_face;
 #[path = "story_assembly.rs"]
 mod story_assembly;
 #[path = "story_authoring.rs"]

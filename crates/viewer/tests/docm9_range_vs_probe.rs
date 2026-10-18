@@ -42,8 +42,7 @@ fn slab(depth: f64) -> ProfileDoc {
         },
         tol(),
     );
-    let f = common::insert_into(&mut doc, common::xy_frame(), tol());
-    let p = common::insert_into(&mut doc, common::square(f, 1.0), tol());
+    let p = common::insert_into(&mut doc, common::square(1.0), tol());
     common::insert_into(
         &mut doc,
         Node::Extrude {

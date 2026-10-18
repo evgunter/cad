@@ -49,9 +49,9 @@
 use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
-    CapEnd, Coord, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
-    SegTag, Selector, SlideAxis, StableName,
+    CapEnd, Coord, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector,
+    SlideAxis, StableName,
 };
 
 use crate::fixture::{ang, frame_at, len, len2, prism_edges, revolve_about, scl, value_bump};

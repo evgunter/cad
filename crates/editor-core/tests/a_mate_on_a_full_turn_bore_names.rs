@@ -37,9 +37,11 @@ fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
         ValuePayload::Body(b) => {
             sweep::test_support::finished("the operand", (**b).clone(), Tol::witness())
         }
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-            sweep::test_support::finished("the operand", (*copies.bodies[0]).clone(), Tol::witness())
-        }
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => sweep::test_support::finished(
+            "the operand",
+            (*copies.bodies[0]).clone(),
+            Tol::witness(),
+        ),
         other => panic!("a sweep's payload is a body, got {}", other.kind_name()),
     }
 }

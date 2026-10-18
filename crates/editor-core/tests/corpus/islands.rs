@@ -65,7 +65,11 @@ fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), h: f64) -> RecipeNodeId
 /// `body` placed against `target`, `z` up its own z: the operand a
 /// combine with `target` reads.
 fn on(r: &mut Recorder, target: RecipeNodeId, body: RecipeNodeId, z: f64) -> RecipeNodeId {
-    r.against(target, body, &editor_core::Frame::translation([0.0, 0.0, z]))
+    r.against(
+        target,
+        body,
+        &editor_core::Frame::translation([0.0, 0.0, z]),
+    )
 }
 
 /// Plate ∪ (outer − hole): the depth-1 chain, exact 22.0, in the

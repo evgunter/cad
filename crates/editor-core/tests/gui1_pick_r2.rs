@@ -85,6 +85,7 @@ fn box_node(doc: ProfileDoc, ox: f64, oy: f64, w: f64, h: f64) -> (ProfileDoc, R
 fn mesh_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Mesh {
     let body: &Body<f64> = match &ev.value(node).expect("node evaluates").payload {
         ValuePayload::Body(b) => b,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a body, got {}", other.kind_name()),
     };
     mesh::tessellate(body, DELTA, Tol::witness()).expect("body tessellates")
@@ -176,6 +177,8 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
     let doc = ProfileDoc::empty_derived("gui1_r2_diff", Tol::witness());
     let (doc, a) = box_node(doc, 0.0, 0.0, 1.0, 1.0);
     let (doc, b) = box_node(doc, 2.0, 0.5, 1.5, 2.0);
+    // One space to pick in: `b`'s copy beside `a`.
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let ev = run(&doc);
     let (ma, mb) = (mesh_of(&ev, a), mesh_of(&ev, b));
     let (pa, pb) = (
@@ -405,6 +408,9 @@ fn three_body_occlusion_peels_in_t_order() {
     let (doc, n0) = box_node(doc, 0.0, 0.0, 1.0, 1.0);
     let (doc, n1) = box_node(doc, 2.0, 0.0, 1.0, 1.0);
     let (doc, n2) = box_node(doc, 4.0, 0.0, 1.0, 1.0);
+    // One space to peel in: the later boxes' copies beside the first.
+    let (doc, n1) = crate::fixture::slid(doc, n0, n1, [0.0; 3]);
+    let (doc, n2) = crate::fixture::slid(doc, n0, n2, [0.0; 3]);
     let ev = run(&doc);
     let ms = [mesh_of(&ev, n0), mesh_of(&ev, n1), mesh_of(&ev, n2)];
     let ps: Vec<MeshPick> = ms

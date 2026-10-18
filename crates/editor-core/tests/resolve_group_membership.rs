@@ -63,17 +63,17 @@ fn block(
 }
 
 /// A copy of a body placed against `target`, which an edit slides.
-struct Placed {
+pub(crate) struct Placed {
     /// The placement: the copy.
-    placement: RecipeNodeId,
-    target: RecipeNodeId,
-    body: RecipeNodeId,
+    pub(crate) placement: RecipeNodeId,
+    pub(crate) target: RecipeNodeId,
+    pub(crate) body: RecipeNodeId,
     /// Where the copy's own frame stands in `target`'s coordinates.
-    at: [f64; 3],
+    pub(crate) at: [f64; 3],
 }
 
 /// `body` placed against `target`, its base `z0` up `target`'s own z.
-fn placed(
+pub(crate) fn placed(
     doc: ProfileDoc,
     target: RecipeNodeId,
     body: RecipeNodeId,
@@ -104,55 +104,88 @@ fn block_on(
     crate::fixture::slid(doc, target, b, [0.0, 0.0, z0])
 }
 
-/// **`p`'s copy slid `by` further**, by the edits a user makes to its
-/// placement: the mate's target pose and its values re-spelled where the
-/// slide puts the copy ([`editor_core::place_against`]), every node id
-/// kept.
-fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
-    use editor_core::{MateSide, OperandSlot, SlotValue};
+/// **`p`'s copy slid `by` further**, by value edits alone: each of its
+/// placement's values, and the slide along its target face's normal,
+/// set to the numbers [`editor_core::place_against`] gives the copy
+/// there ([`moved_to`]).
+pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
     let at = [p.at[0] + by[0], p.at[1] + by[1], p.at[2] + by[2]];
+    moved_to(doc, p.target, p.body, p.placement, at)
+}
+
+/// **`placement`'s copy of `body` moved to `at` against `target`**
+/// (`at` in `target`'s own coordinates), by value edits alone: the
+/// numbers [`editor_core::place_against`] gives the copy at `at` written
+/// into the variables the placement already reads — its values, and the
+/// slide of its target face along that face's normal — so every node
+/// id and every read is kept. A translation off the target's face
+/// plane is what the slide carries, so the placement must have been
+/// written off it.
+///
+/// # Panics
+///
+/// If the placement is not the one `place_against` writes, or carries
+/// no slide.
+pub(crate) fn moved_to(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    placement: RecipeNodeId,
+    at: [f64; 3],
+) -> ProfileDoc {
+    use editor_core::pose::PoseDef;
+    use editor_core::{FreeValue, Operand, VarDef};
     let again = editor_core::place_against(
         &doc,
-        &p.target.into(),
-        &p.body.into(),
+        &target.into(),
+        &body.into(),
         &editor_core::Frame::translation(at),
         &EvalOptions::default(),
         Tol::witness(),
     )
     .expect("the copy places against its target");
-    let bundle = crate::fixture::bundle(&doc, p.placement);
-    let mate = bundle
+    let number = |f: &editor_core::Formula| {
+        if f.is_zero() {
+            0.0
+        } else {
+            f.literal_value()
+                .unwrap_or_else(|| panic!("a literal number: {f:?}"))
+        }
+    };
+    let Some(Operand::Pose(def)) = again.mate.to.pose() else {
+        panic!("a pose target")
+    };
+    let PoseDef::Slide { by: slide, .. } = &**def else {
+        panic!("the target face slid along its normal: {def:?}")
+    };
+    let bundle = crate::fixture::bundle(&doc, placement);
+    let to = bundle
         .iter()
-        .find(|c| c.mate().is_some())
-        .expect("the placement's mate")
-        .id;
-    let to = again.mate.to.pose().expect("a pose target").clone();
-    let mut doc = step(
-        doc,
-        DocEdit::SetParam {
-            node: p.placement,
-            slot: SlotId::Operand(OperandSlot::Side {
-                constraint: mate,
-                side: MateSide::To,
-            }),
-            value: SlotValue::Read(to),
-            fresh: Vec::new(),
-        },
-    )
-    .0;
-    for (coord, value) in again.values {
-        doc = step(
-            doc.clone(),
-            DocEdit::SetParam {
-                node: p.placement,
-                slot: crate::fixture::value_slot(&doc, p.placement, coord),
-                value: value.into(),
-                fresh: Vec::new(),
+        .find_map(|c| c.mate())
+        .and_then(|m| m.to.pose().copied())
+        .expect("the placement's mate reads a pose");
+    let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) = doc.var(to).map(|v| v.def().clone())
+    else {
+        panic!("the placement's target is a slid face")
+    };
+    let mut edits = vec![(slide_var, number(slide))];
+    for (coord, value) in &again.values {
+        let var = bundle
+            .iter()
+            .find_map(|c| c.value().filter(|v| v.coord == *coord).map(|v| v.by))
+            .unwrap_or_else(|| panic!("the placement holds a value on {coord:?}"));
+        edits.push((var, number(value)));
+    }
+    edits.into_iter().fold(doc, |doc, (var, value)| {
+        step(
+            doc,
+            DocEdit::SetVarValue {
+                var: var.into(),
+                value: FreeValue::Continuous(value),
             },
         )
-        .0;
-    }
-    doc
+        .0
+    })
 }
 
 /// The fragment names `node` minted in `ev1` that `ev2` no longer
@@ -346,7 +379,7 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
     );
     let ev1 = run(&doc, None);
     // The plane turned level at z = 0.5: it divides no cap.
-    let level = crate::fixture::plane_on(&doc, ext, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let level = crate::fixture::start_cap_at(ext, crate::fixture::len(0.5));
     let (doc2, _) = step(
         doc.clone(),
         DocEdit::SetParam {

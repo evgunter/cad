@@ -184,6 +184,20 @@ fn shell_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     insert(doc, Node::shell(at, fixture::len(0.01), vec![face]))
 }
 
+/// An angle measured from `face` of `at` to `at`'s start cap — a
+/// carrier of `face`'s name whose value reads only that face's plane and
+/// the cap's.
+fn measured_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc, RecipeNodeId) {
+    fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Angle { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::new(at, face),
+            editor_core::SitedRef::new(at, fname(at, RoleSeg::Cap(CapEnd::Start))),
+        ],
+    )
+}
+
 /// The face a shell opens, as the document holds it.
 fn opened_face(doc: &editor_core::ProfileDoc, shell: RecipeNodeId) -> StableName {
     match doc.node(shell) {
@@ -267,7 +281,7 @@ fn has_corner3(corners: &[(f64, f64, f64)], want: (f64, f64, f64)) -> bool {
     })
 }
 
-/// The shell at `shell` refuses `Vanished` on exactly `name` at the
+/// The carrier at `shell` refuses `Vanished` on exactly `name` at the
 /// next evaluation — the node is live and its table has no such entry.
 fn shell_refuses_vanished(doc: &editor_core::ProfileDoc, shell: RecipeNodeId, name: &StableName) {
     let ev = fixture::run(doc, &EvalOptions::default());
@@ -277,9 +291,9 @@ fn shell_refuses_vanished(doc: &editor_core::ProfileDoc, shell: RecipeNodeId, na
                 ResolveError::Vanished { name: gone, .. } => assert_eq!(gone, name),
                 other => panic!("the name resolves to nothing: got {other:?}"),
             },
-            other => panic!("the shell refuses on its face, got {other:?}"),
+            other => panic!("the carrier refuses on its face, got {other:?}"),
         },
-        other => panic!("the shell refuses rather than re-anchoring, got {other:?}"),
+        other => panic!("the carrier refuses rather than re-anchoring, got {other:?}"),
     }
 }
 
@@ -637,7 +651,11 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
     never(DocEdit::InsertNode {
-        node: Box::new(Node::shell(r.rod, fixture::len(0.01), vec![unminted.clone()])),
+        node: Box::new(Node::shell(
+            r.rod,
+            fixture::len(0.01),
+            vec![unminted.clone()],
+        )),
         fresh: Vec::new(),
     });
     let painted = paint(&reshaped, &dropped);
@@ -1291,7 +1309,7 @@ fn a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing() {
     let (doc, profile, ext) = extruded("set-param-zero-fit", vec![filleted_square(2.0)]);
     assert_eq!(fixture::pieces(&doc, profile).edges[0].len(), 3);
     let left = wall_of(&doc, ext, 0, 2);
-    let (doc, shell) = shell_on(doc, ext, left.clone());
+    let (doc, shell) = measured_on(doc, ext, left.clone());
     let before = corners_of(&doc, ext, &left);
     assert!(
         has_corner3(&before, (0.0, 2.0, 0.0)) && has_corner3(&before, (0.0, 0.0, 0.0)),
@@ -1307,7 +1325,7 @@ fn a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing() {
     let ev = fixture::run(&grown.doc, &EvalOptions::default());
     assert!(
         ev.value(shell).is_some(),
-        "the shell still evaluates — {:?}",
+        "the measure still evaluates — {:?}",
         corpus::failures(&ev)
     );
     let after = corners_of(&grown.doc, ext, &left);
@@ -1541,9 +1559,9 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
 /// **A piece a `Zero` fit suppresses vanishes, and comes back.** At
 /// `r = 0.3` the right edge `(2, 0.3) → (2, 2)` is the fillet's run
 /// out, `{fillet, RunOut}`; at `r = 2` the run has no length, the arc
-/// ends at `(2, 2)`, and a shell on the run refuses `Vanished` —
+/// ends at `(2, 2)`, and a measure on the run refuses `Vanished` —
 /// nothing else answers to its name. Back at `r = 0.3` the run is
-/// drawn again and the shell on it evaluates. The far end's own leg
+/// drawn again and the measure on it evaluates. The far end's own leg
 /// is the same segment as the run and never denotes anything.
 #[test]
 fn a_zero_fit_piece_vanishes_and_comes_back() {
@@ -1566,7 +1584,7 @@ fn a_zero_fit_piece_vanishes_and_comes_back() {
         table(&ev, ext).lookup(&far_end).is_none(),
         "the far end's leg is the run out's segment, which answers to the run out"
     );
-    let (doc, shell) = shell_on(doc, ext, run_out.clone());
+    let (doc, shell) = measured_on(doc, ext, run_out.clone());
     let tight = set_radius(&doc, profile, 2.0);
     assert_eq!(
         crate::fixture::without_anonymous(&tight.maintenance),

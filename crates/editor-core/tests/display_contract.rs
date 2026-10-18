@@ -560,17 +560,18 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             SelectRefusal::NotAPlane {
                 face: Box::new(face_name()),
             },
-            vec!["the end cap", "node 000000000007", "not planar", "planar face"],
+            vec![
+                "the end cap",
+                "node 000000000007",
+                "not planar",
+                "planar face",
+            ],
         ),
         (
             SelectRefusal::FaceUnresolved {
                 face: Box::new(face_name()),
             },
-            vec![
-                "the end cap",
-                "node 000000000007",
-                "names no readable face",
-            ],
+            vec!["the end cap", "node 000000000007", "names no readable face"],
         ),
         (
             SelectRefusal::NotALength {

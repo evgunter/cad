@@ -11,8 +11,8 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::{
-    EntityKey, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::{len, minted, on_frame, table, tol};
 use topo::Body;

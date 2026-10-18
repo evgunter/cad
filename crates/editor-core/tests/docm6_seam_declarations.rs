@@ -185,9 +185,12 @@ fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, Reci
 }
 
 /// `node`'s bundle replaced by one world pin at the translation `at`,
-/// the store resolving its part.
+/// the store resolving its part. The values go first, since a value
+/// names its mate.
 fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
+    let mut bundle = fixture::bundle(&doc, node);
+    bundle.sort_by_key(|c| c.mate().is_some());
+    let doc = bundle.into_iter().fold(doc, |doc, c| {
         step(
             doc,
             DocEdit::RemoveConstraint {
@@ -1287,7 +1290,9 @@ fn a_placed_product_still_refuses() {
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(instance))]),
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(instance),
+        )]),
     );
     let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
     refuses_as_product(&store, &doc, moved, cube, "the placed instance");
@@ -1343,7 +1348,10 @@ fn a_measure_on_a_product_evaluates() {
     let cap = |end| {
         editor_core::Operand::select(
             instance,
-            vec![wrap(instance, in_stand(&store, inner_ref, 1, cube_body, end))],
+            vec![wrap(
+                instance,
+                in_stand(&store, inner_ref, 1, cube_body, end),
+            )],
         )
     };
     let (doc, datum) = fixture::measure_node(

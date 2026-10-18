@@ -84,9 +84,9 @@ fn every_operation_defines_its_signature_at_insert() {
     // Placements, as inserted: a signature is the insert's, before any
     // mate places them.
     let placement = |of: RecipeNodeId| {
-        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(
-            of,
-        ))])
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(of),
+        )])
     };
     let (doc, moved_copies) = insert(doc, placement(pattern));
     let (doc, moved_body) = insert(doc, placement(extrude));

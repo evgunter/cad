@@ -17,7 +17,6 @@
 
 use crate::common;
 use crate::fixture;
-use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{

@@ -81,10 +81,11 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     // face is exactly this name, and it resolves.
     for (a, b) in flush_pairs(&doc, (m1, proto), (m2, proto)) {
         // The row is the union's, so the constituents are the two
-        // sited names in the union's own member space.
+        // sited names in the union's own member space, each the
+        // prototype's face under its member's copy.
         let mut set = vec![
-            member_face(union, a.at, a.name),
-            member_face(union, b.at, b.name),
+            member_face(union, a.at, a.name.in_copy(m1)),
+            member_face(union, b.at, b.name.in_copy(m2)),
         ];
         set.sort();
         let name = StableName {
@@ -118,7 +119,7 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     both.sort();
     assert_eq!(joined, vec![both; 4], "four joined rims: {joined:?}");
     // The x-extreme walls are untouched: one `From` wrapper over
-    // the prototype's own name.
+    // the prototype's own name under its member's copy.
     for (member, seg) in [(m1, 3u32), (m2, 1u32)] {
         let name = member_face(
             union,
@@ -126,7 +127,8 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
             fname(
                 proto,
                 RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize).into()),
-            ),
+            )
+            .in_copy(member),
         );
         assert!(
             matches!(t.lookup(&name), Some(Entry::Unique(_))),

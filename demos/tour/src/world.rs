@@ -16,15 +16,15 @@
 //! that sequence, so a scene that exports its edit log replays exactly
 //! what it applied.
 
+use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
     BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId,
     RefusingReach, Value, apply, frame_at, place_against, place_at, stand,
 };
-use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{Coord, Formula, Mate, Target};
-use pncad::select::{NameRef, RoleSeg};
-use pncad::prelude::StableName;
 use pncad::geom_core::Tol;
+use pncad::prelude::StableName;
+use pncad::select::{NameRef, RoleSeg};
 
 /// What a placement left: the document, the placement it minted, and
 /// the edits it applied, in order.
@@ -122,7 +122,11 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Frame {
     };
     let x = unit(u);
     let along = dot(v, x);
-    let y = unit([v[0] - x[0] * along, v[1] - x[1] * along, v[2] - x[2] * along]);
+    let y = unit([
+        v[0] - x[0] * along,
+        v[1] - x[1] * along,
+        v[2] - x[2] * along,
+    ]);
     let z = [
         x[1] * y[2] - x[2] * y[1],
         x[2] * y[0] - x[0] * y[2],
@@ -224,9 +228,7 @@ pub fn against_frame(
     };
     let stands = [*at, at.compose(&half_turn)]
         .into_iter()
-        .find(|stands| {
-            frame_at(doc, &body, stands, &opts, tol).is_ok_and(|read| read == pose.read)
-        })
+        .find(|stands| frame_at(doc, &body, stands, &opts, tol).is_ok_and(|read| read == pose.read))
         .expect("the door's frame stands at `at`, or at `at` turned");
     let frame = frame_at(doc, &target, &stands, &opts, tol)
         .unwrap_or_else(|e| panic!("the target offers a frame to read: {e}"));
@@ -241,6 +243,54 @@ pub fn against_frame(
         class,
     };
     written(doc, body, mate, placed.values, tol)
+}
+
+/// **A copy of `body` placed against `target` by its own axis**, the
+/// axis of `body`'s face `face` (a tube's torus, whose axis is the
+/// tube's own `z`), mated to the `z` of a frame read off `target`
+/// standing at `at` ([`frame_at`]) — the axis form of [`against`], for a
+/// copy whose own axis the door does not find (a tube with a window).
+/// The copy's own frame is `at` up to a turn about that axis, so `at`
+/// is a translation and the two values the mate leaves are zero.
+///
+/// # Panics
+///
+/// If `at` turns, or a door refuses.
+pub fn against_on_axis(
+    doc: &Doc<ProfileProgram>,
+    target: impl Into<Operand>,
+    body: impl Into<Operand>,
+    face: StableName,
+    at: &Frame,
+    tol: Tol,
+) -> Placed {
+    assert_eq!(
+        at.columns,
+        Frame::IDENTITY.columns,
+        "an axis placement written by translation alone"
+    );
+    let (target, body) = (target.into(), body.into());
+    let frame = frame_at(doc, &target, at, &EvalOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the target offers a frame to read: {e}"));
+    let mate = Mate {
+        on: Operand::Pose(Box::new(PoseDef::Axis {
+            of: Operand::select(body.clone(), vec![face]),
+        })),
+        to: Target::Pose(Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::through(frame.clone(), PoseRole::Z),
+            along: RoleRead::through(frame, PoseRole::Z),
+            by: Formula::zero(pncad::document::Dimension::Length),
+        }))),
+        class: pncad::select::ContactClass::Rest,
+    };
+    let values = vec![
+        (
+            Coord::Slide(pncad::document::SlideAxis::Z),
+            Formula::zero(pncad::document::Dimension::Length),
+        ),
+        (Coord::Spin, Formula::zero(pncad::document::Dimension::Angle)),
+    ];
+    written(doc, body, mate, values, tol)
 }
 
 /// **A copy of `body` placed against another COPY's geometry**: the

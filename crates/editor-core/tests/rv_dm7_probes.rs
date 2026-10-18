@@ -91,19 +91,10 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
+/// The start cap of `part_body`'s world copy in its part, as
+/// `instance`'s copies carry it.
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: part_body,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            .into(),
-        }],
-    }
+    crate::fixture::resolver::in_part(instance, part_body, CapEnd::Start)
 }
 
 use editor_core::CapEnd;
@@ -118,8 +109,8 @@ use editor_core::CapEnd;
 fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
-    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let doc_ref = store.insert(part, Tol::witness());
+    let (doc_ref, part_body) =
+        store.insert_part(block(part, (0.0, 1.0), (0.0, 1.0), 1.0), Tol::witness());
     // The delete moves the pair's root and the evaluation reads the
     // parts, so both go through the store.
     let opts = fixture::resolver::with_resolver(store);

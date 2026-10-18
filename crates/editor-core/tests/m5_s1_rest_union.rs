@@ -14,38 +14,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-
-use crate::fixture::{insert, len, on_frame};
+use crate::fixture::insert;
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
     load, save,
 };
 use geom_core::Tol;
 
-/// An axis-aligned (0..2)² block at height z0, extruded dz.
-fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-        },
-    )
-}
-
 /// The stacked-plates REST document: plates + their union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
-    let (doc, a) = block(doc, 0.0, 1.0);
-    let (doc, b) = block(doc, 1.0, 1.0);
+    let (doc, a) = crate::blocks::block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = crate::blocks::block_on(doc, a, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {

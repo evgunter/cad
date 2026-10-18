@@ -10,35 +10,11 @@ use crate::fixture;
 
 use editor_core::{
     Attr, AttrKind, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation, Node,
-    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    ProfileDoc, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, step};
 use geom_core::Interval;
 use geom_core::Tol;
-
-/// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
-fn block(
-    doc: ProfileDoc,
-    (x0, x1): (f64, f64),
-    (y0, y1): (f64, f64),
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-        },
-    )
-}
 
 fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
@@ -56,8 +32,8 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     // resolved rows (operand-wrapped and pass-through names), a
     // Vanished loss, and multi-attribute entries at both lanes.
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = crate::blocks::block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::blocks::block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, uni) = insert(
         doc,
         Node::Union {

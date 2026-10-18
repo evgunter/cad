@@ -76,8 +76,8 @@
 
 use pncad::document::{
     AssertionRelation, CancelToken, Coord, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    EvalOptions, Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;

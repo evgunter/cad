@@ -30,7 +30,6 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
-use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
@@ -40,7 +39,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 
 use crate::common;
-use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
+use crate::common::{edited, inserted, len, scl, tempdir};
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
 use viewer::generation::Generation;
@@ -55,8 +54,8 @@ fn width_param() -> VarName {
     VarName::from_static("width")
 }
 
-/// A slab whose extrude distance is a LITERAL and whose transform's
-/// x-translation is DRIVEN by `width * 2`. Two slots, one of each
+/// A slab whose extrude distance is a LITERAL and whose moved copy's
+/// x-slide is DRIVEN by `width * 2`. Two slots, one of each
 /// driver class, in one document — deliberately a different shape from
 /// the unit's own `parametric_plate`.
 fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
@@ -69,8 +68,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle([0.0, 0.0], 0.03, 0.02), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -79,21 +77,24 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, moved) = inserted(
+    // A copy of the slab moved within its own space, its x-slide then
+    // driven by the parameter.
+    let (doc, moved) = crate::fixture::slid(doc, extrude, extrude, [0.01, 0.0, 0.0]);
+    let slot = crate::fixture::value_slot(
         &doc,
-        Node::transform(
-            extrude,
-            pncad::document::Step::Rigid {
-                translation: [
-                    Formula::mul(Formula::named(width_param(), Dimension::Length), scl(2.0))
-                        .expect("length * scalar is a length"),
-                    len(0.0),
-                    len(0.0),
-                ],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        moved,
+        pncad::document::Coord::Slide(pncad::document::SlideAxis::X),
+    );
+    let (doc, _) = edited(
+        &doc,
+        DocEdit::SetParam {
+            node: moved,
+            slot,
+            value: Formula::mul(Formula::named(width_param(), Dimension::Length), scl(2.0))
+                .expect("length * scalar is a length")
+                .into(),
+            fresh: Vec::new(),
+        },
         tol,
     );
     (doc, extrude, moved)
@@ -654,8 +655,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
 fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-broken", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle([0.0, 0.0], 0.03, 0.02), tol);
     let (doc, bad) = inserted(
         &doc,
         Node::Extrude {
@@ -666,18 +666,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         },
         tol,
     );
-    let (doc, downstream) = inserted(
-        &doc,
-        Node::transform(
-            bad,
-            pncad::document::Step::Rigid {
-                translation: [len(0.01), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-        tol,
-    );
+    let (doc, downstream) = common::placed_at(&doc, bad, [0.01, 0.0, 0.0], tol);
 
     let mut session = DocSession::inline(doc, tol);
     session.pump();

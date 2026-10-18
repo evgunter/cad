@@ -24,7 +24,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -262,8 +261,7 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
 fn a_stranded_placement_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-stranded-landing", tol);
-    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
-    let (doc, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

@@ -243,12 +243,46 @@ struct UCutterTie {
     unique: StableName,
 }
 
+/// The symmetric U cutter: a 4x4x4 block with a U-shaped prism, its
+/// two arms congruent, cut through it 1 up. Returns the subtract.
+fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, target) = crate::blocks::block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
+    let (doc, u_profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]])),
+    );
+    let (doc, cutter) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile.into(),
+            distance: len(2.0),
+        },
+    );
+    let (doc, cutter) = fixture::slid(doc, target, cutter, [0.0, 0.0, 1.0]);
+    fixture::insert(
+        doc,
+        Node::Subtract {
+            from: target.into(),
+            tool: cutter.into(),
+        },
+    )
+}
+
 /// Build and evaluate that fixture. `label` is the derived document's
 /// id, so two rows of this file do not share one.
 fn u_cutter_tied_face(label: &str) -> UCutterTie {
     use editor_core::Entry;
 
-    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived(label, Tol::witness()));
+    let (doc, sub) = u_cutter_tie(ProfileDoc::empty_derived(label, Tol::witness()));
     let ev = eval(&doc);
     let (tied, candidates, unique) = {
         let table = ev.table_at(sub).expect("the U subtract evaluates");

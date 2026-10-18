@@ -4,8 +4,8 @@
 
 use crate::fixture::{insert, len, slid};
 use editor_core::{
-    BooleanValue, CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 

@@ -341,6 +341,8 @@ pub(crate) fn d_tab_at(
         profile: hole_profile.into(),
         distance: thickness,
     });
+    // The hole joins the tab's space where it is drawn.
+    let hole = r.against(tab, hole, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

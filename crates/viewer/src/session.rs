@@ -59,10 +59,10 @@ use pncad::document::pose::{PoseRole, RoleRead};
 use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    Frame, FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
-    PartReach, PatternKind, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
-    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
-    parse_formula, product_recorded, run_checks_at_rest_on,
+    Frame, FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand,
+    OperandSlot, PartReach, PartResolver, PatternKind, ProductError, ProfileProgram, RecipeNodeId,
+    Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered,
+    cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2975,8 +2975,9 @@ impl DocSession {
         let (opts, tol) = (self.eval_options(), self.tol);
         self.commit_placing(|run| {
             let placed = pncad::document::place_against(run.doc(), &input, &input, &at, &opts, tol);
-            let placement =
-                run.insert(Node::place(vec![pncad::document::BodyRead::plain(input.clone())]))?;
+            let placement = run.insert(Node::place(vec![pncad::document::BodyRead::plain(
+                input.clone(),
+            )]))?;
             let report = match placed {
                 Ok(placed) => {
                     let by = placed.by;
@@ -3649,12 +3650,19 @@ fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Operand {
 }
 
 /// **A combine's operands, in the first one's space** (D10): each
-/// operand after the first whose value lives in another space is
-/// placed against the first's root at the identity — in the world at
-/// the identity where the first is a world copy — and read through
-/// that placement. An operand the door cannot place, or one in no
-/// evaluated space, is read as it is: the combine then refuses
-/// `SpaceMismatch` at evaluation, in the kernel's words.
+/// operand after the first whose value lives in another space is related
+/// to the first's root — in the world, at the identity, where the first
+/// is a world copy.
+///
+/// A construction is placed against the first's root at the identity
+/// and read through that placement. A copy placed against its own
+/// body's geometry (the transform gesture's) is placed again in place:
+/// its mate and values are replaced by the ones that stand it against
+/// the first's root at the pose it held in its body's own coordinates,
+/// so it reads where it stood relative to its body. An operand the door
+/// cannot place, or one in no evaluated space, is read as it is: the
+/// combine then refuses `SpaceMismatch` at evaluation, in the kernel's
+/// words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[Operand],
@@ -3672,49 +3680,79 @@ fn in_one_space(
         opts,
         tol,
     );
-    let space = |read: &Operand| {
-        crate::world::read_output(run.doc(), read).map(|(node, _)| ev.space(node))
+    let node_of = |doc: &Doc<ProfileProgram>, read: &Operand| {
+        crate::world::read_output(doc, read).map(|(node, _)| node)
     };
-    let Some(home) = space(first) else {
+    let Some(home) = node_of(run.doc(), first).map(|node| ev.space(node)) else {
         return Ok(operands.to_vec());
     };
-    let identity = Frame::IDENTITY;
-    let placed: Vec<Option<_>> = rest
-        .iter()
-        .map(|operand| {
-            let there = space(operand)?;
-            if there == home {
-                return None;
-            }
-            match home {
-                Space::Loose { root } => {
-                    let target = body_of(run.doc(), root);
-                    pncad::document::place_against_in(
-                        run.doc(),
-                        &ev,
-                        &target,
-                        operand,
-                        &identity,
-                        tol,
-                    )
-                    .ok()
-                }
-                Space::World => {
-                    pncad::document::place_at_in(run.doc(), &ev, operand, &identity, tol).ok()
-                }
-            }
-        })
-        .collect();
+    let poses = pncad::document::solve_document(run.doc(), opts, tol);
     let mut read = vec![first.clone()];
-    for (operand, placed) in rest.iter().zip(placed) {
-        let Some(placed) = placed else {
+    for operand in rest {
+        let Some(node) = node_of(run.doc(), operand) else {
             read.push(operand.clone());
             continue;
         };
-        let placement =
-            run.insert(Node::place(vec![pncad::document::BodyRead::plain(operand.clone())]))?;
-        constrain(run, placement, placed.mate, placed.values)?;
-        read.push(placement.into());
+        if ev.space(node) == home {
+            read.push(operand.clone());
+            continue;
+        }
+        // A copy placed against its own body: re-placed in place, at
+        // the pose it holds in its body's space.
+        let self_placed = match run.doc().node(node) {
+            Some(Node::Place {
+                shapes,
+                constraints,
+            }) => match shapes.as_slice() {
+                [shape] => {
+                    let body = Operand::Var(shape.read);
+                    let own = node_of(run.doc(), &body).map(|at| ev.space(at));
+                    (own == Some(ev.space(node)))
+                        .then(|| (body, constraints.iter().map(|c| c.id).collect::<Vec<_>>()))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let (body, at, replaced) = match self_placed {
+            Some((body, ids)) => match poses.relative(node) {
+                Some(at) => (body, at, Some(ids)),
+                None => {
+                    read.push(operand.clone());
+                    continue;
+                }
+            },
+            None => (operand.clone(), Frame::IDENTITY, None),
+        };
+        let placed = match home {
+            Space::Loose { root } => {
+                let target = body_of(run.doc(), root);
+                pncad::document::place_against_in(run.doc(), &ev, &target, &body, &at, tol)
+            }
+            Space::World => pncad::document::place_at_in(run.doc(), &ev, &body, &at, tol),
+        };
+        let Ok(placed) = placed else {
+            read.push(operand.clone());
+            continue;
+        };
+        match replaced {
+            Some(ids) => {
+                for id in ids {
+                    let mate = pncad::document::MateRef::new(node, id);
+                    for edit in DocEdit::removing(run.doc(), mate) {
+                        run.apply(edit)?;
+                    }
+                }
+                constrain(run, node, placed.mate, placed.values)?;
+                read.push(operand.clone());
+            }
+            None => {
+                let placement =
+                    run.insert(Node::place(vec![pncad::document::BodyRead::plain(body)]))?;
+                constrain(run, placement, placed.mate, placed.values)?;
+                read.push(placement.into());
+            }
+        }
     }
     Ok(read)
 }

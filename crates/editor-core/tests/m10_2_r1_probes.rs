@@ -428,6 +428,8 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-balls"), Tol::witness());
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
+        // The ball joins the socket's space on its axis.
+        let (doc, pin) = fixture::against(doc, socket, pin, &editor_core::Frame::IDENTITY);
         let ev = eval(&doc);
         let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
             .first()
@@ -918,10 +920,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's value: point it at the sketch FRAME (the
-    // first node), which defines no scalar. The slab is frame, profile
-    // and extrude, so the measure is the fourth node.
-    let [frame, _, extrude, measure] = doc.ids()[..4] else {
+    // (b) The assertion's value: point it at the PROFILE (the first
+    // node), which defines no scalar. The slab is profile and extrude,
+    // so the measure is the third node.
+    let [profile, extrude, measure] = doc.ids()[..3] else {
         panic!("a slab and its measure");
     };
     let read = |node| doc.output(node, 0).expect("the node defines a value");
@@ -931,7 +933,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         1,
         "{target:?} must be unique"
     );
-    let corrupt = text.replace(&target, &format!("\"value\": \"{}\"", read(frame).0));
+    let corrupt = text.replace(&target, &format!("\"value\": \"{}\"", read(profile).0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadVarKind { .. })) => {}
         other => panic!("a value of no scalar kind must refuse by kind, got {other:?}"),

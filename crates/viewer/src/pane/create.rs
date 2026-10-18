@@ -4,9 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{
-    Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, VarKind,
-};
+use pncad::document::{Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, VarKind};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -15,8 +13,8 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternKindChoice,
-    ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternKindChoice, ShapeKind,
+    UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
@@ -841,8 +839,9 @@ impl ViewerBehavior<'_> {
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
                 Ok(None) => {
-                    self.notices
-                        .push(frame::tool_news(&FormKind::AddProfile.refuses(&PICK_A_FACE)));
+                    self.notices.push(frame::tool_news(
+                        &FormKind::AddProfile.refuses(&PICK_A_FACE),
+                    ));
                 }
                 Err(error) => {
                     self.notices
@@ -1189,7 +1188,8 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(
             ui,
-            ToolKind::Pattern.says(&"pick the body; a circular rule's axis is in its own coordinates"),
+            ToolKind::Pattern
+                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
         );
         if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
             self.tools.choose_half(seat, half);
@@ -1752,7 +1752,8 @@ mod tests {
         use crate::test_support::inserted;
         let tol = Tol::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("seats-half", tol);
-        let tool = editor_core::test_support::plane_on(&doc, block, [0.0, 0.0, 0.001], [0.0, 0.0, 1.0]);
+        let tool =
+            editor_core::test_support::plane_on(&doc, block, [0.0, 0.0, 0.001], [0.0, 0.0, 1.0]);
         let (doc, split) = inserted(
             &doc,
             pncad::document::Node::Split {
@@ -2149,7 +2150,7 @@ mod creation_nouns {
 
     use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
     use crate::session::{DocSession, SessionOp};
-    use crate::test_support::{square_profile, len};
+    use crate::test_support::{len, square_profile};
 
     /// The node `op` made on `session` ([`crate::world::made`]), by its
     /// kind noun.

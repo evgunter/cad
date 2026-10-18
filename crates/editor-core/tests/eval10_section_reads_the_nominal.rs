@@ -287,4 +287,3 @@ fn a_box_over_a_section_width_lofts_the_family_it_spans() {
         }
     }
 }
-

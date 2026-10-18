@@ -117,7 +117,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         },
     );
 
-
     let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
@@ -153,6 +152,8 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         profile: bore_profile.into(),
         distance: thickness,
     });
+    // The bore joins the link's space where it is drawn.
+    let bore = r.against(body, bore, &editor_core::Frame::IDENTITY);
 
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(

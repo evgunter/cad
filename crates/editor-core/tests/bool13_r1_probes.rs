@@ -218,7 +218,8 @@ fn a_positional_array_body_loads() {
     let arr = serde_json::json!([v["snapshot"], v["edits"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
-        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 3),
+        // The profile and the extrude, both.
+        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 2),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }

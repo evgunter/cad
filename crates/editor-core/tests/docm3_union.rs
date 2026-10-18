@@ -51,15 +51,16 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// Three disjoint boxes, and a union of them in the given member
 /// order (one union node for every order, [`crate::fixture::union_over`]). Returns the document, the three box operands in construction
-/// order — the first box, then copies of the other two placed against
-/// it — and the union node.
+/// order — each a copy placed against the first box, so any member can
+/// be dropped and deleted alone — and the union node.
 fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
-    let (doc, a) = cube(doc, 0.0);
+    let (doc, root) = cube(doc, 0.0);
+    let (doc, a) = fixture::slid(doc, root, root, [0.0; 3]);
     let (doc, b) = cube(doc, 2.0);
-    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
+    let (doc, b) = fixture::slid(doc, root, b, [0.0; 3]);
     let (doc, c) = cube(doc, 4.0);
-    let (doc, c) = fixture::slid(doc, a, c, [0.0; 3]);
+    let (doc, c) = fixture::slid(doc, root, c, [0.0; 3]);
     let boxes = [a, b, c];
     let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]));
     (doc, boxes, u)
@@ -471,19 +472,31 @@ fn set_members_accepts_one_member_and_none() {
 #[test]
 fn a_union_and_a_set_members_replay_bit_identically() {
     let tol = Tol::witness();
-    let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let empty = ProfileDoc::empty_derived("docm3_union", tol);
-    let mut edits: Vec<DocEdit<editor_core::ProfileProgram>> = doc
-        .ids()
-        .iter()
-        .map(|id| DocEdit::InsertNode {
-            node: Box::new(crate::fixture::as_authored(
-                &doc,
-                doc.node(*id).expect("an ordered node"),
-            )),
-            fresh: Vec::new(),
-        })
-        .collect();
+    // Three disjoint boxes, the later two placed against the first, and
+    // their union, as the log that authored them.
+    let mut r = crate::fixture::Recorder::new();
+    let empty = r.doc.clone();
+    let mut boxes = Vec::new();
+    for x0 in [0.0, 2.0, 4.0] {
+        let p = r.profile(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)]],
+        );
+        let b = r.insert(Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        });
+        boxes.push(match boxes.first() {
+            None => b,
+            Some(&a) => r.against(a, b, &editor_core::Frame::IDENTITY),
+        });
+    }
+    let u = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(boxes.iter().map(|&b| b.into()).collect()),
+    });
+    let mut edits = r.edits;
     edits.push(DocEdit::SetMembers {
         node: u,
         members: editor_core::Bodies::Spelled(vec![boxes[2].into(), boxes[0].into()]),
@@ -681,8 +694,13 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
     // The die is what the world places: the rim blend, over the
-    // box-edge blend.
-    let rim_blend = match doc.placements().as_slice() {
+    // box-edge blend. Every other placement places a pip on the cube.
+    let in_world: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| crate::fixture::on_world(&doc, p))
+        .collect();
+    let rim_blend = match in_world.as_slice() {
         [placement] => match doc.node(*placement) {
             Some(Node::Place { shapes, .. }) if shapes.len() == 1 => doc
                 .operation_of(shapes[0].read)

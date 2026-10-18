@@ -4,9 +4,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::emit_shared_rim_several::{construction, own_name};
 use crate::corpus;
 use crate::corpus::body_of;
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture;
 use crate::fixture::{Recorder, flush_segs, fname, insert, len, member_face, table};
 
@@ -513,20 +513,12 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
                 from_a(
                     &doc,
                     outer,
-                    from_b(
-                        &doc,
-                        mid,
-                        from_a(&doc, inner, own_face(&doc, a, fam)),
-                    ),
+                    from_b(&doc, mid, from_a(&doc, inner, own_face(&doc, a, fam))),
                 ),
                 from_a(
                     &doc,
                     outer,
-                    from_b(
-                        &doc,
-                        mid,
-                        from_b(&doc, inner, own_face(&doc, b, fam)),
-                    ),
+                    from_b(&doc, mid, from_b(&doc, inner, own_face(&doc, b, fam))),
                 ),
                 from_b(&doc, outer, own_face(&doc, c, fam)),
             ],

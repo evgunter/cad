@@ -37,9 +37,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult,
-    PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
-    apply, evaluate,
+    BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult, PartSelect,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;

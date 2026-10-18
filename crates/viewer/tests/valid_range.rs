@@ -15,7 +15,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{Dimension, Doc, Formula, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;

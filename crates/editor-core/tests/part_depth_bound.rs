@@ -83,15 +83,22 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// product names it: the union carries it from its member read of the
 /// block, under its one placement's copy (A10).
 fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core::FaceName {
-    let [copy] = leaf.placements()[..] else {
+    // The world copy: the placement whose shape is the union (the
+    // boss's copy against the block is the other).
+    let worlds: Vec<(RecipeNodeId, RecipeNodeId)> = leaf
+        .placements()
+        .into_iter()
+        .filter_map(|copy| match leaf.node(copy) {
+            Some(Node::Place { shapes, .. }) => leaf
+                .operation_of(shapes[0].read)
+                .filter(|&read| matches!(leaf.node(read), Some(Node::Union { .. })))
+                .map(|union| (copy, union)),
+            _ => None,
+        })
+        .collect();
+    let [(copy, union)] = worlds[..] else {
         panic!("a leaf places its union once");
     };
-    let Some(Node::Place { shapes, .. }) = leaf.node(copy) else {
-        panic!("the leaf's placement is a `Place`");
-    };
-    let union = leaf
-        .operation_of(shapes[0].read)
-        .expect("the placement reads the union");
     let read = leaf.output(block, 0).expect("the block defines its output");
     let cap = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
@@ -149,19 +156,81 @@ fn instantiating_pinned(
 /// pinning an instance of the one below to its world, and the
 /// references it answers — the leaf's first, the topmost document's
 /// last.
+///
+/// The first level stands its instance where its body does
+/// ([`world_pinned`]); every level above stands its instance by the
+/// same mate, read one part further down ([`relayed`]), so building
+/// the chain evaluates no part below the first.
 fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
     let mut store = PartStore::new();
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
+    let mut stood: Option<editor_core::Placed> = None;
     for level in 1..=levels {
         let below = *refs.last().expect("the leaf is stored");
-        let (doc, _) = instantiating_pinned(
-            &format!("part-depth-level-{level}"),
-            below,
-            &with_resolver(store.clone()),
-        );
+        let (doc, instance) = instantiating(&format!("part-depth-level-{level}"), below);
+        let here = match &stood {
+            None => {
+                let copy = editor_core::Operand::Var(
+                    doc.output(instance, 0)
+                        .expect("an instance defines its copies"),
+                );
+                editor_core::stand(&doc, &copy, &with_resolver(store.clone()), Tol::witness())
+                    .expect("the first level's instance stands where its body does")
+            }
+            Some(prev) => relayed(&doc, instance, prev),
+        };
+        let doc = fixture::with_values(doc, instance, here.mate.clone(), here.values.clone());
+        stood = Some(here);
         refs.push(store.insert(doc, Tol::witness()));
     }
     (store, refs)
+}
+
+/// **The mate `prev` stood the instance below with, read through
+/// `instance`**: the same plane mate and values, its face the one
+/// `instance`'s copy publishes for the face `prev` read — the part's
+/// product name under [`editor_core::RoleSeg::InPart`] at `instance`.
+fn relayed(
+    doc: &ProfileDoc,
+    instance: RecipeNodeId,
+    prev: &editor_core::Placed,
+) -> editor_core::Placed {
+    use editor_core::pose::PoseDef;
+    use editor_core::{Operand, RoleSeg, StableName};
+    let copy = doc
+        .output(instance, 0)
+        .expect("an instance defines its copies");
+    let Operand::Pose(def) = &prev.mate.on else {
+        panic!("a standing mate reads a pose off its copy")
+    };
+    let PoseDef::Plane {
+        face: Operand::Select { names, .. },
+    } = &**def
+    else {
+        panic!("a standing mate reads a face's plane: {def:?}")
+    };
+    let names = names
+        .iter()
+        .map(|n| StableName {
+            kind: n.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: n.clone().into(),
+            }],
+        })
+        .collect();
+    let mut mate = prev.mate.clone();
+    mate.on = Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::Select {
+            body: Box::new(Operand::Var(copy)),
+            names,
+        },
+    }));
+    editor_core::Placed {
+        mate,
+        values: prev.values.clone(),
+        by: prev.by,
+    }
 }
 
 fn resolving(store: PartStore) -> EvalOptions {
@@ -708,3 +777,4 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         "the unasked subtree's failure changes nothing the top draws"
     );
 }
+

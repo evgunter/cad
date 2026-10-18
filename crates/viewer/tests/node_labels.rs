@@ -7,21 +7,19 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 use viewer::session::BooleanSpec;
 
 use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
-use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
+use viewer::session::{Creation, DocSession, SessionOp};
 use viewer::tree::{Headline, headline, proposed_label};
 
 fn label(text: &str) -> Label {
     Label::new(text).expect("a valid label")
 }
 
-/// A frame, a square on it and its extrude: the document and the
-/// extrude.
+/// A square and its extrude: the document and the extrude.
 fn extruded(seed: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(seed, tol);
     let (doc, profile) = common::square_profile(&doc, 0.02, tol);
@@ -97,32 +95,32 @@ fn a_labelled_creation_is_the_insert_and_its_label_as_one_undo() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-create", tol);
     let mut session = DocSession::inline(doc, tol);
-    let creation = Creation::of(SessionOp::AddDatum {
-        datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+    let creation = Creation::of(SessionOp::AddProfile {
+        loops: vec![common::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
     })
-    .expect("adding a datum creates a node");
+    .expect("adding a profile creates a node");
     let outcome = session.perform(SessionOp::CreateLabelled {
         creation,
         label: label("floor"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [frame] = outcome.minted[..] else {
+    let [profile] = outcome.minted[..] else {
         panic!("one node minted, got {:?}", outcome.minted);
     };
     assert!(
         matches!(
             &outcome.committed[..],
             [DocEdit::InsertNode { .. }, DocEdit::SetLabel { node, label: Some(l) }]
-                if *node == frame && *l == label("floor")
+                if *node == profile && *l == label("floor")
         ),
         "the insert, then its label: {:?}",
         outcome.committed
     );
-    assert_eq!(session.doc().label(frame), Some(&label("floor")));
+    assert_eq!(session.doc().label(profile), Some(&label("floor")));
 
     session.perform(SessionOp::Undo);
     assert!(
-        session.doc().node(frame).is_none(),
+        session.doc().node(profile).is_none(),
         "one undo takes the node back"
     );
     assert!(session.doc().labels().is_empty(), "and its label with it");
@@ -270,7 +268,7 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
 fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     use common::{ang, asm, len, len3, scl3};
     use pncad::select::ContactClass;
-    use viewer::session::{DatumSpec, PartSelectSpec, PatternRuleSpec};
+    use viewer::session::{FaceSelection, PartSelectSpec, PatternRuleSpec};
 
     let tol = Tol::witness();
     let bench = asm::bench("node-labels-every-creation", tol);
@@ -281,17 +279,9 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         labelled_as_one_undo(session, op, text)
     };
 
-    let frame = run(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        },
-        "frame",
-    );
     let profile = run(
         &mut session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(frame),
             loops: vec![common::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
         },
         "profile",
@@ -332,22 +322,33 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "overlap",
     );
-    let plane = common::session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.01]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     run(
         &mut session,
         SessionOp::AddSplit {
             target: block.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, 0.01]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
         "halves",
+    );
+    session.pump();
+    run(
+        &mut session,
+        SessionOp::SketchOnFace {
+            face: FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: block,
+                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+                },
+                node: block,
+                body: 0,
+            },
+            loops: vec![common::rectangle_loop([0.0, 0.0], 0.005, 0.005)],
+            distance: len(0.005),
+            spin: ang(0.0),
+        },
+        "boss",
     );
     let row = || PatternRuleSpec::Linear {
         direction: scl3([1.0, 0.0, 0.0]),
@@ -596,7 +597,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
         &[
             SessionOp::SetSlotExpression {
                 node: block,
-                slot: SlotId::RotationAngle,
+                slot: SlotId::RevolveAngle,
                 text: "1 rad".to_owned(),
             },
             SessionOp::SetLabel {

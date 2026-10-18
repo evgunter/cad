@@ -422,46 +422,29 @@ blended = (
 assert blended.vertex_count == 4
 ```
 
-**The plane is a NODE, not an argument.** A profile is drawn on a
-sketch frame that lives in the document — a node you insert, see and
-edit, exactly like the extrude that consumes it. `doc.sketch_frame()`
-inserts one and hands back its id, and `plane=` on a sketch names that
-id.
+**A profile is 2-D, and a body has no location.** A profile is drawn
+on its own xy plane and an extrude runs up its own +z, so a
+construction lies in its own coordinates and reads no frame. Where it
+stands is a placement's: `doc.place(body, pose=frame)` stands it in the
+world at a `Frame`, and `doc.place_against(target, body, frame)` stands
+it at a frame in `target`'s own coordinates — which is how a body
+joins a boolean with another construction.
 
-The frame itself is still `origin, u, v`, where sketch (x, y) maps to
-`origin + x·u + y·v`. Its NORMAL is `u × v`, and that is the direction
-`extrude` runs, so choosing the frame is choosing the axis. The two
-ways to spell one moved from the sketch to the frame and are otherwise
-unchanged: `plane=` a `SketchPlane` (three named frames come
-cyclically, x→y→z→x: `xy` (normal +z), `yz` (u = ŷ, v = ẑ, normal +x),
-`zx` (u = ẑ, v = x̂, normal +y)), or `elevation=`, the xy sugar — that
-far up z. Naming it both ways at once is a `TypeError` rather than a
-silent preference.
-
-Each `doc.sketch_frame()` call mints a FRESH frame. Two sketches meant
-to share a plane bind the id once and pass it twice — which is a fact
-about the document now, with something in the document to be a fact
-about.
-
-Rigidity (u, v unit and perpendicular) is **the door's, not yours**,
-in Python exactly as in Rust. `SketchPlane.from_frame(origin, u, v)`
-and `doc.sketch_frame(u=..., v=...)` ORTHONORMALIZE the pair you give
-them: `u` is normalized and kept, `v` yields whatever component of it
-lies along `u`, so a `v` leaning 45 degrees into `u` comes back
-perpendicular and the numbers you read off the plane are not the
-numbers you wrote. A pair that spans NO plane — parallel,
-antiparallel, or either direction zero — raises `FrameError` rather
-than building a degenerate sketch; that refusal is new, and a
-previously total constructor can now fail. The kernel's geometric
-validation still certifies a body at rest, as before.
+Rigidity is **the door's, not yours**, in Python exactly as in Rust.
+`Frame.point_at(eye, target, roll)` aims the frame's +z from `eye` at
+`target` and keeps only the part of `roll` perpendicular to that aim
+as its +y, so a reference leaning 45 degrees into the aim comes back
+perpendicular. An aim of zero length, or a reference parallel to it,
+raises `FrameError` rather than building a degenerate frame.
 
 ```python
-from pncad import Doc, Formula, Node, SketchPlane, evaluate, m
+from pncad import Doc, Formula, Frame, FrameError, Node, evaluate, m
 
 doc = Doc()
-# An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
-# 0.25 along that plane's normal, which is +x.
-wall = doc.insert(
+# An upright wall: a 2 x 3 sketch extruded 0.25 up its own z, stood in
+# the world on the yz-plane: its x along world +y, its y along world
+# +z, so its own z — the extrusion — is world +x.
+slab = doc.insert(
     Node.extrude(
         doc.insert(
             Node.polygon(
@@ -471,49 +454,61 @@ wall = doc.insert(
                     (Formula.length_in(2, m), Formula.length_in(3, m)),
                     (Formula.length_in(0, m), Formula.length_in(3, m)),
                 ],
-                plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
         Formula.length_in(0.25, m),
     )
 )
-assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
+wall = doc.place(slab, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+ev = evaluate(doc)
+assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
+corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
+for axis, top in enumerate((0.25, 2.0, 3.0)):
+    assert abs(max(c[axis].meters for c in corners) - top) < 1e-12
+    assert abs(min(c[axis].meters for c in corners)) < 1e-12
 
-# Naming the frame's plane twice is refused at the boundary.
+# A reference along the aim spans no frame, and is refused at the door.
 try:
-    doc.sketch_frame(elevation=Formula.length_in(1, m), plane=SketchPlane.yz())
-except TypeError:
+    Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+except FrameError:
     pass
 else:
-    raise AssertionError("plane= and elevation= must be mutually exclusive")
+    raise AssertionError("a roll reference along the aim must be refused")
 ```
 
-**Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
-skins a solid through two or more section profiles in skin order — and
-takes no placement argument, because each section rides its own
-profile's sketch plane. The three sections below are the corpus's
-`loft_prism`: squares at z = 0 and z = 2 with a trapezoid between
-them, whose non-parallel pair means the middle section is *not* an
-affine image of the ends, so the four walls are genuinely curved
-rather than ruled. The degree is a STRUCTURAL slot, and both of the
-loft's inputs are editable in place once the node exists:
-`DocEdit.bind_v_degree_param(node, name)` makes the degree a named
-number that one `set_var_value` moves — at degree 1 the same three
-sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
-restates the section list whole.
+**Stacked sections make a loft.** `Node.loft(first, then, v_degree)`
+skins a solid through two or more section profiles in skin order:
+`first`, then each later profile with its STATION — a chain of
+`StationMove.slide(axis, by)` and `StationMove.spin(axis, by)` in the
+first section's own axes, applied in order, which says where that
+section stands relative to the first. The three sections below are the
+corpus's `loft_prism`: squares at z = 0 and z = 2 with a trapezoid
+between them, whose non-parallel pair means the middle section is
+*not* an affine image of the ends, so the four walls are genuinely
+curved rather than ruled. The degree is a STRUCTURAL slot, and
+`DocEdit.bind_v_degree_param(node, name)` makes it a named number
+that one `set_var_value` moves — at degree 1 the same three sections
+enclose 8.75 m³ rather than 9.
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, m
+from pncad import Doc, Formula, Node, StationMove, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 
 doc = Doc()
-sections = [
-    doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in pts], plane=doc.sketch_frame(elevation=Formula.length_in(z, m))))
-    for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
+
+
+def section(pts):
+    return doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in pts]))
+
+
+first = section(SQUARE)
+then = [
+    (section(TRAPEZOID), [StationMove.slide("z", 1 * m)]),
+    (section(SQUARE), [StationMove.slide("z", 2 * m)]),
 ]
-prism = doc.insert(Node.loft(sections, Formula.count(2)))
+prism = doc.insert(Node.loft(first, then, Formula.count(2)))
 
 # The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
 # Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
@@ -527,7 +522,7 @@ assert props.volume_pad < 1e-6
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
 # it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(sections, Formula.count(3)))
+overdegree = doc.insert(Node.loft(first, then, Formula.count(3)))
 assert not evaluate(doc).succeeded(overdegree)
 ```
 
@@ -915,10 +910,10 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, import_step, mm
+from pncad import Doc, Formula, Frame, Node, evaluate, import_step, mm
 
 
-def slab(doc, x, y, z):
+def slab(doc, x, y, z, on=None):
     profile = doc.insert(
         Node.polygon(
             [
@@ -927,17 +922,21 @@ def slab(doc, x, y, z):
                 (Formula.literal(x[1]), Formula.literal(y[1])),
                 (Formula.literal(x[0]), Formula.literal(y[1])),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
+    # A body has no location: one that joins `on` stands against it,
+    # `z[0]` up in its coordinates.
+    if on is None:
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z[0])))
 
 
 doc = Doc()
 base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
-web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
+web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm), base)
 bracket = doc.insert(Node.union([base, web]))
-pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
+pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm), base)
 lightened = doc.insert(Node.subtract(bracket, pocket))
 
 # Evaluation is TOTAL: it never raises. Ask which nodes succeeded.
@@ -1213,7 +1212,7 @@ Rust's selector section speaks, crossed verb for verb:
 union of `NamePat`s — which op minted the entity, which role, which
 side), and `Evaluation.select_where` filters the survivors by
 GEOMETRY (`GeomPred` atoms: carrier kind, adjacent-surface kinds,
-datum-relative distance, in conjunction). Both answer in the same
+plane-relative distance, in conjunction). Both answer in the same
 opaque alphabet the materializers speak, ready for `Node.fillet`
 unread — narrowing happens through the doors, never by parsing a
 name.
@@ -1239,8 +1238,8 @@ from pncad import (
     NamePat,
     Node,
     Open,
+    Frame,
     Selector,
-    SketchPlane,
     Start,
     SurfaceKind,
     evaluate,
@@ -1272,31 +1271,24 @@ half = (
     .tangent_arc_to((0 * m, R * m))
     .line_to(Start)
 )
-frame = doc.sketch_frame(
-    plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
-)
-# The axis of revolution is written IN that frame, in its own two
-# coordinates — a point and a heading the revolve itself holds: the
-# frame's v is world +z, so the pole axis is its +y through (0, 0), a
-# quarter turn from its x. An axis written in the frame cannot leave
-# the plane it turns.
+# The axis of revolution is written in the profile's own two
+# coordinates — a point and a heading the revolve itself holds: its +y
+# through (0, 0), a quarter turn from its x. An axis written in the
+# profile's plane cannot leave the plane it turns.
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
     Formula.turn_over(4),
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
-# it names which: `doc.output(ball, 0)` is the body.
-pip = doc.insert(
-    Node.transform(doc.output(ball, 0), (
-        Formula.length_in(0.5, m),
-        Formula.length_in(0.5, m),
-        Formula.length_in(1.0 + R - H, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    ), Formula.angle_in(0, rad))
+# it names which: `doc.output(ball, 0)` is the body. It stands against
+# the cube at a frame whose +y — the pole axis — is the cube's +z,
+# centred over the top face and sunk H into it.
+centre = (0.5 * m, 0.5 * m, (1.0 + R - H) * m)
+pip = doc.place_against(
+    cube,
+    doc.output(ball, 0),
+    Frame.point_at(centre, (0.5 * m, -0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0)),
 )
 pipped = doc.insert(Node.subtract(cube, pip))
 
@@ -1393,11 +1385,10 @@ except EvaluationError as refusal:
 ### Tubes: a ring from its intent, and the same ring with a wall
 
 A tube is authored from what you MEAN by it, not from a section
-profile you sweep yourself. `Node.tube(frame, major_radius, window,
-minor_radius)` takes four things: `frame` is a `Node.datum_frame`
-whose origin is the ring's centre, whose normal (`u x v`) is the axis
-the section turns about, and whose `u` is the reference direction the
-window's angles are measured from;
+profile you sweep yourself. `Node.tube(major_radius, window,
+minor_radius)` takes three things, in the ring's own coordinates — its
+centre the origin, its section turning about its own z, the window's
+angles measured from its own +x (a placement stands it elsewhere):
 `major_radius` is the centre-line radius, `minor_radius` the section's;
 and `window` is `TubeWindow.full()` for the whole ring or
 `TubeWindow.arc(t0, t1)` for an elbow of it. Every number is STORED
@@ -1420,25 +1411,9 @@ R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
 
 doc = Doc()
-# The frame: centre at the origin, section turning about +z, angles
-# measured from +x.
-frame = doc.insert(Node.datum_frame((
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-), (
-    Formula.literal(1.0),
-    Formula.literal(0.0),
-    Formula.literal(0.0),
-), (
-    Formula.literal(0.0),
-    Formula.literal(1.0),
-    Formula.literal(0.0),
-)))
-
 # The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
 ring = doc.insert(
-    Node.tube(frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
+    Node.tube(Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
@@ -1448,7 +1423,7 @@ assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-
 inner = OUTER - WALL
 torus = doc.insert(
     Node.hollow_tube(
-        frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
+        Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
     )
 )
 walled = evaluate(doc).value(torus).body()
@@ -1460,7 +1435,6 @@ assert abs(walled.mass_properties().volume - want) < 1e-9
 # volume is the annulus swept through the window's angle.
 elbow = doc.insert(
     Node.hollow_tube(
-        frame,
         Formula.length_in(R, m),
         TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)),
         Formula.length_in(OUTER, m),
@@ -1476,7 +1450,7 @@ assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
 # is exactly the bore, which is only true if each node reached its own
 # kernel door.
 open_ring = doc.insert(
-    Node.tube(frame, Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
+    Node.tube(Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
 )
 ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2

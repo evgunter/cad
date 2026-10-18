@@ -96,10 +96,10 @@ fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
     })
 }
 
-/// A copy of `input` placed against `root`, `dz` up its own z: the
-/// placement, a reader of `input`.
-fn lift(r: &mut Recorder, root: RecipeNodeId, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
-    r.against(root, input, &editor_core::Frame::translation([0.0, 0.0, dz]))
+/// A copy of `input` in the world, `dz` up: the placement, a reader of
+/// `input`.
+fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
+    r.in_world(input, &editor_core::Frame::translation([0.0, 0.0, dz]))
 }
 
 /// `name`, as the placement `p` names its copy of the entity.
@@ -263,7 +263,7 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
             target: cube.into(),
             tool,
         });
-        let moved = lift(&mut r, cube, port(split, h), LIFT);
+        let moved = lift(&mut r, port(split, h), LIFT);
         let first = eval(&r.doc);
         assert!(
             corpus::failures(&first).is_empty(),
@@ -298,11 +298,22 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
             SplitHalf::Below => &below,
         };
 
-        // Each consumer against the kernel door fed the side directly.
-        let map = Affine3::from_parts(
-            Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), 0.0),
-            Vec3::new(0.0, 0.0, LIFT),
-        );
+        // Each consumer against the kernel door fed the side directly:
+        // the placement at the pose its mate solves to, which is the
+        // lift up z.
+        let pose = crate::fixture::solve(&r.doc, &EvalOptions::default(), Tol::witness())
+            .placement(&r.doc, moved)
+            .expect("the lift solves");
+        let lifted = editor_core::Frame::translation([0.0, 0.0, LIFT]);
+        let near = pose
+            .columns
+            .iter()
+            .flatten()
+            .chain(&pose.translation)
+            .zip(lifted.columns.iter().flatten().chain(&lifted.translation))
+            .all(|(a, b)| (a - b).abs() <= 1e-12);
+        assert!(near, "{h:?}: the lift is {LIFT} up z: {pose:?}");
+        let map = pose.affine::<f64>();
         let placed = transform_rigid(
             side,
             &geom_core::test_support::rigid(&map, Tol::witness()),
@@ -404,7 +415,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
         target: cube.into(),
         tool,
     });
-    let moved = lift(&mut r, cube, port(split, SplitHalf::Above), 0.0);
+    let moved = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let base = eval(&r.doc);
     let spelled = edges_of_body(&base, split, SplitHalf::Above.output_body());
     // The below half's own rows: a name both halves hold (a section
@@ -520,7 +531,7 @@ fn a4_every_refusal_is_typed() {
         split,
         SplitHalf::Above,
     ))]));
-    let below = lift(&mut r, cube, port(split, SplitHalf::Below), 0.0);
+    let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let ev = eval(&r.doc);
     assert!(
         matches!(
@@ -687,8 +698,8 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         target: cube.into(),
         tool,
     });
-    let above = lift(&mut r, cube, port(split, SplitHalf::Above), 0.0);
-    let below = lift(&mut r, cube, port(split, SplitHalf::Below), 0.0);
+    let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
+    let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let pat = pattern3(&mut r, cube);
     let p1 = part(&mut r, pat, instance(1));
     let p2 = part(&mut r, pat, instance(2));
@@ -827,11 +838,7 @@ fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, dz: f64) -> RecipeNodeId {
 /// — a body whose table carries genuine N2 ties, symmetric about
 /// `y = 2`. Returns the subtract and the block, its root.
 fn u_cutter_tie(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
-    let a = prism(
-        r,
-        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-        4.0,
-    );
+    let a = prism(r, vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 4.0);
     let b = prism(
         r,
         vec![
@@ -886,8 +893,8 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         target: sub.into(),
         tool,
     });
-    let above = lift(&mut r, root, port(split, SplitHalf::Above), 0.0);
-    let below = lift(&mut r, root, port(split, SplitHalf::Below), 0.0);
+    let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
+    let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let ev = eval(&r.doc);
     assert!(
         corpus::failures(&ev).is_empty(),

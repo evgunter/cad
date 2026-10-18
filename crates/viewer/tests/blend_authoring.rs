@@ -38,8 +38,7 @@ use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendT
 use viewer::display::DisplayView;
 use viewer::pickindex::PickKinds;
 use viewer::session::{
-    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection,
-    SessionOp,
+    DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
 use viewer::tree::{self, RowStatus};
@@ -355,23 +354,22 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
-    let datum = session_insert(
+    // A profile: a node with a name table and no body, so no edges.
+    let profile = session_insert(
         &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Point {
-                position: len3([0.0, 0.0, 0.0]),
-            },
+        SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([0.0, 0.0], SIDE, SIDE)],
         },
     );
     session.pump();
 
     let mut tools = picked_all(&session, target);
-    let refused = load_all(&mut tools, &session, whole(&session, datum));
+    let refused = load_all(&mut tools, &session, whole(&session, profile));
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
             target: BlendTarget {
-                node: datum,
+                node: profile,
                 body: 0
             }
         })
@@ -673,8 +671,7 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let selection = all_edge_names(&session, target);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = common::rectangle_in(&mut session, plane, SIDE, SIDE);
+    let profile = common::rectangle_in(&mut session, SIDE, SIDE);
 
     for op in [
         SessionOp::AddFillet {
@@ -849,20 +846,12 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, SIDE / 2.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: target.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, SIDE / 2.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     // Each half placed by its port (A10), in place of the whole box.
@@ -1029,7 +1018,11 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         session
             .perform(SessionOp::SetSlot {
                 node: b,
-                slot: SlotId::Translation(pncad::document::Axis3::X),
+                slot: crate::fixture::value_slot(
+                    session.committed_doc(),
+                    b,
+                    pncad::document::Coord::Slide(pncad::document::SlideAxis::X),
+                ),
                 value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
                     .expect("a finite length is a value"),
             })

@@ -3,7 +3,7 @@
 //! run against a real document and a real evaluation with no renderer.
 //!
 //! What these rows hold is where the drawing comes from — the VALUE,
-//! placed on the plane the value carries — and the two ways a profile
+//! on the profile's own plane — and the two ways a profile
 //! node draws nothing: its evaluation refused, or a form is editing it
 //! and draws it itself.
 
@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use common::{frame, inserted, square};
+use common::{inserted, rectangle, rectangle_loop};
 use pncad::document::{
     CancelToken, Doc, EvalOptions, Evaluation, ProfileProgram, RecipeNodeId, evaluate,
 };
@@ -27,17 +27,14 @@ const CHORD: f64 = 1.0e-4;
 /// The side of every square these rows draw, in metres.
 const SIDE: f64 = 0.02;
 
-/// A document holding one frame at `origin` (world x and y as its
-/// axes) with a square profile on it, answering the document and the
-/// profile's id.
+/// A document with a square profile of `SIDE` at `origin` on its own
+/// plane added, answering the document and the profile's id.
 fn square_at(
     doc: &Doc<ProfileProgram>,
-    origin: [f64; 3],
-    u: [f64; 3],
+    origin: [f64; 2],
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, plane) = inserted(doc, frame(origin, u, [0.0, 1.0, 0.0]), tol);
-    inserted(&doc, square(plane, SIDE), tol)
+    inserted(doc, rectangle(origin, SIDE, SIDE), tol)
 }
 
 fn evaluated(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
@@ -53,15 +50,14 @@ fn evaluated(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 /// **A committed profile is drawn from its landed value, where the
 /// value puts it.**
 ///
-/// The frame sits half a metre up the z axis, so a drawing placed on
-/// a default plane — or on none — would land at z = 0 and red the
-/// placement half. The loop is the square's four corners, closed:
+/// The value is on the profile's own plane, so every corner is drawn
+/// at its own z = 0. The loop is the square's four corners, closed:
 /// the value has no open chain to leave a leg out of.
 #[test]
 fn a_committed_profile_is_drawn_on_the_plane_its_value_carries() {
     let tol = Tol::witness();
     let doc = Doc::empty_derived("profile-draw", tol);
-    let (doc, profile) = square_at(&doc, [0.0, 0.0, 0.5], [1.0, 0.0, 0.0], tol);
+    let (doc, profile) = square_at(&doc, [0.0, 0.0], tol);
     let evaluation = evaluated(&doc, tol);
 
     let drawn = sketch::committed(&doc, &evaluation, CHORD, None);
@@ -69,7 +65,7 @@ fn a_committed_profile_is_drawn_on_the_plane_its_value_carries() {
     assert_eq!(
         drawn.drawn.iter().map(|p| p.node).collect::<Vec<_>>(),
         vec![profile],
-        "the profile and only the profile: the frame is a datum, drawn elsewhere",
+        "the profile and only the profile",
     );
     let committed = &drawn.drawn[0];
     assert_eq!(committed.loops.len(), 1);
@@ -85,49 +81,10 @@ fn a_committed_profile_is_drawn_on_the_plane_its_value_carries() {
     for [x, y] in &square.points {
         let world = committed.plane.to_world(Point2::new(*x, *y));
         assert!(
-            (world.z - 0.5).abs() < 1.0e-12,
-            "a corner of the square is drawn at z = {}, off its frame",
+            world.z.abs() < 1.0e-12,
+            "a corner of the square is drawn at z = {}, off its own plane",
             world.z,
         );
-    }
-}
-
-/// **A plane that is neither the world's xy nor through its origin**
-/// places the loop by its own axes. The frame here stands at
-/// (0.1, 0.2, 0.3) with sketch x along world y and sketch y along world
-/// z, so a drawing that read the value's coordinates as world x and y,
-/// or dropped the origin, lands every corner elsewhere.
-#[test]
-fn a_profile_on_a_turned_offset_plane_is_drawn_on_that_plane() {
-    let tol = Tol::witness();
-    let doc = Doc::empty_derived("profile-draw-turned", tol);
-    let origin = [0.1, 0.2, 0.3];
-    let (doc, plane) = inserted(&doc, frame(origin, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), tol);
-    let (doc, profile) = inserted(&doc, square(plane, SIDE), tol);
-    let evaluation = evaluated(&doc, tol);
-
-    let drawn = sketch::committed(&doc, &evaluation, CHORD, None).drawn;
-    assert_eq!(
-        drawn.iter().map(|p| p.node).collect::<Vec<_>>(),
-        vec![profile]
-    );
-    let committed = &drawn[0];
-    let corners: Vec<[f64; 3]> = committed.loops[0]
-        .points
-        .iter()
-        .map(|[x, y]| {
-            let world = committed.plane.to_world(Point2::new(*x, *y));
-            world.to_array()
-        })
-        .collect();
-    let expected: Vec<[f64; 3]> = [[0.0, 0.0], [SIDE, 0.0], [SIDE, SIDE], [0.0, SIDE]]
-        .iter()
-        .map(|[x, y]| [origin[0], origin[1] + x, origin[2] + y])
-        .collect();
-    assert_eq!(corners.len(), expected.len());
-    for (got, want) in corners.iter().zip(&expected) {
-        let off = (0..3).map(|i| (got[i] - want[i]).abs()).fold(0.0, f64::max);
-        assert!(off < 1.0e-12, "a corner is drawn at {got:?}, not {want:?}");
     }
 }
 
@@ -139,8 +96,8 @@ fn a_profile_on_a_turned_offset_plane_is_drawn_on_that_plane() {
 fn the_profile_being_edited_is_the_one_left_out() {
     let tol = Tol::witness();
     let doc = Doc::empty_derived("profile-draw-except", tol);
-    let (doc, first) = square_at(&doc, [0.0; 3], [1.0, 0.0, 0.0], tol);
-    let (doc, second) = square_at(&doc, [0.0, 0.0, 0.1], [1.0, 0.0, 0.0], tol);
+    let (doc, first) = square_at(&doc, [0.0, 0.0], tol);
+    let (doc, second) = square_at(&doc, [0.1, 0.0], tol);
     let evaluation = evaluated(&doc, tol);
     let nodes = |except| {
         sketch::committed(&doc, &evaluation, CHORD, except)
@@ -159,19 +116,29 @@ fn the_profile_being_edited_is_the_one_left_out() {
 /// viewport could not draw, and a refused node has none: the tree's
 /// badge says why it is missing.
 ///
-/// The frame's two axes are parallel, which the evaluator refuses, so
-/// the profile on it has no plane and no value. A healthy profile
-/// beside it is the control: the pass still draws what did evaluate.
+/// The profile's two loops cross, which validation refuses, so the
+/// profile has no value. A healthy profile beside it is the control:
+/// the pass still draws what did evaluate.
 #[test]
 fn a_profile_whose_evaluation_refused_draws_nothing() {
     let tol = Tol::witness();
     let doc = Doc::empty_derived("profile-draw-refused", tol);
-    let (doc, refused) = square_at(&doc, [0.0; 3], [0.0, 1.0, 0.0], tol);
-    let (doc, healthy) = square_at(&doc, [0.0; 3], [1.0, 0.0, 0.0], tol);
+    let (doc, refused) = inserted(
+        &doc,
+        pncad::document::Node::Profile(ProfileProgram {
+            loops: vec![
+                rectangle_loop([0.0, 0.0], SIDE, SIDE),
+                rectangle_loop([SIDE / 2.0, SIDE / 2.0], SIDE, SIDE),
+            ],
+            ids: Vec::new(),
+        }),
+        tol,
+    );
+    let (doc, healthy) = square_at(&doc, [0.0, 0.0], tol);
     let evaluation = evaluated(&doc, tol);
     assert!(
         evaluation.value(refused).is_none(),
-        "the fixture: a profile on a degenerate frame has no value",
+        "the fixture: a profile whose loops cross has no value",
     );
 
     let drawn = sketch::committed(&doc, &evaluation, CHORD, None);
@@ -190,11 +157,10 @@ fn a_profile_whose_evaluation_refused_draws_nothing() {
 #[test]
 fn a_validated_sub_tolerance_arc_draws_as_its_line() {
     use pncad::profile::{ArcData, Step, Target};
-    use viewer::session::{DocSession, ProfilePlane, ProfileShape, SessionOp};
+    use viewer::session::{DocSession, ProfileShape, SessionOp};
 
     let tol = Tol::witness();
     let mut session = DocSession::inline(Doc::empty_derived("profile-draw-undrawable", tol), tol);
-    let plane = common::xy_frame_in(&mut session);
     let template = ProfileShape::Path {
         steps: vec![
             Step::At(Point2::new(0.0, 0.0)),
@@ -209,7 +175,6 @@ fn a_validated_sub_tolerance_arc_draws_as_its_line() {
     let profile = common::session_insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
             loops: vec![common::shape(&template)],
         },
     );

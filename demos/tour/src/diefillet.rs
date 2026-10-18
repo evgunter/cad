@@ -47,10 +47,10 @@
 use pncad::document::{Bodies, BooleanValue, Frame, Operand, RefusingReach, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
-    CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
-    SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
+    CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
+    Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind, SurfaceKindSet, ValuePayload,
+    WrittenLength, all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -272,7 +272,10 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         Node::Revolve {
             profile: ball_p.into(),
             // The pole axis: the meridian's own +y through (0, 0).
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
@@ -381,10 +384,7 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let blanked = a.insert(
-        Node::fillet(pipped, len(R), box_edges.clone()),
-        tol,
-    );
+    let blanked = a.insert(Node::fillet(pipped, len(R), box_edges.clone()), tol);
 
     // The 21 pip rims: plane against sphere, UNORDERED across the edge
     // (the atom takes two SETS, not a left and a right). What this
@@ -406,10 +406,7 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let composed = a.insert(
-        Node::fillet(blanked, len(RIM_R), rims.clone()),
-        tol,
-    );
+    let composed = a.insert(Node::fillet(blanked, len(RIM_R), rims.clone()), tol);
 
     Die {
         doc: a.doc,

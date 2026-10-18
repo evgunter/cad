@@ -112,7 +112,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     );
     let (d, up) = on_frame(
         d,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -133,6 +133,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             distance: len(2.0),
         },
     );
+    let (d, ub) = crate::fixture::slid(d, ua, ub, [0.0, 0.0, 1.0]);
     let (d, us) = insert(
         &d,
         Node::Subtract {

@@ -15,7 +15,7 @@ use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::select::{ContactClass, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
-use viewer::session::{DatumSpec, DocSession, FaceSelection, PatternRuleSpec, SessionOp};
+use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 #[test]
 fn the_admission_exposure_is_the_kernels_own_table() {
@@ -581,15 +581,6 @@ const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 /// else. The ROTATION is the point: a linear rule moves only the
 /// origin, and a frame has two more channels.
 fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let axis = common::session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: common::len3([0.0; 3]),
-                direction: common::scl3([0.0, 1.0, 0.0]),
-            },
-        },
-    );
     session.pump();
     let pattern = common::session_insert(
         session,
@@ -597,7 +588,8 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                axis,
+                through: common::len3([0.0; 3]),
+                direction: common::scl3([0.0, 1.0, 0.0]),
                 step: ang(QUARTER_TURN),
             },
         },

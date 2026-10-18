@@ -242,10 +242,9 @@ pub(crate) fn cases() -> Vec<Case> {
 const EDITED: &[(&str, usize, f64)] = &[("r1two", 1, 0.05), ("r1flush", 2, 0.05)];
 
 impl Case {
-    /// This case with block `i` behind a `Transform` translated `dx`
-    /// along x: for two values of `dx`, the same recipe, node for node
-    /// and step for step, with only a value changed, as a value edit
-    /// leaves it.
+    /// This case with block `i`'s placement slid `dx` along x: for two
+    /// values of `dx`, the same recipe, node for node and step for
+    /// step, with only a value changed, as a value edit leaves it.
     fn moved(&self, i: usize, dx: f64) -> Case {
         Case {
             label: format!("{} moved {dx}", self.label),
@@ -309,13 +308,12 @@ pub(crate) fn runs_in(
     ),
 ) {
     let (doc, mut ids) = document(&case.blocks, &case.creation);
-    let doc = match case.shift {
-        None => doc,
-        // The shift is a value edit of one placement — its slot keeps
-        // the variable it reads, whose value moves, so nothing is minted
-        // — and every shift of a case is one document's history and
-        // names one set of nodes. The root block is shifted through a
-        // copy of it placed over itself.
+    // The shift is a value edit of one placement's slide along x — a
+    // slot edit — made after the unions are inserted, so every shift of
+    // a case names one set of nodes. The root block is shifted through
+    // a copy of it placed over itself.
+    let (doc, shift) = match case.shift {
+        None => (doc, None),
         Some((i, dx)) => {
             let (doc, tr) = match doc.node(ids[i]) {
                 Some(Node::Place { .. }) => (doc, ids[i]),
@@ -327,12 +325,19 @@ pub(crate) fn runs_in(
                 tr,
                 editor_core::Coord::Slide(editor_core::SlideAxis::X),
             );
-            let var = doc.slot(tr, slot).expect("a placement reads its value");
+            (doc, Some((tr, slot, dx)))
+        }
+    };
+    let shifted = |doc: editor_core::ProfileDoc| match shift.clone() {
+        None => doc,
+        Some((node, slot, dx)) => {
             crate::fixture::step(
                 doc,
-                editor_core::DocEdit::SetVarValue {
-                    var: var.into(),
-                    value: editor_core::FreeValue::Continuous(dx),
+                editor_core::DocEdit::SetParam {
+                    node,
+                    slot,
+                    value: len(dx).into(),
+                    fresh: Vec::new(),
                 },
             )
             .0
@@ -348,6 +353,7 @@ pub(crate) fn runs_in(
             for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
                 let members: Vec<RecipeNodeId> = olab.iter().map(|&i| outer[i]).collect();
                 let (docx, top) = crate::fixture::union_over(d1.clone(), &members);
+                let docx = shifted(docx);
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
@@ -363,6 +369,7 @@ pub(crate) fn runs_in(
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
         let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
+        let docx = shifted(docx);
         let ev = run(&docx);
         each(&format!("{order:?}"), &docx, &ev, &ids, &[("U", union)]);
     }
@@ -788,15 +795,17 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         &[0, 1, 2],
     );
     let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let rim = |m: RecipeNodeId| own_name(
-        &doc,
-        m,
-        EntityKind::Edge,
-        vec![RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
-        )],
-    );
+    let rim = |m: RecipeNodeId| {
+        own_name(
+            &doc,
+            m,
+            EntityKind::Edge,
+            vec![RoleSeg::RimEdge(
+                CapEnd::End,
+                crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
+            )],
+        )
+    };
     // x-span → the name there, for every edge along the rim line.
     let along = |order: [editor_core::RecipeNodeId; 3]| {
         let (docx, union) = crate::fixture::union_over(doc.clone(), &order);

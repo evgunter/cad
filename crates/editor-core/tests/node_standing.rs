@@ -291,7 +291,7 @@ fn every_standing_renders_one_way_through_every_door() {
 #[test]
 fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let s = Standings::new();
-    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    let (placed, placement) = (s.doc.clone(), s.poisoned);
     let ev = run(&placed, &CancelToken::new());
     let refusal = run_checks(&placed, &ev, &ChecksConfig::default(), Tol::witness())
         .expect_err("a poisoned placement refuses the registry");

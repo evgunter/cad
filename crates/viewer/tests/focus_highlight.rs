@@ -337,7 +337,12 @@ fn die(tol: Tol) -> Die {
         "the die is rim-blend over box-blend over cut over extrude"
     );
     let ball = first(&doc, |n| matches!(n, Node::Revolve { .. }));
-    let pip = first(&doc, |n| matches!(n, Node::Transform { .. }));
+    let pip = doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| id != copy && matches!(doc.node(id), Some(Node::Place { .. })))
+        .expect("the die places its pips");
     let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     Die {

@@ -20,7 +20,6 @@
 
 use crate::common;
 use crate::common::plate_index;
-use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 

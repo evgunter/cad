@@ -41,7 +41,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    deg,
     evaluate,
     m,
     mm,

@@ -250,10 +250,10 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Frame, Node, evaluate, mm
 
 
-def slab(doc, z0, z1):
+def slab(doc, z0, z1, on=None):
     profile = doc.insert(
         Node.polygon(
             [
@@ -262,17 +262,20 @@ def slab(doc, z0, z1):
                 (Formula.length_in(10, mm), Formula.length_in(10, mm)),
                 (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    # A slab that joins `on` stands against it, `z0` up its z.
+    if on is None:
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
 
 
 # Section 3's sliver, now inside a document: the upper slab stands
 # 2 nm above the lower one.
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
-upper = slab(doc, 10.000002 * mm, 20 * mm)
+upper = slab(doc, 10.000002 * mm, 20 * mm, lower)
 fused = doc.insert(Node.union([lower, upper]))
 
 ev = evaluate(doc)                     # does NOT raise
@@ -294,10 +297,10 @@ margins decided one surface, each naming its two faces by the names
 their own operands gave them.
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, mm
+from pncad import Doc, Formula, Frame, Node, evaluate, mm
 
 
-def slab(doc, z0, z1):
+def slab(doc, z0, z1, on=None):
     profile = doc.insert(
         Node.polygon(
             [
@@ -306,15 +309,18 @@ def slab(doc, z0, z1):
                 (Formula.length_in(10, mm), Formula.length_in(10, mm)),
                 (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    # A slab that joins `on` stands against it, `z0` up its z.
+    if on is None:
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
 
 
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
-upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
+upper = slab(doc, 10 * mm, 20 * mm, lower)   # they meet exactly at z = 10 mm
 glued = doc.insert(Node.union([lower, upper]))
 
 ev = evaluate(doc)
@@ -335,12 +341,12 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Frame, Node, evaluate, mm
 
 doc = Doc()
 
 
-def slab(z0, z1):
+def slab(z0, z1, on=None):
     profile = doc.insert(
         Node.polygon(
             [
@@ -349,16 +355,19 @@ def slab(z0, z1):
                 (Formula.length_in(10, mm), Formula.length_in(10, mm)),
                 (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    # A slab that joins `on` stands against it, `z0` up its z.
+    if on is None:
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
 
 
 lower = slab(0 * mm, 10 * mm)
-upper = slab(10.000002 * mm, 20 * mm)  # a sliver above `lower`
+upper = slab(10.000002 * mm, 20 * mm, lower)  # a sliver above `lower`
 broken = doc.insert(Node.union([lower, upper]))
-third = slab(-20 * mm, -10 * mm)
+third = slab(-20 * mm, -10 * mm, lower)
 downstream = doc.insert(Node.union([broken, third]))
 
 ev = evaluate(doc)

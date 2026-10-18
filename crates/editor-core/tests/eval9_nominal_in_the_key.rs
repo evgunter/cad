@@ -27,8 +27,8 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -52,8 +52,8 @@ fn var(doc: &ProfileDoc) -> editor_core::VarId {
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a
-/// quadrilateral profile whose top-right corner stands `1 + u` up, `u`
-/// built from `p` by `u_of`, and its extrude. The extrude holds no
+/// square profile slid `u` along its own x, `u` built from `p` by
+/// `u_of`, and its extrude. The extrude holds no
 /// parameter, so everything that moves in these rows moves through the
 /// profile.
 fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
@@ -71,19 +71,21 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
         .expect("the parameter declares")
         .doc;
     let len = fixture::len;
-    let corner = Formula::add(
-        len(1.0),
-        Formula::mul(u_of(Formula::named(p(), Dimension::Scalar)), len(1.0))
-            .expect("a scalar times a length"),
-    )
-    .expect("two lengths");
+    let x = |at: f64| {
+        Formula::add(
+            len(at),
+            Formula::mul(u_of(Formula::named(p(), Dimension::Scalar)), len(1.0))
+                .expect("a scalar times a length"),
+        )
+        .expect("two lengths")
+    };
     let to = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let program = ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([len(-1.0), len(-1.0)]),
-            to(len(1.0), len(-1.0)),
-            to(len(1.0), corner),
-            to(len(-1.0), len(1.0)),
+            ProgramStep::At([x(-1.0), len(-1.0)]),
+            to(x(1.0), len(-1.0)),
+            to(x(1.0), len(1.0)),
+            to(x(-1.0), len(1.0)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
@@ -114,7 +116,7 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
     .doc
 }
 
-/// `u = p` — the probe's corner.
+/// `u = p` — the probe's slide.
 fn doc_at(nominal: f64) -> ProfileDoc {
     doc_with(nominal, |param| param)
 }
@@ -290,12 +292,24 @@ mod over_a_param_box {
 /// f64: `u = 1 / p` with `p` at nominal `0` evaluates to `0.5` at
 /// the lane's `p = 2` and refuses non-finite at the nominal. The profile
 /// names the slot it refused at, and the extrude downstream is poisoned
-/// through it.
+/// through it. The profile is inserted at `p = 1`, where its program
+/// resolves, and `p` is then set to `0`.
 #[test]
 fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
-    let doc = doc_with(0.0, |param| {
+    let doc = doc_with(1.0, |param| {
         Formula::div(fixture::scl(1.0), param).expect("scalar over scalar")
     });
+    let doc = doc
+        .apply(
+            &DocEdit::SetVarValue {
+                var: p().into(),
+                value: editor_core::FreeValue::Continuous(0.0),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the value edit applies")
+        .doc;
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -328,10 +342,18 @@ fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
 fn the_probe_document_carries_the_parameter_only_in_the_profile() {
     let doc = doc_at(0.0);
     let var = doc.var_named(p().as_str()).expect("the profile's variable");
-    let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
+    let Some(Node::Profile(program)) = doc.node(profile(&doc)).map(|n| n.written(&doc)) else {
         panic!("a profile first");
     };
-    assert!(program.reads(var), "the program holds the parameter");
+    let mut program_refs = Vec::new();
+    let _ = program.try_map_slots(&mut |slot| {
+        slot.var_reads(&mut program_refs);
+        Ok::<_, ()>(slot.clone())
+    });
+    assert!(
+        program_refs.iter().any(|(v, _)| *v == var),
+        "the program holds the parameter"
+    );
     let Some(Node::Extrude { distance, .. }) = doc.node(extrude(&doc)) else {
         panic!("an extrude second");
     };

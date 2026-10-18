@@ -28,7 +28,7 @@ def _cross(a, b):
 
 
 def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=True))
 
 
 def frame_at(origin, u, v):
@@ -38,10 +38,10 @@ def frame_at(origin, u, v):
     `Frame.point_at`, aiming its z and rolling its y onto `v`, so an
     axis-aligned frame's columns are exact."""
     x = _unit(u)
-    y = _unit(tuple(c - x_c * _dot(v, x) for c, x_c in zip(v, x)))
+    y = _unit(tuple(c - x_c * _dot(v, x) for c, x_c in zip(v, x, strict=True)))
     z = _cross(x, y)
     eye = tuple(c * m for c in origin)
-    target = tuple((o + d) * m for o, d in zip(origin, z))
+    target = tuple((o + d) * m for o, d in zip(origin, z, strict=True))
     return Frame.point_at(eye, target, y)
 
 
@@ -63,20 +63,17 @@ def plane_on(doc, body, origin, normal):
     ev = evaluate(doc)
     n = _unit(normal)
     for face in sorted(ev.all_faces(body)):
-        try:
-            pose = ev.face_frame(body, face)
-        except Exception:  # noqa: BLE001 — a face with no canonical frame is not a plane
+        if ev.face_carrier_kind(body, face) != SurfaceKind.Plane:
             continue
-        if pose.u_ref is None:
-            continue
+        pose = ev.face_frame(body, face)
         out = tuple(c if pose.sense else -c for c in pose.axis)
-        if abs(abs(_dot(out, n)) - 1.0) > 1e-12 or ev.face_carrier_kind(body, face) != SurfaceKind.Plane:
+        if abs(abs(_dot(out, n)) - 1.0) > 1e-12:
             continue
         plane = PoseDef.plane(body, face)
         if _dot(out, n) < 0.0:
             plane = PoseDef.flip(plane)
         at = tuple(c.meters for c in pose.origin)
-        by = _dot(tuple(o - a for o, a in zip(origin, at)), n)
+        by = _dot(tuple(o - a for o, a in zip(origin, at, strict=True)), n)
         if by == 0.0:
             return plane
         return PoseDef.slide(plane, RoleRead(plane, "normal"), by * m)
@@ -102,7 +99,7 @@ def own_frame(doc, body, origin=(0.0, 0.0, 0.0), x=(1.0, 0.0, 0.0)):
     vertex = [
         v
         for v in ev.all_vertices(body)
-        if max(abs(c.meters - w) for c, w in zip(ev.vertex_position(body, v), x)) < 1e-12
+        if max(abs(c.meters - w) for c, w in zip(ev.vertex_position(body, v), x, strict=True)) < 1e-12
     ]
     assert len(vertex) == 1, f"{body} has no vertex at {x}"
     axis = PoseDef.axis(body, edge[0])

@@ -192,11 +192,9 @@ world's space, and the world's space is the product.
 A pose is read off a face of a NODE by a NAME — the instance-qualified
 text `Evaluation.select` answers with when you query it on an
 instantiate node, so no name is ever composed by hand. The node is the
-geometry the pose is about. It is the instance itself in the plain
-case, and it diverges the moment something moves an instance: a
-`Node.transform` moves a body and mints no name of its own, so the
-name alone cannot tell the face on the instance from the face on the
-transformed instance, and the node read is what does.
+geometry the pose is about: the instance itself in the plain case,
+and a placement of it when the pose is read off a placed copy — the
+node read is what says which body the face is on.
 
 ```python
 import tempfile

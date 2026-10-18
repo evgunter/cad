@@ -25,9 +25,7 @@ use viewer::frame;
 use viewer::marks;
 use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{
-    DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
-};
+use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 
 /// Every mate the session's document holds — each constraint between
@@ -234,13 +232,13 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(restored.stats().triangles, full.stats().triangles);
 }
 
-/// **A held face on a hidden instance is neither marked nor committed
-/// against.** Hiding edits what the picture emits and not what an id
-/// means, so the face's patch id outlives the hide; what the held mark
-/// and the add-datum form's gate both read is whether the picture
-/// DRAWS it (`marks::drawn_patch`), and after the hide it does not.
+/// **A held face on a hidden instance is not marked.** Hiding edits
+/// what the picture emits and not what an id means, so the face's patch
+/// id outlives the hide; what the held mark reads is whether the
+/// picture DRAWS it (`marks::drawn_patch`), and after the hide it does
+/// not.
 #[test]
-fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
+fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let tol = Tol::witness();
     let bench = asm::bench("held-hide", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -254,34 +252,18 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     let read = |session: &DocSession| {
         let view = session.display_view();
         let (marked, _) = marks::compose(&index, &view, &Selection::None, None, &held);
-        let seat = face_frame_seat_drawn(session.landed_pair(), Some(&face), Some((&index, &view)));
-        (marked.held[0], seat)
+        marked.held[0]
     };
-    let (mark, seat) = read(&session);
+    let mark = read(&session);
     assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
-    assert_ne!(
-        seat,
-        Err(FaceFrameFault::NotDrawn),
-        "and not refused as undrawn"
-    );
 
     let outcome = session.perform(SessionOp::SetInstanceHidden {
         instance: bench.post_b,
         hidden: true,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (mark, seat) = read(&session);
+    let mark = read(&session);
     assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
-    // The button commits nothing against it either way: an instance's
-    // value is its copies, which no face-frame seat reads as one body,
-    // and that refusal is said before the picture is asked.
-    assert!(
-        matches!(
-            seat,
-            Err(FaceFrameFault::NotDrawn | FaceFrameFault::NotOneBody { .. })
-        ),
-        "the button would commit against a face nothing marks: {seat:?}"
-    );
 }
 
 /// Two instances of one part consumed by a single boolean, which is
@@ -558,7 +540,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    let datum = common::xy_frame_in(&mut session);
+    let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     session.pump();
     let doc = session.doc();
 
@@ -568,9 +550,9 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a live InstantiatePart is admitted"
     );
     assert_eq!(
-        display::instance_check(doc, datum),
+        display::instance_check(doc, profile),
         Err(AdmissionFault::NotAnInstance {
-            node: doc.spoken(datum)
+            node: doc.spoken(profile)
         }),
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
@@ -593,8 +575,8 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let absent_says = display::instance_check(doc, absent)
         .expect_err("absent refuses")
         .to_string();
-    let wrong_kind_says = display::instance_check(doc, datum)
-        .expect_err("a datum is not an instance")
+    let wrong_kind_says = display::instance_check(doc, profile)
+        .expect_err("a profile is not an instance")
         .to_string();
     assert_eq!(
         absent_says, "node 00000000270f is not in the document",
@@ -602,7 +584,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     );
     assert_eq!(
         wrong_kind_says,
-        format!("{} is not a part instance", doc.spoken(datum)),
+        format!("{} is not a part instance", doc.spoken(profile)),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );

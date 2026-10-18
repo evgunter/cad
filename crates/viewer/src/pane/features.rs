@@ -791,7 +791,7 @@ mod tests {
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
-        use crate::test_support::{ang, square_profile, inserted, len};
+        use crate::test_support::{ang, inserted, len, square_profile};
 
         let tol = Tol::witness();
         let run = |doc: &Doc<_>| {

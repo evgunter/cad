@@ -33,8 +33,8 @@ use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    Frame, LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
+    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId, RefusingReach, Value, ValuePayload, apply, evaluate, place_at,
     split,
 };
@@ -168,7 +168,10 @@ fn sharp_lid_in(
         &mut doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },

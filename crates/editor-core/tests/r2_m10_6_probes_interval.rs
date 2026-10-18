@@ -183,11 +183,11 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)).in_copy(placed),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)).in_copy(placed),
             ),
         ],
     );
@@ -420,6 +420,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         profile: block_profile.into(),
         distance: len(2.0),
     });
+    let block = r.against(c, block, &editor_core::Frame::IDENTITY);
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[

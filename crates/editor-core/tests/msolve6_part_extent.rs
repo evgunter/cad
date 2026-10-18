@@ -1487,36 +1487,41 @@ fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
 /// **A whole-assembly split pins its instance where it stands**: the
 /// cut's instances move into the new part, and the instance left
 /// behind stands where the part's world stands, by one mate to the
-/// world, whether or not the caller holds a resolver.
+/// world read off the part's geometry — so a split handed no resolver
+/// has no geometry to stand it on, and refuses typed.
 ///
-/// *Breaks if* a split leaves an unpinned instance.
+/// *Breaks if* a split leaves an unpinned instance, or splits without
+/// the geometry its pin reads.
 #[test]
-fn a6_a_split_pins_its_instance_where_it_stands_with_or_without_a_resolver() {
+fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _) = seat(doc, (a, body), (b, body));
     // Both instances, the second's bundle holding the seat.
     let cut = fixture::with_placements(&doc, &[a, b].into_iter().collect());
-    for (label, resolver) in [("held", opts.resolver.as_ref()), ("none", None)] {
-        let out = editor_core::split(
+    let split = |resolver| {
+        editor_core::split(
             &doc,
             &cut,
-            DocumentId::derive(&format!("msolve6-p6-new-part-{label}")),
+            DocumentId::derive("msolve6-p6-new-part"),
             Tol::witness(),
             resolver,
         )
-        .unwrap_or_else(|e| panic!("a whole-assembly cut splits ({label}): {e}"));
-        let remainder = &out.remainder;
-        let placements = remainder.placements();
-        assert_eq!(placements.len(), 1, "one instance is left behind ({label})");
-        let bundle = fixture::bundle(remainder, placements[0]);
-        let mates: Vec<_> = bundle.iter().filter_map(|c| c.mate()).collect();
-        assert!(
-            matches!(mates.as_slice(), [m] if matches!(m.to, editor_core::Target::World(_))),
-            "the instance stands where it stands by one mate to the world ({label}): \
-             {bundle:?}"
-        );
-    }
+    };
+    let out = split(opts.resolver.as_ref()).unwrap_or_else(|e| panic!("a whole-assembly cut splits: {e}"));
+    let remainder = &out.remainder;
+    let placements = remainder.placements();
+    assert_eq!(placements.len(), 1, "one instance is left behind");
+    let bundle = fixture::bundle(remainder, placements[0]);
+    let mates: Vec<_> = bundle.iter().filter_map(|c| c.mate()).collect();
+    assert!(
+        matches!(mates.as_slice(), [m] if matches!(m.to, editor_core::Target::World(_))),
+        "the instance stands where it stands by one mate to the world: {bundle:?}"
+    );
+    assert!(
+        matches!(split(None), Err(editor_core::SplitError::InstanceUnstood)),
+        "with no resolver the part offers no geometry to stand its instance on"
+    );
 }
 
 /// **Two mated parts evaluate once each**: a chain over two distinct

@@ -125,7 +125,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
     let thickness = Formula::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
-    let _body = r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
     });
@@ -146,6 +146,9 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
     let bore_a = bore(&mut r, BORE_A_X, "bore_a");
     let bore_b = bore(&mut r, BORE_B_X, "bore_b");
 
+    // Each hole joins the body's space where it is drawn.
+    let bore_a = r.against(body, bore_a, &editor_core::Frame::IDENTITY);
+    let bore_b = r.against(body, bore_b, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

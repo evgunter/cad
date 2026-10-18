@@ -62,7 +62,6 @@ from pncad import (
     load,
     m,
     mm,
-    rad,
 )
 
 SQUARE = [
@@ -372,7 +371,7 @@ class TestTheClosedForms(unittest.TestCase):
             for v in ev.all_vertices(here)
             if max(
                 abs(c.meters - w)
-                for c, w in zip(ev.vertex_position(here, v), (at[0] - travel, at[1], at[2]))
+                for c, w in zip(ev.vertex_position(here, v), (at[0] - travel, at[1], at[2]), strict=True)
             )
             < 1e-9
         ]

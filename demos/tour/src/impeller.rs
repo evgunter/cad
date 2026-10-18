@@ -55,8 +55,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, BooleanValue, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
+    Bodies, BooleanValue, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    Frame, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
     RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;

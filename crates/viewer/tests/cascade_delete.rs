@@ -12,14 +12,15 @@
 //! the gallery is a generated artifact, and a test that reads one is
 //! pinned to whether somebody has run the demo. Nothing here
 //! evaluates — the cascade is a statement about the document, and the
-//! session's inline evaluator only runs inside `pump`.
+//! session's inline evaluator only runs inside `pump` (placing each
+//! pip reads the blank's geometry, which is the fixture's evaluation,
+//! not the session's).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order};
 use pncad::geom_core::Tol;
@@ -33,8 +34,9 @@ const PIPS: usize = 21;
 /// one placed pip from the last, under two stacked fillets.
 struct Die {
     doc: Doc<ProfileProgram>,
-    /// The pip placements — inputs to the chain, downstream of nothing.
-    transforms: Vec<RecipeNodeId>,
+    /// The pip placements — inputs to the chain, each reading the
+    /// blank's geometry and the pip's.
+    placements: Vec<RecipeNodeId>,
     /// The subtraction chain, in order.
     booleans: Vec<RecipeNodeId>,
     /// The inner and outer fillet, in that order.
@@ -61,28 +63,21 @@ fn die_shaped(tol: Tol) -> Die {
         },
         tol,
     );
-    let mut transforms = Vec::new();
+    // Every pip placed against the blank first — a placement reads the
+    // blank's geometry, so each is placed over a document that holds no
+    // boolean yet — then the chain.
+    let mut placements = Vec::new();
+    for i in 0..PIPS {
+        let dx = 0.001 * f64::from(u32::try_from(i).expect("a small index"));
+        let (next, placed) = crate::fixture::slid(doc, blank, pip, [dx, 0.0, 0.0]);
+        doc = next;
+        placements.push(placed);
+    }
     let mut booleans = Vec::new();
     let mut body = blank;
-    for i in 0..PIPS {
-        let (next, placed) = common::inserted(
-            &doc,
-            Node::transform(
-                pip,
-                pncad::document::Step::Rigid {
-                    translation: [
-                        common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
-                        common::len(0.0),
-                        common::len(0.0),
-                    ],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
-            tol,
-        );
+    for &placed in &placements {
         let (next, cut) = common::inserted(
-            &next,
+            &doc,
             Node::Subtract {
                 from: body.into(),
                 tool: placed.into(),
@@ -90,7 +85,6 @@ fn die_shaped(tol: Tol) -> Die {
             tol,
         );
         doc = next;
-        transforms.push(placed);
         booleans.push(cut);
         body = cut;
     }
@@ -106,7 +100,7 @@ fn die_shaped(tol: Tol) -> Die {
     );
     Die {
         doc,
-        transforms,
+        placements,
         booleans,
         fillets: [inner, outer],
     }
@@ -158,7 +152,7 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
             "boolean {i} is upstream and stays"
         );
     }
-    for (i, &placed) in die.transforms.iter().enumerate() {
+    for (i, &placed) in die.placements.iter().enumerate() {
         assert!(
             after.node(placed).is_some(),
             "pip {i}'s placement only FED the cut and stays — the splice that \

@@ -35,14 +35,14 @@ use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId,
-    StepArg, VarName,
+    Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the variables are first declared:
@@ -86,6 +86,29 @@ fn drive(session: &mut DocSession, node: RecipeNodeId, slot: SlotId, text: &str)
     );
 }
 
+/// **Drives the lift of the moved copy `placement`** by `text`, a
+/// height up the copy's own z that today is `lift`.
+///
+/// The lift is the one world-read slide of the placement's mate: the
+/// copy's start cap on the target's, slid along the target cap's
+/// outward normal — the target's −z — so the slot holds `-lift` and is
+/// driven by the expression's negation.
+fn drive_lift(session: &mut DocSession, placement: RecipeNodeId, lift: f64, text: &str) {
+    let rows: Vec<props::SlotRow> = props::slot_rows(session.committed_doc(), placement)
+        .into_iter()
+        .filter(|row| matches!(row.slot, SlotId::WorldSlide { .. }))
+        .collect();
+    let [row] = rows.as_slice() else {
+        panic!("one lift on {placement}: {rows:?}");
+    };
+    assert_eq!(
+        row.value,
+        Ok(SlotValue::Continuous(-lift)),
+        "the lift stands where the move put it"
+    );
+    drive(session, placement, row.slot, &format!("-({text})"));
+}
+
 /// The one slot row `node` carries for `slot`.
 fn row_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) -> props::SlotRow {
     props::slot_rows(doc, node)
@@ -124,7 +147,7 @@ fn spoken(doc: &Doc<ProfileProgram>, name: &VarName) -> pncad::document::SpokenV
     doc.spoken_var(common::var_of(doc, name.as_str()))
 }
 
-/// One drum: a circle profile on world XY driven by `radius_expr`,
+/// One drum: a circle profile on its own plane driven by `radius_expr`,
 /// extruded up by a literal the caller may re-drive afterwards.
 ///
 /// Stacked extruded drums rather than one revolved silhouette: this
@@ -135,11 +158,9 @@ fn drum(
     radius_expr: &str,
     distance: f64,
 ) -> (RecipeNodeId, RecipeNodeId) {
-    let plane = common::xy_frame_in(session);
     let profile = session_insert(
         session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.
@@ -300,18 +321,15 @@ fn the_parametric_living_walk() {
             rotation_angle: ang(0.0),
         },
     );
-    drive(
-        &mut session,
-        tower_up,
-        SlotId::Translation(Axis3::Z),
-        "height - embed",
-    );
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![base.into(), tower_up.into()]),
         },
     );
+    // The union places the moved tower against the base where it
+    // stands; its lift is then driven on that placement.
+    drive_lift(&mut session, tower_up, 0.025, "height - embed");
     let r1 = BASE_R * TAPER;
     let got = body_volume(&mut session, hull, tol);
     let want = PI * (BASE_R * BASE_R * HEIGHT + r1 * r1 * (2.0 * HEIGHT) - r1 * r1 * EMBED);
@@ -372,18 +390,13 @@ fn the_parametric_living_walk() {
             rotation_angle: ang(0.0),
         },
     );
-    drive(
-        &mut session,
-        lamp_up,
-        SlotId::Translation(Axis3::Z),
-        "height * 3.0 - embed * 2.0",
-    );
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![hull.into(), lamp_up.into()]),
         },
     );
+    drive_lift(&mut session, lamp_up, 0.08, "height * 3.0 - embed * 2.0");
     assert_eq!(
         common::world(session.committed_doc()),
         [lighthouse],
@@ -393,13 +406,12 @@ fn the_parametric_living_walk() {
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    // Fourteen: the ten features, the three sketch frames they are
-    // drawn on — a plane is a feature of the document now, and the
-    // tree says so — and the one world placement of the finished part.
+    // Eleven: the ten features and the one world placement of the
+    // finished part.
     assert_eq!(
         rows.len(),
-        14,
-        "ten features, three frames and the lighthouse's placement"
+        11,
+        "ten features and the lighthouse's placement"
     );
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),

@@ -6,13 +6,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::resolve_group_membership::Placed;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CancelToken, Coord, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
     Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg,
-    RunCtx, SlideAxis, SlotId, StableName, UpstreamCause, evaluate,
+    RunCtx, SlotId, StableName, UpstreamCause, evaluate,
 };
 use fixture::{insert, len, scl, step};
 use geom_core::Sign;
@@ -49,30 +50,18 @@ fn block(
     )
 }
 
-/// A copy of `input` placed against `target`, `z0` up its own `z`: the
+/// A copy of `input` placed against `target`, `z0` up its own `z`: its
 /// placement, whose output is the copy and whose values slide it.
-fn placed(
-    doc: ProfileDoc,
-    target: RecipeNodeId,
-    input: RecipeNodeId,
-    z0: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    fixture::slid(doc, target, input, [0.0, 0.0, z0])
+fn placed(doc: ProfileDoc, target: RecipeNodeId, input: RecipeNodeId, z0: f64) -> (ProfileDoc, Placed) {
+    crate::resolve_group_membership::placed(doc, target, input, z0)
 }
 
-/// `node`'s placement value on `axis` set to `to`.
-fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: SlideAxis, to: f64) -> ProfileDoc {
-    let slot = fixture::value_slot(&doc, node, Coord::Slide(axis));
-    step(
-        doc,
-        DocEdit::SetParam {
-            node,
-            slot,
-            value: len(to).into(),
-            fresh: Vec::new(),
-        },
-    )
-    .0
+/// `p`'s copy slid `to` along its target's own `axis` (0, 1, 2 for x, y,
+/// z) from where it was placed.
+fn slide(doc: ProfileDoc, p: &Placed, axis: usize, to: f64) -> ProfileDoc {
+    let mut by = [0.0; 3];
+    by[axis] = to;
+    crate::resolve_group_membership::moved(doc, p, by)
 }
 
 /// A 3×3×1 plate at x offset `dx` with a bar crossing its end cap
@@ -83,11 +72,11 @@ fn slot_on(
     doc: ProfileDoc,
     target: Option<RecipeNodeId>,
     dx: f64,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, Placed, RecipeNodeId) {
     let (doc, plate) = block(doc, (dx, dx + 3.0), (0.0, 3.0), 1.0);
     let (doc, a, root) = match target {
         Some(t) => {
-            let (doc, a) = placed(doc, t, plate, 0.0);
+            let (doc, a) = crate::fixture::slid(doc, t, plate, [0.0; 3]);
             (doc, a, t)
         }
         None => (doc, plate, plate),
@@ -98,14 +87,14 @@ fn slot_on(
         doc,
         Node::Subtract {
             from: a.into(),
-            tool: tr.into(),
+            tool: tr.placement.into(),
         },
     );
     (doc, tr, cut)
 }
 
 /// [`slot_on`] in a space of its own.
-fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, Placed, RecipeNodeId) {
     slot_on(doc, None, dx)
 }
 
@@ -161,7 +150,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let ev1 = run(&doc, None);
     let names = fragments(&ev1, cut1);
     assert!(!names.is_empty(), "the first cut mints fragments");
-    let doc2 = slide(slide(doc.clone(), tr1, SlideAxis::Y, 2.5), tr2, SlideAxis::X, 5.0);
+    let doc2 = slide(slide(doc.clone(), &tr1, 1, 2.5), &tr2, 0, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
     assert!(
@@ -170,7 +159,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     );
     // The first bar's walls (`block`'s profile runs counter-clockwise
     // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
-    let Some(Node::Place { shapes, .. }) = doc.node(tr1) else {
+    let Some(Node::Place { shapes, .. }) = doc.node(tr1.placement) else {
         panic!("slot() places the bar");
     };
     let bar1 = &doc
@@ -184,7 +173,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
                 crate::fixture::piece(&doc, *bar1, 0, segment).into(),
             )],
         }
-        .in_copy(tr1)
+        .in_copy(tr1.placement)
     };
     let Some(Node::Subtract {
         tool: tool_read, ..
@@ -246,13 +235,13 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 2.0), 1.0);
-    let (doc, b1) = placed(doc, a, b1, 0.5);
+    let (doc, b1) = crate::fixture::slid(doc, a, b1, [0.0, 0.0, 0.5]);
     let (doc, b2) = block(doc, (1.2, 1.8), (1.0, 4.0), 1.2);
     let (doc, tr) = placed(doc, a, b2, 0.4);
     let (doc, cutter) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b1.into(), tr.into()]),
+            members: editor_core::Bodies::Spelled(vec![b1.into(), tr.placement.into()]),
         },
     );
     let (doc, cut) = insert(
@@ -263,7 +252,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         },
     );
     let ev1 = run(&doc, None);
-    let doc2 = slide(doc.clone(), tr, SlideAxis::Y, 5.0);
+    let doc2 = slide(doc.clone(), &tr, 1, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let from_read = crate::fixture::out(&doc, a);
     let pieces: Vec<StableName> = fragments(&ev1, cut)
@@ -363,7 +352,7 @@ fn vanished_piece(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNodeI
 
 /// The reviewer's two-run chain. Last-good: `cut = a − X`, `X =
 /// Union[tr, P]`, `P = Union[c1, c2]`; `R`, an unrelated plate-with-
-/// bar, is built first. The edit re-lists `X → [tr, c3]`
+/// bar, is built before them. The edit re-lists `X → [tr, c3]`
 /// and `P → [c1, R]`, and slides `R`'s bar (a flip at `R`) and the
 /// cutter along y. `R` feeds `cut` in NEITHER run — only a walk that
 /// crosses from the old `X → P` edge to the new `P → R` edge reaches
@@ -377,11 +366,11 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, m) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
     let (doc, tr) = placed(doc, a, m, 0.5);
     let (doc, c1) = block(doc, (10.0, 12.0), (0.0, 2.0), 1.0);
-    let (doc, c1) = placed(doc, a, c1, 0.0);
+    let (doc, c1) = crate::fixture::slid(doc, a, c1, [0.0, 0.0, 0.0]);
     let (doc, c2) = block(doc, (11.0, 13.0), (0.5, 2.5), 1.2);
-    let (doc, c2) = placed(doc, a, c2, 0.2);
+    let (doc, c2) = crate::fixture::slid(doc, a, c2, [0.0, 0.0, 0.2]);
     let (doc, c3) = block(doc, (20.0, 21.0), (0.0, 1.0), 1.0);
-    let (doc, c3) = placed(doc, a, c3, 0.0);
+    let (doc, c3) = crate::fixture::slid(doc, a, c3, [0.0, 0.0, 0.0]);
     let (doc, p) = insert(
         doc,
         Node::Union {
@@ -391,7 +380,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![tr.into(), p.into()]),
+            members: editor_core::Bodies::Spelled(vec![tr.placement.into(), p.into()]),
         },
     );
     let (doc, cut) = insert(
@@ -401,8 +390,8 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
             tool: x.into(),
         },
     );
-    let doc2 = set_members(set_members(doc.clone(), x, vec![tr, c3]), p, vec![c1, r]);
-    let doc2 = slide(slide(doc2, r_tr, SlideAxis::X, 5.0), tr, SlideAxis::Y, 2.5);
+    let doc2 = set_members(set_members(doc.clone(), x, vec![tr.placement, c3]), p, vec![c1, r]);
+    let doc2 = slide(slide(doc2, &r_tr, 0, 5.0), &tr, 1, 2.5);
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
@@ -459,15 +448,15 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, w) = block(doc, (0.2, 0.8), (0.2, 0.8), 0.6);
     let (doc, b1) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b2) = block(doc, (0.1, 0.9), (0.1, 0.9), 0.8);
-    let (doc, b2) = placed(doc, b1, b2, 0.1);
-    let (doc, w_placed) = placed(doc, b1, w, 0.2);
+    let (doc, b2) = crate::fixture::slid(doc, b1, b2, [0.0, 0.0, 0.1]);
+    let (doc, w_placed) = crate::fixture::slid(doc, b1, w, [0.0, 0.0, 0.2]);
     let (doc, x) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
         },
     );
-    let (doc, n) = placed(doc, x, x, 0.0);
+    let (doc, n) = crate::fixture::slid(doc, x, x, [0.0; 3]);
     let doc2 = set_members(doc.clone(), x, vec![b1, w_placed]);
     assert!(!ancestors_in(&doc, n).contains(&w) && ancestors_in(&doc2, n).contains(&w));
     let (before, after, name) = collapsing_group(&doc, n);
@@ -502,9 +491,9 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
     let (doc, f1) = block(doc, (1.2, 1.8), (0.2, 0.8), 0.6);
-    let (doc, f1) = placed(doc, bar, f1, 0.2);
+    let (doc, f1) = crate::fixture::slid(doc, bar, f1, [0.0, 0.0, 0.2]);
     let (doc, f2) = block(doc, (1.2, 1.8), (0.2, 0.8), 0.6);
-    let (doc, f2) = placed(doc, bar, f2, 0.2);
+    let (doc, f2) = crate::fixture::slid(doc, bar, f2, [0.0, 0.0, 0.2]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -516,15 +505,10 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         doc,
         Node::Subtract {
             from: a.into(),
-            tool: tr.into(),
+            tool: tr.placement.into(),
         },
     );
-    let doc2 = slide(
-        set_members(doc.clone(), u, vec![bar, f2]),
-        tr,
-        SlideAxis::Y,
-        2.5,
-    );
+    let doc2 = slide(set_members(doc.clone(), u, vec![bar, f2]), &tr, 1, 2.5);
     // Hand-built runs at the cut over those documents: a name that
     // mentions no partner, so the union is off its path. (A piece of
     // the rim is named by its ends, which cite the union's faces, so
@@ -555,7 +539,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
-    let (doc, bar) = placed(doc, a, bar, 0.5);
+    let (doc, bar) = crate::fixture::slid(doc, a, bar, [0.0, 0.0, 0.5]);
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
@@ -616,7 +600,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
 fn the_border_delta_outranks_an_upstream_flip() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, u) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, n) = placed(doc, u, u, 0.0);
+    let (doc, n) = crate::fixture::slid(doc, u, u, [0.0; 3]);
     let (doc, m) = insert(doc, Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
     assert!(ancestors_in(&doc, n).contains(&u));
     let body = |i: u32| editor_core::EntityRef {

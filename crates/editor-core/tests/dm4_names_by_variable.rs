@@ -19,9 +19,9 @@
 
 use crate::fixture::{self, insert, len, on_frame};
 use editor_core::{
-    Diagnosis, Dimension, DocEdit, EntityKind, Entry, Formula, Node, ProfileDoc,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName,
-    resolve, resolve_with_prior,
+    Diagnosis, Dimension, DocEdit, EntityKind, Entry, Formula, Node, ProfileDoc, RecipeNodeId,
+    Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName, resolve,
+    resolve_with_prior,
 };
 use geom_core::Tol;
 
@@ -65,6 +65,22 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, ext, split)
 }
 
+/// `doc` with the distance between `ext`'s two caps measured, and the
+/// measure's output: a live read that holds a scalar, not a body.
+fn measured(doc: &ProfileDoc, ext: RecipeNodeId) -> (ProfileDoc, editor_core::VarId) {
+    let cap = |end| editor_core::SitedRef::new(ext, fixture::fname(ext, RoleSeg::Cap(end)));
+    let (doc, m) = fixture::measure_node(
+        doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            cap(editor_core::CapEnd::Start),
+            cap(editor_core::CapEnd::End),
+        ],
+    );
+    let out = doc.output(m, 0).expect("a measure defines its value");
+    (doc, out)
+}
+
 /// The plane `x = at`, normal `+x`, read off `ext`'s own geometry.
 fn plane_at(doc: &ProfileDoc, ext: RecipeNodeId, at: f64) -> editor_core::Operand {
     plane_read(doc, ext, [at, 0.0, 0.0], [1.0, 0.0, 0.0])
@@ -88,7 +104,6 @@ fn plane_read(
         by: editor_core::Formula::zero(editor_core::Dimension::Length),
     }))
 }
-
 
 /// `doc` with `split`'s tool moved to the plane `x = at`.
 fn plane_moved(doc: &ProfileDoc, ext: RecipeNodeId, split: RecipeNodeId, at: f64) -> ProfileDoc {
@@ -430,7 +445,7 @@ fn a_rebind_offer_names_every_read_holding_a_shared_name() {
     );
 }
 
-/// **An appearance entry is read in a body**: a profile's output is a
+/// **An appearance entry is read in a body**: a measure's output is a
 /// live read holding no body, and a deleted operation's read is no
 /// live read at all, so `SetAppearance` refuses both; deleting the
 /// operation a key's read is an output of strands the key `Took::Body`.
@@ -450,15 +465,13 @@ fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
             &editor_core::RefusingReach,
         )
     };
-    let profile = doc
-        .output(fixture::swept(&doc, ext), 0)
-        .expect("the profile's output");
+    let (doc, scalar) = measured(&doc, ext);
     assert!(
         matches!(
-            paint(&doc, profile),
+            paint(&doc, scalar),
             Err(editor_core::EditError::AppearanceBodyNotARead { .. })
         ),
-        "a profile's read holds no body"
+        "a measure's read holds no body"
     );
     let above = doc.output(split, 0).unwrap();
     let painted = paint(&doc, above).expect("a half's read holds a body").doc;
@@ -508,7 +521,10 @@ fn a_node_named_alone_reads_its_one_named_output_in_a_name_door() {
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: fixture::ang(std::f64::consts::TAU),
         },
@@ -542,7 +558,7 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
     };
     let (doc, a) = insert(doc, ext(pa));
     let (doc, b) = insert(doc, ext(pb));
-    let (doc, t) = fixture::xform(doc, a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0);
+    let (doc, t) = fixture::in_world(doc, a, &editor_core::Frame::translation([0.0, 0.0, 2.0]));
     let cap = crate::emit_shared_rim_several::own_name(
         &doc,
         t,
@@ -688,7 +704,7 @@ fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
 }
 
 /// **A read that holds no body is no question to ask**: a live scalar
-/// variable, and a profile's output, refuse `ReadNotAnOutput` — typed,
+/// variable, and a measure's output, refuse `ReadNotAnOutput` — typed,
 /// never a `Resolution`. A node handle whose node went, holding a name
 /// it did not mint, refuses `NodeNotHeld`; one holding a name it minted
 /// answers `NodeGone`, about that node.
@@ -706,13 +722,13 @@ fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
         },
     );
     let depth = doc.var_named("depth").expect("the scalar");
-    let profile = fixture::swept(&doc, cube);
+    let (doc, scalar) = measured(&doc, cube);
     let ev = fixture::run(&doc, &Default::default());
     let ctx = RunCtx {
         doc: &doc,
         eval: &ev,
     };
-    for read in [depth, fixture::out(&doc, profile)] {
+    for read in [depth, scalar] {
         assert_eq!(
             resolve(ctx, read, &cap),
             Err(editor_core::ResolveRefusal::ReadNotAnOutput { read })

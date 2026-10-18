@@ -97,14 +97,16 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 /// The sentinel slide [`translated`] places at, then re-spells.
 const SENTINEL: f64 = 0.5;
 
-/// **A copy of `input` slid by `d` in `target`'s own coordinates**, each
-/// component a formula: placed against `target` at a literal slide
-/// along `z` ([`editor_core::place_against`]), the mate's slide then
+/// **A copy of `input` slid by `d` in `target`'s own coordinates** (the
+/// world's where `target` is `None`), each component a formula: placed
+/// against `target` at a literal slide along `z`
+/// ([`editor_core::place_against`]; [`editor_core::place_at`] in the
+/// world), the mate's slide then
 /// re-spelled as `d[2]` and its `x` and `y` values as `d[0]` and `d[1]`.
 /// Returns the placement, whose output is the copy.
 fn translated(
     r: &mut Recorder,
-    target: RecipeNodeId,
+    target: Option<RecipeNodeId>,
     input: RecipeNodeId,
     d: [Formula; 3],
 ) -> RecipeNodeId {
@@ -112,14 +114,19 @@ fn translated(
     use editor_core::{Coord, Operand, SlideAxis};
     let [dx, dy, dz] = d;
     let body = Operand::Node(input);
-    let placed = editor_core::place_against(
-        &r.doc,
-        &fixture::body_read(&r.doc, target.into()),
-        &body,
-        &editor_core::Frame::translation([0.0, 0.0, SENTINEL]),
-        &editor_core::EvalOptions::default(),
-        Tol::witness(),
-    )
+    let at = editor_core::Frame::translation([0.0, 0.0, SENTINEL]);
+    let opts = editor_core::EvalOptions::default();
+    let placed = match target {
+        Some(target) => editor_core::place_against(
+            &r.doc,
+            &fixture::body_read(&r.doc, target.into()),
+            &body,
+            &at,
+            &opts,
+            Tol::witness(),
+        ),
+        None => editor_core::place_at(&r.doc, &body, &at, &opts, Tol::witness()),
+    }
     .expect("the copy places against its target");
     let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a literal");
     let mut replaced = 0;
@@ -242,7 +249,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = translated(
         &mut r,
-        solid,
+        Some(solid),
         probe,
         [
             Formula::named(name("place"), Dimension::Length),
@@ -396,7 +403,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = translated(
         &mut r,
-        solid,
+        Some(solid),
         probe,
         [
             len(0.0),
@@ -521,7 +528,7 @@ fn block_at_azimuth(r: &mut Recorder, peg: RecipeNodeId, theta: f64, gap: f64) -
     let b = extruded(r, &pts, 0.4);
     translated(
         r,
-        peg,
+        Some(peg),
         b,
         [
             len(0.0),
@@ -675,9 +682,12 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],
         0.4,
     );
+    // A partial revolve offers no frame a copy is placed against, so
+    // both stand in the world.
+    let quarter = r.place(quarter);
     let placed = translated(
         &mut r,
-        quarter,
+        None,
         block,
         [
             len(0.0),

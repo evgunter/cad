@@ -13,17 +13,18 @@
 use crate::corpus;
 use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
 
-/// **One copy of `body` in the world, `z` up its own z**: where a
-/// construction drawn `z` up the world's z axis stands.
-fn place_up(doc: ProfileDoc, body: RecipeNodeId, z: f64) -> (ProfileDoc, RecipeNodeId) {
-    crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
-}
 use editor_core::{
     Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node,
     Overlap, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
 };
 use geom_core::Tol;
 use topo::{CensusContact, ValidationError};
+
+/// **One copy of `body` in the world, `z` up its own z**: where a
+/// construction drawn `z` up the world's z axis stands.
+fn place_up(doc: ProfileDoc, body: RecipeNodeId, z: f64) -> (ProfileDoc, RecipeNodeId) {
+    crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
+}
 
 /// A block extruded `height` from a square of half-side `h` at
 /// `(cx, cy)` on its own xy: the extrude, which a copy places `z` up
@@ -231,17 +232,22 @@ fn asserted_gap(
     )
 }
 
-/// **(B, test 6, the unplaced row) A gap over the unplaced bodies'
-/// faces quiets nothing**, though it holds: it is a statement about
-/// the bodies in their construction frames, not about the copies.
+/// **(B, test 6, the unplaced row) A gap over unplaced bodies' faces
+/// quiets nothing**, though it holds: it is a statement about bodies in
+/// a space no placement brings to the world, not about the copies. The
+/// slab pair is built a second time, `b` against `a`, and left
+/// unplaced.
 #[test]
 fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
-    let (doc, a, b, _, _) = slab_overlap();
+    let (doc, _, _, _, _) = slab_overlap();
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, b) = block(doc, (0.75, 0.0), 0.3, 0.5);
+    let (doc, b_at) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, assertion) = asserted_gap(
         doc.clone(),
         [
             SitedRef::new(a, plus_x(&doc, a)),
-            SitedRef::new(b, minus_x(&doc, b)),
+            SitedRef::new(b_at, minus_x(&doc, b).in_copy(b_at)),
         ],
         AssertionRelation::AtMost,
         -0.01,

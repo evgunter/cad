@@ -385,9 +385,9 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder and the composers `affordance`/`exists_wording`/`offer_wording`, plus the `NodeKindWanted` payload and its predicate `admits`; and `FaceFrameFault`, with `face_frame_seat`, the free function that answers it, and the recourse constant `NO_FACE_PICKED`, which `forms` spends. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder and the composers `affordance`/`exists_wording`/`offer_wording`, plus the `NodeKindWanted` payload and its predicate `admits`; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
-| `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
+| `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
@@ -837,8 +837,8 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
-| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind`, `PatternKindChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `IdAnswer`, `Disagreement`, `IdNews`, `compare`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
@@ -934,7 +934,7 @@ it from the landed document (`DocSession::landed_pair`), the one whose
 ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
 tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
 `ToolNotice::said`), `Disagreement::notice`, the blend panel's target
-line and the datum form's face readout. A value carried past the frame
+line and the add-profile form's face readout. A value carried past the frame
 that made it keeps the document it is spelled in (`frame::Spelled`),
 and is said by its tags from any other: the held-edge refusal the
 viewport leaves for the next frame's toolbar is one, since an `Open`
@@ -952,8 +952,8 @@ spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
 and so is a selected node deleted since, in the pane's heading: the
 selection speaks its nodes when it is made and again from the shown
 document after every operation, so a deleted node keeps the last label
-it had. The face-frame form's held face keeps its own
-(`Drafts::datum_face_said`), since it outlives the selection, and so
+it had. The add-profile form's held face keeps its own
+(`Drafts::sketch_face_said`), since it outlives the selection, and so
 does the open tool for each node it holds (`ViewerApp::respeak_held`
 after every operation): a seat's drop, the blend tool's lost target,
 and the mate tool's drop say a node the document no longer holds by the
@@ -1095,18 +1095,18 @@ for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
-fault, the budget's δ, the store that keeps no preferences, the datums
-this view draws nothing of, the committed profiles it cannot draw, the
+fault, the budget's δ, the store that keeps no preferences, the
+committed profiles this view cannot draw, the
 held edges the index cannot name, and
 the three display seams that hold a refusal (scene, pick index,
 projection) — each a function of the typed value it reads, so each
-one's SILENCE is a row a test can write. The datums, profiles and
-held-edges reads are the three members that HOLD nothing: each writer
+one's SILENCE is a row a test can write. The profiles and held-edges
+reads are the two members that HOLD nothing: each writer
 re-takes its read every frame and the application zeroes it whether or
 not the viewport drew, so it says what the last frame found. The toolbar draws
 before the panes, so it trails the view it describes by one frame and
 no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
-`frame` function returning `Option<Badge>`** — eleven — and that rule
+`frame` function returning `Option<Badge>`** — ten — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
@@ -1328,7 +1328,7 @@ state wants an adapter, which is the same wall
 `gpu`'s `every_pass_builds_on_a_real_device` stands at.
 
 Two items move out of `app` to modules that already own their
-subject rather than to new ones: `datum_view` to `datums`, and
+subject rather than to new ones: `view_of` to `screen`, and
 `heading` to `sketch` — both are geometry over values the receiving
 module already defines, and neither names `egui`.
 
@@ -2023,7 +2023,7 @@ bare, and the first tests-only word-walk would arrive unseen.
 
 **Every vocabulary walked under `src/` for its words asks for one.**
 Each binds `(value, label)` and puts that label on the control
-it draws: `pane::create`'s datum row, profile row, pattern-rule row,
+it draws: `pane::create`'s profile row, pattern-rule row,
 pattern-output row, blend-kind row and projection-selector row. So all
 of them are LABELLED, and
 there is no shorter account of them than the sweep itself: their words
@@ -2093,12 +2093,12 @@ may force here. `src/vocab.rs`'s `partial_mirror!` holds a roster
 classifying every variant of the mirrored enum as offered or as
 deliberately absent WITH ITS REASON, over a match with no wildcard: a
 variant added to that enum is neither until someone writes one of the
-two, and the build says so. Three sites take it — `MATE_KINDS` over
-`VarKind`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
-and `forms::DatumKindChoice` over `session::DatumSpec` — in two shapes,
-because what a site OFFERS decides whether a seat of it can drift: a
-hand-written list gets a per-seat assertion and a count check, while an
-enum whose `ALL` is projected has no second copy of its membership to
+two, and the build says so. Two sites take it — `MATE_KINDS` over
+`VarKind` and `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`. The
+macro has two shapes, because what a site OFFERS decides whether a seat
+of it can drift: a hand-written list, as both sites are, gets a
+per-seat assertion and a count check, while an enum whose `ALL` is
+projected (the `onto` arm) has no second copy of its membership to
 hold, so its roster names a counterpart instead. A tool's seat list
 takes neither and is not a mirror: it SPECIFIES that tool rather than
 tracking `Seat`'s membership, so a new seat no tool asked for is
@@ -2279,15 +2279,13 @@ its shape is not one of these:
   `ChooserBackend::unusable` (`platform`, spent at two
   `on_disabled_hover_text` calls in `app`).
 - **Composed in the vocabulary's own `Display`, riding the sentence**
-  — `Refusal`'s `NoDocumentDirectory` arm, `FaceFrameFault`'s
-  `NotOneBody` arm (`session::refuse`).
+  — `Refusal`'s `NoDocumentDirectory` arm (`session::refuse`).
 - **A named `&'static str` owned by the layer the fact belongs to and
-  spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
-  `FaceFrameFault`'s `NoFace` arm and by `forms`), and
+  spent by more than one door** —
   `editor_core::edit::UNKNOWN_VAR_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
-  `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
+  `pane::create`'s *pick a face in the viewport to draw on*, `pane::profile`'s *its
   last step has to target the start*.
 - **A reason accumulated as chrome-local data and rendered once** —
   `pane::create`'s `blocked: Option<&'static str>`.

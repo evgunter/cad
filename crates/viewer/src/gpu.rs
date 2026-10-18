@@ -2442,7 +2442,7 @@ mod tests {
         use crate::camera::Camera;
         use crate::generation::Generation;
         use crate::pickindex::{PickIndex, PictureKey};
-        use crate::test_support::{square_profile, inserted, len, placed, plate_delta};
+        use crate::test_support::{inserted, len, placed, plate_delta, square_profile};
 
         const SIDE_PX: u32 = 64;
         const SIDE: f64 = 0.04;

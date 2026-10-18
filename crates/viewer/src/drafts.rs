@@ -1063,7 +1063,9 @@ mod tests {
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
-        drafts.creation_labels.insert("Profile", "sketch".to_owned());
+        drafts
+            .creation_labels
+            .insert("Profile", "sketch".to_owned());
         drafts.creation_labels.insert("Extrude", "plate".to_owned());
         let loops = drafts
             .profile_programs(Notation::DEFAULT)
@@ -1239,7 +1241,10 @@ mod tests {
             ..drafts
         };
         assert!(
-            matches!(off.profile_op(notation), Ok(Some(SessionOp::AddProfile { .. }))),
+            matches!(
+                off.profile_op(notation),
+                Ok(Some(SessionOp::AddProfile { .. }))
+            ),
             "off the face, the profile on its own plane"
         );
     }

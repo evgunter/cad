@@ -640,12 +640,15 @@ pub enum SessionOp {
     ///
     /// **Operands in two spaces are related by a placement** (D10): each
     /// operand after the first whose value lives in another space than
-    /// the first's is placed against the first operand's root at the
-    /// identity ([`pncad::document::place_against`]; in the world at
-    /// the identity where the first is a world copy), and the boolean
-    /// reads the placement — in the same action. An operand the door
-    /// cannot place is read as it is, and the boolean refuses
-    /// `SpaceMismatch` at evaluation, on its own badge.
+    /// the first's is placed against the first operand's root
+    /// ([`pncad::document::place_against`]; in the world where the first
+    /// is a world copy), in the same action. A construction is placed at
+    /// the identity and the boolean reads the new placement; a copy
+    /// placed against its own body's geometry ([`Self::AddTransform`]'s)
+    /// has its mate and values replaced in place by the ones that stand
+    /// it against the first's root at the pose it held relative to its
+    /// body. An operand the door cannot place is read as it is, and the
+    /// boolean refuses `SpaceMismatch` at evaluation, on its own badge.
     AddBoolean {
         /// The operation and its operands.
         spec: super::BooleanSpec,

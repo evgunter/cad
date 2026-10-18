@@ -116,10 +116,7 @@ fn a_delete_leaves_the_id_minted() {
 
     // And the next insert takes a fresh id, not the freed one: the
     // predicate's answer above is the reason, spelled as behaviour.
-    let (reinserted, next) = insert(
-        deleted,
-        Node::Profile(desc(vec![square(0.0, 0.0, 2.0)])),
-    );
+    let (reinserted, next) = insert(deleted, Node::Profile(desc(vec![square(0.0, 0.0, 2.0)])));
     assert_ne!(next, profile, "the deleted id is not handed out again");
     assert!(reinserted.has_minted(next));
 }

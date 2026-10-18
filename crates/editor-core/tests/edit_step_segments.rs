@@ -555,7 +555,7 @@ fn loft_of_loops(
 ) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived(id, tol());
     let mut ids = Vec::new();
-    for (i, loops) in sections.iter().enumerate() {
+    for loops in sections {
         let (d, s) = on_frame(
             doc,
             [0.0; 3],
@@ -634,6 +634,32 @@ fn loft_wall(
     }
 }
 
+/// How far up the first section's own `z` section `si` of `loft`
+/// stands: the sum of its station's slides along `z`, each a typed
+/// length.
+fn station_z(doc: &ProfileDoc, loft: RecipeNodeId, si: usize) -> f64 {
+    let Some(Node::Loft { then, .. }) = doc.node(loft) else {
+        panic!("{loft:?} is a loft");
+    };
+    let Some(section) = si.checked_sub(1).map(|i| &then[i]) else {
+        return 0.0;
+    };
+    section
+        .station
+        .iter()
+        .map(|m| match m {
+            editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by,
+            } => match doc.free(*by) {
+                Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
+                other => panic!("a station slide is a typed length, got {other:?}"),
+            },
+            other => panic!("a straight-prism loft's station slides along z, got {other:?}"),
+        })
+        .sum()
+}
+
 /// For EACH section of an evaluated straight-prism loft, every step of
 /// every program loop, asked through the ordinary door with the
 /// section's own program, records and naming anchor:
@@ -674,8 +700,11 @@ fn assert_sections_bound_their_walls(
         };
         let r = records(doc, program);
         let placement = pv.validated.plane().placement;
-        let place =
-            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let up = station_z(doc, loft, si);
+        let place = |p: Point2<f64>| {
+            placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0))
+                + geom_core::Vec3::new(0.0, 0.0, up)
+        };
         let mut walls = BTreeSet::new();
         assert_eq!(want[si].len(), r.verts.len(), "{id}: one case per loop");
         for (li, want) in want[si].iter().enumerate() {

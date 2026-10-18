@@ -700,7 +700,9 @@ fn twin(id: &str) -> ProfileDoc {
 fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
-    let (doc, a) = slab(doc, 1.0);
+    // The lower slab half as tall at first, so the union evaluates and
+    // its copy stands in the world on the lower slab's bottom.
+    let (doc, a) = slab(doc, 0.5);
     // A gap strictly inside the ambiguity band: the margins decide the
     // two caps neither one carrier nor two, so the union refuses.
     let band = tol.get();
@@ -713,7 +715,19 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    crate::fixture::place(doc, fused)
+    let (doc, root) = crate::fixture::place(doc, fused);
+    // Then the lower slab raised to a unit height, its top `gap` under
+    // the upper slab's bottom.
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: a,
+            slot: editor_core::SlotId::Distance,
+            value: len(1.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    (doc, root)
 }
 
 /// A unit-footprint slab on its own xy, up by `dz`.

@@ -353,7 +353,7 @@ fn a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal() {
 
 /// A stepped rule [`a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal`]
 /// mates through: a linear rule as written, or a circular one at a
-/// step about the axis of the placed copy's top cap.
+/// step about a lateral edge of the placed copy.
 #[derive(Clone)]
 enum Rule {
     Plain(PatternKind<Formula>),
@@ -367,10 +367,29 @@ impl Rule {
             Self::Plain(kind) => patterned(label, kind.clone(), 4, i),
             Self::Turning(step) => {
                 build(label, |doc, legs, leg_body| {
-                    let axis = fixture::axis(editor_core::SitedRef::new(
-                        legs,
-                        in_part(legs, leg_body, CapEnd::End),
-                    ));
+                    // The leg's lateral edge at its profile's first vertex,
+                    // as the instance wears it: the part rebuilt under its
+                    // label mints the same ids.
+                    let (part, body) = block(&format!("{label}-leg"));
+                    let edge = fixture::ename(
+                        body,
+                        editor_core::RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, 0)),
+                    );
+                    let worn = StableName {
+                        kind: edge.kind,
+                        node: legs,
+                        path: vec![editor_core::RoleSeg::InPart {
+                            of: StableName {
+                                kind: edge.kind,
+                                node: fixture::resolver::placement_of(leg_body),
+                                path: vec![editor_core::RoleSeg::Placed {
+                                    of: editor_core::NameRef::new(edge),
+                                }],
+                            }
+                            .into(),
+                        }],
+                    };
+                    let axis = fixture::axis(editor_core::SitedRef::new(legs, worn));
                     let (doc, pattern) = insert(
                         doc,
                         Node::Pattern {

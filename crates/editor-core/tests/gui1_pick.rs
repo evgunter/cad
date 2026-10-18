@@ -54,6 +54,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
 fn body_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> &Body<f64> {
     match &ev.value(node).expect("extrude evaluates").payload {
         ValuePayload::Body(b) => b,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("extrude payload is a body, got {}", other.kind_name()),
     }
 }
@@ -292,6 +293,8 @@ fn occlusion_orders_by_t_across_bodies() {
     let doc = ProfileDoc::empty_derived("gui1_pick_occl", Tol::witness());
     let (doc, near) = cube_doc_node(doc, 0.0); // x ∈ [0, 1]
     let (doc, far) = cube_doc_node(doc, 3.0); // x ∈ [3, 4]
+    // One space to order hits in: the far cube's copy beside the near.
+    let (doc, far) = fixture::slid(doc, near, far, [0.0; 3]);
     let ev = run(&doc);
     let mesh_near = mesh_of(&ev, near);
     let mesh_far = mesh_of(&ev, far);

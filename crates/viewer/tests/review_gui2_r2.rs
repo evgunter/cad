@@ -2,7 +2,7 @@
 //!
 //! An independent derivation of what the unit claims, not a re-reading
 //! of `select_pick.rs`: different documents (a stepped block, two
-//! placed transforms of one extrude, a split), different aspect ratios,
+//! placements of one extrude, a split), different aspect ratios,
 //! different cursors, and a hand-written evaluation seam that holds a
 //! run outstanding so the landed (doc, eval) PAIR can be observed while
 //! the shown document is ahead of it.
@@ -14,7 +14,7 @@
 //! below, because the camera is the instrument here and not the
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
-//! `common::{ang, xy_frame, rectangle, inserted, len, scl,
+//! `common::{ang, rectangle, inserted, len, scl,
 //! gallery_ring_at, index_of, down_from, ring_delta}`. The slabs' own dimensions,
 //! the height the rays start above them and the world positions aimed
 //! at them stay here, where the expectation is written.
@@ -39,11 +39,10 @@ test_utils::gated_to![
 ];
 
 use pncad::document::AuthoredNode;
-use pncad::document::ExtrudeSide;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
-use crate::common::{ang, len, scl, xy_frame};
+use crate::common::{len, scl};
 
 use pncad::document::{Doc, Evaluation, Formula, Node, PatternKind, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -56,10 +55,7 @@ use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, Viewport
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
-use viewer::session::{
-    DocSession, FaceFrameFault, FaceSelection, Hovered, Selection, SessionOp, face_frame_seat,
-    face_frame_seat_drawn,
-};
+use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
 use viewer::{cursor_projection, marks};
 
 // -------------------------------------------------------------------
@@ -80,24 +76,12 @@ fn inserted(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (Doc<ProfileProgra
     common::inserted(doc, node, tol())
 }
 
-fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> AuthoredNode {
-    Node::transform(
-        input,
-        pncad::document::Step::Rigid {
-            translation: [len(dx), len(dy), len(dz)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    )
-}
-
 /// One extruded slab, `w` × `h` × `t`, placed, its own document. Deliberately
 /// NOT the shipped plate: a different body, so the un-projection rows
 /// below are not tuned to the fixture the unit was written against.
 fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol());
-    let (doc, plane) = inserted(&doc, xy_frame());
-    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], w, h));
+    let (doc, profile) = inserted(&doc, common::rectangle([0.0, 0.0], w, h));
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -109,8 +93,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
     (doc, extrude)
 }
 
-/// A slab plus TWO transforms of it, each placed in the world in place
-/// of the slab (A10): two copies of one body's names, each copy
+/// A slab placed TWICE in the world in place of its own copy (A10): two copies of one body's names, each copy
 /// wrapping them in its own placement's qualifier. Answers the document
 /// and the two placements, left then right.
 fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
@@ -121,10 +104,8 @@ fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         pncad::document::DocEdit::DeleteNode { id: slab_copy },
         tol(),
     );
-    let (doc, left) = inserted(&doc, translated(extrude, 0.0, 0.0, 0.0));
-    let (doc, right) = inserted(&doc, translated(extrude, 0.10, 0.0, 0.0));
-    let (doc, left) = common::placed(&doc, left, tol());
-    let (doc, right) = common::placed(&doc, right, tol());
+    let (doc, left) = common::placed_at(&doc, extrude, [0.0; 3], tol());
+    let (doc, right) = common::placed_at(&doc, extrude, [0.10, 0.0, 0.0], tol());
     (doc, left, right)
 }
 
@@ -940,8 +921,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
     }
 }
 
-/// **A held face whose body is no longer drawn marks nothing, and the
-/// form will not commit against it.** The extrude under the two
+/// **A held face whose body is no longer drawn marks nothing.** The extrude under the two
 /// placements is not placed itself, so a pick held off its own body —
 /// the body's own name, on the extrude — names no drawn patch: each
 /// copy draws that name only under its own placement's wrap.
@@ -949,13 +929,11 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
 fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let (session, index, drawn) = right_top_face();
     let doc = session.doc();
-    let transform = viewer::world::seat_of(doc, drawn.node);
-    let Some(Node::Transform { input: extrude, .. }) = doc.node(transform) else {
-        panic!("the right copy places a transform of the extrude");
-    };
-    let (extrude, _) = doc
-        .defined_by(*extrude)
-        .expect("the transform reads a live extrude");
+    let extrude = viewer::world::seat_of(doc, drawn.node);
+    assert!(
+        matches!(doc.node(extrude), Some(Node::Extrude { .. })),
+        "the right copy places the extrude"
+    );
     let (_, own) = drawn.name.copy_of().expect("a pick on a copy is wrapped");
     let face = FaceSelection {
         name: own.clone(),
@@ -976,19 +954,6 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
         [IdMap::NOTHING; marks::HELD_FACES],
         "a held face on an undrawn body lit {:?}",
         marked.held
-    );
-    // The add-datum form's gate asks the same question of the same
-    // picture: the face still resolves in the evaluation, so only the
-    // picture can refuse it.
-    let (landed, display) = (session.landed_pair(), DisplayView::none());
-    assert!(
-        face_frame_seat(landed, Some(&face)).is_ok(),
-        "the evaluation still resolves the extrude's face"
-    );
-    assert_eq!(
-        face_frame_seat_drawn(landed, Some(&face), Some((&index, &display))),
-        Err(FaceFrameFault::NotDrawn),
-        "the button would commit against a face nothing marks"
     );
 }
 

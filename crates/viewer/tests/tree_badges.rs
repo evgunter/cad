@@ -18,7 +18,6 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -401,19 +400,19 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 /// copy, and for the union is poisoned through the refused shelf, and
 /// the tree draws both downstream of it. The properties panel's verdict
 /// on a picked face, the
-/// mate tool's dropped pick, the sketch-on-face seat, the duplicate
-/// door and the blend loader each carry a standing, and each must
+/// mate tool's dropped pick, the duplicate door and the blend loader
+/// each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
 /// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
-    use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+    use pncad::select::{Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
     use viewer::combine::DuplicateFault;
     use viewer::matetool::{MateTool, MateToolEvent};
-    use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
+    use viewer::session::{FaceSelection, Selection, Standing};
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
@@ -499,23 +498,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     }
     // Each refusal carrying the standing whole says its nodes as the
     // document holds them: post_a by its kind, never `node <tag>`.
-    let post_a_said = doc.spoken(bench.post_a).to_string();
-    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
-    match &seat {
-        Err(
-            fault @ FaceFrameFault::Unresolved {
-                error: InterrogateError::Standing(standing),
-                ..
-            },
-        ) => {
-            assert_eq!(*standing, post_a, "the sketch-on-face seat");
-            assert!(
-                fault.to_string().contains(&post_a_said),
-                "the seat's refusal speaks post_a: {fault}"
-            );
-        }
-        other => panic!("the seat refuses on the standing, got {other:?}"),
-    }
     match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
@@ -797,8 +779,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
         id: RecipeNodeId::new(0, id),
-        spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
-        pose: None,
+        spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
+        which: None,
         depth: 0,
         placed: false,
         status,
@@ -824,92 +806,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     );
 }
 
-/// **A profile refused for its frame's direction links to the frame.**
-///
-/// The frame's own direction slot is what refused, at the nominal the
-/// profile reads, while the frame lands at the box's lane value — so
-/// the frame's row reads `Ok` and only the link gets a reader from the
-/// profile's words to the node they say to fix.
-#[test]
-fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
-    use std::collections::BTreeMap;
-
-    use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, Formula, FreeVar, Node, NodeErrorKind, VarName};
-
-    let tol = Tol::witness();
-    let span = VarName::from_static("span");
-    let doc = common::declared(
-        "tree-frame-direction",
-        &span,
-        FreeVar::continuous(Dimension::Scalar, 0.0),
-        tol,
-    );
-    let (doc, frame) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Frame {
-            origin: common::len3([0.0; 3]),
-            u: [
-                Formula::named(span.clone(), Dimension::Scalar),
-                common::scl(0.0),
-                common::scl(0.0),
-            ],
-            v: common::scl3([0.0, 1.0, 0.0]),
-        }),
-        tol,
-    );
-    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
-    let mut axes = BTreeMap::new();
-    axes.insert(
-        doc.var_named(span.as_str()).expect("declared"),
-        BoxAxis::Varying { lo: 1.0, hi: 1.0 },
-    );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions {
-            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
-            ..EvalOptions::default()
-        },
-        tol,
-    );
-    assert!(
-        matches!(
-            ev.node_error(profile).map(|e| &e.kind),
-            Some(NodeErrorKind::FrameDirection { frame: named, .. }) if *named == frame
-        ),
-        "the fixture raises the arm under test: {:?}",
-        ev.result(profile)
-    );
-
-    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    assert!(
-        matches!(common::row_of(&rows, frame).status, RowStatus::Ok),
-        "{rows:?}"
-    );
-    assert!(
-        matches!(
-            common::row_of(&rows, profile).status,
-            RowStatus::Failed { .. }
-        ),
-        "{rows:?}"
-    );
-    assert_eq!(
-        common::row_of(&rows, profile)
-            .repair_at
-            .as_ref()
-            .map(|at| at.id()),
-        Some(frame),
-        "the profile's row links to the frame whose slot refused"
-    );
-    assert_eq!(
-        common::row_of(&rows, frame).repair_at,
-        None,
-        "an `Ok` row links nowhere"
-    );
-}
-
 /// **An empty value says so on its own row, and the node that refuses
 /// it links nowhere.** Each failing arm below names an input that
 /// evaluated to a legal value the failing node's own choice does not
@@ -918,13 +814,13 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first alone and then under a transform; a
+/// meet, first alone and then under a pattern; a
 /// split whose tool plane clears the block, with a `Part` reading its
 /// empty side; and a `Part` indexed past a pattern's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
-        BooleanValue, Datum, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
+        BooleanValue, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
         RecipeNodeId, SplitSide, ValuePayload,
     };
     use pncad::select::SplitHalf;
@@ -938,10 +834,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     };
 
     let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
-    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
     let block = |doc: &Doc<ProfileProgram>, x: f64| {
-        let (doc, profile) =
-            common::inserted(doc, common::rectangle(plane, [x, 0.0], 0.02, 0.02), tol);
+        let (doc, profile) = common::inserted(doc, common::rectangle([x, 0.0], 0.02, 0.02), tol);
         common::inserted(
             &doc,
             Node::Extrude {
@@ -991,29 +885,26 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A consumer of the empty value: `EmptyOperand`.
-    let (doc, moved) = common::inserted(
-        &doc,
-        Node::transform(
-            apart,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
+    let pattern_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
+        common::inserted(
+            doc,
+            Node::Pattern {
+                input: input.into(),
+                count: pncad::document::Formula::count(2),
+                kind: PatternKind::Linear {
+                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                    spacing: common::len(0.05),
+                },
             },
-        ),
-        tol,
-    );
+            tol,
+        )
+    };
+    let (doc, moved) = pattern_of(&doc, apart.into());
 
-    // A tool plane above the block: the split's above side is empty,
-    // and a transform reading it refuses `EmptyHalf`.
-    let (doc, tool) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.05)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
+    // A tool plane above the block, read off its own geometry: the
+    // split's above side is empty, and a pattern reading it refuses
+    // `EmptyHalf`.
+    let tool = editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0]);
     let (doc, split) = common::inserted(
         &doc,
         Node::Split {
@@ -1022,17 +913,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         },
         tol,
     );
-    let (doc, above) = common::inserted(
+    let (doc, above) = pattern_of(
         &doc,
-        Node::transform(
-            pncad::document::Operand::output(split, SplitHalf::Above.port()),
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
-        ),
-        tol,
+        pncad::document::Operand::output(split, SplitHalf::Above.port()),
     );
 
     // Beside them, values with material: a subtract that leaves a
@@ -1045,14 +928,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         },
         tol,
     );
-    let (doc, through) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.01)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
+    let through =
+        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.01], [0.0, 0.0, 1.0]);
     let (doc, halved) = common::inserted(
         &doc,
         Node::Split {
@@ -1128,7 +1005,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so under a transform"
+        "the intersect still says so under a pattern"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,

@@ -31,15 +31,15 @@
 
 use crate::blocks::{block, block_on, run};
 use crate::corpus::body_of;
-use crate::emit_shared_rim_several::{construction, own_name};
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{ends, fname, insert, len, member_face, on_frame, out, point, table};
 
 use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
-    StableName,
+    CapEnd, EntityKey, EntityKind, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId,
+    RoleSeg, StableName,
 };
 use geom_core::Tol;
 
@@ -511,8 +511,16 @@ fn glued_rim_names(lift: f64) -> GluedRim {
     let [a, b, c] = [m[0], m[1], m[2]];
     let faces = [
         member_face_of(&doc, a, RoleSeg::Cap(CapEnd::End)),
-        member_face_of(&doc, b, crate::fixture::wall(&doc, construction(&doc, b), 0)),
-        member_face_of(&doc, c, crate::fixture::wall(&doc, construction(&doc, c), 3)),
+        member_face_of(
+            &doc,
+            b,
+            crate::fixture::wall(&doc, construction(&doc, b), 0),
+        ),
+        member_face_of(
+            &doc,
+            c,
+            crate::fixture::wall(&doc, construction(&doc, c), 3),
+        ),
     ];
     let b_read = out(&doc, b);
     let (doc, u) = crate::fixture::union_over(doc, &m);
@@ -577,7 +585,10 @@ fn member_face_of(
     node: RecipeNodeId,
     seg: RoleSeg,
 ) -> (editor_core::VarId, StableName) {
-    (out(doc, node), own_name(doc, node, EntityKind::Face, vec![seg]))
+    (
+        out(doc, node),
+        own_name(doc, node, EntityKind::Face, vec![seg]),
+    )
 }
 
 /// `spelled` with every mint id's digest erased, so ids compare by

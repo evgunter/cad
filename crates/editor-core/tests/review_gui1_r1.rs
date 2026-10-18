@@ -92,6 +92,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
 fn mesh_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Mesh {
     let body: &Body<f64> = match &ev.value(node).expect("extrude evaluates").payload {
         ValuePayload::Body(b) => b,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("extrude payload is a body, got {}", other.kind_name()),
     };
     mesh::tessellate(body, DELTA, Tol::witness()).expect("box tessellates")
@@ -446,6 +447,8 @@ fn a_coplanar_cross_target_tie_refuses_with_both_bodies() {
     let doc = ProfileDoc::empty_derived("r1_xtie", Tol::witness());
     let (doc, a) = cube_doc_node(doc, 0.0); // x ∈ [0, 1]
     let (doc, b) = cube_doc_node(doc, 1.0); // x ∈ [1, 2] — touching
+    // One space to pick in: `b`'s copy beside `a`.
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     let ev = run(&doc);
     let mesh_a = mesh_of(&ev, a);
     let mesh_b = mesh_of(&ev, b);

@@ -119,10 +119,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc,
-    Evaluation, Label, MateFault, MateRef, MeasureUnavailableAt, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide,
-    SpokenNode, ValuePayload, node_kind_noun,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
+    Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
+    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
+    node_kind_noun,
 };
 use pncad::select::{
     InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
@@ -495,9 +495,7 @@ impl Asserted {
 /// node by, and the part file is the half that tells two instances
 /// apart.
 pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles) -> String {
-    let which = doc
-        .node(id)
-        .and_then(|node| part_file(node, files));
+    let which = doc.node(id).and_then(|node| part_file(node, files));
     named(&doc.spoken(id), which.as_deref())
 }
 

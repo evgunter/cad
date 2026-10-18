@@ -426,6 +426,38 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
 // 3. The refusal families
 // ---------------------------------------------------------------
 
+/// The vessel's pot hollowed with `open` designated, standing nowhere:
+/// a shell the kernel refuses has no copy to place.
+fn unplaced_vessel(
+    open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = fixture::insert(
+        ProfileDoc::empty_derived("lib_g17_unplaced_vessel", Tol::witness()),
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![vessel::meridian()],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, pot) = fixture::insert(
+        doc,
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            fixture::along_y(),
+            fixture::ang(std::f64::consts::TAU),
+        ),
+    );
+    let open = open(&doc, pot);
+    fixture::insert(
+        doc,
+        Node::shell(
+            editor_core::Operand::output(pot, 0),
+            fixture::len(vessel::WALL),
+            open,
+        ),
+    )
+}
+
 /// The typed refusal a shell node produced at `f64`.
 fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
@@ -514,13 +546,13 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // (d) half a chart: the belly is a sphere zone the revolve builds
     // as two bands on one surface, and its piece names one of them, so
     // the kernel's `OpenFaceChartPartial` names the band left behind.
-    let v = vessel::document_with_open(|doc, pot| {
+    let (doc, shell) = unplaced_vessel(|doc, pot| {
         vec![
             editor_core::band(pot, vessel::mouth(doc, pot)),
             editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
         ]
     });
-    let e = refusal(&v.doc, v.result.unwrap());
+    let e = refusal(&doc, shell);
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
             ShellError::OpenFaceChartPartial { .. } => {}

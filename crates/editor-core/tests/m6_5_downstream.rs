@@ -72,21 +72,16 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
     (a.doc, id)
 }
 
-/// An axis-aligned box `[x0,x1] × [y0,y1] × [z0, z0+dz]`.
-fn block(
-    doc: &ProfileDoc,
-    x: (f64, f64),
-    y: (f64, f64),
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let loops = vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]];
-    let (doc, p) = fixture::on_frame(
-        doc.clone(),
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        loops,
+/// An axis-aligned box `[x0,x1] × [y0,y1] × [0, dz]` in its own coordinates.
+fn block(doc: &ProfileDoc, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![vec![
+            (x.0, y.0),
+            (x.1, y.0),
+            (x.1, y.1),
+            (x.0, y.1),
+        ]])),
     );
     insert(
         &doc,
@@ -107,7 +102,7 @@ fn table_of(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> editor_cor
 /// document, the extrude and the fillet.
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
-    let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, blank) = insert(
         &doc,
         Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4)),
@@ -290,9 +285,10 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
 /// different one (`review_m6_5_pr2_sweep_probes::x4` pins it).
 #[test]
 fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
-    let (doc, _, blank) = filleted_blank();
+    let (doc, cube, blank) = filleted_blank();
     // Disjoint, far away, and off the die's own plane carriers.
-    let (doc, far) = block(&doc, (4.0, 5.0), (2.0, 3.0), 2.0, 3.0);
+    let (doc, far) = block(&doc, (4.0, 5.0), (2.0, 3.0), 3.0);
+    let (doc, far) = fixture::slid(doc, cube, far, [0.0, 0.0, 2.0]);
     let (doc, union) = insert(
         &doc,
         Node::Union {
@@ -377,7 +373,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
 #[test]
 fn all_edges_materializes_exactly_the_authored_every_edge_set() {
     let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
-    let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let ev = eval(&doc);
 
     let materialized = editor_core::all_edges(&ev, cube);

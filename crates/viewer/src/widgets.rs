@@ -3483,7 +3483,7 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
-    use crate::test_support::{declared, square_profile, inserted, len, scl};
+    use crate::test_support::{declared, inserted, len, scl, square_profile};
     use eframe::egui;
     use pncad::document::{
         Dimension, DimensionError, Doc, Formula, FreeVar, Node, PatternKind, ProfileProgram,

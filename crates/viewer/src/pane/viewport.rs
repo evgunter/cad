@@ -12,7 +12,6 @@ use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
-use crate::screen::{self, view_of};
 use crate::display::DisplayView;
 use crate::drafts::ProfileDoors;
 use crate::frame;
@@ -23,6 +22,7 @@ use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
 use crate::pickindex::{PickError, PickIndex, PictureKey};
+use crate::screen::{self, view_of};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
@@ -913,10 +913,7 @@ impl ViewerBehavior<'_> {
         let view = view_of(self.camera, viewport).ok();
         push_previews(&mut preview, self.profile_previews, view);
 
-        let marks = composed.with_lanes(
-            profiles.into_segments(),
-            preview.into_segments(),
-        );
+        let marks = composed.with_lanes(profiles.into_segments(), preview.into_segments());
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere

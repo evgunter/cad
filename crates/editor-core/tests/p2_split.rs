@@ -807,14 +807,9 @@ fn a_cut_of_a_profile_alone_refuses_no_material() {
     let o = p.opts();
     let (block, body) = crate::p2_gauges::block("no-material-profile", 2.0, 1.0);
     let block = fixture::place(block, body).0;
-    let profile = *block
-        .ids()
-        .iter()
-        .find(|&&id| matches!(block.node(id), Some(Node::Profile(_))))
-        .expect("the block's profile");
     let (with_profile, spare) = insert(
         block.clone(),
-        block.node(profile).map(|n| n.written(&block)).expect("live"),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
     let err = split(&with_profile, &[spare], "no-material", &o).expect_err("a spare profile");
     assert!(

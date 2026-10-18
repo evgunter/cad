@@ -1238,7 +1238,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a8f"), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, 20.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -1266,14 +1266,9 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     // Cut the LOCAL block out into its own part, with the world
     // placement of what it moves: nothing it holds is read by a
     // constraint, so the cut is accepted.
-    let frame = doc
-        .ids()
-        .into_iter()
-        .find(|&id| id != RecipeNodeId::WORLD)
-        .expect("the profile's frame is the first node");
     let cut = fixture::with_placements(
         &doc,
-        &[profile, local, frame]
+        &[profile, local]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>(),
     );

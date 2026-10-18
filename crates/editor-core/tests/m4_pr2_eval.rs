@@ -352,7 +352,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     );
     let (doc, big_p) = fixture::on_frame(
         doc,
-        [0.0, 0.0, -1.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
@@ -364,6 +364,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             distance: len(3.0),
         },
     );
+    let (doc, big) = fixture::slid(doc, small, big, [0.0, 0.0, -1.0]);
     let (doc, sub) = fixture::insert(
         doc,
         Node::Subtract {

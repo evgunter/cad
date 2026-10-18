@@ -665,7 +665,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "ImproperPlacement",
             EditError::ImproperPlacement {
                 node: s(5, "InstantiatePart"),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 determinant: -1.0,
             },
         ),
@@ -673,7 +673,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
                 node: s(5, "InstantiatePart"),
-                at: FrameSite::Step { index: 0 },
+                at: FrameSite::Listed { index: 0 },
             },
         ),
         (

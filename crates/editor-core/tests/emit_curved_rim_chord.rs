@@ -16,9 +16,9 @@ use crate::emit_shared_rim_several::Bx;
 use crate::fixture::{edge_of, insert, len, len2, out, table};
 
 use editor_core::{
-    EntityKind, Formula, LoopProgram, NameRef, NameTable, Node, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg,
-    StableName, VarId,
+    EntityKind, Formula, LoopProgram, NameRef, NameTable, Node, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    VarId,
 };
 use geom_core::Tol;
 use topo::EdgeKey;

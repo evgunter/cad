@@ -11,8 +11,8 @@ use crate::fixture::{self, Recorder};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    Node, ProfileDoc, ProfileLift, UnitSym, VarName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, Node,
+    ProfileDoc, ProfileLift, UnitSym, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 use topo::validate_closed;

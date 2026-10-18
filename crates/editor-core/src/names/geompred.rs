@@ -429,8 +429,8 @@ pub(crate) enum Prepared<T: Decide> {
 /// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
 /// of the query's own references, so they surface before a single
 /// margin is taken.
-pub(crate) fn prepare<'a, T: Decide>(
-    ev: &'a Evaluation<T>,
+pub(crate) fn prepare<T: Decide>(
+    ev: &Evaluation<T>,
     var: crate::VarId,
     geom: &[GeomPred],
     params: &VarEnv<T>,

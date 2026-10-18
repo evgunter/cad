@@ -227,6 +227,43 @@ fn seated_pair(
     (doc, vec![base, seated])
 }
 
+/// `instance` pinned to the world standing on its bottom: its part's
+/// start cap, flipped to face up its `z`, on the world's `xy`, with the
+/// constant `0` on the three freedoms that leaves. The bottom holds at
+/// `z = 0` whatever the part's height.
+fn standing_on_its_bottom(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    body: RecipeNodeId,
+) -> ProfileDoc {
+    let mate = Mate {
+        on: fixture::flip(fixture::plane(fixture::head(in_part(
+            instance,
+            body,
+            CapEnd::Start,
+        )))),
+        to: editor_core::Target::World(editor_core::WorldRead::through(PoseRole::Xy)),
+        class: ContactClass::Rest,
+    };
+    let zero = |dim| Formula::zero(dim);
+    fixture::with_values(
+        doc,
+        instance,
+        mate,
+        vec![
+            (
+                Coord::Slide(SlideAxis::X),
+                zero(editor_core::Dimension::Length),
+            ),
+            (
+                Coord::Slide(SlideAxis::Y),
+                zero(editor_core::Dimension::Length),
+            ),
+            (Coord::Spin, zero(editor_core::Dimension::Angle)),
+        ],
+    )
+}
+
 /// An instance of `doc_ref` carrying `record`, pinned to the world at
 /// the identity. `store` holds the part.
 fn pinned_with(
@@ -802,7 +839,9 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // gone.
     let (shifted, _) = insert(
         ProfileDoc::empty(part_id, Tol::witness()),
-        Node::Profile(crate::fixture::desc(vec![crate::fixture::square(5.0, 5.0, 0.5)])),
+        Node::Profile(crate::fixture::desc(vec![crate::fixture::square(
+            5.0, 5.0, 0.5,
+        )])),
     );
     let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 1.0);
     let shifted = crate::fixture::place(shifted, shifted_body).0;
@@ -929,7 +968,13 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     let (doc_ref, body) = store.insert_part((part.clone(), body), Tol::witness());
     // The stored part, placed: what the value edit below re-models.
     let part = crate::fixture::place(part, body).0;
-    let (doc, ids) = seated_pair("asm-r2b-row5e", doc_ref, &store);
+    // The base stands on its bottom, so the pin move below moves its
+    // top, the contact face, and nothing else.
+    let doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(doc_ref));
+    let doc = standing_on_its_bottom(doc, base, body);
+    let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
+    let ids = vec![base, seated];
     let (doc, mate) = seat(doc, ids[1], rest_mate(body, ids[0], ids[1], 1.0));
 
     // Pre-move: the declared pair touches — no contradiction.

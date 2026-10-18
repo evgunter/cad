@@ -197,7 +197,13 @@ fn placed(
     by: [f64; 3],
 ) -> (ProfileDoc, RecipeNodeId) {
     match on {
-        Some(target) => fixture::slid(doc, target, body, by),
+        Some(target) => {
+            let (target, body) = (
+                fixture::body_read(&doc, target.into()),
+                fixture::body_read(&doc, body.into()),
+            );
+            fixture::slid(doc, target, body, by)
+        }
         None => {
             assert_eq!(by, [0.0; 3], "a root stands at its own origin");
             (doc, body)

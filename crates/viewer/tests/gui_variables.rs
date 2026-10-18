@@ -598,19 +598,18 @@ fn a_lone_zero_draws_no_offer_and_is_never_offered() {
 }
 
 /// **A pose's angle is offered only free variables of its value** (the
-/// spec's tilted-seat row): the sketch frame's xy plane spun 15° about
+/// spec's tilted-seat row): the block's own xy plane spun 15° about
 /// its x axis holds its 15° as a written angle, offered the declared
 /// free `a` of 15° and not `c`, defined as `turn/24`, a constant of the
 /// same value.
 #[test]
 fn a_spins_angle_is_offered_only_free_values() {
-    use editor_core::test_support::{ang, len, xy_frame};
+    use editor_core::test_support::{ang, len};
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     use pncad::document::{Formula, Operand, VarDecl, VarDef};
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-spin-offer", tol);
-    let (doc, frame) = common::inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
@@ -620,7 +619,9 @@ fn a_spins_angle_is_offered_only_free_values() {
         tol,
     );
     let tilt = 15.0_f64.to_radians();
-    let through = |role| RoleRead::through(Operand::output(frame, 0), role);
+    // The block's own xy frame, read off its geometry.
+    let frame = editor_core::test_support::plane_on(&doc, block, [0.0; 3], [0.0, 0.0, 1.0]).read;
+    let through = |role| RoleRead::through(frame.clone(), role);
     let (mut doc, split) = common::inserted(
         &doc,
         Node::Split {

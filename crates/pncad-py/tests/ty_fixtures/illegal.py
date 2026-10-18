@@ -38,6 +38,7 @@ from pncad import (
     ValidationFinding,
     Body,
     Frame,
+    StationMove,
     FrameError,
     GeomPred,
     NamePat,
@@ -53,7 +54,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    SketchPlane,
     Start,
     Piece,
     SurfaceKind,
@@ -66,7 +66,6 @@ from pncad import (
     subject_body,
     ContactClass,
     Mate,
-    Placement,
     PoseDef,
     WorldRead,
     assemble,
@@ -116,18 +115,6 @@ Open.at((0 * mm, 0 * mm)).line_to((1 * mm, 0 * mm)).arc_to(Center((0 * mm, 1 * m
 Open.at((0.0, 0.0))  # ty: error
 Open.at((0 * mm, 0 * mm)).angle(1 * mm)  # ty: error
 
-# The sketch plane is a VALUE, not a name: there is no string spelling
-# of "the yz plane" that the door would guess at.
-Node.profile(Open.at((0 * m, 0 * m)).line_to(Start), plane="yz")  # ty: error
-
-# A plane's frame is dimensionless directions and a dimensioned
-# origin — not the other way round.
-SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0 * m, 1 * m, 0 * m), (0.0, 0.0, 1.0))  # ty: error
-
-# `v_degree` is a Count: a count slot takes an `int` (Q9), and a float
-# is not one.
-Node.loft([], 2.5)  # ty: error
-
 # LIB-PYBUNDLE. A real id to hang the node doors off — the refusals
 # below are about the ARGUMENT types, not about a missing name.
 doc = Doc()
@@ -143,6 +130,17 @@ solid: NodeId = doc.insert(
 # `Length` or a `WrittenLength` at a length slot. A bare float is
 # dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
+
+# `v_degree` is a Count: a count slot takes an `int` (Q9), and a float
+# is not one.
+Node.loft(solid, [], 2.5)  # ty: error
+
+# A loft section's station is a chain of `StationMove`s, not a
+# coordinate triple, and a slide's axis is one of the first section's
+# own three, named.
+Node.loft(solid, [(solid, (0 * m, 0 * m, 1 * m))], 2)  # ty: error
+StationMove.slide("w", 1 * m)  # ty: error
+StationMove.spin("z", 1 * m)  # ty: error
 
 # An index reads one member of a family, which is a body: no seat but a
 # body seat takes one, and an index is a count.
@@ -173,27 +171,8 @@ Node.tube(solid, 0.2, TubeWindow.full(), Formula.length_in(0.05, m))  # ty: erro
 Node.tube(solid, Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
 Node.hollow_tube(solid, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
 
-# Every one of a transform's slots is a `Formula` — the translation, the
-# axis and the angle alike — so a quantity handed over raw is refused
-# whichever of them it was meant for. WHICH dimension each slot wants
-# is checked at the door and not by the type: one seat, one type.
-Node.transform(solid, (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 1 * m)  # ty: error
-
-# A datum plane's origin and normal are both `Formula` triples.
-Node.datum_plane((Formula.literal(0.0), Formula.literal(0.0), Formula.literal(0.0)), (0 * m, 0 * m, 1 * m))  # ty: error
-
-# A datum point's position is a triple of `Formula`s, like every other
-# position on this surface.
-Node.datum_point((0.0, 0.0, 0.0))  # ty: error
-
-# A datum frame takes three `Formula` triples and no raw quantity.
-Node.datum_frame((Formula.literal(0.0), Formula.literal(0.0), Formula.literal(0.0)), (1 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))  # ty: error
-
 # A multi-loop profile is a list of LOOPS, and nothing else.
 Node.profile([circle((0 * m, 0 * m), 1 * m), "hole"])  # ty: error
-
-# The plane's frame components are read-only projections, not slots.
-SketchPlane.xy().origin = (0 * m, 0 * m, 0 * m)  # ty: error
 
 # LIB-PYSEL. The selector vocabulary refuses the same mixings Rust
 # refuses at compile time. (There is no "decided where exact is
@@ -205,14 +184,17 @@ SketchPlane.xy().origin = (0 * m, 0 * m, 0 * m)  # ty: error
 GeomPred.curve_kind(SurfaceKind.Plane)  # ty: error
 GeomPred.adjacent_kinds(CurveKind.Line, SurfaceKind.Sphere)  # ty: error
 
-# A datum-distance comparand is a `Formula`: not a bare float, and not a
-# quantity either. That it must be a LENGTH is the kernel's check at
+# A plane-distance comparand is a `Formula`: not a bare float, and not
+# a quantity either. That it must be a LENGTH is the kernel's check at
 # `select_where`, not the stub's.
-GeomPred.datum_distance(solid, Cmp.Approx, 1.0)  # ty: error
-GeomPred.datum_distance(solid, Cmp.Approx, 90 * deg)  # ty: error
+GeomPred.plane_distance("a face", Cmp.Approx, 1.0)  # ty: error
+GeomPred.plane_distance("a face", Cmp.Approx, 90 * deg)  # ty: error
 
 # The comparison is the trilean value, not a string spelling of one.
-GeomPred.datum_distance(solid, ">", Formula.length_in(1, m))  # ty: error
+GeomPred.plane_distance("a face", ">", Formula.length_in(1, m))  # ty: error
+
+# The face is opaque name TEXT, never the `NodeId` of a body.
+GeomPred.plane_distance(solid, Cmp.Approx, Formula.length_in(1, m))  # ty: error
 
 # A selector unions NAME patterns; a segment pattern is not one, and
 # `tag`/`group`/`side` take their own vocabularies.
@@ -319,8 +301,13 @@ Node.instantiate_part(doc.id)  # ty: error
 # no translation-only shortcut that would hide it.
 doc.pin(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
-# A placement's bundle is a sequence of `Mate`s, not a pose.
-doc.place(solid, Placement.identity())  # ty: error
+# A placement's bundle is a sequence of `Mate`s, not a pose: a pose is
+# the keyword `pose=`.
+doc.place(solid, Frame.translation((0 * m, 0 * m, 1 * m)))  # ty: error
+
+# A placement against another body is at a FRAME, not a coordinate
+# triple.
+doc.place_against(solid, solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # A mate equates two POSES: a pose read off the copy, and a pose or a
 # world read. Name text where a pose goes names nothing.
@@ -438,22 +425,16 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
 
-# The derived sketch frame. The SPIN is a slot, so what crosses is an
-# `Formula` and a bare number cannot mean radians by convention.
-Node.datum_face_frame(solid, "a face", 0.3)  # ty: error
+# A sketch on a face. The SPIN is an angle slot, so a bare number
+# cannot mean radians by convention...
+doc.sketch_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), 1 * m, 0.3)  # ty: error
 
-# ...and neither can a quantity, however plausible the arithmetic
-# looks: an authored angle reaches the slot through
-# `Formula.written_angle`.
-Node.datum_face_frame(solid, "a face", 1 * m)  # ty: error
+# ...and a length cannot stand for an angle.
+doc.sketch_on_face(solid, "a face", circle((0 * m, 0 * m), 1 * m), 1 * m, 1 * m)  # ty: error
 
 # The face is opaque TEXT, never the `NodeId` that minted it — the
 # same confusion the read doors refuse, on the authoring side.
-Node.datum_face_frame(solid, solid, Formula.angle_in(0, rad))  # ty: error
-
-# There is no default spin: which way a sketch faces on a face is an
-# authoring decision, and the door does not choose one.
-Node.datum_face_frame(solid, "a face")  # ty: error
+doc.sketch_on_face(solid, solid, circle((0 * m, 0 * m), 1 * m), 1 * m)  # ty: error
 
 # The carrier-kind read answers the `SurfaceKind` enum, not the tag as
 # a string: "which surface variant" is a value to compare, not prose
@@ -716,7 +697,7 @@ for _placed in _import.instances:
 # is not optional, `carried`'s read is a `Var` and not a node, and the end vocabulary is closed: `MeridianEnd` names a
 # revolve's ends and a `CapEnd` is an extrude's.
 _names_doc = Doc()
-_names_node: NodeId = _names_doc.sketch_frame()
+_names_node: NodeId = _names_doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
 _names_read = _names_doc.output(_names_node, 0)
 assert _names_read is not None
 _piece: Piece = _names_doc.pieces(_names_node)[0][0]

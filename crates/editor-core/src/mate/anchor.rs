@@ -221,9 +221,7 @@ impl<'a> Anchors<'a> {
             return known;
         }
         self.vars.borrow_mut().insert(var, false);
-        let reads = if self.doc.var(var).is_none() {
-            true
-        } else if self.doc.free(var).is_some() {
+        let reads = if self.doc.var(var).is_none() || self.doc.free(var).is_some() {
             true
         } else if let Some(node) = self.doc.operation_of(var) {
             self.node_reads(node)

@@ -9,7 +9,7 @@
 //! rows call directly, because framing is not what they check — the
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
-//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! What carries no oracle is shared: `common::{rectangle,
 //! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
 //! blocks' own dimensions, the height the rays start above them and
 //! the cursor positions aimed at them stay here, where the aim is
@@ -41,8 +41,7 @@ test_utils::gated_to![
 ];
 
 use crate::common;
-use crate::common::{inserted, len, scl, xy_frame};
-use pncad::document::ExtrudeSide;
+use crate::common::{inserted, len, scl};
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol};
@@ -68,8 +67,7 @@ fn delta() -> DisplayTolerance {
 /// Answers the document and the two placements, the drawn copies.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, pa) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.02, 0.02), tol);
+    let (doc, pa) = inserted(&doc, common::rectangle([0.0, 0.0], 0.02, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
@@ -78,7 +76,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, common::rectangle(plane, [0.1, 0.0], 0.04, 0.04), tol);
+    let (doc, pb) = inserted(&doc, common::rectangle([0.1, 0.0], 0.04, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
@@ -423,8 +421,7 @@ fn deleting_the_owner_kills_the_standing_and_undo_revives_it() {
 fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.03), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle([0.0, 0.0], 0.03, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {

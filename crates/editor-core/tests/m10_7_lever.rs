@@ -45,6 +45,7 @@ use editor_core::{
     LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply, evaluate, select,
 };
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use fixture::len;
 use geom_core::Tol;
 
@@ -104,8 +105,8 @@ fn cap(ev: &Evaluation<f64>, site: RecipeNodeId, body: RecipeNodeId, end: CapEnd
 /// caps, and a `Measure` reading the distance between the lower plate's
 /// TOP cap and the upper plate's BOTTOM cap.
 ///
-/// The tilt is authored as the upper plate's placement, its frame's
-/// `v` direction tilted, so the DOCUMENT says "this plate is tilted" rather than the test saying
+/// The tilt is authored as the upper plate's placement, the plane it
+/// rests on spun about its x, so the DOCUMENT says "this plate is tilted" rather than the test saying
 /// "these normals differ" — which is what makes each row a statement
 /// about the measure and not about the predicate.
 fn measures(half: f64, theta: f64) -> Result<f64, String> {
@@ -124,7 +125,6 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
 /// [`measures`]' document, evaluated, and its measure node.
 fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-7-lever"), Tol::witness());
-    let (c, s) = (theta.cos(), theta.sin());
     let square = LoopProgram::polygon([(-half, -half), (half, -half), (half, half), (-half, half)])
         .expect("finite corners");
     let mut plates = Vec::new();
@@ -147,17 +147,55 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         doc = next;
         plates.push(prism);
     }
-    // The upper plate stands `THICKNESS + SEPARATION` up the lower
-    // one's z, its `v` tilted by `theta` about the x axis.
-    let (doc, upper) = fixture::against(
-        doc,
-        plates[0],
+    // The upper plate's bottom cap rests on the lower one's frame
+    // `THICKNESS + SEPARATION` up its z, that frame's xy spun by `theta`
+    // about its x: the tilt is a number the pose reads, so nothing
+    // decides it before the measure does.
+    let up = editor_core::frame_at(
+        &doc,
+        &editor_core::Operand::from(plates[0]),
+        &editor_core::Frame::translation([0.0, 0.0, THICKNESS + SEPARATION]),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the lower plate offers a frame");
+    let tilted = editor_core::Operand::Pose(Box::new(PoseDef::Spin {
+        pose: RoleRead::through(up.clone(), PoseRole::Xy),
+        about: RoleRead::through(up, PoseRole::X),
+        by: fixture::ang(theta),
+    }));
+    let (doc, upper) = mint(
+        &doc,
+        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(
+            plates[1],
+        ))]),
+    );
+    let bottom = editor_core::Operand::select(
         plates[1],
-        &fixture::frame_at(
-            [0.0, 0.0, THICKNESS + SEPARATION],
-            [1.0, 0.0, 0.0],
-            [0.0, c, s],
-        ),
+        vec![fixture::fname(plates[1], editor_core::RoleSeg::Cap(CapEnd::Start))],
+    );
+    let doc = fixture::with_values(
+        doc,
+        upper,
+        editor_core::Mate {
+            on: fixture::plane(bottom),
+            to: editor_core::Target::Pose(tilted),
+            class: editor_core::ContactClass::Rest,
+        },
+        vec![
+            (
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                editor_core::Formula::zero(editor_core::Dimension::Length),
+            ),
+            (
+                editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                editor_core::Formula::zero(editor_core::Dimension::Length),
+            ),
+            (
+                editor_core::Coord::Spin,
+                editor_core::Formula::zero(editor_core::Dimension::Angle),
+            ),
+        ],
     );
 
     let ev: Evaluation<f64> = evaluate(

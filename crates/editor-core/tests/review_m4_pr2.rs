@@ -98,7 +98,9 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // The start caps are flush.
+    // The start caps are flush: the tool's copy stands against `from`
+    // at the identity.
+    let (doc, y) = crate::fixture::slid(doc, x, y, [0.0; 3]);
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -860,5 +862,5 @@ fn edit_back_restores_bit_identical_bodies() {
     );
     // The reverted placement and the final subtract recompute; the rest
     // reuses.
-    assert_eq!((e2.recomputed, e2.reused), (2, 61));
+    assert_eq!((e2.recomputed, e2.reused), (2, 54));
 }

@@ -23,8 +23,8 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, InlineError,
-    Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
+    EvalError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, InlineError, Maintenance,
+    Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, var_env_over,
 };
@@ -1081,6 +1081,70 @@ fn inline_carries_a_definition_at_the_carried_ids() {
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
+/// **A measure whose value is the length variable `param`**: a unit
+/// cube and its copy slid `param` along the cube's own x, measured from
+/// the cube's vertex at the origin to the copy's own copy of it, which
+/// is `|param − 0|` with no geometry standing between the variable and
+/// the reading. Returns the measure.
+fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
+    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, SlideAxis, StableName};
+    let name = editor_core::VarName::new(param).expect("a valid name");
+    let profile = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let cube = r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: len(1.0),
+    });
+    let cap = || {
+        crate::fixture::plane(editor_core::Operand::select(
+            cube,
+            vec![crate::fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
+        ))
+    };
+    let copy = r.insert(Node::place(vec![cube.into()]));
+    r.constrain(
+        copy,
+        editor_core::Mate {
+            on: cap(),
+            to: editor_core::Target::Pose(cap()),
+            class: editor_core::ContactClass::Rest,
+        },
+        vec![
+            (
+                Coord::Slide(SlideAxis::X),
+                Formula::named(name, Dimension::Length),
+            ),
+            (Coord::Slide(SlideAxis::Y), Formula::zero(Dimension::Length)),
+            (Coord::Spin, Formula::zero(Dimension::Angle)),
+        ],
+    );
+    let ev = eval_after(&r.doc, None);
+    let vertex = editor_core::all_vertices(&ev, cube)
+        .into_iter()
+        .find(|v| {
+            let p = editor_core::vertex_position(&ev, cube, v).expect("a vertex");
+            (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
+        })
+        .expect("the cube has a vertex at the origin");
+    let copied = StableName {
+        kind: vertex.kind,
+        node: copy,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(vertex.clone()),
+        }],
+    };
+    r.insert(Node::Measure {
+        primitive: editor_core::MeasurePrimitive::Distance {
+            a: editor_core::SitedRef::new(cube, vertex).into(),
+            b: editor_core::SitedRef::new(copy, copied).into(),
+        },
+    })
+}
+
 /// Monte Carlo over a document holding `h := 2·w`, `w` toleranced, and
 /// a measure whose value is each: every draw binds `h` from that draw's
 /// `w`, so `h`'s summary is exactly twice `w`'s (doubling is exact in
@@ -1103,7 +1167,7 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
         last: None,
     };
     for name in ["w", "h"] {
-        r.measure_of_translation(name);
+        measure_of_translation(&mut r, name);
     }
     let doc = r.doc;
     let config = editor_core::mc::McConfig {

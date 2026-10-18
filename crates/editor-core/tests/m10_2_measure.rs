@@ -259,12 +259,14 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, slabs[0], slabs[1])
 }
 
-/// A named cap of a prism, read at the node that owns it.
+/// A named cap of a prism, read at the node that owns it: the prism, or
+/// the placement whose copy wears it.
 fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> SitedRef {
     use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
-    let sel =
-        Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
-    let mut found = select(ev, node, &sel);
+    let own = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end));
+    let worn = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Placed).of([own.clone()]));
+    let mut found = select(ev, node, &Selector::of(own));
+    found.extend(select(ev, node, &Selector::of(worn)));
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
     SitedRef::new(node, found.remove(0))
 }

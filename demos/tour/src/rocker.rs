@@ -29,7 +29,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::sweep::ExtrudeSide;
 use pncad::prelude::{
     BlendError, Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
     mass_properties, query, validate_geometric,
@@ -38,6 +37,7 @@ use pncad::profile::{
     ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
     ValidatedProfile,
 };
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extruded, Extrusion, extrude};
 use pncad::topo::readback::euler_counts;
 

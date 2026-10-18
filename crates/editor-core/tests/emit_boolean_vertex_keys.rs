@@ -54,13 +54,7 @@ fn placed_prism(
     loop_: Vec<(f64, f64)>,
     distance: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![loop_],
-    );
+    let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![loop_]);
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
@@ -256,7 +250,10 @@ fn an_edge_touched_by_the_other_operands_vertex_stays_whole_in_a_clone() {
     let (doc, ell_first) = union(doc, ell, tip);
     let ev = run(&doc);
 
-    let reflex = NameRef::new(crate::fixture::ename(ell, RoleSeg::LateralEdge(pv(&doc, ell, 3))));
+    let reflex = NameRef::new(crate::fixture::ename(
+        ell,
+        RoleSeg::LateralEdge(pv(&doc, ell, 3)),
+    ));
     let ell_read = out(&doc, ell);
     assert_eq!(kind_of(&ev, tip_first), BooleanResultKind::OperandB);
     assert_whole(

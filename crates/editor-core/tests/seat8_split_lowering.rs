@@ -470,11 +470,15 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     else {
         panic!("the split's below side is a body");
     };
-    let Some(ValuePayload::Copies(copies)) = ev.value(below).map(|v| &v.payload) else {
-        panic!("the present half is read: {:?}", ev.nodes.get(&below));
-    };
-    let [read] = &copies.bodies[..] else {
-        panic!("one copy of the half: {}", copies.bodies.len());
+    let read = match ev.value(below).map(|v| &v.payload) {
+        Some(ValuePayload::Body(body)) => body,
+        Some(ValuePayload::Copies(copies)) => {
+            let [read] = &copies.bodies[..] else {
+                panic!("one copy of the half: {}", copies.bodies.len());
+            };
+            read
+        }
+        _ => panic!("the present half is read: {:?}", ev.result(below).is_some()),
     };
     assert_eq!(
         (

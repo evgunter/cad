@@ -69,9 +69,14 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
     );
     let edited = doc.apply(
         &DocEdit::InsertNode {
-            node: Box::new(Node::Shell {
-                thickness: len(0.1),
-                open: editor_core::Operand::Var(sel),
+            // The split's tool is the plane of the selected face.
+            node: Box::new(Node::Split {
+                target: editor_core::BodyRead::plain(editor_core::Operand::from(p)),
+                tool: editor_core::pose::RoleRead::plain(editor_core::Operand::Pose(Box::new(
+                    editor_core::pose::PoseDef::Plane {
+                        face: editor_core::Operand::Var(sel),
+                    },
+                ))),
             }),
             fresh: Vec::new(),
         },
@@ -90,7 +95,7 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
     });
     assert!(
         loaded.is_ok(),
-        "the edit door admitted a shell reading a world copy's selection, and the load \
+        "the edit door admitted a split whose tool reads a world copy's selection, and the load \
          door disagrees: {loaded:?}"
     );
 }

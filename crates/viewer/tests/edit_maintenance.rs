@@ -25,8 +25,8 @@ use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, FreeVar, LoopProgram, Maintenance, Node, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
+    Dimension, Doc, DocEdit, FreeVar, LoopProgram, Maintenance, Node, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, RoleSeg, StableName};
@@ -66,14 +66,13 @@ fn wall(
     }
 }
 
-/// A unit-high extrude of `loops` on the xy frame; `(doc, profile,
+/// A unit-high extrude of `loops` on its own plane; `(doc, profile,
 /// extrude)`.
 fn extruded(
     doc: &Doc<ProfileProgram>,
     loops: Vec<LoopProgram<Formula>>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
-    let (doc, plane) = common::inserted(doc, common::xy_frame(), tol);
     let (doc, profile) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
@@ -99,25 +98,27 @@ fn block(doc: &Doc<ProfileProgram>, x0: f64) -> (Doc<ProfileProgram>, RecipeNode
     (doc, extrude)
 }
 
-/// A derived frame on `at` carrying `face` — a payload carrier of one
-/// name.
-fn frame_on(
+/// A shell of `at` opened at `face` — a payload carrier of one name.
+fn shell_on(
     doc: &Doc<ProfileProgram>,
     at: RecipeNodeId,
     face: StableName,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(
         doc,
-        Node::Datum(Datum::face_frame(at, face, common::ang(0.0))),
+        Node::Shell {
+            thickness: common::len(0.01),
+            open: pncad::document::Operand::select(at, vec![face]),
+        },
         Tol::witness(),
     )
 }
 
-/// The selection a face frame reads its face through.
-fn face_of(doc: &Doc<ProfileProgram>, frame: RecipeNodeId) -> pncad::document::VarId {
-    match doc.node(frame) {
-        Some(Node::Datum(Datum::FaceFrame { face, .. })) => *face,
-        other => panic!("a face frame, got {other:?}"),
+/// The selection a shell reads its open face through.
+fn face_of(doc: &Doc<ProfileProgram>, shell: RecipeNodeId) -> pncad::document::VarId {
+    match doc.node(shell) {
+        Some(Node::Shell { open, .. }) => *open,
+        other => panic!("a shell, got {other:?}"),
     }
 }
 
@@ -146,8 +147,8 @@ fn assert_line_words(line: &str, rows: &[Maintenance]) {
 }
 
 /// **A delete that strands a selected name reports it, and the line
-/// says so.** A frame on the kept block names a wall of the other
-/// one; deleting the other leaves the frame holding a name whose
+/// says so.** A shell of the kept block names a wall of the other
+/// one; deleting the other leaves the shell holding a name whose
 /// minting node is gone. The delete is legal (a name is not an edge),
 /// and before this row the session answered it with nothing.
 #[test]
@@ -156,7 +157,7 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let (doc, kept) = block(&doc, 0.0);
     let (doc, victim) = block(&doc, 4.0);
     let named = wall(&doc, victim, 0, 0);
-    let (doc, carrier) = frame_on(&doc, kept, named.clone());
+    let (doc, carrier) = shell_on(&doc, kept, named.clone());
 
     let expected = vec![Maintenance::StrandedSelection {
         var: doc.spoken_var(face_of(&doc, carrier)),
@@ -288,8 +289,8 @@ fn framed_triangle(label: &str) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNod
     ]);
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, Tol::witness());
     let (doc, profile, extrude) = extruded(&doc, vec![triangle]);
-    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 0, 0));
-    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 0, 1));
+    let (doc, _) = shell_on(&doc, extrude, wall(&doc, extrude, 0, 0));
+    let (doc, _) = shell_on(&doc, extrude, wall(&doc, extrude, 0, 1));
     (doc, profile, extrude)
 }
 
@@ -457,7 +458,7 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-profile-shadow", Tol::witness());
     let (doc, profile, extrude) = extruded(&doc, vec![corner(false)]);
     let right = wall(&doc, extrude, 0, 1);
-    let (doc, carrier) = frame_on(&doc, extrude, right.clone());
+    let (doc, carrier) = shell_on(&doc, extrude, right.clone());
     let Some(Node::Profile(base)) = doc.node(profile) else {
         panic!("the fixture's profile")
     };
@@ -515,7 +516,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
         radius: pncad::document::Formula::named(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
-    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
+    let (doc, _) = shell_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::SetVariable {

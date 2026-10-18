@@ -377,7 +377,11 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             tool: b.into(),
         },
     );
-    let (doc, c) = slab_on(doc, a, 0.0, 0.8, 0.5, 1.5 - t);
+    // The filler a unit tall at first, so the union evaluates and its
+    // copy stands in the world; then raised to leave the cavity `t`
+    // thin over it.
+    let (doc, filler) = slab(doc, 0.0, 0.8, 1.0);
+    let (doc, c) = fixture::slid(doc, a, filler, [0.0, 0.0, 0.5]);
     let (doc, root) = insert(
         doc,
         Node::Union {
@@ -385,6 +389,15 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         },
     );
     let (doc, placement) = fixture::place(doc, root);
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: filler,
+            slot: editor_core::SlotId::Distance,
+            value: len(1.5 - t).into(),
+            fresh: Vec::new(),
+        },
+    );
     let ev = run(&doc);
     let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
         .expect_err("the door refuses a solid whose cavity has no role");

@@ -50,7 +50,12 @@ fn block(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
-        Node::Profile(super::desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
+        Node::Profile(super::desc(vec![vec![
+            (x0, y0),
+            (x1, y0),
+            (x1, y1),
+            (x0, y1),
+        ]])),
     );
     insert(
         doc,

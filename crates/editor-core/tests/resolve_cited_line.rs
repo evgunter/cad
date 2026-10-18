@@ -10,11 +10,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{desc, insert, len, slid, step, value_slot};
+use crate::fixture::{desc, insert, len, slid};
+use crate::resolve_group_membership::{Placed, moved, placed};
 use editor_core::{
-    CancelToken, Coord, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlideAxis,
-    StableName, evaluate,
+    CancelToken, Diagnosis, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -72,18 +72,18 @@ fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (Profile
     )
 }
 
-/// `node`'s placement value on `axis` set to `by`: the copy slid there.
-fn slide(doc: &ProfileDoc, node: RecipeNodeId, axis: SlideAxis, by: f64) -> ProfileDoc {
-    step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node,
-            slot: value_slot(doc, node, Coord::Slide(axis)),
-            value: len(by).into(),
-            fresh: Vec::new(),
-        },
-    )
-    .0
+/// [`block`] placed against `target`, its base `z0` up `target`'s own
+/// `z`, kept as a [`Placed`] so a later edit can slide it.
+fn placed_block(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, Placed) {
+    let (doc, b) = block(doc, x, y, dz);
+    placed(doc, target, b, z0)
 }
 
 /// The bar notched through its back top edge: the document, the
@@ -126,11 +126,11 @@ fn crossings(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(StableName, Stabl
 #[test]
 fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
     let (doc, notched, bar) = notched_bar("cited-line-through");
-    let (doc, strip) = block_on(doc, bar, (-1.0, 21.0), (2.2, 3.0), 0.6, 1.0);
-    let (doc, m) = subtract(doc, notched, strip);
+    let (doc, strip) = placed_block(doc, bar, (-1.0, 21.0), (2.2, 3.0), 0.6, 1.0);
+    let (doc, m) = subtract(doc, notched, strip.placement);
     let (doc, slot) = block_on(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
     let (doc, n) = subtract(doc, m, slot);
-    let doc2 = slide(&doc, strip, SlideAxis::Y, -0.5);
+    let doc2 = moved(doc.clone(), &strip, [0.0, -0.5, 0.0]);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
     let (crossing, line) = crossings(&ev1, n)
@@ -188,10 +188,10 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
 #[test]
 fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
     let (doc, notched, bar) = notched_bar("cited-line-offers");
-    let (doc, slot) = block_on(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
-    let (doc, n) = subtract(doc, notched, slot);
+    let (doc, slot) = placed_block(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
+    let (doc, n) = subtract(doc, notched, slot.placement);
     let from_read = crate::fixture::out(&doc, notched);
-    let doc2 = slide(&doc, slot, SlideAxis::Y, 1.0);
+    let doc2 = moved(doc.clone(), &slot, [0.0, 1.0, 0.0]);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
     let (t1, t2) = (

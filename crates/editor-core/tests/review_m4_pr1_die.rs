@@ -374,7 +374,38 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             mine.doc.upstream(m_id),
             "upstream of {t_id:?}→{m_id:?}"
         );
-        assert_eq!(tn.slots(), mn.slots());
+        // A placement's constraints are minted per authoring: its slots
+        // correspond through the constraints' order.
+        let constraint_ids = |n: &Node| match n {
+            Node::Place { constraints, .. } => constraints.iter().map(|c| c.id).collect(),
+            _ => Vec::new(),
+        };
+        let cmap: BTreeMap<editor_core::ConstraintId, editor_core::ConstraintId> =
+            constraint_ids(tn)
+                .into_iter()
+                .zip(constraint_ids(mn))
+                .collect();
+        let relabel = |slot: editor_core::SlotId| match slot {
+            editor_core::SlotId::ValueSlide { constraint } => editor_core::SlotId::ValueSlide {
+                constraint: cmap[&constraint],
+            },
+            editor_core::SlotId::ValueSpin { constraint } => editor_core::SlotId::ValueSpin {
+                constraint: cmap[&constraint],
+            },
+            editor_core::SlotId::WorldSlide { constraint, step } => editor_core::SlotId::WorldSlide {
+                constraint: cmap[&constraint],
+                step,
+            },
+            editor_core::SlotId::WorldSpin { constraint, step } => editor_core::SlotId::WorldSpin {
+                constraint: cmap[&constraint],
+                step,
+            },
+            other => other,
+        };
+        assert_eq!(
+            tn.slots().into_iter().map(relabel).collect::<Vec<_>>(),
+            mn.slots()
+        );
         for slot in tn.slots() {
             let tv = eval::<f64>(
                 &theirs.doc.slot_expansion(t_id, slot).unwrap(),
@@ -382,7 +413,7 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             )
             .unwrap();
             let mv = eval::<f64>(
-                &mine.doc.slot_expansion(m_id, slot).unwrap(),
+                &mine.doc.slot_expansion(m_id, relabel(slot)).unwrap(),
                 &mine.doc.var_env(),
             )
             .unwrap();

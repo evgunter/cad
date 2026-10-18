@@ -35,10 +35,10 @@ fn two_named_nodes(doc: &ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
     for x in [0.0, 2.0] {
         let (d, profile) = crate::fixture::on_frame(
             doc,
-            [x, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            vec![crate::fixture::square(0.0, 0.0, 0.5)],
+            vec![crate::fixture::square(x, 0.0, 0.5)],
         );
         let (d, block) = crate::fixture::insert(
             d,

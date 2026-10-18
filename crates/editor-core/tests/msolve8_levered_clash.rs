@@ -891,7 +891,7 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     r.doc = with_value(r.doc, coaxial, Coord::Spin, ang(0.0));
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
     assert!(
-        poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::World),
+        poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::Loose { root: r.t }),
         "the exemplar is DETERMINED: {:?}",
         poses.fault(r.copy)
     );

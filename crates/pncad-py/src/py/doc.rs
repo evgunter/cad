@@ -2279,9 +2279,8 @@ impl StationMove {
     #[getter]
     fn axis(&self) -> &'static str {
         match self.0 {
-            d::StationMove::Slide { along: axis, .. } | d::StationMove::Spin { about: axis, .. } => {
-                station_axis_word(axis)
-            }
+            d::StationMove::Slide { along: axis, .. }
+            | d::StationMove::Spin { about: axis, .. } => station_axis_word(axis),
         }
     }
 
@@ -2301,7 +2300,12 @@ impl StationMove {
     }
 
     fn __repr__(&self) -> String {
-        format!("StationMove.{}({:?}, {})", self.kind(), self.axis(), self.by().0)
+        format!(
+            "StationMove.{}({:?}, {})",
+            self.kind(),
+            self.axis(),
+            self.by().0
+        )
     }
 }
 

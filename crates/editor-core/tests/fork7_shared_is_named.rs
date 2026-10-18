@@ -11,9 +11,9 @@
 use crate::fixture::{insert, len};
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    Dimension, DocEdit, DocumentId, EditError, ExprPath, Formula, FreeVar,
-    FreshEntry, Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, VarDecl,
-    VarId, VarName, apply, load, save,
+    Dimension, DocEdit, DocumentId, EditError, ExprPath, Formula, FreeVar, FreshEntry, Node,
+    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, VarDecl, VarId, VarName, apply,
+    load, save,
 };
 use geom_core::Tol;
 
@@ -64,7 +64,9 @@ fn read(var: VarId) -> Formula {
 fn typed_ring(seed: &str) -> (ProfileDoc, RecipeNodeId, VarId) {
     let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
     let (doc, ring_node) = insert(doc, ring(len(0.5), len(0.1)));
-    let v = doc.slot(ring_node, x()).expect("the ring reads its major radius");
+    let v = doc
+        .slot(ring_node, x())
+        .expect("the ring reads its major radius");
     assert_eq!(doc.var_name(v), None, "the premise: v is unnamed");
     (doc, ring_node, v)
 }

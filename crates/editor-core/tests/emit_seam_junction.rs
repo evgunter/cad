@@ -133,7 +133,11 @@ fn crossing(
             doc,
             g,
             EntityKind::Face,
-            vec![wall(doc, crate::emit_shared_rim_several::construction(doc, g), 3)],
+            vec![wall(
+                doc,
+                crate::emit_shared_rim_several::construction(doc, g),
+                3,
+            )],
         ),
     );
     StableName {

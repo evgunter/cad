@@ -27,7 +27,6 @@
 
 use crate::fixture;
 
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};

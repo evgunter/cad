@@ -966,9 +966,16 @@ fn row6a_mated_instances_share_an_a9_component() {
             .any(|c| c.contains(&ids[0]) && c.contains(&ids[1])),
         "the constraint COUPLES the components: {together:?}"
     );
+    // The first instance's world pin is a mate on its own face, so it
+    // lands on that instance alone.
+    let pin = fixture::bundle(&doc, ids[0])
+        .into_iter()
+        .find(|c| c.mate().is_some())
+        .map(|c| editor_core::MateRef::new(ids[0], c.id))
+        .expect("the first instance is pinned by a mate");
     assert_eq!(
         fixture::mate_members(&doc),
-        vec![(mate_ref, ids[1]), (mate_ref, ids[0])],
+        vec![(pin, ids[0]), (mate_ref, ids[1]), (mate_ref, ids[0])],
         "each pose lands on its instance"
     );
 }

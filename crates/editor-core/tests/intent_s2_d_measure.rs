@@ -510,10 +510,22 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
 #[test]
 fn an_unavailable_side_keys_by_its_position() {
     let (doc, a, b) = slabs("s2d-unavailable", 2.5);
+    // `b` in `a`'s space, so the clearance reads one space.
+    let (doc, b_at) = fixture::slid(doc, a, b, [0.0; 3]);
+    let b_cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: b_at,
+        path: vec![editor_core::RoleSeg::Placed {
+            of: editor_core::NameRef::new(cap_ref(b, CapEnd::End).name),
+        }],
+    };
     let (doc, clearance) = fixture::measure_node(
         &doc,
         MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![cap_ref(a, CapEnd::End), cap_ref(b, CapEnd::End)],
+        vec![
+            cap_ref(a, CapEnd::End),
+            editor_core::SitedRef::new(b_at, b_cap),
+        ],
     );
     let gap = Formula::var(fixture::output(&doc, clearance), Dimension::Length);
     let (doc, low) = insert(

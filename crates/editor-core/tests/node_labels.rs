@@ -1063,7 +1063,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         poisoned.spoken(&doc),
         format!(
             "Extrude \"base plate\" ({e}) is poisoned by the failure at Profile \"sketch \
-             plane\" ({f}), so it has no value — the repair is upstream, at Datum sketch \
+             plane\" ({f}), so it has no value — the repair is upstream, at Profile \
              \"sketch plane\" ({f})"
         )
     );

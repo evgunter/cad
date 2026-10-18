@@ -18,8 +18,8 @@
 use crate::blocks::{failure, run};
 use crate::fixture::{against, ang, frame_at, insert, len, len2, on_frame, scl};
 use editor_core::{
-    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId,
 };
 use geom_core::Tol;
 

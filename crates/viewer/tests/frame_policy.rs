@@ -860,8 +860,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let tol = Tol::witness();
     let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
 
-    // A POISONED copy: the extrude fails, and the placement of the
-    // transform over it is what the index refuses on. The badge names
+    // A POISONED copy: the extrude fails, and the placement of it is
+    // what the index refuses on. The badge names
     // the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
     assert_ne!(extrude, moved, "the body over the failure is another node");
@@ -1261,9 +1261,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 11, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1325,11 +1325,6 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         frame::prefs_badge(None),
         None,
         "a store that keeps preferences says nothing about keeping them"
-    );
-    assert_eq!(
-        frame::datums_badge(0),
-        None,
-        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
     assert_eq!(
         frame::profiles_badge(0),
@@ -1440,46 +1435,6 @@ fn the_profiles_badge_counts_what_it_could_not_draw() {
             "no camera move brings the arc back"
         );
     }
-}
-
-/// **The datums badge says how many, and says it in agreeing
-/// words.**
-///
-/// The count is the whole content: the picture already shows nothing,
-/// and what a reader cannot get from it is that there was something
-/// to show. The noun agreeing with the number is not a flourish —
-/// "1 datums" reads as a sentence nobody wrote, beside eight badges
-/// that were.
-#[test]
-fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
-    let one = frame::datums_badge(1).expect("one vanished datum badges");
-    assert_eq!(
-        one.label(),
-        "datums: 1 datum this view draws nothing of",
-        "the singular"
-    );
-    assert_eq!(
-        one.tone(),
-        frame::Tone::Actionable,
-        "a reader can move the camera and get them back"
-    );
-    assert_eq!(
-        one.subject(),
-        frame::Subject::Camera,
-        "what makes the count the wrong answer is the camera moving"
-    );
-    assert_eq!(
-        one.affordance(),
-        frame::Affordance::Read,
-        "there is no window of findings behind it"
-    );
-    assert_eq!(
-        frame::datums_badge(4)
-            .expect("four vanished datums badge")
-            .label(),
-        "datums: 4 datums this view draws nothing of",
-        "the plural"
-    );
 }
 
 /// The tone split is the actionable-or-not rule, stated by a value
@@ -2319,9 +2274,8 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
     }
 }
 
-/// Two `Transform`s over one extrude, each placed: both copies carry
-/// the extrude's names (a transform contributes no role segment), each
-/// under its own placement's wrap. Answers the document and the two
+/// One extrude placed twice in the world: both copies carry the
+/// extrude's names, each under its own placement's wrap. Answers the document and the two
 /// placements, left then right.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
@@ -2334,24 +2288,8 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
         },
         tol,
     );
-    let place = |doc: &Doc<ProfileProgram>, x: f64| {
-        common::inserted(
-            doc,
-            Node::transform(
-                extrude,
-                pncad::document::Step::Rigid {
-                    translation: [common::len(x), common::len(0.0), common::len(0.0)],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
-            tol,
-        )
-    };
-    let (doc, left) = place(&doc, 0.0);
-    let (doc, right) = place(&doc, 0.1);
-    let (doc, left) = common::placed(&doc, left, tol);
-    let (doc, right) = common::placed(&doc, right, tol);
+    let (doc, left) = common::placed_at(&doc, extrude, [0.0; 3], tol);
+    let (doc, right) = common::placed_at(&doc, extrude, [0.1, 0.0, 0.0], tol);
     (doc, left, right)
 }
 
@@ -3871,10 +3809,6 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
 
     let why = "the distance is not a number";
     let forms = [
-        (
-            FormKind::AddDatum,
-            "add datum: the distance is not a number",
-        ),
         (
             FormKind::AddProfile,
             "add profile: the distance is not a number",

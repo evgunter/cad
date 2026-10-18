@@ -80,8 +80,11 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc.clone(),
         DocEdit::SetParam {
             node: tr,
+            // The value is charted on the plate's flipped start cap, whose
+            // `y` runs along the plate's `−y`: this slides the notch
+            // 4 toward `−y`.
             slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(SlideAxis::Y)),
-            value: len(-4.0).into(),
+            value: len(4.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -285,7 +288,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
 /// split's tool slot is re-pointed at.
 fn plane_read(
     doc: &ProfileDoc,
-    body: RecipeNodeId,
+    body: editor_core::RecipeNodeId,
     origin: [f64; 3],
     normal: [f64; 3],
 ) -> editor_core::Operand {

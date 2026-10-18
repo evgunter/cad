@@ -31,9 +31,9 @@ use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
-    LoopProgram, Node, Operand, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply,
-    evaluate, held_by, product,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes, LoopProgram,
+    Node, Operand, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply, evaluate,
+    held_by, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};

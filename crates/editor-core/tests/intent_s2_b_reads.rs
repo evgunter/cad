@@ -331,30 +331,6 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         "a member read twice is that member's body"
     );
 
-    // A placer's output kind is fixed at minting: a placement of a body
-    // re-pointed at a pattern's list refuses, at a body is a write.
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: b.into(),
-            count: editor_core::Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    assert!(
-        matches!(
-            refused(&doc, set(moved, OperandSlot::Shape(0), pattern.into())),
-            EditError::SlotVarKind {
-                found: VarKind::Bodies,
-                ..
-            }
-        ),
-        "a body's placement does not become a list's"
-    );
-    applied(&doc, set(moved, OperandSlot::Shape(0), b.into()));
 }
 
 /// **One door, the slot typed by kind** (Q1 ruled): the door that
@@ -749,8 +725,9 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     );
 }
 
-/// A block split across its middle, and a second block clear of it: the
-/// two halves are ports 0 (above) and 1 (below) of the split.
+/// A block split across its middle, and a second block clear of it in
+/// the block's space: the two halves are ports 0 (above) and 1 (below)
+/// of the split.
 fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, target) = block(ProfileDoc::empty_derived(name, Tol::witness()), 0.0);
     let tool = plane_on(&doc, target, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
@@ -762,6 +739,7 @@ fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         },
     );
     let (doc, _, far) = block(doc, 5.0);
+    let (doc, far) = fixture::slid(doc, target, far, [0.0; 3]);
     (doc, split, far)
 }
 

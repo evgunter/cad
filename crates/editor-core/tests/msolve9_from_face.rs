@@ -357,10 +357,9 @@ fn a1_the_mate_follows_the_edited_face() {
     );
 }
 
-/// `loops` on the xz plane revolved a full turn about the plane's y
-/// axis (the world z).
+/// `loops` revolved a full turn about the profile's own y axis.
 fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
-    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
+    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(loops)));
     let (doc, _) = insert(
         doc,
         fixture::revolve_about(
@@ -631,19 +630,31 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
-    // The post's own pin was read off the edges the extrude had: the
+    // The post's own stand was read off a face the extrude had: the
     // author re-pins the round post over its own geometry, so what
-    // remains unresolved is the seat's face alone.
-    let [pin] = &fixture::bundle(&doc, s.post_i)[..] else {
-        panic!("the post is pinned by one constraint");
-    };
-    let (doc, _) = step(
-        doc.clone(),
-        DocEdit::RemoveConstraint {
-            placement: s.post_i,
-            constraint: pin.id,
-        },
+    // remains unresolved is the seat's face alone. Its stand is one
+    // mate and the values on its freedoms: the values go first, then
+    // the mate they are read in.
+    let bundle = fixture::bundle(&doc, s.post_i);
+    assert_eq!(
+        bundle.iter().filter(|c| c.mate().is_some()).count(),
+        1,
+        "the post is pinned by one mate"
     );
+    let order = bundle
+        .iter()
+        .filter(|c| c.value().is_some())
+        .chain(bundle.iter().filter(|c| c.mate().is_some()));
+    let doc = order.fold(doc, |doc, c| {
+        step(
+            doc,
+            DocEdit::RemoveConstraint {
+                placement: s.post_i,
+                constraint: c.id,
+            },
+        )
+        .0
+    });
     let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(

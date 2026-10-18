@@ -697,6 +697,7 @@ test_utils::f6_variants! {
         WrongNodeKind,
         NotABodyRead,
         Duplicate,
+        Frame,
         Edit,
         Dimension,
         Parse,

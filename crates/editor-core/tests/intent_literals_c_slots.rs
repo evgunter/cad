@@ -18,10 +18,10 @@ use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
-    Evaluation, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
-    Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
-    VarId, VarName, apply, evaluate, load, save,
+    CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions, Evaluation,
+    Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance, Node, PersistError,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl, VarId, VarName, apply,
+    evaluate, load, save,
 };
 use geom_core::Tol;
 
@@ -518,10 +518,7 @@ fn a_variable_read_on_both_sides_refuses_the_cut() {
         .slot(cut[0], SlotId::TubeMajorRadius)
         .expect("the major radius");
     // A kept ring reading the same variable.
-    let (doc, kept) = insert(
-        doc,
-        ring(Formula::var(source, Dimension::Length), len(0.1)),
-    );
+    let (doc, kept) = insert(doc, ring(Formula::var(source, Dimension::Length), len(0.1)));
     match split(
         &doc,
         &BTreeSet::from(cut),
@@ -565,7 +562,8 @@ fn empty(seed: &str) -> ProfileDoc {
 fn a_read_of_an_entry_the_table_does_not_hold_refuses() {
     let doc = empty("intent-literals-c-unheld");
     let edit = ring_edit(
-        Formula::fresh(1, Dimension::Length), len(0.1),
+        Formula::fresh(1, Dimension::Length),
+        len(0.1),
         vec![length(1.0)],
     );
     match try_step(&doc, edit) {
@@ -581,7 +579,8 @@ fn a_read_of_an_entry_the_table_does_not_hold_refuses() {
 fn a_read_of_an_entry_at_another_kind_refuses() {
     let doc = empty("intent-literals-c-kind");
     let edit = ring_edit(
-        Formula::fresh(0, Dimension::Length), len(0.1),
+        Formula::fresh(0, Dimension::Length),
+        len(0.1),
         vec![VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.0))],
     );
     match try_step(&doc, edit) {
@@ -605,7 +604,8 @@ fn a_read_of_an_entry_at_another_kind_refuses() {
 fn an_entry_nothing_reads_refuses() {
     let doc = empty("intent-literals-c-unread-entry");
     let edit = ring_edit(
-        Formula::fresh(0, Dimension::Length), len(0.1),
+        Formula::fresh(0, Dimension::Length),
+        len(0.1),
         vec![length(1.0), length(2.0)],
     );
     match try_step(&doc, edit) {
@@ -713,7 +713,8 @@ fn an_entry_reads_the_entries_before_it() {
     let applied = step(
         &doc,
         ring_edit(
-            Formula::fresh(1, Dimension::Length), len(0.1),
+            Formula::fresh(1, Dimension::Length),
+            len(0.1),
             vec![length(0.5), VarDecl::defined(twice)],
         ),
     );
@@ -722,9 +723,7 @@ fn an_entry_reads_the_entries_before_it() {
     };
     let point = applied.record.minted.expect("the ring");
     assert_eq!(
-        applied
-            .doc
-            .slot(point, SlotId::TubeMajorRadius),
+        applied.doc.slot(point, SlotId::TubeMajorRadius),
         Some(double)
     );
     let definition = applied
@@ -826,10 +825,7 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
         panic!("one entry minted: {:?}", applied.record.fresh)
     };
     let edited = step(&applied.doc, retimes(node));
-    let after = edited
-        .doc
-        .slot(node, SlotId::TubeMajorRadius)
-        .expect("x");
+    let after = edited.doc.slot(node, SlotId::TubeMajorRadius).expect("x");
     assert_eq!(reads_of(&edited.doc, after), vec![entry]);
     assert_eq!(
         edited.doc.free(entry).and_then(FreeVar::distribution),
@@ -846,10 +842,7 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
 #[test]
 fn the_load_door_reads_every_slots_variable() {
     let doc = empty("intent-literals-c-load");
-    let (doc, point) = insert(
-        doc,
-        ring(len(1.0), len(0.1)),
-    );
+    let (doc, point) = insert(doc, ring(len(1.0), len(0.1)));
     let doc = declare(&doc, "n", VarDecl::Free(FreeVar::Count { value: 3 }));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let at = |wire: &mut serde_json::Value, var: VarId| {

@@ -331,10 +331,8 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [1.0, 2.0, 0.0], band()).unwrap();
     let (doc, base) = pinned_lifted(doc, p.base, 2, 0.25, &gin_frame.compose(&off_frame), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    // A copy placed against the pinned base, reading its world copy.
-    let moved_at =
-        Frame::rotate_then_translate([1.0, 0.0, 0.0], 0.5, [0.0, 0.0, 4.0], band()).unwrap();
-    let (doc, tp) = crate::p2_gauges::copy_against(doc, base, &moved_at, &o);
+    // A second base stacked on the pinned base, reading its world copy.
+    let (doc, tp) = crate::p2_gauges::stacked(doc, p.base, p.base_body, head(p.base_cap(base)));
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
 
     let part_base = run(&p.base_doc, &EvalOptions::default());
@@ -350,7 +348,7 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
             &of_frame(&gin_frame),
         );
         let w_base = mul(&g, &of_frame(&off_frame));
-        let t_p = rigid([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5);
+        let t_p = rigid([0.0, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], 0.0);
         let w_top = mul(&w_base, &rel);
         (w_base, mul(&w_base, &t_p), w_top)
     };

@@ -194,6 +194,8 @@ fn the_rim_follows_a_rebound_designation() {
     )
     .expect("rebind")
     .doc;
+    // The world copy stood on the face the rebind designates.
+    let out = re_stood(out, shell);
     let ev = eval::<f64>(&out);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let table = ev.table_at(shell).unwrap();
@@ -254,4 +256,21 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         cup::closed_forms(cup::L, cup::H, cup::T_BUMPED).volume,
         "the memo served the pre-edit hollow"
     );
+}
+
+/// `doc` with `body`'s world placement written afresh: a copy standing
+/// over the body as it now is.
+fn re_stood(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let stale: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(body)))
+        })
+        .collect();
+    let doc = stale.into_iter().fold(doc, |doc, p| {
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: p }).0
+    });
+    crate::fixture::place(doc, body).0
 }

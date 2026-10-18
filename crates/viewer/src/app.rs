@@ -3827,7 +3827,7 @@ mod properties_pane_tests {
         });
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
-            "split target: Extrude {}; split plane: —",
+            "split target: Extrude {}",
             test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -4155,10 +4155,12 @@ mod properties_pane_tests {
         let profile = *of_kind(&pane, "Profile")
             .last()
             .expect("the circle was added");
-        let zero = || pncad::document::Formula::zero(pncad::document::Dimension::Length);
+        // Written, non-zero numbers: a lone `0` is the constant, which
+        // reads no variable and so has no unit a picker could write.
+        let at = || crate::test_support::len(0.001);
         pane.app.perform_batch(vec![SessionOp::AddRevolve {
             profile,
-            axis_through: [zero(), zero()],
+            axis_through: [at(), at()],
             axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
             angle: crate::test_support::ang(core::f64::consts::TAU),
         }]);
@@ -4642,72 +4644,6 @@ mod properties_pane_tests {
         );
     }
 
-    /// **Over a vector with one computed component, the picker writes
-    /// the one it can and says which it skips.**
-    ///
-    /// A revolve's axis point: x is written in millimetres and y is
-    /// computed. The picker reads `mm` — the notation the writable
-    /// component is in, where counting y's canonical rendering would say
-    /// `mixed`; its hover says what a pick writes and skips, then y's
-    /// refusal in the op's words; a pick of `cm` rewrites x and leaves y
-    /// alone, and nothing reaches the status line, because nothing the
-    /// op would refuse was pushed.
-    #[test]
-    fn a_vector_picker_writes_its_literal_components_and_names_the_skipped_one() {
-        let mm = pncad::prelude::MM.def();
-        let (mut pane, revolve) = with_revolve(|revolve| {
-            vec![
-                SessionOp::SetSlotUnit {
-                    node: revolve,
-                    slot: SlotId::Origin(Axis3::X),
-                    unit: mm,
-                },
-                SessionOp::SetSlotExpression {
-                    node: revolve,
-                    slot: SlotId::Origin(Axis3::Y),
-                    text: COMPUTED.to_owned(),
-                },
-                SessionOp::Select(Selection::Node(revolve)),
-            ]
-        });
-        assert_eq!(pane.row(revolve, SlotId::Origin(Axis3::X)).unit, Some(mm));
-        let y = pane.row(revolve, SlotId::Origin(Axis3::Y));
-        assert!(y.driver.is_driven(), "the setup drove y");
-        let gained = pane.gained_hovering("mm");
-        let said = refusal_for(&pane, revolve, SlotId::Origin(Axis3::Y));
-        let (x_label, y_label) = (
-            SlotId::Origin(Axis3::X).label(),
-            SlotId::Origin(Axis3::Y).label(),
-        );
-        assert_eq!(
-            gained,
-            vec![format!("a pick writes {x_label} and skips {y_label}:\n{said}")],
-            "the live picker says what a pick does and what it skips"
-        );
-        assert_eq!(
-            said,
-            format!(
-                "the {y_label} slot on Revolve {revolve} is computed, so it has no written unit to \
-                 change — set an expression to change what it says",
-            )
-        );
-        pane.click("mm");
-        pane.click("cm");
-        let cm = pncad::prelude::CM.def();
-        assert_eq!(pane.row(revolve, SlotId::Origin(Axis3::X)).unit, Some(cm));
-        assert_eq!(
-            pane.row(revolve, SlotId::Origin(Axis3::Y)),
-            y,
-            "y is not the pick's"
-        );
-        pane.quiet();
-        assert_eq!(
-            status(&pane),
-            None,
-            "the pick pushed nothing the op refused"
-        );
-    }
-
     /// **A driven slot's row stays inside the Properties pane however
     /// long its expression** — drawn by the real `slot_group_ui`. The
     /// field shows the value, and the source is said under the row,
@@ -4749,28 +4685,43 @@ mod properties_pane_tests {
     }
 
     /// **Each component of a driven vector opens its edit on its OWN
-    /// source**, and clicking away from it writes nothing.
+    /// source**, and clicking away from it writes nothing — over a linear
+    /// pattern's step direction, the vector a document holds.
     #[test]
     fn each_driven_vector_component_edits_its_own_source() {
-        let axes = [Axis3::X, Axis3::Y];
-        let sources = ["1 mm + 1 mm", "2 mm + 1 mm"];
-        let (mut pane, revolve) = with_revolve(|revolve| {
-            let mut ops: Vec<SessionOp> = axes
-                .iter()
-                .zip(sources)
-                .map(|(axis, source)| SessionOp::SetSlotExpression {
-                    node: revolve,
-                    slot: SlotId::Origin(*axis),
-                    text: source.to_owned(),
-                })
-                .collect();
-            ops.push(SessionOp::Select(Selection::Node(revolve)));
-            ops
-        });
+        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
+        let sources = ["1 + 1", "2 + 1", "3 + 1"];
+        let mut pane = Driven::with(vec![SessionOp::AddPattern {
+            input: extrude().into(),
+            count: 2,
+            rule: crate::session::PatternRuleSpec::Linear {
+                direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                spacing: crate::test_support::len(0.1),
+            },
+        }]);
+        let pattern = {
+            let doc = pane.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
+                .expect("the pattern was added")
+        };
+        let mut ops: Vec<SessionOp> = axes
+            .iter()
+            .zip(sources)
+            .map(|(axis, source)| SessionOp::SetSlotExpression {
+                node: pattern,
+                slot: SlotId::Direction(*axis),
+                text: source.to_owned(),
+            })
+            .collect();
+        ops.push(SessionOp::Select(Selection::Node(pattern)));
+        pane.app.perform_batch(ops);
+        pane.quiet();
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
             let shown = crate::props::field_text(
-                &pane.row(revolve, SlotId::Origin(*axis)),
+                &pane.row(pattern, SlotId::Direction(*axis)),
                 pane.app.session.notation(),
             );
             pane.click(&shown);
@@ -4799,61 +4750,6 @@ mod properties_pane_tests {
             history,
             "clicking into each field and away wrote nothing"
         );
-    }
-
-    /// **A vector with every component computed is refused whole**,
-    /// and its disabled hover carries each component's refusal, one
-    /// per line, in the op's words.
-    #[test]
-    fn an_all_driven_vector_picker_is_disabled_with_every_refusal() {
-        let axes = [Axis3::X, Axis3::Y];
-        let (mut pane, revolve) = with_revolve(|revolve| {
-            let mut ops: Vec<SessionOp> = axes
-                .iter()
-                .map(|axis| SessionOp::SetSlotExpression {
-                    node: revolve,
-                    slot: SlotId::Origin(*axis),
-                    text: COMPUTED.to_owned(),
-                })
-                .collect();
-            ops.push(SessionOp::Select(Selection::Node(revolve)));
-            ops
-        });
-        let before: Vec<_> = axes
-            .iter()
-            .map(|axis| pane.row(revolve, SlotId::Origin(*axis)))
-            .collect();
-        assert!(before.iter().all(|row| row.driver.is_driven()));
-        let gained = pane.gained_hovering("computed");
-        let said: Vec<String> = axes
-            .iter()
-            .map(|axis| refusal_for(&pane, revolve, SlotId::Origin(*axis)))
-            .collect();
-        assert_eq!(gained, vec![said.join("\n")]);
-        let (x_label, y_label) = (
-            SlotId::Origin(Axis3::X).label(),
-            SlotId::Origin(Axis3::Y).label(),
-        );
-        assert!(
-            gained[0].starts_with(&format!(
-                "the {x_label} slot on Revolve {revolve} is computed, so it has no written unit \
-                 to change"
-            )) && gained[0].contains(&format!(
-                "\nthe {y_label} slot on Revolve {revolve} is computed"
-            )),
-            "{gained:?}"
-        );
-        pane.click("computed");
-        let after = pane.quiet();
-        assert!(
-            !after.iter().any(|(run, _)| run == "mm"),
-            "a refused picker does not open: {after:?}"
-        );
-        let now: Vec<_> = axes
-            .iter()
-            .map(|axis| pane.row(revolve, SlotId::Origin(*axis)))
-            .collect();
-        assert_eq!(now, before);
     }
 
     /// A session over two instances of one part, and the two instance
@@ -5574,9 +5470,10 @@ mod properties_pane_tests {
         driven.click(crate::pane::create::ADD_PROFILE);
         driven.quiet();
         let doc = driven.app.session.doc();
-        let union = doc.ids().into_iter().find(|&id| {
-            matches!(doc.node(id), Some(Node::Union { .. }))
-        });
+        let union = doc
+            .ids()
+            .into_iter()
+            .find(|&id| matches!(doc.node(id), Some(Node::Union { .. })));
         let union = union.expect("the button committed a sketch on the face");
         assert!(
             doc.upstream(union).contains(&moved),

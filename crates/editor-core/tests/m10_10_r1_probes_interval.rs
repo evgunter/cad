@@ -133,6 +133,8 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         distance: thickness,
     });
 
+    // The bore joins the seg's space where it is drawn.
+    let bore = r.against(seg, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

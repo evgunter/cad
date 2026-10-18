@@ -18,8 +18,8 @@ use crate::fixture::{ang, len};
 use editor_core::PoseValue;
 use editor_core::persist::{load, save};
 use editor_core::{
-    CancelToken, CapEnd, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
+    CancelToken, CapEnd, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
+    Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,

@@ -132,6 +132,8 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
         distance: thickness,
     });
 
+    // The bore joins the body's space where it is drawn.
+    let bore = r.against(body, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

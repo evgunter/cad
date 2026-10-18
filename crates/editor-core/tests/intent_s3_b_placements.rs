@@ -625,9 +625,9 @@ fn a_constraint_off_its_copy_refuses() {
 // ---- An instance's copies ----
 
 /// **A construction reads one copy of an instance by its key**, and a
-/// raw construction stands at the identity of the document's one kind,
-/// so a union of a pinned instance's copy and a block of this document
-/// evaluates (the stage's interim until D).
+/// block of this document placed in the world joins the instance's
+/// space, so a union of a pinned instance's copy and the block's copy
+/// evaluates.
 #[test]
 fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, store, doc_ref, part_body) = host("s3b-union");
@@ -635,7 +635,7 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, profile) = on_frame(
         doc,
-        [3.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
@@ -646,6 +646,11 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
             profile: profile.into(),
             distance: len(1.0),
         },
+    );
+    let (doc, other) = fixture::in_world(
+        doc,
+        other,
+        &editor_core::Frame::translation([3.0, 0.0, 0.0]),
     );
     let (doc, union) = insert(
         doc,
@@ -785,10 +790,10 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
     let (doc, first) = block("s3b-place-several");
     let (doc, profile) = on_frame(
         doc,
-        [3.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+        vec![square(3.0, 0.0, 0.5)],
     );
     let (doc, second) = insert(
         doc,
@@ -797,6 +802,8 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
             distance: len(1.0),
         },
     );
+    // Both shapes in `first`'s space, so one pin stands them both.
+    let (doc, second) = fixture::slid(doc, first, second, [0.0; 3]);
     let (doc, place) = insert(doc, Node::place(vec![first.into(), second.into()]));
     let doc = fixture::pinned(doc, place, &EvalOptions::default());
     assert_eq!(
@@ -804,13 +811,14 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
         1,
         "one output, however many shapes"
     );
-    let second_read = doc.output(second, 0).expect("the block's body");
+    let second_read = doc.output(second, 0).expect("the block's copy");
+    let first_read = doc.output(first, 0).expect("the block's body");
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
                 BodyRead::keyed(Operand::Node(place), CopyKey::Read(second_read)),
-                first.into(),
+                BodyRead::keyed(Operand::Node(place), CopyKey::Read(first_read)),
             ]),
         },
     );

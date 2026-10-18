@@ -750,6 +750,32 @@ fn axis_against(
     })
 }
 
+/// **The copy read through `body`, offering neither a face on its own
+/// `xy` nor an axis of its own** (an arc tube), placed against `target`
+/// at `at`: a frame read off the copy at its own identity equated with
+/// a frame read off the target where the copy's stands at `at`, which
+/// leaves no freedom and so writes no value.
+fn framed_against(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
+    target: &Operand,
+    body: &Operand,
+    at: &Frame,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    let on = frame_at_in(doc, ev, body, &Frame::IDENTITY, tol)?;
+    let to = frame_at_in(doc, ev, target, at, tol)?;
+    Ok(Placed {
+        mate: Mate {
+            on,
+            to: Target::Pose(to),
+            class: super::ContactClass::Rest,
+        },
+        values: Vec::new(),
+        by: PlacedBy::Pin,
+    })
+}
+
 /// **The copy read through `body`, a plane-less construction, placed
 /// in the world at `at`** ([`place_at`]'s axis form): an `Axis` mate
 /// from its own axis to the world's frame moved onto the line `at` puts
@@ -991,7 +1017,9 @@ fn moved_pose(
 /// normal, a frame read off the target ([`frame_at`]) through its `xy`
 /// — and the three values that put the copy at `at` in the mate's
 /// chart, computed once. A copy with no such face that is a revolve or
-/// a full ring is placed by its own axis instead ([`axis_against`]).
+/// a full ring is placed by its own axis instead ([`axis_against`]), and
+/// any other by a frame read off it ([`framed_against`]); a target with
+/// no such face is read by a frame off its geometry.
 ///
 /// # Errors
 ///
@@ -1037,10 +1065,14 @@ pub fn place_against_in(
     let (copy_face, copy_z, copy_reach) = match own_plane(body) {
         Ok(plane) => plane,
         Err(refusal) => {
-            return axis_against(doc, ev, target, body, at, tol).map_err(|_| refusal);
+            return axis_against(doc, ev, target, body, at, tol)
+                .or_else(|_| framed_against(doc, ev, target, body, at, tol))
+                .map_err(|_| refusal);
         }
     };
-    let (target_face, target_z, _) = own_plane(target)?;
+    // A target with no face on its own `xy` (a full revolve) is read by a
+    // frame off its geometry, as a tilted copy's is.
+    let target_plane = own_plane(target).ok();
     let plane = |shape: &Operand, face: crate::StableName| {
         Operand::Pose(Box::new(PoseDef::Plane {
             face: Operand::select(shape.clone(), vec![face]),
@@ -1057,7 +1089,7 @@ pub fn place_against_in(
     // coordinates.
     let m = placed.linear * (z * copy_z);
     let untilted = m.x == 0.0 && m.y == 0.0;
-    let (on, to, to_normal) = if untilted {
+    let (on, to, to_normal) = if untilted && let Some((target_face, target_z, _)) = target_plane {
         // The target's face slid along its own normal onto the copy's:
         // the copy's face stands `t.z` up the target's own z, which is
         // `target_z · t.z` along the face's normal.

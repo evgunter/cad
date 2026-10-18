@@ -2,7 +2,7 @@
 
 `test_north_star.py` executes the surface at scene scale (the
 `diecomposed` flip); these are the door-level rows: the decided
-predicate against a datum, the typed `SelectRefusal`, and the
+predicate against a face's plane, the typed `SelectRefusal`, and the
 boundary refusals on the pattern vocabulary. Everything here narrows
 by VALUE — no test reads inside a name text, because that is the
 contract the surface exists to keep.
@@ -31,6 +31,8 @@ from pncad import (
     SegTag,
     SelectRefusal,
     Selector,
+    SurfaceKind,
+    circle,
     evaluate,
     m,
 )
@@ -48,29 +50,28 @@ def unit_cube(doc):
     return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
 
-class TestDatumDistance(unittest.TestCase):
-    """The DECIDED atom: position is datum-RELATIVE (GS-Q6), the
-    comparison is the sign trilean, and the answer agrees with the
-    structural description of the same face — the Rust module-docs
-    example, crossed."""
+def floor_of(ev, cube):
+    """The cube's floor: the face whose carrier sits at height 0."""
+    (floor,) = [f for f in ev.all_faces(cube) if ev.face_frame(cube, f).origin[2].meters == 0.0]
+    return floor
 
-    def test_the_top_cap_is_the_face_a_metre_above_the_ground(self):
+
+class TestPlaneDistance(unittest.TestCase):
+    """The DECIDED atom: position is relative to one of the body's own
+    faces (GS-Q6), signed along its outward normal, the comparison is
+    the sign trilean, and the answer agrees with the structural
+    description of the same face — the Rust module-docs example,
+    crossed."""
+
+    def test_the_top_cap_is_the_face_a_metre_behind_the_floor(self):
         doc = Doc()
         cube = unit_cube(doc)
-        ground = doc.insert(Node.datum_plane((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
         ev = evaluate(doc)
+        floor = floor_of(ev, cube)
 
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         by_position = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Approx, Formula.length_in(1, m))]
+            cube, faces, [GeomPred.plane_distance(floor, Cmp.Approx, Formula.length_in(-1, m))]
         )
         by_role = ev.select(
             cube,
@@ -83,39 +84,51 @@ class TestDatumDistance(unittest.TestCase):
         self.assertEqual(len(by_position), 1)
         self.assertEqual(by_position, by_role)
 
-        # The strict arms: four wall faces sit definitely BELOW the
-        # stated metre (their carrier origins are on the walls'
-        # centroids), and none sits definitely above.
-        below = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Less, Formula.length_in(1, m))]
+        # The strict arms: the floor and the four wall faces sit
+        # definitely short of the stated metre behind it (the walls'
+        # carrier origins are on their centroids), and none sits
+        # definitely beyond.
+        nearer = ev.select_where(
+            cube, faces, [GeomPred.plane_distance(floor, Cmp.Greater, Formula.length_in(-1, m))]
         )
-        self.assertEqual(len(below), 5)
-        above = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Greater, Formula.length_in(1, m))]
+        self.assertEqual(len(nearer), 5)
+        beyond = ev.select_where(
+            cube, faces, [GeomPred.plane_distance(floor, Cmp.Less, Formula.length_in(-1, m))]
         )
-        self.assertEqual(above, [])
+        self.assertEqual(beyond, [])
 
-    def test_a_non_datum_reference_refuses_typed(self):
+    def test_a_face_that_is_no_plane_refuses_typed(self):
         """The refusal is the Rust door's own, crossing as the typed
-        `SelectRefusal` — reason tag plus the offending node, never a
-        silent empty answer."""
+        `SelectRefusal` — reason tag plus the offending face, never a
+        silent empty answer: a curved face has no plane, and a name the
+        body selected from does not hold names no face of it."""
         doc = Doc()
         cube = unit_cube(doc)
+        disc = doc.insert(Node.profile(circle((3 * m, 0 * m), 0.5 * m)))
+        rod = doc.insert(Node.extrude(disc, Formula.length_in(1, m)))
         ev = evaluate(doc)
+        (wall,) = [
+            f for f in ev.all_faces(rod) if ev.face_carrier_kind(rod, f) == SurfaceKind.Cylinder
+        ][:1]
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         with self.assertRaises(SelectRefusal) as caught:
             ev.select_where(
-                cube,
-                Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(cube, Cmp.Approx, Formula.length_in(1, m))],
+                rod, faces, [GeomPred.plane_distance(wall, Cmp.Approx, Formula.length_in(1, m))]
             )
         refusal = caught.exception
-        self.assertEqual(refusal.reason, "not_a_datum")
-        self.assertEqual(refusal.datum, cube)
-        self.assertEqual(refusal.found, "body")
+        self.assertEqual(refusal.reason, "not_a_plane")
+        self.assertEqual(refusal.face, wall)
         # The stub-promised attributes are PRESENT and None, not
         # missing (the over-promising-stub rule).
         self.assertIsNone(refusal.name)
         self.assertIsNone(refusal.predicate)
+
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.select_where(
+                cube, faces, [GeomPred.plane_distance(wall, Cmp.Approx, Formula.length_in(1, m))]
+            )
+        self.assertEqual(caught.exception.reason, "face_unresolved")
+        self.assertEqual(caught.exception.face, wall)
 
     def test_a_named_comparand_refuses_at_the_predicate(self):
         """The comparand is lowered where the predicate is built, and
@@ -125,8 +138,9 @@ class TestDatumDistance(unittest.TestCase):
         doc = Doc()
         doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.length(1 * m)))
         cube = unit_cube(doc)
+        floor = floor_of(evaluate(doc), cube)
         with self.assertRaises(EvalError) as caught:
-            GeomPred.datum_distance(cube, Cmp.Approx, doc.parse_formula("gap"))
+            GeomPred.plane_distance(floor, Cmp.Approx, doc.parse_formula("gap"))
         self.assertEqual(caught.exception.variant, "unlowered_name")
         self.assertEqual(caught.exception.name, "gap")
 
@@ -144,23 +158,15 @@ class TestDatumDistance(unittest.TestCase):
         sweep)."""
         doc = Doc()
         cube = unit_cube(doc)
-        ground = doc.insert(Node.datum_plane((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
         ev = evaluate(doc)
+        floor = floor_of(ev, cube)
 
         sliver = doc.epsilon * (1.0 + 10.0) / 2.0
         with self.assertRaises(SelectRefusal) as caught:
             ev.select_where(
                 cube,
                 Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(ground, Cmp.Approx, Formula.length_in(1.0 + sliver, m))],
+                [GeomPred.plane_distance(floor, Cmp.Approx, Formula.length_in(-1.0 - sliver, m))],
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "in_band")
@@ -169,7 +175,7 @@ class TestDatumDistance(unittest.TestCase):
         self.assertIsInstance(refusal.name, str)
         self.assertIsNone(refusal.matched)
         self.assertIsNone(refusal.candidates)
-        self.assertIsNone(refusal.datum)
+        self.assertIsNone(refusal.face)
         self.assertIsNone(refusal.dim)
 
 

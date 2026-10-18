@@ -15,9 +15,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node,
-    Operand, ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar,
-    ValuePayload, VarId, VarName,
+    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand,
+    ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
+    VarName,
 };
 use pncad::prelude::Body;
 use pncad::workspace::WorkspaceError;

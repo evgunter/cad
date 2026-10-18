@@ -22,7 +22,6 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 

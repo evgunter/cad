@@ -249,7 +249,7 @@ fn distributed_plate() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
     });
@@ -279,6 +279,9 @@ fn distributed_plate() -> ProfileDoc {
         profile: hole_b_p.into(),
         distance: len(1.0e-3),
     });
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
     let ev = evaluate::<f64>(
         &r.doc,
         None,

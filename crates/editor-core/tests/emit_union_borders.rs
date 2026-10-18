@@ -23,11 +23,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::fixture::{frame_at, slid, value_slot};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
+use crate::fixture::{frame_at, slid, value_slot};
 
 use editor_core::{
     Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, Node,
@@ -36,15 +36,20 @@ use editor_core::{
 use geom_core::Tol;
 
 /// `doc` with the placement `placed` slid to `to` along `axis` of its
-/// target's own frame.
+/// target's own frame. The values are charted on the target's flipped
+/// start cap, whose `y` runs along the target's `−y`.
 fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: SlideAxis, to: f64) -> ProfileDoc {
     let slot = value_slot(&doc, placed, Coord::Slide(axis));
+    let by = match axis {
+        SlideAxis::Y => -to,
+        _ => to,
+    };
     step(
         doc,
         DocEdit::SetParam {
             node: placed,
             slot,
-            value: len(to).into(),
+            value: len(by).into(),
             fresh: Vec::new(),
         },
     )
@@ -1271,7 +1276,14 @@ pub(crate) fn cylinder(
 fn a_curved_divider_names_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, cyl) = cylinder(doc, plate, [1.5, 4.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0);
+    let (doc, cyl) = cylinder(
+        doc,
+        plate,
+        [1.5, 4.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        5.0,
+    );
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
@@ -1345,7 +1357,14 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
 fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, boss) = cylinder(doc, plate, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, boss) = cylinder(
+        doc,
+        plate,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
     let (doc, slab) = block_on(doc, plate, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),
@@ -1478,7 +1497,14 @@ fn assert_wall_chords_cite_their_piece(
 fn a_slot_along_x_across_a_sunk_boss_names() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot-x", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, boss) = cylinder(doc, plate, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, boss) = cylinder(
+        doc,
+        plate,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
     let (doc, slab) = block_on(doc, plate, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),

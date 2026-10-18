@@ -15,7 +15,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -173,12 +172,12 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 
     let (before, row) = opened(path, instance, tol);
     assert_eq!(
-        before.pose.as_deref(),
+        before.which.as_deref(),
         Some(PartFiles::UNSCANNED),
         "before the first scan the row says the file is unread, not absent"
     );
     assert_eq!(
-        row.pose.as_deref(),
+        row.which.as_deref(),
         Some("bracket.pncad"),
         "the instance row names its part by file name"
     );
@@ -239,9 +238,9 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 /// **A poisoned root draws the failure that poisoned it, at depth 2.**
 ///
 /// `broken.pncad` is [`common::broken_document`]: its extrude refuses
-/// and its one root, a transform over the extrude, never runs.
-/// `bracket.pncad`'s one placed body is a transform over an instance of
-/// it, so that transform never runs either; the instance is a placement
+/// and its one root, a placement of the extrude, never runs.
+/// `bracket.pncad`'s one placed body is an instance of it, placed
+/// moved, so that placement never runs either; the instance is a placement
 /// of its own, loose, and the bracket's gather names it as the node
 /// that failed. An assembly instantiating the bracket draws two levels
 /// under its row, each at the node that FAILED rather than the root it
@@ -262,25 +261,13 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
 
     let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
     // The instance's bundle empty, so it is no root of the bracket's
-    // product of its own: the transform's placement is.
+    // product of its own: the moved placement of it is.
     let inner = common::insert_into(
         &mut bracket,
         crate::fixture::mated_instance(reference(&broken, tol)),
         tol,
     );
-    let bracket_root = common::insert_into(
-        &mut bracket,
-        Node::transform(
-            inner,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
-        ),
-        tol,
-    );
-    let (bracket, _) = common::placed(&bracket, bracket_root, tol);
+    let (bracket, _) = common::placed_at(&bracket, inner, [0.01, 0.0, 0.0], tol);
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
@@ -329,10 +316,7 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
             && message.contains(&format!("repair {inner_said}")),
         "the top line points at the bracket's failed instance: {message}"
     );
-    let (root, failed) = (
-        broken.spoken(common::copy_of(&broken, broken_root)),
-        broken.spoken(extrude),
-    );
+    let (root, failed) = (broken.spoken(broken_root), broken.spoken(extrude));
     assert!(
         carried[0].line.contains(&format!("its root, {root}"))
             && carried[0].line.contains(&format!("repair {failed}")),

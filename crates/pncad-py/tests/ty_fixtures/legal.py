@@ -46,7 +46,6 @@ from pncad import (
     CheckFinding,
     ClassAdmission,
     Maintenance,
-    Datum,
     FreeVar,
     Denotation,
     Distribution,
@@ -106,7 +105,7 @@ from pncad import (
     Ray,
     Selector,
     Severity,
-    SketchPlane,
+    SketchedOnFace,
     Start,
     AuthoredStep,
     Piece,
@@ -115,7 +114,7 @@ from pncad import (
     StepId,
     SurfaceKind,
     Workspace,
-    WorldPin,
+    StationMove,
     assemble,
     canonical_bytes,
     circle,
@@ -192,14 +191,16 @@ disc = circle((0 * mm, 0 * mm), 10 * mm)
 
 doc = Doc()
 plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), Formula.length_in(8, mm)))
-hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Formula.length_in(-1, mm)))), Formula.length_in(10, mm)))
+# A construction lies on its own xy and goes up its own z; where it
+# stands against another body is a placement at a FRAME in that body's
+# own coordinates.
+hole_body = doc.insert(Node.extrude(doc.insert(Node.profile(disc)), Formula.length_in(10, mm)))
+hole: NodeId = doc.place_against(plate, hole_body, Frame.translation((0 * mm, 0 * mm, -1 * mm)))
 lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
-# The plane vocabulary: a named cyclic frame, and the general rigid
-# frame that carries an origin — both are how a sketch FRAME node is
-# built, and `plane=` on a sketch is that node's id. Extrusion runs
-# along the frame's normal, so the frame is what chooses the axis.
+# A profile is 2-D: its points are length pairs on its own xy, and a
+# world placement stands the construction where it goes, at a frame.
 upright: NodeId = doc.insert(
     Node.extrude(
         doc.insert(
@@ -209,96 +210,55 @@ upright: NodeId = doc.insert(
                     (Formula.length_in(1, m), Formula.length_in(0, m)),
                     (Formula.length_in(1, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
         Formula.length_in(2, m),
     )
 )
-# The `SketchPlane` is still a VALUE — read back below — and the frame
-# NODE it builds is the id a sketch names. Two names, because they are
-# two things.
-offset_frame = SketchPlane.from_frame((0 * m, -0.5 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
-offset_node: NodeId = doc.sketch_frame(plane=offset_frame)
-sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), Formula.length_in(4, m)))
+stood: NodeId = doc.place(
+    upright, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+)
+sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))), Formula.length_in(4, m)))
 
-# A revolve's axis is written IN the frame it turns, in that frame's
-# own two coordinates: an origin pair of lengths and a bare direction
-# pair, on the node itself.
-turned_frame: NodeId = doc.sketch_frame()
+# A revolve's axis is written in the profile's own two coordinates: an
+# origin pair of lengths and a bare direction pair, on the node itself.
 turned: NodeId = doc.insert(
     Node.revolve(
-        doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
+        doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m))),
         (Formula.length_in(0, m), Formula.length_in(0, m)),
         Formula.turn_over(4),
         Formula.angle_in(360, deg),
     )
 )
 
-# The two datum arms whose constructors complete the six. A point is a
-# position and nothing else; a frame is an origin and two direction
-# triples, orthonormalized at evaluation, and it is a plane node a
-# profile may name.
-here: NodeId = doc.insert(Node.datum_point((
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-    Formula.length_in(2, m),
-)))
-near_here: GeomPred = GeomPred.datum_distance(here, Cmp.Less, Formula.length_in(1, m))
-authored_frame: NodeId = doc.insert(
-    Node.datum_frame((
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-        Formula.length_in(2, m),
-    ), (
-        Formula.literal(1.0),
-        Formula.literal(0.0),
-        Formula.literal(0.0),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-        Formula.literal(1.0),
-    ))
-)
-leaning: NodeId = doc.insert(
-    Node.extrude(
-        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=authored_frame)),
-        Formula.length_in(1, m),
-    )
-)
+# A plane-distance rule: a face of the selected body, named by its
+# text, and a stated length off it.
+near_here: GeomPred = GeomPred.plane_distance(evaluate(doc).all_faces(upright)[0], Cmp.Less, Formula.length_in(1, m))
 
-# A datum read back. `origin` is a POSITION and carries `Length`s;
-# `direction` and `axes` are dimensionless and are bare.
-# Exercised here because the name-for-name check in `test_stubs.py`
-# compares NAMES and hands SIGNATURES to `ty`: a property this file
-# never mentions is a property neither of them reads.
-turned_axis: Datum = evaluate(doc).value(
-    doc.insert(Node.datum_axis((
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-        Formula.literal(0.0),
-    )))
-).datum()
-axis_kind: str = turned_axis.kind
-axis_at: tuple[Length, Length, Length] = turned_axis.origin
-
-# A three-section loft: the sections are NodeIds in skin order, the
-# v-degree a plain int (a Count, structurally), and each section's
-# placement rides its own profile's plane.
-sections: list[NodeId] = [
-    doc.insert(Node.polygon([
+# A three-section loft: the first section and each later one with its
+# station, a chain of moves in the first section's own axes; the
+# v-degree a plain int (a Count, structurally).
+def square() -> NodeId:
+    return doc.insert(Node.polygon([
         (Formula.length_in(0, m), Formula.length_in(0, m)),
         (Formula.length_in(1, m), Formula.length_in(0, m)),
         (Formula.length_in(1, m), Formula.length_in(1, m)),
         (Formula.length_in(0, m), Formula.length_in(1, m)),
-    ], plane=doc.sketch_frame(elevation=Formula.length_in(z, m))))
-    for z in (0, 1, 2)
+    ]))
+
+
+first_section: NodeId = square()
+stations: list[tuple[NodeId, list[StationMove]]] = [
+    (square(), [StationMove.slide("z", Formula.length_in(z, m))])
+    for z in (1, 2)
 ]
-skinned = doc.insert(Node.loft(sections, Formula.count(2)))
+stations.append(
+    (square(), [StationMove.slide("z", 3 * m), StationMove.spin("z", 15 * deg)])
+)
+skinned = doc.insert(Node.loft(first_section, stations, Formula.count(2)))
+station: StationMove = stations[0][1][0]
+station_kind: str = station.kind
+station_axis: str = station.axis
 skinned_volume: float = evaluate(doc).value(skinned).body().mass_properties().volume
 
 # LIB-PYBUNDLE: a multi-loop profile is a LIST of closed loops — the
@@ -332,28 +292,11 @@ sealed: NodeId = doc.insert(Node.shell(upright, Formula.length_in(0.01, m), []))
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
 # that quietly makes it the solid door.
-tube_frame: NodeId = doc.insert(Node.datum_frame((
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-), (
-    Formula.literal(1.0),
-    Formula.literal(0.0),
-    Formula.literal(0.0),
-), (
-    Formula.literal(0.0),
-    Formula.literal(1.0),
-    Formula.literal(0.0),
-)))
 donut: NodeId = doc.insert(
-    Node.tube(tube_frame, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
+    Node.tube(Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
 )
-# An operand reads a variable as well as a node: the frame's output.
-frame_out: Var | None = doc.output(tube_frame, 0)
-assert frame_out is not None
 elbow: NodeId = doc.insert(
     Node.hollow_tube(
-        frame_out,
         Formula.length_in(0.2, m),
         TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(1.5, rad)),
         Formula.length_in(0.05, m),
@@ -361,22 +304,14 @@ elbow: NodeId = doc.insert(
     )
 )
 
-# Split by a datum plane; the value is a split, read as two optional
-# bodies rather than one.
-cutter: NodeId = doc.insert(Node.datum_plane((
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-    Formula.length_in(1, m),
-), (
-    Formula.literal(0.0),
-    Formula.literal(0.0),
-    Formula.literal(1.0),
-)))
+# Split by a plane read off geometry; the value is a split, read as
+# two optional bodies rather than one.
+cutter: PoseDef = PoseDef.plane(plate_with_holes, evaluate(doc).all_faces(plate_with_holes)[0])
 halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
 
 # A pose defined at the seat that reads it (D10): a face read as its
-# plane, slid along its outward normal, and a frame slid along its own z
-# and read through its xy plane. Every constructor answers a `PoseDef`,
+# plane, slid along its outward normal, and a frame read off an edge
+# and a vertex, slid along its own z and read through its xy plane. Every constructor answers a `PoseDef`,
 # a pose seat takes one or a `RoleRead`, and an operand takes one.
 _plate_face: str = evaluate(doc).all_faces(plate)[0]
 face_plane: PoseDef = PoseDef.plane(plate, _plate_face)
@@ -384,6 +319,10 @@ inset: PoseDef = PoseDef.slide(
     face_plane, RoleRead(face_plane, "normal"), Formula.length_in(-0.01, m)
 )
 flipped: PoseDef = PoseDef.flip(inset)
+authored_frame: PoseDef = PoseDef.through(
+    PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0]),
+    PoseDef.point(plate, evaluate(doc).all_vertices(plate)[0]),
+)
 framed: PoseDef = PoseDef.slide(authored_frame, RoleRead(authored_frame, "z"), 0.5 * m)
 projected: RoleRead = RoleRead(framed, "xy")
 crossing: PoseDef = PoseDef.meet(face_plane, projected)
@@ -398,25 +337,10 @@ through_edge: PoseDef = PoseDef.through(
 pose_cut: NodeId = doc.insert(Node.split(plate, inset))
 
 # A rigid placement: rotate about an axis through the world origin,
-# then translate.
-placed: NodeId = doc.insert(
-    Node.transform(plate_with_holes, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-        Formula.length_in(2, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    ), Formula.angle_in(90, deg))
-)
-
-# The plane's frame, read back; and the bit-exact equality the read-back
-# supports.
-plane_origin: tuple[Length, Length, Length] = offset_frame.origin
-plane_normal: tuple[float, float, float] = offset_frame.normal
-same_plane: bool = offset_frame == SketchPlane.from_frame(
-    offset_frame.origin, offset_frame.u, offset_frame.v
+# then translate — a world placement at that frame.
+placed: NodeId = doc.place(
+    plate_with_holes,
+    pose=Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (0 * m, 0 * m, 2 * m)),
 )
 
 # LIB-PYSEL: the selector language, typed. The diecomposed filters —
@@ -447,9 +371,9 @@ both: Selector = top_rim.or_(from_a)
 structural: list[str] = ev.select(lightened, both)
 hit: bool = both.matches(blend_edges[0])
 
-# The decided atom: a datum-relative position rule, its comparand a
+# The decided atom: a plane-relative position rule, its comparand a
 # Length, its comparison the sign trilean.
-near_cutter: GeomPred = GeomPred.datum_distance(cutter, Cmp.Approx, Formula.length_in(0, m))
+near_cutter: GeomPred = GeomPred.plane_distance(structural[0], Cmp.Approx, Formula.length_in(0, m))
 low_faces: list[str] = ev.select_where(
     lightened,
     Selector.of(NamePat.of_kind(EntityKind.Face)),
@@ -514,15 +438,7 @@ stepped: PatternKind = PatternKind.linear((
     Formula.literal(0.0),
     Formula.literal(0.0),
 ), Formula.length_in(0.5, m))
-spin_axis: NodeId = doc.insert(Node.datum_axis((
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-    Formula.length_in(0, m),
-), (
-    Formula.literal(0.0),
-    Formula.literal(0.0),
-    Formula.literal(1.0),
-)))
+spin_axis: PoseDef = PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0])
 around: PatternKind = PatternKind.circular(spin_axis, Formula.angle_in(90, deg))
 listed: PatternKind = PatternKind.explicit([here, turned])
 
@@ -603,7 +519,7 @@ placed_at: Placed = doc.place_at(sideways, here)
 twice: NodeId = doc.place([sideways, sideways])
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
-held: list[tuple[MateRef, Mate | MateValue | WorldPin]] = doc.bundle(placed)
+held: list[tuple[MateRef, Mate | MateValue]] = doc.bundle(placed)
 pin_ref: MateRef = held[0][0]
 pin_id: ConstraintId = pin_ref.constraint
 pin_holder: NodeId = pin_ref.placement
@@ -686,11 +602,17 @@ outward: tuple[float, float, float] = (
 # not a string.
 carrier: SurfaceKind = seamed.face_carrier_kind(upright, cap_name)
 is_flat: bool = carrier == SurfaceKind.Plane
-# A sketch frame DERIVED from that face: the body node, an opaque
-# name, and a DIMENSIONED spin. The result is a `Node` like any other
-# datum, and a profile takes its id as a plane.
-derived: Node = Node.datum_face_frame(upright, cap_name, Formula.angle_in(0.3, rad))
-on_the_face: NodeId = doc.insert(derived)
+# A sketch on that face: the body, an opaque name, the outline, the
+# depth and a DIMENSIONED spin, written as one action that answers its
+# four nodes.
+on_the_face: SketchedOnFace = doc.sketch_on_face(
+    upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m, Formula.angle_in(0.3, rad), label="boss"
+)
+boss_profile: NodeId = on_the_face.profile
+boss_extrude: NodeId = on_the_face.extrude
+boss_placement: NodeId = on_the_face.placement
+boss_union: NodeId = on_the_face.union
+on_the_face_level: SketchedOnFace = doc.sketch_on_face(upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m)
 # The advisory checks: a report out of one door, a gate the caller
 # opens at the other, and the subject a finding names.
 report: ChecksReport = run_checks(doc, seamed)
@@ -1090,7 +1012,7 @@ q9_solid: NodeId = plate
 Node.extrude(q9_solid, 1 * m)
 Node.revolve(q9_solid, (0 * m, 0 * m), Formula.turn_over(4), 90 * deg)
 Node.fillet(q9_solid, 1 * mm, [])
-Node.loft([], 2)
+Node.loft(q9_solid, [(q9_solid, [StationMove.slide("z", 1 * m)])], 2)
 DocEdit.set_param(q9_solid, "distance", 1 * m)
 held: Var | None = doc.slot(q9_solid, "distance")
 if held is not None:

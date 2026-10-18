@@ -163,16 +163,18 @@ fn repinned(
         )
         .expect("the update applies")
         .doc;
-    let doc = values_first(fixture::bundle(&doc, node)).into_iter().fold(doc, |doc, c| {
-        fixture::step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: node,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let doc = values_first(fixture::bundle(&doc, node))
+        .into_iter()
+        .fold(doc, |doc, c| {
+            fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement: node,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
     fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
 }
 
@@ -687,17 +689,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // The second site moves over the STAGED prior: the old version is
     // now named nowhere, and nothing serves it. The new one the staged
     // run evaluated, and carried.
-    let done = staged
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the update applies")
-        .doc;
+    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
     let warm_done = run_warm(&done, &warm_staged, &opts);
     assert_eq!(
         warm_done.part_evaluations, 0,
@@ -788,7 +780,7 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
     // update arm smuggles no path into the canonical bytes.
     let unrelated = DocEdit::RemoveConstraint {
         placement: ids[0],
-        constraint: fixture::bundle(&before, ids[0])[0].id,
+        constraint: values_first(fixture::bundle(&before, ids[0]))[0].id,
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],
