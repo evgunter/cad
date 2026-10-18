@@ -16,7 +16,7 @@ Ev, 2026-10-18 (in chat, with a diagram of a DAG of frames): a placement relates
 D10 `[placement]` said the opposite in four places ("relating two raw coordinate systems cannot be written", "a value names its mate", a lone point mate's rotation has no chart, a placement reads a list of shapes). The restatement is in the `[ev]` PR that opens this item. It is fork-log row 162, weighed by an Opus and a Fable designer.
 
 When ratified, the work that follows (each a unit, sequenced after this):
-- spec `docs/INTENT-STAGE3-SPEC.md` §1, §4 and §5 restated to match;
+- spec `docs/INTENT-STAGE3-SPEC.md` §1, §4 and §5 restated to match; §1 also settles how a space names its bodies to its readers when the same source is placed into it twice (written at placement, derived, or both), since downstream reads a space's bodies and never a placement;
 - stage 3 D pivots `stand` to an unmated placement with values, and `mate::anchor::Anchors`, the variable-free anchor search and the Axis-mate fallback retire;
 - C's world pin (`WorldPin::Identity`, `PinWhereItStands`, `world_pin_stands_alone`, `WorldPinOnAMovedWorld`) retires into the identity placement;
 - the unmated six-value chart is built;
