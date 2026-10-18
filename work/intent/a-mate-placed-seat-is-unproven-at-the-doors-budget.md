@@ -2,12 +2,13 @@
 id: a-mate-placed-seat-is-unproven-at-the-doors-budget
 kind: issue
 title: a mate-placed seat replays at Sym but stays unproven within the door's budget: the fold's frames hold component symbols renormalised at every hop
-status: open
+status: parked
 opened: 2026-10-18
 priority: P0
 cost: H
 design: true
-refs: [placed-carriers-compare-through-their-frames, a-datum-frame-holds-six-component-slots, mates-declare-no-contact]
+refs: [placed-carriers-compare-through-their-frames, mates-declare-no-contact, a-pose-is-moved-by-lengths-and-angles]
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 ## What
@@ -45,12 +46,22 @@ With unit-axis frames over three free symbols (degree-1 normals) the
 chain proves at 256 terms. So the cost is the frames' component symbols
 and the renormalisation at every hop. It is not the fold's structure.
 
+## First step
+
+Re-measure after D, on mate6's stand and on the tour bench: does a
+mated seat prove at the door's 256 terms once frames are `Slide`/`Spin`
+chains? The probe is
+`intent_s4_h_placed::measure_a_mated_seat_at_sym` (`#[ignore]`d; its
+run command is in its doc). Weigh the routes below only if it still
+does not prove.
+
 ## Routes (a design question, weigh before building)
 
-1. Frames from slides and spins, with no component slots: FORK-MOVE's
-   ruling, unbuilt for `Datum::Frame`
-   (`a-datum-frame-holds-six-component-slots`). Normals become
-   trigonometric polynomials with no `sqrt` chain.
+1. Frames from slides and spins, with no component slots (FORK-MOVE).
+   Stage 3 D (`transform-retires-into-a-placement`) retires `Datum`
+   entirely, so every construction's pose becomes a `Slide`/`Spin` chain
+   over the world read. Normals then become trigonometric polynomials
+   with no `sqrt` chain. This is the hypothesis the first step tests.
 2. Place a copy factor by factor at `Sym` (prototyped on the H branch and
    dropped: lane-dependent arithmetic, with no proof at budget under
    today's frames). This is likely still needed after route 1, because a
