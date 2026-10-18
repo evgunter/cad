@@ -1883,49 +1883,61 @@ pub enum EvalError {
 // re-stating it.
 impl core::fmt::Display for EvalError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match self {
             Self::UnresolvedVar { var } => write!(
                 f,
                 "variable {var} has no binding in the evaluation environment — it was \
-                 deleted, or never declared here; point the reader at a live variable"
+                 deleted, or never declared here. {}",
+                Recourse("point the reader at a live variable")
             ),
             Self::OutputRead { var } => write!(
                 f,
                 "variable {var} is an operation's output, a value the built geometry gives, and \
-                 a construction reads only what was written; read a written variable here"
+                 a construction reads only what was written. {}",
+                Recourse("read a written variable here")
             ),
             Self::DefinitionRefused { var, source } => {
                 write!(f, "the definition of variable {var} refused: {source}")
             }
-            Self::VarKindMismatch { var, bound, read } => {
-                write!(f, "variable {var} is read as {read} but bound as {bound}")
-            }
-            Self::CountExprInContinuousEval => f.write_str(
-                "a count expression does not evaluate continuously — promote it \
-                 explicitly through count_to_scalar",
+            Self::VarKindMismatch { var, bound, read } => write!(
+                f,
+                "variable {var} is read as {read} but bound as {bound}. {}",
+                Recourse(format_args!("read {} {read} variable here", read.article()))
+            ),
+            Self::CountExprInContinuousEval => write!(
+                f,
+                "a count expression does not evaluate continuously. {}",
+                Recourse("promote it explicitly through count_to_scalar")
             ),
             Self::ContinuousExprInCountEval { found } => write!(
                 f,
                 "{} {found} expression does not evaluate as a count — counts are exact \
-                 and never inferred from a continuous value",
-                found.article()
+                 and never inferred from a continuous value. {}",
+                found.article(),
+                Recourse(format_args!("evaluate it as {} {found}", found.article()))
             ),
-            Self::CountOverflow => {
-                f.write_str("exact count arithmetic overflowed (a count never wraps)")
-            }
+            Self::CountOverflow => write!(
+                f,
+                "exact count arithmetic overflowed (a count never wraps). {}",
+                Recourse("keep every count the expression computes within a 64-bit integer")
+            ),
             Self::CountToScalarOutOfRange(count) => write!(
                 f,
                 "count {count} is outside the exactly-promotable range — a promoted \
-                 count must fit i32 so its f64 embedding is exact"
+                 count must fit i32 so its f64 embedding is exact. {}",
+                Recourse("promote only a count within a 32-bit integer")
             ),
-            Self::NonFiniteResult => f.write_str(
+            Self::NonFiniteResult => write!(
+                f,
                 "the evaluated result is not finite — the arithmetic overflowed or hit \
-                 a pole (1/0, 0/0); fix the expression or the values feeding it",
+                 a pole (1/0, 0/0). {}",
+                Recourse("fix the expression or the values feeding it")
             ),
             Self::Unlowered(fault) => write!(
                 f,
-                "{fault}, and only a document's edit door resolves it; evaluate the formula \
-                 as the document lowers it"
+                "{fault}, and only a document's edit door resolves it. {}",
+                Recourse("evaluate the formula as the document lowers it")
             ),
         }
     }

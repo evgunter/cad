@@ -971,8 +971,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // "ask for the box at a scalar that can carry it".
         C::ParamBox => "param_box",
         // The box arm's twin, and its own tag for the same reason: the
-        // recourse is "seed at a scalar with a tangent channel" (or
-        // name a continuous parameter), not the box's.
+        // recourse is "evaluate at a dual scalar, or drop the seed" (or
+        // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
         C::WrongOperand => "wrong_operand",
         // A read of one copy of a placement's copies: a key naming no
