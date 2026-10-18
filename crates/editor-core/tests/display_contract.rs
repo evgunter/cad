@@ -2465,7 +2465,6 @@ test_utils::f6_variants! {
         SharedRim,
         MergedChord,
         MergedChordOffRim,
-        MergedChordConstituents,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
@@ -2603,18 +2602,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 rim: edge,
             },
             vec![
-                "merged faces",
+                "a merged face among them",
                 "operand node 00000000001d",
                 "does not lie within",
             ],
-        ),
-        (
-            NamingError::MergedChordConstituents {
-                edge,
-                face,
-                several: 2,
-            },
-            vec!["merged face", "holds 2 faces", "no rule picks"],
         ),
         (
             NamingError::ClosedCarrierUnread {
