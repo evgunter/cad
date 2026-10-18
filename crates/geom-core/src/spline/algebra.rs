@@ -49,6 +49,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use super::projective::{ProjectivePoint, ProjectiveScalar};
+use crate::Real;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
@@ -367,19 +368,7 @@ impl CurvePlan {
                 Src::New(i) => new.get(i).copied().flatten(),
             }
         };
-        let coef = |c: Coef| -> Option<T> {
-            match c {
-                Coef::Constant { num, den } => Some(T::from_f64(num) / T::from_f64(den)),
-                Coef::Knots { u, lo, hi } => {
-                    let u = match u {
-                        KnotAt::Index(i) => *knots.get(i)?,
-                        KnotAt::Fresh(v) => fresh(v),
-                    };
-                    let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
-                    Some((u - lo) / (hi - lo))
-                }
-            }
-        };
+        let coef = |c: Coef| form_coef(c, knots, fresh);
         let one = T::from_f64(1.0);
         for step in &self.steps {
             match *step {
@@ -424,6 +413,45 @@ impl CurvePlan {
             .unzip()
     }
 
+    /// **The schedule over a HOMOGENEOUS net held at `T`**, at any
+    /// scalar: each control point as `(w·P, w)`, the pair combined as
+    /// one, so no weight quotient `λ` is formed (C6 S4: a refinement
+    /// at an enclosure scalar is held as homogeneous enclosures, and
+    /// the projective [`Self::apply_rational`] does not run there). Each
+    /// step's coefficient `a` is formed at `T` from `knots`, as
+    /// [`Self::apply_rational`] forms it, and the step is
+    /// `x + (y − x)·t` on both members of the pair, `affine` on the
+    /// homogeneous point, with
+    /// - `t = a` for an insertion's and an elevation's blend;
+    /// - `t = 1/a` for a removal's forward unblend
+    ///   (`(y − (1 − a)·x)/a`, rearranged);
+    /// - `t = 1/(1 − a)` for its backward unblend (`(y − a·x)/(1 − a)`).
+    ///
+    /// The form keeps a constant column exact (`y − x` is zero), so a
+    /// polynomial net's unit weights come out as unit weights. The
+    /// caller de-homogenizes once at the end.
+    ///
+    /// Total: a malformed plan, a short channel or a knot index past
+    /// `knots` leaves `poison` in the targets it reaches.
+    pub fn apply_homogeneous<T: Real, V: Copy>(
+        &self,
+        knots: &[T],
+        old: &[(V, T)],
+        (poison, fresh): ((V, T), &dyn Fn(f64) -> T),
+        affine: impl Fn(V, V, T) -> V,
+    ) -> Vec<(V, T)> {
+        let one = T::from_f64(1.0);
+        let step = |(vx, wx): (V, T), (vy, wy): (V, T), form: Form| -> Option<(V, T)> {
+            let t = match form {
+                Form::Blend(c) => form_coef(c, knots, fresh)?,
+                Form::UnblendForward(c) => one / form_coef(c, knots, fresh)?,
+                Form::UnblendBackward(c) => one / (one - form_coef(c, knots, fresh)?),
+            };
+            Some((affine(vx, vy, t), wx + (wy - wx) * t))
+        };
+        self.apply_ratios(old, poison, |x, y, _, form| step(x, y, form))
+    }
+
     /// **The same schedule, applied in the certification ring to one
     /// HOMOGENEOUS coefficient channel** — the weight net `w`, or one
     /// spatial channel of `w·P`. Module docs, "One schedule, two
@@ -464,7 +492,9 @@ impl CurvePlan {
     /// Degree elevation's binomial `i/(p + 1)` is a convex blend too,
     /// taken by the same step at the ring quotient of its two integers.
     /// A removal unblends: forward `Q = (C_y − (1 − a)·C_x)/a`, backward
-    /// `Q = (C_y − a·C_x)/(1 − a)`, plain ring arithmetic at the ratio
+    /// `Q = (C_y − a·C_x)/(1 − a)`, taken as `C_x + (C_y − C_x)/a` and
+    /// `C_x + (C_y − C_x)/(1 − a)` (the same in ℝ; a constant column
+    /// stays exact), plain ring arithmetic at the ratio
     /// `a = (u − U_i)/(U_{i+p+1} − U_i)` of the knots it is made of,
     /// which lies strictly inside `(0, 1)` for an interior knot
     /// (`remove_once`). It is not a convex combination, so it widens as
@@ -478,14 +508,8 @@ impl CurvePlan {
         self.apply_ratios(old, Interval::refused(), |x, y, r, form| {
             Some(match form {
                 Form::Blend(_) => boehm_step(x, y, r.lo, r.hi, r.inserted),
-                Form::UnblendForward(_) => {
-                    let a = ring_ratio(r);
-                    (y - (Interval::point(1.0) - a) * x) / a
-                }
-                Form::UnblendBackward(_) => {
-                    let a = ring_ratio(r);
-                    (y - a * x) / (Interval::point(1.0) - a)
-                }
+                Form::UnblendForward(_) => x + (y - x) / ring_ratio(r),
+                Form::UnblendBackward(_) => x + (y - x) / (Interval::point(1.0) - ring_ratio(r)),
             })
         })
     }
@@ -558,11 +582,76 @@ pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> 
     )
 }
 
+/// A combination's coefficient `a` formed at `T` (the projective and
+/// homogeneous appliers): a ratio of `knots`, the input vector's held
+/// values, with a value the step brings in entered by `fresh`, or
+/// elevation's quotient of two integers. `None` for a knot index past
+/// `knots`.
+fn form_coef<T: Real>(c: Coef, knots: &[T], fresh: &dyn Fn(f64) -> T) -> Option<T> {
+    match c {
+        Coef::Knots { u, lo, hi } => {
+            let u = match u {
+                KnotAt::Index(i) => *knots.get(i)?,
+                KnotAt::Fresh(v) => fresh(v),
+            };
+            let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
+            Some((u - lo) / (hi - lo))
+        }
+        Coef::Constant { num, den } => Some(T::from_f64(num) / T::from_f64(den)),
+    }
+}
+
 /// A step's coefficient `(inserted − lo)/(hi − lo)` in the ring, from
 /// its exact ingredients ([`Ratio`]), rounded outward.
 fn ring_ratio(r: Ratio) -> Interval {
     let lo = Interval::point(r.lo);
     (Interval::point(r.inserted) - lo) / (Interval::point(r.hi) - lo)
+}
+
+/// **A carrier's held knots and weights as the plan constructors read
+/// them**: their `f64` vectors, which exist where every knot and weight
+/// is a point (C6's interim; S5 moves the constructors onto the held
+/// values). The one place the knot algebra takes those vectors, so a
+/// carrier's knot operation refuses a wide input typed, at the run or
+/// weight the door names, rather than reaching a loud interim read.
+///
+/// # Errors
+///
+/// [`KnotAlgebraError::Structure`] carrying
+/// [`SplineError::CarrierKnotNotAPoint`] at the first run whose value is
+/// wider than a point, or [`SplineError::CarrierWeightNotAPoint`] at the
+/// first such weight.
+pub fn point_inputs<'a, T: super::locate::SpanLocate>(
+    knots: &'a super::knot_values::Knots<T>,
+    weights: &'a super::weights::Weights<T>,
+) -> Result<(&'a KnotVector, &'a [f64]), KnotAlgebraError> {
+    let kv = point_knots(knots)?;
+    if let Some(index) = weights.first_wide() {
+        return Err(KnotAlgebraError::Structure(
+            SplineError::CarrierWeightNotAPoint { index },
+        ));
+    }
+    Ok((kv, weights.weights_f64_interim()))
+}
+
+/// [`point_inputs`]' knot half: a carrier's held knots as the plan
+/// constructors read them, for a net whose weights reach the
+/// constructor another way (a surface's column).
+///
+/// # Errors
+///
+/// [`KnotAlgebraError::Structure`] carrying
+/// [`SplineError::CarrierKnotNotAPoint`] at the first run whose value is
+/// wider than a point.
+pub fn point_knots<T: super::locate::SpanLocate>(
+    knots: &super::knot_values::Knots<T>,
+) -> Result<&KnotVector, KnotAlgebraError> {
+    if let Some(index) = knots.first_wide_run() {
+        return Err(KnotAlgebraError::Structure(
+            SplineError::CarrierKnotNotAPoint { index },
+        ));
+    }
+    Ok(knots.structure_f64_interim())
 }
 
 /// Validates weights against a knot vector: count, then the weight

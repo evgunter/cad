@@ -1711,7 +1711,6 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
-        SkinError::IncompatibleAtEnclosure { .. } => "incompatible_at_enclosure",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
