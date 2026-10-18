@@ -2044,15 +2044,19 @@ impl Parents {
             }
         }
         // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take. A
-        // bug, not a recipe: a fold step merges two member faces only
-        // where their margins decide them one carrier. A union only adds
-        // material, so they meet there in
-        // their own pair's union too, whose boxes therefore meet and
-        // which is judged under the same declarations. That judgement
-        // merges or covers them. A curved run the pair leaves unmerged
-        // (`merge_skipped`), the fold, holding no fewer of its faces,
-        // leaves unmerged too.
+        // faces are of several parents has no one parent to take. Two
+        // faces of DIFFERENT members a fold step merged meet in their own
+        // pair's union too (a union only adds material, and the pair is
+        // judged under the same declarations), and that judgement merges
+        // or covers them. Two faces of ONE member a judgement merges link
+        // nothing: `Links::judged` records member-a × member-b pairs
+        // only. A legal recipe reaches that (a bar through a sunk boss's
+        // two wall pieces,
+        // `wire_legal_union_refusals::a_bar_through_a_sunk_boss_refuses_at_the_unions_parents`)
+        // and refuses here under the bug's words; what such a pair is
+        // is `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`'s.
+        // A curved run the pair leaves unmerged (`merge_skipped`), the
+        // fold, holding no fewer of its faces, leaves unmerged too.
         for (_, from) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();

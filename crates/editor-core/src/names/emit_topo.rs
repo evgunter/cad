@@ -1426,8 +1426,8 @@ fn name_boolean_edges<T: Decide>(
     // itself; a MERGED face (N3) reads through to its constituent on
     // side `want` — the seam's mint-time operand identity survives the
     // glue. Where the merge glued several faces of that operand, the
-    // chord descends to the one whose operand face holds it
-    // ([`constituent_holding`]); one that none holds refuses
+    // chord descends to the one whose operand face holds it whole
+    // ([`constituent_holding`]); one that none holds whole refuses
     // (`NamingError::MergedChordConstituents`).
     let chord_descent =
         |e: EdgeKey, f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
@@ -1443,13 +1443,12 @@ fn name_boolean_edges<T: Decide>(
             match hits.as_slice() {
                 [] => Err(bug("merged face lacks the needed operand-side constituent")),
                 [one] => Ok(*one),
-                several => constituent_holding(body, e, several, a, b, bnd)?.ok_or(
-                    NamingError::MergedChordConstituents {
+                several => constituent_holding(body, e, &naming.edge_joins, several, a, b, bnd)?
+                    .ok_or(NamingError::MergedChordConstituents {
                         edge: e,
                         face: f,
                         several: several.len(),
-                    },
-                ),
+                    }),
             }
         };
     // **A chord between two MERGED faces.** Each face has a constituent
@@ -3586,28 +3585,44 @@ fn rim_holding<T: Decide>(
 }
 
 /// Of the several operand faces `constituents` one merged face holds on
-/// one side, the one whose region holds result edge `chord`: the face
-/// that holds the chord's middle strictly inside it, by the in-face
-/// door for its kind ([`topo::contfp`] on a plane,
-/// [`topo::curved_face_containment`] on a curved carrier). The
-/// constituents are distinct faces of one operand body, so their
-/// interiors are disjoint and at most one holds the point; two that do
-/// are a body that is not one. `None` where none does: the middle lies
-/// on a constituent's boundary, or the door does not read a face that
-/// holds it.
+/// one side, the one that holds result edge `chord` WHOLE — `None`
+/// where none does.
+///
+/// A chord the output stage never joined
+/// (`topo::BooleanNaming::edge_joins`) is one edge of the body before
+/// the merge, and so a boundary edge of one face the merge glued: that
+/// face lies in one operand face, and so does the chord, end to end.
+/// Which constituent it is, its middle says: the one face whose
+/// in-face door places the middle strictly inside it. The constituents
+/// are distinct faces of one operand body, so their interiors are
+/// disjoint and at most one does; two that do are a body that is not
+/// one.
+///
+/// A chord the join made of several edges may have run through the
+/// glued faces' common rim, where a joined-away vertex stood: a point,
+/// its middle or any other, says nothing about the rest of it, and no
+/// carrier reading does either (the chord crosses a constituent's
+/// region, not along an edge of it, so [`chord_within`] has no rim to
+/// cover it by). It is `None`, as is a chord whose middle lies on a
+/// constituent's boundary or on a face whose door gives no reading:
+/// the caller refuses each typed (`NamingError::MergedChordConstituents`).
 fn constituent_holding<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
+    joins: &[topo::EdgeJoin],
     constituents: &[OpSide<FaceKey>],
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     bnd: geom_core::Band,
 ) -> Result<Option<OpSide<FaceKey>>, NamingError> {
+    if joins.iter().any(|j| j.kept == chord) {
+        return Ok(None);
+    }
     let p = Track::of_edge(body, chord)?.middle();
     let mut holding = Vec::new();
     for &d in constituents {
         let (op, f) = d.of(a, b);
-        if face_holds_inside(op.body, f, p, bnd) {
+        if face_holds_inside(op.body, f, p, bnd)? {
             holding.push(d);
         }
     }
@@ -3620,28 +3635,63 @@ fn constituent_holding<T: Decide>(
     }
 }
 
-/// Whether `face` of `body` holds `p` strictly inside it; `false` on its
-/// boundary, off it, or where its in-face door gives no reading.
+/// Whether `face` of `body` holds `p` strictly inside it, by the in-face
+/// door for its kind: [`topo::contfp`] on a plane,
+/// [`topo::curved_face_containment`] on a curved carrier. `false` on
+/// its boundary, off it, and where the door has no verdict for it
+/// (a curved trim's remainder, no ray settling, a loop edge in every
+/// ray's way, a chart read refused, an arc end's band): the caller
+/// refuses that typed, as it does a boundary point.
+///
+/// topo's own dispatch of the two doors (`boolean::face_placement`,
+/// which the census's `face_holds` and the rim wedges read) is
+/// crate-private, and its public projection is test support only; this
+/// is the same dispatch on the public doors, minus the on-plane
+/// decision, which the point does not need: it is a point of a chord
+/// of the merged face, on its carrier by construction.
+///
+/// # Errors
+///
+/// [`NamingError::Escalated`] where a door's margin escalated, and an
+/// [`NamingError::Emission`] where the face or a loop of it does not
+/// read as one: a constituent the merge record names is a face of its
+/// operand.
 fn face_holds_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     bnd: geom_core::Band,
-) -> bool {
-    let plane = body
+) -> Result<bool, NamingError> {
+    let surface = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .and_then(|s| match *s {
-            geom::Surface::Plane { normal, .. } => Some(normal),
-            _ => None,
-        });
-    let at = match plane {
-        Some(normal) => topo::contfp(body, face, normal, p, bnd).ok(),
-        None => topo::curved_face_containment(body, face, p, bnd)
-            .ok()
-            .flatten(),
+        .ok_or(NamingError::Emission {
+            what: "a merged face's constituent is not a face of its operand",
+        })?;
+    let read = match *surface {
+        geom::Surface::Plane { normal, .. } => topo::contfp(body, face, normal, p, bnd).map(Some),
+        _ => topo::curved_face_containment(body, face, p, bnd),
     };
-    at == Some(topo::FaceContainment::In)
+    match read {
+        Ok(at) => Ok(at == Some(topo::FaceContainment::In)),
+        Err(topo::ContainError::Escalated { diag, .. }) => Err(NamingError::Escalated {
+            predicate: diag.predicate.unwrap_or("contfp"),
+            source: diag,
+        }),
+        Err(
+            topo::ContainError::StaleFace(_)
+            | topo::ContainError::EmptyLoop(_)
+            | topo::ContainError::LoopUnreadable(_),
+        ) => Err(NamingError::Emission {
+            what: "a merged face's constituent does not read as a face of its operand",
+        }),
+        Err(
+            topo::ContainError::RayExhausted
+            | topo::ContainError::Uncrossable(_)
+            | topo::ContainError::Curved(_)
+            | topo::ContainError::ArcEndClearOfCorners(_),
+        ) => Ok(false),
+    }
 }
 
 /// Whether edge `e` of `body` is carried by a line: a tag read, no
