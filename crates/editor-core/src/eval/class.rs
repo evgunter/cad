@@ -89,8 +89,6 @@ pub enum NodeErrorClass {
     UnresolvedRead,
     /// [`NodeErrorKind::SelectResolve`].
     SelectResolve,
-    /// [`NodeErrorKind::SelectKind`].
-    SelectKind,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -313,7 +311,6 @@ impl NodeErrorKind {
             Self::MissingInput { .. } => C::MissingInput,
             Self::UnresolvedRead { .. } => C::UnresolvedRead,
             Self::SelectResolve { .. } => C::SelectResolve,
-            Self::SelectKind { .. } => C::SelectKind,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -485,7 +482,7 @@ fn by_verb(verb: BlendKind, fillet: NodeErrorClass, chamfer: NodeErrorClass) -> 
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
-    use crate::names::{EntityKey, EntityKind, StableName};
+    use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
     use sweep::blend::BlendKind;
@@ -531,7 +528,6 @@ mod tests {
         MissingInput,
         UnresolvedRead,
         SelectResolve,
-        SelectKind,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -658,13 +654,6 @@ mod tests {
         })
     }
 
-    /// The entity door's own answer for a whole body, which is the only
-    /// way a [`crate::Found`] is minted.
-    fn found_body(refuse: fn(crate::Found) -> K) -> K {
-        crate::eval::entity_door::entity(EntityKey::Body, |_| None::<()>, refuse)
-            .expect_err("a read that finds nothing refuses")
-    }
-
     fn doc_ref() -> crate::DocRef {
         crate::DocRef {
             id: crate::DocumentId::derive("bracket"),
@@ -771,13 +760,6 @@ mod tests {
                 reference: 0,
                 error: resolve_error(),
             },
-            C::SelectKind => found_body(|found| K::SelectKind {
-                slot: crate::OperandSlot::Selection,
-                var: crate::VarId::new(3, 3),
-                name: Box::new(name()),
-                expected: crate::EntityKind::Edge,
-                found,
-            }),
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,

@@ -472,26 +472,24 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         )
     );
 
-    // (b) a name of the wrong KIND: an edge that really is there, so
-    // it resolves and then fails the door's faces-only check.
-    let mut edge = None;
-    let (doc, n) = cup_with(|blank| {
-        let open = fixture::prism_edges(&doc, blank, 4)[0].clone();
-        edge = Some(open.clone());
-        Node::shell(blank, fixture::len(cup::T), vec![open])
-    });
-    let edge = edge.expect("the shell was built");
-    let e = refusal(&doc, n);
+    // (b) a name of the wrong KIND: an edge that really is there,
+    // refused at the insert against the seat's kind, before anything
+    // resolves.
+    let d = cup::document();
+    let blank = blank_of(&d.doc);
+    let open = fixture::prism_edges(&d.doc, blank, 4)[0].clone();
+    let err = fixture::insert_refused(&d.doc, Node::shell(blank, fixture::len(cup::T), vec![open]));
     assert!(
         matches!(
-            &e,
-            NodeErrorKind::SelectKind { found, .. } if found.kind() == EntityKind::Edge
+            &err,
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Edge,
+                expected: EntityKind::Face,
+                ..
+            }
         ),
-        "{e:?}"
-    );
-    assert_eq!(
-        e.to_string(),
-        format!("a selection names {edge}, which is an edge, not a face")
+        "{err:?}"
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
