@@ -283,13 +283,21 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// bundle of mates), which re-blessed these rows by its new mint chain:
 /// `cut_cylinder`, `part_select`, `kitchen_sink` moved by this unit as well, and
 /// their merged values are neither tree's; every other row is main's.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2346_bf6f_fea8_eda4u64),
-        ("part_select", 0x613b_f017_f88d_98f9),
-        ("kitchen_sink", 0x210d_f516_2a4c_c228),
+        ("cut_cylinder", 0x3e5f_559f_058c_1664u64),
+        ("part_select", 0x7b4d_39f0_68df_e9b5),
+        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

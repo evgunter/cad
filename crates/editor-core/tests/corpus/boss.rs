@@ -12,6 +12,7 @@
 //! `review_m5_pr9_doc_probe.rs`, and validity + the seam-arc counts
 //! are pinned by the boolean's own acceptance suites.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
@@ -63,7 +64,7 @@ pub fn document() -> CorpusDoc {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
     });
 
-    r.place(union);
+    r.place_part(union);
 
     CorpusDoc {
         name: "boss_union",

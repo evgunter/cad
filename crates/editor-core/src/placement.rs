@@ -441,15 +441,6 @@ pub enum FrameSite {
         /// Its index in the chain.
         index: usize,
     },
-    /// Step `index` of a constraint side's frame offset.
-    MateStep {
-        /// Which constraint of the placement.
-        constraint: crate::node::ConstraintId,
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// Its index in the offset's chain.
-        index: usize,
-    },
 }
 
 impl FrameSite {
@@ -462,15 +453,6 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
-            Self::MateStep {
-                constraint,
-                side,
-                index,
-            } => format!(
-                "step {} of constraint {constraint} of {node}'s {} frame offset",
-                index + 1,
-                side.name()
-            ),
         }
     }
 }
@@ -559,9 +541,7 @@ impl<T: Decide> Motion<T> {
 }
 
 /// **A placement: an ordered chain of steps** — what a
-/// [`crate::Node::Transform`] holds, and a mate frame's offset is, a
-/// world pin's pose among them ([`crate::Mate::world_pin`];
-/// ASSEMBLY-DESIGN A3, A11 (2)). An explicit rule's listed placements
+/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A3). An explicit rule's listed placements
 /// hold literal [`Frame`]s.
 ///
 /// The chain composes as a product: `[s0, s1, …, sn]` denotes
@@ -819,29 +799,6 @@ impl Placement {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
         self.chain_motion(before, &vals, band)
-    }
-
-    /// **The one construction of a placement's motion**, from its
-    /// slots already evaluated: a rigid step minted by the transform
-    /// construction over its axis decided under the transform's role
-    /// word, a literal step admitted at the decided door
-    /// ([`Frame::rigid_motion`]), the chain folded through
-    /// [`Motion::compose`] — so a chain of witnesses is one, decided
-    /// nowhere again.
-    ///
-    /// # Errors
-    ///
-    /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
-    /// among `vals`, the direction door's own refusal, and
-    /// [`NodeErrorKind::Motion`] for a step's motion that is not
-    /// minted or not admitted.
-    pub(crate) fn motion<T: Decide>(
-        &self,
-        vals: &SlotValues<T>,
-        band: Band,
-    ) -> Result<Affine3<T>, NodeErrorKind> {
-        self.chain_motion(Motion::Identity, vals, band)
-            .map(Motion::affine)
     }
 
     /// [`Placement::motion`] with the bit-exact identity kept marked

@@ -98,7 +98,6 @@ from bench_scene import (
     ROOT_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
-    OWN_FACE,
     POST_HEIGHT,
     POST_SECTION,
     POST_VOLUME,
@@ -419,19 +418,33 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         self.store = Workspace(str(directory))
-        # The boss: its one placed body, an extrude, has no length to
-        # extrude.
-        boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
+        # The boss: its one placed body, an extrude. It is stored while
+        # it builds, so the bracket can pin a copy of it over its faces.
+        boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.01)
         self.store.create(boss)
-        self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
-        # The bracket: its one placement is an instance of the boss.
+        # The bracket: its one placement is an instance of the boss,
+        # pinned to the bracket's world.
+        building = DocRef(boss.id, pncad.content_pin(boss))
         bracket = pncad.Doc("pncad-partroot-bracket")
-        self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
+        self.bracket_root = bracket.insert(Node.instantiate_part(building, []))
+        bracket.pin(self.bracket_root, resolver=self.store)
         bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
+        # Then the boss's extrude is edited to no length, and the bracket
+        # takes that version.
+        (extrude,) = [n for n in boss.order() if boss.node_kind(n) == "extrude"]
+        boss.apply(DocEdit.set_param(extrude, "distance", Formula.length_in(0.0, m)))
+        self.store.resave(boss)
+        self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
+        for edit in pncad.update_references(bracket, boss.id, self.boss_ref.pin):
+            bracket.apply(edit)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        # The assembly's twin is inserted as the bracket's root was, and
+        # takes the flat version the same way.
         self.assembly = pncad.Doc("pncad-partroot-assembly")
-        self.twin = self.assembly.insert(Node.instantiate_part(self.boss_ref))
+        self.twin = self.assembly.insert(Node.instantiate_part(building, []))
+        for edit in pncad.update_references(self.assembly, boss.id, self.boss_ref.pin):
+            self.assembly.apply(edit)
         self.assembly.apply(DocEdit.set_label(self.twin, "host twin"))
         self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref))
 
@@ -558,8 +571,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                 plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
-        # No length to extrude, so the extrude refuses.
-        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.0, m)))
+        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
         self.root = part.insert(
             Node.transform(
                 self.extrude,
@@ -568,7 +580,10 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                 Formula.literal(0.0 * pncad.rad),
             )
         )
+        # Placed while it builds — the gesture reads the transform's
+        # faces — then edited to no length, so the extrude refuses.
         self.placed = part.place(self.root)
+        part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
         self.store.create(part)
         self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
@@ -611,8 +626,19 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         that failed instance, and the chain runs instance, instance,
         extrude. The inner instance is loose, so it is no root of the
         bracket's world itself."""
+        # The bracket is placed while the part builds — the gesture
+        # reads the transform's faces — and then pinned to the part as
+        # it stands, edited to no length.
+        def at_length(length):
+            self.part.apply(
+                DocEdit.set_param(self.extrude, "distance", Formula.length_in(length, m))
+            )
+            self.store.resave(self.part)
+            return pncad.content_pin(self.part)
+
+        building = DocRef(self.part.id, at_length(0.01))
         bracket = pncad.Doc("pncad-partpoison-bracket")
-        inner = bracket.insert(Node.instantiate_part(self.part_ref, []))
+        inner = bracket.insert(Node.instantiate_part(building, []))
         bracket.place(
             bracket.insert(
                 Node.transform(
@@ -621,8 +647,12 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                     (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
                     Formula.literal(0.0 * pncad.rad),
                 )
-            )
+            ),
+            resolver=self.store,
         )
+        flat = at_length(0.0)
+        for edit in pncad.update_references(bracket, self.part.id, flat):
+            bracket.apply(edit)
         self.store.create(bracket)
         bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         assembly = pncad.Doc("pncad-partpoison-deep-assembly")
@@ -637,7 +667,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         last = middle.__cause__
         self.assertIsInstance(last, pncad.EvaluationError)
         self.assertEqual(last.kind, "extrude")
-        self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
+        # The extrude fails in the version the bracket's pin names.
+        self.assertEqual((last.node, last.document), (self.extrude, DocRef(self.part.id, flat)))
         self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
 
 
@@ -661,7 +692,7 @@ import json, shutil, sys, tempfile, threading
 from pathlib import Path
 
 import bench_scene
-from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+from pncad import CapEnd, DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
 
 levels, mode = int(sys.argv[1]), sys.argv[2]
 directory = Path(tempfile.mkdtemp())
@@ -670,9 +701,26 @@ try:
     below = bench_scene.post()
     store.create(below)
     first = None
+    base = None
     for level in range(1, levels + 1):
         doc = Doc(f"pncad-depth-level-{level}")
-        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+        instance = doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)), []))
+        # Each level stands its copy on its floor by the post's base
+        # cap. The first level reads that face off its copy; each level
+        # above wears the level below's name inside the one `InPart`
+        # its own instance puts round it, checked against the copy's own
+        # faces at the second and third levels before the chain is
+        # trusted with it.
+        if base is None:
+            base = json.loads(bench_scene.instance_face(store, doc, instance, CapEnd.Start))
+        else:
+            # `NodeId(...)`'s repr spells the id as a name writes it.
+            node = repr(instance).removeprefix("NodeId(").removesuffix(")")
+            base = {"kind": "Face", "node": node, "path": [{"InPart": {"of": base}}]}
+            if level <= 3:
+                faces = evaluate(doc, resolver=store).all_faces(instance)
+                assert base in [json.loads(face) for face in faces], level
+        bench_scene.on_floor(doc, instance, instance, json.dumps(base, separators=(",", ":")))
         store.create(doc)
         first = first or doc
         below = doc
@@ -1291,17 +1339,16 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             (0.0, ROOT_OFFSET_Y, 0.0),
             "the near post's spot",
         )
-        # A seat is an authored point (`mate_frame(NAME, tol)`) or the
-        # side's own head face (`MateFrame::from_face()`, the post's
-        # cap), read in document order.
-        seats = re.findall(
-            r"^\s+[ab]: (?:mate_frame\((\w+), tol\)|(MateFrame::from_face\(\))),$", stand, re.M
-        )
-        self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "MateFrame::from_face()": OWN_FACE}
+        # The two mates' seats, read in document order: whatever spells
+        # the values that put each shelf seat on its post's cap, the
+        # tour names the shelf's seat by its constant, each in its own
+        # mate's values.
+        seats = list(dict.fromkeys(re.findall(r"\b(SEAT_[AB])\b", stand)))
+        self.assertEqual(len(seats), 2, "the stand no longer names exactly two seats")
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B}
         self.assertScene(
-            tuple(named[point or face] for point, face in seats),
-            tuple(seat for mate in STAND_SEATS for seat in mate),
+            tuple(named[seat] for seat in seats),
+            tuple(seat for mate in STAND_SEATS for seat in mate if seat in named.values()),
             "the stand's mate seats",
         )
 

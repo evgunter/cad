@@ -91,6 +91,7 @@ mod tubewall;
 mod twopeg;
 mod uvdump;
 mod walls;
+mod world;
 
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};

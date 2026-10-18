@@ -4242,7 +4242,7 @@ fn nurbs_chord<T: Decide>(
     if !positive(Margin::of(len)) {
         return Ok(None);
     }
-    let knots = nurbs.knots();
+    let knots = nurbs.knots_f64_interim();
     let (Some(s0), Some(s1)) = (t0.locate_spans(knots), t1.locate_spans(knots)) else {
         return Ok(None);
     };

@@ -3,7 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "732438b0bb964c61d9ba51b967dc4a60ba520a6c68c865680df57a132d8de1f3",
+      "chain": "ff588446501f6bec42c68ee0dbb975d73f4de58bf00bcf13ab2e4833eed0c8af",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -189,13 +189,13 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "var": "61:2ca1b132d6a6b941"
         },
         {
-          "node": "62:9f659ef3e093e3ae"
+          "node": "62:c6424ce65c4dd5f1"
         },
         {
-          "var": "63:c46279ba5bf4a28b"
+          "var": "63:81e4a37344acd62d"
         },
         {
-          "constraint": "64:732438b0bb964c61"
+          "constraint": "64:ff588446501f6bec"
         }
       ]
     },
@@ -513,34 +513,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "tool": "59:cd6e9b33ca143180"
         }
       },
-      "62:9f659ef3e093e3ae": {
+      "62:c6424ce65c4dd5f1": {
         "Place": {
           "shapes": [
             "61:2ca1b132d6a6b941"
           ],
           "constraints": [
             {
-              "id": "64:732438b0bb964c61",
-              "mate": {
-                "a": "world",
-                "b": "copy",
-                "class": "rest",
-                "alignment": {
-                  "a": {
-                    "base": "World",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "b": {
-                    "base": "Part",
-                    "offset": {
-                      "steps": []
-                    }
-                  },
-                  "primitive": "frame_coincidence",
-                  "sense": "aligned"
-                }
+              "id": "64:ff588446501f6bec",
+              "kind": {
+                "world_pin": "identity"
               }
             }
           ]
@@ -1065,11 +1047,11 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "63:c46279ba5bf4a28b": {
+      "63:81e4a37344acd62d": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "62:9f659ef3e093e3ae",
+            "node": "62:c6424ce65c4dd5f1",
             "port": 0
           }
         }

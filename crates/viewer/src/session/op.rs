@@ -16,12 +16,11 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
-    MateRef, Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
+    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
@@ -61,8 +60,10 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle — exactly one
-    /// `DocEdit::RemoveConstraint`. A constraint is no node, so it has
+    /// Remove one constraint from its placement's bundle: one
+    /// `DocEdit::RemoveConstraint`, preceded, for a mate, by one per
+    /// value naming it — a value sets a freedom of its mate, so it goes
+    /// with it, in the same action. A constraint is no node, so it has
     /// no cone to delete: the copy it pinned is recomputed from what
     /// remains, and a bundle that no longer pins its copy leaves a loose
     /// copy, never a refusal.
@@ -455,28 +456,19 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Commit **exactly one** `DocEdit` adding a mate to the bundle of
-    /// the copy it places (`DocEdit::AddConstraint`, the placement
-    /// `session::mate_placement` names) — the mate tool's single
-    /// committed edit. A mate the bundle already fixes refuses at the
-    /// edit door (`MateFault::Overconstrained`, or `TargetsDiffer` beside
-    /// a world pin) and is never dropped. Everything before it (the two
-    /// picks, the class choice, the derived frames) is tool state; the
-    /// document transition is this op alone, entering at the same
-    /// commit door as every other edit: one apply, one history state,
-    /// one re-evaluation, and the free-move supersession prune.
+    /// Add a mate to `placement`'s bundle and then each of its values
+    /// naming the id the mate minted (`DocEdit::AddConstraint`, then one
+    /// `DocEdit::AddValue` per value) — the mate tool's one committed
+    /// action, so one history state and one undo. A mate or a value the
+    /// door refuses ends the action and nothing of it is recorded.
+    /// Everything before it (the two picks, the choice) is tool state.
     AddMate {
-        /// The `a` reference — a name and the operand it is read at,
-        /// resolving to a member of A11's vocabulary
-        /// (`pncad::document::member_of`).
-        a: SitedFace,
-        /// The `b` reference, same vocabulary.
-        b: SitedFace,
-        /// The declared contact class.
-        class: ContactClass,
-        /// The alignment datum (frames in each member's own part
-        /// coordinates).
-        alignment: Alignment<Formula>,
+        /// The placement whose copy the mate places.
+        placement: RecipeNodeId,
+        /// The mate, `on` read off that copy.
+        mate: Box<Mate<Formula>>,
+        /// The freedoms it leaves that are set, each to its number.
+        values: Vec<(Coord, Formula)>,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -871,8 +863,9 @@ pub enum SessionOp {
     /// reference into a store it has not got.
     ///
     /// **A creation, so its copies are placed** (A10): an instance is a
-    /// placement, inserted standing on the world at the identity (one
-    /// world pin in its bundle), with its reference and an empty
+    /// placement, inserted and placed at the identity by the "place
+    /// part" gesture (a mate to the world and its values,
+    /// [`OpOutcome::placed`]), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
     /// Hiding, the free-move probe and the mate tool take it from
     /// there.
@@ -1661,6 +1654,22 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **How each copy a place gesture made was placed**
+    /// ([`editor_core::place_at`]), in the order the action placed
+    /// them: on a planar face and its values, pinned where the copy has
+    /// none, or left loose with the reason. Empty for every other
+    /// operation.
+    pub placed: Vec<PlaceReport>,
+}
+
+/// **How the "place part" gesture placed one copy**
+/// ([`editor_core::place_at`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaceReport {
+    /// The placement the gesture made.
+    pub placement: RecipeNodeId,
+    /// How its copy was placed, or why it stands loose.
+    pub by: Result<editor_core::PlacedBy, PinRefusal>,
 }
 
 impl OpOutcome {

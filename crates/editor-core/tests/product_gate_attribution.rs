@@ -21,7 +21,7 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Mate, Node, NodeResult,
+    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
     ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
     product_recorded,
 };
@@ -228,23 +228,19 @@ fn a_lone_multi_solid_source_is_named() {
     let mut store = PartStore::default();
     let p = store.insert(part("per-part-3-p"), Tol::witness());
     let mut sub = ProfileDoc::empty(DocumentId::derive("per-part-3-b"), Tol::witness());
+    let o = with_resolver(store.clone());
     for dx in [0.0, 3.0] {
         let (next, id) = insert(sub, fixture::mated_instance(p));
-        sub = fixture::constrain_at(
-            next,
-            id,
-            Mate::world_pin(editor_core::Placement::literal(&Frame::translation([
-                dx, 0.0, 0.0,
-            ]))),
-        )
-        .0;
+        sub = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
     }
     let b = store.insert(sub, Tol::witness());
-    let (doc, source) = insert(
+    let o = with_resolver(store);
+    let (doc, source) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
         Node::instantiate_part(b),
+        &o,
     );
-    let mut ev = fixture::run(&doc, &with_resolver(store));
+    let mut ev = fixture::run(&doc, &o);
     assert_eq!(
         flip_one_face(&mut ev, source),
         2,

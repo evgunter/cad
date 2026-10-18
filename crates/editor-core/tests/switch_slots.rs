@@ -14,12 +14,11 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionRelation, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
-    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
-    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, Step, StepArg,
-    TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Datum, Dimension, DocEdit,
+    DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame, FreeVar, InterfaceRecord,
+    LoopProgram, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SlotId, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -599,8 +598,42 @@ fn nid(n: u64) -> RecipeNodeId {
 fn constraint(n: u64, mate: editor_core::Mate<Formula>) -> editor_core::Constraint<Formula> {
     editor_core::Constraint {
         id: editor_core::ConstraintId(editor_core::MintId::new(0, n)),
-        mate,
+        kind: editor_core::ConstraintKind::Mate(mate),
     }
+}
+
+/// A constraint holding `value` under the id minted at `n`.
+fn value(n: u64, value: editor_core::Value<Formula>) -> editor_core::Constraint<Formula> {
+    editor_core::Constraint {
+        id: editor_core::ConstraintId(editor_core::MintId::new(0, n)),
+        kind: editor_core::ConstraintKind::Value(value),
+    }
+}
+
+/// A mate of the cap plane of `body`'s copy with the world's `xy`
+/// plane as `world` moves it.
+fn to_world(
+    body: RecipeNodeId,
+    world: editor_core::WorldRead<Formula>,
+) -> editor_core::Mate<Formula> {
+    editor_core::Mate {
+        on: fixture::plane(fixture::head(fixture::fname(
+            body,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
+        to: editor_core::Target::World(world),
+        class: ContactClass::Rest,
+    }
+}
+
+/// The world's `xy` plane.
+fn world_xy() -> editor_core::WorldRead<Formula> {
+    editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy)
+}
+
+/// The world's `z` axis.
+fn world_z() -> editor_core::WorldRead<Formula> {
+    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z)
 }
 
 fn datum_shapes() -> Vec<Datum<Formula>> {
@@ -743,27 +776,24 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             input: nid(1).into(),
             placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
-        // A world placement at the identity: its pin's pose is an empty
-        // chain.
+        // A world mate reading the world's plane as it stands: its read
+        // holds no scalar, so no slot.
         Node::Place {
             shapes: vec![nid(1).into()],
-            constraints: vec![constraint(
-                1,
-                editor_core::Mate::world_pin(Placement::IDENTITY),
-            )],
+            constraints: vec![constraint(1, to_world(nid(1), world_xy()))],
         },
-        // A world placement at a pose of its own: one rigid step.
+        // A world mate reading the world's plane slid and spun: a slide
+        // slot and a spin slot, in the read's pre-order.
         Node::Place {
             shapes: vec![nid(1).into()],
             constraints: vec![constraint(
                 1,
-                editor_core::Mate::world_pin(Placement {
-                    steps: vec![Step::Rigid {
-                        translation: [len(2.0), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.25),
-                    }],
-                }),
+                to_world(
+                    nid(1),
+                    world_xy()
+                        .slide(world_z(), len(2.0))
+                        .spin(world_z(), ang(0.25)),
+                ),
             )],
         },
         // The world: no slot at all.
@@ -811,58 +841,53 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
             constraints: vec![constraint(
                 1,
-                editor_core::Mate::world_pin(Placement::from(Step::Rigid {
-                    translation: [len(1.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                })),
+                to_world(nid(1), world_xy().slide(world_z(), len(1.0))),
             )],
         },
-        // A placement whose bundle is a world pin and a mate onto a
-        // face: each constraint's slots carry its own id.
+        // A placement whose bundle is a world mate, a mate onto a face
+        // and a value on that mate: each constraint's slots carry its
+        // own id.
         Node::Place {
             shapes: vec![nid(2).into()],
             constraints: vec![
                 constraint(
                     1,
-                    editor_core::Mate::world_pin(Placement::from(Step::Rigid {
-                        translation: [len(0.0), len(2.0), len(0.0)],
-                        axis: [scl(1.0), scl(0.0), scl(0.0)],
-                        angle: ang(0.25),
-                    })),
+                    to_world(
+                        nid(2),
+                        world_xy()
+                            .slide(world_z(), len(2.0))
+                            .spin(world_z(), ang(0.25)),
+                    ),
                 ),
                 constraint(
                     2,
                     fixture::mate(
-                        crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
-                        crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+                        fixture::axis(fixture::head(fixture::fname(
+                            nid(2),
+                            RoleSeg::Cap(CapEnd::End),
+                        ))),
+                        fixture::axis(fixture::head(fixture::fname(
+                            nid(1),
+                            RoleSeg::Cap(CapEnd::Start),
+                        ))),
                         ContactClass::Rest,
-                        Alignment {
-                            a: MateFrame::authored(
-                                [0.0; 3],
-                                [0.0, 0.0, 1.0],
-                                [1.0, 0.0, 0.0],
-                                geom_core::Tol::witness(),
-                            )
-                            .expect("a definite frame"),
-                            // A face base whose offset is a literal then a
-                            // rigid step: the rigid step's slots carry the
-                            // constraint, the side and the step's own index.
-                            b: MateFrame::on_face(
-                                Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
-                                    &Step::Rigid {
-                                        translation: [len(0.5), len(0.0), len(0.0)],
-                                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                                        angle: ang(0.5),
-                                    }
-                                    .into(),
-                                ),
-                            ),
-                            primitive: MatePrimitive::Coaxial,
-                            sense: AxisSense::Aligned,
-                            clocking: None,
-                        },
                     ),
+                ),
+                value(
+                    3,
+                    editor_core::Value {
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        coord: editor_core::Coord::Spin,
+                        by: ang(0.5),
+                    },
+                ),
+                value(
+                    4,
+                    editor_core::Value {
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::Z),
+                        by: len(0.5),
+                    },
                 ),
             ],
         },

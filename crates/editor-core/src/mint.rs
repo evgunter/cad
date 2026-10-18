@@ -254,8 +254,8 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
     AddConstraint {
         /// The placement.
         placement: RecipeNodeId,
-        /// The mate it holds.
-        mate: crate::mate::Mate,
+        /// What it states.
+        constraint: crate::mate::ConstraintKind,
     },
 }
 
@@ -413,17 +413,17 @@ impl Mint {
         self.holds(Minted::Constraint(id))
     }
 
-    /// **The id an add of `mate` to `placement` mints**: the chain
-    /// extended by the add's canonical bytes, then once for the
+    /// **The id an add of `constraint` to `placement` mints**: the
+    /// chain extended by the add's canonical bytes, then once for the
     /// constraint.
     pub(crate) fn add_constraint(
         &mut self,
         placement: RecipeNodeId,
-        mate: &crate::mate::Mate,
+        constraint: &crate::mate::ConstraintKind,
     ) -> crate::node::ConstraintId {
         let edit = self.extended(&MintingEdit::<'_, ()>::AddConstraint {
             placement,
-            mate: mate.clone(),
+            constraint: constraint.clone(),
         });
         let (chain, id) = Self::draw(CONSTRAINT_TAG, edit, &self.log);
         let id = crate::node::ConstraintId(id);
@@ -506,20 +506,6 @@ impl Mint {
         self.chain = chain;
         self.log.push(Minted::Var(id));
         id
-    }
-
-    /// This mint with `entries` logged too, in order, where a test
-    /// pushes nodes by hand rather than through the insert door: each
-    /// entry's ordinal must be the next one.
-    #[cfg(test)]
-    pub(crate) fn logged(mut self, entries: impl IntoIterator<Item = Minted>) -> Self {
-        self.log.extend(entries);
-        assert_eq!(
-            self.out_of_order(),
-            None,
-            "a hand-built log counts up from one"
-        );
-        self
     }
 
     /// The first log entry whose ordinal is not its place in the log —

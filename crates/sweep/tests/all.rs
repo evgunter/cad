@@ -891,6 +891,8 @@ mod mate2_r2_probes;
 mod mate7a_r1_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_census_edge_face_lane.rs"]
+mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
