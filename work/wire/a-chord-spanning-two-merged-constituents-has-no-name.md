@@ -2,12 +2,13 @@
 id: a-chord-spanning-two-merged-constituents-has-no-name
 kind: issue
 title: A seam chord that crosses the merged-away boundary between two same-side constituents of a merged face has no naming rule, and N2 states no chord-descent rule at all
-status: open
+status: closed
 opened: 2026-10-17
 priority: P1
 cost: M
 design: true
 refs: [a-merged-face-with-several-same-side-constituents-has-no-chord-rule]
+closed: 2026-10-18
 ---
 
 
@@ -43,3 +44,14 @@ Signed (WIRE orchestrator).
 Both designers, briefed with the problem only, rejected the premise that a spanning chord needs its own rule: the pair boolean spells one merged face two ways today (its `Borders` walls cite the parent `Merged` set; its seam pass descends to a constituent), and N3 (Ev, PR 3222) already says a union's seam cites the parent. The recommendation: at every boolean a seam cites the parent of the face beside it, so a spanning or along-the-boundary chord is a piece of `Seam(Merged{…}, f)` told apart by `Ends`, stable as the cut moves; the chord descent PR 5263 built, `constituent_holding` and `MergedChordConstituents` are deleted. `[ev]` PR edits N3; design-fork log row 160. Approved by Ev on PR 5279 (2026-10-18).
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-18)
+
+Closed by PR 5313, which builds N3's seam sentence as Ev approved it on
+PR 5279: at a pair boolean, a seam beside a merged face cites its
+`Merged` parent. Chord descent, `constituent_holding` and
+`NamingError::MergedChordConstituents` are deleted. The spanning and
+along-the-boundary chords name as pieces of one seam
+(`wire_legal_union_refusals`). Every same-operand chord reads its rim
+through one chooser, `rim_among`, which decides by name. The side-order
+lean of fork-log row 160 is `should-pair-seams-take-name-ordered-sides`.
