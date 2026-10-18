@@ -19,7 +19,7 @@ sections wider than a point in `T`, and the walls enclose the family
 (`crates/sweep/src/loft.rs`, `LoftBuild::enclosure`). That holds only
 where the family's walls are carriers. A carrier at every scalar holds
 point weights (`crates/geom/src/net.rs`, `weight_channel`, refusing
-`SplineError::WeightNotAPoint`) and point knots
+`SplineError::WeightNotAPoint`, since S2 the door's `CarrierWeightNotAPoint`) and point knots
 (`geom_core::spline::Knots::new`, refusing `KnotNotAPoint`), because a
 certificate reads a payload's weights and knots on their `f64` value
 channel (`certified_coords`'s doc in `crates/geom/src/net.rs`; C6 in
@@ -128,7 +128,13 @@ Option A, framed as a correction rather than a permission (fork-log row
   - `map` certifies what it does not keep, and the span read hulls.
   - The interim: `*_f64_interim` accessors and the ratchet gate `scripts/gates/knots-f64-interim.sh`.
   - A carrier and the fit refuse a wide breakpoint typed (`CarrierKnotNotAPoint`) until their readers move.
-- **S2, weights:** held weights, `WeightNotAPoint` retired.
+- **S2, weights (staged as S1, the orchestrator's ruling (A)):**
+  - `Weights<T>` holds weights, certified strictly positive for every member (`WeightSignUndecided` with its margin).
+  - `weights_f64_interim` refuses loud, and the gate counts it.
+  - The carrier door refuses a wide weight as `CarrierWeightNotAPoint` (renamed from `WeightNotAPoint`) until S4/S5 move the knot algebra and the certificates.
+  - Also in S2:
+    - the gate counts the f64 knot and weight holders;
+    - `Knots::value_at` refuses wide knots typed. Its callers carry the message "a carrier's door admits only point knots (`CarrierKnotNotAPoint`)", which S4/S5 grep for.
 - **S3, arcs:** the η sub-arc rule and `T::pi()` (Q1, Q2).
 - **S4, the homogeneous knot algebra:** `apply_certified`'s elevation and removal.
 - **S5, fit and skin:** the collocation's typed refusal. S5 deletes the interim accessors and their gate.
@@ -136,15 +142,14 @@ Option A, framed as a correction rather than a permission (fork-log row
 
 ### Left for S2–S5 (S1's review, PR 5277)
 
-- **`f64` knot vectors copied out at an interim read, uncounted by the gate:**
-  - `SplineCoeffs::knots`;
-  - `TensorNet::knots_u/v`;
-  - `Collocation`;
-  - `projected::breaks`;
-  - the ssi refinement's `ku/kv`.
-
-  Deleting the accessors forces them out.
-- **`Knots::value_at` answers `None` on wide knots.** Its callers fall back to `from_computed(v)` (`curves/nurbs.rs`, `surfaces/nurbs.rs`, `replace_face.rs`, `projected.rs`). This is unreachable while carriers' knots are points.
-- **`Knots::lift` trusts its caller's lift contract.** It is defined at `Real`, which has no point reading.
+- **`f64` knot and weight vectors copied out at an interim read.** S2 counts them as the gate's holders ratchet (44 at PR 5287).
+  - `SplineCoeffs::knots`, `TensorNet::knots_u/v`, `Collocation`, `projected::breaks`, the ssi refinement's `ku/kv`, certificate weights, and the surface's internal `Column.channel`.
+  - Deleting the accessors forces most of them out; S5 states where the count ends.
+- **`Knots::lift` and `Weights::lift` (each carrier's `map_scalar`) trust their caller's lift contract.** They are defined at `Real`, which has no point reading. A lift that widened a value would leave a stale `f64` vector beside it. Every production lift keeps points.
 - **The fit's collocation reads one span of the hull.** It refuses a wide averaged knot before forming rows, and S5 owns the enclosure.
 - **The curve macro's interim reads report the macro invocation as their location.**
+
+### Left for S3–S5 (S2's review, PR 5287)
+
+- **A wide weight's `NonPositiveWeight` reports its top alone,** not its enclosure (the error's field is one `f64`).
+- **The door's order of refusals differs by regime.** With a wide weight present, `Weights::new` certifies every weight before the count check (documented at `geom::net::weight_channel`).

@@ -115,15 +115,25 @@ pub enum SplineError {
         /// Index of the offending run.
         index: usize,
     },
-    /// A weight held in the scalar is an enclosure wider than a point
-    /// (`SpanLocate::point_value` reads none, and it is not poison,
-    /// which refuses as a non-positive weight). The weights' value
-    /// channel is what every structure decision on them reads
-    /// (positivity, the knot algebra's plans), and such a value gives
-    /// it nothing to read.
-    WeightNotAPoint {
+    /// A curve or surface was built over weights one of which is an
+    /// enclosure wider than a point. Held weights take one (C6,
+    /// [`super::Weights`]), but a carrier's knot algebra and its
+    /// certificates still read its weights as `f64` points, so the
+    /// carrier's door refuses it.
+    CarrierWeightNotAPoint {
         /// Index of the offending weight.
         index: usize,
+    },
+    /// Whether a weight is strictly positive is not decided for every
+    /// value it stands for: its enclosure reaches zero or below for some
+    /// members and lies above zero for others (C6). The margin is the
+    /// weight's enclosure; inputs refined so that it clears zero lift
+    /// the refusal.
+    WeightSignUndecided {
+        /// Index of the offending weight.
+        index: usize,
+        /// The weight, as read.
+        margin: crate::MarginDiag,
     },
 }
 
@@ -195,11 +205,21 @@ impl core::fmt::Display for SplineError {
                  scalar (`f64`) and lifted, so its breakpoints stay the numbers it was \
                  built on"
             ),
-            SplineError::WeightNotAPoint { index } => write!(
+            SplineError::CarrierWeightNotAPoint { index } => write!(
                 f,
-                "weight {index} is an enclosure wider than a point, so no positivity or \
-                 knot-algebra decision can read it. Recourse: supply a weight that is a \
-                 single number there"
+                "weight {index} is an enclosure wider than a point, and a curve or surface \
+                 reads its weights as single numbers. The width may be rounding alone (an \
+                 arc's cosine at an enclosure scalar), so narrower inputs need not lift it. \
+                 Recourse: supply the carrier built at a point scalar (`f64`) and lifted, so \
+                 its weights stay the numbers it was built on"
+            ),
+            SplineError::WeightSignUndecided { index, margin } => write!(
+                f,
+                "whether weight {index} is strictly positive is undecided over the values it \
+                 stands for: it is {margin}, which does not clear zero, so some members' \
+                 weights are not positive. Recourse: supply that weight from inputs narrow \
+                 enough that it clears zero, and, for a curve or surface, narrow enough that \
+                 it is a single number, which is all a carrier admits for now"
             ),
         }
     }
@@ -227,17 +247,30 @@ pub fn weight_in_regime(w: f64) -> bool {
 /// As above, at the offending index.
 pub fn check_weight_values(weights: &[f64]) -> Result<(), SplineError> {
     for (index, &weight) in weights.iter().enumerate() {
-        if weight_in_regime(weight) {
-            continue;
-        }
-        // Outside the regime and still `> 0` is `+∞`.
-        return Err(if weight > 0.0 {
-            SplineError::NonFiniteWeight { index, weight }
-        } else {
-            SplineError::NonPositiveWeight { index, weight }
-        });
+        check_weight_value(index, weight)?;
     }
     Ok(())
+}
+
+/// One weight in [`weight_in_regime`], or its refusal at `index`:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN,
+/// [`SplineError::NonFiniteWeight`] for `+∞`. The one spelling of a
+/// point weight's positivity, which [`check_weight_values`] and
+/// [`super::Weights::new`] share.
+///
+/// # Errors
+///
+/// As above.
+pub fn check_weight_value(index: usize, weight: f64) -> Result<(), SplineError> {
+    if weight_in_regime(weight) {
+        return Ok(());
+    }
+    // Outside the regime and still `> 0` is `+∞`.
+    Err(if weight > 0.0 {
+        SplineError::NonFiniteWeight { index, weight }
+    } else {
+        SplineError::NonPositiveWeight { index, weight }
+    })
 }
 
 /// The exact structural violation behind
@@ -2276,7 +2309,11 @@ mod tests {
                 margin: crate::MarginDiag::enclosure(-0.25, 0.5),
             },
             SplineError::CarrierKnotNotAPoint { index: 1 },
-            SplineError::WeightNotAPoint { index: 1 },
+            SplineError::CarrierWeightNotAPoint { index: 1 },
+            SplineError::WeightSignUndecided {
+                index: 1,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
         // until it is listed above.
@@ -2292,10 +2329,11 @@ mod tests {
                 | SplineError::KnotRunsNotIncreasing { .. }
                 | SplineError::KnotRunsUndecided { .. }
                 | SplineError::CarrierKnotNotAPoint { .. }
-                | SplineError::WeightNotAPoint { .. } => {}
+                | SplineError::CarrierWeightNotAPoint { .. }
+                | SplineError::WeightSignUndecided { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 11, "an arm was added without a row here");
+        assert_eq!(arms.len(), 12, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

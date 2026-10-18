@@ -955,7 +955,10 @@ pub(crate) fn side_row_parts<T: CertifiedBounds>(
         }
     };
     let control = indices.iter().map(|&i| wall.control()[i]).collect();
-    let channel = indices.iter().map(|&i| wall.weight_channel()[i]).collect();
+    let channel = indices
+        .iter()
+        .map(|&i| wall.weights_f64_interim()[i])
+        .collect();
     (knots, control, channel)
 }
 

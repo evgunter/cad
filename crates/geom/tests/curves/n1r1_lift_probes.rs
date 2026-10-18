@@ -305,8 +305,8 @@ mod interval_probes {
                 );
             }
             assert_eq!(
-                ci.weight_channel(),
-                c.weight_channel(),
+                ci.weights_f64_interim(),
+                c.weights_f64_interim(),
                 "{name}: weights moved"
             );
             assert_eq!(

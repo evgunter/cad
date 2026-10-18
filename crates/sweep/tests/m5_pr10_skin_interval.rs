@@ -58,7 +58,7 @@ fn the_interval_lane_encloses_the_same_definitional_surface() {
         lifted.knots_v_f64_interim().knots(),
         exact.knots_v_f64_interim().knots()
     );
-    assert_eq!(lifted.weight_channel(), exact.weight_channel());
+    assert_eq!(lifted.weights_f64_interim(), exact.weights_f64_interim());
 
     // Sample counts DERIVE from the structure, not from a literal.
     let (nu, nv) = exact.control_counts();

@@ -3900,7 +3900,13 @@ fn corner_of_root<T: Decide>(
     tol: Tol,
     held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    let held_end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_computed(v));
+    // `held` is a carrier's knots, which are points (`net::carrier_knots`).
+    let held_end = |v: f64| match held.value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
+    };
     use crate::offset_derive::SplineRoot;
     match root {
         Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
