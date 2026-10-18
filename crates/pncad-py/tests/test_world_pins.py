@@ -265,34 +265,26 @@ class WorldPins(unittest.TestCase):
         self.assertLess(gap(mat(poses.pose(shelf)), mul(w_post, rel)), 1e-12)
 
     def test_a_constraint_the_bundle_already_fixes_is_refused(self):
-        """Three plane mates pin a post where it stands — its underside
-        on the world's floor, two sides on the world's two walls — and a
-        fourth, its top on the world's floor raised by its height, is an
-        equation the others already fix. The door is structural and
-        admits it; the placement refuses where it evaluates, naming each
-        constraint whose removal leaves the copy as fixed as it was."""
+        """A post rests on the world's floor by its underside; a second
+        plane mate, a side on one of the world's walls, fixes a normal
+        the first already fixes, so the door refuses it, measuring
+        nothing, naming both and the freedoms the two would leave."""
         doc = Doc("py-pin-overconstrained")
         post = doc.insert(self.loose(self.post_ref))
 
         def facing(normal):
             return PoseDef.plane(post, bench_scene.face_facing(self.ws, doc, post, normal))
 
-        floor, wall_x, wall_y = (
-            WorldRead.through(role).flip() for role in ("xy", "yz", "zx")
-        )
+        floor, wall_x = (WorldRead.through(role).flip() for role in ("xy", "yz"))
         bottom = doc.constrain(post, Mate(facing((0.0, 0.0, -1.0)), floor, ContactClass.Rest))
-        doc.constrain(post, Mate(facing((-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest))
-        doc.constrain(post, Mate(facing((0.0, -1.0, 0.0)), wall_y, ContactClass.Rest))
-        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(post))
-        raised = WorldRead.through("xy").slide(
-            WorldRead.through("z"), bench_scene.POST_HEIGHT * m
-        )
-        top = doc.constrain(post, Mate(facing((0.0, 0.0, 1.0)), raised, ContactClass.Rest))
-        fault = solve_document(doc, resolver=self.ws).fault(post)
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.constrain(post, Mate(facing((-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest))
+        fault = caught.exception.fault
         self.assertEqual(fault.variant, "mate_overconstrained")
         self.assertEqual(fault.placement, post)
-        self.assertEqual(sorted(fault.constraints), sorted([bottom, top]))
-        self.assertEqual(fault.residual.variant, "trivial")
+        self.assertIn(bottom, fault.constraints)
+        self.assertEqual(len(fault.constraints), 2)
+        self.assertEqual(fault.free, 1)
         self.assertIn(pncad.OVERCONSTRAINED_RECOURSE, str(fault))
 
     def test_the_gate_checks_a_loose_copys_own_space(self):

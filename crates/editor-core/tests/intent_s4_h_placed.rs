@@ -9,7 +9,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::PoseValue;
-use editor_core::mate::coset::{Arm, Subgroup, intersect_subgroups};
 use editor_core::mate::mate_coset;
 use geom_core::linalg::{Mat3, Point3, UnitVec3, Vec3};
 use geom_core::{Band, Decide, ParamSymbol, Real, Sym, SymBudget, Tol};
@@ -114,40 +113,6 @@ fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
              defects not proven"
         );
     }
-}
-
-/// **The line two planes meet in carries no lever arm.** Two planar
-/// residuals over symbolic normals meet in a prismatic one; its
-/// direction is the normalised cross product of the two normals and
-/// nothing else, so a fold's map built along it is a function of its
-/// poses alone, and the arm stays inside the decision it levers.
-///
-/// Red if the line is minted from the cross product levered by the arm
-/// (opaque at `Sym`): the difference then keeps the arm's atom.
-#[test]
-fn the_line_two_planes_meet_in_carries_no_lever_arm() {
-    let (residual, _) = geom_core::sym::with_session(BUDGET, || {
-        let (n1, n2) = (
-            direction(30, [0.0, 0.1, 1.0]),
-            direction(40, [1.0, 0.2, 0.1]),
-        );
-        let arm = Arm::of(1.0, 2.0).expect("an arm in range");
-        let Ok(Subgroup::Prismatic { direction }) = intersect_subgroups(
-            Subgroup::Planar { normal: n1 },
-            Subgroup::Planar { normal: n2 },
-            band(),
-            arm,
-        ) else {
-            panic!("two planes at a definite angle meet in a line");
-        };
-        let line = n1.get().cross(n2.get()).normalize();
-        let d = direction.get() - line;
-        [d.x, d.y, d.z].map(identically_zero)
-    });
-    assert_eq!(
-        residual, [true; 3],
-        "the line is the normals' cross product normalised"
-    );
 }
 
 /// **Measurement, not a gate**: whether the identities a mate-placed

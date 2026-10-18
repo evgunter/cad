@@ -845,11 +845,10 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        Clash, ConstraintId, Coord, DocumentId, Lever, LeverRefusal, MateFault as F, MateRef,
-        MateSide, MintId, NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, SlideAxis,
-        Subgroup, VarKind, WorldReadFault,
+        ConstraintId, Coord, DocumentId, LeverRefusal, MateFault as F, MateRef, MateSide, MintId,
+        NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, SlideAxis, VarKind, WorldReadFault,
     };
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
 
     let id = |n| RecipeNodeId::new(0, n);
     // A constraint's address: constraint `n` of placement `n`.
@@ -956,61 +955,13 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["mate", "shape", "inner_variant"],
     );
-    // A levered clash carries both halves of the lever beside it, and
-    // one measured without a lever carries neither.
-    carries(
-        &F::Contradictory {
-            held: m(1),
-            added: m(2),
-            predicate: "mate_member_axis_fixed",
-            clash: Clash::Levered(Lever::Residual {
-                value: 0.25,
-                arm: 2.0,
-            }),
-        },
-        &[
-            "held",
-            "added",
-            "predicate",
-            "clash",
-            "lever_residual",
-            "lever_arm",
-        ],
-    );
-    // A length measured outright carries the clash and no lever; the
-    // structural refusal measures nothing and carries no clash.
-    carries(
-        &F::Contradictory {
-            held: m(1),
-            added: m(2),
-            predicate: "mate_member_translation_zero",
-            clash: Clash::Length { metres: 0.01 },
-        },
-        &["held", "added", "predicate", "clash"],
-    );
-    carries(
-        &F::Contradictory {
-            held: m(1),
-            added: m(2),
-            predicate: "mate_member_empty",
-            clash: Clash::Structural,
-        },
-        &["held", "added", "predicate"],
-    );
     carries(
         &F::Overconstrained {
             placement: id(1),
             constraints: vec![ConstraintId(MintId::new(2, 2))],
-            held: Subgroup::Planar {
-                normal: UnitVec3::new(
-                    pncad::authoring::v3(0.0, 0.0, 1.0),
-                    "pncad_py_test_normal",
-                    Band::new(1e-9, 1e-8).expect("a band"),
-                )
-                .expect("a unit normal"),
-            },
+            free: 1,
         },
-        &["placement", "constraints", "residual"],
+        &["placement", "constraints", "free"],
     );
     carries(
         &F::TargetsDiffer {
@@ -1049,19 +1000,9 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &F::NotAFreedom {
             value: m(1),
             coord: Coord::Slide(SlideAxis::Z),
-            kind: Some(VarKind::Plane),
+            kind: VarKind::Plane,
         },
         &["value_ref", "coord", "mate_kind"],
-    );
-    // A freedom the bundle's other constraints fix names no kind: the
-    // kind alone leaves it.
-    carries(
-        &F::NotAFreedom {
-            value: m(1),
-            coord: Coord::Spin,
-            kind: None,
-        },
-        &["value_ref", "coord"],
     );
     carries(
         &F::NoChart {
@@ -1089,7 +1030,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             ConstraintId(MintId::new(9, 9)),
             ConstraintId(MintId::new(16, 16)),
         ],
-        held: Subgroup::Trivial,
+        free: 0,
     };
     let payload = mate_payload(&over);
     assert_eq!(payload.placement, Some(id(4)));
@@ -1102,14 +1043,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             ][..]
         )
     );
-    assert_eq!(payload.residual, Some(Subgroup::Trivial));
-    let contradictory = F::Contradictory {
+    assert_eq!(payload.free, Some(0));
+    let far = F::PoseOutOfRange {
         held: m(9),
         added: m(16),
-        predicate: "mate_member_empty",
-        clash: Clash::Structural,
     };
-    let payload = mate_payload(&contradictory);
+    let payload = mate_payload(&far);
     assert_eq!((payload.held, payload.added), (Some(m(9)), Some(m(16))));
 
     // The unevaluated pose's `error` is the evaluation layer's own
@@ -1187,7 +1126,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // held, on the frame door's own names.
     let escalation = F::Indeterminate {
         mate: m(1),
-        diag: Box::new(escalated(Some("mate_member_empty"))),
+        diag: Box::new(escalated(Some("mate_axes_parallel"))),
     };
     let payload = mate_payload(&escalation);
     assert_eq!(payload.margin, Some(2.0e-9));
@@ -1195,44 +1134,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         (payload.zero, payload.escalate),
         (Some(1.0e-9), Some(1.0e-6))
     );
-    assert_eq!(payload.predicate, Some("mate_member_empty"));
+    assert_eq!(payload.predicate, Some("mate_axes_parallel"));
     assert_eq!((payload.margin_low, payload.margin_high), (None, None));
-
-    // **`clash` IS the product of the lever's two halves.** The
-    // kernel computes the deviation at the raising site and stores
-    // it; the two halves ride beside it, and a caller multiplying
-    // them gets the number it was handed.
-    let levered = F::Contradictory {
-        held: m(1),
-        added: m(2),
-        predicate: "mate_rotation_two_axis_reachable",
-        clash: Clash::Levered(Lever::Residual {
-            value: 0.75,
-            arm: 3.0,
-        }),
-    };
-    let payload = mate_payload(&levered);
-    let (residual, arm) = (
-        payload
-            .lever_residual
-            .expect("a residual clash carries its pure number"),
-        payload.lever_arm.expect("and its arm"),
-    );
-    assert_eq!(payload.clash, Some(residual * arm));
-    // The structural refusal measures nothing: no clash and neither
-    // half — `None` rather than zeroes claiming a
-    // measurement nothing made.
-    let structural = F::Contradictory {
-        held: m(1),
-        added: m(2),
-        predicate: "mate_member_empty",
-        clash: Clash::Structural,
-    };
-    let payload = mate_payload(&structural);
-    assert_eq!(
-        (payload.clash, payload.lever_residual, payload.lever_arm),
-        (None, None, None)
-    );
 }
 
 /// **Each door keeps its word for each standing**, the two absent
@@ -2379,7 +2282,6 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateIndeterminate => "mate_indeterminate",
         MatePoseOutOfRange => "mate_pose_out_of_range",
-        MateContradictory => "mate_contradictory",
         MateOverconstrained => "mate_overconstrained",
         MateTargetsDiffer => "mate_targets_differ",
         MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -5465,7 +5367,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["point_rotation", "two_bodies"],
+        values: &["point_rotation", "slide_turns_a_ball", "two_bodies"],
         delegates: &[],
     },
     TagEntry {
@@ -5499,7 +5401,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "instance_out_of_range",
             "loft",
             "mate_class_not_admitted",
-            "mate_contradictory",
             "mate_indeterminate",
             "mate_kinds_differ",
             "mate_no_chart",
@@ -6313,23 +6214,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "subgroup_tag",
-        values: &[
-            "cylindrical",
-            "empty",
-            "parallel",
-            "planar",
-            "plane_translation",
-            "prismatic",
-            "revolute",
-            "se3",
-            "spherical",
-            "translation",
-            "trivial",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "tessellate_error_tag",
         values: &[
             "certificate_exceeded",
@@ -6627,7 +6511,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
     ("edge_edge_point", 2),
-    ("empty", 3),
+    ("empty", 2),
     ("empty_boolean", 2),
     // Coincidence, not one fact: a profile loop authored with no vertex,
     // refused at validation, and a body face's empty (scaffolding) loop,

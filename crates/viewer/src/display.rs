@@ -128,22 +128,21 @@ const RIGID_SLACK: f64 = 1e-9;
 /// **Why an instance cannot hold display state** — what the admission
 /// tests answer, and the only cause a [`Withdrawn`] carries.
 ///
-/// # Each arm names its subject in the strongest vocabulary true of it
+/// # Each arm names its subject through the spoken node
 ///
 /// The rule over the whole enum, not a property of one arm: an arm
-/// whose subject IS a part instance says **"instance N"**
-/// ([`AdmissionFault::InTheWorld`], [`AdmissionFault::NotEvaluated`],
-/// [`AdmissionFault::NoSpace`], [`AdmissionFault::MovedSpace`],
-/// [`AdmissionFault::FusedGeometry`])
-/// — the word the properties panel and the feature tree use for the
-/// thing a user hides or probes. A frame's withdrawal asks about its
+/// says its subject as [`SpokenNode`] says it — always the node's kind
+/// as the document holds it, with its label beside it when it has one
+/// (`InstantiatePart N`, `Place "shelf" (N)`) — and never writes the
+/// subject's kind in its own words. A frame's withdrawal asks about its
 /// space's root, which is a placement and may be a `Place` rather than
-/// an instance; the arm then says what [`SpokenNode`] says of that
-/// node, its kind included. An arm whose whole content is that
-/// the id does NOT denote one says **"node N"**
-/// ([`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`]),
-/// because calling it an instance there would assert the very thing
-/// the arm is denying.
+/// an instance, so a sentence that wrote "instance" would be false there.
+/// An id the document does not hold has no kind and reads **"node N"**
+/// ([`AdmissionFault::NoSuchNode`]). [`AdmissionFault::NotAnInstance`]
+/// is the one arm whose own words say "instance", because its whole
+/// content is that the node is not one. The census in
+/// `crates/viewer/tests/frame_policy.rs` holds the "instance" half of
+/// the rule; the other kind words are held by review.
 ///
 /// A caller rendering these must therefore not promise its reader one
 /// vocabulary across all of them.
@@ -768,6 +767,13 @@ fn frame_check(
 /// the root alone ([`space_check`]); a gesture opened on another copy
 /// of the space would otherwise go on steering the space after its own
 /// copy was deleted or split off.
+///
+/// The root is asked too, whether it is still in the document. A delete
+/// that takes the root takes the copy as well, because every copy in a
+/// space reads its root. An undo need not: a root inserted after the
+/// copy, and then mated onto by it, is undone mate first and insertion
+/// after, which leaves the copy, its own space now, with no root, while
+/// the last landing still answers the older document.
 fn gesture_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
