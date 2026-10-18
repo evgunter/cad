@@ -680,26 +680,31 @@ pub enum SeedError {
 
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match self {
             Self::UnknownVar { var } => write!(
                 f,
-                "the seed names {var}, which is not a variable of this document"
+                "the seed names {var}, which is not a variable of this document. {}",
+                Recourse("seed a free length, angle or scalar variable the document holds")
             ),
             Self::CountVar { var } => write!(
                 f,
                 "the seed names {var}, a Count parameter — structural parameters are fixed \
-                 under any error analysis and carry no derivative axis"
+                 under any error analysis and carry no derivative axis. {}",
+                Recourse("seed a length, angle or scalar parameter")
             ),
             Self::SeedOnNonFreeVar { var } => write!(
                 f,
                 "the seed names {var}, which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
-                 operation's output is a value its operation gives; seed a free variable"
+                 operation's output is a value its operation gives. {}",
+                Recourse(format_args!("seed a free variable {var} is a function of"))
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,
                 "parameter {var} is seeded and this evaluation scalar carries no tangent \
-                 channel — a sensitivity pass needs a dual"
+                 channel. {}",
+                Recourse("evaluate at a dual scalar, or drop the seed")
             ),
         }
     }

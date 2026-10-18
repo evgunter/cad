@@ -162,12 +162,15 @@ impl core::fmt::Display for WitnessBifurcation {
         write!(
             f,
             " (margin {:e} against band zero {:e} / escalate {:e}; {} implicated \
-             element(s)) — move the sketch off the near-singular configuration, or \
-             re-solve to record a fresh witness",
+             element(s)). {}",
             self.margin.margin,
             self.margin.band_zero,
             self.margin.band_escalate,
-            self.implicated.len()
+            self.implicated.len(),
+            crate::sentence::Recourse(
+                "move the sketch off the near-singular configuration, or re-solve to record \
+                 a fresh witness"
+            )
         )
     }
 }

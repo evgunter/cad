@@ -468,7 +468,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
             "a selected name failed to resolve: the side wall over piece 7 of the profile \
              step {step} of node {blank} no longer resolves in this evaluation: the recorded \
              reference disagrees with the recipe as it stands on the derivation path (node \
-             {blank}'s payload differs)"
+             {blank}'s payload differs). Recourse: rebind it"
         )
     );
 

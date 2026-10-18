@@ -1031,3 +1031,102 @@ fn the_accept_reads_the_committed_document_before_its_run_lands() {
         "one undo takes back the accept and leaves the delete"
     );
 }
+
+/// **A free-move gesture whose space's root comes to refuse dies at the
+/// landing, through its own copy** (`a-gesture-under-a-refused-root-is-unchecked`).
+/// post_b is seated onto the loose shelf, which roots post_b's space.
+/// The shelf's file then moves on, so the saved reference mismatches
+/// and the shelf refuses; accepting the new version resolves it, a
+/// gesture opens on post_b, and undoing the accept puts the mismatch,
+/// and the refusal, back under the gesture. The copy mated onto a
+/// refused root refuses too — its mate reads the root's pose — so the
+/// gesture's own-copy check answers, and the root needs no question of
+/// its own.
+#[test]
+fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmrefusedroot", tol);
+    {
+        let mut session = asm::open_bench(&bench, tol);
+        asm::unpin(&mut session, bench.post_b);
+        asm::unpin(&mut session, bench.shelf_i);
+        common::commit_mate(
+            &mut session,
+            asm::seat_op(
+                &bench,
+                bench.post_b,
+                ContactClass::Rest,
+                asm::middle_seat_values(),
+            ),
+        );
+        session.pump();
+        let saved = session.perform(SessionOp::Save(bench.asm_path.clone()));
+        assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    }
+    // The shelf's file moves on: the saved reference no longer matches.
+    let shelf_file = Workspace::open(&bench.dir)
+        .expect("the directory scans")
+        .documents()
+        .get(&bench.shelf.id)
+        .expect("the shelf is stored")
+        .clone();
+    let text = std::fs::read_to_string(&shelf_file).expect("the shelf reads");
+    let loaded = pncad::document::load(&text, tol).expect("the shelf loads");
+    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
+    Workspace::open(&bench.dir)
+        .expect("the directory scans")
+        .resave(&edited, tol)
+        .expect("the shelf rewrites");
+
+    let mut session = asm::open_bench(&bench, tol);
+    assert!(
+        matches!(
+            row_of(&session, bench.shelf_i).status,
+            RowStatus::Failed { .. }
+        ),
+        "the mismatched shelf refuses"
+    );
+    let accepted = session.perform(SessionOp::AcceptPartVersion { id: bench.shelf.id });
+    assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+    session.pump();
+    let root =
+        viewer::display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+            .expect("the seated post is in the resolved shelf's loose space");
+    assert_eq!(root, bench.shelf_i, "the shelf roots it");
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    // The accept undone: the root refuses again, under the gesture.
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        undone.withdrawn.killed_gesture.is_none(),
+        "the edit alone does not know"
+    );
+    session.pump();
+    let (_, eval) = session.landed_pair().expect("landed");
+    assert!(eval.value(bench.shelf_i).is_none(), "the root refuses");
+    assert!(
+        eval.value(bench.post_b).is_none(),
+        "and so does the copy mated onto it"
+    );
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the landing kills the gesture: {killed:?}")
+    };
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+}

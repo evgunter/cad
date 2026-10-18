@@ -957,21 +957,35 @@ impl core::fmt::Display for DecisionValue {
     }
 }
 
+/// The lever a lane's refusal of its guided elaboration offers first:
+/// a box of parameter values is narrowed until one structure holds
+/// across it. A point pass (a seeded dual, no box) has no box to
+/// narrow, so each sentence names moving the nominal as its second
+/// lever.
+const NARROW_THE_BOX: &str = "narrow the parameter box";
+
 impl core::fmt::Display for StructureRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
-            StructureRefusalKind::Indeterminate(source) => write!(
-                f,
-                "{} cannot be re-verified at this scalar: {source}. The structure stays \
-                 unconfirmed; narrow the parameter box and try again",
-                self.decision
-            ),
+            StructureRefusalKind::Indeterminate(source) => {
+                let levers = format!("{NARROW_THE_BOX} and try again, or move the geometry");
+                write!(
+                    f,
+                    "{} cannot be re-verified at this scalar: {}",
+                    self.decision,
+                    source.under(&levers)
+                )
+            }
             StructureRefusalKind::Flipped { recorded, found } => write!(
                 f,
                 "{} is decided differently at this scalar: the elaboration selected \
                  {recorded}, this binding gives {found} — the binding leaves the \
-                 elaborated structure, which no lane may silently re-select",
-                self.decision
+                 elaborated structure, which no lane may silently re-select. {}",
+                self.decision,
+                geom_core::Recourse(format_args!(
+                    "{NARROW_THE_BOX} until the structure holds across it, or move the \
+                     nominal off this decision"
+                ))
             ),
         }
     }
