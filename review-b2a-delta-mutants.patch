@@ -1,0 +1,26 @@
+diff --git a/crates/geom-brep/src/pcurve_cache.rs b/crates/geom-brep/src/pcurve_cache.rs
+index 9f961fb7..0b9ca966 100644
+--- a/crates/geom-brep/src/pcurve_cache.rs
++++ b/crates/geom-brep/src/pcurve_cache.rs
+@@ -4905,7 +4905,7 @@ fn incidence<T: Decide>(
+                 }
+                 Derivation::ConeRim { nappe, beta } => {
+                     let rho = h * nappe.value() * slope;
+-                    terms.add(Centre, w_r.norm());
++                    terms.add(Centre, if option_env!("MUT_CENTRE").is_some() && beta == 0 { T::zero() } else { w_r.norm() });
+                     terms.add(Line, l.norm() * reach);
+                     class_circle(terms, beta, (rho, rho.powi(2)), (a, b), axis, true);
+                 }
+@@ -5809,7 +5809,11 @@ fn fidelity<T: Decide>(
+     // the name it is measured against, the derivation's or, on a
+     // sphere, its twin's.
+     let derived_windings = [nu.winding(), nv.winding()];
+-    if stored_windings != derived_windings {
++    let close = |s: Option<i32>, d: Option<i32>| match (s, d) {
++        (Some(s), Some(d)) if option_env!("MUT_SLACK").is_some() => (s - d).abs() <= 1,
++        (a, b) => a == b,
++    };
++    if !(close(stored_windings[0], derived_windings[0]) && close(stored_windings[1], derived_windings[1])) {
+         return Err(PcurveCertifyError::WindingMismatch {
+             stored: stored_windings,
+             derived: derived_windings,

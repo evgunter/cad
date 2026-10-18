@@ -9899,6 +9899,10 @@ mod placement_rows;
 mod radial_pair_rows;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_b2a_r1;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -11898,5 +11902,292 @@ mod iso_arc_poison {
             &breaks,
         );
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
+    }
+}
+
+/// Review probes for PCERT B2a (round 2 reviewer); not for merging.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_b2a_r2 {
+    use super::*;
+    use core::f64::consts::PI;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+    fn o() -> Point3<f64> {
+        Point3::origin()
+    }
+    fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+    fn zc(h: f64, r: f64) -> Curve3<f64> {
+        circle(Point3::new(0.0, 0.0, h), Vec3::unit_z(), r, Vec3::unit_x())
+    }
+    fn charts() -> Vec<(&'static str, Surface<f64>, Curve3<f64>)> {
+        let (z, x) = (Vec3::unit_z(), Vec3::unit_x());
+        vec![
+            (
+                "plane",
+                Surface::Plane {
+                    origin: o(),
+                    normal: z,
+                    u_ref: x,
+                },
+                zc(0.0, 0.5),
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o(),
+                    axis: z,
+                    radius: 0.5,
+                    u_ref: x,
+                },
+                zc(0.3, 0.5),
+            ),
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o(),
+                    axis: z,
+                    half_angle: 0.4,
+                    u_ref: x,
+                },
+                zc(1.0, 0.4f64.tan()),
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o(),
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                zc(0.5, 0.75f64.sqrt()),
+            ),
+            (
+                "sphere-meridian",
+                Surface::Sphere {
+                    center: o(),
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                circle(o(), Vec3::unit_y(), 1.0, x),
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o(),
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                zc(0.5, 2.0),
+            ),
+            (
+                "torus-meridian",
+                Surface::Torus {
+                    center: o(),
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                circle(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), 0.5, x),
+            ),
+        ]
+    }
+    fn swap(c: Channel<f64>) -> Channel<f64> {
+        match c {
+            Channel::Angle { phase, winding } => Channel::Free {
+                c: phase,
+                a: 0.0,
+                b: 0.0,
+                l: angle_rate::<f64>(winding),
+            },
+            Channel::Free { c, l, .. } => Channel::Angle {
+                phase: c,
+                winding: l.round() as i32,
+            },
+        }
+    }
+
+    #[test]
+    fn p_kind_mismatch_every_chart_both_axes() {
+        for (name, s, rim) in charts() {
+            let p = chart_pcurve(&rim, &s, band()).unwrap();
+            let ok = PcurveCache::certify(p.clone(), 0.0, 1.0, &rim, &s, band());
+            println!("{name}: minted {p:?} certifies: {}", ok.is_ok());
+            assert!(ok.is_ok(), "{name}: {ok:?}");
+            let Pcurve::Harmonic { u, v } = p else {
+                panic!()
+            };
+            for (axis, bad) in [
+                ("u", Pcurve::Harmonic { u: swap(u), v }),
+                ("v", Pcurve::Harmonic { u, v: swap(v) }),
+            ] {
+                let out = PcurveCache::certify(bad, 0.0, 1.0, &rim, &s, band());
+                println!("{name} {axis} swapped: {out:?}");
+                assert!(
+                    matches!(out, Err(PcurveCertifyError::ChannelKindMismatch { .. })),
+                    "{name} {axis}: {out:?}"
+                );
+            }
+        }
+    }
+
+    fn with_u_winding(p: &Pcurve<f64>, w: i32) -> Pcurve<f64> {
+        let Pcurve::Harmonic {
+            u: Channel::Angle { phase, .. },
+            v,
+        } = *p
+        else {
+            panic!()
+        };
+        Pcurve::Harmonic {
+            u: Channel::Angle { phase, winding: w },
+            v,
+        }
+    }
+
+    #[test]
+    fn p_windings_at_the_edges() {
+        let (_, s, rim) = charts().swap_remove(1);
+        let p = chart_pcurve(&rim, &s, band()).unwrap();
+        for span in [1.0, 1e-13] {
+            for w in [0, -1, 2, -2, 1000, i32::MAX, i32::MIN] {
+                let out = PcurveCache::certify(with_u_winding(&p, w), 0.0, span, &rim, &s, band());
+                println!("cyl rim span {span:e} stored u winding {w}: {out:?}");
+                assert!(out.is_err(), "w {w} span {span}");
+            }
+        }
+    }
+
+    #[test]
+    fn p_reflect_i32_min() {
+        let c = Channel::Angle {
+            phase: 0.0,
+            winding: i32::MIN,
+        };
+        let r = std::panic::catch_unwind(|| c.mapped(AxisMap::reflect()));
+        println!("reflect of i32::MIN winding: {r:?}");
+        assert!(r.is_ok(), "reflecting a stored i32::MIN winding panics");
+    }
+
+    #[test]
+    fn p_sphere_meridian_names() {
+        let (_, s, rim) = charts().swap_remove(4);
+        let p = chart_pcurve(&rim, &s, band()).unwrap();
+        println!("meridian {p:?}");
+        let twin = p.map_affine(ChartMap {
+            u: AxisMap::shift(PI),
+            v: AxisMap::reflect_about(PI),
+        }).unwrap();
+        let out = PcurveCache::certify(twin.clone(), 0.0, 1.0, &rim, &s, band());
+        println!("true twin: {out:?}");
+        assert!(out.is_ok(), "{out:?}");
+        let Pcurve::Harmonic {
+            u,
+            v: Channel::Angle { phase, winding },
+        } = p
+        else {
+            panic!()
+        };
+        let half = Pcurve::Harmonic {
+            u,
+            v: Channel::Angle {
+                phase,
+                winding: -winding,
+            },
+        };
+        let out = PcurveCache::certify(half, 0.0, 1.0, &rim, &s, band());
+        println!("P_d with twin's windings: {out:?}");
+        assert!(out.is_err());
+        let Pcurve::Harmonic { u: tu, .. } = twin else {
+            panic!()
+        };
+        let other = Pcurve::Harmonic {
+            u: tu,
+            v: Channel::Angle { phase, winding },
+        };
+        let out = PcurveCache::certify(other, 0.0, 1.0, &rim, &s, band());
+        println!("twin's u with P_d's v: {out:?}");
+        assert!(out.is_err());
+        for w in [0, 2] {
+            let out = PcurveCache::certify(
+                Pcurve::Harmonic {
+                    u,
+                    v: Channel::Angle { phase, winding: w },
+                },
+                0.0,
+                1e-13,
+                &rim,
+                &s,
+                band(),
+            );
+            println!("meridian stored v winding {w} short span: {out:?}");
+            assert!(out.is_err());
+        }
+    }
+
+    #[test]
+    fn p_band_sized_levers() {
+        let tol = Tol::witness();
+        for near in [
+            1.5 * tol.k() * tol.eps(),
+            0.5 * tol.k() * tol.eps(),
+            0.5 * tol.eps(),
+        ] {
+            let (z, x) = (Vec3::unit_z(), Vec3::unit_x());
+            let ha = 0.4f64;
+            let cone = Surface::Cone {
+                apex: o(),
+                axis: z,
+                half_angle: ha,
+                u_ref: x,
+            };
+            let rim = zc(near / ha.tan(), near);
+            let minted = chart_pcurve(&rim, &cone, band());
+            println!("near-apex cone rim (rho {near:e}) mints: {minted:?}");
+            if let Ok(p) = minted {
+                println!(
+                    "  certifies: {:?}",
+                    PcurveCache::certify(p, 0.0, PI, &rim, &cone, band()).map(|_| ())
+                );
+            }
+            let sphere = Surface::Sphere {
+                center: o(),
+                radius: 1.0,
+                axis: z,
+                u_ref: x,
+            };
+            let rim = zc((1.0 - near * near).sqrt(), near);
+            let minted = chart_pcurve(&rim, &sphere, band());
+            println!("near-pole sphere parallel (rho {near:e}) mints: {minted:?}");
+            if let Ok(p) = minted {
+                println!(
+                    "  certifies: {:?}",
+                    PcurveCache::certify(p, 0.0, PI, &rim, &sphere, band()).map(|_| ())
+                );
+            }
+            // the meridian through a near-pole point: a ruling-like row at a band lever is
+            // the cone's apex ruling; the sphere analogue is a meridian arc ending at the pole.
+            let mer = circle(o(), Vec3::unit_y(), 1.0, x);
+            let p = chart_pcurve(&mer, &sphere, band()).unwrap();
+            let a = PI / 2.0 - near;
+            println!(
+                "meridian arc ending {near:e} short of the pole: {:?}",
+                PcurveCache::certify(p, 0.0, a, &mer, &sphere, band()).map(|_| ())
+            );
+        }
     }
 }

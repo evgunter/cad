@@ -792,7 +792,17 @@ struct Row {
 /// `f64` is not under the sampled sup, and the envelope at `Interval`
 /// (over the row's lifted inputs) is not under it either; a renamed
 /// exact image costs nothing.
+thread_local! { static AXC_NAN: core::cell::Cell<bool> = const { core::cell::Cell::new(false) }; }
 fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
+    AXC_NAN.with(|c| c.set(false));
+    let out = row_inner(s, class, trial);
+    if class == Class::AxisCircle {
+        let what = match (&out, AXC_NAN.with(|c| c.get())) { (Some(_), _) => "certify", (None, true) => "refuse", (None, false) => "skip" };
+        eprintln!("AXC {what}");
+    }
+    out
+}
+fn row_inner(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let (chart, exact) = on_chart(s, class);
     // 0: the carrier moves; 1: the image moves; 2: both; 3: neither,
     // the image only renamed (a whole period, the twin); 4: the chart's
@@ -871,6 +881,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // A NaN envelope decides `Invalid`, which refuses (a circle past a
     // sphere's pole has no polar angle): sound, and no bound to compare.
     if envelope.is_nan() {
+        AXC_NAN.with(|c| c.set(true));
         return None;
     }
     let sup = sampled_sup(&stored, &surface, &carrier, t0, t1);
