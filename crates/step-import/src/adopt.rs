@@ -586,7 +586,7 @@ fn adopt_edges(
             // an arc rim, whose limb-2 hull reads a fitted chart image,
             // and the rung is not to pick a description by what the lane
             // can certify — a capability gap, not D2's classification
-            // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+            // (`work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
             // The rung's gate (`nurbs_plane_pair`) is exactly "one
             // described spline wall and one plane", so the plane is in
             // hand, and certification's own `|C(t) − S(P(t))|` meters the
