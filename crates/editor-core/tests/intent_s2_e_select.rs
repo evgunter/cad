@@ -476,27 +476,9 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
             members: editor_core::Bodies::Spelled(vec![p.extrude.into(), q.into()]),
         },
     );
-    // An edge of the prism the union keeps, so the fillet builds and its
-    // copy stands.
-    let edge = {
-        let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-        let read = fixture::out(&doc, p.extrude);
-        let table = fixture::table(&ev, union);
-        let edges = fixture::prism_edges(&doc, p.extrude, 4);
-        table
-            .iter()
-            .find_map(|(n, _)| match n.path.as_slice() {
-                [editor_core::RoleSeg::From { read: r, of }]
-                    if *r == read && edges.contains(of.name()) =>
-                {
-                    Some(of.name().clone())
-                }
-                _ => None,
-            })
-            .expect("the union keeps an edge of the prism")
-    };
-    let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![edge]));
-    let (doc, _) = fixture::place(doc, fillet);
+    let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![p.edge.clone()]));
+    // A world copy of the fillet; nothing here evaluates it.
+    let (doc, _) = insert(doc, Node::place(vec![fillet.into()]));
     let out = editor_core::split(
         &doc,
         &p.nodes,
