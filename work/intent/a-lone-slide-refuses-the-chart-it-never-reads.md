@@ -35,6 +35,7 @@ the node's log even where no value reads it; a lazy chart would have to defer
 the decision itself, not only the refusal. And the k-stats move inside the
 band, because the old `?` stopped before the copy's swing.
 
-**Next.** Ev is restating placement (`a-placement-relates-two-frames`), and the
-value chart may change shape there. Put this question to that restatement,
-not to a separate `[ev]` PR.
+**Next (INTENT orchestrator, 2026-10-18).** No separate `[ev]` question.
+D′, `a-placement-pins-by-written-values-without-a-mate` (filed on stage 3 D's
+branch), rebuilds the chart without a mate. D′ settles whether the sliver-band
+clause narrows, and this item follows it.
