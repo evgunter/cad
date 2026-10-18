@@ -910,3 +910,211 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 35 rows left are 1 at P1, 6 at P2, 25 at P3, 2 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+- 2026-10-14: PR 5078 (the pair-question audit) had already merged. It filed ten gap rows across hone, tang, restread, roots, inside, shell and chart.
+- 2026-10-14: PR 5083 ("one reading per question") merges at 18741dbd.
+  - **Ev's ruling:** the agreed D3 paragraph, the D4 line and the Layering edits stand. Derivation is preferred over pinning by test.
+  - **How it is written:** readings compose. A reading that is asked at kind level dispatches through its own description (`route`), so the description is derived.
+  - **Bookkeeping:** fork-log row 141 is filled in (A = Opus, B = Fable, byte 210). `every-pair-question-has-one-total-table` is closed.
+  - **Next:** the gap rows are being re-aimed on `fuse/reaim-pair-gap-rows`.
+- 2026-10-14: the curve-pair reader lane would not start.
+  - **Why:** its session refused every session-to-session go-ahead and waited for a human.
+  - **What changed:** the lane was archived. Stage (a), which moves `bisect`, the rate bounds and the half-angle ladder down a layer, now runs as an in-session subagent on `fuse/curve-pair-reader-a`.
+  - **Lesson:** a lane started by `send_message` can refuse its whole brief. Prefer an in-session subagent for implementer work.
+- 2026-10-14: PR 5082 (merge_faces: a declared unread pair refuses typed) is in a fix pass.
+  - **Review:** found it mergeable, with two MINORs: a declared mixed-kind pair gets two refusals, and glue's `Extent` drop is undispositioned.
+- 2026-10-14: PR 5086 (joined_lineage checked at write) is in a fix pass.
+  - **Review:** found a MAJOR. `Minted::push`'s freshness check refuses a valid, acyclic, kill-ordered table (a child killed before its parent).
+- 2026-10-14: PR 5090 merges at 70f5d126. It re-aims 11 pair-question gap rows to D3's readings across hone, shell, tang, restread, chart, inside and roots. Two of them (point-to-carrier distance, chart inversion) now name `geom` as the reading's home.
+- 2026-10-14: PR 5082 (merge_faces: a declared pair the ladder cannot read refuses typed) merges at addde3e5.
+  - **Fix pass:** `DeclaredPairUnread` now carries its kind. The hand-written inventory lists are gone. The reviewer's mixed-kind premise was false: the entry gate already refuses two kinds alike, and a test now pins that. glue's two drops of undeclared pairs are noted at their sites and added to the hone coincidence row.
+  - **Before merge:** main was merged in, resolving two conflicts against 5090's re-aimed hone rows (both sides kept). topo+sweep compile on the merged tree, and the merge, glue and declared-pair tests pass (220/220). The merge relied on that local run plus the fix head's green CI.
+- 2026-10-14: PR 5086 (joined_lineage is a provenance copy, one parent per child by type) merges.
+  - **Review 1:** found a MAJOR. A mint-freshness check on a kill-ordered table refuses a valid table when a child is killed before its parent.
+  - **Fix pass:** `joined_lineage` became a `BTreeMap` with one writer, `record_joins`. One write-once-record argument on `Provenance::SplitEdge` now covers both copies. The minimal case is pinned in topo, and the sweep pin asserts exact rows.
+  - **Review 2:** mergeable, with two MINORs, both fixed by the orchestrator:
+    - a second parent is now a debug-assert, not a silent overwrite;
+    - emit_topo keeps its caveat that the `pub` copies are writable from outside;
+    - the origin walk row inherits the write-site check.
+  - **CI:** green at aeed9184, and the PR also compiles merged with main.
+- 2026-10-14: PR 5093 (curve-pair reader stage (a): `bisect` moves to geom-core; `carrier_speed`, the half-angle ladder and the quartic sign ladder move to geom-brep) merges. No behaviour change.
+  - **Review:** approved with fixes. Every claim held, confirmed by mutants and by the old and new bodies diffed side by side.
+  - **Fixes:** the live audit doc re-pointed; the lower crates' docs state their contract rather than their topo callers; the quartic ladder's own doc moved down with it.
+  - **Deferred:** four findings go to stage (b) on the unit row: the root enums as one class, `TrigRoots::Uncertain`'s untyped refusal, the `rounding_charge` alias, and `PastDegreeTwo`.
+  - **CI:** green at 13e3b83, and the PR also compiles merged with main.
+- 2026-10-14: curve-pair reader stage (b) opens as two stacked PRs.
+  - **The PRs:**
+    - 5118 (b1): one `Roots` shape, typed `Unsettled`, `DegreeTwo`, the point-on-span reading.
+    - 5121 (b2): the meeting reader, which covers the kind table, pose, `meet`, the closed forms, the walk and the oracle.
+  - **Reviews (Opus and Fable):**
+    - 5118 is mergeable with MINORs.
+    - 5121 has two MAJORs:
+      - transverse closed forms decide "no meeting" at a zero-band distance (D4: an in-band decision pruned);
+      - an eccentric ellipse refuses `Unsupported` on a listed arm.
+    - Other findings: an unpinned meter, an oracle whose tolerance and families hide wrong answers, unscheduled refusal windows, and copies minted by the stack (`DegreeTwo` hand-written, `extreme_sign` byte-copied from topo).
+  - **Next:** one fix pass is dispatched for both PRs.
+- 2026-10-14: curve-pair reader stage (b) merges: PR 5121 into b at ad82fd1a, then PR 5118 to main at 90ff973c.
+  - **Fix pass:**
+    - MAJOR A closed: each plane crossing seeds a polish to the closest pair, guarded by a clearance cull and by basin and convergence meters, and span ends are candidates too.
+    - MAJOR B closed: each conic's own swing is read.
+    - Count ≤ N is now unrepresentable (`Found`).
+    - The meter and touch mutants all go red.
+    - The oracle is tightened, with a decided floor.
+  - **Re-review (Opus):** both mergeable. 0 violations over 144 first-review probes, 2,100 built-to-meet draws and 1,968 adversarial poses.
+  - **Residue filed** as `curve-pair-reader-stage-b-review-residue` (P2):
+    - the touch refusal window, with a row that cannot go red on its loop;
+    - the basin floor misnamed √(κe), when the code computes ≈√(8κe);
+    - `line_conic` still reads the tilt;
+    - copies the fix minted.
+  - **Before merge:** main was merged into b2 with two list conflicts (nextest slow set, from-f64 tsv), both sides kept. Clippy, the gates and 30/30 reader tests pass on the merged tree. The final b tree equals it, and main had moved only by a STATUS render.
+  - **Stage (c) is next:** callers move onto `meet` and `Span::contact` (`carrier_cross` first, coordinating with cleave's 5058).
+- 2026-10-14: the container restarted at about 17:50Z. The stage (c) lane was resumed from its transcript; its local CI runs and its poll were lost.
+- 2026-10-14: PR 5154 (c1: `carrier_cross` reads `meet`; `pose::one_curve` is 5058's margin; `Span::contact` gains `Past`).
+  - **Review:** Opus and Fable both approve with fixes, with no MAJOR. Both prefer `Past` to re-reading at the nearer end.
+  - **Fix pass:** queued to the lane. It covers:
+    - `past` folded into `end_side`, plus a chord-stage pin;
+    - the concentric contradiction retyped;
+    - the claim "no caller loses a correct answer" restated (false at ε=1e-6 for θ=1e-3..1e-2, though typed);
+    - the missed `ring_path::misses_in_plane` readings;
+    - `decision_words`;
+    - stale rows, and the ssiarith fuzzer's cause and rate.
+  - **For Ev:** 5154 is now `[ev]` with a C5 question:
+    - A: add `Past` to the list;
+    - B: drop the list from C5 (recommended);
+    - C: re-read at the nearer end.
+    - No designer pair was run: C decides a false "off the carrier", so this is a ratified-text amendment, not a fork.
+- 2026-10-15: the stage (c) lane hit the weekly usage limit at about 20:00Z on 10-14 and was resumed at 00:47Z.
+  - **c1 (5154):** its fix pass is pushed (b683491) and green. It is still `[ev]` on C5.
+  - **c2 (5162):** census confirm, landings and the edge-face cut onto `meet`. It is green at d9086e3.
+- 2026-10-15: PR 5162 (c2) reviews: Opus and Fable both approve with fixes, with no MAJOR.
+  - **D4 breach, MINOR:** the new run gate drops an in-band `curve_pair_pose_run` escalation, so `meet` decides "no meeting" for a line through an arc's end at φ 0.01–0.024. That is new code pruning in band; it is not a regression, since the old census walk also said no.
+  - **Also found:**
+    - the run half-width doc says /2 while the code uses /4;
+    - duplicate End and run meetings;
+    - a possible new `carrier_cross` split at end touches;
+    - an unpinned spline arm;
+    - doc rot;
+    - the coplanar-ellipse census refusal wants a named follow-on unit.
+  - **Next:** the fixes are queued to the lane ahead of c3.
+- 2026-10-15: on 5154, Ev asked "why are we checking if it's on the span and on the carrier in a single call?"
+  - **Answer:** there is no good reason. These are two questions, so D3 calls for two readings.
+  - **Proposed in reply:** an on-carrier reading (a one-carrier reading, homed per D3) and a span reading that takes the measured distance as a value. Consumers combine the two. `Past` disappears, and C5 names both readings.
+  - **Next:** the split is queued to the lane after c2's fix pass. 5154 still waits on Ev's sign-off of the C5 text.
+- 2026-10-15: on 5154, Ev said: "maybe run it by the designers, but splitting sounds good".
+  - **Designer pair dispatched** at about 03:55Z: one Opus, one Fable, the same problem statement, no candidate solutions.
+  - **Blinding:** byte 191, drawn at dispatch and recorded on `analysis/design-fork/span-carrier-split` (e77d127d). It is odd, so A = Fable and B = Opus.
+  - **Lane:** the split is on hold; the lane carries on with c2's fixes and the c3 items that don't touch `span.rs`.
+- 2026-10-15: the span/carrier designer pair converged after one crossed round; fork-log row 146.
+  - **Converged:** a carrier reading in `geom` that decides Off only on a certified lower bound, a span reading against the span's ends, and one composition written once. `Past`/`Carrier` and C5's answer list go.
+  - **Residual:** the `carrier_speed` home (both lean `geom`), and a typed `Foot` vs a seed (cosmetic).
+  - **Live defect** found by the Fable designer: `carrier_cross` reads vertices at `param_near`, which is not an ellipse's foot, so it can decide a false Off. Sent to the lane to fix in c1.
+  - **For Ev:** 5154's body updated with A/B verbatim; a comment posted.
+- 2026-10-15: Ev approved the span/carrier recommendation on 5154: "the recommendation sounds good! thank you!".
+  - **Fork-log row 146** is filled in: A = Fable, B = Opus (byte 191).
+  - **Next:** the split is sent to the lane for c1. It covers:
+    - `geom` gains `foot`→`Foot`, and `on_carrier`, which decides Off only on a lower bound; `carrier_speed` moves to `geom`.
+    - `Span::place`, and one composition, `Span::contact`.
+    - `Hit::End` names its end.
+    - C5 is reworded, with no list.
+- 2026-10-15: the 5154 split (996741b) is reviewed by Opus and Fable; both gate the merge.
+  - **Opus MAJOR:** `Span::place` decides Past from the foot's parameter alone. A spline foot (and an ellipse or spiric one) is not certified nearest, and a `Foot` is not tied to its point. So a point on the span's interior can read Past and then None: 98 of 99 points on a hairpin spline. That is a new decided "no crossing", since splines used to be Unread.
+  - **Both reviewers, MAJOR:** a negative-radius circle gives a false decided Off (`rho − radius`).
+  - **Fable MAJOR:** two slow sweep rows are red at 1e-6 (cone oblique rod: crossing layer, likely this PR's; the f64 seam row: likely pre-existing). A main-vs-branch run is owed.
+  - **Minors:**
+    - `Foot::gap` is unread, a deviation from the ratified wording;
+    - the straddle docs are inverted;
+    - `ConicArc::hit` is a second composition;
+    - one unpinned table row;
+    - copies minted (`carrier_speed`'s private `Conic`, `conic_clearance`, the least band ×13);
+    - missed sweep sites (`offset_derive` `nearest` reads `param_near` as a foot).
+  - **Next:** all of it goes to the lane. Past is decided only on a certified-nearest foot, and a Foot is tied to its point: this keeps Ev's decision rather than opening a new fork, unless the lane finds Past rarely decidable.
+- 2026-10-15: the container restarted again at about 13:40Z; the stage (c) lane was resumed from its transcript.
+  - **5154 review fixes, done locally:**
+    - Foot tied to its point (`Foot<'c, T>` holds carrier and point);
+    - `Past` only on a nearest foot or on `clear_of` over the span;
+    - negative radius taken as `|radius|`;
+    - `Span::read` is the one composition (`ConicArc::hit` maps it);
+    - `Band::least()`;
+    - `SemiAxes` as one home.
+  - **The two 1e-6 sweep reds** are main's: noted on tint and ssiedge rows.
+  - **Merging main into c** hit main's new TANG row, `bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order`. At 1e-8° one order builds and the other escalates, because `line_line` levers the tilt by each piece's own span length, which depends on how the sweep split the edge.
+  - **Ruled by the orchestrator: option A.** Lever by the spans' projected overlap and read the offset inside it, so the verdict is split-invariant. This flips the row's `builds=false` at the 1e-8° poses, with the reason stated, and puts a note on TANG's row. It is stage (b)'s own argument, not ratified text.
+- 2026-10-15: c3 (local, unpushed) runs the full workspace `ci` profile: 31 failures.
+  - **Loft/NURBS imports (about 20):** they escalate on `curve_pair_span_end_chord` (margins 1.4–7.4e-9). Hypothesis: the census reads, by geometry, a vertex that is the edge's own end, where D3 exempts reading a record.
+  - **Sweep fillet/seam bodies (11):** tier 3′ refuses `NotCertifiable` from `meet`'s walk, where the old census walk decided. The two walks had drifted.
+  - **Next:** not re-blessed; sent back to the lane to root-cause. 5154 and 5162 are unaffected (both green); the Opus re-review of 5154 is still running.
+- 2026-10-15: Opus re-review of 5154 (c5835dd).
+  - **Held:** the Past fix, `|radius|`, mutant F, one composition, and no false Parallel in 20k pairs; the 1e-6/1e-12 sweep reds are main's.
+  - **MAJOR:** ruling A's split invariance is not delivered. The router goes Parallel only when the overlap tilt reads Zero, so a whole read escalates where pieces decide. The result is honest, but the invariant fails.
+  - **Fix sent:** the parallel argument goes first, whatever the tilt reads.
+  - **Minors:**
+    - a shallow corner reads Coincident (L=0 overlap); it must bound both whole spans before c2's `shared` consumers land;
+    - containment's `unreachable!` is reachable via `clear_of`; it becomes a typed refusal.
+- 2026-10-15/16: 5154's re-review fixes are pushed (5d1b24e) and merged into c2 (98a171a); local full `ci` runs are green on both.
+  - **M1:** the parallel test now runs first in one `route()`, so the reading is split-invariant (rows red on old).
+  - **m1:** Coincident must bound both whole spans.
+  - **m2:** containment's `unreachable!` becomes `ConicHit::Unsettled`.
+  - **Next:** waiting on hosted CI to merge 5154, then 5162.
+- 2026-10-16: c3's 31 reds are root-caused.
+  - **Where:** all come from the new pass 5′ (`sweep_curved_edge_edge`), sweeping curved edge × edge pairs as main never did. Nearly all (355 of 361) refusals are at a shared vertex.
+  - **Breakdown:** NURBS × line escalates at walk points 1–7 nm from the joint; tangent fillet joints hit the meter; 6 are the coplanar-ellipse frontier.
+  - **Designer pair dispatched** on how the census should read joined edge pairs: byte 108, A = Opus, B = Fable, recorded on `analysis/design-fork/census-joined-edge-pairs`.
+- 2026-10-16: the joined-edges designer pair converged after two rounds; fork-log row 151.
+  - **Converged:** the reader takes no topology and reads ends first; a found meeting claims its run (the ring rule); a run holds exactly one decided meeting or escalates; the found root is deflated; the polish step is fixed; `Meeting::run` goes; the census is unchanged.
+  - **For Ev:** the `[ev]` PR 5214 (stacked on c2) asks for one C5 sentence. Item `curve-pair-meetings-are-runs` sets `needs_ev: true`.
+- 2026-10-16: merged #5154 (curve-pair reader c1, the span/carrier split) at e9f703d.
+  - CI was green on 19b1a7e. main had moved by #5207 and #5213; the merge with main was clean, type-checked, and passed the gates, `work.py lint`, and 4576 of 4659 geom-brep + topo tests (the remaining 79 were cut off by a container restart, not failed).
+  - The lint red on c/c2 was the stale `from_f64(band.escalate())` allowlist count, fixed on both.
+  - #5162 (c2) retargeted to main; its merge with main is under the same local check.
+- 2026-10-16: merged #5162 (c2: the census confirm and edge-face cut read `meet`) at 022dad8.
+  - CI was green on 4fd3527. Merged with main (through #5206/#5215, whose Rust changes are comments only), it type-checked and passed the gates, `work.py lint`, the slow-set name check, the rustdoc gate's flags on geom/geom-brep/topo, and all 4662 geom-brep + topo tests.
+  - Ev on #5214: "i think this is alright? the terminology is a bit confusing". The C5 sentence is reworded in plain terms (09cbb85, "stretches" for "runs of the in-band locus"); #5214 is retargeted to main and waits on Ev's word on the wording.
+- 2026-10-16: Ev on #5214: "this is better", but asked of "a later candidate within the band's escalation width … is that meeting found again" whether second crossings are always a defect. Answered: no — every crossing the band separates is its own meeting; only a candidate within `e` of a found one cannot be decided distinct, and a stretch with two decided meetings escalates. The clause is reworded to say so (88faa8e).
+- 2026-10-16: Ev on #5214 asked why a stretch with two decided meetings escalates ("are self-intersecting curves not allowed?"). Answered: self-intersection is untouched (this is two curves); my reworded definition had wrongly said "within the zero band" where the designers' "in-band locus" means not decided off (zero or undecided), and two decided meetings joined by undecided points could be two crossings or one run, an in-band choice, so it escalates. Definition fixed and the reason added to the clause (9b4eba6).
+- 2026-10-16: Ev on #5214 asked about A=(0,0)→(0,1) vs a polyline B that overlaps A then crosses it. Answered: the reader works per span pair, so the overlap (A,B1: one run) and a crossing (A,B3: one point) are separate meetings in separate pairs and nothing escalates; noted B3 as written misses A; one analytic span cannot both coincide with a line and cross it, so escalation is only the near-coincident case. No text change.
+- 2026-10-16: Ev on #5214: "the logic is good", text still confusing; suggested stretch = "nowhere definitely off the other", meeting = "everywhere definitely on". Adopted the stretch wording; a meeting is defined as a stretch definitely on the other at exactly one place, the meeting being the whole stretch (Ev's narrower form would make the A-to-B case two meetings instead of escalating). Paragraph rewritten (ffb43b2), PR body's quote refreshed.
+- 2026-10-16: Ev pointed out the meeting definition I had "adjusted" was right as given (two meetings in one stretch is exactly the escalating case). Paragraph now uses Ev's definitions verbatim (57d6587); PR title and body updated.
+- 2026-10-16: Ev approved #5214 ("sounds good, presuming that this terminology doesn't contradict any code"). Checked: no code that survives c3 contradicts the terms; four curve-pair sites (Meeting's doc, Meeting::run/run_candidates, Meetings::points' ring rule, span.rs:5's "stretch of the carrier") change in c3 and are listed in the unit. Fork-log row 151 filled, needs_ev cleared, [ev] dropped (7bbae47); merging on green CI, then c3.
+- 2026-10-16: merged #5214 (C5: two curves meet along stretches; one meeting per stretch, else escalate) at 90fe09e on green CI (docs-only: lint, gate ok).
+  - c3: the pass-5′ WIP committed (a47c39d), main merged in (54a3675, one doc-hunk conflict in census/curved.rs kept c3's paragraph), pushed; topo + geom-brep type-check.
+  - c3 implementation dispatched (Opus lane): ends first, the ring rule at `e`, one meeting per stretch, deflation, the polish-step fix, `Meeting::run`/`run_candidates` removed, the four terminology sites restated.
+  - Review tier for c3: **dual** — the reader's meeting semantics are tricky logic that every curved boolean and the census read through, hard to change later.
+- 2026-10-16: a container restart killed the c3 lane mid-work. Its uncommitted edits (10 files, +910/−349 across curve_pair and the census) survived on disk and are committed and pushed as 1e49bca; its last topo run was 3045 passed, 4 failed. A fresh Opus lane resumes from there, committing as it goes.
+- 2026-10-16: c3 lane reported, head 2557178. The C5 stretch rule is implemented (ends first, the ring at `e`, one meeting per stretch incl. across an endless span's seam, deflation, polished walk feet, `Meeting::run`/`run_candidates` removed, the four terminology sites restated); 28/31 original reds green, topo 3139/3139. Pinning rows in `curve_pair/meet_rows` and `walk`. Four topo and one sweep expectation encoded the old rule and were restated to C5 (each reasoned in the report).
+  - Still red: 5 sweep rows, each only `NotCertifiable{"two ellipses in one plane that are not one curve"}` (3 of the original 31, 2 new after main). So `two-coplanar-ellipses-have-no-meeting-method` is P1 and c3 cannot land green without it.
+  - Sequencing (orchestrator's call): build that unit on c3 itself so c3 lands as one green PR, by the unit's route 2 (geom's certified ellipse-distance lower bound `curve_carrier_clear`, already read by `ConicArc::hit`), since it reuses a certified reading rather than inventing a residual. Alternative not taken: land c3 red-free by deferring pass 5′ — rejected, it would re-hide the unrecorded-meeting defect pass 5′ exists to catch.
+  - Also closed by the lane: `a-tangency-at-an-edges-end-confirms-two-records`.
+- 2026-10-16: c3 lane reported again, head 04b5385: `two-coplanar-ellipses-have-no-meeting-method`'s first bullet built by route 2 (`geom::ellipse_level_clearance`, the signed ellipse bound, as the certified subdivision's residual; ceiling 4/s reaching s/4). All 31 original reds and the 2 from main's merge pass; geom+geom-brep+topo+sweep+step-import 8394/8394. The coplanar touch stays open (it would change `certified_subdivision`'s contract shared by four topo doors), P2.
+  - Opened PR 5227 (c3 → main). Dual review, CONCURRENT pair (unit cost H): R1 and R2 on frozen head 04b5385628, identical briefs (8 claims + the style lane), separate worktrees and target dirs (rv1, rv2; the finished lane's 18.7 GiB target cleaned for room). Blinding byte for the adjudication: 165. Protocol hash 24b76fff0e.
+- 2026-10-16: PR 5227 CI green on 04b5385 (gate ok). Finding: its `test` job ran 33 min (07:24:18–07:57:11, not queue time), over the 25-min bar for a geom/geom-brep/topo-seeded diff (`memories/orchestration-model.md`). Not yet attributed; check whether pass 5′ (every curved edge pair through `meet`) or the new rows moved it before filing.
+- 2026-10-16: PR 5227 dual review delivered, both NOT-MERGEABLE-AS-IS on 04b5385628 (R1 ~1h45m, R2 ~2h15m).
+  - Bilateral MAJOR, executed by both: deflation across a plane crossing (line_conic's Crossing arm with a known meeting; transverse's one/two-found `owed`) treats a plane-crossing root as a meeting root and drops real meetings in the band window, turning main's `Unsettled(Meter)` into Ok-missing-a-meeting. Probes on review/5227-r1 and -r2. C5 never licensed it (it divides out a meeting's root only where it is a root of that equation), so the fix is code to text, no Ev.
+  - Bilateral MINOR: carrier_cross's refusal arm consumes a refusal's meetings. Surviving mutants (stretch ordering, ellipse ceiling/reach, line_line and two-found deflation), stale "run"/"stretch" wording, a stale row name in two items.
+  - No tally candidate (the one MAJOR is bilateral). R2 disclosed a ps-aux glimpse of R1's command line only, no findings: pair fair, flagged in the row.
+  - Fix pass dispatched to the implementer lane on the adjudicated union; told to report, not paper over, any original reds the fix brings back. Also asked it to measure the 33-min test job.
+- 2026-10-16: PR 5227 fix pass delivered (head 3c7cc0f): every adjudicated finding fixed or settled. Plane-crossing deflation is gone (in-plane line×conic and coplanar circles keep it; line×line's arms dropped as measured redundant), the carrier_cross refusal arm removed, the surviving mutants killed by new rows (plane_rows ×4, stretch order, ellipse ceiling/reach), terms fixed, pass 5′'s sides read now `unreachable!` on refusal, stretches read along each span (hairpin row filed, P3), style unified. CI time: pass 5′ costs ~0.2% (369.7 vs 369.0 s topo+sweep ci); the 33 min is the geom-seeded selection, not this PR's code.
+  - As predicted, removing the unsound arm brought back refusals: 16 `band_turn_overrun_fillet*` rows (7 of the original 31 plus 9 slow-set rows) refuse `Meter` at fillet joints across a plane, so c3 is 24/31, not green.
+  - Sequencing (orchestrator): build the polish-meter row's own lever on c3. A plane root's window next to a found meeting is that meeting's stretch only when the window past the ring is decided off, or certified to hold one zero (monotone separation); otherwise it escalates. This is within C5 (ring rule plus one meeting per stretch), so no ruling is needed. Rejected: landing red (impossible), and splitting pass 5′ out (reworks a reviewed branch under merge-only rules and only defers the same fix). The delta gets its own review after.
+- 2026-10-16: c3 head 6420d48 (CI green): the fillet joints are decided by a certified window reading (`pose/window.rs`). Past each found meeting's ring, every piece of the plane root's window reads off, on, or receding (d² = H² + D² growing away from the joint, three certified forms), so no second meeting lies in the window; otherwise polish and meter as before. All 31 original rows, the 16 `band_turn_overrun_fillet*`, the 4 plane_rows controls: 8406/8406. The polish-meter row is back to P2.
+  - Delta review dispatched (one full Opus review on frozen 6420d483b2): Part A confirms the dual's adjudicated findings fixed (04b5385..), Part B falsifies the new window certificate.
+- 2026-10-16: PR 5227 delta review (one Opus review on 6420d48, ~61 min): NOT-MERGEABLE-AS-IS. Every dual finding is confirmed fixed, and the window certificate's derivations were re-derived sound (dense independent oracle, 0 contradictions in ~68k readings).
+  - MAJOR, executed: `holds_only` clips the window at a whole-turn span's seam without wrapping, so a real meeting across the seam is lost. This includes a closed rim whose seam vertex is the fillet joint.
+  - Also: the feet guard is reachable but argued redundant; 5 certificate mutants survive every row (one, ring ×4, breaks C5's `e`); a non-total sort comparator that may panic; a metres+radians mix; duplicated helpers and stale docs.
+  - Fix pass 2 dispatched, including committing the reviewer's oracle as a permanent counterexample-search row.
+- 2026-10-16: PR 5227 fix pass 2 in (head 776d30e, CI green, 8415/8415).
+  - The window is read modulo the period across a seam, and a part no ring bounds must read off.
+  - The feet guard is dropped on the ends-first argument.
+  - M02/M03/M04(jet)/M12/M17 are killed (M12 and M17 by pinned oracle counterexamples). The call-site rounding charges stay unpinned below f64 resolution, resting on `rounding_charge`.
+  - The oracle is kept on the fuzz harness (slow set). The non-total sort and the unit mix are fixed.
+  - Delta reviewer re-dispatched to confirm by execution.
+- 2026-10-16: PR 5227 confirmation (delta reviewer at 776d30e): every fix confirmed by execution except one remaining MAJOR in the seam class. The window's turns are hard-coded k ∈ {−2…2}, so a span at or past ±4π, or longer than a turn, loses the window's far side; one random draw in 4000 certified wrongly. Fix pass 3 dispatched (turns derived from the span, with a sweep for other fixed-turn assumptions).
+- 2026-10-16: PR 5227 fix pass 3 (turns counted from the span) confirmed: APPROVE. The widened seam oracle ran 20000 draws over ±20 turns and the span-end edges with 0 bad. Its NIT (the fuzz row's turn range) was taken by the orchestrator (29e3413).
+  - Main merged clean (93b8ca5); clippy, gates and work lint clean.
+  - The dual-review row is the last commit (ebdf082): concurrent H pair, one bilateral MAJOR, 0 tallied, fair (R2's ps-aux glimpse flagged). The blinded coder agreed with the pre-note; a blinding defect in the orchestrator's label substitution is disclosed.
+  - PR body rewritten to the final state. Merging on green CI.
+- 2026-10-16: merged PR 5227 (c3) at 37edb54 on green CI (ebdf082, `gate ok`). The curve-pair reader's stage (c) is complete:
+  - pass 5′ reads every curved edge pair;
+  - C5's stretch rule is in the reader;
+  - two coplanar ellipses get a meeting method;
+  - fillet joints are decided by the certified window reading.
+
+  Open follow-ons: the coplanar touch (`two-coplanar-ellipses-have-no-meeting-method`, P2), the polish-meter windows (P2), the second-span stretch row (P3). The review worktree is retired.
