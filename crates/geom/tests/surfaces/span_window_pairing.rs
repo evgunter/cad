@@ -250,8 +250,8 @@ fn a_window_answers_for_its_own_surface() {
     assert!(core::ptr::eq(wb.surface(), &b));
     let indexed = a.window(2, 2).expect("nonempty span pair");
     assert!(core::ptr::eq(indexed.surface(), &a));
-    assert!(core::ptr::eq(indexed.span_u().knots(), a.knots_u()));
-    assert!(core::ptr::eq(indexed.span_v().knots(), a.knots_v()));
+    assert!(core::ptr::eq(indexed.span_u().knots_f64_interim(), a.knots_u()));
+    assert!(core::ptr::eq(indexed.span_v().knots_f64_interim(), a.knots_v()));
 }
 
 /// **Both knot vectors and the stride come from the one borrow.** The
@@ -278,8 +278,8 @@ fn the_stride_and_both_vectors_come_from_the_windows_surface() {
     assert_ne!(ww.stride(), wn.stride());
     assert_eq!(ww.stride(), wide.control_counts().1);
     assert_eq!(wn.stride(), narrow.control_counts().1);
-    assert!(core::ptr::eq(ww.span_u().knots(), wide.knots_u()));
-    assert!(core::ptr::eq(ww.span_v().knots(), wide.knots_v()));
+    assert!(core::ptr::eq(ww.span_u().knots_f64_interim(), wide.knots_u()));
+    assert!(core::ptr::eq(ww.span_v().knots_f64_interim(), wide.knots_v()));
     // Both evaluate finitely, each on its own net; nothing indexes out
     // of the other's row.
     assert!(!is_poison_point(ww.eval_in_span(1.5, 1.5)));

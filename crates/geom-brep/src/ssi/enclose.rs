@@ -1481,7 +1481,7 @@ fn cut_axis<'a>(
 
 /// A span's knot vector held as points.
 fn held(span: Span<'_>) -> Vec<Interval> {
-    span.knots()
+    span.knots_f64_interim()
         .knots()
         .iter()
         .map(|&k| Interval::point(k))
@@ -1493,7 +1493,7 @@ fn held(span: Span<'_>) -> Vec<Interval> {
 /// span whole or meets it in at most a point.
 fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
     let (lo, hi) = (w.start(), w.end());
-    let t = span.knots().knots();
+    let t = span.knots_f64_interim().knots();
     let (&ta, &tb) = t.get(span.index()).zip(t.get(span.index() + 1))?;
     let (a, b) = (lo.max(ta), hi.min(tb));
     (a < b && (a > ta || b < tb)).then_some((a, b))

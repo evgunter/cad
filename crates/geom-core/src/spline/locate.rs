@@ -186,7 +186,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
         held_ends: (Self, Self),
     ) -> Vec<Self> {
         let p = span.degree();
-        let knots = span.knots().knots();
+        let knots = span.knots_f64_interim().knots();
         // Indexing justified: `p ≤ index ≤ last_span() = len − p − 2`.
         let (lo, hi) = (knots[span.index()], knots[span.index() + 1]);
         let inside = |x: f64| lo <= x && x <= hi;

@@ -404,6 +404,148 @@ impl core::error::Error for KnotMirrorError {}
 pub struct KnotVector {
     knots: Vec<f64>,
     degree: usize,
+    /// The combinatorial part, read off `knots` once (C6).
+    structure: KnotStructure,
+}
+
+/// **A clamped knot vector's combinatorial part** (C6): its degree, its
+/// knot count, and its runs of equal knots with their multiplicities, in
+/// order. No knot position is here. A carrier whose knots are points has
+/// this beside its `f64` [`KnotVector`]; a carrier whose knots are wide
+/// enclosures has only this, certified for every member
+/// ([`super::Knots::new`]), so whatever reads it reads structure and
+/// never a position past the funnel.
+///
+/// The clamped contract is [`KnotVector`]'s: degree ≥ 1, end runs of
+/// exactly `degree + 1`, interior runs of at most `degree`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnotStructure {
+    degree: usize,
+    /// For each knot index, the index of its run.
+    run_of: Vec<usize>,
+    /// Each run's multiplicity, ascending, clamp runs included.
+    multiplicities: Vec<usize>,
+}
+
+impl KnotStructure {
+    /// The structure of runs of `multiplicities` at degree `degree`,
+    /// validated against the clamped contract.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::KnotVectorInvalid`] naming the violated clause
+    /// (the knot index of an interior run's first knot, as
+    /// [`KnotVector::clamped`] names it).
+    pub fn clamped(multiplicities: Vec<usize>, degree: usize) -> Result<Self, SplineError> {
+        let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+        if degree == 0 {
+            return issue(KnotVectorIssue::DegreeZero);
+        }
+        let len: usize = multiplicities.iter().sum();
+        if len < 2 * (degree + 1) || multiplicities.len() < 2 {
+            return issue(KnotVectorIssue::TooShort);
+        }
+        if multiplicities[0] != degree + 1 {
+            return issue(KnotVectorIssue::StartNotClamped);
+        }
+        if multiplicities[multiplicities.len() - 1] != degree + 1 {
+            return issue(KnotVectorIssue::EndNotClamped);
+        }
+        let mut index = degree + 1;
+        for &m in &multiplicities[1..multiplicities.len() - 1] {
+            if m == 0 || m > degree {
+                return issue(KnotVectorIssue::InteriorMultiplicityTooHigh { index });
+            }
+            index += m;
+        }
+        Ok(Self::assembled(multiplicities, degree))
+    }
+
+    /// The structure of runs already validated.
+    fn assembled(multiplicities: Vec<usize>, degree: usize) -> Self {
+        let run_of = multiplicities
+            .iter()
+            .enumerate()
+            .flat_map(|(run, &m)| core::iter::repeat_n(run, m))
+            .collect();
+        Self {
+            degree,
+            run_of,
+            multiplicities,
+        }
+    }
+
+    /// The degree `p`.
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
+
+    /// The knot count.
+    pub fn len(&self) -> usize {
+        self.run_of.len()
+    }
+
+    /// Never: a clamped structure holds at least `2(p + 1)` knots.
+    pub fn is_empty(&self) -> bool {
+        self.run_of.is_empty()
+    }
+
+    /// The control-point count: `len − degree − 1`.
+    pub fn control_count(&self) -> usize {
+        self.len() - self.degree - 1
+    }
+
+    /// Each run's multiplicity, ascending, clamp runs included.
+    pub fn multiplicities(&self) -> &[usize] {
+        &self.multiplicities
+    }
+
+    /// The run knot `index` belongs to.
+    pub fn run_of(&self, index: usize) -> usize {
+        self.run_of[index]
+    }
+
+    /// Whether knots `i` and `j` are one run: one breakpoint, so their
+    /// difference is the zero a basis recursion's convention reads.
+    pub fn same_run(&self, i: usize, j: usize) -> bool {
+        self.run_of[i] == self.run_of[j]
+    }
+
+    /// The index of the first (nonempty) span: `degree`.
+    pub fn first_span(&self) -> usize {
+        self.degree
+    }
+
+    /// The index of the last (nonempty) span: `len − degree − 2`.
+    pub fn last_span(&self) -> usize {
+        self.len() - self.degree - 2
+    }
+
+    /// Whether `span` is nonempty: its two knots are two runs.
+    pub fn span_is_nonempty(&self, span: usize) -> bool {
+        span + 1 < self.len() && !self.same_run(span, span + 1)
+    }
+
+    /// The validated [`Span`] at `index`, as [`KnotVector::span`], over
+    /// this structure alone: its [`Span::knots_f64_interim`] refuses.
+    pub fn span(&self, index: usize) -> Option<Span<'_>> {
+        self.span_over(None, index)
+    }
+
+    /// The span at `index` over this structure, beside `kv` when the
+    /// knots are points.
+    fn span_over<'a>(&'a self, kv: Option<&'a KnotVector>, index: usize) -> Option<Span<'a>> {
+        if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
+            return None;
+        }
+        Some(Span {
+            structure: self,
+            kv,
+            index,
+            first_control: index - self.degree,
+            degree: self.degree,
+        })
+    }
 }
 
 /// A knot value **proven strictly interior** to the domain of the
@@ -574,7 +716,9 @@ impl InteriorKnot {
 /// two codes there rather than the only one.
 #[derive(Clone, Copy)]
 pub struct Span<'a> {
-    kv: &'a KnotVector,
+    structure: &'a KnotStructure,
+    /// The `f64` vector, where the knots are points (C6's interim).
+    kv: Option<&'a KnotVector>,
     index: usize,
     first_control: usize,
     degree: usize,
@@ -595,13 +739,15 @@ pub struct Span<'a> {
 impl core::fmt::Debug for Span<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
+            structure,
             kv,
             index,
             first_control,
             degree,
         } = self;
         f.debug_struct("Span")
-            .field("kv", &core::ptr::from_ref(*kv))
+            .field("structure", &core::ptr::from_ref(*structure))
+            .field("kv", &kv.map(core::ptr::from_ref))
             .field("index", index)
             .field("first_control", first_control)
             .field("degree", degree)
@@ -612,18 +758,20 @@ impl core::fmt::Debug for Span<'_> {
 impl PartialEq for Span<'_> {
     fn eq(&self, other: &Self) -> bool {
         let Self {
-            kv,
+            structure,
+            kv: _,
             index,
             first_control,
             degree,
         } = self;
         let Self {
-            kv: other_kv,
+            structure: other_structure,
+            kv: _,
             index: other_index,
             first_control: other_first_control,
             degree: other_degree,
         } = other;
-        core::ptr::eq(*kv, *other_kv)
+        core::ptr::eq(*structure, *other_structure)
             && index == other_index
             && first_control == other_first_control
             && degree == other_degree
@@ -633,10 +781,31 @@ impl PartialEq for Span<'_> {
 impl Eq for Span<'_> {}
 
 impl<'a> Span<'a> {
-    /// The [`KnotVector`] this span is a proof about — the one every
-    /// door that takes a span reads its knots from.
-    pub fn knots(self) -> &'a KnotVector {
-        self.kv
+    /// The structure this span is a proof about.
+    pub fn structure(self) -> &'a KnotStructure {
+        self.structure
+    }
+
+    /// **C6's interim**: the `f64` [`KnotVector`] this span is a proof
+    /// about, where the carrier's knots are points. A span over a
+    /// carrier with a knot wider than a point has none, and reaching
+    /// for it there is a kernel bug, refused loud with the reader's
+    /// location: such a carrier's positions are read through its held
+    /// values ([`super::KnotSpan`]), never past the funnel. Counted by
+    /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+    ///
+    /// # Panics
+    ///
+    /// On a span over a carrier whose knots are not all points.
+    #[track_caller]
+    pub fn knots_f64_interim(self) -> &'a KnotVector {
+        self.kv.unwrap_or_else(|| {
+            panic!(
+                "a reader at {} took the f64 knot vector of a carrier whose knots are not \
+                 all points (C6: its positions are its held values)",
+                core::panic::Location::caller()
+            )
+        })
     }
 
     /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
@@ -757,7 +926,22 @@ impl KnotVector {
             }
             index += mult;
         }
-        Ok(Self { knots, degree })
+        Ok(Self::assemble(knots, degree))
+    }
+
+    /// A validated vector with its structure read off it.
+    fn assemble(knots: Vec<f64>, degree: usize) -> Self {
+        let multiplicities = runs_in(&knots).map(|(_, m)| m).collect();
+        Self {
+            structure: KnotStructure::assembled(multiplicities, degree),
+            knots,
+            degree,
+        }
+    }
+
+    /// The combinatorial part (C6).
+    pub fn structure(&self) -> &KnotStructure {
+        &self.structure
     }
 
     /// The degree `p` this knot vector is clamped for.
@@ -1028,12 +1212,7 @@ impl KnotVector {
         // the subtraction cannot underflow, and `index <= last_span()`
         // puts `index + 1` inside the knot array. Every consumer of the
         // resulting `Span` inherits both facts.
-        Some(Span {
-            kv: self,
-            index,
-            first_control: index - self.degree,
-            degree: self.degree,
-        })
+        self.structure.span_over(Some(self), index)
     }
 
     /// Locates the span containing `t`: the index `i` with
@@ -1074,7 +1253,8 @@ impl KnotVector {
             "span_at located an empty span {index}"
         );
         Span {
-            kv: self,
+            structure: &self.structure,
+            kv: Some(self),
             index,
             first_control,
             degree: self.degree,
@@ -1199,7 +1379,7 @@ impl KnotVector {
         let p = degree.get();
         let mut knots = vec![0.0; p + 1];
         knots.extend(core::iter::repeat_n(1.0, p + 1));
-        Self { knots, degree: p }
+        Self::assemble(knots, p)
     }
 
     /// Crate-internal constructor for knot vectors produced by the
@@ -1226,11 +1406,11 @@ impl KnotVector {
                  ({:?}): degree {degree}, knots {knots:?}",
                 revalidated.as_ref().err(),
             );
-            revalidated.unwrap_or(Self { knots, degree })
+            revalidated.unwrap_or_else(|_| Self::assemble(knots, degree))
         }
         #[cfg(not(debug_assertions))]
         {
-            Self { knots, degree }
+            Self::assemble(knots, degree)
         }
     }
 }

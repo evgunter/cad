@@ -43,7 +43,7 @@
 //! denominator enclosure that is structurally positive).
 
 use super::knot_values::KnotSpan;
-use super::knots::{KnotVector, Span};
+use super::knots::Span;
 use crate::real::Real;
 
 /// Where a basis reads its knots: the vector's `f64` values lifted
@@ -73,7 +73,7 @@ impl<T: Real> KnotRead<T> for Lifted<'_> {
         self.0
     }
     fn at(&self, i: usize) -> T {
-        T::from_f64(self.0.knots().knots()[i])
+        T::from_f64(self.0.knots_f64_interim().knots()[i])
     }
 }
 
@@ -167,8 +167,8 @@ pub fn ders_basis_funs_in<T: Real>(span: KnotSpan<'_, T>, t: T, n_ders: usize) -
 /// The rows of [`ders_basis_funs`], read through `k`.
 fn ders_rows<T: Real>(k: &impl KnotRead<T>, t: T, n_ders: usize) -> Vec<Vec<T>> {
     let structural = k.span();
-    let kv: &KnotVector = structural.knots();
-    let p = kv.degree();
+    let st = structural.structure();
+    let p = st.degree();
     // The window's base, subtracted once inside `Span`, and the index
     // the knot reads are centred on. Both are in range for these knots
     // by the span's construction: the ladder's highest read is
@@ -176,7 +176,6 @@ fn ders_rows<T: Real>(k: &impl KnotRead<T>, t: T, n_ders: usize) -> Vec<Vec<T>> 
     // `index <= last_span()` puts that at `u.len() − 1` exactly.
     let base = structural.first_control();
     let span = structural.index();
-    let u = kv.knots();
     // The full basis triangle: tri[j][r] = N_{span−j+r, j}(t),
     // levels j = 0..=p — the same recursion as `basis_funs`, all
     // levels kept (level p−k feeds the k-th derivative).
@@ -223,9 +222,10 @@ fn ders_rows<T: Real>(k: &impl KnotRead<T>, t: T, n_ders: usize) -> Vec<Vec<T>> 
                     } else {
                         (a_prev[j] - a_prev[j - 1], i + p - kk + 1 + j, i + j)
                     };
-                    // Structure comparison on a knot difference — the
-                    // zero-denominator convention (fn docs).
-                    a_cur[j] = if u[hi] - u[lo] == 0.0 {
+                    // A knot difference within one run is the zero of
+                    // the zero-denominator convention (fn docs): a
+                    // structure read, never a position (C6).
+                    a_cur[j] = if st.same_run(hi, lo) {
                         T::zero()
                     } else {
                         num / k.gap(hi, lo)

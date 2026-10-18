@@ -1146,7 +1146,7 @@ fn require_holes_wound_against(
 /// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
-    let kv = span.knots();
+    let kv = span.knots_f64_interim();
     de_boor_on(
         kv.knots(),
         kv.degree(),
