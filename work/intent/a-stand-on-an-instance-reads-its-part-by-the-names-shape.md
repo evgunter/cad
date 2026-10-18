@@ -18,3 +18,5 @@ In D, `fixed` answers an instance's face by the name's shape (`part_start_cap`):
 Before D every instance face counted as fixed. Between D's kernel change and this fix, none did, so `stand` took the part's end cap (the slice reports' `msolve9` and `asm_r2b` repros).
 
 **Done when** `fixed` reads the part's own recipe for an `InPart` name, through the resolver the evaluation crossed or a record the part value carries ("which of my product's faces read no variable"), and the name-shape rule goes.
+
+- 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.

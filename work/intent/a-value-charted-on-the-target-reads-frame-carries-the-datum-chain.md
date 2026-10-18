@@ -21,3 +21,5 @@ D charts a value from the target BODY's own frame swung onto the mated direction
 **The cost.** To be consistent it charts EVERY mate from the target read's moved frame, since §5's relative placements carry moves on a body read too. That changes what D10 `[placement.values]` decides (Ev-approved text, PR 5249), so it takes a designer round and an `[ev]` PR. It also recomputes every C-era world-mate value. Nothing in the corpus needs it today.
 
 Raised by the orchestrator's (A)/(B) ruling on PR D. `needs_ev` once someone picks it up.
+
+- 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.

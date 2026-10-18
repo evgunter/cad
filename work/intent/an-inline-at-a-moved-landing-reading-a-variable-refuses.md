@@ -17,3 +17,5 @@ D's rule: a world bundle that holds numbers alone (constants, or anonymous untol
 C's world pin carried no number, so an instance whose part stood where its bodies stand could be inlined at any landing by moving the pin. D writes `stand`'s constant zeros, which the re-pin still covers. What it narrows: a part copy whose values read a variable (`place_at`, then a value driven by a named parameter) cannot be inlined under a moved instance.
 
 **Done when** the landing's motion enters the values as expressions over the landing's own numbers or variables, so the variable keeps driving the copy after the splice. Or the lever in `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` is pulled, which makes the move a read-only composition. Raised by the orchestrator's ruling on PR D.
+
+- 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.
