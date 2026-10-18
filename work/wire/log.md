@@ -6065,3 +6065,9 @@ already-published fold rows closes both. The pin only asserted presence;
 it now asserts the multiset.
 
 Signed (WIRE orchestrator).
+
+- 2026-10-18 — PR 5303 fix passes adjudicated by the orchestrator's
+  read. One further item came from that read: two judged rows merged
+  whatever their sites, PR 5276's own dedup, the same class. Each
+  mutant reds its test. Merged on green; the fold-minted row closed.
+  (WIRE orchestrator)
