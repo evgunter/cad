@@ -4958,6 +4958,19 @@ impl<T: Decide> Azimuth<T> {
         }
         stable_azimuth(self.y, self.x, band)
     }
+
+    /// The angle read in a sphere's latitude window `(−π, π]`
+    /// ([`Window::Latitude`]): that window is `atan2`'s own range, so its
+    /// cut is `atan2`'s and the read is plain `atan2`, with no frame
+    /// decision. Every latitude the chart has lies in `[−π/2, π/2]`, far
+    /// from the cut. A direction of no length reads `0`, as
+    /// [`Azimuth::principal`]'s does.
+    pub(crate) fn latitude(self) -> T {
+        if !(T::one() / self.length()).is_bounded() {
+            return T::zero();
+        }
+        self.y.atan2(self.x)
+    }
 }
 
 impl<T: Decide> Period<T> {
@@ -7776,7 +7789,8 @@ impl<T: Decide> Placement<T> {
 
     /// The phase of the `along` channel whose direction at the image's
     /// origin is `dir` and which moves by `offset(t)` from there by
-    /// parameter `t`: `dir`'s principal angle ([`Azimuth::principal`]),
+    /// parameter `t`: `dir`'s angle read in the channel's window
+    /// ([`Azimuth::principal`], or [`Azimuth::latitude`] for a latitude),
     /// less the whole turns that put `phase + offset(mid)` in its window
     /// ([`Placement::turns`]); none leaves the principal angle as it was
     /// read.
@@ -7787,7 +7801,12 @@ impl<T: Decide> Placement<T> {
         offset: impl FnOnce(T) -> T,
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        let read = dir.principal(band);
+        // Each read's cut lies on its own window's cut: the angle window's
+        // through the cut-side decision, the latitude's as `atan2`'s.
+        let read = match along {
+            Along::Azimuth | Along::Tube => dir.principal(band),
+            Along::Latitude => dir.latitude(),
+        };
         let turns = self.turns(along, read + offset(self.mid), band)?;
         Ok(if turns == 0 {
             read

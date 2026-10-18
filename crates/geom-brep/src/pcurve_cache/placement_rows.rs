@@ -681,3 +681,77 @@ fn a_direction_on_the_windows_cut_reads_its_closed_end_at_every_scalar() {
         "Interval: the cut reads the closed end, a narrow enclosure: {at_iv:?}"
     );
 }
+
+/// **A southern latitude places as the latitude it reads, at every
+/// scalar.** The latitude window `(−π, π]` is `atan2`'s own range, so the
+/// latitude is read as plain `atan2` (`Azimuth::latitude`): a latitude
+/// below `−1`, which the angle window's read would name a turn up and
+/// placement take back down again, keeps `k = 0` and the read bit for bit
+/// (PR 5225's round-4 delta, K1).
+#[test]
+fn a_southern_latitude_places_bit_equal_to_its_atan2() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::{Along, Azimuth, Placement};
+
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let meridian = circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::unit_y(),
+        1.0,
+        Vec3::unit_x(),
+    );
+    for lat in [-1.3, -1.000_000_1, -FRAC_PI_2] {
+        let (y, x) = lat.sin_cos();
+        let place = Placement::over((0.5, 0.5), &meridian, &sphere);
+        let placed = place
+            .phase(Along::Latitude, Azimuth::of(y, x), |_| 0.0, band())
+            .unwrap();
+        assert_eq!(
+            placed.to_bits(),
+            y.atan2(x).to_bits(),
+            "f64, latitude {lat}: {placed}"
+        );
+        let f = Interval::from_f64;
+        let (meridian, sphere) = (meridian.map_scalar(f), sphere.map_scalar(f));
+        let place = Placement::over((f(0.5), f(0.5)), &meridian, &sphere);
+        let placed = place
+            .phase(Along::Latitude, Azimuth::of(f(y), f(x)), |_| f(0.0), band())
+            .unwrap();
+        let read = f(y).atan2(f(x));
+        assert_eq!(
+            (placed.lo().to_bits(), placed.hi().to_bits()),
+            (read.lo().to_bits(), read.hi().to_bits()),
+            "Interval, latitude {lat}: {placed:?}"
+        );
+    }
+}
+
+/// **A direction whose cut-side margin is undecided reads the closed
+/// end.** At `Interval`, a direction on the window's cut whose enclosure
+/// is wide enough that the margin straddles the escalation gap leaves the
+/// frame decision undecided; the read then takes the turned formula,
+/// `atan2(−y, −x) + π`, whose value there is the closed end `τ − 1`,
+/// never the direct formula's `−1` (PR 5225's round-4 delta, K5).
+#[test]
+fn an_undecided_cut_side_reads_the_turned_formula() {
+    use geom_core::{Bounds, Interval};
+
+    use super::Azimuth;
+
+    let r = 0.75;
+    let (s, c) = ANGLE_WINDOW_START.sin_cos();
+    let w = 4.0 * band().escalate();
+    let wide = |v: f64| Interval::from_bounds(v - w, v + w);
+    let closed = ANGLE_WINDOW_START + TAU;
+    let at = Azimuth::of(wide(s * r), wide(c * r)).principal(band());
+    assert!(
+        at.lo() > PI && at.lo() <= closed && at.hi() >= closed,
+        "the undecided cut side reads the turned formula, about the closed end {closed}: {at:?}"
+    );
+}
