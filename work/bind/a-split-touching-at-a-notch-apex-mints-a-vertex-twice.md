@@ -1,9 +1,11 @@
 ---
 id: a-split-touching-at-a-notch-apex-mints-a-vertex-twice
 kind: issue
-title: A split whose plane touches a notch's apex mints the apex's above copy twice, and Python panics on the refusal
+title: pncad-py panics on a node refusal whose message carries a Debug role path, where it should raise
 status: open
 opened: 2026-10-10
+priority: P3
+cost: E
 ---
 
 ## What
@@ -43,3 +45,15 @@ tool = doc.insert(Node.datum_plane(
 ))
 evaluate(doc).value(doc.insert(Node.split(body, tool)))
 ```
+
+## Re-homed to BIND (2026-10-17, WIRE orchestrator)
+
+The file held two findings. The naming half (the apex's copy minted twice)
+is WIRE's `a-split-through-a-pinch-names-both-tip-copies-alike`, which now
+cites this reproducer; the `[ev]` rule for it is PR 5258. What is left here
+is pncad-py's: the prose gate (`crates/pncad-py/src/py/mod.rs`, reached from
+`py/value.rs`) panics instead of raising when a refusal's message carries a
+`Debug` rendering. Re-check it against the tree first — the role path's
+spelling has changed since (`OnToolVertex` has no `side` any more) — and
+whether the emitter's invariant text still renders through `Debug`. The id
+is unchanged; retitled to the half that remains.

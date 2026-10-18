@@ -48,21 +48,17 @@ use topo::BooleanOp;
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
 ///
-/// Two rows, one word over, since INTENT stage 2 PR C: every placed
-/// body's names are held twice, by the body and by its world copy, so
-/// the 90th-percentile name is a longer one of the same corpus (37
-/// words in full). No name a document held before grew.
+/// One row: every placed body's names are held twice, by the body and
+/// by its world copy, so the 90th-percentile name is a longer one of
+/// the same corpus (37 words in full).
 ///
-/// Both rows forward two names, and the corpus's 90th-percentile name
+/// The row forwards two names, and the corpus's 90th-percentile name
 /// is a die pip's band face joined into the cutting tool and cut into
 /// the die: every member of a union says its join (FORK-DM4), so that
 /// name says two joins where a pair boolean's `a` operand said none.
-/// The crossing row says its claimed name by tag, which says each read
-/// a carry came through.
-const OVER_BUDGET: &[(&str, usize)] = &[
-    ("SelectRefusal::PairInBand", 82),
-    ("NodeErrorKind::CrossingUnverified", 80),
-];
+/// It says its claimed name by tag, which says each read a carry came
+/// through.
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;

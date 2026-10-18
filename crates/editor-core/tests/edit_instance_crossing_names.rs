@@ -464,9 +464,8 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
 /// reference to check. `Node::payload_read_sites`' match is
 /// exhaustive with no wildcard, so an instance is classified with the
 /// variants that answer nothing or does not compile — which is what
-/// keeps this answer honest as `Node` grows. (A declared pair's sites
-/// are reads now, which the doors hold as reads, so no node answers a
-/// read site here and the row has no control beside it.)
+/// keeps this answer honest as `Node` grows. (No node answers a read
+/// site here, so the row has no control beside it.)
 #[test]
 fn an_instances_record_answers_no_read_site() {
     let (doc_ref, body) = part_ref("crossnames-readsite-part");

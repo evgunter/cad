@@ -2516,7 +2516,7 @@ class Node:
         `count` is a count `Formula` — `Formula.count(4)` — and is the
         node's `Count` slot (`DocEdit.bind_count_param`). Below one
         refuses at `evaluate`
-        (`non_positive_count`); an `explicit` rule refuses at
+        (`count_out_of_range`); an `explicit` rule refuses at
         `Doc.insert` (`placement_rule_mismatch`, `inner_variant`
         `listed_on_pattern`), since it carries its own placements."""
 

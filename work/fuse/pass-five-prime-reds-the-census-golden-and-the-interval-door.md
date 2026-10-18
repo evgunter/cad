@@ -2,8 +2,9 @@
 id: pass-five-prime-reds-the-census-golden-and-the-interval-door
 kind: issue
 title: Pass 5′ (#5227) turned two editor-core rows red on main: the perf12 census golden gains cut_cylinder's two section-arc overlaps (correct, re-bless), and boss_union's census escalates six one-curve readings at Interval only (regression)
-status: open
+status: closed
 opened: 2026-10-16
+closed: 2026-10-17
 priority: P1
 cost: M
 ---
@@ -46,3 +47,49 @@ two `EdgeEdgeOverlap` findings, and nothing else moved from that cause.
 Both rows fail identically at that PR's merge base (`4760a784b2`),
 built and run in place. §2 (boss_union's Interval census) is untouched,
 and stays this item's.
+
+## §2's causes, and their fixes
+
+The row had two causes beyond the census golden, both in
+`crates/geom-brep/src/curve_pair/pose.rs`, both an `Interval`
+enclosure wrapping what `f64` reads to its rounding.
+
+- **`boss_union`: the one-curve margin's outer `sqrt`.** `frame_gap`
+  read its Gram eigenvalue as a straddling enclosure for two
+  coincident conics, so the margin was `Invalid`
+  (`curve_pair_pose_one_curve`). The eigenvalue is non-negative by
+  construction and is clamped at zero (`4c9ef9805f`). Pinned by
+  `curve_pair::one_curve_rows::a_conic_read_twice_is_one_curve_at_interval`.
+- **`die_pips`, `die_tool`, `die_composed`, `die_composed_tour`: two
+  angle cuts.** A pip's rim on the face `z = 1` against its section
+  arc in the plane `y = 0.5`: the rim's height above that plane has
+  cosine part `−r` and sine part an enclosure of zero, so
+  `atan2(sp, cp)` straddled its branch cut and read `θ_hi` as the turn
+  `[−π, π]`. The root gap's chord between `C(θ_hi ± ψ)` then read
+  `[0, 0.228]` and escalated (`curve_pair_pose_root_gap`), where
+  `f64` reads the two ends' joint. `angle` reads the angle a turn on,
+  `atan2(−y, −x) + π`, where `x` reads negative; every reader takes it
+  modulo a turn. It serves the line × conic and transverse harmonics,
+  the coplanar circles' line of centres and the window's foot seed.
+  With it, `die_composed_tour` still refused on a pip touching the
+  section arc's plane at its lowest point (`Unsettled::Meter`): the
+  polish's reach read the angle from `θ_hi` through
+  `reduce_periodic_centred`, whose cut lies exactly at the touch, half
+  a turn on, so the reach was the whole half turn and the basin meter
+  refused. `separation` reads that angle from `θ_hi + π` past a
+  quarter turn. Pinned by
+  `curve_pair::meet_rows::a_height_harmonic_on_the_negative_axis_is_read_clear_of_the_cut`
+  (red on the principal branch, with the census's own
+  `root_gap` enclosure `[0, 0.228…]`) and
+  `curve_pair::meet_rows::a_touch_at_a_harmonics_lowest_point_is_read_clear_of_the_cut`
+  (red without `separation`, `Unsettled::Meter`), each a pair taken
+  from the corpus in its `Interval` enclosures.
+
+## Closed
+
+Both rows are green on `fuse/interval-one-curve-margin`:
+`m10_di_dual_corpus::assemble_census_verdicts_match_f64_at_interval`
+passes, with `f64` and `Interval` agreeing on every corpus document,
+and `perf12_census_goldens` stays green with no golden moved. Run
+locally: `nextest -p geom -p geom-brep -p topo -p sweep -p editor-core`,
+11173 passed and 0 failed.

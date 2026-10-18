@@ -929,6 +929,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::ProfileLaneReplay => "profile_lane_replay",
         C::ProfileAnchor => "profile_anchor",
         C::ProfilePieces => "profile_pieces",
+        C::ProfileRecordMissing => "profile_record_missing",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -999,7 +1000,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PoseRead => "pose_read",
         C::PoseDegenerate => "pose_degenerate",
         C::PoseScalar => "pose_scalar",
-        C::NonPositiveCount => "non_positive_count",
+        C::CountOutOfRange => "count_out_of_range",
         C::NegativeSpacing => "negative_spacing",
         C::DegenerateSpacing => "degenerate_spacing",
         C::DegenerateStep => "degenerate_step",
@@ -1130,8 +1131,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
-        NodeErrorKind::ProfileAnchor { .. } => None,
+        NodeErrorKind::ProfileAnchor => None,
         NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
+        NodeErrorKind::ProfileRecordMissing { .. } => None,
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1181,7 +1183,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::Chart => "chart",
         }),
         NodeErrorKind::PoseScalar { .. } => None,
-        NodeErrorKind::NonPositiveCount { .. } => None,
+        NodeErrorKind::CountOutOfRange { .. } => None,
         NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing
         | NodeErrorKind::DegenerateStep

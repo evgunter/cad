@@ -435,7 +435,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
         ),
         (
             InterrogateError::NoSuchBody { index: 2 },
-            vec!["index 2", "kernel bug"],
+            vec!["index 2", geom_core::KERNEL_DEFECT_ENDING],
         ),
         // The kernel's own words are forwarded, not paraphrased.
         (

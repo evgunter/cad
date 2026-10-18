@@ -288,9 +288,9 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
 
 /// **A registered boolean document's bytes survive the migration**:
 /// save → load → save reproduces the file exactly. The document is
-/// `crossing_slots` — two subtracts, one carrying declared pairs —
-/// so the wire spelling under pin includes the boolean node's whole
-/// payload: the op, both operand edges and the declared pairs. The
+/// `crossing_slots` — two subtracts — so the wire spelling under pin
+/// includes the boolean node's whole payload: the op and both operand
+/// edges. The
 /// corpus-wide round-trip covers the same bytes; this is the
 /// per-document form beside the digest row, so a red here names the
 /// boolean rather than the registry.
@@ -317,20 +317,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// method on the boolean's own channels.
 ///
 /// The three documents split the semantics between them:
-/// `crossing_slots` runs subtract twice, once with a DECLARED rest
-/// contact (so `resolve_declarations`' face-pair arm exercises under
-/// pin) and once undeclared; `heat_sink` runs the union chain;
-/// `kiss_carry` is the one whose boolean values carry NON-EMPTY
-/// surviving contacts (a discovered corner kiss, then the same record
-/// re-entered through `resolve_declarations`' carried-v-v arm). The
-/// digest feeds the boolean value's kind and contacts beside the
-/// stamped body and the name table, so the constants cover exactly
-/// what `wire_boolean` writes.
+/// `crossing_slots` runs subtract twice, the second against a floor
+/// coplanar with the first cavity's, a rest contact the subtract glues;
+/// `heat_sink` runs the union chain; `kiss_carry` is the one whose
+/// boolean values carry NON-EMPTY surviving contacts (a corner kiss the
+/// first union discovers, then the same record the second union carries
+/// from its operand). The digest feeds the boolean value's kind and
+/// contacts beside the stamped body and the name table, so the
+/// constants cover exactly what the pair lowerings write.
 ///
 /// `kiss_carry` is load-bearing for the contacts half, MEASURED: on
 /// the other two documents alone, replacing the lowering's contact
 /// carry with `ContactRecords::default()` leaves every constant
-/// standing (their surviving records are empty — declared REST
+/// standing (their surviving records are empty — glued REST
 /// contacts are consumed into seam structure), so the channel was fed
 /// but dead. With `kiss_carry` pinned that same mutation reds its
 /// row (the other two constants stand, re-measured); deleting the

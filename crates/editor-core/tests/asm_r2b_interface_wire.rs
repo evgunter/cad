@@ -118,8 +118,7 @@ fn an_inhabited_interface_record_round_trips() {
     );
     assert!(
         text.contains("\"rest\""),
-        "the class rides the SAME stable spelling a Declare pair's and a \
-         Mate's do: {text}"
+        "the class rides the stable spelling a Mate's does: {text}"
     );
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the record round-trips bit for bit");
