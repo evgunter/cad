@@ -382,7 +382,7 @@ impl core::fmt::Display for WorldReadFault {
 /// **What a mate's `to` reads** (D10, spec Q7): a pose variable read
 /// off geometry of the space the copy joins, or the world.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields, bound = "")]
+#[serde(rename_all = "snake_case", bound = "")]
 pub enum Target<S: crate::Slot = crate::VarId> {
     /// A pose variable of the space the copy joins.
     Pose(S::Read),
@@ -593,7 +593,7 @@ pub struct Constraint<S: crate::Slot = crate::VarId> {
 /// **What a constraint states**: two poses equated, or one freedom a
 /// mate leaves set to a number.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields, bound = "")]
+#[serde(rename_all = "snake_case", bound = "")]
 pub enum ConstraintKind<S: crate::Slot = crate::VarId> {
     /// A mate.
     Mate(Mate<S>),
