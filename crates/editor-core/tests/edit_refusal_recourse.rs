@@ -180,8 +180,8 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
     .expect("a length variable declares beside the count");
 }
 
-/// A document holding a fillet whose selection was rebound onto a
-/// node inserted after the fillet, and that node's wall name before
+/// A document holding a shell whose open faces were rebound onto a
+/// node inserted after the shell, and that node's wall name before
 /// the rebind. A selection is a frozen name with no document-order
 /// rule, so the rebind is admitted and the reference points forward.
 fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
@@ -189,14 +189,14 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wb = wall(&doc, b, 0);
-    let (doc, fillet) = insert(
+    let (doc, shell) = insert(
         doc,
-        Node::Fillet {
-            radius: len(0.1),
-            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
+        Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
         },
     );
-    let doc = crate::fixture::place(doc, fillet).0;
+    let doc = crate::fixture::place(doc, shell).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));

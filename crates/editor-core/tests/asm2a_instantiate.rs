@@ -369,22 +369,18 @@ fn row2_one_part_two_instances_one_evaluation() {
 }
 
 /// **The instantiate node's verdict log is its own op's, and it is the
-/// same log whichever instance actually ran the part.** The op
-/// evaluates the referenced document INSIDE its own verdict bracket
-/// (the part cache's miss path), so the first instance's bracket has a
-/// whole nested evaluation opening and closing brackets under it; the
-/// second instance is a cache hit and runs none. Both frames must come
-/// back holding exactly the instantiate op's own decisions — the
+/// same at every instance of the part.** The part is evaluated once,
+/// under a shielding bracket, before any node runs; both instances'
+/// frames must come back holding exactly the instantiate op's own
+/// decisions — the
 /// placement and the geometric validation of the placed body — which
 /// is what "the verdicts a node's op produced" means when the op's
 /// work includes another document: that document's decisions are
 /// recorded on ITS nodes, in the nested evaluation, and never in the
 /// instantiator's frame.
 ///
-/// A log that is empty at the first instance and populated at the
-/// second is the signature of a nested bracket destroying its parent's
-/// frame; one that is LARGER at the first is the miss path's work —
-/// the part's own decisions — landing on whichever instance ran it.
+/// A log that is LARGER at the first instance is the part's own
+/// decisions landing on the instance that came first.
 #[test]
 fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_part() {
     let mut store = StubStore::default();
@@ -809,7 +805,8 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
 }
 
 /// Row 6 (memo half) — a placement edit MOVES the node's content key,
-/// so the memo does not hand back the old placement's body.
+/// so the memo does not hand back the old placement's body; the PART
+/// it places is the prior's, carried, so the edit evaluates no part.
 #[test]
 fn row6_placement_is_part_of_the_content_key() {
     let mut store = StubStore::default();
@@ -831,6 +828,11 @@ fn row6_placement_is_part_of_the_content_key() {
         Tol::witness(),
     );
     assert_eq!(second.reused, 0, "the placement edit invalidates the memo");
+    assert_eq!(
+        (first.part_evaluations, second.part_evaluations),
+        (1, 0),
+        "the cold run evaluates the part; a pose edit takes it from the prior"
+    );
     let body = product(&moved, &second, Tol::witness()).expect("gathers");
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
@@ -854,6 +856,62 @@ fn row6_placement_is_part_of_the_content_key() {
     assert_eq!(
         third.part_evaluations, 0,
         "a memo hit crosses no document seam"
+    );
+}
+
+/// Row 6 (schedule) — one part instanced three times is evaluated
+/// once under the parallel node map, at one thread and at four: the
+/// part is entered before the map runs, so no instance races for it.
+#[test]
+fn row6_a_part_instanced_three_times_is_evaluated_once_under_the_parallel_map() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-r6p-part", 0.0, 1.0), Tol::witness());
+    let opts = EvalOptions {
+        parallel: true,
+        ..with_resolver(store)
+    };
+    let (doc, ids) = assembly("asm2a-r6p-asm", &[doc_ref, doc_ref, doc_ref]);
+    for threads in [1, 4] {
+        let ev = fixture::on_pool(threads, || run(&doc, &opts));
+        assert_eq!(
+            ev.part_evaluations, 1,
+            "{threads} thread(s): three instances, one part, one evaluation"
+        );
+        for &id in &ids {
+            assert!(
+                matches!(ev.result(id), Some(NodeResult::Ok(_))),
+                "{threads} thread(s): instance {} evaluates",
+                id.0
+            );
+        }
+    }
+}
+
+/// Row 6 (faults) — a part row that faulted is not carried: the run
+/// that names its evaluation as prior asks the seam again, and a seam
+/// that now answers serves the part.
+#[test]
+fn row6_a_faulted_part_is_asked_again_on_the_next_run() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-r6f-part", 0.0, 1.0), Tol::witness());
+    let (doc, ids) = assembly("asm2a-r6f-asm", &[doc_ref]);
+    let refused = run(&doc, &EvalOptions::default());
+    assert_eq!(part_fault(&refused, ids[0]), PartFault::NoResolver);
+    let served = evaluate::<f64>(
+        &doc,
+        Some(&refused),
+        &CancelToken::new(),
+        &with_resolver(store),
+        Tol::witness(),
+    );
+    assert_eq!(
+        served.part_evaluations, 1,
+        "the faulted row was carried rather than asked again"
+    );
+    assert!(
+        matches!(served.result(ids[0]), Some(NodeResult::Ok(_))),
+        "the instance takes the part the seam now serves: {:?}",
+        served.result(ids[0])
     );
 }
 

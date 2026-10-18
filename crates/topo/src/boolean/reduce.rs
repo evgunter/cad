@@ -648,6 +648,18 @@ fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
                         Some(kind @ geom::SurfaceKind::Nurbs) => {
                             super::PointInSolidError::KindUnsupported { face, kind }
                         }
+                        // A whole wall whose window a boundary edge
+                        // leaves unclaimed (a spiric, or no sound box).
+                        Some(geom::SurfaceKind::Cylinder)
+                            if crate::census::boundary_unclaimable(body, face) =>
+                        {
+                            super::PointInSolidError::WallOutlineUnsupported { face }
+                        }
+                        Some(geom::SurfaceKind::Cone)
+                            if crate::census::boundary_unclaimable(body, face) =>
+                        {
+                            super::PointInSolidError::PartialConeFace { face }
+                        }
                         _ => super::PointInSolidError::CorruptFace { face },
                     },
                 ));

@@ -5904,3 +5904,81 @@ Residue filed by the unit: `wire-rs-defaults-two-missed-records-to-empty`,
 pass, filed here) `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5263 (merged-chord rule): full review NOT mergeable, one MAJOR
+
+The reviewer built a legal recipe the rule mis-names: a chord that crosses
+the merged-away boundary between the two constituents. The pick read only
+the chord's middle, so it cited one piece confidently (and flipped with the
+cut's extent), and the vertex pass then refused a bug-framed `Emission`
+where main had refused typed `MergedChordConstituents`. Its sibling
+`rim_holding` reads the whole chord. Fix pass sent: pick only a constituent
+that holds the whole chord, otherwise keep the typed refusal; propagate
+containment errors; restore a guard that a legal recipe never reads as a
+kernel bug. The lesson is the brief's: "the fixture passes" is not "the
+rule is stated", and the reviewer's mutants proved the fixture caught wrong
+picks but not wrong premises.
+
+Filed `a-chord-spanning-two-merged-constituents-has-no-name` (design): what
+a spanning chord is named, and whether N2 should state the chord-descent
+rule at all (new ratified text, so Ev's if so).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — dispatched `wire-pinch` (`wire/union-fold-pinch-row`)
+
+`a-union-fold-publishes-no-pinch-row` with the union pin that closes
+`a-pinch-vertexs-name-depends-on-the-unions-member-order`. Review tier:
+FULL single (which rows a fold publishes is a confident-wrong-record
+failure mode). Told to stop on held ground or a fork over which pinch rows
+a fold publishes.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-PARTCACHE converged in round 1; dispatching
+
+Both designers rejected the framing (how to make the lock safe) and
+recommended one final state: the top evaluation enters its parts in a
+serial pre-pass, as nested evaluations already do, carrying rows across
+evaluations from the prior; the cache becomes an immutable lock-free
+table. The decision is on `part-cache-lock-held-across-a-nested-rayon-join`;
+WIRETAIL's `part-cache-miss-samples-…` moved here to ride with it. Both
+struck the row's fresh-pool sketch as unsound by reading rayon-core's
+`in_worker_cross`. Not Ev's (agent-written text only); no fork-log row.
+
+Review tier: FULL single — a new evaluation stage, but reversible.
+
+FORK-FOLDPINCH: designer B reported that ratified DM4 (PR 4323) already
+answers the fold-pinch question (publish the judgement's pinch rows whole,
+in member space; a covered contact keeps its pair's row). Waiting on A.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — correction: FORK-PINCHNAME is design-fork log row 157
+
+INTENT recorded its own row 156 concurrently; the merge of main into PR 5258 renumbered this program's row to 157. The entry above saying "row 156" means 157.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5263 MERGED (`6bf23859b7`): the P0 merged-chord rule
+
+Three rounds: full review (one MAJOR: the middle-point pick named a
+chord spanning both constituents confidently, and the pick flipped with
+the cut), fix pass (pick only an unjoined chord whose middle one
+constituent holds; ends checked), delta review (mergeable; every wrong-pick
+mutant caught, the join premise unbroken), a last small push. CI fully
+green on the head. P0 row closed; the spanning chord's name stays on its
+own design row. Merged before it: PR 5258 (`5be81cde65`, the N2 Split
+vertex `Keeps` rule Ev approved) and PR 5270 (`56a650efc7`, the union
+pinch-name pin and the FORK-FOLDPINCH decision).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5264 MERGED (`a3a5bf6d05`): a selection's kind is the doors'
+
+FORK-ENTITYDOOR built; both rows closed. Full review approved with fixes
+(the author-facing refusal had lost the verb and the name); fix pass gave a
+kind fault its own sentence and checked every name against an `Is` seat's
+kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
+
+Signed (WIRE orchestrator).

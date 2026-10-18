@@ -52,4 +52,23 @@ escalates, find which vertex and edge the margin is read between. Then
 decide whether the census is reading a real near-touch between the
 lobes, which the split would owe a contact record for, or a proxy.
 
+## Measured after the edge-face lane fix (2026-10-17)
 
+Re-run at δ = 0.9 ε, ε = 1e-9, the same five poses either way up.
+`pm_census_ef_cut_gap` and the edge-face crossing reading's
+`curve_pair_pose_offset` (1.443 ε, 2.391 ε) no longer escalate.
+`a_notch_floor_in_the_band_splits_sound` now asserts that, and that
+nothing outside the edge-edge lane is refused.
+
+What still escalates, on every piece: `pm_census_ee_gap` at 2.391 ε
+and `pm_census_ee_parallel` at 1.443 ε. Both are read between the two
+straight edges through the floor vertex, e.g. `EdgeKey(14v3)` from the
+floor `(2, 0.9578, 1 + 0.9 ε)` along +y for 0.129 and `EdgeKey(22v1)`
+from `(2, 0.7436, 1)` to the floor, at rest. The two edges continue
+each other end to end through one shared point, kinked by 0.9 ε. Each
+far end lies 1.44 ε / 2.39 ε off the other's LINE, so this is a proxy
+for a segment, not a near-touch between the lobes. It is the shape of
+`the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair`
+and `the-census-crossing-lane-escalates-a-line-gap-where-the-segments-lie-far-apart`.
+Re-run once those land. If tier 3′ is then `Ok`, tighten the assertion
+to `Ok(())` and close this row.

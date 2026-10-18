@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-25
 priority: P0
 cost: M
-refs: [two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted, union-refuses-in-some-member-orders-and-publishes-in-others]
+refs: [3897, union-refuses-in-some-member-orders-and-publishes-in-others]
 branch: cleave/interior-witness
 pr: 3655
 closed: 2026-10-01
@@ -55,7 +55,7 @@ the pairwise chain `(a ∪ c) ∪ b` hits the same fallback.
 
 ## Not the same defect as the zip row
 
-`work/fuse/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
+`two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted` (closed, PR 3897)
 hands the boolean one body twice, which is a state no document should
 reach, and the fix it proposes is an operand-identity refusal before
 the kernel runs. That fix would not reach this case, because `b` and
