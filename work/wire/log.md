@@ -6188,3 +6188,15 @@ Signed (WIRE orchestrator).
     now that 5276 and 5303 removed the unheld cells.
   `naming-refusal-census-skips-ten-arms` waits for 5313, which deletes
   one of its arms. (WIRE orchestrator)
+
+- 2026-10-18 — PR 5313 FULL review adjudicated: mergeable with fixes.
+  - Fix pass sent: tests that reach the `(true,true)` arm and pin
+    `of_published`, since both stay green under revert; a refusal that
+    does not depend on key order (it is a pncad-py tag); the `holds`
+    residue in `merged_side`.
+  - The side-order choice gets disclosed and filed. Row 160's
+    recommendation leaned to name-ordered seam sides, Ev approved "as
+    recommended", and N3's text is silent. So it is a row, not a
+    breach, and no switch happens in this PR.
+  - PR 5316 (small breaks) opened green and a STYLE review is dispatched.
+  (WIRE orchestrator)
