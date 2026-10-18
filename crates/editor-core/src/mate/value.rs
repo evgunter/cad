@@ -211,7 +211,9 @@ pub(crate) fn settle<T: SolveScalar>(
     // to admit slides on two mates would otherwise place the copy off a
     // mate it holds, saying nothing.
     assert!(
-        slides.windows(2).all(|w| w[0].mate == w[1].mate),
+        slides
+            .windows(2)
+            .all(|w: &[&ReadValue<T>]| w[0].mate == w[1].mate),
         "the bundle rule admits slides on one mate's chart alone"
     );
     // Spins first: every slide after them re-measures the copy's origin.
