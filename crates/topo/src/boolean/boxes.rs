@@ -940,15 +940,11 @@ pub(crate) type WindowStep<'a, T> =
 /// # Why the window is a superset of the face's chart region
 ///
 /// The face's region is the planar region its loops' chart images
-/// bound, in the lift the pcurve mint certified closed (the argument
-/// `boolean::solid_contain`'s `bool_torus_chart_closure` makes,
-/// verbatim), and a region lies inside the bounding rectangle of its
-/// own boundary.
+/// bound, in the lift the pcurve mint certified closed, and a region
+/// lies inside the bounding rectangle of its own boundary.
 ///
 /// **That argument needs the boundary to SAY which side is material,
-/// and two guards are what make it hold.** They are the Decide lane's
-/// (`solid_contain::torus_chart_windows`), carried here because the
-/// box contract is the same statement:
+/// and two guards are what make it hold:
 ///
 /// - **A face with a RING gets no window.** Two loops can be pinned on
 ///   different branches, and their hull is then a rectangle neither
@@ -3980,6 +3976,42 @@ pub(crate) mod tests {
         u_ref: Vec3<f64>,
         major: f64,
         minor: f64,
+        us: (f64, f64),
+        vs: (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        torus_wall_sensed(false, periods, center, axis, u_ref, major, minor, us, vs)
+    }
+
+    /// [`torus_wall`]'s loop under the chart's own normal (`sense: true`),
+    /// which it runs CLOCKWISE: the face is then the rest of the torus,
+    /// the patch's complement.
+    #[allow(clippy::too_many_arguments)] // `torus_wall`'s
+    pub(crate) fn torus_wall_clockwise(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        us: (f64, f64),
+        vs: (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        torus_wall_sensed(true, 0.0, center, axis, u_ref, major, minor, us, vs)
+    }
+
+    /// The wall, its face carrying `sense`. The `mef` leaves the face a
+    /// loop that runs clockwise in the chart `(u, v)`, whose normal is the
+    /// torus's outward one; under `sense: false` the face's outward normal
+    /// points into the tube, the loop runs counterclockwise under it, and
+    /// the face is the patch.
+    #[allow(clippy::too_many_arguments)] // `torus_wall`'s, the offset and the sense
+    fn torus_wall_sensed(
+        sense: bool,
+        periods: f64,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
         (u0, u1): (f64, f64),
         (v0, v1): (f64, f64),
     ) -> (Body<f64>, FaceKey) {
@@ -4142,10 +4174,7 @@ pub(crate) mod tests {
                     he2: e_b.he_plus,
                 },
                 left,
-                FaceSurface::Shared {
-                    key: torus,
-                    sense: true,
-                },
+                FaceSurface::Shared { key: torus, sense },
                 Tol::witness(),
             )
             .unwrap()
