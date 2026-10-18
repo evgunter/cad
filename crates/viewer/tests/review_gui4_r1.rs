@@ -398,10 +398,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
 
-    // A SECOND mate naming the same pair: whatever the document layer
-    // decides, the session must not report success while the tree hides
-    // a refusal. Both outcomes are acceptable; a green tree over a
-    // second unresolved constraint is not.
+    // A SECOND mate naming the same pair fixes the seating plane the
+    // first already fixes: the edit door refuses it (the bundle rule),
+    // and the tree keeps the first mate and its values.
     let second = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
@@ -409,22 +408,21 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         asm::middle_seat_values(),
     ));
     session.pump();
-    let rows = session.tree_rows();
-    let all_ok = rows.iter().all(|r| r.status == RowStatus::Ok);
     assert!(
-        second.refusal.is_some()
-            || !all_ok
-            || common::row_of(&rows, bench.post_b).constraints.len() == 2,
-        "a second mate on the same pair is either refused at the door or visible in \
-         the tree; it is never invisible: refusal={:?} rows={rows:?}",
-        second.refusal
+        second.refusal.is_some(),
+        "a second mate on the same pair is refused at the door"
+    );
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::row_of(&rows, bench.post_b).constraints.len(),
+        4,
+        "the first mate and its three values, and nothing of the second"
     );
 
-    // Free-move now refuses on BOTH participants. The shelf lives in
-    // the world's space; post_b, under the two mates, is a placement
-    // the evaluation refuses, so it is in no space at all. Either way
-    // there is no loose space to move.
-    for (participant, in_the_world) in [(bench.post_b, false), (bench.shelf_i, true)] {
+    // Free-move now refuses on BOTH participants: the shelf lives in
+    // the world's space, and post_b, mated onto it, in the world's
+    // space too. There is no loose space to move.
+    for participant in [bench.post_b, bench.shelf_i] {
         match session
             .perform(SessionOp::BeginFreeMove {
                 instance: participant,
@@ -433,10 +431,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         {
             Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
                 instance,
-            }))) if in_the_world => assert_eq!(instance.id(), participant),
-            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::NoSpace {
-                instance,
-            }))) if !in_the_world => assert_eq!(instance.id(), participant),
+            }))) => assert_eq!(instance.id(), participant),
             other => panic!("{participant:?} must refuse the probe, got {other:?}"),
         }
     }
