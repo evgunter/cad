@@ -808,11 +808,11 @@ from pncad import (
     Coord,
     Doc,
     DocRef,
+    EditError,
     EntityKind,
     EvaluationError,
     Formula,
     Mate,
-    MateSide,
     NamePat,
     Node,
     OVERCONSTRAINED_RECOURSE,
@@ -973,21 +973,23 @@ except AssemblyError as refusal:
 
 # 4. A PLANE READ OFF AN EDGE. A plane is read off a face, and Python
 #    holds names as opaque text, so a plane read off an edge's name is
-#    built and admitted — the door is structural — and refused where
-#    the placement evaluates: the pose did not evaluate, which side,
-#    the evaluation's own word, and its refusal typed as the cause.
+#    built, and the edit door refuses it: a selection's kind is the
+#    name's own, held where the selection is written, and the sentence
+#    names the side and what the name denotes.
 doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
-mate = doc.constrain(post_i, Mate(
-    PoseDef.plane(post_i, edge),
-    PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
-    ContactClass.Rest,
-))
-fault = solve_document(doc, resolver=store).fault(post_i)
-assert fault.variant == "mate_side_unevaluated"
-assert (fault.mate, fault.side, fault.error) == (mate, MateSide.On, "select_kind")
-assert "edge, not a face" in str(fault.cause)
+try:
+    doc.constrain(post_i, Mate(
+        PoseDef.plane(post_i, edge),
+        PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
+        ContactClass.Rest,
+    ))
+except EditError as err:
+    assert err.variant == "selection_name_kind"
+    assert "edge, not a face" in str(err)
+else:
+    raise AssertionError("an edge-read plane is refused at the door")
 
 # 5. NOTHING TO GATHER. Evaluated with no resolver, the shelf instance
 #    — a placement pinned to the world — produced no copies, so the

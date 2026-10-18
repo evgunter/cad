@@ -1121,27 +1121,25 @@ class TestAssemblyRefusals(BenchWorkspace):
         ]
         self.assertTrue(seats, "the seat is the two copies' finding")
 
-    def test_a_plane_read_off_an_edge_refuses_where_its_placement_evaluates(self):
+    def test_a_plane_read_off_an_edge_refuses_where_the_mate_is_added(self):
         """A mate's declaration is a FACE-PAIR contact, and a plane is
         read off a face. Python holds names as opaque text, so a plane
-        read off an EDGE's name is built and admitted — the door is
-        structural, and does not evaluate — and refused where the
-        placement evaluates: the pose did not evaluate, which side, the
-        evaluation's own word, and its refusal typed as the cause."""
+        read off an EDGE's name is built, and the edit door refuses it:
+        a selection's kind is the name's own, held where the selection
+        is written (`selection_name_kind`), with the side and the
+        evaluation's own word in its sentence."""
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
-        mate = doc.constrain(
-            post_i,
-            Mate(PoseDef.plane(post_i, edge), PoseDef.flip(PoseDef.plane(shelf_i, bottom)), ContactClass.Rest),
-        )
-        fault = solve_document(doc, resolver=self.ws).fault(post_i)
-        self.assertEqual(fault.variant, "mate_side_unevaluated")
-        self.assertEqual((fault.mate, fault.side), (mate, pncad.MateSide.On))
-        self.assertEqual(fault.error, "select_kind")
-        self.assertIsInstance(fault.cause, pncad.EvaluationError)
-        self.assertIn("edge, not a face", str(fault.cause))
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.constrain(
+                post_i,
+                Mate(PoseDef.plane(post_i, edge), PoseDef.flip(PoseDef.plane(shelf_i, bottom)), ContactClass.Rest),
+            )
+        self.assertEqual(caught.exception.variant, "selection_name_kind")
+        self.assertIn("side on", str(caught.exception))
+        self.assertIn("edge, not a face", str(caught.exception))
         # The same mate read off the face places the post, so the
         # refusal above is the KIND's and not the fixture's.
         top = one(ev.select(post_i, cap_selector(CapEnd.End, PART_FACE)))
