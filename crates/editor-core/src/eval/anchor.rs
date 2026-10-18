@@ -186,13 +186,13 @@ impl core::fmt::Display for PiecesFault {
         match self {
             Self::NoRecord { loop_ } => write!(
                 f,
-                "program loop {loop_} has no replay record to name its pieces by, which is a \
-                 kernel bug"
+                "program loop {loop_} has no replay record to name its pieces by. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NoIds { loop_ } => write!(
                 f,
-                "program loop {loop_} has no minted step ids to name its pieces by, which is \
-                 a kernel bug"
+                "program loop {loop_} has no minted step ids to name its pieces by. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Length {
                 loop_,
@@ -201,12 +201,14 @@ impl core::fmt::Display for PiecesFault {
             } => write!(
                 f,
                 "program loop {loop_} replayed {recorded} segments but its canonical loop has \
-                 {anchored}, which is a kernel bug"
+                 {anchored}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NoStepId { loop_, step, ids } => write!(
                 f,
                 "step {step} of program loop {loop_} drew a piece but the loop has only {ids} \
-                 minted step ids, which is a kernel bug"
+                 minted step ids. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
         }
     }

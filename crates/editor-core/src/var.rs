@@ -1,4 +1,4 @@
-//! **A document variable** (`docs/VARIABLES-DESIGN.md`, VR1–VR3): an
+//! **A document variable** (`crates/editor-core/VARIABLES.md`, VR1–VR3): an
 //! identity minted from the document's mint chain, a kind fixed at
 //! minting, and a definition.
 //!

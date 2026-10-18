@@ -23,3 +23,17 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 29.5 points.
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
 
 - 2026-10-10 — CONTACTHOLD claimed `census-backstop-separates-curved-pairs-only-along-world-axes` (moved by git mv) after measuring it through its tube-rim row; ORBIT's twin closed as a duplicate. (CONTACTHOLD orchestrator)
+
+## 2026-10-17 — picked up
+
+An orchestrator holds the track (`status: active`). Load on pickup:
+45.5 against 30, 18 rows dispatchable. Read against the D10 hold
+(`d10-one-way-to-say-intent-is-unbuilt`; DESIGN.md "State of the
+build") and the live [ev] PR 4666 (the census records what it
+decides): the five P0 near-band rows, `at-infinity-probe-…`,
+`torus-face-bounded-by-an-oblique-circle-…`, `a-split-whose-notch-floor-…`
+and the two P3 numeric rows stand clear of it. First dispatch: the
+crossing lane and the edge-on-face lane (plan.md, Order).
+— (RESTREAD orchestrator)
+- 2026-10-17 — Dispatched `restread/crossing-lane` (the three edge–edge P0 rows; collinear-overlap P3 as an optional rider) and `restread/edge-face-lane` (the two edge-on-face P0 rows; face-reach NaN box riding; the notch-floor witness re-run after). Review tier set at adjudication. Parked six rows on the D10 hold and moved them to CONTACTHOLD (plan.md, Read against the D10 hold), with Ev's agreement in chat; the cross-solid row keeps its certify-apart half. Load after: 30.5 against 30, 11 of it the two lanes in flight (their rows are left unmarked so the lanes own their files). — (RESTREAD orchestrator)
+- 2026-10-17 — Torus row weighed by two designers (Opus, Fable), concurrent, same problem statement. Both rejected the framing and agreed on the final state: one torus region reading replacing the chart-window class, which also closes INSIDE's L-shaped-face row (claimed, rides). They differed only on computing a crossing in the chart (one closed form per image kind) or in 3-D (one first harmonic against each edge's plane); ruled 3-D, logged in the row. No [ev] PR: not a fork Ev's preference decides, so no design-fork log row. `design` cleared. Their shared off-question notes went into the row's owed list. — (RESTREAD orchestrator)
