@@ -6041,3 +6041,15 @@ counts, not spellings. Fix pass sent; three class rows to file
 hand-written lineage chases).
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5276 (fold rows in member space): mergeable, two duplicate classes taken into a fix pass
+
+No MAJOR; every pinch row it now publishes is true; the lint's findings equal
+the row count over 11 fixtures in every order. Two duplicate-row classes,
+mostly pre-existing: identical fold rows pushed twice (the citation only
+searched judged rows), and a repeated read making two identical judged
+rows. One keyed table over (unordered cells, relation) for judged and
+already-published fold rows closes both. The pin only asserted presence;
+it now asserts the multiset.
+
+Signed (WIRE orchestrator).
