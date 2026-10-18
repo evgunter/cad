@@ -6906,4 +6906,36 @@ mod sphere_rect_rows {
             |b| reach(b),
         );
     }
+
+    #[test]
+    fn r2_split_the_lone_rim() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (base, _n, _s) = strut_cap_ball(-0.5, 0.3, (true, false));
+        assert_eq!(crate::pcurves::validate_pcurves(&base, band), vec![]);
+        let rim = base
+            .edges()
+            .find_map(|(e, edge)| {
+                let c = base.get_curve_geom(edge.curve)?.certified()?;
+                matches!(c.carrier(), Curve3::Circle { axis, .. } if axis.z > 0.5).then_some(e)
+            })
+            .unwrap();
+        let dump = |b: &Body<f64>, tag: &str| {
+            for (he, pc) in b.pcurves() {
+                let (a, c) = pc.params();
+                eprintln!("  {tag} {he:?} [{a:.4},{c:.4}] at a {:?} b {:?} joint-in {:?}", pc.pcurve().eval(a), pc.pcurve().eval(c), b.joint(he));
+            }
+        };
+        dump(&base, "base");
+        let mut bad = vec![];
+        for t in [1.0, 3.0, 4.0, 4.5, 5.0, 5.5, 6.0] {
+            let mut body = base.clone();
+            body.split_edge(rim, t, Tol::witness()).unwrap();
+            let v = crate::pcurves::validate_pcurves(&body, band);
+            let full = crate::validate(&body);
+            eprintln!("split at {t}: pcurves {v:?}; validate {:?}", full.as_ref().map_err(|e| e.len()));
+            dump(&body, &format!("t={t}"));
+            if !v.is_empty() || full.is_err() { bad.push(t); }
+        }
+        assert!(bad.is_empty(), "splits that broke: {bad:?}");
+    }
 }
