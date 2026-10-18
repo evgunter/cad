@@ -1274,10 +1274,11 @@ fn deleting_a_frames_root_drops_it_at_the_edit() {
 }
 
 /// **A gesture whose copy a refusal takes waits for the committed
-/// landing too**, as a frame does: two seats over-constrain post_b
-/// under a free-move in flight on it, a value drag's scratch landing
-/// keeps the gesture, and the committed landing after the cancel kills
-/// it, saying the post is in no space.
+/// landing too**, as a frame does: a ball mate on post_b's top centre,
+/// which a plane has none of, is admitted at the door and refused where
+/// post_b evaluates, under a free-move in flight on it. A value drag's
+/// scratch landing keeps the gesture, and the committed landing after
+/// the cancel kills it, saying the post is in no space.
 #[test]
 fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     let tol = Tol::witness();
@@ -1290,15 +1291,8 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
         instance: bench.post_b,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    for _ in 0..2 {
-        let seat = session.perform(asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ));
-        assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
-    }
+    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
+    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
     drag_and_land(&mut session, pattern);
     assert!(
         session

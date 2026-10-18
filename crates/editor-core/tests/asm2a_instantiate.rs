@@ -1611,7 +1611,12 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
 
 /// Two instances of a unit cube, the second a unit along `x`, glued on
 /// their touching walls: the document, the union, and its rows.
-fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::NamedCoincidence>) {
+fn two_cubes_glued_on_a_wall() -> (
+    ProfileDoc,
+    RecipeNodeId,
+    Vec<editor_core::NamedCoincidence>,
+    EvalOptions,
+) {
     let mut store = StubStore::default();
     let part_doc = part("asm2a-door-part", 0.0, 1.0);
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
@@ -1634,33 +1639,55 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
         .coincidences
         .to_vec();
     assert!(!rows.is_empty(), "the touching walls are a row");
-    (doc, union, rows)
+    (doc, union, rows, opts)
 }
 
-/// **The coincidence door says when a row stands on a part.** The
-/// door's replay with every variable a symbol resolves no part (a
-/// symbolic run crosses no part seam), so each row says that, rather
-/// than that the replay refused, and names an assertion as its recourse.
+/// **A symbolic run builds a part, and the door does not ask it to.**
+/// Evaluated at `Sym` with every variable a symbol and the evaluation's
+/// resolver, the two cube instances and their union build: each part's
+/// variables are symbols of the part's own pinned version, so nothing
+/// across the seam refuses. The door's replay builds no placed copies
+/// ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until the seat
+/// item turns it on), so handed the evaluation's resolver or none, each
+/// row on a part says the replay resolved no part and names an
+/// assertion as its recourse.
 #[test]
-fn the_doors_replay_names_a_row_on_a_part() {
-    let (doc, union, rows) = two_cubes_glued_on_a_wall();
-    let proofs = editor_core::coincide::prove(
-        &doc,
-        &[(union, &rows[..])],
-        Tol::witness(),
-        &CancelToken::new(),
-    )
-    .expect("an uncanceled door");
-    for proof in proofs.into_iter().flatten() {
+fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
+    let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
+    let symbols = EvalOptions {
+        symbols: true,
+        ..opts.clone()
+    };
+    let ((), _) = editor_core::coincide::with_replay_session(symbols, |o| {
+        let ev: editor_core::Evaluation<geom_core::Sym<f64>> =
+            editor_core::evaluate(&doc, None, &CancelToken::new(), o, Tol::witness());
         assert!(
-            matches!(
-                &proof,
-                editor_core::Proof::Unproven { residual, recourse }
-                    if residual.replay == editor_core::Unreplayed::ThroughAPart
-                        && *recourse == editor_core::coincide::Recourse::Assert
-            ),
-            "{proof:?}"
+            ev.value(union).is_some(),
+            "the union over two part instances builds at Sym: {:?}",
+            ev.result(union)
         );
+    });
+    for resolver in [None, opts.resolver.as_ref()] {
+        let proofs = editor_core::coincide::prove(
+            &doc,
+            &[(union, &rows[..])],
+            resolver,
+            Tol::witness(),
+            &CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        for proof in proofs.into_iter().flatten() {
+            assert!(
+                matches!(
+                    &proof,
+                    editor_core::Proof::Unproven { residual, recourse }
+                        if residual.replay == editor_core::Unreplayed::ThroughAPart
+                            && *recourse == editor_core::coincide::Recourse::Assert
+                ),
+                "with a resolver {}: {proof:?}",
+                resolver.is_some()
+            );
+        }
     }
 }
 
@@ -1672,11 +1699,11 @@ fn the_doors_replay_names_a_row_on_a_part() {
 /// unproven instead.
 #[test]
 fn a_canceled_door_stops_in_its_replay() {
-    let (doc, union, rows) = two_cubes_glued_on_a_wall();
+    let (doc, union, rows, _) = two_cubes_glued_on_a_wall();
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        editor_core::coincide::prove(&doc, &[(union, &rows[..])], Tol::witness(), &cancel),
+        editor_core::coincide::prove(&doc, &[(union, &rows[..])], None, Tol::witness(), &cancel),
         Err(editor_core::coincide::Canceled)
     );
 }

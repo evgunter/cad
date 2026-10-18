@@ -36,7 +36,11 @@
 //!
 //! A row of the replay is the f64 row's when it was decided at the same
 //! node, at the same site, as the same ordinal among that site's rows
-//! there, between cells of the same names.
+//! there, between cells of the same names. An at-rest row is matched
+//! by no ordinal (the census is not re-run): its cells are read off the
+//! replay's copies by name, which stand where the f64 run's do because
+//! the deferring session takes every decision as the numeric channel
+//! takes it.
 
 use std::collections::BTreeMap;
 
@@ -49,6 +53,18 @@ use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+
+/// **Whether the replay builds placed copies to read them**: resolving
+/// the parts a document instances at `Sym`, and reading an at-rest row
+/// off the replay's copies by the carrier verdict. Off: an at-rest row
+/// is [`Unreplayed::NotReplayed`] and a row on a part
+/// [`Unreplayed::ThroughAPart`]. Measured on, it costs the viewer's
+/// door 10–20× on mated assemblies (about 4 s building the parts, about
+/// 15 s more reading the windmill's seats) and proves no mated seat
+/// within [`BUDGET`] while frames hold component symbols
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`,
+/// whose fix turns it on).
+pub const REPLAYS_PLACED_COPIES: bool = false;
 
 /// **The door's one strength**: the tier's budget, with the drive's
 /// retry ladder. A margin whose form outgrows it is not proved, and
@@ -106,11 +122,13 @@ type Left = (Unreplayed, Recourse);
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let symbols = EvalOptions {
         symbols: true,
+        resolver: resolver.filter(|_| REPLAYS_PLACED_COPIES).cloned(),
         ..EvalOptions::default()
     };
     let (out, _) = with_replay_session(symbols, |opts| {
@@ -151,7 +169,18 @@ fn prove_row(
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        return left(Unreplayed::NotReplayed);
+        if !REPLAYS_PLACED_COPIES {
+            return left(Unreplayed::NotReplayed);
+        }
+        // The census is not re-run: its row is read off the copies.
+        if cancel.is_canceled() {
+            return Err(Canceled);
+        }
+        return Ok(match band.map(|band| carrier_verdict(ev, row, band)) {
+            Some(Some(Ok(()))) => Ok(Rung::CarrierVerdict),
+            Some(Some(Err(why))) => Err(numeric(why)),
+            Some(None) | None => Err((at_rest_unread(ev, node, row), Recourse::Assert)),
+        });
     }
     let Some(value) = ev.value(node) else {
         return left(why_no_value(ev, node));
@@ -169,22 +198,44 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && carrier_verdict(ev, row, band)
+        && let Some(Ok(())) = carrier_verdict(ev, row, band)
     {
         return Ok(Ok(Rung::CarrierVerdict));
     }
     if cancel.is_canceled() {
         return Err(Canceled);
     }
-    Ok(match deferred::discharge_or_why(replayed.margin) {
-        Ok(()) => Ok(Rung::MarginIdentity),
-        Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
-            Err((Unreplayed::Numeric, Recourse::Assert))
-        }
-        Err(deferred::Undischarged::Otherwise) => {
-            Err((Unreplayed::Numeric, Recourse::OneConstruction))
-        }
-    })
+    Ok(deferred::discharge_or_why(replayed.margin)
+        .map(|()| Rung::MarginIdentity)
+        .map_err(numeric))
+}
+
+/// A form the tier read and did not discharge: a coincidence of values
+/// as far as the door can tell, its recourse one construction unless
+/// the form keeps a value computed apart from the variables.
+fn numeric(why: deferred::Undischarged) -> Left {
+    match why {
+        deferred::Undischarged::KeepsAnOpaqueAtom => (Unreplayed::Numeric, Recourse::Assert),
+        deferred::Undischarged::Otherwise => (Unreplayed::Numeric, Recourse::OneConstruction),
+    }
+}
+
+/// Why the replay offers no carrier verdict on an at-rest row: a copy
+/// it could not build (its placement or what it reads refused, or a
+/// part it resolves none for), else a pair of cells that is not two
+/// faces.
+fn at_rest_unread(ev: &Evaluation<Lane>, node: RecipeNodeId, row: &NamedCoincidence) -> Unreplayed {
+    let unbuilt = row.cells.iter().find_map(|cell| match cell {
+        NamedCell::Entity { input, .. } => ev
+            .table(*input)
+            .is_none()
+            .then(|| ev.read_port(*input).map_or(node, |(at, _)| at)),
+        NamedCell::Tool { .. } | NamedCell::Piece { .. } => None,
+    });
+    match unbuilt {
+        Some(at) => why_no_value(ev, at),
+        None => Unreplayed::NotReplayed,
+    }
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve
@@ -201,20 +252,26 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
-/// on is proven.
-fn carrier_verdict(ev: &Evaluation<Lane>, row: &NamedCoincidence, band: Band) -> bool {
+/// on is proven, or why the first that is not keeps; `None` where the
+/// replay reads no such verdict (not two faces, a face it did not
+/// build, or another relation decided).
+fn carrier_verdict(
+    ev: &Evaluation<Lane>,
+    row: &NamedCoincidence,
+    band: Band,
+) -> Option<Result<(), deferred::Undischarged>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
-        _ => return false,
+        _ => return None,
     };
     let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
-    let (Some((a, fa)), Some((b, fb))) = (a, b) else {
-        return false;
-    };
+    let ((a, fa), (b, fb)) = (a?, b?);
     match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
-        Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
-        _ => false,
+        Ok(Ok((relation, Some(margin)))) if relation == wanted => {
+            Some(deferred::discharge_or_why(margin))
+        }
+        _ => None,
     }
 }
 
