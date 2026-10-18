@@ -411,17 +411,27 @@ fn assert_builds(
     built: Result<topo::BooleanResult<f64>, BooleanError>,
     tol: Tol,
 ) {
+    assert_eq!(
+        built_census(what, shells, built, tol),
+        Ok(()),
+        "{what}: every pair is definite"
+    );
+}
+
+/// The census of a wall that builds with `shells` shells per solid.
+fn built_census(
+    what: &str,
+    shells: usize,
+    built: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
     let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
     assert_eq!(
         shells_per_solid(meet.body().expect("the wall is not empty")),
         [shells],
         "{what}: shells per solid"
     );
-    assert_eq!(
-        census(what, Ok(meet), tol),
-        Ok(()),
-        "{what}: every pair is definite"
-    );
+    census(what, Ok(meet), tol)
 }
 
 /// **Every thin wall refuses on a pair below `Kε` and builds above it**
@@ -430,7 +440,9 @@ fn assert_builds(
 /// the pair of cells across the wall; in `(Kε, 2Kε)` each builds, its
 /// `V/A` in band and every pair the census reads definite. At `Kε`
 /// itself the pair's margin rounds either way (it builds at ε = 1e-9,
-/// and refuses at 1e-6 on a margin a hair under `Kε`). The poses scale
+/// and refuses at 1e-6 on a margin a hair under `Kε`), and the census
+/// of a wall built there escalates the edge pairs whose reach or gap
+/// is `Kε` to within its rounding, or none. The poses scale
 /// with ε, and run at 1e-9 and 1e-6.
 #[test]
 fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
@@ -464,7 +476,22 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
                     "{what}: refuses only on a margin under Kε: {gap:e}"
                 );
             }
-            built => assert_builds(&what, shells, built, tol),
+            built => {
+                let errors = built_census(&what, shells, built, tol)
+                    .err()
+                    .unwrap_or_default();
+                let on_k_eps = |e: &ValidationError| {
+                    matches!(e, ValidationError::CensusEscalated { cause }
+                        if cause.predicate.is_some_and(|p| p.starts_with("pm_census_ee_"))
+                            && cause.margin.diagnostic_f64_for_error_text().value()
+                                .is_some_and(|m| (m.abs() - k_eps).abs() < 1e-9 * k_eps))
+                };
+                assert!(
+                    errors.iter().all(on_k_eps),
+                    "{what}: the census escalates only a pair whose reading rounds onto Kε: \
+                     {errors:?}"
+                );
+            }
         }
         for m in ABOVE_K {
             let t = m * tol.eps();
