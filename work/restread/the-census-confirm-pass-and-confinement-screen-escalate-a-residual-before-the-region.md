@@ -44,7 +44,11 @@ record is stale or the crossing unbacked.
 
 ## The shape to give
 
-As `pair_vertex_face` now does: decide the residual into a scratch
-vector, and when it escalates, run the branch its `Zero` reading would
-take. Push the escalation only where that branch finds something other
-than the off reading's answer.
+Route each site through `census::read_undecided`, the one home of the
+rule. Decide the margin into a scratch vector. When it escalates, run
+the branch (or branches) its other readings would take as
+`read_undecided`'s branches. Push the escalation, with
+`census::held`'s share of what the branches met, only where some branch
+finds something the off reading does not. `pair_vertex_face`,
+`pair_edge_face` and `edge_crossings`' chord-length gate are the three
+callers to copy.

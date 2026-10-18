@@ -40,12 +40,12 @@ gap. The same reorder serves `on_edge_interior`.
 
 ## Closed
 
-`census::ef_overlap_cells` now escalates a boundary vertex's line gap
-only where a vertex on the line would make a difference: the span would
-cut the edge's interior (both span decides `Positive`), or a span decide
-escalates. Where the vertex reads at or beyond an end, the gap reads
-`Zero` or `Positive` and the result is the same, no cut, so the gap is
-not pushed. `on_edge_interior` already read the span first, through
+`census::ef_overlap_cells` now cuts the edge at a boundary vertex
+through `on_edge_interior_reading`, the one point-on-span reading
+(`Span::contact`): it reads the span first, and reads the gap off the
+line only where the foot is inside the segment. A vertex at or past an
+end is that end's own cut, or no cut, whatever its gap. Pass 2's
+`on_edge_interior` already read the same way, through
 `Span::contact` (PR 5227). Measured on the probe's default grid: at
 ε = 1e-9, `pm_census_ef_cut_gap` drops from 411 to 0; at 1e-12, from
 21 to 0; at 1e-6, from 854 to 0. Pinned by `sweep`'s

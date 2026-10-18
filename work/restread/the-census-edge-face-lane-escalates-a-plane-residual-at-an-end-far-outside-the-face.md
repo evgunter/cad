@@ -52,7 +52,10 @@ on-plane branch (containment, then the declared rungs) is run. The
 residual is pushed, with any escalation the branch itself met, only if
 some branch finds something. Where no branch finds anything, the pair
 is a miss whichever reading is right. Decided residuals take exactly
-the path they did before.
+the path they did before. The rule lives in one helper, `census::read_undecided`. Under
+opposite hypothetical signs, the residuals' difference is decided first
+(`pm_census_ef_pierce_lever`): read `Zero` rules the signs out, and read
+definite it places the crossing.
 
 Measured on the probe's default grid, `pm_census_ef_residual` falls
 from 266 to 3 at ε = 1e-9 and from 562 to 4 at 1e-6. The few that
